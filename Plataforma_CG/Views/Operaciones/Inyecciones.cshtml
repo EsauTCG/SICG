@@ -1,0 +1,3221 @@
+@model IEnumerable<dynamic>
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+
+<style>
+    :root {
+        --brand-grad: linear-gradient(90deg,#8B0000 0%,#5a0000 50%,#1a0000 100%);
+        --brand-strong: #8B0000;
+        --bg: #f5f6f8; /* Fondo gris claro */
+        --panel: #F5F5F5; /* Paneles */
+        --text: #1c2834; /* Texto principal */
+        --muted: #6b7a90; /* Texto secundario */
+        --border: #d9dee7; /* Bordes suaves */
+        --kpi-green: #2ba84a;
+        --kpi-amber: #f0a202;
+        --kpi-red: #d12f2f;
+        --badge: #e8eef7;
+        --shadow: 0 2px 8px rgba(16, 24, 40, 0.08);
+        --radius: 12px;
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+
+
+    /* Shell Bar (estilo Fiori) */
+
+    .shell {
+        height: 56px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 16px;
+        z-index: 50;
+    }
+
+    .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+        color: var(--brand-strong);
+    }
+
+    .brand-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        background: var(--brand);
+        display: grid;
+        place-items: center;
+        color: #fff;
+        font-weight: 800;
+        box-shadow: var(--shadow);
+    }
+
+    .shell-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        height: 36px;
+        padding: 0 6px;
+        cursor: pointer;
+        background-color: transparent;
+        border: 1px solid white !important;
+    }
+
+        .btn.primary {
+            background: var(--brand-strong);
+            color: #fff;
+            border-color: var(--brand);
+            width: 150px;
+            height: 60px;
+            text-align: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+            .btn.primary:hover {
+                background: var(--brand-strong);
+            }
+
+        .btn.primary2 {
+            background: var( --brand-grad);
+            color: #fff;
+            border-color: var(--brand);
+            text-align: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+            .btn.primary2:hover {
+                background: var(--brand-strong);
+            }
+
+        .btn.report {
+            background: #E3E1E1;
+            border-color: none;
+        }
+
+            .btn.report:hover {
+                background: #ABABAB;
+            }
+
+
+        .btn:disabled {
+            opacity: .6;
+            cursor: not-allowed;
+        }
+
+
+
+
+
+
+    /* Layout principal: ahora una sola columna a todo lo ancho */
+    .layout {
+        display: grid;
+        grid-template-columns: 1fr; /* 👈 ANTES: 330px 1fr */
+        max-width: 1400px; /* opcional: ancho máximo */
+        margin: 16px auto; /* centrado */
+        box-shadow: var(--shadow);
+        border-radius: 12px;
+        border: 2px solid #8B0000;
+        background-color: #fff;
+    }
+
+
+    .nav {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 6px;
+    }
+
+        .nav a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            color: var(--text);
+            text-decoration: none;
+            border-radius: 10px;
+        }
+
+            .nav a.active {
+                background: var(--badge);
+                color: var(--brand-strong);
+                font-weight: 600;
+            }
+
+            .nav a:hover {
+                background: #f1f5fb;
+            }
+
+    /* Contenido */
+
+    .contents {
+        padding: 10px;
+        display: grid;
+        gap: 10px;
+    }
+
+
+
+    /* Toolbar / filtros */
+
+    .toolbar {
+        display: flex;
+        flex-wrap: wrap; /* permite que todo fluya */
+        justify-content: space-between;
+        gap: 12px;
+        padding: 8px 16px;
+        background: var(--panel);
+        border-bottom: 1px solid #ddd;
+    }
+
+    .filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .toolbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .programacion-info {
+        flex-basis: 100%; /* fuerza a ocupar toda la fila de abajo */
+        text-align: right; /* alineado a la derecha */
+        margin-top: 4px;
+        font-weight: 600;
+    }
+
+    #programacionActual {
+        display: inline-block;
+        padding: 4px 10px;
+        background: var(--badge, #f4f4f4);
+        border-radius: 6px;
+        white-space: nowrap;
+    }
+
+
+    .buttons {
+        display: flex;
+        gap: 8px;
+    }
+
+    .btn {
+        padding: 6px 14px;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .btn.ghost {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+            .btn.ghost:hover {
+                background: #e0e0e0;
+            }
+
+    .btn-Pr {
+        float: right;
+        cursor: pointer;
+        font-size: 22px;
+        font-weight: bold;
+        color: #D94325;
+        transition: transform 0.2s;
+        background: transparent;
+        border: none;
+    }
+
+        .btn-Pr:hover {
+            transform: scale(1.2);
+        }
+
+    .programacion-info {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+    }
+
+        .programacion-info .badge {
+            background: #f0f0f0;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 13px;
+        }
+
+
+
+    label {
+        font-size: 12px;
+        color: var(--muted);
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 600;
+    }
+
+    select, input[type="text"], input[type="number"] {
+        width: 100%;
+        height: 38px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        padding: 0 10px;
+        background: #fff;
+        color: var(--text);
+    }
+
+    .readonly input {
+        background: #fafbff;
+    }
+
+
+
+
+    /* Tarjetas KPI */
+
+    .kpis {
+        display: grid;
+        grid-template-columns: 3fr 1fr 1fr; /* Peso más grande que los otros */
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+
+    .kpi {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 16px;
+        box-shadow: var(--shadow);
+    }
+
+        .kpi .title {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .kpi .value {
+            font-size: 28px;
+            font-weight: 800;
+            margin-top: 6px;
+        }
+
+        .kpi.ok .value {
+            text-align: center;
+            text-align: center;
+            font-size: 50px;
+            color: var(--kpi-green);
+        }
+
+        .kpi.warn .value {
+            color: var(--kpi-amber);
+        }
+
+        .kpi.danger .value {
+            color: var(--kpi-red);
+        }
+
+        #kpiPeso .title {
+            font-size: 22px;
+            font-weight: 600;
+            color: var(--brand-strong);
+        }
+
+        #kpiPeso .value {
+            font-size: 90px; /* más grande que los otros KPIs */
+            font-weight: 800;
+            color: var(--brand);
+        }
+
+        /* Espacio reservado para futura mini tabla */
+        #kpiPeso::after {
+            content: " "; /* espacio en blanco por ahora */
+            display: block;
+            height: 25px; /* altura simulando la mini tabla */
+            margin-top: 8px;
+            border-top: 1px dashed var(--border); /* para que se vea como placeholder */
+        }
+
+
+    #kpiPorcentaje, #kpiVelocidad {
+        text-align: center;
+        align-items: center;
+    }
+
+        #kpiPorcentaje .title {
+            font-size: 20px;
+            font-weight: 600;
+            color: black;
+        }
+
+
+        #kpiVelocidad .title {
+            font-size: 20px;
+            font-weight: 600;
+            color: black;
+        }
+
+        #kpiPorcentaje .value {
+            font-size: 40px; /* más grande que los otros KPIs */
+            padding: 55px;
+        }
+
+        #kpiVelocidad .value {
+            font-size: 40px; /* más grande que los otros KPIs */
+            padding: 55px;
+        }
+
+
+    /* Área de dos columnas: Datos + Config */
+
+    .two-col {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(460px, .95fr);
+        gap: 10px;
+        align-items: stretch;
+        width: 100%;
+    }
+
+    .one-col {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        max-width: 1400px;
+        margin: 0 auto 16px auto;
+        width: 100%;
+        padding: 0 10px;
+    }
+
+    .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+    }
+
+        .panel .header {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .panel .bodys {
+            padding: 14px 16px;
+            display: grid;
+            grid-template-rows: .5fr;
+            gap: 4px;
+        }
+
+
+
+        /* Solo aplica dentro de Datos de Proceso */
+
+        .panel .form-grid.readonly input[disabled] {
+            border: none;
+            background: transparent;
+            padding: 6px 0;
+            font-size: 16px;
+            font-weight: 500;
+            color: #000000;
+            width: 100%;
+            outline: none;
+            box-shadow: none;
+            cursor: default;
+        }
+
+        .panel .form-grid.readonly input[disabled] {
+            border-bottom: 1px solid #ddd;
+            transition: border-color 0.3s ease;
+        }
+
+            .panel .form-grid.readonly input[disabled]:hover {
+                border-bottom: 1px solid #999;
+            }
+
+        /* Mejor presentación de las etiquetas */
+
+        .panel .form-grid.readonly .field label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 2px;
+            display: block;
+        }
+
+        /* Para alinear todo de forma limpia */
+
+        .panel .form-grid.readonly .field {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel .bodys .cards .row .btn {
+            border: none;
+            background: transparent;
+            outline: none;
+            box-shadow: none;
+        }
+
+        .panel .bodys .cards .card {
+            display: grid;
+            grid-template-rows: 1fr;
+        }
+
+    .Contra {
+        display: grid;
+        grid-template-rows: 1fr;
+    }
+
+
+
+    /* Form grid de solo lectura */
+
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(200px,1fr));
+        gap: 12px;
+    }
+
+        .form-grid .field {
+            display: grid;
+            gap: 6px;
+        }
+
+    .field input[disabled] {
+        color: #334155;
+        font-weight: 600;
+    }
+
+
+
+    /* Tabla */
+
+    .table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+        .table th, .table td {
+            text-align: left;
+            padding: 10px 8px;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+        }
+
+        .table th {
+            color: var(--muted);
+            font-weight: 600;
+        }
+
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--badge);
+        color: var(--brand-strong);
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+
+
+
+    /* Config cards */
+
+    .cards {
+        display: grid;
+        grid-template-rows: 1fr;
+        gap: 12px;
+        justify-content: center;
+        align-content: center;
+        align-items: center;
+    }
+
+    .bodys .cards {
+        display: flex;
+        flex-direction: row;
+        gap: 12px;
+        justify-content: center;
+        align-content: center;
+        align-items: center;
+    }
+
+    .Contra {
+        display: flex;
+        flex-direction: row;
+    }
+
+    .bodys {
+        display: flex;
+        flex-direction: row;
+    }
+
+    .card {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 12px;
+        background: var(--panel);
+        display: grid;
+        grid-template-rows: 1fr;
+        gap: 12px;
+        gap: 8px;
+        justify-content: center;
+        text-align: center;
+    }
+
+    .cards .card .row .btn {
+        text-align: center;
+        justify-content: center;
+    }
+
+
+
+    .card .meta {
+        font-size: 13px;
+        color: var(--muted);
+    }
+
+
+
+    .product-card-large {
+        background: #fafafa;
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        overflow: hidden;
+        text-align: center;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        padding: 10px;
+    }
+
+        .product-card-large img {
+            width: 100%;
+            height: 100px;
+            object-fit: cover;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 8px;
+            border-radius: 6px;
+        }
+
+        .product-card-large span {
+            font-weight: bold;
+            margin-bottom: 4px;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .product-card-large small {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .product-card-large:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+
+
+
+    /* Modales */
+
+    .overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,.45);
+        display: none;
+        z-index: 1000;
+    }
+
+    .modal {
+        background: #fff;
+        border-radius: 10px;
+        width: 95%;
+        max-width: 850px;
+        /* 🔑 CLAVE */
+        max-height: 75vh;
+        overflow-y: auto;
+        padding: 16px;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+    }
+
+
+        .modal h4 {
+            margin-top: 0;
+            font-size: 18px;
+            color: var(--primary);
+        }
+
+        .modal input,
+        .modal select {
+            width: 100%;
+            padding: 8px 10px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+
+    /* 🔹 Estilo especial solo para modal de productos */
+    .modal-producto {
+        width: 85%; /* más ancho */
+        max-width: 1000px; /* que se parezca a un menú */
+        height: 80%; /* que ocupe más alto */
+        overflow-y: auto; /* scroll si hay muchos productos */
+    }
+
+        /* grid más grande */
+        .modal-producto .product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 20px;
+        }
+
+        .modal-producto .product-card {
+            background: #f8f8f8;
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+            .modal-producto .product-card:hover {
+                transform: scale(1.05);
+                background: #eee;
+            }
+
+            .modal-producto .product-card img {
+                width: 120px;
+                height: 120px;
+                object-fit: cover;
+                margin-bottom: 10px;
+            }
+
+        .modal-producto input,
+        .modal-producto select {
+            width: 100%;
+            padding: 8px 10px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+    /* Modal grande (pantalla completa) */
+    .modal-full {
+        width: 95%;
+        height: 90%;
+    }
+
+    .modal-reporte {
+        width: 95%;
+        max-width: 1500px;
+        max-height: 92vh;
+        overflow-y: auto;
+    }
+
+
+    /* Contenedor tabla con scroll */
+    .tabla-contenedor {
+        max-height: 55vh;
+        overflow-x: auto; /* ✅ scroll horizontal */
+        -webkit-overflow-scrolling: touch; /* móvil suave */
+    }
+
+
+    /* Tabla */
+    .tabla-reporte {
+        width: max-content; /* permite scroll horizontal */
+        min-width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+    }
+
+        .tabla-reporte th, .tabla-reporte td {
+            border: 1px solid #ccc;
+            padding: 8px 12px;
+            text-align: center;
+            white-space: nowrap; /* evita que se corte texto */
+        }
+
+        .tabla-reporte th {
+            background-color: #f5f5f5;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+    /* Filtros */
+    .filtros-reporte {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 10px 0;
+        justify-content: space-between;
+    }
+
+        .filtros-reporte label {
+            font-size: 14px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .filtros-reporte div {
+            text-align: center;
+            align-items: center;
+        }
+
+
+    .product-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 15px;
+    }
+
+    .product-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        background: #f8f8f8;
+        border-radius: 8px;
+        padding: 10px;
+        cursor: pointer;
+        transition: 0.2s;
+    }
+
+        .product-card img {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+
+        .product-card:hover {
+            background: #e0e0e0;
+        }
+
+    .tara-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 4fr));
+        gap: 10px;
+    }
+
+    .tara-item {
+        border: 1px solid #ccc;
+        padding: 10px;
+        border-radius: 8px;
+        background: #f9f9f9;
+        transition: 0.2s;
+        text-align: center;
+    }
+
+        .tara-item:hover {
+            background: #e0f7fa;
+            transform: scale(1.03);
+        }
+
+    .comparacion-container {
+        margin: 20px;
+        background: #fff;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+
+    #tablaComparacion {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+
+        #tablaComparacion th, #tablaComparacion td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+
+        #tablaComparacion th {
+            background-color: #f5f5f5;
+        }
+
+    .estado-ok {
+        color: green;
+        font-weight: bold;
+    }
+
+    .estado-fail {
+        color: red;
+        font-weight: bold;
+    }
+
+    .amarillo {
+        background-color: #fff3cd; /* Amarillo suave */
+    }
+
+    .rojo {
+        background-color: #f8d7da; /* Rojo claro */
+        color: #721c24;
+        font-weight: bold;
+    }
+
+    .verde {
+        background-color: #d4edda; /* Verde claro */
+        color: #155724;
+    }
+
+    .input-peso-manual {
+        display: none;
+        width: 180px;
+        padding: 12px 20px;
+        font-size: 36px;
+        font-weight: bold;
+        text-align: center;
+        color: #dc3545;
+        background: #fff;
+        border: 3px solid #dc3545;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+        transition: all 0.3s ease;
+    }
+
+        .input-peso-manual:focus {
+            outline: none;
+            border-color: #c82333;
+            box-shadow: 0 0 20px rgba(220, 53, 69, 0.5);
+            transform: scale(1.02);
+        }
+
+        .input-peso-manual::placeholder {
+            color: rgba(220, 53, 69, 0.4);
+        }
+
+        /* Eliminar flechas del input number */
+        .input-peso-manual::-webkit-inner-spin-button,
+        .input-peso-manual::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+    .input-peso-manual {
+        -moz-appearance: textfield;
+    }
+
+    /* Botón toggle */
+    .btn-toggle-peso {
+        color: black;
+        padding: 5px 5px;
+        cursor: pointer;
+        font-size: 15px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+        margin-top: 5px;
+        border: none;
+        background: transparent;
+        outline: none;
+        box-shadow: none;
+    }
+
+        .btn-toggle-peso:hover {
+            background: #EDEDED;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        }
+
+        .btn-toggle-peso:active {
+            transform: translateY(0);
+        }
+
+        .btn-toggle-peso.manual-active {
+            animation: pulse 2s infinite;
+        }
+
+
+
+    /* ====== RESPONSIVE ====== */
+    /* Recuerda: en Razor va @@media para que salga media en el html */
+    /* 🔹 Desktop normal (centrar layout y que no sea gigante) */
+    .layout {
+        max-width: 1400px;
+        margin: 16px auto;
+    }
+
+    /* 🔹 <= 1200px: 1 columna principal, panel de datos + tabla apilados */
+    @@media (max-width: 1200px) {
+        .layout {
+            grid-template-columns: 1fr; /* en vez de dos columnas fijas */
+        }
+
+        .one-col {
+            grid-template-columns: 1fr;
+        }
+
+        .two-col {
+            grid-template-columns: 1fr;
+        }
+
+        .kpis {
+            grid-template-columns: 2fr 1fr; /* peso + imagen */
+        }
+
+        #kpiPeso {
+            grid-column: auto; /* que no intente ocupar 2 columnas */
+        }
+
+        .two-col > .panel:nth-child(2) .Contra {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* 🔹 <= 992px: todo más vertical (tablet / pantallas medianas) */
+    @@media (max-width: 992px) {
+        .toolbar {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
+        }
+
+        .filters {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
+        .toolbar-actions {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
+        .programacion-info {
+            justify-content: flex-start;
+        }
+
+        .kpis {
+            grid-template-columns: 1fr; /* KPIs uno bajo otro */
+        }
+
+        .panel .bodys .form-grid {
+            grid-template-columns: 1fr 1fr; /* 2 columnas de campos */
+        }
+    }
+
+    /* 🔹 <= 768px: móvil en vertical */
+    @@media (max-width: 768px) {
+        .layout {
+            margin: 8px;
+            box-shadow: none; /* menos sombra en móvil */
+            border-radius: 0; /* pegado a los lados */
+        }
+
+        .toolbar {
+            padding: 8px;
+        }
+
+        .filters {
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .toolbar-actions {
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .panel .bodys .form-grid {
+            grid-template-columns: 1fr; /* todos los campos en una sola columna */
+        }
+
+        .cards {
+            grid-template-columns: 1fr;
+        }
+
+        .bodys .cards {
+            flex-direction: column;
+        }
+
+        .Contra {
+            flex-direction: column;
+        }
+
+        .tabla-contenedor {
+            max-height: 45vh; /* para que no coma toda la pantalla */
+        }
+    }
+
+    /* 🔹 <= 480px: ajustes finos (teléfono chico) */
+    @@media (max-width: 480px) {
+        .btn.primary {
+            width: 100%;
+            height: 44px;
+            font-size: 16px;
+        }
+
+        .btn.report {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .kpi .value {
+            font-size: 22px;
+        }
+
+        #kpiPeso .value {
+            font-size: 60px;
+        }
+    }
+
+    /* AJUSTE para arreglar CSS que tenia un BUG con pantallas pensadas para tablets :D */
+
+    @@media (max-width: 768px) {
+        .filters {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+            .programacion-info,
+            .filters > div,
+            .toolbar-actions {
+                width: 100%;
+                flex-basis: auto;
+                margin: 0;
+            }
+    }
+
+    .tabs-reporte {
+        display: flex;
+        border-bottom: 2px solid #ddd;
+        margin-bottom: 10px;
+    }
+
+    .tab-btn {
+        padding: 10px 18px;
+        border: none;
+        background: transparent;
+        font-weight: 600;
+        cursor: pointer;
+        border-bottom: 3px solid transparent;
+    }
+
+        .tab-btn.active {
+            color: #8B0000;
+            border-bottom-color: #8B0000;
+        }
+
+    .tab-content {
+        display: none;
+    }
+
+        .tab-content.active {
+            display: block;
+        }
+
+
+    /* 🔴 Rendimiento bajo */
+    .fila-roja {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+
+    /* 🟡 Rendimiento alto */
+    .fila-amarilla {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+
+    /* Hover para que no se vea raro */
+    .tabla-reporte tr:hover {
+        filter: brightness(0.97);
+    }
+
+    /* 🔹 Ajuste MODALES en tablets */
+    @@media (max-width: 992px) {
+        .modal-full,
+        .modal-reporte {
+            width: 98%;
+            height: 92%;
+            max-width: none; /* 🔑 rompe el límite de desktop */
+            border-radius: 8px;
+        }
+    }
+
+
+    /* 🔹 Ajuste MODALES en móviles */
+    @@media (max-width: 768px) {
+        .modal-full,
+        .modal-reporte {
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            transform: none; /* 🔑 evita desbordes */
+            border-radius: 0;
+            padding: 10px;
+        }
+    }
+
+    @@media (max-width: 992px) {
+        .tabla-contenedor {
+            max-height: 50vh;
+            overflow-x: auto;
+        }
+    }
+
+    /* Contenedor de tabla dentro del modal */
+    .tabla-wrapper {
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    .tabla-reporte th,
+    .tabla-reporte td {
+        padding: .6rem .7rem;
+        border-bottom: 1px solid #e1e1e1;
+        font-size: .95rem;
+        white-space: nowrap;
+    }
+
+    @@media (max-width: 768px) {
+        /* Ocultamos encabezados */
+        .tabla-reporte thead {
+            display: none;
+        }
+        /* Cada fila es una tarjeta */
+        .tabla-reporte tr {
+            display: block;
+            margin-bottom: 1rem;
+            padding: .9rem .8rem;
+            border-radius: 10px;
+            border: 1px solid #e5e5e5;
+            background: #fff;
+            box-shadow: 0 3px 8px rgba(0,0,0,.06);
+        }
+
+        .tabla-reporte td {
+            display: flex;
+            justify-content: space-between;
+            padding: .35rem 0;
+            border: none;
+            font-size: .9rem;
+        }
+
+            .tabla-reporte td::before {
+                content: attr(data-label);
+                font-weight: 600;
+                color: #666;
+                margin-right: .5rem;
+            }
+        /* Wrapper sin scroll en móvil */
+        .tabla-wrapper {
+            overflow-x: visible;
+        }
+    }
+
+    .excel {
+        background: Green;
+        color: white;
+    }
+
+    .modal-Aut {
+        width: 500px;
+        height: 400px;
+    }
+
+    .modal-Confi {
+        width: 400px;
+        height: 350px;
+    }
+
+    .modal-tara {
+        width: 600px;
+        height: 450px;
+    }
+
+    .product-card {
+        transition: all 0.3s ease;
+        opacity: 1;
+    }
+
+        .product-card.oculto {
+            display: none !important;
+        }
+
+    #searchProducto::placeholder {
+        color: #aaa;
+    }
+
+    .product-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+    }
+
+    /* Resaltar coincidencias */
+    .highlight {
+        background-color: #ffeb3b;
+        font-weight: bold;
+        padding: 2px 4px;
+        border-radius: 3px;
+    }
+
+    .toast {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #ffffff;
+        border-left: 5px solid #28a745;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        padding: 14px 18px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 260px;
+        z-index: 10001; /* Por encima del overlay */
+        opacity: 0;
+        transform: translateX(120%);
+        transition: all 0.4s ease;
+        pointer-events: none;
+    }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(0);
+            pointer-events: auto; /* ← IMPORTANTE: permitir clics cuando se muestra */
+        }
+
+    /* Toast de error - debe ser el más alto de todos */
+    #toastImpresionError {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #dc3545;
+        color: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10002; /* ← MÁS ALTO que todo */
+        display: none;
+        flex-direction: column;
+        gap: 10px;
+        min-width: 300px;
+        animation: slideIn 0.3s ease-out;
+        pointer-events: auto; /* ← Siempre permitir interacción */
+    }
+
+        #toastImpresionError.show {
+            display: flex !important;
+        }
+
+    .toast-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 10px;
+    }
+
+    .toast-btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: all 0.2s;
+    }
+
+        .toast-btn.retry {
+            background: #28a745;
+            color: white;
+        }
+
+            .toast-btn.retry:hover {
+                background: #218838;
+            }
+
+        .toast-btn.close {
+            background: #6c757d;
+            color: white;
+        }
+
+            .toast-btn.close:hover {
+                background: #5a6268;
+            }
+
+    @@keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    .loading-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+        backdrop-filter: blur(4px);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+    }
+
+    .loading-box {
+        background: #fff;
+        padding: 30px 40px;
+        border-radius: 12px;
+        text-align: center;
+        box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+        animation: fadeIn .2s ease-out;
+    }
+
+    .loading-text {
+        margin-top: 15px;
+        font-weight: 600;
+        font-size: 16px;
+    }
+
+    .spinner {
+        width: 45px;
+        height: 45px;
+        border: 5px solid #eee;
+        border-top: 5px solid #007bff;
+        border-radius: 50%;
+        animation: spin .8s linear infinite;
+        margin: 0 auto;
+    }
+
+    @@keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: scale(.9);
+        }
+
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    /* ===== Filtros ordenados para modal de reportes ===== */
+    .filtros-reportes-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 16px;
+        margin: 10px 0 18px 0;
+        flex-wrap: wrap;
+    }
+
+    .filtros-reportes-left {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .fechas-reportes {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        align-items: flex-end;
+    }
+
+        .fechas-reportes label {
+            margin: 0;
+            min-width: 180px;
+        }
+
+    .acciones-reportes-left {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .acciones-reportes-right {
+        display: flex;
+        justify-content: flex-end;
+        align-items: flex-end;
+        margin-left: auto;
+    }
+
+        .acciones-reportes-right .btn,
+        .acciones-reportes-left .btn {
+            min-width: 170px;
+            justify-content: center;
+        }
+
+    @@media (max-width: 768px) {
+        .filtros-reportes-top {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .filtros-reportes-left,
+        .acciones-reportes-right,
+        .acciones-reportes-left {
+            width: 100%;
+        }
+
+        .fechas-reportes {
+            flex-direction: column;
+            width: 100%;
+        }
+
+            .fechas-reportes label {
+                width: 100%;
+                min-width: unset;
+            }
+
+        .acciones-reportes-left .btn,
+        .acciones-reportes-right .btn {
+            width: 100%;
+        }
+    }
+
+    .modal-confirm-captura {
+        width: 460px;
+        max-width: 94vw;
+        height: auto;
+        max-height: none;
+        padding: 0;
+        overflow: hidden;
+        border-radius: 18px;
+        border: 1px solid rgba(139, 0, 0, .18);
+    }
+
+    .confirm-header {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        padding: 18px 20px;
+        background: var(--brand-grad);
+        color: #fff;
+    }
+
+    .confirm-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        background: rgba(255,255,255,.16);
+        display: grid;
+        place-items: center;
+        font-size: 26px;
+    }
+
+    .confirm-header h4 {
+        margin: 0;
+        font-size: 20px;
+        color: #fff;
+    }
+
+    .confirm-header p {
+        margin: 4px 0 0 0;
+        font-size: 13px;
+        opacity: .9;
+    }
+
+    .confirm-summary {
+        padding: 18px 20px;
+        display: grid;
+        gap: 10px;
+        background: #fff;
+    }
+
+    .confirm-item {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 11px 12px;
+        border-radius: 12px;
+        background: #f7f8fa;
+        border: 1px solid #e3e7ee;
+    }
+
+        .confirm-item span {
+            color: #6b7a90;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .confirm-item strong {
+            color: #1c2834;
+            text-align: right;
+        }
+
+        .confirm-item.peso {
+            background: #fff5f5;
+            border-color: rgba(139,0,0,.25);
+        }
+
+            .confirm-item.peso strong {
+                color: #8B0000;
+                font-size: 20px;
+            }
+
+    .confirm-warning {
+        margin: 0 20px 16px 20px;
+        padding: 12px;
+        border-radius: 12px;
+        background: #fff8e1;
+        border: 1px solid #f0d98c;
+        color: #6b5200;
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    .confirm-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 14px 20px 18px 20px;
+        background: #f5f6f8;
+    }
+
+    .btn-cancelar-confirm {
+        background: #e8eaee;
+        color: #333;
+        border: none !important;
+        height: 42px;
+        padding: 0 18px;
+    }
+
+    .btn-confirmar-captura {
+        background: var(--brand-grad);
+        color: #fff;
+        border: none !important;
+        height: 42px;
+        padding: 0 22px;
+        font-weight: 700;
+    }
+
+        .btn-confirmar-captura:disabled {
+            opacity: .65;
+            cursor: not-allowed;
+        }
+
+    /* ===== KPIs + TIEMPO REAL ARRIBA ===== */
+
+    .kpis-con-tiempo-real {
+        display: grid;
+        grid-template-columns: minmax(0, 1.35fr) minmax(480px, .85fr);
+        gap: 16px;
+        align-items: stretch;
+        height: 320px;
+    }
+
+    .kpis-main {
+        display: grid;
+        grid-template-columns: minmax(0, 1.75fr) minmax(220px, .75fr);
+        gap: 14px;
+        min-width: 0;
+        height: 320px;
+        align-items: stretch;
+    }
+
+        .kpis-main > .kpi {
+            min-width: 0;
+        }
+
+    /* Peso */
+    #kpiPeso {
+        grid-column: auto !important; /* CLAVE: cancela el span 2 viejo */
+        height: 100%;
+        width: 100%;
+        display: grid;
+        place-items: center;
+        align-content: center;
+        background: #f5f9ff;
+        border: none;
+        text-align: center;
+        overflow: hidden;
+    }
+
+        #kpiPeso::after {
+            display: none !important;
+        }
+
+    .kpis-con-tiempo-real #kpiPeso .value {
+        font-size: clamp(68px, 7vw, 110px);
+        line-height: 1;
+    }
+
+    /* Imagen del producto */
+    .kpi-producto-preview {
+        grid-column: auto !important;
+        height: 100%;
+        width: 100%;
+        padding: 10px;
+        display: flex;
+        align-items: stretch;
+        justify-content: center;
+        background: #f8fafc;
+        overflow: hidden;
+    }
+
+        .kpi-producto-preview img {
+            width: 100%;
+            height: 100%;
+            max-height: none;
+            object-fit: contain;
+            object-position: center;
+            display: block;
+            border-radius: 10px;
+            border: 2px solid #aaa;
+            background: #fff;
+        }
+
+    /* Tabla tiempo real */
+    .panel-tiempo-real {
+        width:100%;
+        height: 320px;
+        max-height: 320px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+        .panel-tiempo-real .header {
+            background: var(--brand-grad);
+            color: #fff;
+            border-bottom: none;
+            font-size: 15px;
+            padding: 12px 16px;
+            flex: 0 0 auto;
+        }
+
+    .tabla-tiempo-real-wrapper {
+        flex: 1 1 auto;
+        overflow-y: auto;
+        overflow-x: auto;
+        background: #fff;
+    }
+
+    .tabla-tiempo-real {
+        width: max-content;
+        min-width: 100%;
+        font-size: 13px;
+    }
+
+        .tabla-tiempo-real th,
+        .tabla-tiempo-real td {
+            padding: 8px 10px;
+            white-space: nowrap;
+        }
+
+        .tabla-tiempo-real th {
+            position: sticky;
+            top: 0;
+            z-index: 3;
+            background: #f5f5f5;
+        }
+
+        .tabla-tiempo-real tbody tr {
+            transition: background .2s ease;
+        }
+
+            .tabla-tiempo-real tbody tr:hover {
+                background: #f8f8f8;
+            }
+
+    /* Responsive */
+    @@media (max-width: 1200px) {
+        .kpis-con-tiempo-real {
+            grid-template-columns: 1fr;
+            height: auto;
+        }
+
+        .kpis-main {
+            grid-template-columns: 2fr 1fr;
+            height: 260px;
+        }
+
+        .kpi-producto-preview {
+            height: 100%;
+            min-height: 0;
+        }
+
+            .kpi-producto-preview img {
+                max-height: none;
+            }
+
+        .panel-tiempo-real {
+            height: 300px;
+            max-height: 300px;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .kpis-main {
+            grid-template-columns: 1fr;
+        }
+
+        .kpi-producto-preview {
+            min-height: 150px;
+        }
+
+        .panel-tiempo-real {
+            height: 260px;
+            max-height: 260px;
+        }
+    }
+
+    .panel-tiempo-real {
+        max-height: 320px;
+    }
+
+    .tabla-tiempo-real tbody tr {
+        transition: background .2s ease;
+    }
+
+        .tabla-tiempo-real tbody tr:hover {
+            background: #f8f8f8;
+        }
+
+    /* ===== CONFIGURACIÓN RÁPIDA EN 2 x 2 ===== */
+
+    .two-col > .panel:nth-child(2) .cards {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        width: 100%;
+    }
+
+    .two-col > .panel:nth-child(2) .Contra {
+        display: contents;
+    }
+
+    .two-col > .panel:nth-child(2) .card {
+        width: 100%;
+        min-height: 105px;
+        padding: 14px;
+    }
+
+        .two-col > .panel:nth-child(2) .card .row {
+            height: 100%;
+            display: grid;
+            grid-template-rows: auto auto;
+            gap: 10px;
+            align-items: center;
+            justify-items: center;
+            text-align: center;
+        }
+
+        .two-col > .panel:nth-child(2) .card .btn,
+        .two-col > .panel:nth-child(2) .card .btn-secondary,
+        .two-col > .panel:nth-child(2) .card .btn-toggle-peso {
+            width: 100%;
+            max-width: 220px;
+            min-height: 40px;
+            justify-content: center;
+            border-radius: 10px;
+        }
+
+    /* En pantallas pequeñas vuelve a una sola columna */
+    @@media (max-width: 768px) {
+        .two-col > .panel:nth-child(2) .cards {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* =========================================
+       DARK MODE - MÓDULO INYECCIONES
+    ========================================= */
+
+    body[data-theme="dark"] {
+        --bg: #0b1120;
+        --panel: #111827;
+        --text: #f9fafb;
+        --muted: #9ca3af;
+        --border: #374151;
+        --badge: #1f2937;
+        --shadow: 0 10px 24px rgba(0,0,0,.35);
+    }
+
+        /* Fondo y contenedores principales */
+        body[data-theme="dark"] .layout,
+        body[data-theme="dark"] .contents,
+        body[data-theme="dark"] .toolbar,
+        body[data-theme="dark"] .panel,
+        body[data-theme="dark"] .kpi,
+        body[data-theme="dark"] .card {
+            background: var(--panel) !important;
+            color: var(--text) !important;
+            border-color: var(--border) !important;
+        }
+
+        /* Layout principal */
+        body[data-theme="dark"] .layout {
+            border-color: #7f1d1d !important;
+        }
+
+        /* Toolbar */
+        body[data-theme="dark"] .toolbar {
+            border-bottom-color: var(--border) !important;
+        }
+
+        body[data-theme="dark"] label,
+        body[data-theme="dark"] .panel .header,
+        body[data-theme="dark"] .panel .form-grid.readonly .field label,
+        body[data-theme="dark"] .kpi .title,
+        body[data-theme="dark"] .card .meta,
+        body[data-theme="dark"] .programacion-info {
+            color: var(--muted) !important;
+        }
+
+            /* Programación actual */
+            body[data-theme="dark"] #programacionActual,
+            body[data-theme="dark"] .programacion-info .badge,
+            body[data-theme="dark"] .badge {
+                background: #1f2937 !important;
+                color: #fca5a5 !important;
+                border: 1px solid #374151 !important;
+            }
+
+        /* Inputs */
+        body[data-theme="dark"] input,
+        body[data-theme="dark"] select,
+        body[data-theme="dark"] textarea,
+        body[data-theme="dark"] .form-control,
+        body[data-theme="dark"] .form-select {
+            background: #0f172a !important;
+            color: #f9fafb !important;
+            border-color: #4b5563 !important;
+        }
+
+            body[data-theme="dark"] input::placeholder,
+            body[data-theme="dark"] textarea::placeholder {
+                color: #9ca3af !important;
+            }
+
+            body[data-theme="dark"] input:focus,
+            body[data-theme="dark"] select:focus,
+            body[data-theme="dark"] textarea:focus {
+                border-color: #991b1b !important;
+                box-shadow: 0 0 0 2px rgba(153,27,27,.25) !important;
+            }
+
+        /* Datos readonly */
+        body[data-theme="dark"] .panel .form-grid.readonly input[disabled],
+        body[data-theme="dark"] .field input[disabled] {
+            background: transparent !important;
+            color: #f9fafb !important;
+            border-bottom-color: #374151 !important;
+        }
+
+        /* KPIs */
+        body[data-theme="dark"] #kpiPeso .title {
+            color: #fca5a5 !important;
+        }
+
+        body[data-theme="dark"] #kpiPeso .value {
+            color: #ef4444 !important;
+        }
+
+        body[data-theme="dark"] #kpiPorcentaje .title,
+        body[data-theme="dark"] #kpiVelocidad .title {
+            color: #f9fafb !important;
+        }
+
+        /* Botones */
+        body[data-theme="dark"] .btn.ghost,
+        body[data-theme="dark"] .btn.report,
+        body[data-theme="dark"] .tool-btn-secondary {
+            background: #1f2937 !important;
+            color: #f9fafb !important;
+            border-color: #374151 !important;
+        }
+
+            body[data-theme="dark"] .btn.ghost:hover,
+            body[data-theme="dark"] .btn.report:hover {
+                background: #374151 !important;
+            }
+
+        /* Cards productos / taras */
+        body[data-theme="dark"] .product-card,
+        body[data-theme="dark"] .product-card-large,
+        body[data-theme="dark"] .tara-item,
+        body[data-theme="dark"] .comparacion-container {
+            background: #111827 !important;
+            color: #f9fafb !important;
+            border-color: #374151 !important;
+        }
+
+            body[data-theme="dark"] .product-card span,
+            body[data-theme="dark"] .product-card-large span {
+                color: #f9fafb !important;
+            }
+
+            body[data-theme="dark"] .product-card small,
+            body[data-theme="dark"] .product-card-large small {
+                color: #9ca3af !important;
+            }
+
+            body[data-theme="dark"] .product-card:hover,
+            body[data-theme="dark"] .product-card-large:hover,
+            body[data-theme="dark"] .tara-item:hover {
+                background: #1f2937 !important;
+            }
+
+        /* Tablas */
+        body[data-theme="dark"] .table,
+        body[data-theme="dark"] .tabla-reporte,
+        body[data-theme="dark"] #tablaComparacion {
+            background: #111827 !important;
+            color: #f9fafb !important;
+        }
+
+            body[data-theme="dark"] .table th,
+            body[data-theme="dark"] .table td,
+            body[data-theme="dark"] .tabla-reporte th,
+            body[data-theme="dark"] .tabla-reporte td,
+            body[data-theme="dark"] #tablaComparacion th,
+            body[data-theme="dark"] #tablaComparacion td {
+                background: #111827 !important;
+                color: #f9fafb !important;
+                border-color: #374151 !important;
+            }
+
+            body[data-theme="dark"] .tabla-reporte th,
+            body[data-theme="dark"] #tablaComparacion th {
+                background: #1f2937 !important;
+                color: #fca5a5 !important;
+            }
+
+            body[data-theme="dark"] .tabla-reporte tr:hover {
+                filter: brightness(1.15);
+            }
+
+        /* Filas de alerta en tablas */
+        body[data-theme="dark"] .fila-roja,
+        body[data-theme="dark"] .rojo {
+            background: rgba(239,68,68,.18) !important;
+            color: #fecaca !important;
+        }
+
+        body[data-theme="dark"] .fila-amarilla,
+        body[data-theme="dark"] .amarillo {
+            background: rgba(245,158,11,.18) !important;
+            color: #fde68a !important;
+        }
+
+        body[data-theme="dark"] .verde {
+            background: rgba(34,197,94,.18) !important;
+            color: #bbf7d0 !important;
+        }
+
+        /* Modales propios de Inyecciones */
+        body[data-theme="dark"] .modal {
+            background: #111827 !important;
+            color: #f9fafb !important;
+            border: 1px solid #374151 !important;
+        }
+
+            body[data-theme="dark"] .modal h4,
+            body[data-theme="dark"] .modal-header {
+                color: #f9fafb !important;
+            }
+
+        body[data-theme="dark"] .modal-header {
+            background: linear-gradient(90deg,#8B0000 0%,#5a0000 50%,#1a0000 100%) !important;
+            padding: 10px 12px;
+            border-radius: 8px 8px 0 0;
+        }
+
+        body[data-theme="dark"] .modal input,
+        body[data-theme="dark"] .modal select {
+            background: #0f172a !important;
+            color: #f9fafb !important;
+            border-color: #4b5563 !important;
+        }
+
+        /* Reportes */
+        body[data-theme="dark"] .tabs-reporte {
+            border-bottom-color: #374151 !important;
+        }
+
+        body[data-theme="dark"] .tab-btn {
+            color: #e5e7eb !important;
+        }
+
+            body[data-theme="dark"] .tab-btn.active {
+                color: #fca5a5 !important;
+                border-bottom-color: #ef4444 !important;
+            }
+
+        /* Peso manual */
+        body[data-theme="dark"] .input-peso-manual {
+            background: #0f172a !important;
+            color: #fca5a5 !important;
+            border-color: #ef4444 !important;
+        }
+
+        body[data-theme="dark"] .btn-toggle-peso {
+            color: #f9fafb !important;
+        }
+
+            body[data-theme="dark"] .btn-toggle-peso:hover {
+                background: #1f2937 !important;
+            }
+
+        /* Toast */
+        body[data-theme="dark"] .toast {
+            background: #111827 !important;
+            color: #f9fafb !important;
+            border-color: #22c55e !important;
+        }
+
+    /* Responsive cards de reporte */
+    @@media (max-width: 768px) {
+        body[data-theme="dark"] .tabla-reporte tr {
+            background: #111827 !important;
+            border-color: #374151 !important;
+            box-shadow: 0 6px 16px rgba(0,0,0,.35) !important;
+        }
+
+        body[data-theme="dark"] .tabla-reporte td::before {
+            color: #9ca3af !important;
+        }
+    }
+
+    /* =========================
+       MOBILE RESPONSIVE FINAL
+       ========================= */
+    @@media (max-width: 768px) {
+        body {
+            overflow-x: hidden;
+        }
+
+        .layout {
+            width: 100%;
+            margin: 0 !important;
+            border-radius: 0;
+            border-left: none;
+            border-right: none;
+            box-shadow: none;
+        }
+
+        .contents,
+        .one-col {
+            padding: 6px !important;
+        }
+
+        .toolbar {
+            padding: 8px;
+            border-radius: 0;
+        }
+
+        .filters {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+            .filters > div {
+                width: 100% !important;
+            }
+
+                .filters > div[style] {
+                    display: flex !important;
+                    flex-direction: column !important;
+                    gap: 10px !important;
+                    align-items: stretch !important;
+                }
+
+        .toolbar-actions {
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+        }
+
+        .btn,
+        .btn.primary,
+        .btn.primary2,
+        .btn.report,
+        .btn-secondary,
+        .btn-toggle-peso {
+            width: 100% !important;
+            min-height: 42px;
+            height: auto !important;
+            justify-content: center;
+            font-size: 15px !important;
+            border-radius: 10px;
+        }
+
+        #productoSeleccionado {
+            display: block;
+            margin-left: 0 !important;
+            margin-top: 6px;
+            word-break: break-word;
+        }
+
+        .programacion-info {
+            width: 100%;
+            justify-content: flex-start;
+            align-items: flex-start;
+            flex-direction: column;
+            white-space: normal;
+        }
+
+        #programacionActual {
+            white-space: normal;
+            width: 100%;
+        }
+
+        .kpis-con-tiempo-real {
+            grid-template-columns: 1fr !important;
+            height: auto !important;
+            gap: 10px;
+        }
+
+        .kpis-main {
+            grid-template-columns: 1fr !important;
+            height: auto !important;
+            gap: 10px;
+        }
+
+        #kpiPeso {
+            min-height: 170px;
+            padding: 12px;
+        }
+
+            #kpiPeso .title {
+                font-size: 18px !important;
+            }
+
+            .kpis-con-tiempo-real #kpiPeso .value,
+            #kpiPeso .value {
+                font-size: clamp(52px, 18vw, 76px) !important;
+            }
+
+            #kpiPeso > div[style] {
+                flex-direction: column;
+                gap: 8px !important;
+            }
+
+        #inputPesoManual {
+            width: 100% !important;
+            max-width: 220px;
+            font-size: 22px !important;
+        }
+
+        .kpi-producto-preview {
+            min-height: 170px;
+            height: 170px;
+        }
+
+            .kpi-producto-preview img {
+                max-height: 150px;
+                object-fit: contain;
+            }
+
+        .panel-tiempo-real {
+            height: 280px !important;
+            max-height: 280px !important;
+        }
+
+        .tabla-tiempo-real-wrapper {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .tabla-tiempo-real {
+            min-width: 850px;
+        }
+
+        .two-col {
+            grid-template-columns: 1fr !important;
+            gap: 10px;
+        }
+
+        .panel {
+            border-radius: 10px;
+        }
+
+            .panel .header {
+                padding: 12px;
+                font-size: 15px;
+            }
+
+            .panel .bodys {
+                padding: 12px;
+                display: block;
+            }
+
+        .form-grid {
+            grid-template-columns: 1fr !important;
+            gap: 10px;
+        }
+
+        .panel .form-grid.readonly input[disabled] {
+            font-size: 15px;
+            min-height: 34px;
+        }
+
+        .two-col > .panel:nth-child(2) .cards {
+            grid-template-columns: 1fr !important;
+            gap: 10px;
+        }
+
+        .two-col > .panel:nth-child(2) .Contra {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 10px;
+        }
+
+        .card {
+            width: 100%;
+            padding: 12px;
+        }
+
+        .modal {
+            width: calc(100vw - 16px) !important;
+            max-width: calc(100vw - 16px) !important;
+            max-height: calc(100vh - 16px) !important;
+            top: 8px !important;
+            left: 8px !important;
+            transform: none !important;
+            border-radius: 12px;
+            padding: 12px;
+        }
+
+        .modal-full,
+        .modal-reporte,
+        .modal-producto {
+            width: 100vw !important;
+            max-width: 100vw !important;
+            height: 100vh !important;
+            max-height: 100vh !important;
+            top: 0 !important;
+            left: 0 !important;
+            border-radius: 0 !important;
+        }
+
+        .modal-Confi,
+        .modal-Aut,
+        .modal-tara {
+            width: calc(100vw - 16px) !important;
+            height: auto !important;
+        }
+
+        .modal-producto .product-grid,
+        .product-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 10px;
+        }
+
+        .product-card,
+        .product-card-large {
+            padding: 8px;
+        }
+
+            .product-card img,
+            .product-card-large img {
+                width: 100%;
+                height: 90px;
+                object-fit: contain;
+            }
+
+        .tara-grid {
+            grid-template-columns: 1fr !important;
+        }
+
+        .filtros-reporte {
+            flex-direction: column;
+            gap: 8px;
+        }
+
+            .filtros-reporte label,
+            .filtros-reporte div {
+                width: 100%;
+            }
+
+        .tabla-contenedor {
+            max-height: calc(100vh - 230px);
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .tabla-reporte {
+            min-width: 900px;
+        }
+
+        .modal-reporte .tabla-reporte thead {
+            display: table-header-group;
+        }
+
+        .modal-reporte .tabla-reporte tr {
+            display: table-row;
+            box-shadow: none;
+            border-radius: 0;
+        }
+
+        .modal-reporte .tabla-reporte td {
+            display: table-cell;
+            white-space: nowrap;
+        }
+
+            .modal-reporte .tabla-reporte td::before {
+                content: none;
+            }
+
+        .toast,
+        #toastImpresionError {
+            left: 10px;
+            right: 10px;
+            top: 10px;
+            min-width: unset;
+            width: auto;
+        }
+
+        .confirm-actions {
+            flex-direction: column;
+        }
+
+        .btn-cancelar-confirm,
+        .btn-confirmar-captura {
+            width: 100%;
+        }
+    }
+
+    @@media (max-width: 480px) {
+        .modal-producto .product-grid,
+        .product-grid {
+            grid-template-columns: 1fr !important;
+        }
+
+        #kpiPeso {
+            min-height: 150px;
+        }
+
+            .kpis-con-tiempo-real #kpiPeso .value,
+            #kpiPeso .value {
+                font-size: 56px !important;
+            }
+
+        .kpi-producto-preview {
+            height: 145px;
+            min-height: 145px;
+        }
+
+        .panel-tiempo-real {
+            height: 250px !important;
+            max-height: 250px !important;
+        }
+    }
+
+    .toast-flotante {
+        position: fixed;
+        top: 18px;
+        right: 18px;
+        z-index: 20000;
+        min-width: 280px;
+        max-width: 420px;
+        padding: 14px 18px;
+        border-radius: 12px;
+        color: #fff;
+        font-weight: 700;
+        box-shadow: 0 12px 28px rgba(0,0,0,.22);
+        opacity: 0;
+        transform: translateX(120%);
+        transition: all .3s ease;
+    }
+
+        .toast-flotante.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+    .toast-error {
+        background: linear-gradient(90deg, #dc3545, #8B0000);
+    }
+
+    .toast-info {
+        background: linear-gradient(90deg, #0d6efd, #084298);
+    }
+
+    .toast-ok {
+        background: linear-gradient(90deg, #198754, #146c43);
+    }
+
+    @@media (max-width: 768px) {
+        .toast-flotante {
+            left: 12px;
+            right: 12px;
+            top: 12px;
+            min-width: unset;
+            max-width: none;
+            transform: translateY(-120%);
+        }
+
+            .toast-flotante.show {
+                transform: translateY(0);
+            }
+    }
+</style>
+
+
+<!-- Shell Bar -->
+<!-- Layout -->
+<div class="layout">
+
+    <!-- Contenido principal -->
+    <main class="contents">
+
+        <!-- Toolbar / Filtros principales -->
+        <section class="toolbar">
+            <div class="filters">
+                <div>
+                    <label for="loteSelect">Lote</label>
+                    <select id="loteSelect">
+                        <option>—</option>
+                    </select>
+                </div>
+                <div style="display:flex; align-items:center;gap:2rem;">
+                    <div>
+                        <label>Producto</label>
+                        <button class="btn report" onclick="refrescarYAbrirModalProducto()">
+                            Seleccionar producto
+                        </button>
+                        <span id="productoSeleccionado" style="margin-left:10px; font-weight:600;">—</span>
+                    </div>
+                    <div>
+                    </div>
+                </div>
+
+                <div class="toolbar-actions">
+                    <button class="btn primary" id="btnStart" onclick="abrirConfirmacionCaptura()">
+                        Capturar
+                    </button>
+                    <!-- <button class="btn report" id="btnreporte">Ver Reporte</button> -->
+                    <button class="btn report" onclick="abrirModalReportes()">
+                        Ver Reportes
+                    </button>
+
+                    <button class="btn report" id="SeleccionarTara">⚙️ Configurar Tara</button>
+
+
+                </div>
+
+                <!-- 👇 SIEMPRE abajo -->
+                <div class="programacion-info">
+                    <span>Programación actual:</span>
+                    <span id="programacionActual">—</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- KPIs + Tabla tiempo real arriba -->
+        <section class="kpis kpis-con-tiempo-real">
+
+            <!-- IZQUIERDA: Peso + Imagen -->
+            <div class="kpis-main">
+                <div class="kpi ok" id="kpiPeso">
+                    <div class="title">Peso actual (kg)</div>
+
+                    <div style="display: flex; align-items: center; gap: 10px; justify-content: center;">
+                        <div class="value" id="pesoActual">0.00</div>
+
+                        <input type="number"
+                               id="inputPesoManual"
+                               step="0.01"
+                               min="0"
+                               placeholder="0.00"
+                               style="display: none; width: 120px; padding: 8px; font-size: 24px; font-weight: bold; text-align: center; border: 2px solid #007bff; border-radius: 4px;" />
+                    </div>
+                </div>
+
+                <div class="kpi kpi-producto-preview">
+                    <img id="imagenProducto"
+                         src=""
+                         alt="Imagen del producto">
+                </div>
+            </div>
+
+            <!-- DERECHA: Tabla tiempo real -->
+            <div class="panel panel-tiempo-real">
+                <div class="header">
+                    Últimas capturas de hoy
+                </div>
+
+                <div class="tabla-tiempo-real-wrapper">
+                    <table class="tabla-reporte tabla-tiempo-real">
+                        <thead>
+                            <tr>
+                                <th>Ref</th>
+                                <th>Hora</th>
+                                <th>Lote</th>
+                                <th>SKU</th>
+                                <th>Producto</th>
+                                <th>Peso</th>
+                                <th>Tara</th>
+                                <th>Modo</th>
+                                <th>Usuario</th>
+                                <th>Autorizacion</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="tbodyDetalladoTiempoReal">
+                            <tr>
+                                <td colspan="10">Seleccione un lote para ver capturas.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </section>
+    </main>
+</div>
+
+<!-- Dos columnas: Datos de proceso + Config rápida -->
+<section class="one-col">
+    <section class="two-col">
+        <!-- Datos de la corrida -->
+        <div class="panel">
+            <div class="header">Datos de proceso</div>
+            <div class="bodys">
+                <div class="form-grid readonly">
+                    <div class="field">
+                        <label>SKU</label>
+                        <input type="text" id="sku" disabled placeholder="—" />
+                    </div>
+                    <div class="field">
+                        <label>Porcentaje</label>
+                        <input type="text" id="porcentaje" disabled placeholder="—" />
+                    </div>
+                    <div class="field">
+                        <label>Velocidad</label>
+                        <input type="text" id="velocidad" disabled placeholder="—" />
+                    </div>
+                    <div class="field">
+                        <label>Producto</label>
+                        <input type="text" id="producto" disabled placeholder="—" />
+                    </div>
+                    <div class="field">
+                        <label>Modo</label>
+                        <input type="text" id="modo" disabled placeholder="—" />
+                    </div>
+                    <div class="field">
+                        <label>Presión</label>
+                        <input type="text" id="presion" disabled placeholder="—" />
+                    </div>
+                    <div class="field">
+                        <label>Altura</label>
+                        <input type="text" id="altura" disabled placeholder="—" />
+                    </div>
+                    <div class="field">
+                        <label>Avance</label>
+                        <input type="text" id="avance" disabled placeholder="—" />
+                    </div>
+                    <div class="field">
+                        <label>Seleccionar Tara</label>
+                        <input type="text" id="tara" disabled placeholder="—" />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+
+
+        <!-- Configuración rápida (Báscula/Impresora) -->
+        <div class="panel">
+            <div class="header">Configuración rápida</div>
+            <div class="bodys">
+                <div class="cards">
+                    <div class="Contra">
+
+
+                        <div class="card">
+                            <div class="row">
+                                <div>
+                                    <div style="font-weight:700;">Báscula</div>
+                                    <div class="meta" id="metaBascula">Sin configurar</div>
+                                </div>
+                                <!-- Antes: onclick="abrirModal('modalContra')" -->
+                                @*<button class="btn" onclick="abrirModalContra('modalBascula')">⚖️ Configurar</button>*@
+                                <button class="btn" onclick="abrirModal('modalBascula')">⚖️ Configurar</button>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="row">
+                                <div>
+                                    <div style="font-weight:700;">Impresora</div>
+                                    <div class="meta" id="metaImpresora">Sin configurar</div>
+                                </div>
+                                <!-- Antes: onclick="abrirModal('modalContra')" -->
+                                <button class="btn" onclick="abrirModal('modalImpresora')">🖨️ Configurar</button>
+                            </div>
+                        </div>
+
+
+                    </div>
+
+
+
+                    <div class="card">
+                        <div class="row">
+                            <div>
+                                <div style="font-weight:700;">Impresiones</div>
+                            </div>
+                            <button onclick="reimprimirUltimaCaptura()" class="btn-secondary" style="background: #17a2b8;">
+                                🖨️ Reimprimir Última
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="row">
+                            <div>
+                                <div style="font-weight:700;">Seleccionar Modo</div>
+                            </div>
+                            <button id="btnTogglePeso"
+                                    class="btn-toggle-peso"
+                                    title="Cambiar a modo manual"
+                                    style="margin-top: 10px;">
+                                Manual
+                            </button>
+                        </div>
+                    </div>
+
+
+
+
+
+                </div>
+            </div>
+        </div>
+    </section>
+
+
+@*     <div class="tabla-contenedor">
+        <table class="tabla-reporte">
+            <thead>
+                <tr>
+                    <th>SKU</th>
+                    <th>Esperado %</th>
+                    <th>Peso Entrada</th>
+                    <th>Peso Salida</th>
+                    <th>Variación</th>
+                    <th>Rendimiento %</th>
+                </tr>
+            </thead>
+            <tbody id="tbodyRendimiento">
+                <tr>
+                    <td colspan="8">Seleccione un lote</td>
+                </tr>
+            </tbody>
+        </table>
+
+    </div> *@
+
+@*     <div class="tabla-contenedor">
+        <table class="tabla-reporte">
+            <thead>
+                <tr>
+                    <th>Folio</th>
+                    <th>Fecha / Hora</th>
+                    <th>Lote</th>
+                    <th>SKU</th>
+                    <th>Producto</th>
+                    <th>Peso</th>
+                    <th>Tara</th>
+                    <th>Modo</th>
+                    <th>Usuario</th>
+                    <th>Autorización</th>
+                </tr>
+            </thead>
+            <tbody id="tbodyDetalladoTiempoReal">
+                <tr>
+                    <td colspan="10">Seleccione un lote para ver las últimas capturas</td>
+                </tr>
+            </tbody>
+        </table>
+    </div> 
+ *@
+
+    <!--Aqui ira la tabla para ver las ultimas capturas -->
+
+</section>
+
+
+
+
+<!-- Overlay + Modales -->
+<div class="overlay" id="overlay"></div>
+
+<!--Modale Contraseña-->
+<div class="modal modal-Confi" id="modalContra">
+    <div class="modal-header">Autenticacion</div>
+    <div class="modal-body">
+        <div>
+            <label for="Contra">Configuracion</label>
+            <input type="password" id="Password" placeholder="Ingresa la contraseña" />
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn" onclick="cerrarModal('modalContra')">Cancelar</button>
+        <button class="btn primary2" onclick="Comparar()">Acceder</button>
+    </div>
+</div>
+
+<!--Modale Bascula-->
+
+<div class="modal modal-Confi" id="modalBascula">
+    <div class="modal-header">Configuración de Báscula</div>
+    <div class="modal-body">
+        <div>
+            <label for="ipBascula">IP</label>
+            <input type="text" id="ipBascula" placeholder="Ej. 192.168.1.10" />
+        </div>
+        <div>
+            <label for="comandoBascula">Tipo de Comando</label>
+            <input type="text" id="comandoBascula" placeholder="P" />
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn" onclick="cerrarModal('modalBascula')">Cancelar</button>
+        <button class="btn primary2" onclick="guardarBascula()">Guardar</button>
+    </div>
+</div>
+
+
+
+<!--Modale Impresora-->
+
+<div class="modal modal-Confi" id="modalImpresora">
+    <div class="modal-header">Configuración de Impresora</div>
+    <div class="modal-body">
+        <div>
+            <label for="ipImpresora">IP</label>
+            <input type="text" id="ipImpresora" placeholder="Ej. 192.168.1.20" />
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn" onclick="cerrarModal('modalImpresora')">Cancelar</button>
+        <button class="btn primary2" onclick="guardarImpresora()">Guardar</button>
+    </div>
+</div>
+
+
+
+<!--Modal Producto con Buscador-->
+<div class="modal modal-producto" id="modalProducto">
+    <button class="btn-Pr" onclick="cerrarModal('modalProducto')">X</button>
+    <div class="modal-header">Selecciona el Producto</div>
+
+    <!-- Barra de búsqueda -->
+    <div style="padding: 15px 20px; background: #f5f5f5; border-bottom: 1px solid #ddd;">
+        <input type="text"
+               id="searchProducto"
+               placeholder="Buscar por SKU o nombre de producto"
+               style="width: 100%;
+        padding: 12px 15px;
+        font-size: 15px;
+        border: 2px solid #007bff;
+        border-radius: 8px;
+        outline: none;
+        transition: all 0.3s ease;"
+               onkeyup="filtrarProductos()"
+               onfocus="this.style.borderColor='#0056b3'; this.style.boxShadow='0 0 8px rgba(0,123,255,0.3)';"
+               onblur="this.style.borderColor='#007bff'; this.style.boxShadow='none';" />
+        <div id="resultadosBusqueda" style="margin-top: 8px; font-size: 13px; color: #666;"></div>
+    </div>
+
+    <div class="modal-body">
+        <div class="product-grid" id="contenedorProductos"></div>
+        <div id="sinResultados" style="display: none; text-align: center; padding: 40px; color: #999;">
+            <div style="font-size: 48px;"></div>
+            <div style="margin-top: 10px; font-size: 16px;">No se encontraron productos</div>
+        </div>
+    </div>
+    <div class="modal-footer"></div>
+</div>
+
+
+<!-- Modal Tara -->
+
+<div class="modal modal-tara" id="modalTara">
+    <button class="btn-Pr" onclick="cerrarModal('modalTara')">X</button>
+    <div class="modal-header">Selecciona la Tara</div>
+    <div class="modal-body">
+        <div class="tara-grid" id="contenedorTaras"></div>
+    </div>
+    <div class="modal-footer">
+    </div>
+</div>
+
+
+
+<!-- Modal Reporte -->
+<div class="modal modal-reporte modal-full" id="modalreporte">
+    <button class="btn-Pr" onclick="cerrarModal('modalreporte')">X</button>
+    <div class="modal-header">Reporte de Capturas</div>
+
+    <!-- Filtros -->
+    <div class="filtros-reporte">
+        <label>
+            Lote:
+            <input type="text" id="filtroLote" placeholder="Ej. DEST00001975" />
+        </label>
+        <label>
+            Usuario:
+            <input type="text" id="filtroUsuario" placeholder="correo@ejemplo.com" />
+        </label>
+        <label>
+            Fecha:
+            <input type="date" id="filtroFecha" />
+        </label>
+        <div>
+            <button class="btn primary2" id="btnFiltrar">Filtrar</button>
+            <button class="btn report" id="btnLimpiarFiltros">Limpiar</button>
+        </div>
+    </div>
+
+    <!-- Tabla -->
+    <div class="modal-body">
+        <div class="tabla-contenedor">
+            <table class="tabla-reporte">
+                <thead>
+                    <tr>
+                        <th>Id</th>
+                        <th>Lote</th>
+                        <th>Producto</th>
+                        <th>Programación</th>
+                        <th>SKU</th>
+                        <th>Porcentaje</th>
+                        <th>Velocidad</th>
+                        <th>Modo</th>
+                        <th>Presión</th>
+                        <th>Altura</th>
+                        <th>Avance</th>
+                        <th>Tara</th>
+                        <th>Peso Actual</th>
+                        <th>Porcentaje Actual</th>
+                        <th>Velocidad Actual</th>
+                        <th>Fecha Captura</th>
+                        <th>Usuario</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaReporteBody">
+                    <!-- JS inyecta aquí -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+
+<!-- Modal -->
+<div id="modalComparacion" class="modal modal-reporte modal-full ">
+
+    <button class="btn-Pr" onclick="cerrarModal('modalComparacion')">X</button>
+    <div class="modal-header">Reporte de Capturas</div>
+
+    <div class="filtros-reporte">
+
+        <label for="fechaComparacion">
+            Fecha:
+            <input type="date" id="fechaComparacion">
+
+
+            <label for="Capt">
+                <button class="btn primary2" id="Capt" onclick="cargarComparacion()">Consultar</button>
+            </label>
+
+
+        </label>
+
+
+    </div>
+
+
+    <div class="modal-body">
+
+        <table id="tablaComparacion">
+            <thead>
+                <tr>
+                    <!-- <td>${item.loteId}</td><th>LoteId</th> -->
+                    <th>Lote</th>
+                    <th>SKU</th>
+                    <th>Producto</th>
+                    <th>Peso Entrada</th>
+                    <th>Esperado</th>
+                    <th>Peso Salida</th>
+                    <th>Diferencia</th>
+                    <!-- <th>Estado</th> -->
+
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Aquí JS llena -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Validación Modo Manual -->
+
+<div class="modal modal-Aut" id="modalModoManual">
+    <div class="modal-header">Validación Modo Manual</div>
+    <div class="modal-body">
+        <div>
+            <label for="usuarioIdManual">Usuario ID</label>
+            <input type="number" id="usuarioIdManual" placeholder="Ingresa tu ID de usuario" />
+        </div>
+        <div style="margin-top: 15px;">
+            <label for="nipManual">NIP</label>
+            <input type="password" id="nipManual" placeholder="Ingresa tu NIP" />
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn" onclick="cerrarModal('modalModoManual')">Cancelar</button>
+        <button class="btn primary2" onclick="validarYActivarModoManual()">Validar</button>
+    </div>
+</div>
+
+<!-- Modal Reportes -->
+<div id="modalReportes" class="modal modal-reporte modal-full">
+
+    <button class="btn-Pr" onclick="cerrarModal('modalReportes')">X</button>
+    <div class="modal-header">Reportes de Producción</div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="rendimiento"
+                onclick="cambiarTab('rendimiento', this)">
+            Rendimiento
+        </button>
+
+        <button class="tab-btn" data-tab="detallado"
+                onclick="cambiarTab('detallado', this)">
+            Detallado
+        </button>
+    </div>
+
+
+
+    <!-- Filtros compartidos -->
+    <div class="filtros-reportes-top">
+        <div class="filtros-reportes-left">
+            <div class="fechas-reportes">
+                <label>
+                    Fecha inicio:
+                    <input type="date" id="repFechaInicio">
+                </label>
+
+                <label>
+                    Fecha fin:
+                    <input type="date" id="repFechaFin">
+                </label>
+            </div>
+
+            <div class="acciones-reportes-left">
+                <button class="btn primary2" onclick="consultarReporteActivo()">
+                    Consultar
+                </button>
+            </div>
+        </div>
+
+        <div class="acciones-reportes-right">
+            <button class="btn excel" onclick="exportarReporteExcel()">
+                Exportar a Excel
+            </button>
+        </div>
+    </div>
+
+    <!-- ===== TAB: RENDIMIENTO ===== -->
+    <div class="tab-content active" id="tab-rendimiento">
+        <div class="tabla-wrapper">
+            <table class="tabla-reporte">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Lote</th>
+                        <th>SKU</th>
+                        <th>Peso Entrada</th>
+                        <th>Peso Salida</th>
+                        <th>Esperado %</th>
+                        <th>Variación</th>
+                        <th>Rendimiento %</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyRendimientoModal"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ===== TAB: DETALLADO ===== -->
+    <div class="tab-content" id="tab-detallado">
+        <div class="tabla-wrapper">
+            <table class="tabla-reporte">
+                <thead>
+                    <tr>
+                        <th>Referencia</th>
+                        <th>Folio</th>
+                        <th>Fecha / Hora</th>
+                        <th>Lote</th>
+                        <th>SKU</th>
+                        <th>Producto</th>
+                        <th>Peso</th>
+                        <th>Tara</th>
+                        <th>Modo</th>
+                        <th>Usuario</th>
+                        <th>Autorización</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyDetallado"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Notificación -->
+<div id="toastEntrada" class="toast">
+    <div class="toast-icon">✅</div>
+    <div class="toast-content">
+        <div class="toast-title">Entrada registrada</div>
+        <div class="toast-message">
+            ID: <span id="toastEntradaId"></span>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Error Impresión -->
+<div id="toastImpresionError" class="toast toast-error">
+    <div class="toast-icon"></div>
+    <div class="toast-content">
+        <div class="toast-title">Error de impresión</div>
+        <div class="toast-message">
+            No se pudo imprimir la etiqueta
+        </div>
+        <div class="toast-actions">
+            <button class="toast-btn retry" onclick="reintentarImpresion()">
+                Reimprimir
+            </button>
+            <button class="toast-btn close" onclick="ocultarToastImpresion()">
+                Cerrar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Global -->
+<div id="loadingOverlay" class="loading-overlay">
+    <div class="loading-box">
+        <div class="spinner"></div>
+        <div class="loading-text">Cargando información...</div>
+    </div>
+</div>
+
+<!--CONFIRMACION DE CAPTURA-->
+<div id="modalConfirmarCaptura" class="modal modal-confirm-captura" style="display:none;">
+    <div class="confirm-header">
+        <div class="confirm-icon">⚠️</div>
+        <div>
+            <h4>Confirmar captura</h4>
+            <p>Revisa la información antes de registrar la entrada.</p>
+        </div>
+    </div>
+
+    <div class="confirm-summary">
+        <div class="confirm-item">
+            <span>Lote</span>
+            <strong id="confirmLote">—</strong>
+        </div>
+
+        <div class="confirm-item">
+            <span>Producto</span>
+            <strong id="confirmProducto">—</strong>
+        </div>
+
+        <div class="confirm-item">
+            <span>SKU</span>
+            <strong id="confirmSku">—</strong>
+        </div>
+
+        <div class="confirm-item peso">
+            <span>Peso a capturar</span>
+            <strong id="confirmPeso">0.000 kg</strong>
+        </div>
+
+        <div class="confirm-item tara">
+            <span>Tara</span>
+            <strong id="confirmTara">0.000 kg</strong>
+        </div>
+    </div>
+
+    <div class="confirm-warning">
+        Esta acción registrará la captura y enviará la impresión correspondiente.
+    </div>
+
+    <div class="confirm-actions">
+        <button type="button" class="btn btn-cancelar-confirm" onclick="cerrarConfirmacionCaptura()">
+            Cancelar
+        </button>
+
+        <button type="button" class="btn btn-confirmar-captura" id="btnConfirmarCaptura" onclick="confirmarCapturaEntrada()">
+            Confirmar captura
+        </button>
+    </div>
+</div>
+
+
+
+<script>
+    const correoUsuario = @Html.Raw(Json.Serialize(User.FindFirst("Correo")?.Value));
+</script>
+
+@* <script src="~/js/sigo-offline-inyecciones.js" asp-append-version="true"></script> *@
+<script src="~/js/inyeccion.js" asp-append-version="true"></script>
+@* <script src="~/js/sigo-datos-proceso-inyecciones.js" asp-append-version="true"></script> *@
+

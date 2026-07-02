@@ -1,0 +1,393 @@
+﻿@using Plataforma_CG.ViewModels
+@model Plataforma_CG.ViewModels.CanalEstudioViewModel
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Estudios";
+}
+
+<style>
+    :root {
+        --brand: linear-gradient(90deg, #8B0000 0%, #5a0000 50%, #1a0000 100%);
+        --surface: #fff;
+        --bg: linear-gradient(135deg, #f1f3f6 0%, #e9edf2 45%, #e8dada 100%); /* Fondo con matiz cálido */
+        --line: #e5e7eb;
+        --text: #1f2a35;
+        --muted: #64748b;
+        --radius: 12px;
+        --shadow: 0 10px 24px rgba(0,0,0,.06);
+        --shadow-sm: 0 6px 16px rgba(0,0,0,.06);
+        --focus: 0 0 0 .24rem rgba(139,0,0,.25);
+    }
+
+    body {
+        background: #D3D3D3 !important; /* gris rata clásico */
+    }
+    .shell {
+        max-width: 1200px;
+        margin: 1.25rem auto 2rem;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+    }
+
+    .titlebar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        flex-wrap: wrap;
+        padding: 1rem 1.1rem;
+        background: linear-gradient(#f6f8fb,#eef2f7);
+        border-bottom: 1px solid var(--line);
+    }
+
+        .titlebar h4 {
+            margin: 0;
+            font-weight: 800;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: .6rem;
+        }
+
+            .titlebar h4 i {
+                color: var(--brand);
+            }
+
+        .titlebar .sub {
+            margin: 0;
+            color: var(--muted);
+        }
+
+    .content-pad {
+        padding: 1rem 1.1rem 1.25rem;
+    }
+
+    .kpis {
+        display: flex;
+        gap: .5rem;
+        flex-wrap: wrap;
+    }
+
+    .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+        padding: .4rem .7rem;
+        border-radius: 999px;
+        background: #fff;
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow-sm);
+        font-weight: 700;
+        color: #1b2430;
+    }
+
+        .chip i {
+            color: var(--brand);
+        }
+
+    .card-soft {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        box-shadow: var(--shadow-sm);
+    }
+
+        .card-soft .card-header {
+            background: linear-gradient(#f7f9fc,#eef2f7);
+            border-bottom: 1px solid var(--line);
+            font-weight: 800;
+            color: #2c3b4a;
+        }
+
+    .form-control, .form-select {
+        border-color: var(--line);
+        border-radius: 10px;
+    }
+
+        .form-control:focus, .form-select:focus {
+            border-color: var(--brand);
+            box-shadow: var(--focus);
+        }
+
+    .table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #f3f6fb !important;
+        color: #2b3642 !important;
+        text-transform: uppercase;
+        font-size: .85rem;
+        font-weight: 800;
+        border-bottom: 1px solid var(--line) !important;
+    }
+
+    .table tbody td {
+        vertical-align: middle;
+    }
+
+    .table-hover tbody tr:hover {
+        background: #fafcff;
+    }
+
+    tfoot th {
+        background: #fff;
+        position: sticky;
+        bottom: 0;
+        z-index: 1;
+    }
+
+    .btn-brand {
+        background: var(--brand);
+        color: #fff;
+        border: 1px solid rgba(0,0,0,.06);
+    }
+
+        .btn-brand:hover {
+            color: #fff;
+            box-shadow: 0 10px 22px rgba(139,0,0,.25);
+            transform: translateY(-1px);
+        }
+</style>
+
+<div class="shell">
+
+    <!-- Encabezado -->
+    <div class="titlebar">
+        <div>
+            <h4><i class="fas fa-cow"></i> ESTUDIO DE CANAL</h4>
+            <p class="sub">Captura de rendimientos por producto con cálculo en vivo.</p>
+        </div>
+        <div class="kpis">
+            <span class="chip" title="Suma de Kg ingresados"><i class="bi bi-scale"></i> Kg Productos: <span id="kpiKgProductos">0.00</span></span>
+            <span class="chip" title="% total real calculado"><i class="bi bi-percent"></i> % Real Total: <span id="kpiPctReal">0.0000%</span></span>
+            <span class="chip" title="Diferencia contra Kg Canal Frío"><i class="bi bi-graph-down"></i> Dif. vs Canal: <span id="kpiDifCanal">0.00</span></span>
+        </div>
+    </div>
+
+    <div class="content-pad">
+
+        @using (Html.BeginForm("GuardarEstudio", "Operaciones", FormMethod.Post))
+        {
+            <!-- Datos generales -->
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Tipo de Ganado</label>
+                    <!-- OJO: mantengo tu binding original si fuera TipoCanal en el modelo.
+                         Si tienes TipoGanado en el ViewModel, cámbialo a asp-for="TipoGanado". -->
+                    <select asp-for="TipoCanal" class="form-select form-select-lg">
+                        <option value="NH">Novillo Hembra</option>
+                        <option value="VG">Vaca Gorda</option>
+                        <option value="RG">Regular</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Tipo de Canal</label>
+                    <select asp-for="TipoCanal" class="form-select form-select-lg">
+                        <option value="C/H">Con Hueso</option>
+                        <option value="S/H">Sin Hueso</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Fecha del Estudio</label>
+                    <input asp-for="FechaEstudio" type="date" class="form-control form-control-lg" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Peso Canal Caliente (kg)</label>
+                    <input asp-for="PesoCanalCaliente" type="number" step="0.01" class="form-control form-control-lg" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Peso Canal Frío (kg)</label>
+                    <input asp-for="PesoCanalFrio" id="pesoCanalFrio" type="number" step="0.01" class="form-control form-control-lg" />
+                </div>
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Merma Chiller (kg)</label>
+                    <input asp-for="MermaChiller" type="number" step="0.01" class="form-control form-control-lg" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Merma Estudio (kg)</label>
+                    <input asp-for="MermaEstudio" type="number" step="0.01" class="form-control form-control-lg" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Cuadrante</label>
+                    <select asp-for="Cuadrante" class="form-select form-select-lg">
+                        <option value="">Seleccione un cuadrante</option>
+                        <option value="A">CUARTO CORTO</option>
+                        <option value="B">COSTILLAR CON FALDÓN</option>
+                        <option value="C">LOMO</option>
+                        <option value="D">PIÑA</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Master</label>
+                    <select asp-for="Master" class="form-select form-select-lg">
+                        <option value="">Seleccione Master</option>
+                        <option value="SKU001">CUARTO CORTO SIN PALETA NI CHAMBERETE</option>
+                        <option value="SKU002">PALETA</option>
+                        <option value="SKU003">COSTILLA</option>
+                        <option value="SKU004">FALDÓN</option>
+                        <option value="SKU005">ARRACHERAS</option>
+                        <option value="SKU006">CHULETÓN</option>
+                        <option value="SKU007">T-BONE</option>
+                        <option value="SKU008">GALLITO</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Productos -->
+            <div class="card-soft mt-3">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <span>🥩 Productos del Canal</span>
+                    <small class="text-muted">Captura los Kg; el % Real se calcula si hay Kg de Canal Frío.</small>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height:500px; overflow:auto;">
+                        <table class="table table-hover align-middle mb-0" id="tablaProductos">
+                            <thead class="text-center">
+                                <tr>
+                                    <th style="min-width:260px;">Producto</th>
+                                    <th style="min-width:140px;">Kg</th>
+                                    <th style="min-width:140px;">% Real</th>
+                                    <th style="min-width:160px;">% Objetivo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (int i = 0; i < Model.Productos.Count; i++)
+                                {
+                                    <tr>
+                                        <td>
+                                            <input asp-for="Productos[@i].Nombre" class="form-control producto-nombre" />
+                                        </td>
+                                        <td>
+                                            <input asp-for="Productos[@i].Kg" type="number" step="0.01" class="form-control input-kg" />
+                                        </td>
+                                        <td>
+                                            <input asp-for="Productos[@i].PorcentajeReal" type="number" step="0.0001" class="form-control input-pct-real" />
+                                        </td>
+                                        <td>
+                                            <input asp-for="Productos[@i].PorcentajeObjetivo" type="number" step="0.0001" class="form-control" />
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <th class="text-end">Totales:</th>
+                                    <th id="totalKg" class="text-end pe-3">0.00</th>
+                                    <th id="totalPctReal" class="text-end pe-3">0.0000%</th>
+                                    <th></th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Botones -->
+            <div class="d-flex gap-3 mt-4 justify-content-center">
+                <button type="submit" class="btn btn-brand btn-lg">
+                    <i class="fas fa-save"></i> Guardar Estudio
+                </button>
+                <button type="button" class="btn btn-secondary btn-lg" onclick="window.location='/Home/inicio'">
+                    Cancelar
+                </button>
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        /**
+         * UX helpers: cálculo en vivo de %Real = KgProducto / KgCanalFrio * 100
+         * Si no hay Kg canal frío, dejamos editable el %Real para captura manual (como ya lo tienes).
+         * También mostramos KPIs (kg productos, % real total, diferencia contra canal frío).
+         */
+        (function(){
+            const $tabla = document.getElementById('tablaProductos');
+            if(!$tabla) return;
+
+            const $pesoFrio = document.getElementById('pesoCanalFrio');
+            const fmt2 = n => Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:2, maximumFractionDigits:2});
+            const fmt4p = n => Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:4, maximumFractionDigits:4})+'%';
+
+            function getRows(){
+                return Array.from($tabla.querySelectorAll('tbody tr'));
+            }
+            function readNumber(el){
+                const v = parseFloat((el?.value||'').toString().replace(/,/g,'')); return isNaN(v)?0:v;
+            }
+
+            function recalc(){
+                const canalFrio = readNumber($pesoFrio);
+                let sumKg = 0;
+                let sumPctReal = 0;
+
+                getRows().forEach(tr=>{
+                    const kgInput = tr.querySelector('.input-kg');
+                    const pctInput = tr.querySelector('.input-pct-real');
+
+                    const kg = readNumber(kgInput);
+                    sumKg += kg;
+
+                    if(canalFrio > 0){
+                        // Calcula %Real y actualiza input (dejamos al usuario editar si quiere, pero recalculamos al teclear)
+                        const pct = (kg / canalFrio) * 100;
+                        pctInput.value = (Math.round(pct*10000)/10000).toFixed(4);
+                        sumPctReal += pct;
+                    }else{
+                        // Sin canal frío, no sumamos el %Real a total (puede estar capturado manual)
+                        // pero mostramos el acumulado manual si todos los campos tienen número
+                        const pctManual = readNumber(pctInput);
+                        sumPctReal += pctManual;
+                    }
+                });
+
+                // Totales de tabla
+                document.getElementById('totalKg').textContent = fmt2(sumKg);
+                document.getElementById('totalPctReal').textContent = fmt4p(sumPctReal);
+
+                // KPIs superiores
+                const kpiKg = document.getElementById('kpiKgProductos');
+                const kpiPct = document.getElementById('kpiPctReal');
+                const kpiDif = document.getElementById('kpiDifCanal');
+
+                if(kpiKg) kpiKg.textContent = fmt2(sumKg);
+                if(kpiPct) kpiPct.textContent = fmt4p(sumPctReal);
+                if(kpiDif) kpiDif.textContent = fmt2((readNumber($pesoFrio) - sumKg));
+            }
+
+            // Eventos: cambios en Kg y en %Real (por si editan manual) y en Kg Canal Frío
+            $tabla.addEventListener('input', function(e){
+                if(e.target.matches('.input-kg, .input-pct-real')) recalc();
+            });
+            if($pesoFrio){
+                $pesoFrio.addEventListener('input', recalc);
+            }
+
+            // Uppercase suave para nombres
+            document.querySelectorAll('.producto-nombre').forEach(inp=>{
+                inp.addEventListener('input', function(){
+                    const s=this.selectionStart, e=this.selectionEnd;
+                    this.value = this.value.toUpperCase();
+                    this.setSelectionRange(s,e);
+                });
+            });
+
+            // Inicial
+            recalc();
+        })();
+    </script>
+}

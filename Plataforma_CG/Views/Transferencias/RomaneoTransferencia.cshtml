@@ -1,0 +1,1769 @@
+﻿@using System.Linq
+@using Plataforma_CG.Models
+@model Plataforma_CG.ViewModels.RomaneoTransferenciasVM
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+
+    var desdeDef = (Model?.Desde ?? DateTime.Today).ToString("yyyy-MM-dd");
+    var hastaDef = (Model?.Hasta ?? DateTime.Today).ToString("yyyy-MM-dd");
+
+    var rows = Model?.Rows ?? new List<Plataforma_CG.ViewModels.RomaneoTransferenciasRowVM>();
+
+    var totalCajasGlobal = rows.Sum(x => x.Cajas);
+    var totalPesoGlobal = rows.Sum(x => x.Peso);
+
+    var destSel = Model?.DestinosSeleccionados ?? new List<string>();
+    var pedSel = Model?.PedidosSeleccionados ?? new List<string>();
+    var tarSel = Model?.TarimasSeleccionadas ?? new List<string>();
+    var codigoEtiquetaDef = Model?.CodigoEtiqueta ?? "";
+
+    string LabelMulti(List<string> sel, string emptyText, string pluralText)
+    {
+        if (sel == null || sel.Count == 0) return emptyText;
+        if (sel.Count <= 3) return string.Join(", ", sel);
+        return $"{sel.Count} {pluralText}";
+    }
+
+    var logoUrl = Url.Content("~/images/sigoNegro.png");
+
+    var excelUrl = Url.Action("ExportCaducidadTransferencias", "Transferencias",
+        new
+        {
+            desde = Model?.Desde?.ToString("yyyy-MM-dd"),
+            hasta = Model?.Hasta?.ToString("yyyy-MM-dd"),
+            destinosSel = destSel,
+            pedidosSel = pedSel,
+            tarimasSel = tarSel
+        });
+}
+
+<style>
+    :root{
+        --bg:#f0dede;
+        --panel:#f8eeee;
+        --panel-2:#f1dede;
+        --line:#c79d9d;
+        --line-dark:#8f4c4c;
+        --text:#3b1717;
+        --muted:#6a3a3a;
+        --title:#ffffff;
+        --white:#ffffff;
+        --danger:#c00000;
+        --warning:#f3b6b6;
+        --ok:#f7e3e3;
+        --shadow:0 1px 0 rgba(255,255,255,.55) inset;
+        --brand:#8B0000;
+
+        --vino-1:#5c0000;
+        --vino-2:#7a0000;
+        --vino-3:#980000;
+        --vino-4:#b30000;
+        --vino-5:#d10000;
+
+        --vino-soft:#f8e7e7;
+        --vino-soft-2:#f2d9d9;
+        --vino-border:#9a5a5a;
+        --vino-text:#ffffff;
+        --vino-text-dark:#4a1111;
+
+        --shadow-sm:0 1px 3px rgba(60,10,10,.08);
+        --shadow-md:0 4px 6px rgba(60,10,10,.10);
+        --shadow-lg:0 10px 20px rgba(60,10,10,.14);
+
+        --sap-grid-bg:#dfeaf6;
+        --sap-grid-border:#b7c6d6;
+        --sap-grid-border2:#9fb2c8;
+        --sap-grid-hover:#cfe0f2;
+        --sap-grid-head1: #8b0000;
+        --sap-grid-head2: #6f0000;
+        --sap-yellow:#fff2a8;
+        --sap-grid-text:#10212b;
+       --sap-grid-headtext: #ffffff;
+
+        --print-red:#8B0000;
+        --print-gray:#6b6b6b;
+    }
+
+    *{ box-sizing:border-box; }
+
+    body{
+        margin:0 !important;
+        padding:0 !important;
+        background:transparent !important;
+        color:var(--text);
+        font-family:Tahoma, Verdana, Arial, sans-serif;
+    }
+
+    .container, .container-fluid{
+        max-width:100% !important;
+        width:100% !important;
+        padding:0 !important;
+        margin:0 !important;
+    }
+
+    .window{
+        width:100%;
+        max-width:100%;
+        margin:0 !important;
+        border:1px solid #7e4a4a;
+        background:var(--panel);
+        box-shadow:0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70,12,12,.14);
+        overflow:visible;
+        padding:0 !important;
+    }
+
+    .window > *:first-child,
+    .titlebar{
+        margin-top:0 !important;
+    }
+
+    .titlebar{
+        height:34px;
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        padding:0 10px;
+        background:linear-gradient(180deg, #c00000 0%, #8b0000 60%, #5c0000 100%);
+        border-bottom:1px solid #5c0000;
+        color:#fff;
+        font-size:13px;
+        font-weight:bold;
+    }
+
+    .titlebar .actions{ display:flex; gap:6px; }
+
+    .win-btn{
+        width:16px;
+        height:16px;
+        border:1px solid #7c4848;
+        background:linear-gradient(#fff6f6, #ead0d0);
+    }
+
+   .toolbar{
+    display:flex;
+    justify-content:flex-end;
+    align-items:center;
+    gap:4px;
+    padding:4px 6px;
+    background:linear-gradient(#fff6f6, #ecd8d8);
+    border-bottom:1px solid var(--line);
+    font-size:12px;
+    flex-wrap:wrap;
+    width:100%;
+}
+
+    .tool-btn, .tab{ border:1px solid transparent; padding:4px 8px; user-select:none; }
+
+    .tool-btn{
+        min-width:72px;
+        text-align:center;
+        background:linear-gradient(#fffefe, #ecd7d7);
+        border:1px solid var(--vino-border);
+        box-shadow:var(--shadow);
+        cursor:pointer;
+        color:var(--vino-text-dark);
+        text-decoration:none;
+        height:28px;
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+    }
+
+    .tool-btn:hover, .small-btn:hover, .tab:hover, .btnx:hover{ filter:brightness(.98); }
+
+    .content{ padding:8px; background:var(--bg); }
+
+    .tabs{ display:flex; gap:4px; margin-bottom:6px; flex-wrap:wrap; }
+
+    .tab{
+        font-size:12px;
+        background:linear-gradient(#f7e7e7, #ead1d1);
+        border:1px solid #caa0a0;
+        border-bottom:none;
+        padding:7px 12px;
+        color:#5c1a1a;
+    }
+
+    .tab.active{
+        background:linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        font-weight:bold;
+        color:#fff;
+        border-color:#7a2d2d;
+    }
+
+    .workspace{ border:1px solid var(--line); background:var(--panel); padding:8px; }
+
+    .section{ border:1px solid var(--line); background:#fff; margin-bottom:10px; }
+
+    .section-title{
+        padding:6px 8px;
+        font-size:12px;
+        font-weight:bold;
+        color:#fff;
+        background:linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-bottom:1px solid #6b1f1f;
+    }
+
+    .label{ display:block; color:#5c1a1a; font-size:12px; margin-bottom:4px; font-weight:bold; }
+
+    .muted{ color:var(--muted); }
+    .small{ font-size:12px; }
+    .text-end{ text-align:right !important; font-variant-numeric:tabular-nums; }
+
+    input, select, .form-control, .form-select, .form-control-sm, .in{
+        border:1px solid #b48787 !important;
+        background:#fffdfd !important;
+        color:#421414 !important;
+        border-radius:0 !important;
+        box-shadow:none !important;
+        font-size:12px !important;
+    }
+
+    .in{
+        display:block;
+        width:100% !important;
+        max-width:none !important;
+        min-width:0 !important;
+        height:36px !important;
+        min-height:36px !important;
+        padding:6px 10px !important;
+        line-height:1.2 !important;
+    }
+
+    .form-control:focus, .form-select:focus, .form-control-sm:focus, .in:focus{
+        border-color:#8b0000 !important;
+        box-shadow:0 0 0 .18rem rgba(139,0,0,.14) !important;
+        outline:none;
+    }
+
+    .btnx, .small-btn{
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        gap:.45rem;
+        height:28px;
+        padding:0 10px;
+        font-weight:700;
+        border-radius:0;
+        font-size:12px;
+        box-shadow:var(--shadow);
+        white-space:nowrap;
+        cursor:pointer;
+        text-decoration:none;
+        border:1px solid #b48787;
+        background:linear-gradient(#fffefe, #ecd7d7);
+        color:#4b1f1f;
+    }
+
+    .btn-primary{
+        color:#fff;
+        background:linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border:1px solid #7a2d2d;
+    }
+
+    .btn-ghost{ background:linear-gradient(#fffefe, #ecd7d7); color:#4b1f1f; border:1px solid #b48787; }
+
+    .grid{ display:grid; grid-template-columns:repeat(12, minmax(0, 1fr)); gap:12px; }
+
+    .gcol-2{ grid-column:span 2; }
+    .gcol-3{ grid-column:span 3; }
+    .gcol-12{ grid-column:span 12; }
+
+    @@media(max-width:992px){
+        .gcol-2, .gcol-3{ grid-column:span 12; }
+    }
+
+    .bar{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-top:8px; }
+    .bar-left{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .bar-right{ line-height:1.3; }
+
+    .pill{
+        border:1px solid #d8bcbc;
+        border-radius:0;
+        padding:8px 10px;
+        background:#fffafa;
+        display:flex;
+        align-items:baseline;
+        gap:10px;
+        min-width:150px;
+        justify-content:space-between;
+        box-sizing:border-box;
+    }
+
+    .kpi{ font-weight:900; font-size:18px; }
+
+    .dropdown-menu{
+        font-size:12px !important;
+        border-radius:0 !important;
+        border:1px solid #b48787 !important;
+        background:#fffafa !important;
+    }
+
+    .dd-actions{ position:sticky; bottom:0; background:#fff; padding-top:8px; }
+
+    .order-card{
+        border:1px solid var(--line);
+        border-radius:0;
+        overflow:visible;
+        background:#fff;
+        box-shadow:0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70,12,12,.08);
+        margin-bottom:18px;
+    }
+
+    .order-band{
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        gap:12px;
+        padding:10px 12px;
+        font-weight:900;
+        background:linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        color:#fff;
+        border-bottom:1px solid #6b1f1f;
+    }
+
+    .order-band .meta{ font-weight:700; opacity:.95; font-size:12px; }
+
+    .order-body{ padding:12px; }
+
+    .group-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; }
+
+    .tarima-block{
+        border:1px solid #d8bcbc;
+        border-radius:0;
+        padding:10px;
+        margin-top:10px;
+        background:#fffafa;
+    }
+
+    .tarima-title{
+        margin:10px 0 6px;
+        font-weight:900;
+        color:var(--text);
+        display:flex;
+        align-items:center;
+        gap:8px;
+    }
+
+    .tag{
+        font-size:12px;
+        color:#5c1a1a;
+        border:1px solid #d8bcbc;
+        border-radius:999px;
+        padding:2px 8px;
+        background:#fff;
+        font-weight:700;
+    }
+
+    .hr{ height:1px; background:#e4caca; margin:12px 0; }
+
+    .empty{
+        padding:22px;
+        text-align:center;
+        color:var(--muted);
+        border:1px dashed #d3b0b0;
+        border-radius:0;
+        background:#fff;
+        font-weight:700;
+    }
+
+    .tablewrap, .table-responsive{
+        border:1px solid var(--sap-grid-border) !important;
+        border-radius:0 !important;
+        overflow:visible;
+        width: fit-content !important;      /* ← se ajusta al contenido */
+        background:var(--sap-grid-bg) !important;
+    }
+
+    table.t{
+        width:100%;
+        border-collapse:separate !important;
+        border-spacing:0 !important;
+        background:var(--sap-grid-bg) !important;
+        font-size:12px !important;
+    }
+
+    table.t thead th{
+        position:sticky;
+        top:0;
+        z-index:2;
+        background:linear-gradient(180deg,var(--sap-grid-head1) 0%, var(--sap-grid-head2) 100%) !important;
+        color:var(--sap-grid-headtext) !important;
+        border-bottom:1px solid var(--sap-grid-border2) !important;
+        border-right:1px solid var(--sap-grid-border) !important;
+        padding:.22rem .35rem !important;
+        font-weight:800 !important;
+        text-transform:none !important;
+        letter-spacing:0 !important;
+        font-size:12px !important;
+        white-space:nowrap !important;
+    }
+
+    table.t tbody td{
+        background:var(--sap-grid-bg) !important;
+        color:var(--sap-grid-text) !important;
+        border-bottom:1px solid var(--sap-grid-border) !important;
+        border-right:1px solid var(--sap-grid-border) !important;
+        padding:.18rem .35rem !important;
+        line-height:1.05 !important;
+        white-space:normal !important;
+        overflow:visible !important;
+        text-overflow:clip !important;
+        word-break:break-word !important;
+    }
+
+    table.t thead th:first-child,
+    table.t tbody td:first-child{ border-left:1px solid var(--sap-grid-border) !important; }
+
+    table.t tbody tr:hover td{ background:var(--sap-grid-hover) !important; }
+    table.t tbody tr:nth-child(even) td{ background:var(--sap-grid-bg) !important; }
+
+    /* ========================= PANTALLA: anchos t-romaneo ========================= */
+    @@media screen {
+        table.t.t-romaneo {
+            table-layout: fixed !important;
+            width: 100% !important;
+        }
+        table.t.t-romaneo th.col-sku,
+        table.t.t-romaneo td:nth-child(1) { width: 10% !important; }
+        table.t.t-romaneo th.col-producto,
+        table.t.t-romaneo td:nth-child(2) { width: 48% !important; }
+        table.t.t-romaneo th.col-cajas,
+        table.t.t-romaneo td:nth-child(3) { width: 21% !important; }
+        table.t.t-romaneo th.col-peso,
+        table.t.t-romaneo td:nth-child(4) { width: 21% !important; }
+    }
+
+    table.t:not(.t-romaneo) thead th:nth-child(3),
+    table.t:not(.t-romaneo) tbody td:nth-child(3),
+    table.t:not(.t-romaneo) thead th:nth-child(4),
+    table.t:not(.t-romaneo) tbody td:nth-child(4),
+    table.t:not(.t-romaneo) thead th:nth-child(5),
+    table.t:not(.t-romaneo) tbody td:nth-child(5){
+        background:var(--sap-yellow) !important;
+    }
+
+    .detail-toggle{
+        margin-top:10px;
+        border:1px solid #d8bcbc;
+        border-radius:0;
+        background:#fff;
+        overflow:hidden;
+    }
+
+    .detail-toggle summary{
+        list-style:none;
+        cursor:pointer;
+        padding:10px 12px;
+        font-weight:800;
+        color:var(--text);
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:12px;
+        user-select:none;
+        background:#f8fafc;
+        border-bottom:1px solid transparent;
+    }
+
+    .detail-toggle summary::-webkit-details-marker{ display:none; }
+    .detail-toggle[open] summary{ border-bottom-color:#d8bcbc; }
+    .detail-toggle .summary-left{ display:flex; align-items:center; gap:8px; }
+    .detail-toggle .summary-icon{ font-size:12px; transition:transform .15s ease; }
+    .detail-toggle[open] .summary-icon{ transform:rotate(90deg); }
+    .detail-toggle .detail-body{ padding:10px; background:#fff; }
+
+    .statusbar{
+        display:flex;
+        justify-content:space-between;
+        gap:12px;
+        padding:6px 10px;
+        font-size:11px;
+        color:#4a1a1a;
+        border-top:1px solid #b88c8c;
+        background:linear-gradient(#f6e9e9, #ead5d5);
+        flex-wrap:wrap;
+    }
+
+    .print-only{ display:none; }
+
+    @@page{
+        size:Letter portrait;
+        margin:10mm 8mm;
+    }
+
+    /* ========================= PRINT ========================= */
+    @@media print {
+
+        html, body {
+            height: auto !important;
+            overflow: hidden !important;
+            background: #fff !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .layout-navbar,
+        .layout-sidebar,
+        .layout-sidebar-hover-zone,
+        #layout-toggle-sidebar-btn,
+        #layout-chat-fab,
+        #layout-manual-fab,
+        #layout-chat-panel,
+        footer.layout-footer { display: none !important; }
+
+        .layout-main-content,
+        .layout-container-fluid {
+            height: auto !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            max-width: none !important;
+        }
+
+        .no-print { display: none !important; }
+        .print-only { display: block !important; }
+
+        body { padding: 0 !important; margin: 0 !important; }
+
+        .wrap, .container, .container-fluid {
+            max-width: none !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            box-sizing: border-box !important;
+        }
+
+        .window, .workspace, .section {
+            border: 0 !important;
+            box-shadow: none !important;
+            background: #fff !important;
+        }
+
+        .order-card, .order-body, .tarima-block, .workspace, .content, .window {
+    overflow: visible !important;
+    max-width: 100% !important;
+    width: 100% !important;
+}
+
+html, body, .window, .content, .workspace, .section,
+.order-card, .order-body, .tarima-block, .tablewrap {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+}
+
+.section > div {
+    padding: 0 !important;
+}
+
+
+        /* HEADER */
+        .print-top {
+            display: grid !important;
+            grid-template-columns: 150px 1fr 200px !important;
+            gap: 8px !important;
+            align-items: start !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+            padding-bottom: 8px !important;
+            margin-bottom: 10px !important;
+            border-bottom: 2px solid #8B0000 !important;
+        }
+
+        .print-logo img { max-width: 140px; height: auto; display: block; }
+
+        .print-title div:first-child {
+            font-size: 22px !important;
+            font-weight: 900 !important;
+            text-align: center !important;
+            color: #111 !important;
+            line-height: 1.15 !important;
+        }
+
+        .print-title div:last-child {
+            font-size: 9.5px !important;
+            text-align: center !important;
+            color: #444 !important;
+        }
+
+        .print-meta { font-size: 9.5px !important; line-height: 1.5 !important; color: #222 !important; }
+
+        /* KPIs */
+        .print-kpis {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 10px !important;
+            margin: 10px 0 !important;
+        }
+
+        .kpi-box {
+            display: flex !important;
+            gap: 10px !important;
+            align-items: center !important;
+            padding: 8px 10px !important;
+            border: 1px solid #ccc !important;
+            border-radius: 6px !important;
+            background: #fff !important;
+        }
+
+        /* BARRAS */
+        .print-bar {
+            display: flex !important;
+            justify-content: space-between !important;
+            padding: 5px 8px !important;
+            margin: 8px 0 0 !important;
+            background: #6b6b6b !important;
+            color: #fff !important;
+            font-size: 10.5px !important;
+            font-weight: 900 !important;
+        }
+
+        .print-bar.small {
+            margin-top: 2px !important;
+            background: #9a9a9a !important;
+            font-size: 10px !important;
+            font-weight: 800 !important;
+        }
+
+        /* BLOQUES */
+        .order-card, .order-body, .tarima-block {
+            margin: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            background: transparent !important;
+        }
+
+        /* WRAPPER TABLAS */
+        .tablewrap {
+            width: 100% !important;
+            margin-top: 2px !important;
+            border: 1px solid #ccc !important;
+            border-radius: 0 !important;
+            overflow: visible !important;
+            background: #fff !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+        }
+
+        /* BASE TABLAS */
+        table.t {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            font-size: 9.5px !important;
+            background: #fff !important;
+            table-layout: fixed !important;
+        }
+
+        table.t thead { display: table-header-group !important; }
+        table.t tfoot { display: table-footer-group !important; }
+
+        table.t thead th {
+            box-sizing: border-box !important;
+            padding: 5px 6px !important;
+            border: 1px solid #8B0000 !important;
+            background: #8B0000 !important;
+            color: #fff !important;
+            font-size: 9.5px !important;
+            font-weight: 800 !important;
+            white-space: nowrap !important;
+        }
+
+        table.t tbody td {
+            box-sizing: border-box !important;
+            padding: 4px 6px !important;
+            border: 1px solid #ddd !important;
+            background: #fff !important;
+            vertical-align: top !important;
+        }
+
+        table.t tbody tr:nth-child(even) td { background: #f6f6f6 !important; }
+
+        /* ========================= TABLA ROMANEO (PRINT) ========================= */
+        /* Los anchos los controlan los style="" del <th> en el HTML                */
+        /* Solo forzamos el comportamiento base                                      */
+        table.t.t-romaneo {
+            width: 100% !important;
+            table-layout: fixed !important;
+        }
+
+        table.t.t-romaneo thead th,
+        table.t.t-romaneo tbody td {
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        }
+
+        table.t.t-romaneo tbody td:nth-child(2) {
+            white-space: normal !important;
+            word-break: break-word !important;
+        }
+
+        table.t.t-romaneo tbody tr:last-child td {
+            font-weight: 900 !important;
+            border-top: 2px solid #bbb !important;
+            background: #fff !important;
+        }
+
+        /* ========================= TABLA DETALLE ETIQUETAS ========================= */
+        table.t.t-detalle {
+            width: 100% !important;
+            table-layout: fixed !important;
+        }
+
+        table.t.t-detalle thead th:nth-child(1),
+        table.t.t-detalle tbody td:nth-child(1) { width: 12% !important; }
+
+        table.t.t-detalle thead th:nth-child(2),
+        table.t.t-detalle tbody td:nth-child(2) { width: 34% !important; }
+
+        table.t.t-detalle thead th:nth-child(3),
+        table.t.t-detalle tbody td:nth-child(3) { width: 12% !important; text-align: right !important; }
+
+        table.t.t-detalle thead th:nth-child(4),
+        table.t.t-detalle tbody td:nth-child(4) { width: 22% !important; }
+
+        table.t.t-detalle thead th:nth-child(5),
+        table.t.t-detalle tbody td:nth-child(5) { width: 20% !important; }
+
+        table.t.t-detalle thead th,
+        table.t.t-detalle tbody td {
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+        }
+
+        table.t.t-detalle tbody tr:last-child td {
+            font-weight: 900 !important;
+            border-top: 2px solid #bbb !important;
+        }
+
+        /* SALTOS DE PÁGINA */
+    .print-top, .print-kpis, .kpi-box, .print-bar {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+}
+
+        #excelOverlay { display: none !important; }
+    }
+
+    /* Excel overlay */
+    #excelOverlay{
+        position:fixed;
+        inset:0;
+        background:rgba(15, 23, 42, .45);
+        z-index:99999;
+        display:none;
+        align-items:center;
+        justify-content:center;
+        padding:18px;
+    }
+
+    #excelOverlay.show{ display:flex; }
+
+    .excel-modal{
+        width:min(420px, 92vw);
+        background:#fff;
+        border:1px solid #d9d9d9;
+        border-radius:14px;
+        box-shadow:0 10px 30px rgba(0,0,0,.18);
+        padding:18px 16px;
+        text-align:center;
+    }
+
+    .excel-title{ margin-top:10px; font-weight:900; font-size:16px; color:#1d2d3e; }
+    .excel-sub{ margin-top:4px; font-weight:700; font-size:12.5px; color:#556b82; }
+
+    .spinner{
+        width:44px;
+        height:44px;
+        border-radius:50%;
+        border:5px solid #e6e6e6;
+        border-top-color:#0a6ed1;
+        margin:0 auto;
+        animation:spin .9s linear infinite;
+    }
+
+    @@keyframes spin{
+        from{ transform:rotate(0deg); }
+        to{ transform:rotate(360deg); }
+    }
+
+    @@media(max-width:768px){
+        .tablewrap table.t{ min-width:900px; }
+        .statusbar{ font-size:10px; }
+    }
+
+    .excel-btn{
+    background: #18a85b;
+    color: #fff;
+    border: 1px solid #0f7e44;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    font-weight: 700;
+    text-decoration: none;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.15);
+}
+
+.excel-btn i{
+    color: #fff;
+}
+.pm-btn{
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    padding: 8px 14px;
+    border: 1px solid transparent;
+    text-decoration: none;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.pm-btn-excel{
+    color: #fff;
+    border-color: #157347;
+    background: linear-gradient(180deg, #27ae60 0%, #1f9a54 55%, #198754 100%);
+}
+
+.pm-btn-excel i,
+.pm-btn-excel span{
+    color: #fff;
+}
+
+.pm-btn-excel:hover{
+    color: #fff;
+    border-color: #146c43;
+    background: linear-gradient(180deg, #2dc26b 0%, #239b59 55%, #1b7f4f 100%);
+}
+
+.pm-btn-excel:visited,
+.pm-btn-excel:focus{
+    color: #fff;
+    text-decoration: none;
+}
+
+/* =========================================
+   RESPONSIVE CELULAR / TABLET
+   ========================================= */
+
+@@media (max-width: 992px) {
+    .toolbar {
+        align-items: stretch;
+        gap: 8px;
+        padding: 8px;
+    }
+
+    .toolbar .tool-btn,
+    .toolbar .pm-btn,
+    .toolbar button,
+    .toolbar a {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .tabs {
+        gap: 6px;
+    }
+
+    .tab {
+        flex: 1 1 calc(50% - 6px);
+        text-align: center;
+    }
+
+    .grid {
+        grid-template-columns: 1fr !important;
+        gap: 10px;
+    }
+
+    .gcol-2,
+    .gcol-3,
+    .gcol-12 {
+        grid-column: span 1 !important;
+    }
+
+    .bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .bar-left,
+    .bar-right {
+        width: 100%;
+    }
+
+    .bar-left {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .bar-left .btnx,
+    .bar-left .btn-ghost,
+    .bar-left .btn-primary {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .group-head {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .group-head > div {
+        width: 100%;
+    }
+
+    .pill {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .order-band {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+
+    .order-band .meta {
+        width: 100%;
+        line-height: 1.4;
+    }
+
+    .tarima-title {
+        flex-wrap: wrap;
+    }
+
+    .detail-toggle summary {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .detail-toggle .summary-left {
+        width: 100%;
+    }
+
+    .statusbar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+}
+
+@@media (max-width: 768px) {
+    body {
+        font-size: 12px;
+    }
+
+    .content,
+    .workspace,
+    .order-body,
+    .tarima-block {
+        padding: 8px !important;
+    }
+
+    .titlebar {
+        height: auto;
+        min-height: 34px;
+        padding: 8px 10px;
+        flex-wrap: wrap;
+        gap: 8px;
+       
+    }
+
+    .titlebar .actions {
+        margin-left: auto;
+    }
+
+    .toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .toolbar .tool-btn,
+    .toolbar .pm-btn,
+    .toolbar button,
+    .toolbar a {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .tab {
+        flex: 1 1 100%;
+    }
+
+    .label {
+        margin-bottom: 6px;
+    }
+
+    .in,
+    .form-control,
+    .form-select,
+    .form-control-sm {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .dropdown-menu {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .bar-right {
+        font-size: 11px;
+    }
+
+    .pill {
+        padding: 10px;
+    }
+
+    .kpi {
+        font-size: 16px;
+    }
+
+    .tablewrap,
+    .table-responsive {
+        width: 100%;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    table.t {
+        min-width: 700px;
+        table-layout: fixed;
+    }
+
+    table.t.t-romaneo {
+        min-width: 620px;
+    }
+
+    table.t.t-detalle {
+        min-width: 760px;
+    }
+
+    .order-card {
+        margin-bottom: 12px;
+    }
+
+    .tag {
+        max-width: 100%;
+        word-break: break-word;
+        white-space: normal;
+    }
+}
+
+@@media (max-width: 480px) {
+    .content {
+        padding: 6px;
+    }
+
+    .workspace {
+        padding: 6px;
+    }
+
+    .section-title {
+        font-size: 11px;
+        padding: 7px 8px;
+    }
+
+    .order-band {
+        padding: 8px 10px;
+        font-size: 12px;
+    }
+
+    .order-band .meta {
+        font-size: 11px;
+    }
+
+    .pill {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 10px;
+    }
+
+    .kpi {
+        font-size: 15px;
+    }
+
+    .btnx,
+    .small-btn,
+    .tool-btn,
+    .pm-btn {
+        height: 36px;
+        font-size: 12px;
+    }
+
+    .in {
+        height: 38px !important;
+    }
+
+    table.t {
+        min-width: 640px;
+        font-size: 11px !important;
+    }
+
+    table.t thead th,
+    table.t tbody td {
+        padding: 6px 5px !important;
+    }
+
+    .statusbar {
+        font-size: 10px;
+    }
+}
+
+    .toolbar {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 10px;
+        background: linear-gradient(#fff6f6, #ecd8d8);
+        border-top: 1px solid var(--line);
+        border-bottom: none;
+        font-size: 12px;
+        flex-wrap: wrap;
+        width: 100%;
+    }
+
+
+
+        .filter-bottom-row .toolbar {
+            width: auto !important;
+            background: transparent !important;
+            border: none !important;
+            padding: 0 !important;
+        }
+
+    table.t:not(.t-romaneo) thead th:nth-child(3),
+    table.t:not(.t-romaneo) thead th:nth-child(4),
+    table.t:not(.t-romaneo) thead th:nth-child(5) {
+        background: #fff2a8 !important;
+        color: #3b1717 !important;
+    }
+    .filtro-botones {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #d2a7a7;
+}
+
+.filtro-botones .btnx,
+.filtro-botones .pm-btn,
+.filtro-botones .tool-btn {
+    height: 36px !important;
+    min-height: 36px !important;
+    padding: 0 16px !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    font-size: 13px !important;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.filtro-botones .pm-btn-excel {
+    min-width: 220px;
+}
+
+.filtro-botones .tool-btn {
+    min-width: 110px;
+}
+    
+</style>
+
+<div class="window">
+
+@*     <div class="titlebar no-print">
+        <div></div>
+        <div class="actions">
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+        </div>
+    </div> *@
+
+
+
+    <div class="content">
+
+
+        <div class="workspace">
+
+            <!-- PRINT HEADER -->
+            <div class="print-only">
+                <div class="print-top">
+                    <div class="print-logo">
+                        <img src="@logoUrl" alt="Logo" />
+                    </div>
+                    <div class="print-title">
+                        <div style="font-size:28px;font-weight:900;margin:0 0 3px;color:#111;text-align:center;">Embarque concentrado por tarima</div>
+                        <div style="font-size:10.5px;color:#333;line-height:1.3;">
+                            Muestra la información concentrada de cada pedido surtido, agrupada por tarima.
+                        </div>
+                    </div>
+                    <div class="print-meta" style="font-size:11px;line-height:1.4;">
+                        <div><b>Fecha Inicial:</b> @(Model?.Desde?.ToString("dd/MM/yyyy") ?? "")</div>
+                        <div><b>Fecha Final:</b> @(Model?.Hasta?.ToString("dd/MM/yyyy") ?? "")</div>
+                        <div><b>Destino:</b> @(destSel.Any() ? string.Join(", ", destSel) : "TODOS")</div>
+                        <div><b>Transferencia:</b> @(pedSel.Any() ? string.Join(", ", pedSel) : "TODOS")</div>
+                        <div><b>Tarima:</b> @(tarSel.Any() ? string.Join(", ", tarSel) : "TODAS")</div>
+                        <div><b>Impreso:</b> @DateTime.Now.ToString("dd/MM/yyyy HH:mm")</div>
+                    </div>
+                </div>
+
+                <div class="print-kpis">
+                    <div class="kpi-box">
+                        <div style="font-size:28px;line-height:1;">📦</div>
+                        <div>
+                            <div style="font-size:18px;font-weight:900;color:var(--print-red);line-height:1.1;">@totalCajasGlobal</div>
+                            <div style="font-size:11px;color:#111;">Unidades Surtidas</div>
+                        </div>
+                    </div>
+                    <div class="kpi-box">
+                        <div style="font-size:28px;line-height:1;">⚖️</div>
+                        <div>
+                            <div style="font-size:18px;font-weight:900;color:var(--print-red);line-height:1.1;">@totalPesoGlobal.ToString("N0") Kg</div>
+                            <div style="font-size:11px;color:#111;">Kilogramos Surtidos</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FILTROS -->
+            <div class="section no-print">
+                <div class="section-title">Filtros de búsqueda</div>
+                <form id="frmRomaneo" method="get" style="padding:10px; background:var(--panel-2);">
+                    <div class="grid">
+
+                        <div class="gcol-3">
+                            <div class="label">Fecha inicial</div>
+                            <input type="date" class="in" name="desde" value="@desdeDef" />
+                        </div>
+
+                        <div class="gcol-3">
+                            <div class="label">Fecha final</div>
+                            <input type="date" class="in" name="hasta" value="@hastaDef" />
+                        </div>
+
+                        <div class="gcol-2">
+                            <div class="label">Destino</div>
+                            <div class="dropdown w-100 multi-dd" id="dd-destino">
+                                <button class="in" type="button" data-bs-toggle="dropdown" aria-expanded="false"
+                                        style="text-align:left; display:flex; align-items:center; justify-content:space-between;">
+                                    <span class="multi-label">@LabelMulti(destSel, "(Todos)", "seleccionados")</span>
+                                    <span style="margin-left:10px;">▾</span>
+                                </button>
+                                <ul class="dropdown-menu w-100 p-2" style="max-height:260px; overflow-y:auto;">
+                                    <li class="mb-2">
+                                        <input type="text" class="form-control form-control-sm dd-search" placeholder="Buscar destino..." />
+                                    </li>
+                                    <li><hr class="dropdown-divider" /></li>
+                                    @foreach (var d in (Model?.Destinos ?? new List<string>()))
+                                    {
+                                        var isChecked = destSel.Contains(d);
+                                        var id = "dest_" + d.Replace(" ", "_").Replace("/", "_").Replace("\\", "_");
+                                        <li class="px-1 dd-item" data-text="@d">
+                                            <div class="form-check">
+                                                <input class="form-check-input dd-check" type="checkbox" value="@d" id="@id" data-text="@d" @(isChecked ? "checked" : null) />
+                                                <label class="form-check-label" for="@id">@d</label>
+                                            </div>
+                                        </li>
+                                    }
+                                    <li class="dd-actions mt-2 d-flex justify-content-between gap-2">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary dd-clear">Limpiar</button>
+                                        <button type="button" class="btn btn-sm btn-primary dd-apply">Aplicar</button>
+                                    </li>
+                                </ul>
+                                <div class="dd-hidden">
+                                    @foreach (var d in destSel) { <input type="hidden" name="destinosSel" value="@d" /> }
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="gcol-2">
+                            <div class="label">Transferencia</div>
+                            <div class="dropdown w-100 multi-dd" id="dd-pedido">
+                                <button class="in" type="button" data-bs-toggle="dropdown" aria-expanded="false"
+                                        style="text-align:left; display:flex; align-items:center; justify-content:space-between;">
+                                    <span class="multi-label">@LabelMulti(pedSel, "(Todos)", "seleccionados")</span>
+                                    <span style="margin-left:10px;">▾</span>
+                                </button>
+                                <ul class="dropdown-menu w-100 p-2" style="max-height:260px; overflow-y:auto;">
+                                    <li class="mb-2">
+                                        <input type="text" class="form-control form-control-sm dd-search" placeholder="Buscar transferencia..." />
+                                    </li>
+                                    <li><hr class="dropdown-divider" /></li>
+                                    @foreach (var p in (Model?.Pedidos ?? new List<string>()))
+                                    {
+                                        var isChecked = pedSel.Contains(p);
+                                        var id = "ped_" + p.Replace(" ", "_").Replace("/", "_").Replace("\\", "_");
+                                        <li class="px-1 dd-item" data-text="@p">
+                                            <div class="form-check">
+                                                <input class="form-check-input dd-check" type="checkbox" value="@p" id="@id" data-text="@p" @(isChecked ? "checked" : null) />
+                                                <label class="form-check-label" for="@id">@p</label>
+                                            </div>
+                                        </li>
+                                    }
+                                    <li class="dd-actions mt-2 d-flex justify-content-between gap-2">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary dd-clear">Limpiar</button>
+                                        <button type="button" class="btn btn-sm btn-primary dd-apply">Aplicar</button>
+                                    </li>
+                                </ul>
+                                <div class="dd-hidden">
+                                    @foreach (var p in pedSel) { <input type="hidden" name="pedidosSel" value="@p" /> }
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="gcol-2">
+                            <div class="label">Tarima</div>
+                            <div class="dropdown w-100 multi-dd" id="dd-tarima">
+                                <button class="in" type="button" data-bs-toggle="dropdown" aria-expanded="false"
+                                        style="text-align:left; display:flex; align-items:center; justify-content:space-between;">
+                                    <span class="multi-label">@LabelMulti(tarSel, "(Todas)", "seleccionadas")</span>
+                                    <span style="margin-left:10px;">▾</span>
+                                </button>
+                                <ul class="dropdown-menu w-100 p-2" style="max-height:260px; overflow-y:auto;">
+                                    <li class="mb-2">
+                                        <input type="text" class="form-control form-control-sm dd-search" placeholder="Buscar tarima..." />
+                                    </li>
+                                    <li><hr class="dropdown-divider" /></li>
+                                    @foreach (var t in (Model?.Tarimas ?? new List<string>()))
+                                    {
+                                        var isChecked = tarSel.Contains(t);
+                                        var id = "tar_" + t.Replace(" ", "_").Replace("/", "_").Replace("\\", "_");
+                                        <li class="px-1 dd-item" data-text="@t">
+                                            <div class="form-check">
+                                                <input class="form-check-input dd-check" type="checkbox" value="@t" id="@id" data-text="@t" @(isChecked ? "checked" : null) />
+                                                <label class="form-check-label" for="@id">@t</label>
+                                            </div>
+                                        </li>
+                                    }
+                                    <li class="dd-actions mt-2 d-flex justify-content-between gap-2">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary dd-clear">Limpiar</button>
+                                        <button type="button" class="btn btn-sm btn-primary dd-apply">Aplicar</button>
+                                    </li>
+                                </ul>
+                                <div class="dd-hidden">
+                                    @foreach (var t in tarSel) { <input type="hidden" name="tarimasSel" value="@t" /> }
+                                </div>
+                            </div>
+                        </div>
+
+                       <div class="gcol-3">
+    <div class="label">Código etiqueta</div>
+    <input type="text" class="in" name="codigoEtiqueta" value="@codigoEtiquetaDef" placeholder="Ej. DEST0002343115101" />
+</div>
+
+
+
+                        <div class="gcol-12 filtro-botones no-print">
+                            <button class="btnx btn-primary" type="submit">
+                                <i class="bi bi-search"></i><span>Buscar</span>
+                            </button>
+
+                            <a class="btnx btn-ghost" href="@Url.Action("RomaneoTransferencia", "Transferencias")">
+                                Limpiar
+                            </a>
+
+                            <a id="btnExcelAviso"
+                               class="pm-btn pm-btn-excel"
+                               href="javascript:void(0);"
+                               data-url="@excelUrl">
+                                <i class="bi bi-filetype-xls"></i> <span>Aviso de Movilización</span>
+                            </a>
+
+                            <button type="button" class="tool-btn" onclick="window.print()">
+                                <i class="fa-solid fa-print"></i> Imprimir
+                            </button>
+                        </div>
+
+                    </div>
+                </form>
+            </div>
+
+            <!-- RESULTADOS -->
+            <div class="section">
+                @* <div class="section-title">Listado de embarques por tarima</div> *@
+                <div style="padding:10px;">
+
+                    @if (!rows.Any())
+                    {
+                        <div class="empty">Sin resultados para los filtros seleccionados.</div>
+                    }
+                    else
+                    {
+                        var grupos = rows
+                            .GroupBy(r => new { r.Pedido, r.Fecha, r.Destino })
+                            .OrderBy(g => g.Key.Fecha)
+                            .ThenBy(g => g.Key.Pedido);
+
+                        foreach (var g in grupos)
+                        {
+                            var totalCajas = g.Sum(x => x.Cajas);
+                            var totalPeso = g.Sum(x => x.Peso);
+                            var totalUnid = totalCajas;
+
+                            <div class="order-card avoid-break">
+
+                                <div class="order-band no-print">
+                                    <div>FOLIO: @g.Key.Pedido</div>
+                                    <div class="meta">
+                                        Destino: @g.Key.Destino &nbsp;•&nbsp; Fecha: @g.Key.Fecha.ToString("dd/MM/yyyy")
+                                    </div>
+                                </div>
+
+                                <div class="order-body">
+
+                                    <div class="print-only print-bar">
+                                        <span>Pedido: @g.Key.Pedido</span>
+                                        <span>Fecha: @g.Key.Fecha.ToString("dd/MM/yyyy")</span>
+                                    </div>
+
+                                    <div class="group-head no-print">
+                                        <div>
+                                            <div class="muted">Destino: <b>@g.Key.Destino</b> · Fecha: <b>@g.Key.Fecha.ToString("dd/MM/yyyy")</b></div>
+                                        </div>
+                                        <div class="bar" style="margin:0; justify-content:flex-end;">
+                                            <div class="pill"><span class="muted small">Cajas</span><span class="kpi">@totalCajas</span></div>
+                                            <div class="pill"><span class="muted small">Peso</span><span class="kpi">@totalPeso.ToString("N2")</span></div>
+                                          @*   <div class="pill"><span class="muted small">Unidades</span><span class="kpi">@totalUnid</span></div> *@
+                                        </div>
+                                    </div>
+
+                                    <div class="hr no-print"></div>
+
+                                    @{
+                                        var tarimasGrp = g.GroupBy(x => x.Tarima).OrderBy(t => t.Key);
+                                    }
+
+                                    @foreach (var t in tarimasGrp)
+                                    {
+                                        var transferenciaId = t.First().TransferenciaId;
+
+                                        var tarimaKey = string.IsNullOrWhiteSpace(t.Key)
+                                            ? "SIN TARIMA"
+                                            : t.Key.Trim().ToUpperInvariant();
+
+                                        var detalleTarima = (Model?.DetalleEtiquetas ?? new List<Plataforma_CG.ViewModels.TransferenciaScanEtiquetaDetalleVM>())
+                                            .Where(x =>
+                                                x.TransferenciaId == transferenciaId &&
+                                                (string.IsNullOrWhiteSpace(x.TarimaCodigo) ? "SIN TARIMA" : x.TarimaCodigo.Trim().ToUpperInvariant()) == tarimaKey
+                                            )
+                                            .OrderBy(x => x.Fecha)
+                                            .ToList();
+
+                                        var tCajas = t.Sum(x => x.Cajas);
+                                        var tPeso = t.Sum(x => x.Peso);
+                                        var tUnid = tCajas;
+
+                                        <div class="print-only print-bar small avoid-break">
+                                            <span>Tarima: @t.Key</span>
+                                            <span>Cajas: @tCajas &nbsp;|&nbsp; Peso: @tPeso.ToString("N2")</span>
+                                        </div>
+
+                                        <div class="tarima-block">
+                                            <div class="tarima-title no-print">Tarima <span class="tag">@t.Key</span></div>
+
+                                            <div class="tablewrap" style="margin-top:6px">
+                                                <table class="t t-romaneo">
+                                                    <thead>
+                                                        <tr>
+                                                         <th class="col-sku" style="width:12%">Sku</th>
+                                                         <th class="col-producto" style="width:46%">Producto</th>
+                                                         <th class="text-end col-cajas" style="width:14%">Cajas</th>
+                                                         <th class="text-end col-peso" style="width:28%">Peso</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @foreach (var r in t.OrderBy(x => x.ProductoCodigo))
+                                                        {
+                                                            <tr>
+                                                                <td>@r.ProductoCodigo</td>
+                                                                <td>@r.ProductoNombre</td>
+                                                                <td class="text-end">@r.Cajas</td>
+                                                                <td class="text-end">@r.Peso.ToString("N2")</td>
+                                                            </tr>
+                                                        }
+                                                        <tr>
+                                                            <td colspan="2" class="text-end" style="font-weight:900;color:var(--muted)">TOTAL TARIMA:</td>
+                                                            <td class="text-end" style="font-weight:900">@tCajas</td>
+                                                            <td class="text-end" style="font-weight:900">@tPeso.ToString("N2")</td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+
+                                            @if (detalleTarima.Any())
+                                            {
+                                                <details class="detail-toggle no-print">
+                                                    <summary>
+                                                        <span class="summary-left">
+                                                            <span class="summary-icon">▶</span>
+                                                            <span>Detalle de etiquetas escaneadas</span>
+                                                        </span>
+                                                        <span class="tag">@detalleTarima.Count etiqueta(s)</span>
+                                                    </summary>
+                                                    <div class="detail-body">
+                                                        <div class="tablewrap">
+                                                            <table class="t t-detalle">
+                                                                <thead>
+                                                                    <tr>
+                                                                        <th style="width:120px">Sku</th>
+                                                                        <th>Código Etiqueta</th>
+                                                                        <th class="text-end" style="width:120px">Kg</th>
+                                                                        <th style="width:170px">Fecha Escaneo</th>
+                                                                        <th style="width:160px">Usuario</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    @foreach (var d in detalleTarima)
+                                                                    {
+                                                                        <tr>
+                                                                            <td>@d.Sku</td>
+                                                                            <td>@d.CodigoEtiqueta</td>
+                                                                            <td class="text-end">@d.Kg.ToString("N3")</td>
+                                                                            <td>@d.Fecha.ToString("dd/MM/yyyy HH:mm:ss")</td>
+                                                                            <td>@d.Usuario</td>
+                                                                        </tr>
+                                                                    }
+                                                                    <tr>
+                                                                        <td colspan="2" class="text-end" style="font-weight:900;color:var(--sap-muted)">TOTAL:</td>
+                                                                        <td class="text-end" style="font-weight:900">@detalleTarima.Sum(x => x.Kg).ToString("N3")</td>
+                                                                        <td colspan="2"></td>
+                                                                    </tr>
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                </details>
+                                            }
+                                        </div>
+
+                                        <div class="hr no-print"></div>
+                                    }
+
+                                    <div class="muted small text-end no-print">
+                                        Total pedido: <b>@totalCajas</b> cajas · <b>@totalPeso.ToString("N2")</b> kg
+                                    </div>
+
+                                </div>
+                            </div>
+                        }
+                    }
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+
+    <div class="statusbar no-print">
+        <div>Registro listo</div>
+        <div>Usuario: @User.Identity.Name</div>
+        <div>Empresa: Carnes G SA de CV</div>
+        <div>Módulo: Romaneo</div>
+    </div>
+</div>
+
+<div id="excelOverlay" aria-hidden="true">
+    <div class="excel-modal">
+        <div class="spinner"></div>
+        <div class="excel-title">Cargando Aviso de Movilización</div>
+        <div class="excel-sub">Por favor espere…</div>
+    </div>
+</div>
+
+
+@section Scripts{
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<script>
+(function () {
+  function initMultiDD(root) {
+    const label  = root.querySelector('.multi-label');
+    const hidden = root.querySelector('.dd-hidden');
+    const search = root.querySelector('.dd-search');
+    const clear  = root.querySelector('.dd-clear');
+    const apply  = root.querySelector('.dd-apply');
+    const checks = root.querySelectorAll('.dd-check');
+    const form   = root.closest('form');
+
+    const map = {
+      'dd-destino': 'destinosSel',
+      'dd-pedido':  'pedidosSel',
+      'dd-tarima':  'tarimasSel'
+    };
+    const rootId = root.id;
+    const name = map[rootId];
+
+    function rebuildHiddenAndLabel() {
+      const selected = Array.from(checks).filter(c => c.checked).map(c => c.value);
+
+      // label
+      if (rootId === 'dd-tarima') {
+        if (!selected.length) label.textContent = '(Todas)';
+        else if (selected.length <= 3) label.textContent = selected.join(', ');
+        else label.textContent = selected.length + ' seleccionadas';
+      } else {
+        if (!selected.length) label.textContent = '(Todos)';
+        else if (selected.length <= 3) label.textContent = selected.join(', ');
+        else label.textContent = selected.length + ' seleccionados';
+      }
+
+      // hidden
+      hidden.innerHTML = '';
+      selected.forEach(v => {
+        const inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.name = name;
+        inp.value = v;
+        hidden.appendChild(inp);
+      });
+    }
+
+    search?.addEventListener('input', () => {
+      const q = (search.value || '').toLowerCase().trim();
+      root.querySelectorAll('.dd-item').forEach(li => {
+        const txt = (li.getAttribute('data-text') || '').toLowerCase();
+        li.style.display = (!q || txt.includes(q)) ? '' : 'none';
+      });
+    });
+
+    clear?.addEventListener('click', () => {
+      checks.forEach(c => c.checked = false);
+      if (search) search.value = '';
+      root.querySelectorAll('.dd-item').forEach(li => li.style.display = '');
+      rebuildHiddenAndLabel();
+    });
+
+    apply?.addEventListener('click', () => {
+      rebuildHiddenAndLabel();
+      form?.requestSubmit();
+    });
+
+    checks.forEach(c => c.addEventListener('change', rebuildHiddenAndLabel));
+
+    rebuildHiddenAndLabel();
+  }
+
+  document.querySelectorAll('.multi-dd').forEach(initMultiDD);
+
+  // ===================== EXCEL OVERLAY HANDLER =====================
+  const overlay  = document.getElementById('excelOverlay');
+  const btnExcel = document.getElementById('btnExcelAviso');
+
+  function showOverlay(){
+    if (!overlay) return;
+    overlay.classList.add('show');
+    overlay.setAttribute('aria-hidden', 'false');
+  }
+
+  function hideOverlay(){
+    if (!overlay) return;
+    overlay.classList.remove('show');
+    overlay.setAttribute('aria-hidden', 'true');
+  }
+
+  function getFileNameFromDisposition(disposition) {
+    if (!disposition) return null;
+
+    const match = /filename\*?=(?:UTF-8''|")?([^\";]+)"?/i.exec(disposition);
+    if (!match || !match[1]) return null;
+
+    try { return decodeURIComponent(match[1]); }
+    catch { return match[1]; }
+  }
+
+  async function downloadExcel(url) {
+  showOverlay();
+  console.log('Iniciando descarga Excel:', url);
+
+  try {
+    const resp = await fetch(url, {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+
+    console.log('Status:', resp.status, resp.statusText);
+    console.log('Content-Type:', resp.headers.get('content-type'));
+    console.log('Content-Disposition:', resp.headers.get('content-disposition'));
+
+    if (!resp.ok) {
+      const txt = await resp.text().catch(() => '');
+      console.error('Respuesta error del servidor:', txt);
+      throw new Error(`Error ${resp.status}: ${txt || resp.statusText}`);
+    }
+
+    const blob = await resp.blob();
+    console.log('Blob size:', blob.size);
+    console.log('Blob type:', blob.type);
+
+    const disposition = resp.headers.get('content-disposition');
+    const serverName  = getFileNameFromDisposition(disposition);
+    const filename    = serverName || 'AvisoMovilizacion.xlsx';
+
+    console.log('Filename final:', filename);
+
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(blobUrl);
+
+    console.log('Descarga disparada correctamente');
+  } catch (err) {
+    console.error('Error en downloadExcel:', err);
+    alert('No se pudo generar el Excel. Intenta de nuevo o revisa el filtro.');
+  } finally {
+    hideOverlay();
+  }
+}
+
+btnExcel?.addEventListener('click', function (e) {
+  e.preventDefault();
+
+  const form = document.getElementById('frmRomaneo');
+  console.log('frmRomaneo:', form);
+
+  if (!form) {
+    console.error('No se encontró el formulario frmRomaneo');
+    return;
+  }
+
+  const params = new URLSearchParams(new FormData(form)).toString();
+  const url = '/Transferencias/ExportCaducidadTransferencias?' + params;
+
+  console.log('Params Excel:', params);
+  console.log('URL Excel:', url);
+
+  downloadExcel(url);
+});
+
+})();
+</script>
+}

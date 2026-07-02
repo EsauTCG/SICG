@@ -1,0 +1,1856 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewBag.Title = "Confirmado Vs Embarcado";
+}
+
+<style>
+    :root {
+        --bg: #f0dede;
+        --panel: #f8eeee;
+        --line: #c79d9d;
+        --line-dark: #8f4c4c;
+        --text: #3b1717;
+        --brand: #8B0000;
+        --brand-dark: #5c0000;
+        --brand-mid: #8b0000;
+        --brand-light: #b30000;
+        --shadow: 0 1px 0 rgba(255,255,255,.55) inset;
+    }
+
+    body {
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        background: transparent !important;
+    }
+
+    .window {
+        width: 100%;
+        border: 1px solid #7e4a4a;
+        background: var(--panel);
+        box-shadow: 0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70,12,12,.14);
+        overflow: hidden;
+    }
+
+    .titlebar {
+        height: 36px;
+        /* display: flex; */
+        display: none !important;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 12px;
+        background: linear-gradient(180deg,#c00000 0%,#8b0000 60%,#5c0000 100%);
+        border-bottom: 1px solid #5c0000;
+        color: #fff;
+        font-size: 14px;
+        font-weight: bold;
+    }
+
+    .actions {
+        display: flex;
+        gap: 6px;
+    }
+
+    .win-btn {
+        width: 16px;
+        height: 16px;
+        border: 1px solid #7c4848;
+        background: linear-gradient(#fff6f6,#ead0d0);
+    }
+
+    .content {
+        padding: 12px 14px;
+        background: var(--bg);
+    }
+
+    .section {
+        border: 1px solid var(--line);
+        background: #fff;
+        margin-bottom: 14px;
+    }
+
+    .section-title {
+        padding: 8px 10px;
+        font-size: 13px;
+        font-weight: bold;
+        color: #fff;
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%);
+        border-bottom: 1px solid #6b1f1f;
+    }
+
+    .section-body {
+        padding: 12px;
+        background: #fffafa;
+    }
+
+    .filters {
+        display: grid;
+        grid-template-columns: 1.5fr 1fr 170px 1fr 1fr 180px auto;
+        gap: 12px;
+        align-items: end;
+    }
+
+    .form-label {
+        display: block;
+        color: #5c1a1a;
+        font-size: 13px;
+        margin-bottom: 5px;
+        font-weight: bold;
+    }
+
+    .form-control, .form-select {
+        border: 1px solid #b48787 !important;
+        background: #fffdfd !important;
+        color: #421414 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        font-size: 13px !important;
+        height: 36px !important;
+    }
+
+        .form-control:focus, .form-select:focus {
+            border-color: #8b0000 !important;
+            box-shadow: 0 0 0 .18rem rgba(139,0,0,.14) !important;
+        }
+
+    /* Multiselect tipo estatus */
+    .cg-multiselect {
+        position: relative;
+        width: 100%;
+    }
+
+    .cg-ms-button {
+        width: 100%;
+        height: 36px;
+        border: 1px solid #b48787;
+        background: #fffdfd;
+        color: #421414;
+        border-radius: 0;
+        padding: 0 8px;
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+        box-shadow: none;
+    }
+
+    .cg-ms-arrow {
+        color: #8b0000;
+        margin-left: 8px;
+        font-size: 12px;
+    }
+
+    .cg-ms-panel {
+        display: none;
+        position: absolute;
+        top: 38px;
+        left: 0;
+        width: 230px;
+        max-width: 92vw;
+        background: #fffafa;
+        border: 1px solid #c79d9d;
+        box-shadow: 0 4px 10px rgba(70,12,12,.25);
+        z-index: 9999;
+        padding: 8px;
+    }
+
+    .cg-multiselect.open .cg-ms-panel {
+        display: block;
+    }
+
+    .cg-ms-search {
+        width: 100%;
+        height: 30px !important;
+        border: 1px solid #c79d9d !important;
+        background: #fff !important;
+        color: #421414 !important;
+        padding: 4px 8px !important;
+        font-size: 12px !important;
+        margin-bottom: 8px;
+    }
+
+    .cg-ms-options {
+        max-height: 220px;
+        overflow-y: auto;
+    }
+
+    .cg-ms-item {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 6px 4px;
+        margin: 0;
+        color: #4b1f1f;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .cg-ms-item:hover {
+        background: #f4dddd;
+    }
+
+    .cg-ms-item input {
+        width: 15px;
+        height: 15px;
+        accent-color: #8b0000;
+        cursor: pointer;
+    }
+
+    .cg-ms-empty {
+        padding: 6px 4px;
+        color: #7a4b4b;
+        font-size: 12px;
+    }
+
+    .btn-main {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .45rem;
+        height: 36px;
+        padding: 0 14px;
+        font-weight: 700;
+        border-radius: 0;
+        font-size: 13px;
+        border: 1px solid #7a2d2d;
+        color: #fff;
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%);
+        cursor: pointer;
+    }
+
+    .btn-light {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .45rem;
+        height: 36px;
+        padding: 0 14px;
+        font-weight: 700;
+        border-radius: 0;
+        font-size: 13px;
+        border: 1px solid #b48787;
+        color: #4b1f1f;
+        background: linear-gradient(#fffefe,#ecd7d7);
+        cursor: pointer;
+    }
+
+    .btn-excel {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .45rem;
+        height: 36px;
+        padding: 0 14px;
+        font-weight: 700;
+        border-radius: 0;
+        font-size: 13px;
+        border: 1px solid #146c43;
+        color: #fff;
+        background: linear-gradient(180deg,#198754 0%, #146c43 100%);
+        cursor: pointer;
+    }
+
+    .kpis {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+    }
+
+    .kpi-card {
+        min-width: 170px;
+        border: 1px solid #d8bcbc;
+        background: linear-gradient(#fffefe,#f3e4e4);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+        padding: 10px 12px;
+        text-align: center;
+    }
+
+    .kpi-title {
+        font-size: 12px;
+        color: #7a0000;
+        font-weight: 700;
+        margin-bottom: 4px;
+        text-transform: uppercase;
+        text-align: center;
+    }
+
+    .kpi-value {
+        font-size: 18px;
+        font-weight: 700;
+        color: #401515;
+        font-variant-numeric: tabular-nums;
+        text-align: center;
+    }
+
+    .table-card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        overflow: hidden;
+    }
+
+    .table-responsive-sticky {
+        max-height: 84vh;
+        overflow: auto;
+        border-top: 1px solid #d9b8b8;
+        background: #fffafa;
+    }
+
+    #tbl-surtidos {
+        width: 100%;
+        min-width: 1400px;
+        table-layout: fixed;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 13px !important;
+        margin-bottom: 0;
+        background: #fffafa;
+    }
+
+        /* ── SORTABLE HEADERS ── */
+        #tbl-surtidos thead th {
+            position: sticky;
+            top: -1px;
+            z-index: 20;
+            background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+            color: #fff !important;
+            border-top: 1px solid #c46a6a !important;
+            border-right: 1px solid #8e3b3b !important;
+            border-bottom: 1px solid #5c0000 !important;
+            padding: 0 !important;
+            font-weight: 700 !important;
+            font-size: 13px !important;
+            white-space: nowrap;
+        }
+
+    /* Wrapper inside every <th> */
+    .th-inner {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 4px;
+        padding: 8px 6px;
+        user-select: none;
+        cursor: default;
+    }
+
+        .th-inner.sortable {
+            cursor: pointer;
+        }
+
+            .th-inner.sortable:hover {
+                background: rgba(255,255,255,0.10);
+            }
+
+    /* Sort arrow */
+    .sort-arrow {
+        display: inline-flex;
+        flex-direction: column;
+        gap: 1px;
+        flex-shrink: 0;
+        opacity: 0.45;
+        transition: opacity 0.15s;
+    }
+
+        .sort-arrow .arr-up,
+        .sort-arrow .arr-dn {
+            width: 0;
+            height: 0;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+        }
+
+        .sort-arrow .arr-up {
+            border-bottom: 5px solid #fff;
+        }
+
+        .sort-arrow .arr-dn {
+            border-top: 5px solid #fff;
+        }
+
+    /* Active state */
+    th.sort-asc .sort-arrow,
+    th.sort-desc .sort-arrow {
+        opacity: 1;
+    }
+
+        th.sort-asc .sort-arrow .arr-dn {
+            opacity: 0.3;
+        }
+
+        th.sort-desc .sort-arrow .arr-up {
+            opacity: 0.3;
+        }
+
+    /* Text-end headers */
+    #tbl-surtidos thead th.text-end .th-inner {
+        justify-content: flex-end;
+    }
+
+    #tbl-surtidos thead th.text-center .th-inner {
+        justify-content: center;
+        cursor: default;
+    }
+
+    /* ── GOLD COLUMNS ── */
+    #tbl-surtidos thead th:nth-child(9),
+    #tbl-surtidos thead th:nth-child(10),
+    #tbl-surtidos thead th:nth-child(11),
+    #tbl-surtidos thead th:nth-child(12) {
+        background: linear-gradient(180deg,#dcb000 0%,#c79c00 55%,#a88000 100%) !important;
+        color: #fff !important;
+        border-right: 1px solid #916f00 !important;
+        border-bottom: 1px solid #7b5f00 !important;
+        border-top: 1px solid #e7c84e !important;
+    }
+
+        #tbl-surtidos thead th:nth-child(9) .sort-arrow .arr-up,
+        #tbl-surtidos thead th:nth-child(9) .sort-arrow .arr-dn,
+        #tbl-surtidos thead th:nth-child(10) .sort-arrow .arr-up,
+        #tbl-surtidos thead th:nth-child(10) .sort-arrow .arr-dn,
+        #tbl-surtidos thead th:nth-child(11) .sort-arrow .arr-up,
+        #tbl-surtidos thead th:nth-child(11) .sort-arrow .arr-dn,
+        #tbl-surtidos thead th:nth-child(12) .sort-arrow .arr-up,
+        #tbl-surtidos thead th:nth-child(12) .sort-arrow .arr-dn {
+            border-bottom-color: #fff;
+            border-top-color: #fff;
+        }
+
+    /* ── BODY CELLS ── */
+    #tbl-surtidos tbody td {
+        background: #fffafa !important;
+        border-right: 1px solid #d8bcbc !important;
+        border-bottom: 1px solid #d8bcbc !important;
+        padding: 8px 6px !important;
+        color: #111 !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        vertical-align: middle;
+    }
+
+    #tbl-surtidos tbody tr:nth-of-type(even) > * {
+        background-color: #f9eded !important;
+    }
+
+    #tbl-surtidos tbody tr:hover > * {
+        background: #f4dddd !important;
+    }
+
+    #tbl-surtidos tbody tr.is-open > * {
+        background: #f4dddd !important;
+    }
+
+    /* column widths */
+    #tbl-surtidos th:nth-child(1), #tbl-surtidos td:nth-child(1) { width: 38px; }
+    #tbl-surtidos th:nth-child(2), #tbl-surtidos td:nth-child(2) { width: 60px; }
+    #tbl-surtidos th:nth-child(3), #tbl-surtidos td:nth-child(3) { width: 85px; }
+    #tbl-surtidos th:nth-child(4), #tbl-surtidos td:nth-child(4) { width: 120px; }
+    #tbl-surtidos th:nth-child(5), #tbl-surtidos td:nth-child(5) { width: 260px; }
+    #tbl-surtidos th:nth-child(6), #tbl-surtidos td:nth-child(6) { width: 115px; }
+    #tbl-surtidos th:nth-child(7), #tbl-surtidos td:nth-child(7) { width: 100px; }
+    #tbl-surtidos th:nth-child(8), #tbl-surtidos td:nth-child(8) { width: 105px; }
+    #tbl-surtidos th:nth-child(9), #tbl-surtidos td:nth-child(9) { width: 100px; }
+    #tbl-surtidos th:nth-child(10), #tbl-surtidos td:nth-child(10) { width: 105px; }
+    #tbl-surtidos th:nth-child(11), #tbl-surtidos td:nth-child(11) { width: 90px; }
+    #tbl-surtidos th:nth-child(12), #tbl-surtidos td:nth-child(12) { width: 90px; }
+
+    /* gold body cells */
+    #tbl-surtidos thead th:nth-child(9),
+    #tbl-surtidos tbody td:nth-child(9),
+    #tbl-surtidos thead th:nth-child(10),
+    #tbl-surtidos tbody td:nth-child(10) {
+        background-color: #fff4cc !important;
+        color: #401515 !important;
+    }
+
+    .text-end {
+        text-align: right !important;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .text-center {
+        text-align: center !important;
+    }
+
+    .toggle-btn {
+        width: 24px;
+        height: 24px;
+        border-radius: 0;
+        padding: 0;
+        border: 1px solid #b48787;
+        background: linear-gradient(#fffefe,#ecd7d7);
+        color: #6b1f1f;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    tr.detail-row td {
+        background: #f7eaea !important;
+        padding: .60rem .70rem !important;
+        border-bottom: 1px solid #d8bcbc;
+    }
+
+    .detail-box {
+        border: 1px solid #d8bcbc;
+        border-left: 4px solid #8b0000;
+        background: #fffafa;
+        overflow: hidden;
+    }
+
+    .detail-head {
+        padding: 8px 10px;
+        font-size: 13px;
+        font-weight: bold;
+        color: #fff;
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%);
+        border-bottom: 1px solid #6b1f1f;
+    }
+
+    .detail-table-wrap {
+        overflow: auto;
+        background: #fffafa;
+    }
+
+    .detail-table {
+        width: 100%;
+        min-width: 960px;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 13px;
+        margin: 0;
+    }
+
+        .detail-table th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%);
+            color: #fff;
+            border-bottom: 1px solid #5c0000;
+            border-right: 1px solid #8e3b3b;
+            padding: 8px 6px;
+            white-space: nowrap;
+            font-size: 13px;
+        }
+
+        .detail-table td {
+            background: #fffafa;
+            border-bottom: 1px solid #d8bcbc;
+            border-right: 1px solid #d8bcbc;
+            padding: 8px 6px;
+            white-space: nowrap;
+            color: #111;
+        }
+
+            .detail-table th:first-child,
+            .detail-table td:first-child {
+                border-left: 1px solid #d8bcbc;
+            }
+
+            .detail-table th:nth-child(2),
+            .detail-table td:nth-child(2) {
+                width: 340px !important;
+                min-width: 340px !important;
+                max-width: 340px !important;
+            }
+
+    .td-wrap {
+        white-space: normal !important;
+        word-break: break-word !important;
+        line-height: 1.15;
+    }
+
+    .detail-table th:nth-child(8) {
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+        color: #fff !important;
+        border-right: 1px solid #8e3b3b !important;
+        border-bottom: 1px solid #5c0000 !important;
+        border-top: 1px solid #c46a6a !important;
+    }
+
+    .detail-table tbody td:nth-child(8) {
+        background: #fffafa !important;
+        color: #111 !important;
+        font-weight: 400 !important;
+    }
+
+    .detail-table tbody tr:nth-of-type(even) td:nth-child(8) {
+        background: #f9eded !important;
+    }
+
+    .statusbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 8px 10px;
+        font-size: 12px;
+        color: #4a1a1a;
+        border-top: 1px solid #b88c8c;
+        background: linear-gradient(#f6e9e9,#ead5d5);
+        flex-wrap: wrap;
+    }
+
+    /* GAP colors */
+    .gap-ok {
+        background: #198754 !important;
+        color: #fff !important;
+        font-weight: 700 !important;
+    }
+
+    .gap-warn {
+        background: #ffc107 !important;
+        color: #111 !important;
+        font-weight: 700 !important;
+    }
+
+    .gap-bad {
+        background: #dc3545 !important;
+        color: #fff !important;
+        font-weight: 700 !important;
+    }
+
+    .gap-empty {
+        background: transparent !important;
+        color: #401515 !important;
+        font-weight: 700 !important;
+    }
+
+    #tbl-surtidos tbody td.gap-ok, .detail-table td.gap-ok, .kpi-value.gap-ok {
+        background: #198754 !important;
+        color: #fff !important;
+        font-weight: 700 !important;
+    }
+
+    #tbl-surtidos tbody td.gap-warn, .detail-table td.gap-warn, .kpi-value.gap-warn {
+        background: #ffc107 !important;
+        color: #111 !important;
+        font-weight: 700 !important;
+    }
+
+    #tbl-surtidos tbody td.gap-bad, .detail-table td.gap-bad, .kpi-value.gap-bad {
+        background: #dc3545 !important;
+        color: #fff !important;
+        font-weight: 700 !important;
+    }
+
+    #tbl-surtidos tbody td.gap-empty, .detail-table td.gap-empty, .kpi-value.gap-empty {
+        background: transparent !important;
+        color: #401515 !important;
+        font-weight: 700 !important;
+    }
+
+    @@media (max-width: 992px) {
+        .filters {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .filters {
+            grid-template-columns: 1fr;
+        }
+
+        #tbl-surtidos {
+            min-width: 1380px !important;
+        }
+    }
+
+    /* FONDO GRIS + ESTILO ROSITA */
+    html,
+    body {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+        background: #e9edf2 !important;
+    }
+
+    body,
+    main,
+    .main,
+    .body-content,
+    .container,
+    .container-fluid,
+    .container-sm,
+    .container-md,
+    .container-lg,
+    .container-xl,
+    .container-xxl,
+    .pb-3 {
+        background: #e9edf2 !important;
+        box-shadow: none !important;
+        border: none !important;
+    }
+
+    .window {
+        width: calc(100vw - 48px) !important;
+        max-width: none !important;
+        margin-left: 50% !important;
+        transform: translateX(-50%) !important;
+        background: #f8eeee !important;
+        border: 1px solid #7e4a4a !important;
+    }
+
+    .content {
+        background: #f0dede !important;
+    }
+
+    .section,
+    .table-card,
+    .detail-box {
+        background: #fffafa !important;
+        border: 1px solid #c79d9d !important;
+    }
+
+    .section-body,
+    .table-responsive-sticky,
+    .detail-table-wrap {
+        background: #fffafa !important;
+    }
+
+    .kpi-card {
+        background: linear-gradient(#fffefe,#f3e4e4) !important;
+        border: 1px solid #d8bcbc !important;
+    }
+
+    #tbl-surtidos,
+    .detail-table {
+        background: #fffafa !important;
+    }
+
+        #tbl-surtidos tbody td,
+        .detail-table td {
+            background: #fffafa !important;
+            border-color: #d8bcbc !important;
+        }
+
+        #tbl-surtidos tbody tr:nth-of-type(even) > *,
+        .detail-table tbody tr:nth-of-type(even) > * {
+            background: #f9eded !important;
+        }
+
+        #tbl-surtidos tbody tr:hover > *,
+        .detail-table tbody tr:hover > * {
+            background: #f4dddd !important;
+        }
+
+        /* Mantener columnas amarillas */
+        #tbl-surtidos thead th:nth-child(9),
+        #tbl-surtidos thead th:nth-child(10),
+        #tbl-surtidos thead th:nth-child(11),
+        #tbl-surtidos thead th:nth-child(12) {
+            background: linear-gradient(180deg,#dcb000 0%,#c79c00 55%,#a88000 100%) !important;
+            color: #fff !important;
+        }
+
+        #tbl-surtidos tbody td:nth-child(9),
+        #tbl-surtidos tbody td:nth-child(10) {
+            background: #fff4cc !important;
+            color: #401515 !important;
+        }
+
+        /* No tapar colores GAP */
+        #tbl-surtidos tbody td.gap-ok,
+        .detail-table td.gap-ok,
+        .kpi-value.gap-ok {
+            background: #198754 !important;
+            color: #fff !important;
+        }
+
+        #tbl-surtidos tbody td.gap-warn,
+        .detail-table td.gap-warn,
+        .kpi-value.gap-warn {
+            background: #ffc107 !important;
+            color: #111 !important;
+        }
+
+        #tbl-surtidos tbody td.gap-bad,
+        .detail-table td.gap-bad,
+        .kpi-value.gap-bad {
+            background: #dc3545 !important;
+            color: #fff !important;
+        }
+
+        #tbl-surtidos tbody td.gap-empty,
+        .detail-table td.gap-empty,
+        .kpi-value.gap-empty {
+            background: #fffafa !important;
+            color: #401515 !important;
+        }
+
+    /* RESPONSIVO CELULAR */
+    @@media (max-width: 768px) {
+        .window {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            transform: none !important;
+            border-left: none !important;
+            border-right: none !important;
+        }
+
+        .content {
+            padding: 6px !important;
+        }
+
+        .section-body {
+            padding: 8px !important;
+        }
+
+        .filters {
+            grid-template-columns: 1fr !important;
+            gap: 8px !important;
+        }
+
+            .filters > div:last-child {
+                display: grid !important;
+                grid-template-columns: 1fr !important;
+                gap: 6px !important;
+            }
+
+        .btn-main,
+        .btn-excel,
+        .btn-light {
+            width: 100% !important;
+            font-size: 12px !important;
+        }
+
+        .kpis {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 8px !important;
+        }
+
+        .kpi-card {
+            min-width: 0 !important;
+            padding: 8px !important;
+        }
+
+        .kpi-title {
+            font-size: 10px !important;
+        }
+
+        .kpi-value {
+            font-size: 14px !important;
+        }
+
+        .table-responsive-sticky {
+            width: 100% !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            max-height: 65vh !important;
+        }
+
+        #tbl-surtidos {
+            min-width: 1080px !important;
+            font-size: 10px !important;
+        }
+
+            #tbl-surtidos thead th,
+            #tbl-surtidos tbody td {
+                font-size: 10px !important;
+                padding: 4px 3px !important;
+            }
+
+        .th-inner {
+            padding: 5px 4px !important;
+        }
+
+        .detail-table {
+            min-width: 760px !important;
+            font-size: 10px !important;
+        }
+
+            .detail-table th,
+            .detail-table td {
+                font-size: 10px !important;
+                padding: 4px 3px !important;
+            }
+
+        .statusbar {
+            display: block !important;
+            font-size: 10px !important;
+        }
+    }
+
+    /* COMPACTAR LETRA - Confirmado Vs Embarcado */
+    body {
+        font-size: 12px !important;
+    }
+
+    .section-title {
+        font-size: 12px !important;
+        padding: 6px 8px !important;
+    }
+
+    .section-body {
+        padding: 8px !important;
+    }
+
+    .form-label {
+        font-size: 11px !important;
+    }
+
+    .form-control,
+    .form-select {
+        font-size: 12px !important;
+        height: 30px !important;
+    }
+
+    .cg-ms-button {
+        height: 30px !important;
+        font-size: 12px !important;
+    }
+
+    .cg-ms-panel {
+        top: 32px !important;
+    }
+
+    .btn-main,
+    .btn-excel,
+    .btn-light {
+        font-size: 12px !important;
+        height: 30px !important;
+        padding: 0 10px !important;
+    }
+
+    .kpi-card {
+        min-width: 145px !important;
+        padding: 7px 9px !important;
+    }
+
+    .kpi-title {
+        font-size: 10px !important;
+    }
+
+    .kpi-value {
+        font-size: 15px !important;
+    }
+
+    #tbl-surtidos {
+        font-size: 11px !important;
+    }
+
+        #tbl-surtidos thead th,
+        #tbl-surtidos tbody td {
+            font-size: 11px !important;
+            padding: 5px 4px !important;
+        }
+
+    .th-inner {
+        padding: 5px 4px !important;
+    }
+
+    .detail-head {
+        font-size: 12px !important;
+        padding: 6px 8px !important;
+    }
+
+    .detail-table {
+        font-size: 11px !important;
+    }
+
+        .detail-table th,
+        .detail-table td {
+            font-size: 11px !important;
+            padding: 5px 4px !important;
+        }
+
+    .statusbar {
+        font-size: 11px !important;
+        padding: 6px 8px !important;
+    }
+
+
+    /* =========================================================
+       KPIS A COLOR - Confirmado Vs Embarcado
+       ========================================================= */
+
+    .kpi-card.kpi-colored {
+        position: relative;
+        overflow: hidden;
+        min-height: 86px !important;
+        border-radius: 16px !important;
+        border: 1px solid rgba(255,255,255,.32) !important;
+        box-shadow: inset 5px 0 0 rgba(255,255,255,.18), 0 12px 26px rgba(45,8,8,.16) !important;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .kpi-card.kpi-colored::after {
+        content: "";
+        position: absolute;
+        right: -34px;
+        bottom: -42px;
+        width: 118px;
+        height: 118px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.15);
+        pointer-events: none;
+    }
+
+    .kpi-card.kpi-colored::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(135deg, rgba(255,255,255,.12), transparent 52%);
+        pointer-events: none;
+    }
+
+    .kpi-card.kpi-colored .kpi-title,
+    .kpi-card.kpi-colored .kpi-value {
+        position: relative;
+        z-index: 1;
+    }
+
+    .kpi-card.kpi-colored .kpi-title {
+        color: rgba(255,255,255,.90) !important;
+        letter-spacing: .06em;
+        text-shadow: 0 1px 4px rgba(0,0,0,.16);
+    }
+
+    .kpi-card.kpi-colored .kpi-value {
+        color: #fff !important;
+        font-size: clamp(17px, 1.35vw, 24px) !important;
+        font-weight: 900 !important;
+        text-shadow: 0 2px 9px rgba(0,0,0,.24);
+        background: transparent !important;
+        padding: 0 !important;
+    }
+
+    .kpi-kg-pedidos {
+        background: linear-gradient(135deg, #5c090b 0%, #9f1116 56%, #6b0d10 100%) !important;
+    }
+
+    .kpi-cajas-pedidas {
+        background: linear-gradient(135deg, #7c2d12 0%, #ea580c 56%, #9a3412 100%) !important;
+    }
+
+    .kpi-kg-surtidos {
+        background: linear-gradient(135deg, #065f46 0%, #16a34a 56%, #047857 100%) !important;
+    }
+
+    .kpi-cajas-surtidas {
+        background: linear-gradient(135deg, #0f766e 0%, #14b8a6 56%, #115e59 100%) !important;
+    }
+
+    .kpi-gap-kg-card,
+    .kpi-gap-cajas-card,
+    .kpi-gap-empty {
+        background: linear-gradient(135deg, #2b1515 0%, #4b1113 56%, #140506 100%) !important;
+    }
+
+    .kpi-card.kpi-gap-ok {
+        background: linear-gradient(135deg, #0f5132 0%, #198754 56%, #146c43 100%) !important;
+    }
+
+    .kpi-card.kpi-gap-warn {
+        background: linear-gradient(135deg, #b7791f 0%, #ffc107 56%, #d39e00 100%) !important;
+    }
+
+    .kpi-card.kpi-gap-bad {
+        background: linear-gradient(135deg, #7f1d1d 0%, #dc3545 56%, #991b1b 100%) !important;
+    }
+
+    .kpi-card.kpi-colored .kpi-value.gap-ok,
+    .kpi-card.kpi-colored .kpi-value.gap-bad,
+    .kpi-card.kpi-colored .kpi-value.gap-empty {
+        background: transparent !important;
+        color: #fff !important;
+    }
+
+    .kpi-card.kpi-gap-warn .kpi-title,
+    .kpi-card.kpi-gap-warn .kpi-value,
+    .kpi-card.kpi-gap-warn .kpi-value.gap-warn {
+        background: transparent !important;
+        color: #2b1515 !important;
+        text-shadow: none !important;
+    }
+
+    .kpi-card.kpi-gap-warn::after {
+        background: rgba(255,255,255,.20);
+    }
+
+    @@media (max-width: 768px) {
+        .kpi-card.kpi-colored {
+            min-height: 78px !important;
+        }
+
+        .kpi-card.kpi-colored .kpi-value {
+            font-size: clamp(15px, 4.8vw, 20px) !important;
+        }
+    }
+
+</style>
+
+<div class="window">
+    <div class="titlebar">
+        <div></div>
+        <div class="actions">
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+        </div>
+    </div>
+
+    <div class="content">
+
+        <div class="section">
+            <div class="section-title">Filtros de búsqueda</div>
+            <div class="section-body">
+                <form id="frm-filtros" class="filters">
+                    <div>
+                        <label class="form-label">Cliente</label>
+                        <input type="text" id="txt-cliente" class="form-control" placeholder="Nombre cliente" />
+                    </div>
+                    <div>
+                        <label class="form-label">Folio</label>
+                        <input type="text" id="txt-folio" class="form-control" placeholder="OV o TR" />
+                    </div>
+                    <div>
+                        <label class="form-label">Serie</label>
+                        <div class="cg-multiselect" id="ms-serie">
+                            <button type="button" class="cg-ms-button" id="btn-serie">
+                                <span id="lbl-serie">Todas</span>
+                                <span class="cg-ms-arrow">▼</span>
+                            </button>
+                            <div class="cg-ms-panel" id="panel-serie">
+                                <input type="text" id="txt-buscar-serie" class="cg-ms-search" placeholder="Buscar serie..." />
+                                <div class="cg-ms-options" id="lst-serie"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="form-label">Fecha inicio</label>
+                        <input type="date" id="txt-fecha-inicio" class="form-control" />
+                    </div>
+                    <div>
+                        <label class="form-label">Fecha fin</label>
+                        <input type="date" id="txt-fecha-fin" class="form-control" />
+                    </div>
+                    <div>
+                        <label class="form-label">Tipo</label>
+                        <select id="sel-tipo" class="form-select">
+                            <option value="">Ambos</option>
+                            <option value="OV">Orden de Venta</option>
+                            <option value="TR">Transferencia</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; gap:6px; align-items:end; flex-wrap:wrap;">
+                        <button type="submit" class="btn-main">Buscar</button>
+                        <button type="button" id="btn-excel" class="btn-excel">Exportar Excel</button>
+                        <button type="button" id="btn-limpiar" class="btn-light">Limpiar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Resumen</div>
+            <div class="section-body">
+                <div class="kpis">
+                    <div class="kpi-card kpi-colored kpi-kg-pedidos">
+                        <div class="kpi-title">Kg Pedidos</div>
+                        <div class="kpi-value" id="kpi-kg-pedidos">0</div>
+                    </div>
+                    <div class="kpi-card kpi-colored kpi-cajas-pedidas">
+                        <div class="kpi-title">Cajas Pedidas</div>
+                        <div class="kpi-value" id="kpi-cajas-pedidas">0</div>
+                    </div>
+                    <div class="kpi-card kpi-colored kpi-kg-surtidos">
+                        <div class="kpi-title">Kg Surtidos</div>
+                        <div class="kpi-value" id="kpi-kg-surtidos">0</div>
+                    </div>
+                    <div class="kpi-card kpi-colored kpi-cajas-surtidas">
+                        <div class="kpi-title">Cajas Surtidas</div>
+                        <div class="kpi-value" id="kpi-cajas-surtidas">0</div>
+                    </div>
+                    <div class="kpi-card kpi-colored kpi-gap-kg-card kpi-gap-empty">
+                        <div class="kpi-title">Gap Kg</div>
+                        <div class="kpi-value" id="kpi-gap-kg">0%</div>
+                    </div>
+                    <div class="kpi-card kpi-colored kpi-gap-cajas-card kpi-gap-empty">
+                        <div class="kpi-title">Gap Cajas</div>
+                        <div class="kpi-value" id="kpi-gap-cajas">0%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            @* <div class="section-title">Listado de surtidos</div> *@
+            <div class="table-card">
+                <div class="table-responsive-sticky">
+                    <table class="table table-sm table-striped table-hover align-middle" id="tbl-surtidos">
+                        <thead>
+                            <tr>
+                                <!-- col 1: no sort -->
+                                <th class="text-center">
+                                    <div class="th-inner">#</div>
+                                </th>
+                                <!-- sortable cols -->
+                                <th data-col="tipo">
+                                    <div class="th-inner sortable">
+                                        Tipo
+                                        <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span>
+                                    </div>
+                                </th>
+                                <th data-col="serie">
+                                    <div class="th-inner sortable">
+                                        Serie
+                                        <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span>
+                                    </div>
+                                </th>
+                                <th data-col="folio">
+                                    <div class="th-inner sortable">
+                                        Folio
+                                        <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span>
+                                    </div>
+                                </th>
+                                <th data-col="cliente">
+                                    <div class="th-inner sortable">
+                                        Cliente
+                                        <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span>
+                                    </div>
+                                </th>
+                                <th data-col="fecha">
+                                    <div class="th-inner sortable">
+                                        Fecha
+                                        <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span>
+                                    </div>
+                                </th>
+                                <th data-col="kgPedidos" class="text-end">
+                                    <div class="th-inner sortable">
+                                        Kg Pedidos
+                                        <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span>
+                                    </div>
+                                </th>
+                                <th data-col="cajasPedidas" class="text-end">
+                                    <div class="th-inner sortable">
+                                        Cajas Pedidas
+                                        <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span>
+                                    </div>
+                                </th>
+                                <th data-col="kgSurtidos" class="text-end">
+                                    <div class="th-inner sortable">
+                                        Kg Surtidos
+                                        <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span>
+                                    </div>
+                                </th>
+                                <th data-col="cajasSurtidas" class="text-end">
+                                    <div class="th-inner sortable">
+                                        Cajas Surtidas
+                                        <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span>
+                                    </div>
+                                </th>
+                                <th data-col="gapKg" class="text-end">
+                                    <div class="th-inner sortable">
+                                        GAP Kg
+                                        <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span>
+                                    </div>
+                                </th>
+                                <th data-col="gapCaja" class="text-end">
+                                    <div class="th-inner sortable">
+                                        GAP Caja
+                                        <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span>
+                                    </div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-surtidos">
+                            <tr>
+                                <td colspan="12" class="text-center text-muted">Sin datos.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="statusbar">
+        <div>Registro listo</div>
+        <div>Usuario: @User.Identity.Name</div>
+        <div>Empresa: Carnes G SA de CV</div>
+        <div>Módulo: Confirmado Vs Embarcado</div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script>
+        (() => {
+        const URL_RESUMEN        = '/Comercial/ObtenerSurtidosMeatResumen';
+        const URL_DETALLE        = '/Comercial/ObtenerSurtidosMeatDetalle';
+        const URL_DETALLE_EXCEL  = '/Comercial/ObtenerSurtidosMeatDetalleExcel';
+        const URL_SERIES         = '/Comercial/ObtenerSeriesSurtidosMeat';
+
+        const $frm          = document.getElementById('frm-filtros');
+        const $cliente      = document.getElementById('txt-cliente');
+        const $folio        = document.getElementById('txt-folio');
+        const $msSerie      = document.getElementById('ms-serie');
+        const $btnSerie     = document.getElementById('btn-serie');
+        const $lblSerie     = document.getElementById('lbl-serie');
+        const $buscarSerie  = document.getElementById('txt-buscar-serie');
+        const $lstSerie     = document.getElementById('lst-serie');
+        const $fechaInicio  = document.getElementById('txt-fecha-inicio');
+        const $fechaFin     = document.getElementById('txt-fecha-fin');
+        const $tipo         = document.getElementById('sel-tipo');
+        const $btnLimpiar   = document.getElementById('btn-limpiar');
+        const $btnExcel     = document.getElementById('btn-excel');
+        const $tbody        = document.getElementById('tbody-surtidos');
+
+        const $kpiKgPedidos     = document.getElementById('kpi-kg-pedidos');
+        const $kpiCajasPedidas  = document.getElementById('kpi-cajas-pedidas');
+        const $kpiKgSurtidos    = document.getElementById('kpi-kg-surtidos');
+        const $kpiCajasSurtidas = document.getElementById('kpi-cajas-surtidas');
+        const $kpiGapKg         = document.getElementById('kpi-gap-kg');
+        const $kpiGapCajas      = document.getElementById('kpi-gap-cajas');
+
+        const nf    = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+        const nfPct = new Intl.NumberFormat(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+
+        let resumenActual  = [];
+        let detalleCache   = {};
+        let seriesCatalogo = [];
+        let seriesSeleccionadas = new Set();
+
+        /* ── sort state ── */
+        let sortCol = null;   // key string  e.g. 'serie', 'kgPedidos'
+        let sortDir = 'asc';  // 'asc' | 'desc'
+
+        /* ═══════════════════════════ HELPERS ═══════════════════════════ */
+        function num(v)  { return nf.format(Number(v || 0)); }
+
+        function pct(v)  { return nfPct.format(Number(v || 0)) + '%'; }
+
+        function pctGap(v) {
+        const n = Number(v);
+        if (!isFinite(n) || n === 0) return '-';
+        return pct(n);
+        }
+
+        function getGapClass(v) {
+        const n = Number(v);
+        if (!isFinite(n) || n === 0) return 'gap-empty';
+        if (n >= 100)          return 'gap-ok';
+        if (n >= 97 && n < 100) return 'gap-warn';
+        return 'gap-bad';
+        }
+
+        function setKpiCardGapClass(kpiValueElement, gapValue) {
+        const card = kpiValueElement?.closest('.kpi-card');
+        if (!card) return;
+
+        card.classList.remove('kpi-gap-ok', 'kpi-gap-warn', 'kpi-gap-bad', 'kpi-gap-empty');
+        card.classList.add(`kpi-${getGapClass(gapValue)}`);
+        }
+
+        function getGapKgValue(item)   { return item?.gapKg   ?? item?.gapKG    ?? 0; }
+        function getGapCajaValue(item) { return item?.gapCaja ?? item?.gapCajas ?? 0; }
+
+        function escapeHtml(v) {
+        return String(v ?? '')
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        }
+
+        function formatFecha(v) {
+        if (!v) return '';
+        const d = new Date(v);
+        if (isNaN(d)) return '';
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        }
+
+        function getDetalleKey(folio, tipo, serie) { return `${tipo||''}__${serie||''}__${folio||''}`; }
+
+        function getSerieValue(item) { return item?.serie ?? item?.Serie ?? ''; }
+
+        function getSeriesParam() {
+        return Array.from(seriesSeleccionadas).join(',');
+        }
+
+        /* ── value accessor for sort ── */
+        function getSortValue(item, col) {
+        switch (col) {
+        case 'tipo':          return (item.tipo         || '').toLowerCase();
+        case 'serie':         return getSerieValue(item).toLowerCase();
+        case 'folio':         return (item.folio        || '').toLowerCase();
+        case 'cliente':       return (item.cliente      || '').toLowerCase();
+        case 'fecha':         return item.fecha          || '';
+        case 'kgPedidos':     return Number(item.kgPedidos     || 0);
+        case 'cajasPedidas':  return Number(item.cajasPedidas  || 0);
+        case 'kgSurtidos':    return Number(item.kgSurtidos    || 0);
+        case 'cajasSurtidas': return Number(item.cajasSurtidas || 0);
+        case 'gapKg':         return Number(getGapKgValue(item));
+        case 'gapCaja':       return Number(getGapCajaValue(item));
+        default:              return '';
+        }
+        }
+
+        /* ═══════════════════════════ SORT ═══════════════════════════ */
+        function applySortUI() {
+        document.querySelectorAll('#tbl-surtidos thead th[data-col]').forEach(th => {
+        th.classList.remove('sort-asc','sort-desc');
+        if (th.dataset.col === sortCol) {
+        th.classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+        }
+        });
+        }
+
+        function sortedData() {
+        if (!sortCol) return resumenActual;
+        return [...resumenActual].sort((a, b) => {
+        const va = getSortValue(a, sortCol);
+        const vb = getSortValue(b, sortCol);
+        if (va < vb) return sortDir === 'asc' ? -1 :  1;
+        if (va > vb) return sortDir === 'asc' ?  1 : -1;
+        return 0;
+        });
+        }
+
+        /* Wire up header clicks */
+        document.querySelectorAll('#tbl-surtidos thead th[data-col]').forEach(th => {
+        th.querySelector('.th-inner').addEventListener('click', () => {
+        const col = th.dataset.col;
+        if (sortCol === col) {
+        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+        sortCol = col;
+        sortDir = 'asc';
+        }
+        applySortUI();
+        rerenderRows();
+        });
+        });
+
+        /* ═══════════════════════════ RENDER ═══════════════════════════ */
+        function setLoading() {
+        $tbody.innerHTML = `<tr><td colspan="12" class="text-center text-muted">Cargando...</td></tr>`;
+        }
+
+        function setEmpty(msg) {
+        resumenActual = [];
+        detalleCache  = {};
+        $tbody.innerHTML = `<tr><td colspan="12" class="text-center text-muted">${escapeHtml(msg)}</td></tr>`;
+        }
+
+        function buildResumenRow(item, displayIndex) {
+        const tr = document.createElement('tr');
+        tr.dataset.folio = item.folio || '';
+        tr.dataset.tipo  = item.tipo  || '';
+        tr.dataset.serie = getSerieValue(item);
+
+        const gapKg   = getGapKgValue(item);
+        const gapCaja = getGapCajaValue(item);
+
+        tr.innerHTML = `
+        <td class="text-center">
+        <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
+        <span>${displayIndex + 1}</span>
+        <button type="button" class="toggle-btn js-expand" data-open="0">+</button>
+        </div>
+        </td>
+        <td>${escapeHtml(item.tipo    || '')}</td>
+        <td>${escapeHtml(getSerieValue(item))}</td>
+        <td>${escapeHtml(item.folio   || '')}</td>
+        <td>${escapeHtml(item.cliente || '')}</td>
+        <td>${escapeHtml(formatFecha(item.fecha))}</td>
+        <td class="text-end">${num(item.kgPedidos)}</td>
+        <td class="text-end">${num(item.cajasPedidas)}</td>
+        <td class="text-end">${num(item.kgSurtidos)}</td>
+        <td class="text-end">${num(item.cajasSurtidas)}</td>
+        <td class="text-end ${getGapClass(gapKg)}">${pctGap(gapKg)}</td>
+        <td class="text-end ${getGapClass(gapCaja)}">${pctGap(gapCaja)}</td>
+        `;
+        return tr;
+        }
+
+        /* Re-renders only the rows (keeps KPIs) */
+        function rerenderRows() {
+        // Close any open detail rows first
+        $tbody.querySelectorAll('tr.detail-row').forEach(r => r.remove());
+        $tbody.querySelectorAll('tr[data-folio]').forEach(r => {
+        r.classList.remove('is-open');
+        const btn = r.querySelector('.js-expand');
+        if (btn) { btn.textContent = '+'; btn.dataset.open = '0'; }
+        });
+
+        const ordered = sortedData();
+        $tbody.innerHTML = '';
+        ordered.forEach((item, idx) => $tbody.appendChild(buildResumenRow(item, idx)));
+        }
+
+        function renderResumen(data) {
+        resumenActual = Array.isArray(data) ? data : [];
+        detalleCache  = {};
+
+        if (!data || !data.length) {
+        setEmpty('Sin datos.');
+        renderKpis([]);
+        return;
+        }
+
+        applySortUI();
+        rerenderRows();
+        renderKpis(data);
+        }
+
+        function renderKpis(data) {
+        const totalKgPedidos     = data.reduce((a,b) => a + Number(b.kgPedidos     || 0), 0);
+        const totalCajasPedidas  = data.reduce((a,b) => a + Number(b.cajasPedidas  || 0), 0);
+        const totalKgSurtidos    = data.reduce((a,b) => a + Number(b.kgSurtidos    || 0), 0);
+        const totalCajasSurtidas = data.reduce((a,b) => a + Number(b.cajasSurtidas || 0), 0);
+
+        const gapKg    = totalKgPedidos    > 0 ? (totalKgSurtidos    * 100) / totalKgPedidos    : 0;
+        const gapCajas = totalCajasPedidas > 0 ? (totalCajasSurtidas * 100) / totalCajasPedidas : 0;
+
+        $kpiKgPedidos.textContent     = num(totalKgPedidos);
+        $kpiCajasPedidas.textContent  = num(totalCajasPedidas);
+        $kpiKgSurtidos.textContent    = num(totalKgSurtidos);
+        $kpiCajasSurtidas.textContent = num(totalCajasSurtidas);
+
+        $kpiGapKg.textContent    = pctGap(gapKg);
+        $kpiGapKg.className      = `kpi-value ${getGapClass(gapKg)}`;
+        $kpiGapCajas.textContent = pctGap(gapCajas);
+        $kpiGapCajas.className   = `kpi-value ${getGapClass(gapCajas)}`;
+
+        setKpiCardGapClass($kpiGapKg, gapKg);
+        setKpiCardGapClass($kpiGapCajas, gapCajas);
+        }
+
+        /* ═══════════════════════════ DETAIL ═══════════════════════════ */
+        function buildDetailShell(folio, tipo, serie) {
+        const tr = document.createElement('tr');
+        tr.className      = 'detail-row';
+        tr.dataset.folio  = folio;
+        tr.dataset.tipo   = tipo;
+        tr.dataset.serie  = serie;
+
+        tr.innerHTML = `
+        <td colspan="12">
+        <div class="detail-box">
+        <div class="detail-head">Detalle: ${escapeHtml(folio)} ${serie ? '| Serie: ' + escapeHtml(serie) : ''}</div>
+        <div class="detail-table-wrap">
+        <table class="detail-table">
+        <thead>
+        <tr>
+        <th>SKU</th>
+        <th>Producto</th>
+        <th class="text-end">Kg Pedidos</th>
+        <th class="text-end">Cajas Pedidas</th>
+        <th class="text-end">Kg Surtidos</th>
+        <th class="text-end">Cajas Surtidas</th>
+        <th class="text-end">GAP Kg</th>
+        <th class="text-end">GAP Caja</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr><td colspan="8" class="text-center text-muted">Cargando detalle...</td></tr>
+        </tbody>
+        </table>
+        </div>
+        </div>
+        </td>
+        `;
+        return tr;
+        }
+
+        function renderDetailRows(items) {
+        return items.map(x => {
+        const gapKg   = x?.gapKg   ?? x?.gapKG    ?? 0;
+        const gapCaja = x?.gapCaja ?? x?.gapCajas ?? 0;
+        return `<tr>
+        <td>${escapeHtml(x.sku     || '')}</td>
+        <td class="td-wrap">${escapeHtml(x.producto || '')}</td>
+        <td class="text-end">${num(x.kgPedidos)}</td>
+        <td class="text-end">${num(x.cajasPedidas)}</td>
+        <td class="text-end">${num(x.kgSurtidos)}</td>
+        <td class="text-end">${num(x.cajasSurtidas)}</td>
+        <td class="text-end ${getGapClass(gapKg)}">${pctGap(gapKg)}</td>
+        <td class="text-end ${getGapClass(gapCaja)}">${pctGap(gapCaja)}</td>
+        </tr>`;
+        }).join('');
+        }
+
+        async function cargarDetalle(trMaster) {
+        const folio = trMaster.dataset.folio;
+        const tipo  = trMaster.dataset.tipo;
+        const serie = trMaster.dataset.serie || '';
+        const btn   = trMaster.querySelector('.js-expand');
+        const key   = getDetalleKey(folio, tipo, serie);
+
+        if (btn.dataset.open === '1') {
+        const next = trMaster.nextElementSibling;
+        if (next && next.classList.contains('detail-row')) next.remove();
+        trMaster.classList.remove('is-open');
+        btn.textContent   = '+';
+        btn.dataset.open  = '0';
+        return;
+        }
+
+        const shell = buildDetailShell(folio, tipo, serie);
+        trMaster.insertAdjacentElement('afterend', shell);
+        trMaster.classList.add('is-open');
+        btn.textContent  = '−';
+        btn.dataset.open = '1';
+
+        const tbody = shell.querySelector('tbody');
+
+        if (detalleCache[key]?.length) {
+        tbody.innerHTML = renderDetailRows(detalleCache[key]);
+        return;
+        }
+
+        try {
+        const params = new URLSearchParams({ folio, tipo, serie });
+        const res    = await fetch(`${URL_DETALLE}?${params}`, { headers:{ 'X-Requested-With':'XMLHttpRequest' } });
+        const json   = await res.json();
+
+        if (!json || !Array.isArray(json) || !json.length) {
+        detalleCache[key] = [];
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted">Sin detalle.</td></tr>`;
+        return;
+        }
+
+        detalleCache[key] = json;
+        tbody.innerHTML   = renderDetailRows(json);
+        } catch {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger">Error al cargar detalle.</td></tr>`;
+        }
+        }
+
+      /* ═══════════════════════════ MULTISELECT SERIE ═══════════════════════════ */
+function normalizarSerie(x) {
+    if (typeof x === 'string') return x.trim();
+    return String(x?.serie ?? x?.Serie ?? '').trim();
+}
+
+function actualizarLabelSeries() {
+    const arr = Array.from(seriesSeleccionadas);
+
+    if (!arr.length) {
+        $lblSerie.textContent = 'Todas';
+        return;
+    }
+
+    $lblSerie.textContent = arr.length <= 2 ? arr.join(', ') : `${arr.length} seleccionadas`;
+}
+
+function renderSerieOptions() {
+    const texto = ($buscarSerie.value || '').trim().toLowerCase();
+    const filtradas = seriesCatalogo.filter(s => !texto || s.toLowerCase().includes(texto));
+
+    if (!filtradas.length) {
+        $lstSerie.innerHTML = `<div class="cg-ms-empty">Sin series.</div>`;
+        return;
+    }
+
+    $lstSerie.innerHTML = filtradas.map(s => {
+        const checked = seriesSeleccionadas.has(s) ? 'checked' : '';
+
+        return `<label class="cg-ms-item">
+            <input type="checkbox" value="${escapeHtml(s)}" ${checked} />
+            <span>${escapeHtml(s)}</span>
+        </label>`;
+    }).join('');
+}
+
+async function cargarSeries() {
+    try {
+        const res = await fetch(URL_SERIES, {
+            headers:{ 'X-Requested-With':'XMLHttpRequest' }
+        });
+
+        const raw = await res.text();
+
+let json;
+try {
+    json = JSON.parse(raw);
+} catch {
+    console.error('Respuesta no JSON de ObtenerSeriesSurtidosMeat:', raw);
+    throw new Error(raw);
+}
+        const arr = Array.isArray(json) ? json.map(normalizarSerie).filter(Boolean) : [];
+
+        seriesCatalogo = Array.from(new Set(arr)).sort((a,b) => a.localeCompare(b));
+    } catch(e) {
+        console.warn('No fue posible cargar series.', e);
+        seriesCatalogo = [];
+    }
+
+    renderSerieOptions();
+    actualizarLabelSeries();
+}
+
+$btnSerie.addEventListener('click', e => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    $msSerie.classList.toggle('open');
+
+    if ($msSerie.classList.contains('open')) {
+        setTimeout(() => $buscarSerie.focus(), 0);
+    }
+});
+
+document.addEventListener('click', e => {
+    if (!$msSerie.contains(e.target)) {
+        $msSerie.classList.remove('open');
+    }
+});
+
+$buscarSerie.addEventListener('click', e => e.stopPropagation());
+$buscarSerie.addEventListener('input', renderSerieOptions);
+
+$lstSerie.addEventListener('change', e => {
+    const chk = e.target.closest('input[type="checkbox"]');
+
+    if (!chk) return;
+
+    if (chk.checked) {
+        seriesSeleccionadas.add(chk.value);
+    } else {
+        seriesSeleccionadas.delete(chk.value);
+    }
+
+    actualizarLabelSeries();
+});
+
+        /* ═══════════════════════════ FETCH RESUMEN ═══════════════════════════ */
+        async function cargarResumen() {
+        setLoading();
+        const params = new URLSearchParams({
+        cliente:     $cliente.value      || '',
+        folio:       $folio.value        || '',
+        serie:       getSeriesParam(),
+        fechaInicio: $fechaInicio.value  || '',
+        fechaFin:    $fechaFin.value     || '',
+        tipo:        $tipo.value         || ''
+        });
+
+        try {
+        const res  = await fetch(`${URL_RESUMEN}?${params}`, { headers:{ 'X-Requested-With':'XMLHttpRequest' } });
+        const raw = await res.text();
+
+let json;
+try {
+    json = JSON.parse(raw);
+} catch {
+    console.error('Respuesta no JSON de ObtenerSurtidosMeatResumen:', raw);
+    throw new Error(raw);
+}
+
+        if (!json || !Array.isArray(json)) {
+        setEmpty('No fue posible cargar la información.');
+        renderKpis([]);
+        return;
+        }
+        renderResumen(json);
+        } catch(e) {
+        console.error(e);
+        setEmpty('Error al cargar la información.');
+        renderKpis([]);
+        }
+        }
+
+        /* ═══════════════════════════ EXCEL ═══════════════════════════ */
+        async function exportarExcel() {
+        const params = new URLSearchParams({
+        cliente:     $cliente.value     || '',
+        folio:       $folio.value       || '',
+        serie:       getSeriesParam(),
+        fechaInicio: $fechaInicio.value || '',
+        fechaFin:    $fechaFin.value    || '',
+        tipo:        $tipo.value        || ''
+        });
+
+        try {
+        const [resResumen, resDetalle] = await Promise.all([
+        fetch(`${URL_RESUMEN}?${params}`,       { headers:{ 'X-Requested-With':'XMLHttpRequest' } }),
+        fetch(`${URL_DETALLE_EXCEL}?${params}`, { headers:{ 'X-Requested-With':'XMLHttpRequest' } })
+        ]);
+
+        const resumenJson = await resResumen.json();
+        const detalleJson = await resDetalle.json();
+
+        if (!Array.isArray(resumenJson) || !resumenJson.length) { alert('No hay datos para exportar.'); return; }
+
+        const resumenRows = resumenJson.map(x => ({
+        Tipo: x.tipo||'', Serie: getSerieValue(x), Folio: x.folio||'', Cliente: x.cliente||'', Fecha: formatFecha(x.fecha),
+        KgPedidos: Number(x.kgPedidos||0), CajasPedidas: Number(x.cajasPedidas||0),
+        KgSurtidos: Number(x.kgSurtidos||0), CajasSurtidas: Number(x.cajasSurtidas||0),
+        GAPKg: Number(x.gapKg||0), GAPCajas: Number(x.gapCaja ?? x.gapCajas ?? 0)
+        }));
+
+        const detalleRows = Array.isArray(detalleJson) ? detalleJson.map(x => ({
+        Tipo: x.tipo||'', Serie: getSerieValue(x), Folio: x.folio||'', Cliente: x.cliente||'', Fecha: formatFecha(x.fecha),
+        SKU: x.sku||'', Producto: x.producto||'',
+        KgPedidos: Number(x.kgPedidos||0), CajasPedidas: Number(x.cajasPedidas||0),
+        KgSurtidos: Number(x.kgSurtidos||0), CajasSurtidas: Number(x.cajasSurtidas||0),
+        GAPKg: Number(x.gapKg||0), GAPCaja: Number(x.gapCaja||0)
+        })) : [];
+
+        const wb = XLSX.utils.book_new();
+        const wsR = XLSX.utils.json_to_sheet(resumenRows);
+        wsR['!cols'] = [{wch:10},{wch:12},{wch:18},{wch:35},{wch:14},{wch:14},{wch:16},{wch:14},{wch:16},{wch:10},{wch:12}];
+        XLSX.utils.book_append_sheet(wb, wsR, 'Resumen');
+
+        const wsD = XLSX.utils.json_to_sheet(detalleRows.length ? detalleRows : [{Mensaje:'Sin detalle.'}]);
+        wsD['!cols'] = detalleRows.length
+        ? [{wch:10},{wch:12},{wch:18},{wch:35},{wch:14},{wch:16},{wch:40},{wch:14},{wch:16},{wch:14},{wch:16},{wch:10},{wch:10}]
+        : [{wch:40}];
+        XLSX.utils.book_append_sheet(wb, wsD, 'Detalle');
+
+        const hoy = new Date();
+        const ts  = `${hoy.getFullYear()}${String(hoy.getMonth()+1).padStart(2,'0')}${String(hoy.getDate()).padStart(2,'0')}`;
+        XLSX.writeFile(wb, `ConfirmadoVsSurtido_${ts}.xlsx`);
+        } catch { alert('Ocurrió un error al exportar el Excel.'); }
+        }
+
+        /* ═══════════════════════════ INIT ═══════════════════════════ */
+        function ponerFechaHoy() {
+        const hoy = new Date();
+        const ts  = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`;
+        $fechaInicio.value = ts;
+        $fechaFin.value    = ts;
+        }
+
+        $frm.addEventListener('submit', async e => { e.preventDefault(); await cargarResumen(); });
+
+        $btnLimpiar.addEventListener('click', async () => {
+        $cliente.value = ''; $folio.value = ''; $tipo.value = '';
+        seriesSeleccionadas.clear();
+        renderSerieOptions();
+        actualizarLabelSeries();
+        ponerFechaHoy();
+        await cargarResumen();
+        });
+
+        $btnExcel.addEventListener('click', () => exportarExcel());
+
+        $tbody.addEventListener('click', async e => {
+        const btn = e.target.closest('.js-expand');
+        if (!btn) return;
+        await cargarDetalle(btn.closest('tr'));
+        });
+
+        async function init() {
+        ponerFechaHoy();
+        await cargarSeries();
+        await cargarResumen();
+        }
+
+       
+
+        init();
+        })();
+    </script>
+}

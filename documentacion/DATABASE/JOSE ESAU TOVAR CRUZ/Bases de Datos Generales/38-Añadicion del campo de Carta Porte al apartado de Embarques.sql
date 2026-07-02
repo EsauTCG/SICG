@@ -1,0 +1,5 @@
+--ALTER TABLE Embarque
+--ADD CartaPorte NVARCHAR(500) NULL;
+
+ALTER TABLE Embarque
+ADD CartaPorteArchivo NVARCHAR(500) NULL;

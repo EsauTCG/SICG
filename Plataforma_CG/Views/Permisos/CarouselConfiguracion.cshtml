@@ -1,0 +1,668 @@
+﻿@model List<CarouselPerfil>
+@{
+    ViewBag.Title = "Configurar Carrusel";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<style>
+    /* ================================
+           SAP-LIKE THEME (Paleta CEDIS)
+           ================================ */
+    :root {
+        /* Marca */
+        --brand-grad: linear-gradient(90deg,#8B0000 0%,#5a0000 50%,#1a0000 100%);
+        --brand: #8B0000; /* sólido para bordes/inputs */
+        /* Cromado / UI */
+        --brand: linear-gradient(90deg, #8B0000 0%, #5a0000 50%, #1a0000 100%);
+        --pane: #fff;
+        --bar: #e6e9ef;
+        --bar-2: #dde2ea;
+        --line: #d8dce3;
+        --ink: #20262e;
+        --muted: #636d7b;
+        --accent: #2d6cdf;
+        --radius: 10px;
+        --shadow: 0 1px 0 rgba(0,0,0,.05), 0 12px 24px rgba(0,0,0,.06);
+        --shadow-sm: 0 6px 16px rgba(0,0,0,.06);
+        --focus: 0 0 0 .2rem rgba(45,108,223,.25);
+    }
+
+    /* Fondo de la página */
+    body {
+        background: var(--bg) !important;
+        color: var(--ink);
+    }
+
+    /* Shell general */
+    .container-sap {
+        max-width: 1100px;
+        margin: 1.25rem auto 2rem;
+    }
+
+    /* Titlebar claro (como CEDIS) */
+    .sap-titlebar {
+        background: linear-gradient(#eef1f6,#e7ebf2);
+        border: 1px solid var(--bar-2);
+        color: var(--ink);
+        border-radius: var(--radius);
+        padding: .8rem 1rem;
+        box-shadow: var(--shadow);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        flex-wrap: wrap;
+    }
+
+        .sap-titlebar .left h4 {
+            margin: 0;
+            font-weight: 800;
+            letter-spacing: .2px;
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+        }
+
+            .sap-titlebar .left h4 i {
+                color: var(--brand);
+            }
+
+        .sap-titlebar .left .sub {
+            margin: 0;
+            color: var(--muted);
+            font-size: .92rem;
+        }
+
+        .sap-titlebar .actions .btn {
+            border-radius: 999px;
+            font-weight: 700;
+        }
+
+    /* Toolbar del módulo (opcional) */
+    .sap-toolbar {
+        background: var(--bar);
+        border: 1px solid var(--bar-2);
+        border-top: none;
+        border-radius: 0 0 var(--radius) var(--radius);
+        padding: .45rem .65rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+        box-shadow: var(--shadow);
+    }
+
+    .tbtn {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        height: 34px;
+        padding: 0 .65rem;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        color: #1e2a35;
+        font-size: .92rem;
+        transition: .15s ease;
+    }
+
+        .tbtn:hover {
+            background: #f8fafc;
+            border-color: #cfd6e2;
+        }
+
+        .tbtn:active {
+            background: #edf1f7;
+            transform: translateY(.5px);
+        }
+
+        .tbtn.primary {
+            background: var(--brand-grad);
+            color: #fff;
+            border-color: transparent;
+        }
+
+            .tbtn.primary:hover {
+                filter: brightness(1.05);
+            }
+
+    /* Tarjeta/Panel */
+    .sap-card {
+        background: var(--pane);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+    }
+
+    .sap-card-head {
+        padding: .75rem 1rem;
+        border-bottom: 1px solid var(--line);
+        background: linear-gradient(#f6f8fb,#eef2f7);
+        font-weight: 800;
+        color: #2b3642;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .5rem;
+        flex-wrap: wrap;
+    }
+
+    /* Buscador */
+    .buscador-card {
+        margin: .9rem 0 0;
+    }
+
+    #searchInput {
+        border: 1.5px solid var(--brand);
+        border-radius: 999px;
+        padding: .65rem 1rem;
+        width: 100%;
+        max-width: 520px;
+        transition: .2s ease;
+    }
+
+        #searchInput:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: var(--focus);
+        }
+
+    /* Listado/accordion */
+    .list-perfiles {
+        margin: .8rem 0 0;
+    }
+
+    .perfil-item {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
+        margin-bottom: .65rem;
+        box-shadow: var(--shadow-sm);
+        overflow: hidden;
+        transition: border-color .2s, box-shadow .2s;
+    }
+
+        .perfil-item:hover {
+            border-color: #d8ddea;
+            box-shadow: 0 8px 20px rgba(0,0,0,.06);
+        }
+
+    .perfil-header {
+        padding: .75rem 1rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        background: #fff;
+    }
+
+        .perfil-header .meta {
+            color: var(--muted);
+            font-weight: 600;
+        }
+
+        .perfil-header .icono {
+            transition: transform .2s;
+            font-weight: 800;
+            color: #8891a5;
+        }
+
+    .perfil-item.active .icono {
+        transform: rotate(90deg);
+        color: var(--brand);
+    }
+
+    .vistas-panel {
+        background: #f7f9fc;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height .35s ease;
+        padding: 0 1rem;
+    }
+
+    .perfil-item.active .vistas-panel {
+        max-height: 99999px;
+        padding-bottom: .8rem;
+    }
+
+    /* Tarjetas de vista/permiso */
+    .vista-item {
+        background: #fff;
+        border: 1px solid #e6e9f0;
+        border-radius: 10px;
+        padding: .55rem .7rem;
+        margin: .5rem 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        font-size: .92rem;
+        transition: border-color .2s, box-shadow .2s, background-color .2s;
+    }
+
+        .vista-item:hover {
+            border-color: #d7dff0;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .vista-item.active {
+            border-color: #9fd1b2;
+            background: #eaf7ef;
+        }
+        /* activo verde suave */
+        .vista-item input[type="checkbox"] {
+            transform: scale(1.25);
+            margin-right: .55rem;
+            accent-color: var(--brand);
+        }
+
+    /* Botonería general */
+    .btn {
+        border-radius: 10px;
+    }
+
+    .btn-primary {
+        background: var(--brand-grad);
+        border-color: transparent;
+    }
+
+        .btn-primary:hover {
+            filter: brightness(1.06);
+        }
+
+    .btn-success {
+        background: #198754;
+        border-color: #198754;
+    }
+
+        .btn-success:hover {
+            background: #157347;
+            border-color: #157347;
+        }
+
+    .btn-secondary {
+        background: #5b6478;
+        border-color: #5b6478;
+    }
+
+    .btn-warning {
+        background: #d97706;
+        border-color: #d97706;
+    }
+
+    .btn-danger {
+        background: #b91c1c;
+        border-color: #b91c1c;
+    }
+
+    /* Tablas si las usas después */
+    .table-wrap {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        box-shadow: var(--shadow-sm);
+        overflow: auto;
+        max-height: 60vh;
+    }
+
+    .table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #f3f6fb !important;
+        color: #2b3642;
+        border-bottom: 1px solid var(--line) !important;
+        text-transform: uppercase;
+        font-size: .85rem;
+        font-weight: 800;
+    }
+
+    /* Badges suaves (compatibilidad) */
+    .badge-soft {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .35rem .6rem;
+        border-radius: 999px;
+        background: #f8fafc;
+        border: 1px solid var(--line);
+        color: #111;
+        font-weight: 600;
+        box-shadow: var(--shadow-sm);
+    }
+
+        .badge-soft .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: #a3a3a3;
+        }
+
+        .badge-soft.info .dot {
+            background: #2563eb;
+        }
+
+        .badge-soft.ok .dot {
+            background: #16a34a;
+        }
+
+        .badge-soft.warn .dot {
+            background: #d97706;
+        }
+
+        .badge-soft.err .dot {
+            background: #dc2626;
+        }
+
+    /* ===== SWITCH SAP ===== */
+    .switch {
+        position: relative;
+        width: 46px;
+        height: 24px;
+        display: inline-block;
+    }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        inset: 0;
+        background: #cbd5e1;
+        border-radius: 999px;
+        transition: .25s;
+    }
+
+        .slider::before {
+            content: "";
+            position: absolute;
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            top: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: .25s;
+            box-shadow: 0 2px 6px rgba(0,0,0,.25);
+        }
+
+    .switch input:checked + .slider {
+        background: linear-gradient(90deg,#16a34a,#22c55e);
+    }
+
+        .switch input:checked + .slider::before {
+            transform: translateX(22px);
+        }
+
+    /* Estado guardado */
+    .saving {
+        opacity: .5;
+    }
+
+    .saved {
+        outline: 2px solid #22c55e;
+    }
+
+    .error {
+        outline: 2px solid #dc2626;
+    }
+
+
+</style>
+
+<div class="container-sap">
+
+    <!-- TITLEBAR -->
+    <div class="sap-titlebar">
+        <div class="left">
+            <h4>
+                <i class="bi bi-images"></i>
+                Configuración de Carrusel
+            </h4>
+            <p class="sub mb-0">
+                Asigna cada imagen a un perfil o a todos los perfiles.
+            </p>
+        </div>
+
+        <div class="actions">
+            <a asp-action="CrearCarousel" class="btn btn-light btn-sm">
+                <i class="bi bi-plus-circle me-1"></i> Nueva Imagen
+            </a>
+        </div>
+    </div>
+
+    <!-- TOOLBAR -->
+    <div class="sap-toolbar">
+        <button class="tbtn primary" onclick="document.getElementById('frmGlobalSave')?.submit()">
+            <i class="bi bi-save"></i><span>Guardar Cambios</span>
+        </button>
+        <button class="tbtn" onclick="location.href='/Home/Inicio'">
+            <i class="bi bi-x-lg"></i><span>Salir</span>
+        </button>
+    </div>
+
+    <!-- CARD -->
+    <div class="sap-card mt-3">
+        <div class="sap-card-head">
+            <span class="d-flex align-items-center gap-2">
+                <i class="bi bi-sliders"></i>
+                Imágenes del Carrusel
+            </span>
+        </div>
+
+        <div class="p-3">
+            @Html.AntiForgeryToken()
+
+            <div class="table-wrap">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Imagen</th>
+                            <th>Perfil</th>
+                            <th class="text-center">Activo</th>
+                            <th>Orden</th>
+                            <th>Estado</th>
+                            <th>Eliminar</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @foreach (var item in Model)
+                        {
+                            <tr data-id="@item.Id + 1">
+                                <td>
+                                    <img src="@item.ImagenUrl"
+                                         style="width:140px;border-radius:12px;box-shadow:var(--shadow-sm);" />
+                                </td>
+
+                                <td>
+                                    <select class="form-select form-select-sm perfil">
+                                        <option value="0" selected="@(item.PerfilId == 0)">Todos</option>
+                                        @foreach (var p in ViewBag.Perfiles)
+                                        {
+                                            <option value="@p.Id" selected="@(item.PerfilId == p.Id)">
+                                                @p.Nombre
+                                            </option>
+                                        }
+                                    </select>
+                                </td>
+
+                                <td class="text-center">
+                                    <label class="switch">
+                                        <input type="checkbox" class="activo" @(item.Activo ? "checked" : "") />
+                                        <span class="slider"></span>
+                                    </label>
+                                </td>
+
+                                <td>
+                                    <input type="number"
+                                           class="form-control form-control-sm orden"
+                                           value="@item.Orden"
+                                           style="width:80px" />
+                                </td>
+
+                                <td>
+                                    <span class="estado badge-soft">
+                                        <span class="dot"></span>
+                                        <span class="txt">Listo</span>
+                                    </span>
+                                </td>
+
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-danger btn-eliminar">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+
+                            </tr>
+                        }
+                    </tbody>
+
+                </table>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- MODAL DE CONFIRMACIÓN -->
+    <div class="modal fade" id="modalEliminar" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: var(--radius); border: 1px solid var(--line); overflow: hidden;">
+                <div class="modal-header" style="background: linear-gradient(#f6f8fb,#eef2f7); border-bottom: 1px solid var(--line);">
+                    <h5 class="modal-title fw-bold">
+                        <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>
+                        Confirmar Eliminación
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" style="padding: 1.5rem;">
+                    <p class="mb-0">¿Estás seguro que deseas eliminar esta imagen del carrusel?</p>
+                    <p class="text-muted small mb-0 mt-2">Esta acción no se puede deshacer.</p>
+                </div>
+                <div class="modal-footer" style="background: #f7f9fc; border-top: 1px solid var(--line); gap: .5rem;">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-lg me-1"></i> Cancelar
+                    </button>
+                    <button type="button" class="btn btn-danger" id="btnConfirmarEliminar">
+                        <i class="bi bi-trash me-1"></i> Eliminar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+</div>
+
+<script>
+    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+
+    const debounce = (fn, delay = 500) => {
+        let t;
+        return (...args) => {
+            clearTimeout(t);
+            t = setTimeout(() => fn(...args), delay);
+        };
+    };
+
+    document.querySelectorAll("tr[data-id]").forEach(row => {
+
+        const save = debounce(async () => {
+
+            row.classList.add("saving");
+
+            const payload = {
+                Id: parseInt(row.dataset.id),
+                PerfilId: parseInt(row.querySelector(".perfil").value),
+                Activo: row.querySelector(".activo").checked,
+                Orden: parseInt(row.querySelector(".orden").value)
+            };
+
+            try {
+                const resp = await fetch("/Permisos/GuardarCarouselAjax", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "RequestVerificationToken": token
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!resp.ok) throw "error";
+
+                row.classList.remove("saving");
+                row.classList.add("saved");
+                row.querySelector(".txt").textContent = "Guardado";
+
+                setTimeout(() => row.classList.remove("saved"), 900);
+            }
+            catch (e) {
+                console.error(e);
+                row.classList.add("error");
+                row.querySelector(".txt").textContent = "Error";
+            }
+
+        }, 600);
+
+        row.querySelectorAll("select, input").forEach(el =>
+            el.addEventListener("change", save)
+        );
+    });
+
+
+        let rowToDelete = null;
+
+    document.querySelectorAll(".btn-eliminar").forEach(btn => {
+        btn.addEventListener("click", e => {
+            e.stopPropagation();
+            rowToDelete = btn.closest("tr");
+
+            const modal = new bootstrap.Modal(document.getElementById('modalEliminar'));
+            modal.show();
+        });
+    });
+
+    document.getElementById("btnConfirmarEliminar").addEventListener("click", async () => {
+        if (!rowToDelete) return;
+
+        const id = rowToDelete.dataset.id;
+        const modal = bootstrap.Modal.getInstance(document.getElementById('modalEliminar'));
+        modal.hide();
+
+        rowToDelete.classList.add("saving");
+
+        try {
+            const resp = await fetch("/Permisos/EliminarCarouselAjax", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "RequestVerificationToken": token
+                },
+                body: JSON.stringify({
+                    Id: parseInt(id)
+                })
+            });
+
+            if (!resp.ok) throw "error";
+
+            rowToDelete.style.transition = "opacity .3s";
+            rowToDelete.style.opacity = 0;
+            setTimeout(() => rowToDelete.remove(), 300);
+        }
+        catch (e) {
+            console.error(e);
+            alert("No se pudo eliminar la imagen.");
+            rowToDelete.classList.remove("saving");
+        }
+
+        rowToDelete = null;
+    });
+
+
+
+</script>
+

@@ -1,0 +1,934 @@
+﻿@using Plataforma_CG.ViewModels
+@model Plataforma_CG.ViewModels.CosteoFiltroVM
+@removeTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Costeo";
+
+    var source = string.IsNullOrWhiteSpace(Model?.Source) ? "P1" : Model.Source;
+    var tipoProceso = string.IsNullOrWhiteSpace(Model?.TipoProceso) ? "CAJAS" : Model.TipoProceso;
+    var modo = string.IsNullOrWhiteSpace(Model?.Modo) ? "DIA" : Model.Modo;
+
+    var fechaInicial = Model?.FechaInicial == default ? DateTime.Today : Model.FechaInicial;
+    var fechaFinal = Model?.FechaFinal == default ? DateTime.Today : Model.FechaFinal;
+}
+
+<style>
+    :root {
+        --bg: #f0dede;
+        --panel: #f8eeee;
+        --panel-2: #f1dede;
+        --line: #c79d9d;
+        --text: #3b1717;
+        --muted: #6a3a3a;
+        --white: #ffffff;
+        --shadow: 0 1px 0 rgba(255,255,255,.55) inset;
+        --brand: #8B0000;
+        --vino-1: #5c0000;
+        --vino-2: #7a0000;
+        --vino-3: #980000;
+        --vino-4: #b30000;
+        --vino-border: #9a5a5a;
+        --vino-text-dark: #4a1111;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        background: transparent !important;
+        color: var(--text);
+    }
+
+    .container, .container-fluid {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .window {
+        width: 100%;
+        max-width: 100%;
+        margin: 0 !important;
+        border: 1px solid #7e4a4a;
+        background: var(--panel);
+        box-shadow: 0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70,12,12,.14);
+        overflow: hidden;
+        padding: 0 !important;
+    }
+
+    .window > *:first-child, .titlebar { margin-top: 0 !important; }
+
+    .titlebar {
+        height: 34px;
+        /* display: flex; */
+        display: none !important;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 10px;
+        background: linear-gradient(180deg, #c00000 0%, #8b0000 60%, #5c0000 100%);
+        border-bottom: 1px solid #5c0000;
+        color: #fff;
+        font-size: 13px;
+        font-weight: bold;
+    }
+
+    .titlebar .actions { display: flex; gap: 6px; }
+
+    .win-btn {
+        width: 16px; height: 16px;
+        border: 1px solid #7c4848;
+        background: linear-gradient(#fff6f6, #ead0d0);
+    }
+
+    .content { padding: 8px; background: var(--bg); }
+
+    .tabs { display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap; }
+
+    .tab {
+        font-size: 12px;
+        background: linear-gradient(#f7e7e7, #ead1d1);
+        border: 1px solid #caa0a0;
+        border-bottom: none;
+        padding: 7px 12px;
+        color: #5c1a1a;
+        user-select: none;
+    }
+
+    .tab.active {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        font-weight: bold;
+        color: #fff;
+        border-color: #7a2d2d;
+    }
+
+    .workspace { border: 1px solid var(--line); background: var(--panel); padding: 8px; }
+    .section { border: 1px solid var(--line); background: var(--white); margin-bottom: 10px; }
+
+    .section-title {
+        padding: 6px 8px;
+        font-size: 12px;
+        font-weight: bold;
+        color: #fff;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-bottom: 1px solid #6b1f1f;
+    }
+
+   .filters {
+    display: grid;
+    grid-template-columns: 180px 180px 160px 160px 160px 520px;
+    gap: 8px;
+    padding: 10px;
+    background: var(--panel-2);
+    align-items: end;
+}
+
+    .filters-historico {
+        display: grid;
+        grid-template-columns: 160px 160px 160px 160px 1fr;
+        gap: 8px;
+        padding: 10px;
+        background: #f8f1f1;
+        align-items: end;
+        border-bottom: 1px solid #d9b8b8;
+    }
+
+    .filter-group label {
+        display: block;
+        color: #5c1a1a;
+        font-size: 12px;
+        margin-bottom: 4px;
+        font-weight: bold;
+    }
+
+    input, select, .form-control, .form-select {
+        height: 28px !important;
+        padding: 3px 6px !important;
+        border: 1px solid #b48787 !important;
+        background: #fffdfd !important;
+        font-family: inherit !important;
+        font-size: 12px !important;
+        width: 100%;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        color: #421414 !important;
+    }
+
+    input[type="checkbox"],
+    input[type="checkbox"].ck {
+        height: 14px !important;
+        width: 14px !important;
+        min-width: 14px !important;
+        max-width: 14px !important;
+        padding: 0 !important;
+        border-radius: 2px !important;
+        cursor: pointer;
+        flex-shrink: 0;
+        display: inline-block !important;
+    }
+
+.pm-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: nowrap;
+}
+
+.pm-btn {
+    min-width: 120px;
+}
+
+    .pm-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        height: 28px;
+        padding: 0 10px;
+        border: 1px solid transparent;
+        border-radius: 0;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        text-decoration: none;
+        box-shadow: var(--shadow);
+        white-space: nowrap;
+    }
+
+    .pm-btn:hover { filter: brightness(.97); }
+    .pm-btn:active { transform: translateY(1px); }
+
+    .pm-btn-primary {
+        color: #fff;
+        border-color: #7a2d2d;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+    }
+
+    .pm-btn-success {
+        color: #fff;
+        border-color: #157347;
+        background: linear-gradient(180deg, #27ae60 0%, #1f9a54 55%, #198754 100%);
+    }
+
+    .pm-btn-warning {
+        color: #3d2000;
+        border-color: #c87800;
+        background: linear-gradient(180deg, #ffc107 0%, #e6a800 100%);
+    }
+
+    .pm-btn-secondary {
+        background: linear-gradient(#fffefe, #ecd7d7);
+        border-color: var(--vino-border);
+        color: var(--vino-text-dark);
+    }
+
+    .checks-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        padding: 0 10px 10px 10px;
+        background: var(--panel-2);
+    }
+
+    .check-inline {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: #4a1111;
+        font-weight: 700;
+    }
+
+    .table-wrap {
+        overflow: auto;
+        max-height: 65vh;
+        background: #fffafa;
+        width: 100%;
+        position: relative;
+        border-top: 1px solid #d9b8b8;
+    }
+
+    .table-wrap table {
+        width: 100%;
+        table-layout: fixed;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        font-size: 12px;
+        background: #fffafa;
+    }
+
+    .table-wrap thead,
+    .table-wrap thead tr,
+    .table-wrap thead th {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: #fff !important;
+    }
+
+    .table-wrap thead th {
+        position: sticky;
+        top: -1px;
+        z-index: 20;
+        border-top: 1px solid #c46a6a !important;
+        border-right: 1px solid #8e3b3b !important;
+        border-bottom: 1px solid #5c0000 !important;
+        padding: 6px 5px !important;
+        font-weight: 700 !important;
+        font-size: 12px !important;
+        white-space: nowrap;
+        line-height: 1.2 !important;
+        box-shadow: 0 2px 0 #6f1d1d;
+    }
+
+    .table-wrap thead th:first-child { border-left: 1px solid #8e3b3b !important; }
+
+    .table-wrap tbody td {
+        background: #fffafa !important;
+        border-right: 1px solid #d8bcbc !important;
+        border-bottom: 1px solid #d8bcbc !important;
+        padding: 5px 5px !important;
+        white-space: nowrap;
+        vertical-align: middle;
+        font-size: 12px !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.2 !important;
+        color: #111111 !important;
+        font-weight: 400;
+    }
+
+    .table-wrap tbody td:first-child { border-left: 1px solid #d8bcbc !important; }
+    .table-wrap tbody tr:nth-child(even) td { background: #f9eded !important; }
+    .table-wrap tbody tr:hover td { background: #f4dddd !important; }
+
+    .tbl-costeo th:nth-child(1),  .tbl-costeo td:nth-child(1)  { width: 60px; }
+    .tbl-costeo th:nth-child(2),  .tbl-costeo td:nth-child(2)  { width: 150px; }
+    .tbl-costeo th:nth-child(3),  .tbl-costeo td:nth-child(3)  { width: 90px; }
+    .tbl-costeo th:nth-child(4),  .tbl-costeo td:nth-child(4)  { width: 120px; }
+    .tbl-costeo th:nth-child(5),  .tbl-costeo td:nth-child(5)  { width: 180px; }
+    .tbl-costeo th:nth-child(6),  .tbl-costeo td:nth-child(6)  { width: 110px; }
+    .tbl-costeo th:nth-child(7),  .tbl-costeo td:nth-child(7)  { width: 110px; }
+    .tbl-costeo th:nth-child(8),  .tbl-costeo td:nth-child(8)  { width: 80px; }
+    .tbl-costeo th:nth-child(9),  .tbl-costeo td:nth-child(9)  { width: 90px; }
+    .tbl-costeo th:nth-child(10), .tbl-costeo td:nth-child(10) { width: 90px; }
+    .tbl-costeo th:nth-child(11), .tbl-costeo td:nth-child(11) { width: 70px; }
+    .tbl-costeo th:nth-child(12), .tbl-costeo td:nth-child(12) { width: 100px; }
+    .tbl-costeo th:nth-child(13), .tbl-costeo td:nth-child(13) { width: 80px; }
+    .tbl-costeo th:nth-child(14), .tbl-costeo td:nth-child(14) { width: 120px; }
+    .tbl-costeo th:nth-child(15), .tbl-costeo td:nth-child(15) { width: 320px; }
+
+    .text-end { text-align: right !important; }
+    .text-center { text-align: center !important; }
+
+    .sap-est {
+        font-size: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: default;
+    }
+
+    #logBox {
+        margin-top: 8px;
+        display: none;
+    }
+
+    .log-inner {
+        padding: 6px 10px;
+        font-size: 12px;
+        border: 1px solid var(--line);
+        white-space: pre-wrap;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+    }
+
+    .log-info      { background: #e8f4fd; border-color: #7ab8d4; color: #064b6b; }
+    .log-success   { background: #dff3e2; border-color: #6aa84f; color: #2f6b1f; }
+    .log-danger    { background: #fde2e2; border-color: #d9534f; color: #b00000; }
+    .log-warning   { background: #fff4cc; border-color: #d6b656; color: #7a5a00; }
+    .log-secondary { background: #f4f4f4; border-color: #ccc; color: #555; }
+
+    .statusbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 6px 10px;
+        font-size: 11px;
+        color: #4a1a1a;
+        border-top: 1px solid #b88c8c;
+        background: linear-gradient(#f6e9e9, #ead5d5);
+        flex-wrap: wrap;
+    }
+
+    .mode-dia .mode-rango,
+    .mode-dia .mode-lote { display: none; }
+
+    .mode-rango .mode-dia-only,
+    .mode-rango .mode-lote { display: none; }
+
+    .mode-lote .mode-dia-only,
+    .mode-lote .mode-rango-only { display: none; }
+
+    @@media(max-width: 1200px) {
+        .filters, .filters-historico { grid-template-columns: 1fr 1fr 1fr; }
+    }
+
+    @@media(max-width: 768px) {
+        .filters, .filters-historico { grid-template-columns: 1fr; }
+        .tbl-costeo { min-width: 1750px; }
+    }
+
+    .titlebar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-historico-top {
+    height: 24px;
+    padding: 0 12px;
+    font-size: 11px;
+    box-shadow: none;
+}
+
+.pm-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: nowrap;
+}
+.tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 6px;
+    flex-wrap: nowrap;
+}
+
+.btn-historico-tab {
+    margin-left: auto;
+    height: 28px;
+    padding: 0 12px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+    .pm-btn-info {
+        color: #fff;
+        border-color: #0a58ca;
+        background: linear-gradient(180deg, #0d6efd 0%, #0b5ed7 55%, #084298 100%);
+    }
+</style>
+
+<div class="window">
+
+  <div class="titlebar">
+    <div>Costeo</div>
+
+    <div class="actions">
+        <div class="win-btn"></div>
+        <div class="win-btn"></div>
+        <div class="win-btn"></div>
+    </div>
+</div>
+
+<div class="content">
+    <div class="tabs">
+       @*  <div class="tab active">Costeo</div> *@
+
+            <button class="pm-btn pm-btn-info btn-historico-tab"
+                type="button"
+                data-bs-toggle="modal"
+                data-bs-target="#modalHistorico"
+                onclick="recargarBitacora()">
+            Ver histórico
+        </button>
+    </div>
+
+    <div class="workspace">
+
+            <div class="section">
+                <div class="section-title">Parámetros de ejecución</div>
+
+                <form id="frmFiltros" method="get" action="@Url.Action("Costeo", "ProcesosCG")">
+                    <div id="filterPanel" class="filters">
+                        <div class="filter-group">
+                            <label>Origen</label>
+                            <select name="Source" id="Source" class="form-select">
+                                <option value="P1"  @(source == "P1" ? "selected" : "")>Planta 1</option>
+                                <option value="TIF" @(source == "TIF" ? "selected" : "")>Planta TIF</option>
+                                <option value="ALL" @(source == "ALL" ? "selected" : "")>Ambas</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
+                            <label>Tipo proceso</label>
+                            <select name="TipoProceso" id="TipoProceso" class="form-select">
+                                <option value="CAJAS" @(tipoProceso == "CAJAS" ? "selected" : "")>Cajas</option>
+                                <option value="RETRABAJO" @(tipoProceso == "RETRABAJO" ? "selected" : "")>Retrabajo</option>
+                                <option value="AMBOS" @(tipoProceso == "AMBOS" ? "selected" : "")>Ambos</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
+                            <label>Modo</label>
+                            <select name="Modo" id="Modo" class="form-select">
+                                <option value="DIA" @(modo == "DIA" ? "selected" : "")>Día</option>
+                                <option value="RANGO" @(modo == "RANGO" ? "selected" : "")>Rango</option>
+                                <option value="LOTE" @(modo == "LOTE" ? "selected" : "")>Lote</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group mode-dia mode-rango">
+                            <label>Fecha inicial</label>
+                            <input type="date" id="FechaInicial" name="FechaInicial" class="form-control" value="@fechaInicial.ToString("yyyy-MM-dd")" />
+                        </div>
+
+                        <div class="filter-group mode-rango">
+                            <label>Fecha final</label>
+                            <input type="date" id="FechaFinal" name="FechaFinal" class="form-control" value="@fechaFinal.ToString("yyyy-MM-dd")" />
+                        </div>
+
+                        <div class="filter-group mode-lote">
+                            <label>Lote</label>
+                            <input type="number" id="LoteId" name="LoteId" class="form-control" value="@(Model?.LoteId?.ToString() ?? "")" placeholder="LoteId..." />
+                        </div>
+
+                        <input type="hidden" id="TipoCosteoId" name="TipoCosteoId" value="@(Model?.TipoCosteoId ?? 1)" />
+
+                        <div class="filter-group">
+                            <label>Hora programada</label>
+                            <input type="time" id="HoraProgramada" name="HoraProgramada" class="form-control" value="@(string.IsNullOrWhiteSpace(Model?.HoraProgramada) ? "18:00" : Model.HoraProgramada)" />
+                        </div>
+
+                       <div class="filter-group">
+    <label>&nbsp;</label>
+    <div class="pm-actions">
+        <button class="pm-btn pm-btn-primary" type="submit">Buscar</button>
+        <button class="pm-btn pm-btn-success" type="button" onclick="ejecutarCosteo()">Ejecutar</button>
+        <button class="pm-btn pm-btn-warning" type="button" onclick="guardarAuto()">Guardar auto</button>
+    </div>
+</div>
+                    </div>
+
+                    <div class="checks-row">
+                        <label class="check-inline">
+                            <input type="checkbox" id="BrincarSinCosto" name="BrincarSinCosto" value="true" @(Model?.BrincarSinCosto == true ? "checked" : "") />
+                            Brincar sin costo
+                        </label>
+
+                        <label class="check-inline">
+                            <input type="checkbox" id="ContinuarConError" name="ContinuarConError" value="true" @(Model?.ContinuarConError == true ? "checked" : "") />
+                            Continuar con error
+                        </label>
+
+                        <label class="check-inline">
+                            <input type="checkbox" id="Automatico" name="Automatico" value="true" @(Model?.Automatico == true ? "checked" : "") />
+                            Programación activa
+                        </label>
+                    </div>
+                </form>
+            </div>
+
+            <div id="logBox">
+                <div id="log" class="log-inner log-secondary"></div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="statusbar">
+        <div>Registro listo</div>
+        <div>Usuario: @(User?.Identity?.Name ?? "")</div>
+        <div>Empresa: Carnes G SA de CV</div>
+        <div>Módulo: Costeo</div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalHistorico" tabindex="-1" aria-labelledby="modalHistoricoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl" style="max-width: 96vw;">
+        <div class="modal-content" style="border-radius:0; border:1px solid #7e4a4a;">
+            <div class="modal-header" style="background:linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%); color:#fff; border-bottom:1px solid #6b1f1f; padding:8px 12px;">
+                <h5 class="modal-title" id="modalHistoricoLabel" style="font-size:13px; font-weight:bold; margin:0;">Histórico de ejecuciones</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+
+            <div class="modal-body" style="background:#f8eeee; padding:10px;">
+                <div class="filters-historico">
+                    <div class="filter-group">
+                        <label>Fecha desde</label>
+                        <input type="date" id="HistFechaDesde" class="form-control" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Fecha hasta</label>
+                        <input type="date" id="HistFechaHasta" class="form-control" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Origen histórico</label>
+                        <select id="HistSource" class="form-select">
+                            <option value="ALL">Todas</option>
+                            <option value="P1">Planta 1</option>
+                            <option value="TIF">Planta TIF</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Proceso histórico</label>
+                        <select id="HistTipoProceso" class="form-select">
+                            <option value="AMBOS">Ambos</option>
+                            <option value="CAJAS">Cajas</option>
+                            <option value="RETRABAJO">Retrabajo</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label>&nbsp;</label>
+                        <div class="pm-actions">
+                            <label class="check-inline">
+                                <input type="checkbox" id="HistSoloErrores" />
+                                Solo errores
+                            </label>
+                            <label class="check-inline">
+                                <input type="checkbox" id="HistSoloAutomatico" />
+                                Solo automático
+                            </label>
+                            <button class="pm-btn pm-btn-primary" type="button" onclick="recargarBitacora()">Consultar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-wrap" style="max-height:70vh;">
+                    <table class="tbl-costeo">
+                        <thead>
+                            <tr>
+                                <th class="text-center">Id</th>
+                                <th>Fecha ejecución</th>
+                                <th>Origen</th>
+                                <th>Proceso</th>
+                                <th>SP ejecutado</th>
+                                <th>Fecha inicial</th>
+                                <th>Fecha final</th>
+                                <th class="text-center">Lote</th>
+                                <th class="text-center">Sin costo</th>
+                                <th class="text-center">Continuar</th>
+                                <th class="text-center">OK</th>
+                                <th class="text-center">Auto</th>
+                                <th>Usuario</th>
+                                <th>Hora prog.</th>
+                                <th>Mensaje / Parámetros</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyBitacora">
+                           <tr>
+    <td colspan="15" class="text-center text-muted">Sin resultados.</td>
+</tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="background:#f1dede; border-top:1px solid #d9b8b8; padding:8px 10px;">
+                <button type="button" class="pm-btn pm-btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function showLog(type, text) {
+        const box = document.getElementById('logBox');
+        const log = document.getElementById('log');
+        if (!box || !log) return;
+
+        box.style.display = 'block';
+        log.className = 'log-inner log-' + (type || 'secondary');
+        log.textContent = text || '';
+    }
+
+    function getPayload() {
+        const modo = (document.getElementById('Modo')?.value || 'DIA').toUpperCase();
+
+        return {
+            Source: document.getElementById('Source')?.value || 'P1',
+            TipoProceso: document.getElementById('TipoProceso')?.value || 'CAJAS',
+            Modo: modo,
+            FechaInicial: document.getElementById('FechaInicial')?.value || null,
+            FechaFinal: (modo === 'DIA'
+                ? (document.getElementById('FechaInicial')?.value || null)
+                : (document.getElementById('FechaFinal')?.value || null)),
+            TipoCosteoId: parseInt(document.getElementById('TipoCosteoId')?.value || '1'),
+            LoteId: (modo === 'LOTE' && document.getElementById('LoteId')?.value)
+                ? parseInt(document.getElementById('LoteId').value)
+                : null,
+            BrincarSinCosto: document.getElementById('BrincarSinCosto')?.checked === true,
+            ContinuarConError: document.getElementById('ContinuarConError')?.checked === true,
+            Automatico: document.getElementById('Automatico')?.checked === true,
+            HoraProgramada: document.getElementById('HoraProgramada')?.value || '18:00'
+        };
+    }
+
+    function getHistoricoPayload() {
+        return {
+            source: document.getElementById('HistSource')?.value || 'ALL',
+            tipoProceso: document.getElementById('HistTipoProceso')?.value || 'AMBOS',
+            fechaDesde: document.getElementById('HistFechaDesde')?.value || null,
+            fechaHasta: document.getElementById('HistFechaHasta')?.value || null,
+            soloErrores: document.getElementById('HistSoloErrores')?.checked === true,
+            soloAutomatico: document.getElementById('HistSoloAutomatico')?.checked === true
+        };
+    }
+
+    function syncModeUI() {
+        const panel = document.getElementById('filterPanel');
+        if (!panel) return;
+
+        const modo = (document.getElementById('Modo')?.value || 'DIA').toUpperCase();
+
+        panel.classList.remove('mode-dia', 'mode-rango', 'mode-lote');
+
+        if (modo === 'RANGO') panel.classList.add('mode-rango');
+        else if (modo === 'LOTE') panel.classList.add('mode-lote');
+        else panel.classList.add('mode-dia');
+    }
+
+    async function loadAutoStatus() {
+    try {
+        const res = await fetch('@Url.Action("CosteoAutoStatus", "ProcesosCG")', {
+            credentials: 'same-origin'
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data?.ok || !Array.isArray(data.rows)) return;
+
+        const source = (document.getElementById('Source')?.value || 'P1').toUpperCase();
+        const tipoProceso = (document.getElementById('TipoProceso')?.value || 'CAJAS').toUpperCase();
+
+        const rows = data.rows.filter(x =>
+            (x.source || '').toUpperCase() === source &&
+            (x.tipoProceso || '').toUpperCase() === (tipoProceso === 'AMBOS' ? 'CAJAS' : tipoProceso)
+        );
+
+        if (!rows.length) return;
+
+        const row = rows[0];
+
+        document.getElementById('HoraProgramada').value = row.horaProgramada || '18:00';
+        document.getElementById('Automatico').checked = row.activo === true;
+        document.getElementById('BrincarSinCosto').checked = row.brincarSinCosto === true;
+        document.getElementById('ContinuarConError').checked = row.continuarConError === true;
+    } catch (e) {
+        console.warn('CosteoAutoStatus error:', e);
+    }
+}
+
+  async function guardarAuto(silent = false) {
+    const payload = getPayload();
+
+    try {
+        if (!silent) showLog('info', 'Guardando configuración automática...');
+
+        const procesos = payload.TipoProceso === 'AMBOS'
+            ? ['CAJAS', 'RETRABAJO']
+            : [payload.TipoProceso];
+
+        for (const proc of procesos) {
+            const form = new URLSearchParams();
+            form.append('source', payload.Source);
+            form.append('tipoProceso', proc);
+            form.append('tipoCosteoId', payload.TipoCosteoId);
+            form.append('horaProgramada', payload.HoraProgramada || '18:00');
+            form.append('brincarSinCosto', payload.BrincarSinCosto);
+            form.append('continuarConError', payload.ContinuarConError);
+            form.append('activo', document.getElementById('Automatico')?.checked === true);
+
+            const res = await fetch('@Url.Action("CosteoAutoSet", "ProcesosCG")', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                credentials: 'same-origin',
+                body: form.toString()
+            });
+
+            const data = await res.json();
+
+            if (!res.ok || !data?.ok) {
+                showLog('danger', data?.msg || `No se pudo guardar la configuración para ${proc}.`);
+                return;
+            }
+        }
+
+        if (!silent) showLog('success', 'Configuración guardada.');
+        await loadAutoStatus();
+    } catch (e) {
+        showLog('danger', 'Error de red: ' + (e?.message || e));
+    }
+}
+
+    async function recargarBitacora() {
+    try {
+        const h = getHistoricoPayload();
+        const qs = new URLSearchParams();
+        qs.append('top', '300');
+
+        if (h.source && h.source !== 'ALL') qs.append('source', h.source);
+        if (h.tipoProceso && h.tipoProceso !== 'AMBOS') qs.append('tipoProceso', h.tipoProceso);
+        if (h.fechaDesde) qs.append('fechaDesde', h.fechaDesde);
+        if (h.fechaHasta) qs.append('fechaHasta', h.fechaHasta);
+        if (h.soloErrores) qs.append('soloErrores', 'true');
+        if (h.soloAutomatico) qs.append('soloAutomatico', 'true');
+
+        const res = await fetch('@Url.Action("CosteoBitacora", "ProcesosCG")?' + qs.toString(), {
+            credentials: 'same-origin'
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data?.ok) {
+            showLog('danger', data?.msg || 'No se pudo consultar la bitácora.');
+            return;
+        }
+
+        const tbody = document.getElementById('tbodyBitacora');
+        if (!tbody) return;
+
+        const rows = data.rows || [];
+
+        if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="15" class="text-center text-muted">Sin resultados.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = rows.map(x => {
+            const icon = x.Ok ? '✅' : '❌';
+            const sinCosto = x.BrincarSinCosto ? 'Sí' : 'No';
+            const continuar = x.ContinuarConError ? 'Sí' : 'No';
+            const auto = x.EsAutomatico ? 'Sí' : 'No';
+
+            const mensajeCombo = [
+                x.Mensaje || '',
+                x.Parametros || ''
+            ].filter(Boolean).join(' | ');
+
+            return `
+                <tr>
+                    <td class="text-center">${x.Id ?? ''}</td>
+                    <td title="${x.FechaEjecucion ?? ''}">${formatDateTime(x.FechaEjecucion)}</td>
+                    <td>${safe(x.Source)}</td>
+                    <td>${safe(x.TipoProceso)}</td>
+                    <td title="${safeAttr(x.SpEjecutado)}">${safe(x.SpEjecutado)}</td>
+                    <td>${formatDate(x.FechaInicial)}</td>
+                    <td>${formatDate(x.FechaFinal)}</td>
+                    <td class="text-center">${x.LoteId ?? '-'}</td>
+                    <td class="text-center">${sinCosto}</td>
+                    <td class="text-center">${continuar}</td>
+                    <td class="text-center"><span class="sap-est">${icon}</span></td>
+                    <td class="text-center">${auto}</td>
+                    <td>${safe(x.Usuario)}</td>
+                    <td>${safe(x.HoraProgramada)}</td>
+                    <td title="${safeAttr(mensajeCombo)}">${safe(mensajeCombo)}</td>
+                </tr>
+            `;
+        }).join('');
+    } catch (e) {
+        showLog('danger', 'Error al actualizar bitácora: ' + (e?.message || e));
+    }
+}
+
+    async function ejecutarCosteo() {
+        const payload = getPayload();
+
+        if (!payload.FechaInicial) {
+            showLog('warning', 'Captura fecha inicial.');
+            return;
+        }
+
+        if (payload.Modo === 'RANGO' && !payload.FechaFinal) {
+            showLog('warning', 'Captura fecha final.');
+            return;
+        }
+
+        if (payload.Modo === 'LOTE' && !payload.LoteId) {
+            showLog('warning', 'Captura el lote.');
+            return;
+        }
+
+        try {
+            showLog('info', 'Ejecutando costeo...');
+
+            const res = await fetch('@Url.Action("EjecutarCosteo", "ProcesosCG")', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+
+            if (res.ok && data?.ok) {
+                showLog('success', 'Proceso terminado correctamente.');
+                await recargarBitacora();
+
+                const modalEl = document.getElementById('modalHistorico');
+                if (modalEl && window.bootstrap) {
+                    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                    modal.show();
+                }
+            } else {
+                showLog('danger', data?.msg || 'No se pudo ejecutar el costeo.');
+            }
+        } catch (e) {
+            showLog('danger', 'Error de red: ' + (e?.message || e));
+        }
+    }
+
+    function safe(v) {
+        if (v === null || v === undefined || v === '') return '-';
+        return String(v)
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#39;');
+    }
+
+    function safeAttr(v) {
+        return safe(v ?? '');
+    }
+
+    function formatDate(v) {
+        if (!v) return '-';
+        const d = new Date(v);
+        if (isNaN(d.getTime())) return v;
+        return d.toISOString().slice(0, 10);
+    }
+
+    function formatDateTime(v) {
+        if (!v) return '-';
+        const d = new Date(v);
+        if (isNaN(d.getTime())) return v;
+
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mi = String(d.getMinutes()).padStart(2, '0');
+        const ss = String(d.getSeconds()).padStart(2, '0');
+
+        return `${dd}/${mm}/${yyyy} ${hh}:${mi}:${ss}`;
+    }
+
+    document.getElementById('Modo')?.addEventListener('change', syncModeUI);
+    document.getElementById('Source')?.addEventListener('change', loadAutoStatus);
+    document.getElementById('TipoProceso')?.addEventListener('change', loadAutoStatus);
+    document.getElementById('HoraProgramada')?.addEventListener('change', () => guardarAuto(true));
+    document.getElementById('BrincarSinCosto')?.addEventListener('change', () => guardarAuto(true));
+    document.getElementById('ContinuarConError')?.addEventListener('change', () => guardarAuto(true));
+    document.getElementById('Automatico')?.addEventListener('change', () => guardarAuto());
+
+    syncModeUI();
+    loadAutoStatus();
+</script>

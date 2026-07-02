@@ -1,0 +1,1815 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "AutoArtículos - Control de Acceso";
+}
+
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
+
+<style>
+    :root {
+        --brand-main: #4a0e0e;
+        --brand-hover: #6b1515;
+        --bg-page: #fdf5f4;
+        --card-bg: #ffffff;
+        --panel-bg: #fcf5f4;
+        --border-color: #ebdcdb;
+        --text-dark: #333333;
+        --text-muted: #888888;
+    }
+
+    body {
+        background-color: var(--bg-page);
+        color: var(--text-dark);
+        font-family: 'Segoe UI', Tahoma, sans-serif;
+        font-size: 0.85rem;
+    }
+
+    .dashboard-panel {
+        background-color: var(--card-bg);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        margin-bottom: 1.5rem;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+    }
+
+    .top-banner {
+        background-color: var(--brand-main);
+        color: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        transition: background-color 0.3s;
+    }
+
+    /* Mejora responsiva en los tabs */
+    .nav-tabs {
+        border-bottom: 2px solid var(--border-color);
+        margin-bottom: 1.5rem;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap;
+        padding-bottom: 2px;
+        -webkit-overflow-scrolling: touch; /* Suavidad en iOS */
+    }
+
+        .nav-tabs::-webkit-scrollbar {
+            height: 4px;
+        }
+
+        .nav-tabs::-webkit-scrollbar-thumb {
+            background-color: var(--border-color);
+            border-radius: 4px;
+        }
+
+        .nav-tabs .nav-link {
+            color: var(--text-muted);
+            font-weight: 600;
+            border: none;
+            padding: 10px 20px;
+            transition: 0.3s;
+            background: transparent;
+        }
+
+            .nav-tabs .nav-link:hover {
+                color: var(--brand-main);
+            }
+
+            .nav-tabs .nav-link.active {
+                color: var(--brand-main);
+                border-bottom: 3px solid var(--brand-main);
+                background-color: transparent;
+            }
+
+    .btn-brand {
+        background-color: var(--brand-main);
+        color: white;
+        border: none;
+        padding: 6px 16px;
+        border-radius: 20px;
+        font-weight: 600;
+        transition: 0.3s;
+    }
+
+        .btn-brand:hover {
+            background-color: var(--brand-hover);
+            color: white;
+        }
+
+    .table-custom thead th {
+        background-color: var(--panel-bg);
+        color: var(--text-muted);
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.7rem;
+        border-bottom: 2px solid var(--border-color);
+        padding: 12px;
+    }
+
+    .table-custom tbody tr {
+        border-bottom: 1px solid var(--border-color);
+    }
+
+        .table-custom tbody tr:hover {
+            background-color: #fafafa;
+        }
+
+    .table-custom tbody td {
+        vertical-align: middle;
+        padding: 12px;
+    }
+
+    .btn-sm-action {
+        padding: 4px 8px;
+        font-size: 0.75rem;
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+        background: white;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: var(--text-dark);
+    }
+
+        .btn-sm-action:hover {
+            background: var(--bg-page);
+            border-color: var(--brand-main);
+            color: var(--brand-main);
+        }
+
+    .crit-critico {
+        background-color: #fef2f2;
+        color: #dc2626;
+        border: 1px solid #fecaca;
+    }
+
+    .crit-semi {
+        background-color: #fefce8;
+        color: #ca8a04;
+        border: 1px solid #fef08a;
+    }
+
+    .crit-no {
+        background-color: #f3f4f6;
+        color: #4b5563;
+        border: 1px solid #e5e7eb;
+    }
+
+    .badge-crit {
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-weight: 800;
+        font-size: 0.7rem;
+        display: inline-block;
+        margin-bottom: 4px; /* Espaciado extra en móvil */
+    }
+
+    .acceso-concedido {
+        background-color: #dcfce7 !important;
+        border-color: #22c55e !important;
+    }
+
+    .acceso-denegado {
+        background-color: #fee2e2 !important;
+        border-color: #ef4444 !important;
+    }
+
+    .lista-equipos-container {
+        max-height: 400px;
+        overflow-y: auto;
+        border-radius: 8px;
+    }
+
+    .eq-checkbox-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 15px;
+        border-bottom: 1px solid var(--border-color);
+        background-color: white;
+        transition: background-color 0.2s;
+    }
+
+    .form-switch .form-check-input {
+        width: 2.5em;
+        height: 1.25em;
+        cursor: pointer;
+    }
+
+        .form-switch .form-check-input:checked {
+            background-color: var(--brand-main);
+            border-color: var(--brand-main);
+        }
+
+    .accordion-button {
+        font-size: 0.85rem;
+        padding: 12px 15px;
+    }
+
+        .accordion-button:not(.collapsed) {
+            background-color: var(--panel-bg);
+            color: var(--brand-main);
+            font-weight: bold;
+            box-shadow: inset 0 -1px 0 rgba(0,0,0,.125);
+        }
+
+        .accordion-button:focus {
+            box-shadow: none;
+            border-color: rgba(0,0,0,.125);
+        }
+
+    .grupo-acciones {
+        font-size: 0.75rem;
+        background: #f8f9fa;
+        padding: 6px 15px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .letter-spacing-2 {
+        letter-spacing: 0.5rem;
+    }
+
+    /* --- AJUSTES RESPONSIVOS --- */
+    @@media (max-width: 768px) {
+        .top-banner {
+            flex-direction: column;
+            align-items: flex-start !important;
+            text-align: center;
+            padding: 1rem;
+        }
+
+            .top-banner div {
+                width: 100%;
+            }
+
+            .top-banner h2 {
+                font-size: 1.5rem;
+            }
+
+            .top-banner button {
+                width: 100%;
+                margin-top: 10px;
+            }
+        /* Ajuste de botones en la pestaña permisos */
+        .tab-pane#permisos .d-flex.gap-2 {
+            flex-direction: column;
+            width: 100%;
+        }
+
+        .tab-pane#permisos .btn {
+            width: 100%;
+        }
+        /* Ajuste de contenedor de cámara */
+        #qr-reader-container {
+            min-height: 300px !important;
+        }
+        /* Ajuste de la foto de perfil en el resultado */
+        #imgUsuario {
+            width: 80px !important;
+            height: 80px !important;
+        }
+
+        .row.text-start.align-items-center {
+            flex-direction: column;
+            text-align: center !important;
+        }
+
+            .row.text-start.align-items-center .col-4,
+            .row.text-start.align-items-center .col-8 {
+                width: 100%;
+                text-align: center;
+            }
+
+        #lblCategorias {
+            justify-content: center;
+        }
+        /* Ajuste del modal Asignar Permisos en móvil */
+        #panelEquiposCheckbox .d-flex.justify-content-between {
+            flex-direction: column;
+            align-items: stretch !important;
+            gap: 10px;
+        }
+
+        #buscarCheckbox {
+            width: 100% !important;
+        }
+    }
+
+
+    /* ESTILO GENERAL ROSITA / VINO */
+    html,
+    body {
+        background: #e9edf2 !important;
+        overflow-x: hidden !important;
+    }
+
+    body,
+    main,
+    .main,
+    .body-content,
+    .container,
+    .container-fluid {
+        background: #e9edf2 !important;
+    }
+
+    .container-fluid {
+        width: min(100%, calc(100vw - 48px)) !important;
+        max-width: 1900px !important;
+        margin: 0 auto !important;
+        padding: 8px !important;
+    }
+
+    /* Encabezado */
+    .top-banner {
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+        border-radius: 0 !important;
+        border: 1px solid #7e4a4a !important;
+        box-shadow: 0 8px 18px rgba(70,12,12,.14) !important;
+    }
+
+    /* Paneles */
+    .dashboard-panel {
+        background: #f8eeee !important;
+        border: 1px solid #c79d9d !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .panel-header {
+        background: #f1dede !important;
+        border-bottom: 1px solid #c79d9d !important;
+    }
+
+    .panel-title {
+        color: #5c1a1a !important;
+    }
+
+    /* Inputs */
+    .form-control,
+    .form-select,
+    .input-group-text {
+        background: #fffafa !important;
+        border: 1px solid #b48787 !important;
+        color: #421414 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        font-size: 12px !important;
+    }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: #8b0000 !important;
+            box-shadow: 0 0 0 .15rem rgba(139,0,0,.12) !important;
+        }
+
+    /* Botones */
+    .btn-brand {
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+        border: 1px solid #7a2d2d !important;
+        color: #fff !important;
+        border-radius: 0 !important;
+    }
+
+    .btn-outline,
+    .btn-outline-secondary {
+        background: linear-gradient(#fffefe,#ecd7d7) !important;
+        border: 1px solid #b48787 !important;
+        color: #4b1f1f !important;
+        border-radius: 0 !important;
+        font-weight: 700 !important;
+    }
+
+        .btn-outline:hover,
+        .btn-outline-secondary:hover {
+            background: #f4dddd !important;
+            border-color: #8b0000 !important;
+            color: #5c0000 !important;
+        }
+
+    /* Tabs VLAN */
+    .nav-tabs {
+        border-bottom: 1px solid #c79d9d !important;
+        background: #f1dede !important;
+        padding: 4px !important;
+        margin-top: 12px !important;
+    }
+
+        .nav-tabs .nav-link {
+            background: linear-gradient(#fffefe,#ecd7d7) !important;
+            border: 1px solid #caa0a0 !important;
+            color: #5c1a1a !important;
+            border-radius: 0 !important;
+            margin-right: 4px !important;
+            font-weight: 700 !important;
+        }
+
+            .nav-tabs .nav-link.active {
+                background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+                color: #fff !important;
+                border-color: #7a2d2d !important;
+            }
+
+    /* Tabla */
+    .table-responsive {
+        background: #fffafa !important;
+        border-top: 1px solid #d9b8b8 !important;
+    }
+
+    .table-custom {
+        background: #fffafa !important;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        font-size: 12px !important;
+    }
+
+        .table-custom thead th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+            color: #fff !important;
+            border-right: 1px solid #8e3b3b !important;
+            border-bottom: 1px solid #5c0000 !important;
+            padding: 7px 6px !important;
+            font-size: 12px !important;
+            text-transform: none !important;
+            white-space: nowrap !important;
+        }
+
+        .table-custom tbody td {
+            background: #fffafa !important;
+            border-right: 1px solid #d8bcbc !important;
+            border-bottom: 1px solid #d8bcbc !important;
+            color: #401515 !important;
+            padding: 6px !important;
+            white-space: nowrap;
+        }
+
+        .table-custom tbody tr:nth-of-type(even) > td {
+            background: #f9eded !important;
+        }
+
+        .table-custom tbody tr:hover > td {
+            background: #f4dddd !important;
+        }
+
+    /* Badges */
+    .ip-badge {
+        background: #fff3cd !important;
+        color: #664d03 !important;
+        border: 1px solid #d6b656 !important;
+        border-radius: 0 !important;
+    }
+
+    .badge-disponible {
+        background: #d1e7dd !important;
+        color: #0f5132 !important;
+        border: 1px solid #badbcc !important;
+        border-radius: 0 !important;
+    }
+
+    .tipo-cable,
+    .tipo-wifi {
+        border-radius: 0 !important;
+    }
+
+    /* Modal mismo estilo */
+    .modal-content {
+        border: 1px solid #7d4949 !important;
+        border-radius: 0 !important;
+    }
+
+    .modal-header {
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+        color: #fff !important;
+        border-bottom: 1px solid #5c0000 !important;
+    }
+
+    .modal-title {
+        color: #fff !important;
+        font-size: 13px !important;
+        font-weight: 700 !important;
+    }
+
+    .modal-body {
+        background: #f0dede !important;
+    }
+
+    .modal-footer {
+        background: #f7eaea !important;
+        border-top: 1px solid #d3b0b0 !important;
+    }
+
+    /* RESPONSIVO */
+    @@media (min-width: 1400px) {
+        .container-fluid {
+            width: calc(100vw - 80px) !important;
+        }
+    }
+
+    @@media (max-width: 1200px) {
+        .container-fluid {
+            width: calc(100vw - 24px) !important;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .container-fluid {
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 6px !important;
+        }
+
+        .top-banner {
+            padding: 12px !important;
+        }
+
+            .top-banner h2 {
+                font-size: 18px !important;
+            }
+
+        .dashboard-panel {
+            padding: 8px !important;
+        }
+
+        .row.align-items-center > div {
+            width: 100% !important;
+        }
+
+        .col-12.col-md-8.col-lg-9 {
+            justify-content: flex-start !important;
+        }
+
+        .input-group {
+            max-width: 100% !important;
+            width: 100% !important;
+        }
+
+        .btn,
+        .btn-brand,
+        .btn-outline,
+        .btn-outline-secondary {
+            width: 100% !important;
+            font-size: 12px !important;
+        }
+
+        .nav-tabs {
+            flex-wrap: nowrap !important;
+            overflow-x: auto !important;
+        }
+
+            .nav-tabs .nav-link {
+                min-width: max-content !important;
+                font-size: 11px !important;
+                padding: 7px 10px !important;
+            }
+
+        .table-responsive {
+            width: 100% !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            max-height: 65vh !important;
+        }
+
+        .table-custom {
+            min-width: 920px !important;
+            font-size: 10px !important;
+        }
+
+            .table-custom thead th,
+            .table-custom tbody td {
+                font-size: 10px !important;
+                padding: 4px 3px !important;
+            }
+
+        .modal-dialog {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+        }
+
+        .modal-content {
+            min-height: 100vh !important;
+        }
+    }
+
+
+
+
+    /* AUTOARTICULOS - ajustes específicos con el estilo del primer código */
+    .container-fluid {
+        width: min(100%, calc(100vw - 48px)) !important;
+        max-width: 1900px !important;
+        margin: 0 auto !important;
+        padding: 8px !important;
+    }
+
+    .tab-content,
+    .tab-pane {
+        background: transparent !important;
+    }
+
+    .dashboard-panel h5,
+    .dashboard-panel h6 {
+        color: #5c1a1a !important;
+    }
+
+    #qr-reader-container {
+        border: 1px solid #c79d9d !important;
+        border-radius: 0 !important;
+        background: #fffafa !important;
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.35) !important;
+    }
+
+    #pantallaEsperaCamara {
+        background: #f1dede !important;
+        color: #5c1a1a !important;
+        border-radius: 0 !important;
+    }
+
+    #panelResultado {
+        background: #fffafa !important;
+        border: 1px solid #c79d9d !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+        #panelResultado.acceso-concedido,
+        .acceso-concedido {
+            background: #d1e7dd !important;
+            border-color: #198754 !important;
+            color: #0f5132 !important;
+        }
+
+        #panelResultado.acceso-denegado,
+        .acceso-denegado {
+            background: #f8d7da !important;
+            border-color: #dc3545 !important;
+            color: #842029 !important;
+        }
+
+    .badge-crit {
+        border-radius: 0 !important;
+        font-weight: 800 !important;
+        font-size: 11px !important;
+        padding: 4px 9px !important;
+        border-width: 1px !important;
+    }
+
+    .crit-critico {
+        background: #f8d7da !important;
+        color: #842029 !important;
+        border-color: #dc3545 !important;
+    }
+
+    .crit-semi {
+        background: #fff3cd !important;
+        color: #664d03 !important;
+        border-color: #d6b656 !important;
+    }
+
+    .crit-no {
+        background: #e9ecef !important;
+        color: #495057 !important;
+        border-color: #ced4da !important;
+    }
+
+    .btn-sm-action {
+        border-radius: 0 !important;
+        background: linear-gradient(#fffefe,#ecd7d7) !important;
+        border: 1px solid #b48787 !important;
+        color: #4b1f1f !important;
+        font-weight: 700 !important;
+    }
+
+        .btn-sm-action:hover {
+            background: #f4dddd !important;
+            border-color: #8b0000 !important;
+            color: #5c0000 !important;
+        }
+
+    .btn-danger,
+    .btn-warning,
+    .btn-dark {
+        border-radius: 0 !important;
+        font-weight: 700 !important;
+    }
+
+    .lista-equipos-container,
+    .accordion,
+    .accordion-item,
+    .accordion-button,
+    .bg-light,
+    .rounded,
+    .border {
+        border-radius: 0 !important;
+    }
+
+    .lista-equipos-container {
+        border: 1px solid #c79d9d !important;
+        background: #fffafa !important;
+    }
+
+    .eq-checkbox-row {
+        background: #fffafa !important;
+        border-bottom: 1px solid #d8bcbc !important;
+        color: #401515 !important;
+    }
+
+        .eq-checkbox-row:hover {
+            background: #f4dddd !important;
+        }
+
+    .form-switch .form-check-input:checked {
+        background-color: #8b0000 !important;
+        border-color: #8b0000 !important;
+    }
+
+    .accordion-button {
+        background: linear-gradient(#fffefe,#ecd7d7) !important;
+        color: #5c1a1a !important;
+        border-bottom: 1px solid #c79d9d !important;
+        font-weight: 700 !important;
+    }
+
+        .accordion-button:not(.collapsed) {
+            background: #f1dede !important;
+            color: #5c0000 !important;
+        }
+
+    .grupo-acciones,
+    .modal-footer.bg-light,
+    .bg-light {
+        background: #f7eaea !important;
+        border-color: #d3b0b0 !important;
+    }
+
+    .modal-content.border-0,
+    .modal-content.shadow-lg,
+    .modal-content.shadow {
+        border: 1px solid #7d4949 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .modal-header.border-0,
+    .modal-header {
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+        color: #fff !important;
+        border-bottom: 1px solid #5c0000 !important;
+        border-radius: 0 !important;
+    }
+
+        .modal-header .modal-title,
+        .modal-header h5,
+        .modal-header h6 {
+            color: #fff !important;
+            font-size: 13px !important;
+            font-weight: 700 !important;
+        }
+
+    .modal-body {
+        background: #f0dede !important;
+    }
+
+    .modal-footer {
+        background: #f7eaea !important;
+        border-top: 1px solid #d3b0b0 !important;
+        border-radius: 0 !important;
+    }
+
+    #tablaLog thead th,
+    .table-sm thead th,
+    .table-light th {
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+        color: #fff !important;
+        border-color: #8e3b3b !important;
+        font-size: 12px !important;
+        text-transform: none !important;
+    }
+
+    .table-sm tbody td {
+        background: #fffafa !important;
+        border-color: #d8bcbc !important;
+        color: #401515 !important;
+    }
+
+    .select2-container--bootstrap-5 .select2-selection {
+        background: #fffafa !important;
+        border: 1px solid #b48787 !important;
+        border-radius: 0 !important;
+        min-height: 32px !important;
+        box-shadow: none !important;
+        font-size: 12px !important;
+    }
+
+    .select2-container--bootstrap-5 .select2-dropdown {
+        border: 1px solid #b48787 !important;
+        border-radius: 0 !important;
+    }
+
+    .select2-container--bootstrap-5 .select2-results__option--highlighted {
+        background: #8b0000 !important;
+        color: #fff !important;
+    }
+
+    @@media (max-width: 768px) {
+        .container-fluid {
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 6px !important;
+        }
+
+        .dashboard-panel {
+            padding: 8px !important;
+        }
+
+        #qr-reader-container {
+            min-height: 300px !important;
+        }
+
+        .tab-pane#permisos .d-flex.gap-2,
+        .tab-pane#permisos .d-flex.justify-content-md-end {
+            flex-direction: column !important;
+            width: 100% !important;
+        }
+
+        .tab-pane#permisos .btn,
+        .btn,
+        .btn-brand,
+        .btn-outline,
+        .btn-outline-secondary {
+            width: 100% !important;
+            font-size: 12px !important;
+        }
+
+        .table-custom {
+            min-width: 920px !important;
+            font-size: 10px !important;
+        }
+
+            .table-custom thead th,
+            .table-custom tbody td {
+                font-size: 10px !important;
+                padding: 4px 3px !important;
+            }
+    }
+</style>
+
+<div class="container-fluid py-4 px-3 px-md-4">
+
+    <div class="top-banner d-flex justify-content-between align-items-center flex-wrap gap-3 shadow-sm">
+        <div>
+            <h2 class="fw-bold mb-1">Autorización Entrada de Artículos</h2>
+            <p class="mb-0" style="font-size: 0.85rem; opacity: 0.85;">Control de acceso a producción por código QR y categorías permitidas.</p>
+        </div>
+        <div>
+            <button id="btnCambiarPin" class="btn btn-sm btn-outline-light fw-bold px-3 border-2" onclick="abrirModalCambiarPin()">
+                <i class="bi bi-gear-fill me-1"></i> Cambiar PIN
+            </button>
+        </div>
+    </div>
+
+    <ul class="nav nav-tabs" id="moduloTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="escaner-tab" data-bs-toggle="tab" data-bs-target="#escaner" type="button" role="tab">Punto de Acceso</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="permisos-tab" data-bs-toggle="tab" data-bs-target="#permisos" type="button" role="tab" onclick="renderTablaPermisos()">Gestión de Permisos</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="bitacora-tab" data-bs-toggle="tab" data-bs-target="#bitacora" type="button" role="tab" onclick="renderTablaBitacora()">
+                Bitácora de Excepciones
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="moduloTabsContent">
+
+        <div class="tab-pane fade show active" id="escaner" role="tabpanel">
+            <div class="row g-3">
+                <div class="col-12 col-lg-5">
+                    <div class="dashboard-panel p-3 p-md-4 text-center h-100 d-flex flex-column">
+                        <h6 class="fw-bold text-muted mb-3">CÁMARA DEL PUNTO DE CONTROL</h6>
+
+                        <div id="qr-reader-container" class="mb-3 w-100 position-relative flex-grow-1" style="min-height: 250px; background-color: #1a1a1a; border-radius: 12px; overflow: hidden;">
+                            <div id="pantallaEsperaCamara" class="d-flex flex-column align-items-center justify-content-center w-100 h-100 position-absolute" style="top: 0; left: 0; z-index: 5; background-color: var(--panel-bg);">
+                                <p class="text-muted mb-3 fw-bold">Cámara en modo de espera</p>
+                                <button class="btn btn-brand btn-sm fw-bold px-4" onclick="encenderCamara()">Activar Lector QR</button>
+                            </div>
+                            <div id="reader" class="d-none w-100 h-100 border-0"></div>
+                            <button id="btnApagarCamara" class="btn btn-danger btn-sm position-absolute d-none fw-bold shadow-sm" style="bottom: 15px; left: 50%; transform: translateX(-50%); z-index: 10;" onclick="apagarCamara()">Detener Cámara</button>
+                        </div>
+
+                        <div class="input-group input-group-sm mt-auto">
+                            <input type="text" class="form-control text-center fw-bold" id="inputTokenManual" placeholder="Ingreso manual de empleado...">
+                            <button class="btn btn-outline-secondary" type="button" onclick="simularEscaneo()">Validar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-lg-7">
+                    <div class="dashboard-panel p-3 p-md-4 h-100 d-flex flex-column justify-content-center align-items-center text-center transition-all" id="panelResultado" style="border-width: 3px;">
+
+                        <div id="resultadoDefault" class="py-5">
+                            <h3 class="text-muted fw-bold">Sistema Listo</h3>
+                            <h5 class="text-muted mt-2">Identifique al colaborador para ver permisos</h5>
+                        </div>
+
+                        <div id="resultadoDatos" class="d-none w-100">
+                            <h2 id="lblMensajeAcceso" class="fw-bold mb-4">IDENTIDAD VERIFICADA</h2>
+
+                            <div class="row text-start align-items-center mb-3">
+                                <div class="col-4 text-center">
+                                    <img src="https://ui-avatars.com/api/?name=Usuario&background=random&size=120" id="imgUsuario" class="rounded-circle shadow-sm mb-3 mb-md-0" style="width: 120px; height: 120px; object-fit: cover;">
+                                </div>
+                                <div class="col-8">
+                                    <label class="form-label text-muted fw-bold mb-0" style="font-size: 0.7rem;">COLABORADOR</label>
+                                    <h4 class="fw-bold mb-1" id="lblUsuario"></h4>
+                                    <p class="text-muted small mb-3" id="lblDepartamento"></p>
+
+                                    <label class="form-label text-muted fw-bold mb-0" style="font-size: 0.7rem;">CATEGORÍAS AUTORIZADAS PARA INGRESO</label>
+                                    <div id="lblCategorias" class="d-flex flex-wrap gap-2 mt-2 mb-2"></div>
+                                </div>
+                            </div>
+
+                            <div class="w-100 border-top pt-3 mt-2">
+                                <p class="text-muted small mb-3" id="lblDetalleCheck">Verifique físicamente que el equipo coincida con las categorías permitidas.</p>
+                                <button id="btnAutorizarExcepcion" class="btn btn-warning w-100 fw-bold d-none shadow-sm text-dark border-0 py-2">
+                                    <i class="bi bi-key-fill me-2"></i>Autorizar Ingreso por Excepción
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="permisos" role="tabpanel">
+            <div class="dashboard-panel p-3">
+                <div class="row align-items-center mb-3 g-2">
+                    <div class="col-12 col-md-6">
+                        <input type="text" class="form-control form-control-sm w-100" id="buscadorPermisos" placeholder="Buscar colaborador ..." style="max-width: 100%;">
+                    </div>
+                    <div class="col-12 col-md-6 d-flex justify-content-md-end gap-2 flex-column flex-md-row">
+                        <button id="btnNuevoColaborador" class="btn btn-outline-secondary btn-sm px-3 fw-bold" onclick="pedirAutorizacion('NUEVO_USUARIO')">
+                            <i class="bi bi-person-plus me-1"></i> Nuevo Colaborador
+                        </button>
+                        <button id="btnAsignarPermisos" class="btn btn-brand btn-sm px-3 shadow-sm" onclick="pedirAutorizacion('ASIGNAR')">
+                            <i class="bi bi-pencil-square me-1"></i> Asignar Permisos a Colaborador
+                        </button>
+                    </div>
+                </div>
+                <div class="table-responsive border rounded">
+                    <table class="table table-custom align-middle mb-0" style="min-width: 600px;">
+                        <thead>
+                            <tr>
+                                <th>Colaborador / Área</th>
+                                <th>Código QR</th>
+                                <th>Estado</th>
+                                <th class="text-center">Permisos de Acceso</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyPermisos"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="bitacora" role="tabpanel">
+            <div class="dashboard-panel p-3">
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <h5 class="fw-bold mb-0 text-muted"><i class=""></i> Accesos por Excepción</h5>
+                    <button class="btn btn-sm btn-outline-secondary fw-bold" onclick="renderTablaBitacora()">
+                        <i class="bi bi-arrow-clockwise me-1"></i> Actualizar
+                    </button>
+                </div>
+                <div class="table-responsive border rounded">
+                    <table class="table table-custom align-middle mb-0" style="min-width: 700px;">
+                        <thead>
+                            <tr>
+                                <th>Fecha y Hora</th>
+                                <th>Colaborador / Área</th>
+                                <th>Motivo / Artículo Ingresado</th>
+                                <th>Categoría Autorizada</th>
+                                <th>Autorizo</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyBitacora">
+                            <tr><td colspan="5" class="text-center text-muted py-4">Cargando bitácora...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalPassword" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header text-white" style="background-color: var(--brand-main);">
+                <h6 class="modal-title fw-bold"><i class="bi bi-shield-lock-fill me-2"></i>Autorización Requerida</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center p-4">
+                <p class="text-muted small mb-3 fw-bold">Ingrese el PIN de supervisor para continuar con esta acción.</p>
+                <input type="password" class="form-control form-control-lg text-center fw-bold letter-spacing-2" id="inSupervisorPin" placeholder="••••" autocomplete="off" maxlength="10">
+            </div>
+            <div class="modal-footer border-0 pt-0 justify-content-center">
+                <button type="button" class="btn btn-dark w-100 fw-bold" id="btnConfirmarPin">Verificar PIN</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalAutorizacion" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header text-white py-2" style="background-color: var(--brand-main);">
+                <h6 class="modal-title text-uppercase fw-bold small"><i class="bi bi-shield-exclamation me-2"></i>Autorización Manual</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="formAutorizacion">
+                    <div class="mb-3">
+                        <label class="form-label text-muted fw-bold small">CATEGORÍA DE EXCEPCIÓN</label>
+                        <select class="form-select border-secondary" id="exCategoria" style="padding: 10px;">
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted fw-bold small">MOTIVO DE INGRESO</label>
+                        <textarea class="form-control border-secondary" id="exMotivo" rows="3" placeholder="Ej. Reparación de caldera, Mantenimiento preventivo..."></textarea>
+                    </div>
+                    <div class="bg-light p-3 rounded border mb-2">
+                        <label class="form-label text-muted fw-bold d-block text-center small mb-2">PIN DE SUPERVISOR</label>
+                        <input type="password" class="form-control form-control-lg text-center fw-bold border-dark" id="exPin" placeholder="****" maxlength="8" style="letter-spacing: 0.8rem;" autocomplete="off">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-0">
+                <button type="button" class="btn btn-outline-secondary fw-bold flex-grow-1" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-brand fw-bold flex-grow-1" onclick="procesarAutorizacion()">Autorizar y Registrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalCambiarPin" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header text-white" style="background-color: var(--brand-main);">
+                <h6 class="modal-title fw-bold"><i class="bi bi-key-fill me-2"></i>Cambiar PIN de Supervisor</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3">
+                    <label class="form-label text-muted fw-bold small">PIN ACTUAL</label>
+                    <input type="password" class="form-control text-center fw-bold letter-spacing-2 border-secondary" id="cpActual" placeholder="••••" maxlength="10">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-muted fw-bold small">NUEVO PIN</label>
+                    <input type="password" class="form-control text-center fw-bold letter-spacing-2 border-brand" id="cpNuevo" placeholder="••••" maxlength="10">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label text-muted fw-bold small">CONFIRMAR NUEVO PIN</label>
+                    <input type="password" class="form-control text-center fw-bold letter-spacing-2 border-brand" id="cpConfirmar" placeholder="••••" maxlength="10">
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0 bg-light">
+                <button type="button" class="btn btn-outline-secondary w-100 fw-bold mb-2" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-dark w-100 fw-bold m-0" onclick="procesarCambioPin()">Actualizar PIN</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalVerPermisos" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-0 pb-0 justify-content-between align-items-center">
+                <div class="d-flex align-items-center w-100 pe-3">
+                    <div class="bg-light rounded p-2 me-3"><i class="bi bi-shield-check fs-3" style="color: var(--brand-main);"></i></div>
+                    <div style="flex-grow: 1; overflow: hidden;">
+                        <h5 class="modal-title fw-bold text-dark mb-0 text-truncate" id="vp-nombre"></h5>
+                        <p class="text-muted small mb-0 fw-bold text-truncate" id="vp-depto"></p>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" style="flex-shrink: 0;"></button>
+            </div>
+            <div class="modal-body pt-4">
+                <label class="form-label text-muted fw-bold mb-3" style="font-size: 0.75rem;">INVENTARIO AUTORIZADO PARA ESTE COLABORADOR:</label>
+                <div id="vp-badges" class="w-100"></div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-light w-100 fw-bold py-2" data-bs-dismiss="modal">Cerrar Detalles</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalAsignarPermiso" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color: var(--brand-main); color: white;">
+                <h5 class="modal-title">Gestión de Permisos Generales</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3 p-md-4">
+                <div class="mb-4">
+                    <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">SELECCIONAR COLABORADOR *</label>
+                    <select class="form-select border-danger" id="selectUsuario" onchange="cargarCategoriasDeUsuario()" style="width: 100%;">
+                        <option value="">Seleccione un usuario...</option>
+                    </select>
+                </div>
+                <div id="panelEquiposCheckbox" class="d-none">
+                    <div class="d-flex justify-content-between align-items-md-end align-items-start mb-3 flex-column flex-md-row gap-2">
+                        <label class="form-label text-muted fw-bold mb-0" style="font-size: 0.7rem;">CATEGORÍAS DE EQUIPOS</label>
+                        <input type="text" class="form-control form-control-sm" id="buscarCheckbox" placeholder="Buscar categoría..." onkeyup="filtrarCheckboxes()" style="width: 250px;">
+                    </div>
+                    <div class="lista-equipos-container mb-3 border bg-white" id="contenedorCheckboxes"></div>
+                    <div class="d-flex justify-content-between text-muted small align-items-center bg-light p-2 rounded border flex-wrap gap-2">
+                        <span><span id="contadorSeleccionados" class="fw-bold text-dark fs-6">0</span> permisos seleccionados.</span>
+                        <a href="javascript:void(0)" class="btn btn-sm btn-outline-danger fw-bold" onclick="desmarcarTodos()">Quitar Todos</a>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-outline-secondary fw-bold flex-grow-1 flex-md-grow-0" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-brand px-4 fw-bold flex-grow-1 flex-md-grow-0" id="btnGuardarPermisos" onclick="guardarPermisos()" disabled>Guardar Permisos</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalNuevoUsuario" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header text-white" style="background-color: var(--brand-main);">
+                <h5 class="modal-title">Registrar Colaborador</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3">
+                    <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">NOMBRE COMPLETO *</label>
+                    <input type="text" class="form-control border-danger" id="inNuevoNombre" placeholder="Ej. Cristo Vazquez">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">CÓDIGO  *</label>
+                    <input type="text" class="form-control border-danger" id="inNuevoToken" placeholder="Ej. 1010">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">DEPARTAMENTO *</label>
+                    <select class="form-select border-danger" id="inNuevoDepto">
+                        <option value="Sistemas">Sistemas</option>
+                        <option value="Mantenimiento">Mantenimiento</option>
+                        <option value="Producción">Producción</option>
+                        <option value="Calidad">Calidad</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-between bg-light">
+                <button type="button" class="btn btn-outline-secondary fw-bold flex-grow-1 me-2" data-bs-dismiss="modal">Cancelar</button>
+                <button id="btnGuardarUsuario" type="button" class="btn btn-brand fw-bold flex-grow-1" onclick="guardarNuevoUsuario()">Registrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<template id="plantillaGafete">
+    <html>
+    <head>
+        <title>QR de {{NOMBRE}}</title>
+        <style>
+                    body {
+                        font-family: sans-serif;
+                        text-align: center;
+                        padding: 40px;
+                        margin: 0;
+                    }
+
+                    .gafete {
+                        border: 3px solid #4a0e0e;
+                        padding: 20px;
+                        border-radius: 15px;
+                        display: inline-block;
+                        max-width: 90%;
+                    }
+
+                    .empresa {
+                        color: #4a0e0e;
+                        font-weight: bold;
+                        font-size: 1.4rem;
+                        margin-bottom: 15px;
+                    }
+
+                    .nombre {
+                        font-size: 1.2rem;
+                        margin-top: 15px;
+                        font-weight: bold;
+                        word-wrap: break-word;
+                    }
+
+                    .token {
+                        color: #888;
+                        font-size: 0.9rem;
+                        margin-top: 5px;
+                        font-family: monospace;
+                    }
+
+                    .btn-imprimir {
+                        background-color: #4a0e0e;
+                        color: white;
+                        padding: 12px 25px;
+                        border: none;
+                        border-radius: 6px;
+                        font-size: 1rem;
+                        font-weight: bold;
+                        cursor: pointer;
+                        margin-top: 25px;
+                        width: 100%;
+                        max-width: 300px;
+                    }
+
+                        .btn-imprimir:hover {
+                            background-color: #6b1515;
+                        }
+
+                    @@media print {
+                        .btn-imprimir {
+                            display: none !important;
+                        }
+                    }
+        </style>
+    </head>
+    <body>
+        <div class="gafete">
+            <div class="empresa">CONTROL DE ACCESO CG</div>
+            <img src="{{QR_URL}}" width="200" height="200" style="display:block; margin: 0 auto; max-width: 100%; height: auto;" />
+            <div class="nombre">{{NOMBRE}}</div>
+        </div>
+        <br>
+        <button class="btn-imprimir" onclick="window.print()">Imprimir QR</button>
+    </body>
+</html>
+</template>
+
+@section Scripts {
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <script>
+        let modalAsignar;
+        let catalogoCategorias = [];
+        let usuariosTablaGlobal = [];
+        let html5QrCode;
+        let lastScanTime = 0;
+        let timerPantalla;
+
+        let accionSeguraPendiente = null;
+        let usuarioEscaneadoId = null;
+
+        $(document).ready(async function () {
+        modalAsignar = new bootstrap.Modal(document.getElementById('modalAsignarPermiso'));
+
+        $('#selectUsuario').select2({
+        theme: 'bootstrap-5',
+        dropdownParent: $('#modalAsignarPermiso'),
+        width: '100%'
+        });
+
+        await cargarDatosBase();
+        await renderTablaPermisos();
+
+        $("#buscadorPermisos").on("keyup", function () {
+        let value = $(this).val().toLowerCase();
+        $("#tbodyPermisos tr").filter(function () {
+        $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
+        });
+        });
+
+        $('#inSupervisorPin').keypress(function (e) {
+        if (e.which == 13) $('#btnConfirmarPin').click();
+        });
+        $('#exPin').keypress(function (e) {
+        if (e.which == 13) procesarAutorizacion();
+        });
+        });
+
+        // Contraseñas y permisos
+        function pedirAutorizacion(accion) {
+        accionSeguraPendiente = accion;
+        $('#inSupervisorPin').val('');
+        new bootstrap.Modal(document.getElementById('modalPassword')).show();
+        setTimeout(() => { $('#inSupervisorPin').focus(); }, 500);
+        }
+
+        $('#btnConfirmarPin').click(async function () {
+        let pin = $('#inSupervisorPin').val();
+        if (!pin) return;
+
+        let formData = new FormData();
+        formData.append("pin", pin);
+
+        try {
+        const res = await fetch('@Url.Action("ValidarPinSupervisor", "ProcesosCG")', {
+        method: 'POST', body: formData
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+        $('#modalPassword').modal('hide');
+        ejecutarAccionAutorizada();
+        } else {
+        alert("Aviso: " + data.mensaje);
+        $('#inSupervisorPin').val('').focus();
+        }
+        } catch (e) { alert("Error de comunicación."); }
+        });
+
+        function ejecutarAccionAutorizada() {
+        if (accionSeguraPendiente === 'ASIGNAR') {
+        abrirModalAsignar();
+        } else if (accionSeguraPendiente === 'NUEVO_USUARIO') {
+        abrirModalNuevoUsuario();
+        }
+        accionSeguraPendiente = null;
+        }
+
+        // Cambio de PIN
+        function abrirModalCambiarPin() {
+        $('#cpActual').val('');
+        $('#cpNuevo').val('');
+        $('#cpConfirmar').val('');
+        new bootstrap.Modal(document.getElementById('modalCambiarPin')).show();
+        }
+
+        async function procesarCambioPin() {
+        let actual = $('#cpActual').val();
+        let nuevo = $('#cpNuevo').val();
+        let confirmar = $('#cpConfirmar').val();
+
+        if (!actual || !nuevo || !confirmar) {
+        alert("Aviso: Llene todos los campos.");
+        return;
+        }
+
+        if (nuevo !== confirmar) {
+        alert("Aviso: El nuevo PIN y la confirmación no coinciden.");
+        return;
+        }
+
+        let formData = new FormData();
+        formData.append("pinActual", actual);
+        formData.append("pinNuevo", nuevo);
+
+        try {
+        const res = await fetch('@Url.Action("CambiarPinSupervisor", "ProcesosCG")', {
+        method: 'POST', body: formData
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+        alert("Éxito: " + data.mensaje);
+        bootstrap.Modal.getInstance(document.getElementById('modalCambiarPin')).hide();
+        } else {
+        alert("Aviso: " + data.mensaje);
+        }
+        } catch (e) {
+        alert("Error de red al intentar cambiar el PIN.");
+        }
+        }
+
+        // Excepciones y Bitácora
+        function abrirModalAutorizacion(uId) {
+        if (!uId || uId === 0) {
+        alert("Atención: El QR escaneado no pertenece a ningún colaborador. Registre al colaborador antes de autorizar.");
+        return;
+        }
+
+        usuarioEscaneadoId = uId;
+        $('#exMotivo').val('');
+        $('#exPin').val('');
+
+        let options = '<option value="" style="color:#888;">-- Seleccione Categoría --</option>';
+
+        const niveles = [
+        { id: 'CRITICO', color: '#dc2626', bg: '#fef2f2' },
+        { id: 'SEMICRITICO', color: '#ca8a04', bg: '#fefce8' },
+        { id: 'NO_CRITICO', color: '#4b5563', bg: '#f3f4f6' }
+        ];
+
+        niveles.forEach(nivel => {
+        let filtrados = catalogoCategorias.filter(c => c.criticidad === nivel.id);
+        filtrados.sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+        if (filtrados.length > 0) {
+
+        options += `<optgroup label="=== NIVEL: ${nivel.id.replace('_', ' ')} ===" style="background-color: ${nivel.bg}; color: ${nivel.color}; font-weight: bold;">`;
+
+        filtrados.forEach(c => {
+        options += `<option value="${c.id}" style="background-color: #ffffff; color: ${nivel.color}; font-weight: 600;">${c.nombre}</option>`;
+        });
+
+        options += `</optgroup>`;
+        }
+        });
+
+        $('#exCategoria').html(options);
+
+        new bootstrap.Modal(document.getElementById('modalAutorizacion')).show();
+        setTimeout(() => { $('#exMotivo').focus(); }, 500);
+        }
+
+        async function procesarAutorizacion() {
+        const motivo = $('#exMotivo').val().trim();
+        const categoriaId = $('#exCategoria').val();
+        const pin = $('#exPin').val();
+
+        if (!motivo || !categoriaId || !pin) {
+        alert("Todos los campos son obligatorios para el registro de seguridad.");
+        return;
+        }
+
+        let formData = new FormData();
+        formData.append("pin", pin);
+        formData.append("usuarioId", usuarioEscaneadoId);
+        formData.append("motivo", motivo);
+        formData.append("categoriaId", categoriaId);
+
+        try {
+        const res = await fetch('@Url.Action("AutorizarExcepcion", "ProcesosCG")', {
+        method: 'POST', body: formData
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+        bootstrap.Modal.getInstance(document.getElementById('modalAutorizacion')).hide();
+
+        let panel = $('#panelResultado');
+        panel.removeClass('acceso-denegado').addClass('acceso-concedido');
+        $('#lblMensajeAcceso').text('ACCESO AUTORIZADO (BITÁCORA)').attr('class', 'text-warning fw-bold mb-4');
+        $('#lblDetalleCheck').html(`<strong>MOTIVO AUTORIZADO:</strong> <br> ${motivo}`);
+        $('#btnAutorizarExcepcion').addClass('d-none');
+
+        alert("Registro guardado exitosamente en la bitácora.");
+
+        if ($('#bitacora').hasClass('active')) {
+        renderTablaBitacora();
+        }
+        } else {
+        alert("Aviso: " + data.mensaje);
+        $('#exPin').val('').focus();
+        }
+        } catch (e) {
+        alert("Error de red al intentar registrar la autorización.");
+        }
+        }
+
+        // Lógica de cámara
+        function encenderCamara() {
+        $('#pantallaEsperaCamara').addClass('d-none');
+        $('#reader').removeClass('d-none');
+        $('#btnApagarCamara').removeClass('d-none');
+
+        Html5Qrcode.getCameras().then(devices => {
+        if (devices && devices.length) {
+        // Seleccionar la cámara trasera si está en un móvil
+        let cameraId = devices[0].id;
+        let backendCamera = devices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('trasera'));
+        if (backendCamera) {
+        cameraId = backendCamera.id;
+        }
+
+        html5QrCode = new Html5Qrcode("reader");
+
+        // Configuración responsiva para el escáner
+        let config = { fps: 10, qrbox: { width: 220, height: 220 } };
+        if (window.innerWidth < 768) {
+        config.qrbox = { width: 180, height: 180 };
+        }
+
+        html5QrCode.start(
+        cameraId,
+        config,
+        onScanSuccess, onScanFailure
+        ).catch((err) => {
+        alert("Error al intentar abrir el lente de la cámara."); apagarCamara();
+        });
+        } else {
+        alert("No se detectó cámara en el dispositivo."); apagarCamara();
+        }
+        }).catch(err => { alert("El navegador ha bloqueado el acceso a la cámara."); apagarCamara(); });
+        }
+
+        function apagarCamara() {
+        if (html5QrCode) {
+        html5QrCode.stop().then(() => {
+        $('#reader').addClass('d-none');
+        $('#btnApagarCamara').addClass('d-none');
+        $('#pantallaEsperaCamara').removeClass('d-none');
+        html5QrCode.clear();
+        }).catch(err => { });
+        }
+        }
+
+        function onScanSuccess(decodedText, decodedResult) {
+        const now = new Date().getTime();
+        if (now - lastScanTime < 3000) return;
+        lastScanTime = now;
+        $('#inputTokenManual').val(decodedText);
+        simularEscaneo();
+        }
+        function onScanFailure(error) { }
+
+        // Renderizado y obtención de datos
+        async function cargarDatosBase() {
+        try {
+        const res = await fetch('@Url.Action("ObtenerDatosBase", "ProcesosCG")');
+        const data = await res.json();
+        if (data.ok) {
+        catalogoCategorias = data.categorias;
+        let options = '<option value="">Seleccione un usuario...</option>';
+        data.usuarios.forEach(u => options += `<option value="${u.id}">${u.nombre} - ${u.departamento} (${u.tokenGafete})</option>`);
+        $('#selectUsuario').html(options);
+        }
+        } catch (error) { }
+        }
+
+        async function renderTablaPermisos() {
+        try {
+        const res = await fetch('@Url.Action("ObtenerTablaPermisos", "ProcesosCG")');
+        const data = await res.json();
+        if (data.ok) {
+        usuariosTablaGlobal = data.datos;
+        let html = '';
+        data.datos.forEach(row => {
+        html += `<tr>
+        <td><div class="fw-bold text-dark">${row.nombre}</div><div class="text-muted small">${row.departamento}</div></td>
+        <td><button class="btn btn-sm btn-outline-dark fw-bold border-0 bg-transparent text-primary" onclick="imprimirGafete('${row.tokenGafete}', '${row.nombre}')"><i class="bi bi-qr-code me-1"></i> ${row.tokenGafete}</button></td>
+        <td><span class="badge ${row.categorias.length ? 'bg-success' : 'bg-secondary'}">${row.categorias.length ? 'Activo' : 'Inactivo'}</span></td>
+        <td class="text-center"><button class="btn-sm-action fw-bold ${row.categorias.length ? 'text-brand border-brand' : 'text-muted'}" onclick="verPermisosUsuario(${row.usuarioId})"><i class="bi bi-eye me-1"></i> Ver Permisos (${row.categorias.length})</button></td>
+        </tr>`;
+        });
+        $('#tbodyPermisos').html(html || '<tr><td colspan="4" class="text-center">No hay datos registrados.</td></tr>');
+        }
+        } catch (e) { }
+        }
+
+        async function renderTablaBitacora() {
+        try {
+        $('#tbodyBitacora').html('<tr><td colspan="5" class="text-center text-muted"><div class="spinner-border spinner-border-sm me-2"></div>Cargando registros...</td></tr>');
+
+        const res = await fetch('@Url.Action("ObtenerBitacoraExcepciones", "ProcesosCG")');
+        const data = await res.json();
+
+        if (data.ok) {
+        let html = '';
+        if (data.logs.length === 0) {
+        html = '<tr><td colspan="5" class="text-center text-muted">No hay registros de excepciones en la bitácora.</td></tr>';
+        } else {
+        data.logs.forEach(row => {
+        let claseBdg = row.criticidad == 'CRITICO' ? 'crit-critico' : (row.criticidad == 'SEMICRITICO' ? 'crit-semi' : 'crit-no');
+        html += `<tr>
+        <td class="text-nowrap"><span class="badge bg-light text-dark border"><i class="bi bi-calendar-event me-1"></i>${row.fecha}</span></td>
+        <td><div class="fw-bold text-dark">${row.colaborador}</div><div class="text-muted small">${row.departamento}</div></td>
+        <td><span class="fw-bold text-dark">${row.articulo}</span></td>
+        <td><span class="badge-crit ${claseBdg}">${row.categoria}</span></td>
+        <td><span class="text-muted small fw-bold"><i class="bi bi-person-badge me-1"></i>${row.supervisor}</span></td>
+        </tr>`;
+        });
+        }
+        $('#tbodyBitacora').html(html);
+        } else {
+        $('#tbodyBitacora').html(`<tr><td colspan="5" class="text-center text-danger">Error: ${data.mensaje}</td></tr>`);
+        }
+        } catch (e) {
+        $('#tbodyBitacora').html('<tr><td colspan="5" class="text-center text-danger">Error de red al cargar la bitácora.</td></tr>');
+        }
+        }
+
+        function verPermisosUsuario(id) {
+        let user = usuariosTablaGlobal.find(u => u.usuarioId === id);
+        if (!user) return;
+        $('#vp-nombre').text(user.nombre);
+        $('#vp-depto').text(user.departamento + " | " + user.tokenGafete);
+
+        if (!user.categorias || user.categorias.length === 0) {
+        $('#vp-badges').html('<div class="alert alert-warning text-center mt-3"><i class="bi bi-exclamation-triangle me-2"></i>Este colaborador no tiene permisos asignados.</div>');
+        } else {
+        let htmlBadges = '';
+        ['CRITICO', 'SEMICRITICO', 'NO_CRITICO'].forEach(crit => {
+        let catsCrit = user.categorias.filter(c => c.criticidad === crit);
+        if (catsCrit.length > 0) {
+        let claseHdr = crit == 'CRITICO' ? 'text-danger' : (crit == 'SEMICRITICO' ? 'text-warning' : 'text-secondary');
+        let claseBdg = crit == 'CRITICO' ? 'crit-critico' : (crit == 'SEMICRITICO' ? 'crit-semi' : 'crit-no');
+        htmlBadges += `<div class="text-start mb-3 border border-1 rounded p-3 bg-light"><h6 class="fw-bold border-bottom pb-2 mb-3 ${claseHdr}"><i class="bi bi-tag-fill me-2"></i>NIVEL: ${crit.replace('_', ' ')}</h6><div class="d-flex flex-wrap gap-2">${catsCrit.map(c => `<span class="badge-crit ${claseBdg} px-3 py-2 shadow-sm border-0 bg-white" style="font-size:0.80rem;">${c.nombre}</span>`).join('')}</div></div>`;
+        }
+        });
+        $('#vp-badges').html(htmlBadges);
+        }
+        new bootstrap.Modal(document.getElementById('modalVerPermisos')).show();
+        }
+
+        // Usuarios y Asignaciones
+        function abrirModalNuevoUsuario() {
+        $('#inNuevoNombre').val('');
+        $('#inNuevoToken').val('');
+        new bootstrap.Modal(document.getElementById('modalNuevoUsuario')).show();
+        }
+
+        async function guardarNuevoUsuario() {
+        const nombre = $('#inNuevoNombre').val().trim();
+        const token = $('#inNuevoToken').val().trim();
+        const depto = $('#inNuevoDepto').val();
+
+        if (!nombre || !token) { alert("Campos obligatorios incompletos."); return; }
+
+        try {
+        const res = await fetch('@Url.Action("GuardarUsuario", "ProcesosCG")', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Nombre: nombre, Departamento: depto, TokenGafete: token })
+        });
+        const data = await res.json();
+        if (data.ok) {
+        bootstrap.Modal.getInstance(document.getElementById('modalNuevoUsuario'))?.hide();
+        await cargarDatosBase();
+        await renderTablaPermisos();
+        } else { alert(data.mensaje); }
+        } catch (e) { }
+        }
+
+        function imprimirGafete(token, nombre) {
+        const qrUrl = `/ProcesosCG/GenerarQrGafete?token=${encodeURIComponent(token)}`;
+        // Ajustar tamaño ventana popup para móviles
+        const width = window.innerWidth > 400 ? 400 : window.innerWidth - 20;
+        const w = window.open('', '_blank', `width=${width},height=550`);
+        let template = document.getElementById('plantillaGafete').innerHTML;
+        template = template.replace(/{{NOMBRE}}/g, nombre).replace('{{QR_URL}}', qrUrl).replace('{{TOKEN}}', token);
+        w.document.write(template); w.document.close();
+        }
+
+        function abrirModalAsignar() {
+        $('#selectUsuario').val('').trigger('change');
+        $('#panelEquiposCheckbox').addClass('d-none');
+        modalAsignar.show();
+        }
+
+        async function cargarCategoriasDeUsuario() {
+        let userId = $('#selectUsuario').val();
+        if (!userId) { $('#panelEquiposCheckbox').addClass('d-none'); return; }
+        $('#panelEquiposCheckbox').removeClass('d-none');
+        $('#btnGuardarPermisos').prop('disabled', false);
+
+        try {
+        const resP = await fetch(`@Url.Action("ObtenerPermisosUsuario", "ProcesosCG")?usuarioId=${userId}`);
+        const dataP = await resP.json();
+        const actuales = dataP.ok ? dataP.permisos : [];
+
+        let html = '<div class="accordion accordion-flush" id="accordionCategorias">';
+        ['CRITICO', 'SEMICRITICO', 'NO_CRITICO'].forEach((crit) => {
+        let items = catalogoCategorias.filter(c => c.criticidad == crit);
+        if (items.length) {
+        let idCollapse = `collapse_${crit}`;
+        let colorHdr = crit == 'CRITICO' ? 'text-danger' : (crit == 'SEMICRITICO' ? 'text-warning' : 'text-secondary');
+        html += `<div class="accordion-item border-bottom"><h2 class="accordion-header"><button class="accordion-button collapsed fw-bold py-3 ${colorHdr}" type="button" data-bs-toggle="collapse" data-bs-target="#${idCollapse}">NIVEL: ${crit.replace('_', ' ')} &nbsp;<span class="badge bg-secondary ms-2 rounded-pill">${items.length}</span></button></h2><div id="${idCollapse}" class="accordion-collapse collapse" data-bs-parent="#accordionCategorias"><div class="accordion-body p-0"><div class="grupo-acciones d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2"><span class="text-muted fw-bold">Selección Rápida:</span><div><a href="javascript:void(0)" class="text-decoration-none fw-bold me-3 btn btn-sm btn-outline-secondary py-0" onclick="marcarGrupo('${crit}', true)">Todas</a><a href="javascript:void(0)" class="text-decoration-none fw-bold text-danger btn btn-sm btn-outline-danger py-0" onclick="marcarGrupo('${crit}', false)">Ninguna</a></div></div>`;
+        items.forEach(c => {
+        let isChecked = actuales.includes(c.id) ? 'checked' : '';
+        html += `<div class="eq-checkbox-row chk-item-fila crit-group-${crit}"><span class="ps-3 fw-bold eq-nombre text-dark">${c.nombre}</span><div class="form-check form-switch pe-3"><input class="form-check-input chk-categoria" type="checkbox" value="${c.id}" ${isChecked} onchange="actualizarContador()"></div></div>`;
+        });
+        html += `</div></div></div>`;
+        }
+        });
+        html += '</div>';
+        $('#contenedorCheckboxes').html(html);
+        actualizarContador();
+        } catch (e) { }
+        }
+
+        function marcarGrupo(crit, check) { $(`.crit-group-${crit} .chk-categoria`).prop('checked', check); actualizarContador(); }
+        function actualizarContador() { $('#contadorSeleccionados').text($('.chk-categoria:checked').length); }
+        function desmarcarTodos() { $('.chk-categoria').prop('checked', false); actualizarContador(); }
+        function filtrarCheckboxes() {
+        let txt = $('#buscarCheckbox').val().toLowerCase();
+        if (txt.length > 0) { $('.accordion-collapse').addClass('show'); }
+        $('.chk-item-fila').each(function () { $(this).toggle($(this).find('.eq-nombre').text().toLowerCase().includes(txt)); });
+        }
+
+        async function guardarPermisos() {
+        let userId = $('#selectUsuario').val();
+        let ids = [];
+        $('.chk-categoria:checked').each(function () { ids.push(parseInt($(this).val())); });
+        try {
+        const res = await fetch('@Url.Action("GuardarPermisos", "ProcesosCG")', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ UsuarioId: parseInt(userId), CategoriasIds: ids })
+        });
+        const data = await res.json();
+        if (data.ok) { modalAsignar.hide(); renderTablaPermisos(); }
+        else { alert(data.mensaje); }
+        } catch (e) { }
+        }
+
+        async function simularEscaneo() {
+        let token = $('#inputTokenManual').val().trim();
+        if (!token) return;
+        try {
+        const res = await fetch(`@Url.Action("ValidarEscaneo", "ProcesosCG")?token=${token}`);
+        const data = await res.json();
+        mostrarResultadoPantalla(data);
+        $('#inputTokenManual').val('');
+        } catch (e) { alert("Error al conectar con la base de datos."); }
+        }
+
+        function mostrarResultadoPantalla(data) {
+        let panel = $('#panelResultado');
+        $('#resultadoDefault').addClass('d-none');
+        $('#resultadoDatos').removeClass('d-none');
+        panel.removeClass('acceso-concedido acceso-denegado');
+
+        $('#btnAutorizarExcepcion').removeClass('d-none');
+        let uId = data.usuario ? data.usuario.id : 0;
+        $('#btnAutorizarExcepcion').attr('onclick', `abrirModalAutorizacion(${uId})`);
+
+        if (data.concedido) {
+        panel.addClass('acceso-concedido');
+        $('#lblMensajeAcceso').text('IDENTIDAD VERIFICADA').attr('class', 'text-success fw-bold mb-4');
+        $('#lblUsuario').text(data.usuario.nombre);
+        $('#lblDepartamento').text(data.usuario.departamento);
+        $('#lblDetalleCheck').text('Verifique físicamente los equipos. Use el botón inferior para autorizar ingreso no listado.');
+
+        $('#lblCategorias').html(data.categorias.map(c => {
+        let clase = c.criticidad == 'CRITICO' ? 'crit-critico' : (c.criticidad == 'SEMICRITICO' ? 'crit-semi' : 'crit-no');
+        return `<span class="badge-crit ${clase}">${c.nombre}</span>`;
+        }).join(''));
+        } else {
+        panel.addClass('acceso-denegado');
+        $('#lblMensajeAcceso').text('ACCESO NO AUTORIZADO').attr('class', 'text-danger fw-bold mb-4');
+        $('#lblUsuario').text(data.usuario ? data.usuario.nombre : 'Gafete Inválido');
+        $('#lblDepartamento').text(data.mensaje);
+        $('#lblCategorias').html('');
+        $('#lblDetalleCheck').text('Si el usuario requiere ingresar, se necesita autorización de supervisor.');
+        }
+
+        clearTimeout(timerPantalla);
+        timerPantalla = setTimeout(() => {
+        $('#resultadoDatos').addClass('d-none');
+        $('#resultadoDefault').removeClass('d-none');
+        panel.removeClass('acceso-concedido acceso-denegado');
+        $('#btnAutorizarExcepcion').addClass('d-none');
+        }, 30000);
+        }
+        let permisosModulo = { puedeLeer: false, puedeEscribir: false, puedeEliminar: false };
+
+        document.addEventListener("DOMContentLoaded", async () => {
+            await cargarPermisosDeSeguridad();
+
+            
+        });
+
+        async function cargarPermisosDeSeguridad() {
+              try {
+                  // Usamos Url.Action para asegurar que la ruta siempre sea correcta en el servidor
+                  let response = await fetch('@Url.Action("ObtenerPermisosVistaAutoArticulos", "ProcesosCG")');
+
+                  if (response.ok) {
+                      permisosModulo = await response.json();
+                      aplicarPermisosVisuales();
+                  }
+              } catch (error) {
+                  console.error("Error al verificar seguridad:", error);
+              }
+          }
+
+          function aplicarPermisosVisuales() {
+              // Si NO PUEDE ESCRIBIR, ocultamos todos los botones que modifiquen datos
+              if (!permisosModulo.puedeEscribir) {
+
+                  // Oculta botones principales
+                  let btnCambiarPin = document.getElementById("btnCambiarPin");
+                  if(btnCambiarPin) btnCambiarPin.style.display = "none";
+
+                  let btnNuevoColaborador = document.getElementById("btnNuevoColaborador");
+                  if(btnNuevoColaborador) btnNuevoColaborador.style.display = "none";
+
+                  let btnAsignarPermisos = document.getElementById("btnAsignarPermisos");
+                  if(btnAsignarPermisos) btnAsignarPermisos.style.display = "none";
+
+                  // Oculta botones dentro de los modales y el escáner
+                  let btnGuardarUsuario = document.getElementById("btnGuardarUsuario");
+                  if(btnGuardarUsuario) btnGuardarUsuario.style.display = "none";
+
+                  let btnGuardarPermisos = document.getElementById("btnGuardarPermisos");
+                  if(btnGuardarPermisos) btnGuardarPermisos.style.display = "none";
+
+                 
+              }
+
+              if (!permisosModulo.puedeEliminar) {
+                  let botonesEliminar = document.querySelectorAll(".btn-eliminar-registro");
+                  botonesEliminar.forEach(btn => btn.style.display = "none");
+              }
+          }
+    </script>
+}

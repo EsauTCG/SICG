@@ -1,0 +1,3 @@
+USE SIGO;
+
+ALTER TABLE UsuarioSQL ADD AlmacenesPermitidos NVARCHAR(MAX) NULL;

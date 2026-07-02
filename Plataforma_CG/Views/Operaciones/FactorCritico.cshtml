@@ -1,0 +1,3166 @@
+﻿@* Su controller es TifController *@
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Pruebas TIF";
+}
+
+<form id="csrf-form" style="display:none;">
+    @Html.AntiForgeryToken()
+</form>
+
+
+<style>
+    :root {
+        --primary: #8B0000;
+        --bg-light: #f8f9fb;
+        --bg-panel: #ffffff;
+        --text: #1e1e1e;
+        --border: #dfe2e6;
+        --radius: 10px;
+        --shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+    }
+
+    body {
+        background: var(--bg-light);
+        font-family: "Segoe UI", sans-serif;
+        color: var(--text);
+        margin: 0;
+        padding-bottom: 40px;
+        font-size: 14px;
+    }
+
+    .container-sap {
+        max-width: 1200px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+    }
+
+    .sap-titlebar {
+        background: linear-gradient(#eef1f6, #e7ebf2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1rem 1.5rem;
+        box-shadow: var(--shadow);
+        margin-bottom: 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+        .sap-titlebar h4 {
+            font-size: 1.4rem;
+            font-weight: 800;
+            margin: 0;
+            color: var(--text);
+        }
+
+    .tbtn {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        height: 36px;
+        padding: 0 1rem;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #fff;
+        color: var(--text);
+        font-size: .9rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .tbtn-Excel {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        height: 36px;
+        padding: 0 1rem;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #009C07;
+        color: white;
+        font-size: .9rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .tbtn-Excel:hover{
+            background: #006B07;
+            color: #DBDBDB;
+    }
+
+        .tbtn:hover {
+            background: #f9f9f9;
+            border-color: #ccc;
+        }
+
+        .tbtn.primary {
+            background: linear-gradient(to right, #8B0000, #5a0000);
+            color: #ffffff;
+            border: none;
+        }
+
+            .tbtn.primary:hover {
+                filter: brightness(1.1);
+            }
+
+        .tbtn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+    .sap-card {
+        background: var(--bg-panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+    }
+
+    .sap-card-head {
+        padding: .8rem 1rem;
+        border-bottom: 1px solid var(--border);
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        background: #f7f8fa;
+        justify-content: space-between;
+    }
+
+    .sap-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+        .sap-table th {
+            text-align: left;
+            padding: 1rem;
+            background: #fafbfc;
+            color: #6c757d;
+            border-bottom: 2px solid var(--border);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+        }
+
+        .sap-table td {
+            padding: 0.8rem 1rem;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+        }
+
+        .sap-table tr:hover {
+            background-color: #f9fafc;
+        }
+
+    .sap-input {
+        width: 100%;
+        padding: .5rem;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        font-size: .95rem;
+        box-sizing: border-box;
+    }
+
+        .sap-input[readonly] {
+            background: #eef1f6;
+            cursor: not-allowed;
+            font-weight: bold;
+        }
+
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 2000;
+        justify-content: center;
+        align-items: center;
+        padding: 1rem;
+    }
+
+    .modal-content-sap {
+        background: var(--bg-panel);
+        border-radius: var(--radius);
+        width: 100%;
+        max-width: 800px;
+        display: flex;
+        flex-direction: column;
+        max-height: 90vh;
+    }
+
+    .modal-content-sm {
+        max-width: 400px;
+    }
+
+    .modal-body-scroll {
+        padding: 1.5rem;
+        overflow-y: auto;
+    }
+
+    .modal-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid var(--border);
+        background: #f7f8fa;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    .badge-sap {
+        background: #eef1f6;
+        color: #555;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        border: 1px solid #dee2e6;
+        font-weight: 600;
+    }
+
+    /* --- ESTILOS DE PESTAÑAS --- */
+    .sap-tabs {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 1rem;
+        border-bottom: 2px solid var(--border);
+        padding-bottom: 0;
+    }
+
+    .tab-btn {
+        background: none;
+        border: none;
+        padding: 10px 20px;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #6c757d;
+        cursor: pointer;
+        border-radius: 8px 8px 0 0;
+        transition: all 0.3s;
+        border-bottom: 3px solid transparent;
+    }
+
+        .tab-btn:hover {
+            color: var(--primary);
+        }
+
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom: 3px solid var(--primary);
+            background: #fff;
+        }
+
+    .tab-content {
+        display: none;
+    }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s;
+        }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(5px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+
+    .report-card {
+        background: #ffffff;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        overflow: hidden;
+    }
+
+    .report-card-header {
+        padding: 15px;
+        border-bottom: 1px solid var(--border);
+        color: var(--primary);
+        font-weight: 700;
+        font-size: 1.1rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .report-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+        .report-table th {
+            text-align: left;
+            padding: 12px 15px;
+            color: #6c757d;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            border-bottom: 2px solid var(--border);
+            background: #fdfdfd;
+        }
+
+        .report-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+            font-size: 0.9rem;
+        }
+
+        .report-table tr:last-child td {
+            border-bottom: none;
+        }
+
+    .summary-list {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+        .summary-list td {
+            padding: 15px;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.95rem;
+        }
+
+        .summary-list tr:last-child td {
+            border-bottom: none;
+        }
+
+        .summary-list td:first-child {
+            color: #555;
+        }
+
+        .summary-list td:last-child {
+            text-align: right;
+        }
+
+    .sap-input:disabled {
+        background: #eef1f6;
+        cursor: not-allowed;
+        font-weight: 600;
+        color: #666;
+    }
+
+    .loader-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(255, 255, 255, 0.75);
+        backdrop-filter: blur(2px);
+        z-index: 5000;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .loader-box {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+        padding: 24px 28px;
+        min-width: 260px;
+        text-align: center;
+    }
+
+    .loader-spinner {
+        width: 48px;
+        height: 48px;
+        margin: 0 auto 14px auto;
+        border: 5px solid #e9ecef;
+        border-top: 5px solid var(--primary);
+        border-radius: 50%;
+        animation: spinLoader .8s linear infinite;
+    }
+
+    .loader-texto {
+        font-weight: 700;
+        color: #444;
+        font-size: 0.95rem;
+    }
+
+    @@keyframes spinLoader {
+        from {
+            transform: rotate(0deg);
+        }
+
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: minmax(320px, 1.4fr) minmax(220px, 1fr);
+        gap: 15px;
+        margin-bottom: 20px;
+        align-items: stretch;
+    }
+
+    .kpi-card-hueso {
+        height: 100%;
+    }
+
+    .kpi-mini-wrap {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+
+    .kpi-mini-card {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 140px;
+    }
+
+    .kpi-mini-title {
+        font-size: 0.95rem;
+        font-weight: 800;
+        color: var(--primary);
+        margin-bottom: 8px;
+    }
+
+    .kpi-mini-main {
+        font-size: 1.9rem;
+        font-weight: 800;
+        line-height: 1.1;
+        color: #222;
+    }
+
+    .kpi-mini-sub {
+        font-size: 0.84rem;
+        color: #777;
+        margin-top: 2px;
+        margin-bottom: 12px;
+    }
+
+    .kpi-mini-foot {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-top: 8px;
+        margin-top: 8px;
+        border-top: 1px dashed #eee;
+        font-size: 0.9rem;
+    }
+
+        .kpi-mini-foot span {
+            color: #666;
+            font-weight: 600;
+        }
+
+    .kpi-status-ok {
+        color: #198754 !important;
+        font-weight: 800;
+    }
+
+    .kpi-status-warn {
+        color: #fd7e14 !important;
+        font-weight: 800;
+    }
+
+    .kpi-status-bad {
+        color: #dc3545 !important;
+        font-weight: 800;
+    }
+
+    @@media (max-width: 900px) {
+        .kpi-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .kpi-card {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+        padding: 16px;
+    }
+
+    .kpi-head {
+        font-size: 1rem;
+        font-weight: 800;
+        color: var(--primary);
+        margin-bottom: 12px;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 8px;
+    }
+
+    .kpi-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        padding: 7px 0;
+        border-bottom: 1px dashed #f1f1f1;
+        font-size: 0.92rem;
+    }
+
+        .kpi-row:last-child {
+            border-bottom: none;
+        }
+
+        .kpi-row span {
+            color: #666;
+            font-weight: 600;
+        }
+
+        .kpi-row strong {
+            color: #222;
+            font-weight: 800;
+        }
+
+    /* =========================================
+       DARK MODE - FACTOR CRÍTICO TIF
+    ========================================= */
+
+    body[data-theme="dark"] {
+        --bg-light: #0b1120;
+        --bg-panel: #111827;
+        --text: #f9fafb;
+        --border: #374151;
+        --shadow: 0 10px 24px rgba(0,0,0,.35);
+    }
+
+    /* Base */
+    body[data-theme="dark"] {
+        background: #0b1120 !important;
+        color: var(--text) !important;
+    }
+
+        body[data-theme="dark"] .container-sap {
+            color: var(--text) !important;
+        }
+
+        /* Encabezado */
+        body[data-theme="dark"] .sap-titlebar {
+            background: linear-gradient(180deg, #1f2937 0%, #111827 100%) !important;
+            border-color: #374151 !important;
+            box-shadow: var(--shadow) !important;
+        }
+
+            body[data-theme="dark"] .sap-titlebar h4 {
+                color: #f9fafb !important;
+            }
+
+            body[data-theme="dark"] .sap-titlebar span {
+                color: #9ca3af !important;
+            }
+
+        /* Tabs */
+        body[data-theme="dark"] .sap-tabs {
+            border-bottom-color: #374151 !important;
+        }
+
+        body[data-theme="dark"] .tab-btn {
+            color: #d1d5db !important;
+        }
+
+            body[data-theme="dark"] .tab-btn:hover {
+                color: #fca5a5 !important;
+            }
+
+            body[data-theme="dark"] .tab-btn.active {
+                color: #fca5a5 !important;
+                border-bottom-color: #ef4444 !important;
+                background: #111827 !important;
+            }
+
+        /* Cards principales */
+        body[data-theme="dark"] .sap-card,
+        body[data-theme="dark"] .report-card,
+        body[data-theme="dark"] .kpi-card,
+        body[data-theme="dark"] .kpi-mini-card {
+            background: #111827 !important;
+            color: #f9fafb !important;
+            border-color: #374151 !important;
+            box-shadow: var(--shadow) !important;
+        }
+
+        body[data-theme="dark"] .sap-card-head,
+        body[data-theme="dark"] .report-card-header,
+        body[data-theme="dark"] .kpi-head {
+            background: #1f2937 !important;
+            color: #fca5a5 !important;
+            border-bottom-color: #374151 !important;
+        }
+
+        /* Contenedores inline blancos */
+        body[data-theme="dark"] #tab-reportes .sap-card,
+        body[data-theme="dark"] #tab-reportes .sap-card[style],
+        body[data-theme="dark"] #tab-graficas > div[style],
+        body[data-theme="dark"] #contenedor-reporte > div[style],
+        body[data-theme="dark"] #contenedor-grafica .report-card {
+            background: #111827 !important;
+            color: #f9fafb !important;
+            border-color: #374151 !important;
+        }
+
+            body[data-theme="dark"] #tab-reportes .sap-card > div[style],
+            body[data-theme="dark"] #tab-graficas > div[style] {
+                background: #1f2937 !important;
+                border-color: #374151 !important;
+            }
+
+        /* Textos inline */
+        body[data-theme="dark"] h5,
+        body[data-theme="dark"] label,
+        body[data-theme="dark"] .summary-list td:first-child,
+        body[data-theme="dark"] .kpi-row span,
+        body[data-theme="dark"] .kpi-mini-foot span,
+        body[data-theme="dark"] .kpi-mini-sub {
+            color: #d1d5db !important;
+        }
+
+        body[data-theme="dark"] .kpi-row strong,
+        body[data-theme="dark"] .summary-list td:last-child,
+        body[data-theme="dark"] .kpi-mini-main {
+            color: #f9fafb !important;
+        }
+
+        /* Botones */
+        body[data-theme="dark"] .tbtn {
+            background: #1f2937 !important;
+            color: #f9fafb !important;
+            border-color: #374151 !important;
+        }
+
+            body[data-theme="dark"] .tbtn:hover {
+                background: #374151 !important;
+            }
+
+            body[data-theme="dark"] .tbtn.primary {
+                background: linear-gradient(to right, #8B0000, #5a0000) !important;
+                color: #fff !important;
+                border-color: transparent !important;
+            }
+
+        body[data-theme="dark"] .tbtn-Excel {
+            background: #15803d !important;
+            color: #fff !important;
+            border-color: #166534 !important;
+        }
+
+            body[data-theme="dark"] .tbtn-Excel:hover {
+                background: #166534 !important;
+            }
+
+        /* Inputs */
+        body[data-theme="dark"] .sap-input,
+        body[data-theme="dark"] input,
+        body[data-theme="dark"] select,
+        body[data-theme="dark"] textarea {
+            background: #0f172a !important;
+            color: #f9fafb !important;
+            border-color: #4b5563 !important;
+        }
+
+            body[data-theme="dark"] .sap-input:disabled,
+            body[data-theme="dark"] .sap-input[readonly] {
+                background: #1f2937 !important;
+                color: #9ca3af !important;
+            }
+
+            body[data-theme="dark"] .sap-input:focus,
+            body[data-theme="dark"] input:focus,
+            body[data-theme="dark"] select:focus {
+                border-color: #991b1b !important;
+                box-shadow: 0 0 0 2px rgba(153,27,27,.25) !important;
+                outline: none !important;
+            }
+
+        /* Badges */
+        body[data-theme="dark"] .badge-sap {
+            background: #1f2937 !important;
+            color: #fca5a5 !important;
+            border-color: #374151 !important;
+        }
+
+        /* Tablas principales */
+        body[data-theme="dark"] .sap-table,
+        body[data-theme="dark"] .report-table,
+        body[data-theme="dark"] .summary-list {
+            background: #111827 !important;
+            color: #f9fafb !important;
+        }
+
+            body[data-theme="dark"] .sap-table th,
+            body[data-theme="dark"] .report-table th {
+                background: #1f2937 !important;
+                color: #fca5a5 !important;
+                border-bottom-color: #374151 !important;
+            }
+
+            body[data-theme="dark"] .sap-table td,
+            body[data-theme="dark"] .report-table td,
+            body[data-theme="dark"] .summary-list td {
+                background: #111827 !important;
+                color: #f9fafb !important;
+                border-bottom-color: #374151 !important;
+            }
+
+            body[data-theme="dark"] .sap-table tr:hover,
+            body[data-theme="dark"] .report-table tr:hover {
+                background: #1f2937 !important;
+            }
+
+                body[data-theme="dark"] .sap-table tr:hover td,
+                body[data-theme="dark"] .report-table tr:hover td {
+                    background: #1f2937 !important;
+                }
+
+        /* KPI */
+        body[data-theme="dark"] .kpi-card,
+        body[data-theme="dark"] .kpi-mini-card {
+            background: #111827 !important;
+        }
+
+        body[data-theme="dark"] .kpi-head {
+            border-bottom-color: #374151 !important;
+        }
+
+        body[data-theme="dark"] .kpi-row {
+            border-bottom-color: #374151 !important;
+        }
+
+        body[data-theme="dark"] .kpi-mini-foot {
+            border-top-color: #374151 !important;
+        }
+
+        body[data-theme="dark"] .kpi-mini-title {
+            color: #fca5a5 !important;
+        }
+
+        /* Modales */
+        body[data-theme="dark"] .modal-overlay {
+            background: rgba(0,0,0,.72) !important;
+        }
+
+        body[data-theme="dark"] .modal-content-sap {
+            background: #111827 !important;
+            color: #f9fafb !important;
+            border: 1px solid #374151 !important;
+            box-shadow: var(--shadow) !important;
+        }
+
+        body[data-theme="dark"] .modal-body-scroll {
+            background: #111827 !important;
+        }
+
+        body[data-theme="dark"] .modal-footer {
+            background: #1f2937 !important;
+            border-top-color: #374151 !important;
+        }
+
+        /* Loader */
+        body[data-theme="dark"] .loader-overlay {
+            background: rgba(0,0,0,.70) !important;
+        }
+
+        body[data-theme="dark"] .loader-box {
+            background: #111827 !important;
+            border-color: #374151 !important;
+            color: #f9fafb !important;
+        }
+
+        body[data-theme="dark"] .loader-texto {
+            color: #f9fafb !important;
+        }
+
+        body[data-theme="dark"] .loader-spinner {
+            border-color: #374151 !important;
+            border-top-color: #ef4444 !important;
+        }
+
+        /* Gráficas */
+        body[data-theme="dark"] canvas {
+            color-scheme: dark;
+        }
+
+        /* Total / filas generadas por JS */
+        body[data-theme="dark"] tr[style*="background:#fdfdfd"],
+        body[data-theme="dark"] tr[style*="background: #fdfdfd"] {
+            background: #1f2937 !important;
+        }
+
+        body[data-theme="dark"] td[style*="color:#555"],
+        body[data-theme="dark"] td[style*="color: #555"],
+        body[data-theme="dark"] span[style*="color:#aaa"],
+        body[data-theme="dark"] span[style*="color: #aaa"] {
+            color: #9ca3af !important;
+        }
+
+    /* Quitar flechas/spinners de inputs numéricos */
+    .sap-input[type="number"]::-webkit-outer-spin-button,
+    .sap-input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+    .sap-input[type="number"],
+    input[type="number"] {
+        -moz-appearance: textfield;
+        appearance: textfield;
+    }
+
+    .sap-input::placeholder {
+        color: #b8b8b8;
+        opacity: 1;
+        font-style: italic;
+    }
+
+    body[data-theme="dark"] .sap-input::placeholder {
+        color: #6b7280;
+    }
+
+</style>
+
+<div class="container-sap">
+
+    <div class="sap-titlebar">
+        <div>
+            <h4>Factor Crítico TIF</h4>
+            <span style="font-size: 0.92rem; color: #6c757d;">Gestión de calidad y captura de rendimientos</span>
+        </div>
+        <button type="button" class="tbtn primary" onclick="abrirModalNuevaPrueba()">
+            <i class="bi bi-plus-lg"></i> Nueva Prueba
+        </button>
+    </div>
+
+    <div class="sap-tabs">
+        <button id="btn-tab-captura" class="tab-btn active" onclick="cambiarPestana('captura')">
+            <i class=""></i> Captura de Datos
+        </button>
+        <button id="btn-tab-reportes" class="tab-btn" onclick="cambiarPestana('reportes')">
+            <i class=""></i> Reporte de Resultados
+        </button>
+        <button id="btn-tab-graficas" class="tab-btn" onclick="cambiarPestana('graficas')">
+            <i class=""></i> Gráficas
+        </button>
+    </div>
+
+    <div id="tab-captura" class="tab-content active">
+        <div class="sap-card">
+            <div class="sap-card-head">
+                <span><i class="bi bi-table" style="color: var(--primary);"></i> Lotes en Proceso</span>
+                <button class="tbtn" style="height: 28px; font-size: 0.8rem;" onclick="cargarPruebas()"><i class="bi bi-arrow-clockwise"></i> Refrescar</button>
+            </div>
+            <div style="overflow-x: auto;">
+                <table class="sap-table" id="tabla-registros-main">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Lote</th>
+                            <th>Fecha/Hora</th>
+                            <th>Usuario</th>
+                            <th style="text-align: right;">Captura de Factores</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lista-registros-body">
+                        <tr><td colspan="5" style="text-align:center;">Cargando registros...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-reportes" class="tab-content">
+        <div class="sap-card" style="padding: 1.5rem; background: #fafbfc;">
+            <div style="background: #fff; padding: 15px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 20px; display:flex; gap:15px; flex-wrap:wrap; align-items:end;">
+                <div>
+                    <label style="font-weight: bold; color: #444; display:block; margin-bottom: 5px;">Modo de reporte:</label>
+                    <select id="modoReporte" class="sap-input" style="width:220px;" onchange="cambiarModoReporte()">
+                        <option value="prueba">Por prueba</option>
+                        <option value="lote">Total por lote</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label id="lblSelectorReporte" style="font-weight: bold; color: #444; display:block; margin-bottom: 5px;">Seleccione una Prueba:</label>
+                    <select id="selectLoteReporte" class="sap-input" style="min-width: 320px;" onchange="cargarReporteSeleccion()">
+                        <option value="">-- Seleccione --</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="contenedor-reporte" style="display:none;">
+
+                <div id="resumen-indicadores" class="kpi-grid">
+                    <div class="kpi-card kpi-card-hueso">
+                        <div class="kpi-head">Huesos (Total)</div>
+                        <div class="kpi-row"><span>Kg entrada</span><strong id="kpiHuesoEntrada">0 kg</strong></div>
+                        <div class="kpi-row"><span>Kg salida</span><strong id="kpiHuesoSalida">0 kg</strong></div>
+                        <div class="kpi-row"><span>% real</span><strong id="kpiHuesoReal">0%</strong></div>
+                        <div class="kpi-row"><span>% objetivo</span><strong id="kpiHuesoObjetivo">0%</strong></div>
+                        <div class="kpi-row"><span>% diferencia</span><strong id="kpiHuesoDif">0%</strong></div>
+                    </div>
+
+                    <div class="kpi-mini-wrap">
+                        <div class="kpi-mini-card">
+                            <div class="kpi-mini-title">Recorte</div>
+                            <div class="kpi-mini-main" id="kpiRecorteReal">0%</div>
+                            <div class="kpi-mini-sub">Rendimiento real</div>
+                            <div class="kpi-mini-foot">
+                                <span>Diferencia</span>
+                                <strong id="kpiRecorteDif">0%</strong>
+                            </div>
+                            <div class="kpi-mini-foot">
+                                <span>Estatus</span>
+                                <strong id="kpiRecorteStatus">Sin datos</strong>
+                            </div>
+                        </div>
+
+                        <div class="kpi-mini-card">
+                            <div class="kpi-mini-title">Grasa</div>
+                            <div class="kpi-mini-main" id="kpiGrasaReal">0%</div>
+                            <div class="kpi-mini-sub">Rendimiento real</div>
+                            <div class="kpi-mini-foot">
+                                <span>Diferencia</span>
+                                <strong id="kpiGrasaDif">0%</strong>
+                            </div>
+                            <div class="kpi-mini-foot">
+                                <span>Estatus</span>
+                                <strong id="kpiGrasaStatus">Sin datos</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:15px;">
+                    <h5 style="margin:0; color:#333; font-weight:800;">
+                        Resultados <span style="color:#aaa;">|</span> Lote: <span id="lblLoteReporte" style="color:var(--primary);"></span>
+                    </h5>
+
+                    <button type="button" class="tbtn-Excel" id="btnExcelReporte" onclick="descargarExcelReporte()">
+                        <i class="bi bi-file-earmark-excel"></i> Excel
+                    </button>
+                </div>
+
+                <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start;">
+
+                    <div class="report-card" style="flex: 2; min-width: 450px;">
+                        <div class="report-card-header">
+                            <i class="bi bi-bone"></i> Desglose de Hueso
+                        </div>
+                        <div style="overflow-x: auto;">
+                            <table class="report-table">
+                                <thead><tr><th>Tipo</th><th>%Obj</th><th>%Part</th><th>%Dif</th><th>Kg Ent</th><th>Kg Sal</th></tr></thead>
+                                <tbody id="resumen-hueso"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="report-card" style="flex: 1; min-width: 250px;">
+                        <div class="report-card-header">
+                            <i class=""></i> Total Recorte
+                        </div>
+                        <table class="summary-list">
+                            <tbody id="resumen-recorte"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="report-card" style="flex: 1; min-width: 250px;">
+                        <div class="report-card-header">
+                            <i class=""></i> Total Grasa
+                        </div>
+                        <table class="summary-list">
+                            <tbody id="resumen-grasa"></tbody>
+                        </table>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-graficas" class="tab-content">
+        <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 20px; display:flex; gap:15px; flex-wrap:wrap; align-items:end; justify-content:space-between;">
+
+            <div style="display:flex; gap:15px; flex-wrap:wrap; align-items:end;">
+                <div>
+                    <label style="font-weight: 600; display:block; margin-bottom: 5px;">Modo de gráfica:</label>
+                    <select id="modoGrafica" class="sap-input" style="width:220px;" onchange="cambiarModoGrafica()">
+                        <option value="prueba">Por prueba</option>
+                        <option value="lote">Total por lote</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label id="lblSelectorGrafica" style="font-weight: 600; display:block; margin-bottom: 5px;">Seleccione la Prueba:</label>
+                    <select id="selectLoteGrafica" class="sap-input" style="width: 300px;" onchange="cargarGraficaSeleccion()">
+                        <option value="">-- Seleccione --</option>
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <button type="button" class="tbtn-Excel" id="btnExcelGrafica" onclick="descargarExcelGrafica()">
+                    <i class="bi bi-file-earmark-excel"></i> Excel
+                </button>
+            </div>
+
+        </div>
+
+        <div id="contenedor-grafica" style="display:none;">
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:20px;">
+
+                <div class="report-card">
+                    <div class="report-card-header">
+                        <i class="bi bi-bar-chart-line"></i> Objetivo vs Real
+                    </div>
+                    <div style="padding:18px; height:340px;">
+                        <canvas id="graficaResumenBarras"></canvas>
+                    </div>
+                </div>
+
+                <div class="report-card">
+                    <div class="report-card-header">
+                        <i class="bi bi-pie-chart"></i> Distribución Real
+                    </div>
+                    <div style="padding:18px; height:340px;">
+                        <canvas id="graficaDistribucion"></canvas>
+                    </div>
+                </div>
+
+                <div class="report-card">
+                    <div class="report-card-header">
+                        <i class="bi bi-bullseye"></i> Radar Objetivo vs Real
+                    </div>
+                    <div style="padding:18px; height:340px;">
+                        <canvas id="graficaRadar"></canvas>
+                    </div>
+                </div>
+
+                <div class="report-card">
+                    <div class="report-card-header">
+                        <i class="bi bi-arrows-expand"></i> Kg Entrada vs Salida
+                    </div>
+                    <div style="padding:18px; height:340px;">
+                        <canvas id="graficaKilos"></canvas>
+                    </div>
+                </div>
+
+                <div class="report-card">
+                    <div class="report-card-header">
+                        <i class="bi bi-activity"></i> Diferencia vs Objetivo
+                    </div>
+                    <div style="padding:18px; height:340px;">
+                        <canvas id="graficaDiferencia"></canvas>
+                    </div>
+                </div>
+
+                <div class="report-card">
+                    <div class="report-card-header">
+                        <i class="bi bi-speedometer2"></i> Cumplimiento por Factor
+                    </div>
+                    <div style="padding:18px; height:340px;">
+                        <canvas id="graficaCumplimiento"></canvas>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div id="modalNuevaPrueba" class="modal-overlay">
+    <div class="modal-content-sap modal-content-sm">
+        <div class="sap-card-head">
+            <span><i class="bi bi-plus-circle" style="color: var(--primary);"></i> Iniciar Nueva Prueba</span>
+            <button class="tbtn" style="border:none; padding:0;" onclick="cerrarModal('modalNuevaPrueba')"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="modal-body-scroll">
+            <div style="margin-bottom: 5px;">
+                <label style="font-weight: bold; display: block; margin-bottom: 5px;">Seleccione Lote Activo:</label>
+                <select id="txtNuevoLote" class="sap-input"><option value="">Cargando lotes...</option></select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="tbtn" onclick="cerrarModal('modalNuevaPrueba')">Cancelar</button>
+            <button class="tbtn primary" onclick="confirmarNuevaPrueba()" id="btnConfirmarPrueba" disabled>Crear Prueba</button>
+        </div>
+    </div>
+</div>
+
+<div id="modalHueso" class="modal-overlay">
+    <div class="modal-content-sap">
+        <div class="sap-card-head">
+            <span>
+                <i class="bi bi-bone" style="color: var(--primary);"></i>
+                Hueso - Lote: <span id="lote-hueso"></span>
+                <span class="badge-sap" id="badge-prueba-hueso" style="margin-left:8px;"></span>
+            </span>
+            <button class="tbtn" style="border:none; padding:0;" onclick="cerrarModal('modalHueso')"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="modal-body-scroll">
+            <table class="sap-table">
+                <thead><tr><th>Hueso</th><th>%Obj</th><th>%Part</th><th>%Dif</th><th>Kg Ent</th><th>Kg Sal</th><th></th></tr></thead>
+                <tbody id="tabla-hueso"></tbody>
+            </table>
+        </div>
+        <div class="modal-footer">
+            <button class="tbtn" onclick="cerrarModal('modalHueso')">Cerrar</button>
+            <button id="btnGuardarTodosHueso" class="tbtn primary" onclick="guardarTodosHueso()">Guardar todos</button>
+        </div>
+    </div>
+</div>
+
+<div id="modalRecorte" class="modal-overlay">
+    <div class="modal-content-sap">
+        <div class="sap-card-head">
+            <span>
+                <i style="color: var(--primary);"></i>
+                Recorte - Lote: <span id="lote-Recorte"></span>
+                <span class="badge-sap" id="badge-prueba-recorte" style="margin-left:8px;"></span>
+            </span>
+            <button class="tbtn" style="border:none; padding:0;" onclick="cerrarModal('modalRecorte')"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="modal-body-scroll">
+            <table class="sap-table">
+                <thead><tr><th>Receta</th><th>%Obj</th><th>%Part</th><th>%Dif</th><th>Kg Ent</th><th>Kg Sal</th></tr></thead>
+                <tbody id="tabla-Recorte"></tbody>
+            </table>
+        </div>
+        <div class="modal-footer">
+            <button class="tbtn" onclick="cerrarModal('modalRecorte')">Cerrar</button>
+            <button id="btnGuardarRecorte" class="tbtn primary" onclick="guardarRecorte()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<div id="modalGrasa" class="modal-overlay">
+    <div class="modal-content-sap">
+        <div class="sap-card-head">
+            <span>
+                <i style="color: var(--primary);"></i>
+                Grasa - Lote: <span id="lote-Grasa"></span>
+                <span class="badge-sap" id="badge-prueba-grasa" style="margin-left:8px;"></span>
+            </span>
+            <button class="tbtn" style="border:none; padding:0;" onclick="cerrarModal('modalGrasa')"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="modal-body-scroll">
+            <table class="sap-table">
+                <thead><tr><th>%Obj</th><th>%Part</th><th>%Dif</th><th>Kg Ent</th><th>Kg Sal</th></tr></thead>
+                <tbody id="tabla-Grasa"></tbody>
+            </table>
+        </div>
+        <div class="modal-footer">
+            <button class="tbtn" onclick="cerrarModal('modalGrasa')">Cerrar</button>
+            <button id="btnGuardarGrasa" class="tbtn primary" onclick="guardarGrasa()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<div id="loaderGlobal" class="loader-overlay">
+    <div class="loader-box">
+        <div class="loader-spinner"></div>
+        <div id="loaderTexto" class="loader-texto">Guardando información...</div>
+    </div>
+</div>
+
+<script src="~/lib/chartjs/chart.umd.min.js"></script>
+
+<script>
+
+    function getCsrfToken() {
+        const el = document.querySelector('#csrf-form input[name="__RequestVerificationToken"]');
+        return el ? el.value : "";
+    }
+
+    let idPruebaActual = 0;
+    let idPruebaReporteActual = 0;
+    let recetasCargadas = [];
+    let graficasReporte = {
+        barras: null,
+        distribucion: null,
+        radar: null,
+        kilos: null,
+        diferencia: null,
+        cumplimiento: null
+    };
+
+    let huesoDrafts = {};
+    let abortHuesoController = null;
+    let guardandoHueso = false;
+
+    function guardarDraftHuesoFila(tr) {
+        if (!tr) return;
+
+        const fkHueso = parseInt(tr.dataset.fkhueso) || 0;
+        if (!fkHueso) return;
+
+        const key = claveDraftHueso(idPruebaActual, fkHueso);
+
+        const inputEntrada = tr.querySelector('.kg-entrada');
+        const inputSalida = tr.querySelector('.kg-salida');
+
+        huesoDrafts[key] = {
+            kgEntrada: inputEntrada ? inputEntrada.value : "",
+            kgSalida: inputSalida ? inputSalida.value : ""
+        };
+    }
+
+    function activarCapturaHuesoOptimizada() {
+        const tbody = document.getElementById("tabla-hueso");
+        if (!tbody) return;
+
+        tbody.oninput = function (e) {
+            if (e.target.classList.contains("kg-entrada") || e.target.classList.contains("kg-salida")) {
+                guardarDraftHuesoFila(e.target.closest("tr"));
+            }
+        };
+    }
+
+    function limpiarHuesoUI() {
+        const tbody = document.getElementById("tabla-hueso");
+        if (tbody) tbody.innerHTML = "";
+
+        if (abortHuesoController) {
+            abortHuesoController.abort();
+            abortHuesoController = null;
+        }
+    }
+
+    async function fetchTifJson(url, opciones = {}) {
+        const res = await fetch(url, {
+            credentials: "same-origin",
+            ...opciones
+        });
+
+        if (res.redirected || res.status === 401 || res.status === 403) {
+            alert("Tu sesión expiró o ya no está autorizada. Recarga la página e inicia sesión nuevamente.");
+            throw new Error("Sesión expirada");
+        }
+
+        if (!res.ok) {
+            const txt = await res.text();
+            throw new Error(txt || "Error del servidor");
+        }
+
+        return await res.json();
+    }
+
+    async function fetchTifText(url, opciones = {}) {
+        const res = await fetch(url, {
+            credentials: "same-origin",
+            ...opciones
+        });
+
+        if (res.redirected || res.status === 401 || res.status === 403) {
+            alert("Tu sesión expiró o ya no está autorizada. Recarga la página e inicia sesión nuevamente.");
+            throw new Error("Sesión expirada");
+        }
+
+        if (!res.ok) {
+            const txt = await res.text();
+            throw new Error(txt || "Error del servidor");
+        }
+
+        return await res.text();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        cargarPruebas();
+        cargarRecetas();
+    });
+
+    async function cargarPruebas() {
+        const tbody = document.getElementById("lista-registros-body");
+        tbody.innerHTML = "<tr><td colspan='5' style='text-align:center;'>Cargando registros...</td></tr>";
+
+        try {
+            const data = await fetchTifJson(`/tif/pruebas/listar`);
+
+            tbody.innerHTML = "";
+
+            if (!data || data.length === 0) {
+                tbody.innerHTML = "<tr><td colspan='5' style='text-align:center; color:#999;'>No hay pruebas registradas.</td></tr>";
+                return;
+            }
+
+            data.forEach(r => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td><strong>#${r.id}</strong></td>
+                        <td>
+                            <div style="display:flex; flex-direction:column; gap:4px;">
+                                <span class="txt-lote" style="font-weight: 700; color: var(--primary);">${r.lote}</span>
+                                <span class="badge-sap" style="width:fit-content;">Prueba #${r.id}</span>
+                            </div>
+                        </td>
+                        <td><span class="badge-sap">${r.fecha}</span> <span style="font-size:0.9em; color:#999">${r.hora.split('.')[0]}</span></td>
+                        <td>${r.realiza}</td>
+                        <td style="text-align: right;">
+                            <button class="tbtn" style="height: 28px; font-size: 0.8rem;" onclick="abrirPruebaHueso(${r.id}, '${r.lote}')">Hueso</button>
+                            <button class="tbtn" style="height: 28px; font-size: 0.8rem;" onclick="abrirPruebaRecorte(${r.id}, '${r.lote}')">Recorte</button>
+                            <button class="tbtn" style="height: 28px; font-size: 0.8rem;" onclick="abrirPruebaGrasa(${r.id}, '${r.lote}')">Grasa</button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+        } catch (error) {
+            console.error("Error al cargar pruebas:", error);
+            ponerErrorEnTabla(tbody, 5, obtenerMensajeUsuario(error));
+        }
+    }
+
+    async function cargarRecetas() {
+        try {
+            recetasCargadas = await fetchTifJson(`/tif/recetas`);
+        } catch (error) {
+            console.error("Error al cargar recetas:", obtenerMensajeUsuario(error), error);
+            recetasCargadas = [];
+        }
+    }
+
+    async function abrirModalNuevaPrueba() {
+        document.getElementById("modalNuevaPrueba").style.display = "flex";
+
+        const selectLote = document.getElementById("txtNuevoLote");
+        const btnConfirmar = document.getElementById("btnConfirmarPrueba");
+
+        selectLote.innerHTML = "<option value=''>Consultando lotes...</option>";
+        btnConfirmar.disabled = true;
+
+        try {
+            const lotes = await fetchTifJson(`/tif/lotes`);
+
+            selectLote.innerHTML = "";
+
+            if (lotes && lotes.length > 0) {
+                selectLote.innerHTML = "<option value=''>-- Seleccione un Lote --</option>";
+
+                lotes.forEach(lote => {
+                    selectLote.innerHTML += `<option value="${lote}">${lote}</option>`;
+                });
+
+                selectLote.onchange = function () {
+                    btnConfirmar.disabled = !this.value;
+                };
+            } else {
+                ponerMensajeEnSelect(selectLote, "No hay lotes disponibles");
+            }
+
+        } catch (error) {
+            console.error("Error al cargar lotes:", error);
+            ponerMensajeEnSelect(selectLote, obtenerMensajeUsuario(error));
+            btnConfirmar.disabled = true;
+        }
+    }
+
+    function confirmarNuevaPrueba() {
+        const lote = document.getElementById("txtNuevoLote").value;
+        const btn = document.getElementById("btnConfirmarPrueba");
+        const select = document.getElementById("txtNuevoLote");
+
+        if (!lote) return;
+
+        // 🔒 evita doble click / spam
+        btn.innerText = "Creando...";
+        btn.disabled = true;
+        select.disabled = true;
+
+        fetch(`/tif/pruebas`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "RequestVerificationToken": getCsrfToken()
+            },
+            body: JSON.stringify({ lote })
+        })
+        .then(res => res.text())
+        .then(txt => {
+            const ok = (txt || "").trim().toLowerCase() === "true";
+
+            if (ok) {
+                // ✅ Cierra modal y refresca para que entre tu condición "en proceso"
+                cerrarModal("modalNuevaPrueba");
+                cargarPruebas();
+
+                // (opcional) limpia selección para la próxima vez
+                select.value = "";
+            } else {
+                alert("No se pudo crear la prueba (servidor respondió false).");
+                btn.disabled = false;
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Error al insertar prueba.");
+            btn.disabled = false;
+        })
+        .finally(() => {
+            // ✅ sólo resetea texto; habilitar depende del resultado (arriba)
+            btn.innerText = "Crear Prueba";
+            select.disabled = false;
+        });
+    }
+
+    function abrirPruebaGrasa(idPrueba, lote) {
+        idPruebaActual = idPrueba;
+        document.getElementById("modalGrasa").style.display = "flex";
+        document.getElementById("lote-Grasa").innerText = lote;
+        document.getElementById("badge-prueba-grasa").innerText = `Prueba #${idPrueba}`;
+        const tbody = document.getElementById("tabla-Grasa");
+        tbody.innerHTML = "<tr><td colspan='5'>Cargando...</td></tr>";
+
+        fetch(`/tif/grasa?pruebaid=${idPrueba}`)
+            .then(res => res.json())
+            .then(data => {
+                let g = (data && data.id) ? data : { id: 0, porcObjetivo: 6.5, kgEntrada: 0, kgSalida: 0, porcPartic: 0, difPorc: 0 };
+                let colorDif = obtenerColorSemaforo(g.difPorc || 0);
+                tbody.innerHTML = `
+                    <tr data-id="${g.id}">
+                        <td><span class="badge-sap">${g.porcObjetivo}%</span></td>
+                        <td>${g.porcPartic}%</td>
+                        <td style="color:${colorDif}; font-weight:bold;">${g.difPorc}%</td>
+                            <td><input type="number" class="sap-input kg-entrada" id="txtGrasaEnt" value="${(parseFloat(g.kgEntrada) || 0) === 0 ? '' : g.kgEntrada}" placeholder="0"></td>
+                            <td><input type="number" class="sap-input kg-salida" id="txtGrasaSal" value="${(parseFloat(g.kgSalida) || 0) === 0 ? '' : g.kgSalida}" placeholder="0"></td>
+                    </tr>`;
+            }).catch(() => { tbody.innerHTML = "<tr><td colspan='5'>No se pudo cargar la información.</td></tr>"; });
+    }
+
+    function guardarGrasa() {
+        const btn = document.getElementById("btnGuardarGrasa");
+        btn.innerText = "..."; btn.disabled = true;
+
+        const bodyData = {
+            id: 0, fk_Prueba: idPruebaActual, porcObjetivo: 0,
+            kgEntrada: parseFloat(document.getElementById("txtGrasaEnt")?.value) || 0,
+            kgSalida: parseFloat(document.getElementById("txtGrasaSal")?.value) || 0,
+            porcPartic: 0, difPorc: 0
+        };
+
+        fetch(`/tif/grasa`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "RequestVerificationToken": getCsrfToken()
+          },
+          body: JSON.stringify(bodyData)
+        })
+        .then(res => res.text())
+        .then(res => {
+            if(res.toLowerCase() === 'true') {
+                btn.innerText = "Ok!"; btn.style.background = "green";
+                abrirPruebaGrasa(idPruebaActual, document.getElementById("lote-Grasa").innerText);
+                setTimeout(() => { btn.innerText = "Guardar"; btn.style.background = ""; btn.disabled = false; }, 2000);
+            } else { alert("Error: El servidor rechazó los datos."); btn.innerText = "Guardar"; btn.disabled = false; }
+        })
+        .catch(error => { console.error(error); alert("Hubo un problema de red."); btn.innerText = "Guardar"; btn.disabled = false; });
+    }
+
+    function abrirPruebaRecorte(idPrueba, lote) {
+        idPruebaActual = idPrueba;
+        document.getElementById("modalRecorte").style.display = "flex";
+        document.getElementById("lote-Recorte").innerText = lote;
+        document.getElementById("badge-prueba-recorte").innerText = `Prueba #${idPrueba}`;
+        const tbody = document.getElementById("tabla-Recorte");
+        tbody.innerHTML = "<tr><td colspan='6'>Cargando...</td></tr>";
+
+        fetch(`/tif/recorte?pruebaid=${idPrueba}`)
+            .then(res => res.json())
+            .then(data => {
+                let r = (data && data.id) ? data : { id: 0, fk_Receta: 0, porcObjetivo: 0, kgEntrada: 0, kgSalida: 0, porcPartic: 0, difPorc: 0 };
+
+                let idRecetaGuardada = (r.fk_Receta || r.Fk_Receta || r.idReceta || r.recetaId || 0).toString();
+
+                let opciones = recetasCargadas.map(rec => {
+                    let seleccionado = (rec.id.toString() === idRecetaGuardada) ? "selected" : "";
+                    return `<option value="${rec.id}" ${seleccionado}>${rec.nombre} (${rec.objetivo}%)</option>`;
+                }).join('');
+
+                let colorDif = obtenerColorSemaforo(r.difPorc || 0);
+
+                tbody.innerHTML = `
+                    <tr data-id="${r.id}">
+                        <td><select class="sap-input receta-select" onchange="actualizarObjetivoRecorte(this)"><option value="0">Seleccione...</option>${opciones}</select></td>
+                        <td><span class="badge-sap">${r.porcObjetivo}%</span></td>
+                        <td>${r.porcPartic}%</td>
+                        <td style="color:${colorDif}; font-weight:bold;">${r.difPorc}%</td>
+                            <td><input type="number" class="sap-input kg-entrada" id="txtRecorteEnt" value="${(parseFloat(r.kgEntrada) || 0) === 0 ? '' : r.kgEntrada}" placeholder="0"></td>
+                            <td><input type="number" class="sap-input kg-salida" id="txtRecorteSal" value="${(parseFloat(r.kgSalida) || 0) === 0 ? '' : r.kgSalida}" placeholder="0"></td>
+                    </tr>`;
+
+
+                const selectElement = tbody.querySelector('.receta-select');
+                if(selectElement && selectElement.value !== "0") {
+                    actualizarObjetivoRecorte(selectElement);
+                }
+            }).catch(() => { tbody.innerHTML = "<tr><td colspan='6'>No se pudo cargar la información.</td></tr>"; });
+    }
+
+    function actualizarObjetivoRecorte(select) {
+        const idSeleccionado = select.value.toString();
+        const receta = recetasCargadas.find(r => r.id.toString() === idSeleccionado);
+        const tr = select.closest('tr');
+        const spanObjetivo = tr.querySelector('.badge-sap');
+
+        if (receta) {
+            spanObjetivo.innerText = `${receta.objetivo}%`;
+        } else {
+            spanObjetivo.innerText = `0%`;
+        }
+    }
+
+    function guardarRecorte() {
+        const btn = document.getElementById("btnGuardarRecorte");
+        btn.innerText = "..."; btn.disabled = true;
+
+        const idReceta = parseInt(document.querySelector('.receta-select')?.value) || 0;
+        const objText = document.querySelector('#tabla-Recorte .badge-sap')?.innerText.replace('%', '') || "0";
+
+        const bodyData = {
+            id: 0,
+            fk_Prueba: idPruebaActual,
+            fk_Receta: idReceta,
+            porcObjetivo: parseFloat(objText),
+            kgEntrada: parseFloat(document.getElementById("txtRecorteEnt")?.value) || 0,
+            kgSalida: parseFloat(document.getElementById("txtRecorteSal")?.value) || 0,
+            porcPartic: 0,
+            difPorc: 0
+        };
+
+        fetch(`/tif/recorte`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "RequestVerificationToken": getCsrfToken()
+            },
+            body: JSON.stringify(bodyData)
+        })
+        .then(res => res.text())
+        .then(res => {
+            if(res.toLowerCase() === 'true') {
+                btn.innerText = "Ok!"; btn.style.background = "green";
+                abrirPruebaRecorte(idPruebaActual, document.getElementById("lote-Recorte").innerText);
+                setTimeout(() => { btn.innerText = "Guardar"; btn.style.background = ""; btn.disabled = false; }, 2000);
+            } else { alert("Error: El servidor rechazó los datos."); btn.innerText = "Guardar"; btn.disabled = false; }
+        })
+        .catch(error => { console.error(error); alert("Hubo un problema de red."); btn.innerText = "Guardar"; btn.disabled = false; });
+    }
+
+        function numeroHueso(valor) {
+        const n = parseFloat(valor);
+        return Number.isFinite(n) ? n : 0;
+    }
+
+    function valoresIgualesHueso(a, b) {
+        return Math.abs(numeroHueso(a) - numeroHueso(b)) < 0.0001;
+    }
+
+    async function obtenerMapaHuesoServidor(idPrueba) {
+        const data = await fetchTifJson(`/tif/hueso?pruebaid=${idPrueba}&_=${Date.now()}`);
+
+        const mapa = new Map();
+
+        if (!Array.isArray(data)) return mapa;
+
+        data.forEach(h => {
+            const fkHueso = parseInt(h.fk_Hueso) || 0;
+            const id = parseInt(h.id) || 0;
+
+            if (!fkHueso) return;
+
+            // Si hay duplicados por error viejo, nos quedamos con el primer Id real.
+            if (!mapa.has(fkHueso)) {
+                mapa.set(fkHueso, h);
+                return;
+            }
+
+            const actual = mapa.get(fkHueso);
+            const idActual = parseInt(actual?.id) || 0;
+
+            if (idActual <= 0 && id > 0) {
+                mapa.set(fkHueso, h);
+            }
+        });
+
+        return mapa;
+    }
+
+    async function guardarTodosHueso() {
+        if (guardandoHueso) return;
+
+        const btn = document.getElementById("btnGuardarTodosHueso");
+        const modal = document.getElementById("modalHueso");
+        const scrollBody = modal.querySelector(".modal-body-scroll");
+        const scrollActual = scrollBody.scrollTop;
+
+        const filas = Array.from(document.querySelectorAll('#tabla-hueso tr[data-fkhueso]'));
+
+        if (filas.length === 0) {
+            alert("No hay filas de hueso para guardar.");
+            return;
+        }
+
+        guardarDraftsHuesoEnMemoria();
+
+        guardandoHueso = true;
+        btn.disabled = true;
+        btn.innerText = "Guardando...";
+        mostrarLoader("Guardando registros de hueso, por favor espere...");
+
+        const errores = [];
+        const huesosGuardados = [];
+
+        try {
+            const mapaServidor = await obtenerMapaHuesoServidor(idPruebaActual);
+
+            const filasParaGuardar = filas.filter(tr => {
+                const fkHueso = parseInt(tr.dataset.fkhueso) || 0;
+                if (!fkHueso) return false;
+
+                const kgEntrada = numeroHueso(tr.querySelector('.kg-entrada')?.value);
+                const kgSalida = numeroHueso(tr.querySelector('.kg-salida')?.value);
+
+                if (kgEntrada <= 0 && kgSalida <= 0) return false;
+
+                const existente = mapaServidor.get(fkHueso);
+                const idExistente = parseInt(existente?.id) || 0;
+
+                if (idExistente > 0) {
+                    tr.dataset.id = idExistente;
+
+                    const sinCambios =
+                        valoresIgualesHueso(kgEntrada, existente.kgEntrada) &&
+                        valoresIgualesHueso(kgSalida, existente.kgSalida);
+
+                    // Si ya existe y no cambió nada, no lo vuelvas a mandar.
+                    if (sinCambios) return false;
+                }
+
+                return true;
+            });
+
+            if (filasParaGuardar.length === 0) {
+                alert("No hay cambios nuevos para guardar.");
+                return;
+            }
+
+            for (const tr of filasParaGuardar) {
+                const fkHueso = parseInt(tr.dataset.fkhueso) || 0;
+
+                const porcObjetivoTexto =
+                    tr.querySelector('.badge-sap')?.innerText
+                        ?.replace('%', '')
+                        ?.trim() || "0";
+
+                const bodyData = {
+                    id: parseInt(tr.dataset.id) || 0,
+                    fk_Prueba: idPruebaActual,
+                    fk_Hueso: fkHueso,
+                    porcObjetivo: numeroHueso(porcObjetivoTexto),
+                    kgEntrada: numeroHueso(tr.querySelector('.kg-entrada')?.value),
+                    kgSalida: numeroHueso(tr.querySelector('.kg-salida')?.value),
+                    porcPartic: 0,
+                    difPorc: 0
+                };
+
+                try {
+                    const txt = await fetchTifText(`/tif/hueso`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "RequestVerificationToken": getCsrfToken()
+                        },
+                        body: JSON.stringify(bodyData)
+                    });
+
+                    const ok = (txt || "").trim().toLowerCase() === "true";
+
+                    if (!ok) {
+                        errores.push(`Hueso ${fkHueso}: el servidor respondió "${txt}"`);
+                    } else {
+                        huesosGuardados.push(fkHueso);
+                    }
+                } catch (errorFila) {
+                    console.error("Error guardando hueso:", fkHueso, errorFila);
+                    errores.push(`Hueso ${fkHueso}: ${errorFila.message || "error de conexión"}`);
+                }
+            }
+
+            huesosGuardados.forEach(fkHueso => {
+                limpiarDraftHuesoFila(idPruebaActual, fkHueso);
+            });
+
+            if (errores.length > 0) {
+                alert(
+                    "Algunos registros no se pudieron guardar.\n\n" +
+                    errores.join("\n") +
+                    "\n\nLos datos capturados se mantienen en pantalla para que puedas intentar de nuevo."
+                );
+                return;
+            }
+
+            btn.innerText = "¡Guardado!";
+            btn.style.background = "green";
+
+            abrirPruebaHueso(
+                idPruebaActual,
+                document.getElementById("lote-hueso").innerText,
+                scrollActual
+            );
+
+        } catch (error) {
+            console.error(error);
+
+            alert(
+                obtenerMensajeUsuario(error) +
+                "\n\nLos datos capturados se mantienen en pantalla para que puedas intentar de nuevo."
+            );
+
+        } finally {
+            ocultarLoader();
+
+            setTimeout(() => {
+                btn.innerText = "Guardar todos";
+                btn.style.background = "";
+                btn.disabled = false;
+                guardandoHueso = false;
+            }, 800);
+        }
+    }
+
+    function claveDraftHueso(idPrueba, fkHueso) {
+        return `${idPrueba}_${fkHueso}`;
+    }
+
+    function guardarDraftsHuesoEnMemoria() {
+        const filas = document.querySelectorAll('#tabla-hueso tr[data-fkhueso]');
+
+        filas.forEach(tr => {
+            const fkHueso = parseInt(tr.dataset.fkhueso) || 0;
+            if (!fkHueso) return;
+
+            const key = claveDraftHueso(idPruebaActual, fkHueso);
+
+            const inputEntrada = tr.querySelector('.kg-entrada');
+            const inputSalida = tr.querySelector('.kg-salida');
+
+            huesoDrafts[key] = {
+                kgEntrada: inputEntrada ? inputEntrada.value : "",
+                kgSalida: inputSalida ? inputSalida.value : ""
+            };
+        });
+    }
+
+    function obtenerDraftHueso(idPrueba, fkHueso) {
+        const key = claveDraftHueso(idPrueba, fkHueso);
+        return huesoDrafts[key] || null;
+    }
+
+    function limpiarDraftHuesoFila(idPrueba, fkHueso) {
+        const key = claveDraftHueso(idPrueba, fkHueso);
+        delete huesoDrafts[key];
+    }
+
+    function limpiarDraftsHuesoPrueba(idPrueba) {
+        Object.keys(huesoDrafts).forEach(key => {
+            if (key.startsWith(`${idPrueba}_`)) {
+                delete huesoDrafts[key];
+            }
+        });
+    }
+
+    function abrirPruebaHueso(idPrueba, lote, scrollGuardado = 0) {
+        idPruebaActual = idPrueba;
+
+        const modal = document.getElementById("modalHueso");
+        const scrollBody = modal.querySelector(".modal-body-scroll");
+        const tbody = document.getElementById("tabla-hueso");
+
+        modal.style.display = "flex";
+        document.getElementById("lote-hueso").innerText = lote;
+        document.getElementById("badge-prueba-hueso").innerText = `Prueba #${idPrueba}`;
+
+        tbody.innerHTML = "<tr><td colspan='7'>Cargando...</td></tr>";
+
+        if (abortHuesoController) {
+            abortHuesoController.abort();
+        }
+
+        abortHuesoController = new AbortController();
+
+        fetchTifJson(`/tif/hueso?pruebaid=${idPrueba}`, {
+            signal: abortHuesoController.signal
+        })
+            .then(data => {
+                if (!Array.isArray(data) || data.length === 0) {
+                    data = [{
+                        id: 0,
+                        fk_Hueso: 1,
+                        nombreHueso: "Nuevo Hueso",
+                        porcObjetivo: 0,
+                        kgEntrada: 0,
+                        kgSalida: 0,
+                        porcPartic: 0,
+                        difPorc: 0
+                    }];
+                }
+
+                const html = data.map(h => {
+                    const draft = obtenerDraftHueso(idPrueba, h.fk_Hueso);
+
+                const kgEntradaMostrar = draft
+                    ? draft.kgEntrada
+                    : ((parseFloat(h.kgEntrada) || 0) === 0 ? "" : h.kgEntrada);
+
+                const kgSalidaMostrar = draft
+                    ? draft.kgSalida
+                    : ((parseFloat(h.kgSalida) || 0) === 0 ? "" : h.kgSalida);
+
+                    const tieneConfirmado = (parseFloat(h.kgEntrada) || 0) > 0;
+                    const colorDif = obtenerColorSemaforo(h.difPorc || 0);
+
+                    return `
+                        <tr data-id="${h.id}" data-fkhueso="${h.fk_Hueso}" data-porcobjetivo="${h.porcObjetivo}">
+                            <td>${h.nombreHueso}</td>
+                            <td><span class="badge-sap">${h.porcObjetivo}%</span></td>
+                            <td class="td-partic">${h.porcPartic}%</td>
+                            <td class="td-dif" style="color:${colorDif}; font-weight:bold;">${h.difPorc}%</td>
+                            <td>
+                                <input
+                                    type="number"
+                                    class="sap-input kg-entrada"
+                                    value="${kgEntradaMostrar ?? ''}"
+                                    placeholder="0"
+                                    ${tieneConfirmado ? "disabled" : ""}
+                                >
+                            </td>
+                            <td>
+                                <input
+                                    type="number"
+                                    class="sap-input kg-salida"
+                                    value="${kgSalidaMostrar ?? ''}"
+                                    placeholder="0"
+                                >
+                            </td>
+                            <td>
+                                <button class="tbtn primary" style="height:28px;" onclick="guardarFilaHueso(this)">Guardar</button>
+                            </td>
+                        </tr>`;
+                }).join("");
+
+                tbody.innerHTML = html;
+
+                activarCapturaHuesoOptimizada();
+
+                requestAnimationFrame(() => {
+                    scrollBody.scrollTop = scrollGuardado;
+                });
+            })
+            .catch(error => {
+                if (error.name === "AbortError") return;
+
+                console.error("Error al cargar hueso:", error);
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" style="text-align:center; color:red; font-weight:600;">
+                            ${obtenerMensajeUsuario(error)}
+                        </td>
+                    </tr>`;
+            });
+    }
+
+    async function guardarFilaHueso(btn) {
+        if (guardandoHueso) return;
+
+        const tr = btn.closest('tr');
+        const modal = document.getElementById("modalHueso");
+        const scrollBody = modal.querySelector(".modal-body-scroll");
+        const scrollActual = scrollBody.scrollTop;
+
+        guardarDraftHuesoFila(tr);
+
+        const fkHueso = parseInt(tr.dataset.fkhueso) || 0;
+
+        if (!fkHueso) {
+            alert("No se pudo identificar el tipo de hueso.");
+            return;
+        }
+
+        guardandoHueso = true;
+        btn.innerText = "Guardando...";
+        btn.disabled = true;
+
+        try {
+            const mapaServidor = await obtenerMapaHuesoServidor(idPruebaActual);
+            const existente = mapaServidor.get(fkHueso);
+            const idExistente = parseInt(existente?.id) || 0;
+
+            if (idExistente > 0) {
+                tr.dataset.id = idExistente;
+            }
+
+            const porcObjetivoTexto =
+                tr.querySelector('.badge-sap')?.innerText
+                    ?.replace('%', '')
+                    ?.trim() || "0";
+
+            const bodyData = {
+                id: parseInt(tr.dataset.id) || 0,
+                fk_Prueba: idPruebaActual,
+                fk_Hueso: fkHueso,
+                porcObjetivo: numeroHueso(porcObjetivoTexto),
+                kgEntrada: numeroHueso(tr.querySelector('.kg-entrada')?.value),
+                kgSalida: numeroHueso(tr.querySelector('.kg-salida')?.value),
+                porcPartic: 0,
+                difPorc: 0
+            };
+
+            const res = await fetchTifText(`/tif/hueso`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "RequestVerificationToken": getCsrfToken()
+                },
+                body: JSON.stringify(bodyData)
+            });
+
+            if ((res || "").trim().toLowerCase() === "true") {
+                limpiarDraftHuesoFila(idPruebaActual, fkHueso);
+
+                btn.innerText = "Guardado";
+                btn.style.background = "green";
+
+                abrirPruebaHueso(
+                    idPruebaActual,
+                    document.getElementById("lote-hueso").innerText,
+                    scrollActual
+                );
+            } else {
+                alert("El servidor rechazó los datos.");
+                btn.innerText = "Guardar";
+                btn.disabled = false;
+            }
+
+        } catch (error) {
+            console.error(error);
+            alert("Error al guardar. Si la página estuvo abierta mucho tiempo, recarga e inicia sesión de nuevo.");
+            btn.innerText = "Guardar";
+            btn.disabled = false;
+
+        } finally {
+            setTimeout(() => {
+                guardandoHueso = false;
+            }, 500);
+        }
+    }
+
+    function cerrarModal(idModal) {
+        const loader = document.getElementById("loaderGlobal");
+        const estaCargando = loader && loader.style.display === "flex";
+
+        if (estaCargando) return;
+
+        document.getElementById(idModal).style.display = "none";
+
+        if (idModal === "modalHueso") {
+            limpiarHuesoUI();
+        }
+    }
+
+    // --- PESTAÑAS Y REPORTES ---
+    function cambiarPestana(pestana) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById(`tab-${pestana}`).classList.add('active');
+        document.getElementById(`btn-tab-${pestana}`).classList.add('active');
+
+        if (pestana === 'reportes') {
+            cambiarModoReporte();
+        }
+
+        if (pestana === 'graficas') {
+            cambiarModoGrafica();
+        }
+    }
+
+    function cargarReporteLote(idPrueba) {
+        if(!idPrueba) {
+            idPruebaReporteActual = 0;
+            document.getElementById("contenedor-reporte").style.display = "none";
+            return;
+        }
+
+        idPruebaReporteActual = idPrueba;
+
+        document.getElementById("contenedor-reporte").style.display = "block";
+        const select = document.getElementById("selectLoteReporte");
+        document.getElementById("lblLoteReporte").innerText = select.options[select.selectedIndex].text;
+
+        document.getElementById("resumen-hueso").innerHTML = "<tr><td colspan='6'>Cargando...</td></tr>";
+        document.getElementById("resumen-recorte").innerHTML = "<tr><td colspan='2'>Cargando...</td></tr>";
+        document.getElementById("resumen-grasa").innerHTML = "<tr><td colspan='2'>Cargando...</td></tr>";
+
+        [
+            "kpiHuesoEntrada", "kpiHuesoSalida", "kpiHuesoReal", "kpiHuesoObjetivo", "kpiHuesoDif",
+            "kpiRecorteReal", "kpiRecorteDif", "kpiRecorteStatus",
+            "kpiGrasaReal", "kpiGrasaDif", "kpiGrasaStatus"
+        ].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.innerText = "Cargando...";
+                el.className = "";
+            }
+        });
+
+        Promise.all([
+          fetch(`/tif/hueso?pruebaid=${idPrueba}`).then(r => r.json()).catch(() => []),
+          fetch(`/tif/recorte?pruebaid=${idPrueba}`).then(r => r.json()).catch(() => null),
+          fetch(`/tif/grasa?pruebaid=${idPrueba}`).then(r => r.json()).catch(() => null)
+        ]).then(([dataHueso, dataRecorte, dataGrasa]) => {
+
+            pintarIndicadoresReporte(dataHueso, dataRecorte, dataGrasa);
+
+            let htmlHueso = "";
+            let tEnt = 0, tSal = 0;
+            if(Array.isArray(dataHueso) && dataHueso.length > 0) {
+                dataHueso.forEach(h => {
+                    tEnt += h.kgEntrada;
+                    tSal += h.kgSalida;
+                    let colorDif = h.difPorc < 0 ? '#dc3545' : '#198754';
+                    htmlHueso += `
+                        <tr>
+                            <td style="color:#555; font-weight:600;">${h.nombreHueso}</td>
+                            <td><span class="badge-sap">${h.porcObjetivo}%</span></td>
+                            <td>${h.porcPartic}%</td>
+                            <td style="color:${colorDif}; font-weight:bold;">${h.difPorc}%</td>
+                            <td>${h.kgEntrada}</td>
+                            <td>${h.kgSalida}</td>
+                        </tr>`;
+                });
+                    htmlHueso += `<tr style="font-weight:bold; background:#fdfdfd;">
+                        <td colspan="4" style="text-align:right;">TOTAL</td>
+                        <td>${formatearKilos(tEnt)} kg</td>
+                        <td>${formatearKilos(tSal)} kg</td>
+                    </tr>`;
+            } else {
+                htmlHueso = "<tr><td colspan='6' style='text-align:center;'>Sin datos capturados</td></tr>";
+            }
+            document.getElementById("resumen-hueso").innerHTML = htmlHueso;
+
+            let r = (dataRecorte && dataRecorte.id) ? dataRecorte : { porcObjetivo: 0, porcPartic: 0, difPorc: 0, kgEntrada: 0, kgSalida: 0 };
+            let rColorDif = r.difPorc < 0 ? '#dc3545' : '#198754';
+            document.getElementById("resumen-recorte").innerHTML = `
+                <tr><td>% Objetivo</td><td><span class="badge-sap">${r.porcObjetivo}%</span></td></tr>
+                <tr><td>% Participación</td><td>${r.porcPartic}%</td></tr>
+                <tr><td>% Diferencia</td><td style="color:${rColorDif}; font-weight:bold;">${r.difPorc}%</td></tr>
+                <tr><td>Kg Entrada</td><td><strong>${r.kgEntrada} kg</strong></td></tr>
+                <tr><td>Kg Salida</td><td><strong>${r.kgSalida} kg</strong></td></tr>
+            `;
+
+            let g = (dataGrasa && dataGrasa.id) ? dataGrasa : { porcObjetivo: 0, porcPartic: 0, difPorc: 0, kgEntrada: 0, kgSalida: 0 };
+            let gColorDif = g.difPorc < 0 ? '#dc3545' : '#198754';
+            document.getElementById("resumen-grasa").innerHTML = `
+                <tr><td>% Objetivo</td><td><span class="badge-sap">${g.porcObjetivo}%</span></td></tr>
+                <tr><td>% Participación</td><td>${g.porcPartic}%</td></tr>
+                <tr><td>% Diferencia</td><td style="color:${gColorDif}; font-weight:bold;">${g.difPorc}%</td></tr>
+                <tr><td>Kg Entrada</td><td><strong>${g.kgEntrada} kg</strong></td></tr>
+                <tr><td>Kg Salida</td><td><strong>${g.kgSalida} kg</strong></td></tr>
+            `;
+        });
+    }
+
+
+    function cargarGraficaLote(idPrueba) {
+            if(!idPrueba) {
+                document.getElementById("contenedor-grafica").style.display = "none";
+                destruirGraficasReporte();
+                return;
+            }
+
+            document.getElementById("contenedor-grafica").style.display = "block";
+
+            Promise.all([
+                fetch(`/tif/hueso?pruebaid=${idPrueba}`).then(r => r.json()).catch(() => []),
+                fetch(`/tif/recorte?pruebaid=${idPrueba}`).then(r => r.json()).catch(() => null),
+                fetch(`/tif/grasa?pruebaid=${idPrueba}`).then(r => r.json()).catch(() => null)
+            ]).then(([dataHueso, dataRecorte, dataGrasa]) => {
+                dibujarGraficaReporte(dataHueso, dataRecorte, dataGrasa);
+            });
+        }
+
+    function destruirGraficasReporte() {
+        Object.keys(graficasReporte).forEach(key => {
+            if (graficasReporte[key]) {
+                graficasReporte[key].destroy();
+                graficasReporte[key] = null;
+            }
+        });
+    }
+
+    function obtenerDatosGraficas(dataHueso, dataRecorte, dataGrasa) {
+        const OBJETIVO_HUESO_TOTAL = 5.5;
+
+        let kgEntHueso = 0;
+        let kgSalHueso = 0;
+
+        let listaHuesos = Array.isArray(dataHueso)
+            ? dataHueso
+            : (dataHueso?.data || []);
+
+        if (listaHuesos.length > 0) {
+            listaHuesos.forEach(h => {
+                kgEntHueso += parseFloat(h.kgEntrada || 0);
+                kgSalHueso += parseFloat(h.kgSalida || 0);
+            });
+        }
+
+        let particHueso = kgEntHueso > 0
+            ? (kgSalHueso / kgEntHueso) * 100
+            : 0;
+
+        const objRecorte = parseFloat(dataRecorte?.porcObjetivo || 0);
+        const particRecorte = parseFloat(dataRecorte?.porcPartic || 0);
+        const kgEntRecorte = parseFloat(dataRecorte?.kgEntrada || 0);
+        const kgSalRecorte = parseFloat(dataRecorte?.kgSalida || 0);
+
+        const objGrasa = parseFloat(dataGrasa?.porcObjetivo || 0);
+        const particGrasa = parseFloat(dataGrasa?.porcPartic || 0);
+        const kgEntGrasa = parseFloat(dataGrasa?.kgEntrada || 0);
+        const kgSalGrasa = parseFloat(dataGrasa?.kgSalida || 0);
+
+        const diferencias = [
+            +(particHueso - OBJETIVO_HUESO_TOTAL).toFixed(2),
+            +(particRecorte - objRecorte).toFixed(2),
+            +(particGrasa - objGrasa).toFixed(2)
+        ];
+
+        return {
+            labels: ['Huesos (Total)', 'Recorte', 'Grasa'],
+            objetivo: [OBJETIVO_HUESO_TOTAL, objRecorte, objGrasa],
+            real: [
+                +particHueso.toFixed(2),
+                +particRecorte.toFixed(2),
+                +particGrasa.toFixed(2)
+            ],
+            kilosEntrada: [
+                +kgEntHueso.toFixed(2),
+                +kgEntRecorte.toFixed(2),
+                +kgEntGrasa.toFixed(2)
+            ],
+            kilosSalida: [
+                +kgSalHueso.toFixed(2),
+                +kgSalRecorte.toFixed(2),
+                +kgSalGrasa.toFixed(2)
+            ],
+            diferencias: diferencias
+        };
+    }
+
+    function formatearNumero(valor, decimales = 2) {
+        return (parseFloat(valor) || 0).toFixed(decimales);
+    }
+
+    function formatearKilos(valor) {
+        return (parseFloat(valor) || 0).toFixed(2);
+    }
+
+    function obtenerClaseDiferencia(valor) {
+        const abs = Math.abs(parseFloat(valor) || 0);
+
+        if (abs <= 1) return "kpi-status-ok";
+        if (abs <= 3) return "kpi-status-warn";
+        return "kpi-status-bad";
+    }
+
+    function obtenerTextoEstatus(valor) {
+        const abs = Math.abs(parseFloat(valor) || 0);
+
+        if (abs <= 1) return { texto: "En objetivo", clase: "kpi-status-ok" };
+        if (abs <= 3) return { texto: "En rango", clase: "kpi-status-warn" };
+        return { texto: "Fuera de rango", clase: "kpi-status-bad" };
+    }
+
+    function pintarIndicadoresReporte(dataHueso, dataRecorte, dataGrasa) {
+        const datos = obtenerDatosGraficas(dataHueso, dataRecorte, dataGrasa);
+
+        // Huesos (completo)
+        document.getElementById("kpiHuesoEntrada").innerText = `${formatearNumero(datos.kilosEntrada[0])} kg`;
+        document.getElementById("kpiHuesoSalida").innerText = `${formatearNumero(datos.kilosSalida[0])} kg`;
+        document.getElementById("kpiHuesoReal").innerText = `${formatearNumero(datos.real[0])}%`;
+        document.getElementById("kpiHuesoObjetivo").innerText = `${formatearNumero(datos.objetivo[0])}%`;
+        document.getElementById("kpiHuesoDif").innerText = `${formatearNumero(datos.diferencias[0])}%`;
+        document.getElementById("kpiHuesoDif").className = obtenerClaseDiferencia(datos.diferencias[0]);
+
+        // Recorte (mini)
+        const estatusRecorte = obtenerTextoEstatus(datos.diferencias[1]);
+        document.getElementById("kpiRecorteReal").innerText = `${formatearNumero(datos.real[1])}%`;
+        document.getElementById("kpiRecorteDif").innerText = `${formatearNumero(datos.diferencias[1])}%`;
+        document.getElementById("kpiRecorteDif").className = obtenerClaseDiferencia(datos.diferencias[1]);
+        document.getElementById("kpiRecorteStatus").innerText = estatusRecorte.texto;
+        document.getElementById("kpiRecorteStatus").className = estatusRecorte.clase;
+
+        // Grasa (mini)
+        const estatusGrasa = obtenerTextoEstatus(datos.diferencias[2]);
+        document.getElementById("kpiGrasaReal").innerText = `${formatearNumero(datos.real[2])}%`;
+        document.getElementById("kpiGrasaDif").innerText = `${formatearNumero(datos.diferencias[2])}%`;
+        document.getElementById("kpiGrasaDif").className = obtenerClaseDiferencia(datos.diferencias[2]);
+        document.getElementById("kpiGrasaStatus").innerText = estatusGrasa.texto;
+        document.getElementById("kpiGrasaStatus").className = estatusGrasa.clase;
+    }
+
+    function dibujarGraficaReporte(dataHueso, dataRecorte, dataGrasa) {
+        destruirGraficasReporte();
+
+        const datos = obtenerDatosGraficas(dataHueso, dataRecorte, dataGrasa);
+
+    const ctxBarras = document.getElementById('graficaResumenBarras')?.getContext('2d');
+    const ctxDistribucion = document.getElementById('graficaDistribucion')?.getContext('2d');
+    const ctxRadar = document.getElementById('graficaRadar')?.getContext('2d');
+    const ctxKilos = document.getElementById('graficaKilos')?.getContext('2d');
+    const ctxDiferencia = document.getElementById('graficaDiferencia')?.getContext('2d');
+    const ctxCumplimiento = document.getElementById('graficaCumplimiento')?.getContext('2d');
+
+    if (!ctxBarras || !ctxDistribucion || !ctxRadar || !ctxKilos || !ctxDiferencia || !ctxCumplimiento) return;
+
+    graficasReporte.barras = new Chart(ctxBarras, {
+        type: 'line',
+        data: {
+            labels: datos.labels,
+            datasets: [
+                {
+                    label: '% Objetivo',
+                    data: datos.objetivo,
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.18)',
+                    borderWidth: 3,
+                    fill: false,
+                    tension: 0.25,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                },
+                {
+                    label: '% Real',
+                    data: datos.real,
+                    borderColor: 'rgba(25, 135, 84, 1)',
+                    backgroundColor: 'rgba(25, 135, 84, 0.18)',
+                    borderWidth: 3,
+                    fill: false,
+                    tension: 0.25,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'Porcentaje (%)' }
+                }
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Comportamiento de objetivo vs real'
+                }
+            }
+        }
+    });
+
+        graficasReporte.distribucion = new Chart(ctxDistribucion, {
+            type: 'doughnut',
+            data: {
+                labels: datos.labels,
+                datasets: [{
+                    label: '% Real',
+                    data: datos.real,
+                    backgroundColor: [
+                        'rgba(54, 162, 235, 0.75)',
+                        'rgba(255, 193, 7, 0.75)',
+                        'rgba(25, 135, 84, 0.75)'
+                    ],
+                    borderColor: [
+                        'rgba(54, 162, 235, 1)',
+                        'rgba(255, 193, 7, 1)',
+                        'rgba(25, 135, 84, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Distribución de participación real'
+                    },
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+
+        graficasReporte.radar = new Chart(ctxRadar, {
+            type: 'radar',
+            data: {
+                labels: datos.labels,
+                datasets: [
+                    {
+                        label: '% Objetivo',
+                        data: datos.objetivo,
+                        backgroundColor: 'rgba(54, 162, 235, 0.20)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 2
+                    },
+                    {
+                        label: '% Real',
+                        data: datos.real,
+                        backgroundColor: 'rgba(220, 53, 69, 0.20)',
+                        borderColor: 'rgba(220, 53, 69, 1)',
+                        borderWidth: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    r: {
+                        beginAtZero: true
+                    }
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Radar de rendimiento'
+                    }
+                }
+            }
+        });
+
+        graficasReporte.kilos = new Chart(ctxKilos, {
+            type: 'bar',
+            data: {
+                labels: datos.labels,
+                datasets: [
+                    {
+                        label: 'Kg Entrada',
+                        data: datos.kilosEntrada,
+                        backgroundColor: [
+                            'rgba(111, 66, 193, 0.70)',
+                            'rgba(111, 66, 193, 0.70)',
+                            'rgba(111, 66, 193, 0.70)'
+                        ],
+                        borderColor: [
+                            'rgba(111, 66, 193, 1)',
+                            'rgba(111, 66, 193, 1)',
+                            'rgba(111, 66, 193, 1)'
+                        ],
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'Kg Salida',
+                        data: datos.kilosSalida,
+                        backgroundColor: [
+                            'rgba(253, 126, 20, 0.70)',
+                            'rgba(253, 126, 20, 0.70)',
+                            'rgba(253, 126, 20, 0.70)'
+                        ],
+                        borderColor: [
+                            'rgba(253, 126, 20, 1)',
+                            'rgba(253, 126, 20, 1)',
+                            'rgba(253, 126, 20, 1)'
+                        ],
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Kilogramos' }
+                    }
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Entrada vs salida en kilos'
+                    }
+                }
+            }
+        });
+
+    const bordesDiferencia = datos.diferencias.map(d => {
+        const distancia = Math.abs(d);
+        if (distancia <= 1.0) return 'rgba(25, 135, 84, 1)';
+        if (distancia <= 3.0) return 'rgba(253, 126, 20, 1)';
+        return 'rgba(220, 53, 69, 1)';
+    });
+
+    const puntosDiferencia = datos.labels.map((label, i) => ({
+        x: label,
+        y: datos.diferencias[i]
+    }));
+
+    const coloresDiferencia = datos.diferencias.map(d => {
+        const distancia = Math.abs(d);
+        if (distancia <= 1.0) return 'rgba(25, 135, 84, 0.90)';
+        if (distancia <= 3.0) return 'rgba(255, 193, 7, 0.90)';
+        return 'rgba(220, 53, 69, 0.90)';
+    });
+
+    graficasReporte.diferencia = new Chart(ctxDiferencia, {
+        type: 'scatter',
+        data: {
+            datasets: [
+                {
+                    label: 'Diferencia %',
+                    data: puntosDiferencia,
+                    backgroundColor: coloresDiferencia,
+                    borderColor: coloresDiferencia,
+                    pointRadius: 7,
+                    pointHoverRadius: 9
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    type: 'category',
+                    labels: datos.labels,
+                    title: {
+                        display: true,
+                        text: 'Factor'
+                    }
+                },
+                y: {
+                    beginAtZero: false,
+                    title: {
+                        display: true,
+                        text: 'Diferencia (%)'
+                    },
+                    grid: {
+                        color: (ctx) => ctx.tick.value === 0 ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.08)'
+                    }
+                }
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Desviación puntual contra objetivo'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `Diferencia: ${context.raw.y}%`;
+                        }
+                    }
+                },
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+
+    const datosCumplimiento = datos.real.map((real, i) => {
+        const objetivo = parseFloat(datos.objetivo[i]) || 0;
+        if (objetivo <= 0) return 0;
+        return parseFloat(((real / objetivo) * 100).toFixed(2));
+    });
+
+    const coloresCumplimiento = datosCumplimiento.map(v => {
+        if (v >= 100) return 'rgba(25, 135, 84, 0.80)';
+        if (v >= 90) return 'rgba(255, 193, 7, 0.80)';
+        return 'rgba(220, 53, 69, 0.80)';
+    });
+
+    graficasReporte.cumplimiento = new Chart(ctxCumplimiento, {
+        type: 'bar',
+        data: {
+            labels: datos.labels,
+            datasets: [
+                {
+                    label: 'Cumplimiento %',
+                    data: datosCumplimiento,
+                    backgroundColor: coloresCumplimiento,
+                    borderColor: coloresCumplimiento.map(c => c.replace('0.80', '1')),
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Cumplimiento (%)'
+                    }
+                }
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Cumplimiento por factor'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.raw}% de cumplimiento`;
+                        }
+                    }
+                },
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+
+    }
+
+    function descargarExcelReporte() {
+        if (!idPruebaReporteActual) {
+            alert("Primero selecciona una prueba para generar el Excel.");
+            return;
+        }
+
+        const btn = document.getElementById("btnExcelReporte");
+        const textoOriginal = btn.innerHTML;
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generando...';
+
+        const url = `/tif/reportes/excel?pruebaid=${idPruebaReporteActual}`;
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
+        setTimeout(() => {
+            btn.disabled = false;
+            btn.innerHTML = textoOriginal;
+        }, 1200);
+    }
+
+    function descargarExcelGrafica() {
+        const modo = document.getElementById("modoGrafica").value;
+        const valor = document.getElementById("selectLoteGrafica").value;
+
+        if (!valor) {
+            alert("Seleccione primero una prueba o un lote.");
+            return;
+        }
+
+        const btn = document.getElementById("btnExcelGrafica");
+        const textoOriginal = btn.innerHTML;
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generando...';
+
+        let url = "";
+
+        if (modo === "prueba") {
+            url = `/tif/reportes/excel?pruebaid=${encodeURIComponent(valor)}`;
+        } else {
+            url = `/tif/reportes/excel-lote?lote=${encodeURIComponent(valor)}`;
+        }
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
+        setTimeout(() => {
+            btn.disabled = false;
+            btn.innerHTML = textoOriginal;
+        }, 1200);
+    }
+
+    function obtenerColorSemaforo(diferencia) {
+            const distancia = Math.abs(diferencia);
+            if (distancia <= 1.0) return '#198754'; // Verde
+            else if (distancia <= 3.0) return '#fd7e14'; // Naranja
+            else return '#dc3545'; // Rojo
+        }
+
+    function mostrarLoader(texto = "Procesando...") {
+        const loader = document.getElementById("loaderGlobal");
+        const loaderTexto = document.getElementById("loaderTexto");
+
+        if (loaderTexto) {
+            loaderTexto.innerText = texto;
+        }
+
+        if (loader) {
+            loader.style.display = "flex";
+        }
+
+        document.body.style.overflow = "hidden";
+    }
+
+    function ocultarLoader() {
+        const loader = document.getElementById("loaderGlobal");
+        if (loader) {
+            loader.style.display = "none";
+        }
+
+        document.body.style.overflow = "";
+    }
+
+    function obtenerPruebasDesdeTabla() {
+        const pruebas = [];
+
+        document.querySelectorAll("#lista-registros-body tr").forEach(fila => {
+            const idTD = fila.querySelector("td strong");
+            const loteSpan = fila.querySelector(".txt-lote");
+
+            if (idTD && loteSpan) {
+                const id = idTD.innerText.replace('#', '').trim();
+                const lote = loteSpan.innerText.trim();
+
+                pruebas.push({ id, lote });
+            }
+        });
+
+        return pruebas;
+    }
+
+    function obtenerLotesUnicosDesdeTabla() {
+        const pruebas = obtenerPruebasDesdeTabla();
+        const mapa = new Map();
+
+        pruebas.forEach(p => {
+            if (!mapa.has(p.lote)) {
+                mapa.set(p.lote, p.lote);
+            }
+        });
+
+        return Array.from(mapa.values());
+    }
+
+    function cambiarModoReporte() {
+        const modo = document.getElementById("modoReporte").value;
+        const select = document.getElementById("selectLoteReporte");
+        const lbl = document.getElementById("lblSelectorReporte");
+
+        select.innerHTML = "<option value=''>-- Seleccione --</option>";
+        document.getElementById("contenedor-reporte").style.display = "none";
+
+        if (modo === "prueba") {
+            lbl.innerText = "Seleccione una Prueba:";
+            const pruebas = obtenerPruebasDesdeTabla();
+
+            pruebas.forEach(p => {
+                select.innerHTML += `<option value="${p.id}">${p.lote} | Prueba #${p.id}</option>`;
+            });
+        } else {
+            lbl.innerText = "Seleccione un Lote:";
+            const lotes = obtenerLotesUnicosDesdeTabla();
+
+            lotes.forEach(lote => {
+                select.innerHTML += `<option value="${lote}">${lote}</option>`;
+            });
+        }
+    }
+
+    function cargarReporteSeleccion() {
+        const modo = document.getElementById("modoReporte").value;
+        const valor = document.getElementById("selectLoteReporte").value;
+
+        if (!valor) {
+            idPruebaReporteActual = 0;
+            document.getElementById("contenedor-reporte").style.display = "none";
+            return;
+        }
+
+        if (modo === "prueba") {
+            cargarReporteLote(valor);
+        } else {
+            cargarReportePorLote(valor);
+        }
+    }
+
+
+    function cambiarModoGrafica() {
+        const modo = document.getElementById("modoGrafica").value;
+        const select = document.getElementById("selectLoteGrafica");
+        const lbl = document.getElementById("lblSelectorGrafica");
+
+        select.innerHTML = "<option value=''>-- Seleccione --</option>";
+        document.getElementById("contenedor-grafica").style.display = "none";
+
+        if (modo === "prueba") {
+            lbl.innerText = "Seleccione la Prueba:";
+            const pruebas = obtenerPruebasDesdeTabla();
+
+            pruebas.forEach(p => {
+                select.innerHTML += `<option value="${p.id}">${p.lote} | Prueba #${p.id}</option>`;
+            });
+        } else {
+            lbl.innerText = "Seleccione el Lote:";
+            const lotes = obtenerLotesUnicosDesdeTabla();
+
+            lotes.forEach(lote => {
+                select.innerHTML += `<option value="${lote}">${lote}</option>`;
+            });
+        }
+        document.getElementById("btnExcelGrafica").disabled = true;
+    }
+
+    function cargarGraficaSeleccion() {
+        const modo = document.getElementById("modoGrafica").value;
+        const valor = document.getElementById("selectLoteGrafica").value;
+
+    if (!valor) {
+        document.getElementById("contenedor-grafica").style.display = "none";
+        destruirGraficasReporte();
+        return;
+    }
+
+        if (modo === "prueba") {
+            cargarGraficaLote(valor);
+        } else {
+            cargarGraficaPorLote(valor);
+        }
+
+        document.getElementById("btnExcelGrafica").disabled = !valor;
+    }
+
+    function normalizarObjetivoTotal(obj, objetivoFijo = null) {
+        let objetivo = parseFloat(obj?.porcObjetivo || 0);
+
+        if (objetivoFijo !== null) {
+            objetivo = objetivoFijo;
+        }
+
+        return {
+            ...obj,
+            porcObjetivo: objetivo,
+            porcPartic: parseFloat(obj?.porcPartic || 0),
+            kgEntrada: parseFloat(obj?.kgEntrada || 0),
+            kgSalida: parseFloat(obj?.kgSalida || 0),
+            difPorc: +(parseFloat(obj?.porcPartic || 0) - objetivo).toFixed(2)
+        };
+    }
+
+    function cargarReportePorLote(lote) {
+        if (!lote) {
+            document.getElementById("contenedor-reporte").style.display = "none";
+            return;
+        }
+
+        document.getElementById("contenedor-reporte").style.display = "block";
+        document.getElementById("lblLoteReporte").innerText = `${lote} | Total por lote`;
+
+        document.getElementById("resumen-hueso").innerHTML = "<tr><td colspan='6'>Cargando.</td></tr>";
+        document.getElementById("resumen-recorte").innerHTML = "<tr><td colspan='2'>Cargando.</td></tr>";
+        document.getElementById("resumen-grasa").innerHTML = "<tr><td colspan='2'>Cargando.</td></tr>";
+
+        [
+            "kpiHuesoEntrada", "kpiHuesoSalida", "kpiHuesoReal", "kpiHuesoObjetivo", "kpiHuesoDif",
+            "kpiRecorteReal", "kpiRecorteDif", "kpiRecorteStatus",
+            "kpiGrasaReal", "kpiGrasaDif", "kpiGrasaStatus"
+        ].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.innerText = "Cargando.";
+                el.className = "";
+            }
+        });
+
+        fetch(`/tif/resumen/lote?lote=${encodeURIComponent(lote)}`)
+            .then(r => r.json())
+            .then(data => {
+
+                let htmlHueso = "";
+                let tEnt = 0, tSal = 0;
+
+                if (Array.isArray(data.hueso) && data.hueso.length > 0) {
+                    data.hueso.forEach(h => {
+                        const kgEntrada = parseFloat(h.kgEntrada || 0);
+                        const kgSalida = parseFloat(h.kgSalida || 0);
+                        const porcObjetivo = parseFloat(h.porcObjetivo || 0);
+                        const porcPartic = parseFloat(h.porcPartic || 0);
+                        const difPorc = parseFloat(h.difPorc || 0);
+
+                        tEnt += kgEntrada;
+                        tSal += kgSalida;
+
+                        let colorDif = difPorc < 0 ? '#dc3545' : '#198754';
+
+                        htmlHueso += `
+                            <tr>
+                                <td style="color:#555; font-weight:600;">${h.nombreHueso}</td>
+                                <td><span class="badge-sap">${porcObjetivo}%</span></td>
+                                <td>${porcPartic}%</td>
+                                <td style="color:${colorDif}; font-weight:bold;">${difPorc}%</td>
+                                <td>${kgEntrada}</td>
+                                <td>${kgSalida}</td>
+                            </tr>`;
+                    });
+
+                        htmlHueso += `
+                            <tr style="font-weight:bold; background:#fdfdfd;">
+                                <td colspan="4" style="text-align:right;">TOTAL</td>
+                                <td>${formatearKilos(tEnt)} kg</td>
+                                <td>${formatearKilos(tSal)} kg</td>
+                            </tr>`;
+                } else {
+                    htmlHueso = "<tr><td colspan='6' style='text-align:center;'>Sin datos capturados</td></tr>";
+                }
+
+                document.getElementById("resumen-hueso").innerHTML = htmlHueso;
+
+                // ✅ TOTAL POR LOTE:
+                // NO se deben sumar los objetivos de Recorte ni de Grasa.
+                // Se toma un solo objetivo base.
+                let rBase = data.recorte || {};
+                let gBase = data.grasa || {};
+
+                let r = {
+                    porcObjetivo: parseFloat(rBase.porcObjetivo || 0),
+                    porcPartic: parseFloat(rBase.porcPartic || 0),
+                    kgEntrada: parseFloat(rBase.kgEntrada || 0),
+                    kgSalida: parseFloat(rBase.kgSalida || 0),
+                    difPorc: 0
+                };
+
+                let g = {
+                    // Si backend no manda objetivo, por defecto grasa usa 6.5
+                    porcObjetivo: parseFloat(gBase.porcObjetivo || 6.5),
+                    porcPartic: parseFloat(gBase.porcPartic || 0),
+                    kgEntrada: parseFloat(gBase.kgEntrada || 0),
+                    kgSalida: parseFloat(gBase.kgSalida || 0),
+                    difPorc: 0
+                };
+
+                // ✅ recalcular diferencia con objetivo NO sumado
+                r.difPorc = +(r.porcPartic - r.porcObjetivo).toFixed(2);
+                g.difPorc = +(g.porcPartic - g.porcObjetivo).toFixed(2);
+
+                // ✅ pintar KPIs ya con los datos corregidos
+                pintarIndicadoresReporte(data.hueso || [], r, g);
+
+                let rColorDif = r.difPorc < 0 ? '#dc3545' : '#198754';
+                document.getElementById("resumen-recorte").innerHTML = `
+                    <tr><td>% Objetivo</td><td><span class="badge-sap">${r.porcObjetivo}%</span></td></tr>
+                    <tr><td>% Participación</td><td>${r.porcPartic}%</td></tr>
+                    <tr><td>% Diferencia</td><td style="color:${rColorDif}; font-weight:bold;">${r.difPorc}%</td></tr>
+                    <tr><td>Kg Entrada</td><td><strong>${r.kgEntrada} kg</strong></td></tr>
+                    <tr><td>Kg Salida</td><td><strong>${r.kgSalida} kg</strong></td></tr>
+                `;
+
+                let gColorDif = g.difPorc < 0 ? '#dc3545' : '#198754';
+                document.getElementById("resumen-grasa").innerHTML = `
+                    <tr><td>% Objetivo</td><td><span class="badge-sap">${g.porcObjetivo}%</span></td></tr>
+                    <tr><td>% Participación</td><td>${g.porcPartic}%</td></tr>
+                    <tr><td>% Diferencia</td><td style="color:${gColorDif}; font-weight:bold;">${g.difPorc}%</td></tr>
+                    <tr><td>Kg Entrada</td><td><strong>${g.kgEntrada} kg</strong></td></tr>
+                    <tr><td>Kg Salida</td><td><strong>${g.kgSalida} kg</strong></td></tr>
+                `;
+            })
+            .catch(err => {
+                console.error("Error resumen lote:", err);
+
+                document.getElementById("resumen-hueso").innerHTML =
+                    "<tr><td colspan='6' style='text-align:center; color:red;'>No se pudo cargar la información.</td></tr>";
+
+                document.getElementById("resumen-recorte").innerHTML =
+                    "<tr><td colspan='2' style='text-align:center; color:red;'>No se pudo cargar.</td></tr>";
+
+                document.getElementById("resumen-grasa").innerHTML =
+                    "<tr><td colspan='2' style='text-align:center; color:red;'>No se pudo cargar.</td></tr>";
+            });
+    }
+
+    function cargarGraficaPorLote(lote) {
+        if (!lote) {
+            document.getElementById("contenedor-grafica").style.display = "none";
+            destruirGraficasReporte();
+            return;
+        }
+
+        document.getElementById("contenedor-grafica").style.display = "block";
+
+        fetch(`/tif/resumen/lote?lote=${encodeURIComponent(lote)}`)
+            .then(r => r.json())
+            .then(data => {
+                dibujarGraficaReporte(data.hueso || [], data.recorte || null, data.grasa || null);
+            })
+            .catch(error => {
+                console.error(error);
+                document.getElementById("contenedor-grafica").style.display = "none";
+                alert("No se pudo cargar la gráfica por lote.");
+            });
+    }
+
+        function crearFetchConTimeout(ms = 30000) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort("timeout"), ms);
+
+        return {
+            controller,
+            signal: controller.signal,
+            clear: () => clearTimeout(timeoutId)
+        };
+    }
+
+    function crearErrorApp(mensaje, status = 0, code = "") {
+        const err = new Error(mensaje || "Ocurrió un error inesperado.");
+        err.status = status;
+        err.code = code;
+        return err;
+    }
+
+    function obtenerMensajeUsuario(error) {
+        if (!error) {
+            return "Ocurrió un error inesperado.";
+        }
+
+        if (error.code === "SESSION_EXPIRED" || error.status === 401 || error.status === 403) {
+            return "Tu sesión expiró o no tienes autorización. Vuelve a iniciar sesión para continuar.";
+        }
+
+        if (error.code === "TIMEOUT" || error.status === 504) {
+            return "La solicitud tardó demasiado en responder. Puede ser lentitud de la red local o que la API interna TIF no respondió a tiempo.";
+        }
+
+        if (error.code === "API_UNAVAILABLE" || error.status === 503) {
+            return "No se pudo establecer comunicación con la API interna TIF. Puede estar detenida, caída o inaccesible desde el servidor.";
+        }
+
+        if (error.code === "NETWORK_ERROR") {
+            return "No se pudo conectar con el servidor de la aplicación. Revisa la red local o la disponibilidad del servidor.";
+        }
+
+        if (error.status === 500) {
+            return error.message || "El servidor devolvió un error interno inesperado.";
+        }
+
+        if (error.name === "AbortError") {
+            return "La operación fue cancelada.";
+        }
+
+        return error.message || "Ocurrió un error inesperado.";
+    }
+
+    function ponerErrorEnTabla(tbody, colspan, mensaje) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="${colspan}" style="text-align:center; color:red; font-weight:600;">
+                    ${mensaje}
+                </td>
+            </tr>`;
+    }
+
+    function ponerMensajeEnSelect(select, mensaje) {
+        select.innerHTML = `<option value="">${mensaje}</option>`;
+    }
+
+    async function fetchTifJson(url, opciones = {}) {
+        const timeout = crearFetchConTimeout(30000);
+        const signalExterna = opciones.signal || null;
+
+        if (signalExterna) {
+            if (signalExterna.aborted) {
+                timeout.controller.abort("externo");
+            } else {
+                signalExterna.addEventListener("abort", () => {
+                    timeout.controller.abort("externo");
+                }, { once: true });
+            }
+        }
+
+        try {
+            const res = await fetch(url, {
+                credentials: "same-origin",
+                ...opciones,
+                signal: timeout.signal
+            });
+
+            if (res.redirected || res.status === 401 || res.status === 403) {
+                throw crearErrorApp(
+                    "Tu sesión expiró o ya no está autorizada.",
+                    res.status,
+                    "SESSION_EXPIRED"
+                );
+            }
+
+            if (!res.ok) {
+                const txt = await res.text();
+
+                if (res.status === 503) {
+                    throw crearErrorApp(
+                        txt || "No se pudo establecer comunicación con la API interna TIF.",
+                        503,
+                        "API_UNAVAILABLE"
+                    );
+                }
+
+                if (res.status === 504) {
+                    throw crearErrorApp(
+                        txt || "La API interna TIF tardó demasiado en responder.",
+                        504,
+                        "TIMEOUT"
+                    );
+                }
+
+                throw crearErrorApp(
+                    txt || `Error del servidor (${res.status})`,
+                    res.status,
+                    "HTTP_ERROR"
+                );
+            }
+
+            return await res.json();
+
+        } catch (error) {
+            if (error.name === "AbortError") {
+                if (signalExterna && signalExterna.aborted) {
+                    throw error;
+                }
+
+                throw crearErrorApp(
+                    "La solicitud tardó demasiado. Puede ser lentitud de red local o API interna sin respuesta.",
+                    504,
+                    "TIMEOUT"
+                );
+            }
+
+            if (error instanceof TypeError) {
+                throw crearErrorApp(
+                    "No se pudo conectar con el servidor de la aplicación.",
+                    0,
+                    "NETWORK_ERROR"
+                );
+            }
+
+            throw error;
+
+        } finally {
+            timeout.clear();
+        }
+    }
+
+    async function fetchTifText(url, opciones = {}) {
+        const timeout = crearFetchConTimeout(30000);
+        const signalExterna = opciones.signal || null;
+
+        if (signalExterna) {
+            if (signalExterna.aborted) {
+                timeout.controller.abort("externo");
+            } else {
+                signalExterna.addEventListener("abort", () => {
+                    timeout.controller.abort("externo");
+                }, { once: true });
+            }
+        }
+
+        try {
+            const res = await fetch(url, {
+                credentials: "same-origin",
+                ...opciones,
+                signal: timeout.signal
+            });
+
+            if (res.redirected || res.status === 401 || res.status === 403) {
+                throw crearErrorApp(
+                    "Tu sesión expiró o ya no está autorizada.",
+                    res.status,
+                    "SESSION_EXPIRED"
+                );
+            }
+
+            if (!res.ok) {
+                const txt = await res.text();
+
+                if (res.status === 503) {
+                    throw crearErrorApp(
+                        txt || "No se pudo establecer comunicación con la API interna TIF.",
+                        503,
+                        "API_UNAVAILABLE"
+                    );
+                }
+
+                if (res.status === 504) {
+                    throw crearErrorApp(
+                        txt || "La API interna TIF tardó demasiado en responder.",
+                        504,
+                        "TIMEOUT"
+                    );
+                }
+
+                throw crearErrorApp(
+                    txt || `Error del servidor (${res.status})`,
+                    res.status,
+                    "HTTP_ERROR"
+                );
+            }
+
+            return await res.text();
+
+        } catch (error) {
+            if (error.name === "AbortError") {
+                if (signalExterna && signalExterna.aborted) {
+                    throw error;
+                }
+
+                throw crearErrorApp(
+                    "La solicitud tardó demasiado. Puede ser lentitud de red local o API interna sin respuesta.",
+                    504,
+                    "TIMEOUT"
+                );
+            }
+
+            if (error instanceof TypeError) {
+                throw crearErrorApp(
+                    "No se pudo conectar con el servidor de la aplicación.",
+                    0,
+                    "NETWORK_ERROR"
+                );
+            }
+
+            throw error;
+
+        } finally {
+            timeout.clear();
+        }
+    }
+
+</script>

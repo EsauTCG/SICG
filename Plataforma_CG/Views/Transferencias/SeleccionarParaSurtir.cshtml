@@ -1,0 +1,520 @@
+﻿@model Plataforma_CG.ViewModels.SeleccionarTransferenciaVM
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<style>
+    :root {
+        --bg: #f0dede;
+        --panel: #f8eeee;
+        --panel-2: #f1dede;
+        --line: #c79d9d;
+        --text: #3b1717;
+        --white: #ffffff;
+        --shadow: 0 1px 0 rgba(255,255,255,.55) inset;
+        --vino-border: #9a5a5a;
+        --vino-text-dark: #4a1111;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        background: transparent !important;
+        color: var(--text);
+    }
+
+    .container, .container-fluid {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .window {
+        width: 100%;
+        max-width: 100%;
+        margin: 0 !important;
+        border: 1px solid #7e4a4a;
+        background: var(--panel);
+        box-shadow: 0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70,12,12,.14);
+        overflow: hidden;
+        padding: 0 !important;
+    }
+
+    .titlebar {
+        height: 34px;
+        /* display: flex; */
+        display: none !important;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 10px;
+        background: linear-gradient(180deg, #c00000 0%, #8b0000 60%, #5c0000 100%);
+        border-bottom: 1px solid #5c0000;
+        color: #fff;
+        font-size: 13px;
+        font-weight: bold;
+    }
+
+    .titlebar .actions { display: flex; gap: 6px; }
+
+    .win-btn {
+        width: 16px; height: 16px;
+        border: 1px solid #7c4848;
+        background: linear-gradient(#fff6f6, #ead0d0);
+    }
+
+    .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 6px;
+        background: linear-gradient(#fff6f6, #ecd8d8);
+        border-bottom: 1px solid var(--line);
+        font-size: 12px;
+        flex-wrap: wrap;
+    }
+
+    .tool-btn {
+        min-width: 72px;
+        text-align: center;
+        background: linear-gradient(#fffefe, #ecd7d7);
+        border: 1px solid var(--vino-border);
+        box-shadow: var(--shadow);
+        cursor: pointer;
+        color: var(--vino-text-dark);
+        height: 28px;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        padding: 0 8px;
+        text-decoration: none;
+    }
+
+    .tool-btn:hover { filter: brightness(.98); }
+
+    .content { padding: 8px; background: var(--bg); }
+
+    .tabs { display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap; }
+
+    .tab {
+        font-size: 12px;
+        background: linear-gradient(#f7e7e7, #ead1d1);
+        border: 1px solid #caa0a0;
+        border-bottom: none;
+        padding: 7px 12px;
+        color: #5c1a1a;
+        user-select: none;
+    }
+
+    .tab.active {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        font-weight: bold;
+        color: #fff;
+        border-color: #7a2d2d;
+    }
+
+    .workspace { border: 1px solid var(--line); background: var(--panel); padding: 8px; }
+
+    .section { border: 1px solid var(--line); background: var(--white); margin-bottom: 10px; }
+
+    .section-title {
+        padding: 6px 8px;
+        font-size: 12px;
+        font-weight: bold;
+        color: #fff;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-bottom: 1px solid #6b1f1f;
+    }
+
+    .filters {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        padding: 10px;
+        background: var(--panel-2);
+        align-items: end;
+    }
+
+    input, select, .form-control {
+        height: 28px !important;
+        padding: 3px 6px !important;
+        border: 1px solid #b48787 !important;
+        background: #fffdfd !important;
+        font-family: inherit !important;
+        font-size: 12px !important;
+        width: 100%;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        color: #421414 !important;
+    }
+
+    .pm-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        height: 28px;
+        padding: 0 14px;
+        border: 1px solid transparent;
+        border-radius: 0;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        text-decoration: none;
+        box-shadow: var(--shadow);
+        white-space: nowrap;
+    }
+
+    .pm-btn:hover { filter: brightness(.97); }
+
+    .pm-btn-primary {
+        color: #fff;
+        border-color: #7a2d2d;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+    }
+
+    .pm-btn-success {
+        color: #fff;
+        border-color: #157347;
+        background: linear-gradient(180deg, #27ae60 0%, #1f9a54 55%, #198754 100%);
+    }
+
+    /* ── Tabla ── */
+    .table-wrap {
+        overflow: auto;
+        max-height: 70vh;
+        background: #fffafa;
+        width: 100%;
+        border-top: 1px solid #d9b8b8;
+    }
+
+    .table-wrap table {
+        width: 100%;
+        table-layout: fixed;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        font-size: 12px;
+        background: #fffafa;
+    }
+
+    .table-wrap thead th {
+        position: sticky;
+        top: -1px;
+        z-index: 20;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: #fff !important;
+        border-top: 1px solid #c46a6a !important;
+        border-right: 1px solid #8e3b3b !important;
+        border-bottom: 1px solid #5c0000 !important;
+        padding: 6px 5px !important;
+        font-weight: 700 !important;
+        font-size: 12px !important;
+        white-space: nowrap;
+        line-height: 1.2 !important;
+        box-shadow: 0 2px 0 #6f1d1d;
+    }
+
+    .table-wrap thead th:first-child { border-left: 1px solid #8e3b3b !important; }
+
+    .table-wrap tbody td {
+        background: #fffafa !important;
+        border-right: 1px solid #d8bcbc !important;
+        border-bottom: 1px solid #d8bcbc !important;
+        padding: 6px 5px !important;
+        white-space: nowrap;
+        vertical-align: middle;
+        font-size: 12px !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: #401515 !important;
+    }
+
+    .table-wrap tbody td:first-child { border-left: 1px solid #d8bcbc !important; }
+    .table-wrap tbody tr:nth-child(even) td { background: #f9eded !important; }
+    .table-wrap tbody tr:hover td { background: #f4dddd !important; }
+
+    .tbl-sel th:nth-child(1), .tbl-sel td:nth-child(1) { width: 160px; }
+    .tbl-sel th:nth-child(2), .tbl-sel td:nth-child(2) { width: 200px; }
+    .tbl-sel th:nth-child(3), .tbl-sel td:nth-child(3) { width: 120px; }
+    .tbl-sel th:nth-child(4), .tbl-sel td:nth-child(4) { width: 120px; }
+    .tbl-sel th:nth-child(5), .tbl-sel td:nth-child(5) { width: 100px; }
+
+    .badge-est {
+        display: inline-block;
+        padding: 3px 8px;
+        border: 1px solid #6aa84f;
+        background: #dff3e2;
+        color: #2f6b1f;
+        font-size: 11px;
+        font-weight: 700;
+        border-radius: 2px;
+    }
+
+    .no-results {
+        padding: 16px;
+        text-align: center;
+        color: #7a5a00;
+        background: #fff4cc;
+        border: 1px solid #d6b656;
+        font-size: 12px;
+        font-weight: 700;
+        margin: 10px;
+    }
+
+    .statusbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 6px 10px;
+        font-size: 11px;
+        color: #4a1a1a;
+        border-top: 1px solid #b88c8c;
+        background: linear-gradient(#f6e9e9, #ead5d5);
+        flex-wrap: wrap;
+    }
+
+    /* ── Cards móvil ── */
+    .mobile-cards { display: none; }
+
+    @@media(max-width: 768px) {
+        .desktop-table { display: none; }
+        .mobile-cards  { display: block; }
+        .filters { grid-template-columns: 1fr; }
+
+        .tr-card {
+            border: 1px solid var(--line);
+            background: #fffafa;
+            margin-bottom: 8px;
+            padding: 10px;
+        }
+
+        .tr-card-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .tr-card-folio { font-weight: 700; font-size: 13px; color: #401515; }
+
+        .tr-card-info { font-size: 12px; color: #6a3a3a; margin-bottom: 8px; }
+
+        .tr-card-info strong { color: #401515; }
+    }
+</style>
+
+<div class="window">
+
+    <div class="titlebar">
+        <div>Seleccionar Transferencia :: SIGO</div>
+        <div class="actions">
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+        </div>
+    </div>
+
+    <div class="toolbar">
+     @*    <button class="tool-btn" type="submit" form="frmBuscar">Buscar</button>
+        <button class="tool-btn" type="button" onclick="location.reload()">Actualizar</button> *@
+    </div>
+
+    <div class="content">      
+        <div class="workspace">
+
+            <div class="section">
+                <div class="section-title">Filtros de búsqueda</div>
+                <form id="frmBuscar" method="get" action="/Transferencias/SeleccionarParaSurtir">
+                    <div class="filters">
+                        <div>
+                            <input name="buscar"
+                                   value="@Model.Buscar"
+                                   placeholder="Buscar por folio, sucursal u observación..." />
+                        </div>
+                        <div>
+                            <button class="pm-btn pm-btn-primary" type="submit">
+                                <i class="bi bi-search"></i> Buscar
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <div class="section">
+              @*   <div class="section-title">Listado de transferencias registradas</div> *@
+
+                @if (!Model.Resultados.Any())
+                {
+                    <div class="no-results">No se encontraron transferencias registradas.</div>
+                }
+                else
+                {
+                    <!-- Desktop -->
+                    <div class="table-wrap desktop-table">
+                        <table class="tbl-sel">
+                            <thead>
+                                <tr>
+                                    <th>Folio</th>
+                                    <th>Sucursal</th>
+                                    <th>Fecha</th>
+                                    <th class="text-center">Estatus</th>
+                                    <th class="text-end">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var t in Model.Resultados)
+                                {
+                                    <tr>
+                                        <td><b>@t.Consecutivo</b></td>
+                                        <td title="@t.SucursalNombre">@t.SucursalNombre</td>
+                                        <td>@(t.FechaSolicitud?.ToString("yyyy-MM-dd") ?? "")</td>
+                                        <td class="text-center">
+                                            <span class="badge-est">Registrada</span>
+                                        </td>
+                                        <td class="text-end">
+                                           <a class="pm-btn pm-btn-success"
+   href="/Transferencias/OTransferencia?id=@t.Id"
+   data-btn-surtir="@t.Id"
+   style="font-size:11px;height:24px;padding:0 10px;">
+    ▶ Surtir
+</a>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Móvil -->
+                    <div class="mobile-cards" style="padding:8px;">
+                        @foreach (var t in Model.Resultados)
+                        {
+                            <div class="tr-card">
+                                <div class="tr-card-head">
+                                    <span class="tr-card-folio">@t.Consecutivo</span>
+                                    <span class="badge-est">Registrada</span>
+                                </div>
+                                <div class="tr-card-info">
+                                    <div><strong>Sucursal:</strong> @t.SucursalNombre</div>
+                                    <div><strong>Fecha:</strong> @(t.FechaSolicitud?.ToString("yyyy-MM-dd") ?? "")</div>
+                                </div>
+                               <a class="pm-btn pm-btn-success"
+   href="/Transferencias/OTransferencia?id=@t.Id"
+   data-btn-surtir="@t.Id"
+   style="width:100%;justify-content:center;">
+    ▶ Surtir transferencia
+</a>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+        </div>
+    </div>
+
+    <div class="statusbar">
+        <div>Registro listo</div>
+        <div>Usuario: @User.Identity.Name</div>
+        <div>Empresa: Carnes G SA de CV</div>
+        <div>Módulo: Transferencias</div>
+    </div>
+
+</div>
+
+<script>
+(function () {
+    let refrescando = false;
+    let ultimoEstado = null;
+
+    // estado por transferenciaId: 'procesando' | 'error' | null
+    const estadosBotones = {};
+
+    function actualizarBotones(jobs) {
+        // Resetear todos primero
+        document.querySelectorAll('[data-btn-surtir]').forEach(btn => {
+            const id = parseInt(btn.dataset.btnSurtir);
+            const job = (jobs || []).find(j => j.transferenciaId === id);
+
+            if (!job) {
+                // Sin job activo → botón normal
+                btn.removeAttribute('disabled');
+                btn.style.opacity = '';
+                btn.title = '';
+                btn.textContent = '▶ Surtir';
+                btn.style.pointerEvents = '';
+                return;
+            }
+
+            const estado = (job.estado || '').toLowerCase();
+
+            if (estado === 'error' || estado === 'errorparcial') {
+                // Error → puede reintentar
+                btn.removeAttribute('disabled');
+                btn.style.opacity = '1';
+                btn.style.background = 'linear-gradient(180deg,#c0392b 0%,#922b21 100%)';
+                btn.title = `Error: ${job.fallidas} fallidas de ${job.total}`;
+                btn.textContent = '⚠ Reintentar';
+                btn.style.pointerEvents = '';
+            } else {
+                // Pendiente / EnProceso / Completado en proceso
+                btn.setAttribute('disabled', 'disabled');
+                btn.style.opacity = '0.5';
+                btn.style.pointerEvents = 'none';
+                const pct = job.total > 0 ? Math.round((job.procesadas / job.total) * 100) : 0;
+                btn.title = `Procesando... ${job.procesadas}/${job.total} (${pct}%)`;
+                btn.textContent = `⏳ ${pct}%`;
+            }
+        });
+    }
+
+    async function revisarEstatus() {
+        if (refrescando) return;
+
+        try {
+            const resp = await fetch('/Transferencias/EstatusTransferencias', {
+                cache: 'no-store',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+
+            if (!resp.ok) return;
+
+            const data = await resp.json();
+            const existen = !!data.existen;
+
+            actualizarBotones(data.jobs || []);
+
+            if (ultimoEstado === null) {
+                ultimoEstado = existen;
+                return;
+            }
+
+            if (ultimoEstado === true && existen === false) {
+                refrescando = true;
+                window.location.reload();
+                return;
+            }
+
+            ultimoEstado = existen;
+        } catch (e) {
+            console.error('Error al validar estatus:', e);
+        }
+    }
+
+    window.addEventListener('pageshow', function (e) {
+        const nav = performance.getEntriesByType('navigation')[0];
+        if (e.persisted || nav?.type === 'back_forward') {
+            window.location.reload();
+        }
+    });
+
+    revisarEstatus();
+    setInterval(revisarEstatus, 10000); // cada 10 seg
+})();
+</script>

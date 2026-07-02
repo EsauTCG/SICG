@@ -1,0 +1,85 @@
+﻿@model TodoPlanModel
+
+@{
+}
+
+<div class="container-fluid p-4 mt-3" style="border: 2px solid #8B0000; border-radius: 12px; background-color: #fff;">
+    <h4 class="mb-4 text-center text-dark fw-bold">PLANEACIÓN DE PRODUCCIÓN</h4>
+
+    <form asp-action="Guardar" method="post" id="formPlaneacion" data-fecha="@Model._PlanPro.Fecha">
+
+        <!-- ENCABEZADO -->
+        <div class="row">
+            <div class="col-12 col-md-3 mb-3">
+                <label class="form-label">Mes de Producción</label>
+                <input asp-for="_PlanPro.Fecha" type="hidden" readonly class="form-control" value="@Model._PlanPro.Fecha" />
+                <input type="text" readonly class="form-control" value="@Convert.ToDateTime(Model._PlanPro.Fecha).ToString("MMMM").ToUpper()" />
+            </div>
+
+@*             <div class="col-12 col-md-3 mb-3">
+                <label class="form-label">Planta</label>
+                <select asp-for="" class="form-select">
+                    <option value="">Selecciona planta</option>
+                    <option value="1">TIF</option>
+                    <option value="2">Planta 1</option>
+                </select>
+            </div> *@
+
+            <div class="col-12 col-md-3 mb-3">
+                <label class="form-label">Clasificación</label>
+                <select asp-for="_PlanPro.fk_Clasificacion" class="form-select" id="clasificacionSelect">
+                    <option value="">Selecciona clasificación</option>
+                    @foreach (var item in Model._ListaClasificacion)
+                    {
+                        <option value="@item.SKU" data-itemid="@item.Id" data-peso="@item.PesoPromedio">@item.SKU - @item.Nombre</option>
+                    }
+
+                </select>
+            </div>
+
+            <div class="col-12 col-md-3 mb-3">
+                <label class="form-label">Canales</label>
+                <input asp-for="_PlanPro.Canales" id="canalesInput" type="number" step="1" class="form-control" />
+            </div>
+
+            <div class="col-12 col-md-3 mb-3">
+                <label class="form-label">Kg Promedio</label>
+                <input readonly asp-for="_PlanPro.PesoPromedio" id="kgPromedioInput" type="number" step="0.01" class="form-control" />
+            </div>
+
+            <div class="col-12 col-md-3 mb-3">
+                <label class="form-label">Kg Estimados</label>
+                <input asp-for="_PlanPro.PesoTotal" id="kgEstimadosInput" type="number" step="0.01" class="form-control" readonly />
+            </div>
+        </div>
+
+        <hr />
+
+        <!-- TABLA -->
+        <div class="table-responsive">
+            <table class="table table-bordered align-middle">
+                <thead class="table-danger">
+                    <tr>
+                        <th>#</th>
+                        <th>SKU</th>
+                        <th>%</th>
+                        <th>Kilos</th>
+                    </tr>
+                </thead>
+                <tbody id="masterBody">
+                    <!-- Se llenará dinámicamente -->
+                </tbody>
+            </table>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <div>
+                <button type="submit" class="btn btn-primary">Guardar</button>
+                <button type="button" class="btn btn-secondary" onclick="loadPartial('@Url.Action("Planes", "Planeacion", new {fecha = Model._PlanPro.Fecha})',document.querySelector('.toolbar button[data-url=\'/Planeacion/Index\']'));return false;">Cancelar</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+
+

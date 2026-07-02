@@ -1,0 +1,250 @@
+﻿@model TodoVentasModel
+@{
+
+
+}
+
+
+<div class="container-fluid p-4 mt-3" style="border: 2px solid #8B0000; border-radius: 12px; background-color: #fff;">
+    <h5 style="color: #8B0000; font-weight: bold; text-decoration: none;">Modificar Prospecto</h5>
+
+    <form asp-action="Modificar" enctype="multipart/form-data" asp-controller="Prospecto" method="post">
+        <div class="row g-3">
+            <input type="hidden" asp-for="_Prospecto.Id"/>
+            <div class="col-md-6">
+                <label asp-for="_Prospecto.NombreComercial" class="form-label">Nombre Comercial</label>
+                <input asp-for="_Prospecto.NombreComercial" class="form-control" required />
+            </div>
+            <div class="col-md-6">
+                <label asp-for="_Prospecto.PersonaAtendio" class="form-label">Atendido por:</label>
+                <input asp-for="_Prospecto.PersonaAtendio" class="form-control" />
+            </div>
+            <div class="col-md-4">
+                <label asp-for="_Prospecto.PerfilPersonal" class="form-label">Perfil de empleado:</label>
+                <select asp-for="_Prospecto.PerfilPersonal" class="form-select">
+                    <option>Empleado</option>
+                    <option>Gerente</option>
+                    <option>Dueño</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label asp-for="_Prospecto.TipoCanal" class="form-label">Tipo canal</label>
+                <select asp-for="_Prospecto.TipoCanal" class="form-select">
+                    <option>Abarrotes</option>
+                    <option>Carnicería</option>
+                    <option>Autoservicio</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label asp-for="_Prospecto.TipoProducto" class="form-label">Tipo de producto</label>
+                <select asp-for="_Prospecto.TipoProducto" class="form-select">
+                    <option>Res</option>
+                    <option>Pollo</option>
+                    <option>Cerdo</option>
+                    <option>Abarrotes</option>
+                </select>
+            </div>
+
+            <!-- Geolocalización con dirección legible -->
+            <div class="col-md-6">
+                <label asp-for="_Prospecto.Ubicacion" class="form-label">Ubicación actual</label>
+                <div class="input-group">
+                    <input asp-for="_Prospecto.Ubicacion" class="form-control" placeholder="Mi ubicación" readonly />
+                    <button type="button" class="btn btn-primary" onclick="obtenerUbicacion()">📍 Mi Ubicación</button>
+                </div>
+            </div>
+
+            <!-- Foto Fachada -->
+            <div class="col-md-6">
+                <label asp-for="_Prospecto.FotoFachada" class="form-label">Foto Fachada</label>
+
+                @if (!string.IsNullOrEmpty(Model._Prospecto.RutaFotoFachada))
+                {
+                    <div class="mb-2">
+                        <img src="@Model._Prospecto.RutaFotoFachada" alt="Foto Fachada" class="img-thumbnail" style="max-height:150px;" />
+                    </div>
+                    <input type="hidden" asp-for="_Prospecto.RutaFotoFachada" />
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="EliminarFoto" name="EliminarFoto" value="true" />
+                        <label class="form-check-label" for="EliminarFoto">Eliminar foto existente</label>
+                    </div>
+                }
+
+                <input asp-for="_Prospecto.FotoFachada" type="file" class="form-control" accept="image/*" capture="environment" />
+            </div>
+        </div>
+        @* </div> *@
+        @* </div> *@
+        <hr />
+        @* <div class="card shadow-sm mb-4"> *@
+        @* <div class="card-header bg-secondary text-white">Detalles Comerciales</div> *@
+        @* <div class="card-body"> *@
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label asp-for="_Prospecto.ArcListaPrecios" class="form-label">Lista de Precios (PDF)</label>
+
+                @if (!string.IsNullOrEmpty(Model._Prospecto.ListaPrecios))
+                {
+                    <!-- Vista previa mini que abre modal -->
+                    <div class="mb-2" data-bs-toggle="modal" data-bs-target="#pdfModal" style="cursor:pointer; max-width:200px;">
+                        <embed src="@Model._Prospecto.ListaPrecios"
+                               type="application/pdf"
+                               width="100%"
+                               height="120px"
+                               style="border:1px solid #ccc; border-radius:6px;" />
+                        <div class="text-center text-primary mt-1" style="font-size:0.9em;">
+                            📄 Ver lista de precios
+                        </div>
+                    </div>
+
+                    <input type="hidden" asp-for="_Prospecto.ListaPrecios" />
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="EliminarListaPrecios" name="EliminarPDF" value="true" />
+                        <label class="form-check-label" for="EliminarListaPrecios">Eliminar lista de precios existente</label>
+                    </div>
+                }
+
+                <input asp-for="_Prospecto.ArcListaPrecios" type="file" class="form-control" accept="application/pdf" />
+            </div>
+
+            <!-- Modal para PDF -->
+            <div class="modal fade" id="pdfModal" tabindex="-1" aria-labelledby="pdfModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-xl">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="pdfModalLabel">Lista de Precios</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                        </div>
+                        <div class="modal-body" style="height:80vh;">
+                            <embed src="@Model._Prospecto.ListaPrecios"
+                                   type="application/pdf"
+                                   width="100%"
+                                   height="100%" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <input type="hidden" asp-for="_Prospecto.TopTenPrecios" class="form-label" value="0">
+
+            @* <div class="col-md-6"> *@
+            <input type="hidden" asp-for="_Prospecto.Credito" class="form-label" value="0">
+            @* </div> *@
+            <div class="col-md-6">
+                <label asp-for="_Prospecto.MetodoPago" class="form-label"> Método de pago</label>
+                <select asp-for="_Prospecto.MetodoPago" class="form-select">
+                    <option>Transferencia</option>
+                    <option>Efectivo</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="_Prospecto.OtrasMarcas" class="form-label">Otras marcas</label>
+                <input asp-for="_Prospecto.OtrasMarcas" class="form-control" />
+            </div>
+            <input type="hidden" asp-for="_Prospecto.FacilitaRebanado" class="form-select" value="0">
+
+
+            <input type="hidden" asp-for="_Prospecto.VolumenCompra" class="form-control" value="" />
+
+            <input type="Hidden" asp-for="_Prospecto.PeriodicidadCompra" class="form-control" value="" />
+            <!-- Audio -->
+            <div class="col-md-6">
+                <label asp-for="_Prospecto.AudioPath" class="form-label">Audio</label>
+                <input asp-for="_Prospecto.Audio" type="file" class="form-control" accept="audio/*" capture />
+            </div>
+            <div class="col-md-6">
+                <label asp-for="_Prospecto.NumeroTiendas" class="form-label">Número de sucursales</label>
+                <input asp-for="_Prospecto.NumeroTiendas" class="form-control" type="number" />
+            </div>
+        </div>
+        @* </div> *@
+        @* </div> *@
+
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <br>
+                <button type="submit" class="btn btn-info btn-lg w-20">Guardar Prospecto</button>
+                <button type="submit" class="btn btn-secondary btn-lg w-20"
+                        onclick="loadPartial('@Url.Action("Index", "Prospecto")',document.querySelector('.toolbar button[data-url=\'/Prospecto/Index\']'));return false;">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+
+
+    </form>
+</div>
+<div class="container-fluid p-4 mt-3" style="border: 2px solid #8B0000; border-radius: 12px; background-color: #fff;">
+    <div class="row d-flex align-items-center" style="margin-bottom:2rem;">
+        <h5 class="col-auto" style="color: #8B0000; font-weight: bold; text-decoration: none;">
+            Visitas
+        </h5>
+        <div class="col d-flex justify-content-end">
+            <button type="button" class="btn btn-light btn-sm"
+                    data-bs-toggle="modal"
+                    data-bs-target="#modalNuevaVisita"
+                    onclick="obtenerUbicacion()"
+                    style="border: 2px solid #8B0000; border-radius: 12px; background-color: #fff;">
+                ➕ Nueva Visita
+            </button>
+        </div>
+        <br />
+    </div>
+    <div class="row">
+        <br />
+        @if (Model._ListaVisitas != null && Model._ListaVisitas.Any())
+        {
+            <div class="row">
+                @foreach (var visita in Model._ListaVisitas)
+                {
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100" style="border: 2px solid #8B0000; border-radius: 12px; background-color: #fff;">
+                            <img src="@visita.RutaFotoVisita" class="card-img-top" alt="Foto Visita" style="max-height:200px;object-fit:cover; border-radius:12px;" />
+                            <div class="card-body">
+                                <p class="card-text"><strong>Fecha:</strong> @Convert.ToDateTime(visita.FechaHora).ToString("dd/MM/yyyy HH:mm")</p>
+                                <p class="card-text"><strong>Ubicación:</strong> @visita.Ubicacion</p>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <p class="text-muted">No hay visitas registradas.</p>
+        }
+    </div>
+</div>
+<!-- Modal Nueva Visita -->
+<div class="modal fade" id="modalNuevaVisita" tabindex="-1" aria-labelledby="modalNuevaVisitaLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form asp-action="Visitas" asp-controller="Prospecto" method="post" enctype="multipart/form-data" id="formNuevaVisita">
+                <input type="hidden" asp-for="@Model._Visitas.fk_Prospecto" name="fk_Prospecto" value="@Model._Prospecto.Id" />
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalNuevaVisitaLabel">Registrar Nueva Visita</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+
+                    <!-- Foto -->
+                    <div class="mb-3">
+                        <label class="form-label">Foto</label>
+                        <input type="file" name="Foto" accept="image/*" capture="environment" class="form-control" required />
+                    </div>
+
+                    <!-- Campos ocultos para ubicación y fecha -->
+                    <input type="text" id="geolocalizacion" name="Ubicacion" asp-for="_Visitas.Ubicacion" readonly />
+                    <input type="hidden" id="geolocalizacion" name="Usuario" value="@User.Identity.Name" />
+                    <input type="hidden" name="FechaHora" id="fechaNuevaVisita" asp-for="_Visitas.FechaHora" />
+
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar Visita</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

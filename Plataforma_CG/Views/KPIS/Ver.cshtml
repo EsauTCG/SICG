@@ -1,0 +1,148 @@
+﻿@model Plataforma_CG.Models.KpiCatalogo
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = Model.Titulo;
+}
+
+<style>
+    :root {
+        --brand-1: #8B0000;
+        --brand-2: #5a0000;
+        --brand-3: #1a0000;
+        --brand: linear-gradient(90deg,var(--brand-1) 0%,var(--brand-2) 55%,var(--brand-3) 100%);
+        --bg: radial-gradient(1200px 600px at 20% -10%, rgba(139,0,0,.10), transparent 60%), linear-gradient(135deg,#f6f7fb 0%,#eef1f6 45%,#efe4e4 100%);
+        --paper: #ffffff;
+        --ink: #1f2328;
+        --muted: #6b7280;
+        --radius: 16px;
+        --shadow-sm: 0 4px 12px rgba(17,24,39,.05);
+    }
+
+    .ov-page {
+        background: var(--bg);
+        padding: 20px;
+        height: calc(100vh - 60px);
+        min-height: 600px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        box-sizing: border-box;
+    }
+
+    .page-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 24px;
+        border-radius: var(--radius);
+        background-color: rgba(255,255,255,0.9);
+        box-shadow: var(--shadow-sm);
+        backdrop-filter: blur(12px);
+    }
+
+        .page-head h2 {
+            margin: 0;
+            font-weight: 900;
+            font-size: 1.6rem;
+            color: var(--ink);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+            .page-head h2::before {
+                content: "";
+                width: 6px;
+                height: 28px;
+                background: var(--brand);
+                border-radius: 6px;
+                display: inline-block;
+            }
+
+    .cardx {
+        background: transparent;
+        box-shadow: none;
+        border: none;
+        overflow: hidden;
+        flex: 1;
+        border-radius: var(--radius);
+    }
+
+        .cardx iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: transparent;
+        }
+</style>
+
+<div class="ov-page">
+    <div class="page-head">
+        <div>
+            <div style="font-size:.8rem; letter-spacing:.8px; text-transform:uppercase; color:var(--muted); font-weight:700;">
+                @Model.Categoria
+            </div>
+            <h2>@Model.Titulo</h2>
+        </div>
+
+        <div class="d-flex gap-2">
+            <a class="btn btn-outline-secondary" href="@Url.Action("Catalogo", "Kpis")">Volver</a>
+
+            <button class="btn btn-light" onclick="recargarKpi()">Actualizar</button>
+
+        </div>
+    </div>
+
+    <div class="cardx">
+        <iframe id="pbiFrame"
+                title="@Model.Titulo"
+                data-kpi-id="@Model.Id"
+                allowfullscreen
+                referrerpolicy="no-referrer-when-downgrade">
+        </iframe>
+
+    </div>
+</div>
+
+@section Scripts{
+    <script>
+        (async function(){
+          const frame = document.getElementById("pbiFrame");
+          const id = frame.getAttribute("data-kpi-id");
+
+          try{
+            const res = await fetch(`@Url.Action("GetEmbedUrl", "Kpis")?id=${id}`, {
+              headers: { "X-Requested-With": "XMLHttpRequest" }
+            });
+
+            if(!res.ok){
+              frame.outerHTML = "<div class='alert alert-danger m-3'>No autorizado o no se pudo cargar el KPI.</div>";
+              return;
+            }
+
+            const data = await res.json();
+            frame.src = data.url;
+          }catch(e){
+            frame.outerHTML = "<div class='alert alert-danger m-3'>Error cargando KPI.</div>";
+          }
+        })();
+
+                async function recargarKpi(){
+          const frame = document.getElementById("pbiFrame");
+          const id = frame.getAttribute("data-kpi-id");
+
+          const res = await fetch(`@Url.Action("GetEmbedUrl", "Kpis")?id=${id}`, {
+            headers: { "X-Requested-With": "XMLHttpRequest" }
+          });
+
+          if(!res.ok){
+            alert("No autorizado o error.");
+            return;
+          }
+          const data = await res.json();
+          frame.src = data.url; // vuelve a setear (recarga)
+        }
+
+
+    </script>
+}

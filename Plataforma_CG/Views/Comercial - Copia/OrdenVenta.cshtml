@@ -1,0 +1,1270 @@
+@using Plataforma_CG.ViewModels
+
+@model Plataforma_CG.ViewModels.PedidoViewModel
+
+@{
+    var productos = Model?.Productos ?? new List<PedidoProductoViewModel>();
+}
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Nuevo Orden de Venta";
+}
+
+
+<style>
+
+    #propiedadesCliente .form-check {
+        margin-bottom: 4px; /* un poco de aire si saltan de línea */
+    }
+
+   
+
+
+   
+</style>
+
+<div class="container-fluid p-4 mt-3" style="border: 2px solid #8B0000; border-radius: 12px; background-color: #fff;">
+    <h4 class="mb-4 text-center text-dark fw-bold">NUEVA ORDEN DE VENTA</h4>
+
+    <form asp-action="GuardarPedido" method="post">
+        <!-- Encabezado -->
+        <div class="row">
+            <div class="col-12 col-md-3 mb-3">
+                <label class="form-label">Consecutivo</label>
+                <input asp-for="Consecutivo" class="form-control" readonly />
+            </div>
+            <div class="col-12 col-md-3 mb-3">
+                <label class="form-label">Serie</label>
+                <select asp-for="Serie" asp-items="Model.Series" class="form-select">
+                    <option value="">Selecciona serie</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-3 mb-3">
+                <label class="form-label">Fecha Entrega</label>
+                <input asp-for="FechaEntrega" type="date" class="form-control" />
+            </div>
+            @*     <div class="col-12 col-md-3 mb-3">
+                <label class="form-label">Fecha de Embarque</label>
+                <input asp-for="FechaEmbarque" type="date" class="form-control" />
+                <input asp-for="HoraEmbarque" type="time" class="form-control mt-1" />
+            </div> *@
+        </div>
+
+        <div class="row">
+            <div class="mb-3">
+                <label class="form-label">Cliente</label>
+                <input id="clienteInput" class="form-control" placeholder="Escribe para buscar cliente" />
+                <input type="hidden" id="clienteHidden" name="Cliente" />
+            </div>
+
+
+            <div class="col-12 col-md-3 mb-3">
+                <label class="form-label">Vendedor</label>
+                <input asp-for="Vendedor" class="form-control" readonly />
+            </div>
+
+            <div class="col-12 col-md-3 mb-3">
+                <label class="form-label">Dirección</label>
+                <select id="rutaSelect" name="Ruta" class="form-select">
+                    <option value="">Selecciona ruta</option>
+                </select>
+
+                <br />
+
+                <!-- PROPIEDADES DE CLIENTES -->
+                <!-- Modal -->
+                <div class="modal fade" id="modalPropiedades" tabindex="-1" aria-labelledby="modalPropiedadesLabel" aria-hidden="activo">
+                    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="modalPropiedadesLabel">Documentación del Cliente</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                            </div>
+                            <div class="modal-body" id="modalPropiedadesBody">
+                                <!-- Aquí se llenará dinámicamente con JS -->
+                                <p>Cargando información...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- PROPIEDADES DE CLIENTES -->
+
+
+            </div>
+            <div class="col-12 col-md-3 mb-3">
+                <label class="form-label">Presentación</label>
+                <select asp-for="Presentacion" asp-items="Model.Presentaciones" class="form-select">
+                    <option value="">Selecciona Presentación</option>
+                </select>
+            </div>
+
+            <div class="col-12 col-md-3 mb-3 d-flex align-items-center">
+                <button type="button" class="btn btn-info w-100" data-bs-toggle="modal" data-bs-target="#modalPropiedades" style="margin-bottom: -5px;">
+                    Ver Documentación
+                </button>
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Observación</label>
+            <textarea asp-for="Observacion" class="form-control"></textarea>
+        </div>
+
+        <!-- Totales -->
+        <div class="row">
+            <div class="col-12 col-md-3 mb-3">
+                <label class="form-label">Saldo</label>
+                <input id="saldoInput" asp-for="Saldo" class="form-control" readonly />
+            </div>
+            <div class="col-12 col-md-3 mb-3">
+                <label class="form-label">Saldo Vencido</label>
+                <input id="saldoVencidoInput" asp-for="SaldoVencido" class="form-control" readonly />
+            </div>
+            <div class="col-12 col-md-3 mb-3">
+                <label class="form-label">Otros Pedidos</label>
+                <input id="otrosPedidosInput" asp-for="OtrosPedidos" class="form-control" readonly />
+            </div>
+            <div class="col-12 col-md-3 mb-3">
+                <label class="form-label">Crédito</label>
+                <input id="creditoInput" asp-for="Credito" class="form-control" readonly />
+            </div>
+        </div>
+
+        <hr />
+
+        <!-- Inicio Productos -->
+        <h5 class="mb-3">Productos</h5>
+
+        <!-- Spinner flotante de carga de productos -->
+        
+<!-- Spinner de carga fullscreen -->
+<div id="loadingSpinner" style="display:none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255,255,255,0.8);
+    z-index: 2000;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+">
+    <div class="spinner-border text-danger" role="status" style="width:4rem; height:4rem;">
+        <span class="visually-hidden">Cargando...</span>
+    </div>
+    <p class="mt-3 fw-bold text-danger fs-5">Cargando productos, por favor espera...</p>
+</div>
+
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped align-middle">
+                <thead style="background-color:#8B0000; color:white;" class="text-center fw-bold">
+                    <tr>
+                        <th>#</th>
+                        <th>Producto</th>
+                        <th>Presupuesto</th>
+                        <th>Disponible</th>
+                        <th>Peso (kg)</th>
+                        <th>Precio</th>
+                        <th>Cajas</th>
+                        <th>Importe</th>
+                        <th>Inventario</th> <!-- Nueva columna -->
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="productosBody">
+                    @for (int i = 0; i < productos.Count; i++)
+                    {
+                        <tr>
+                            <td>@(i + 1)</td>
+                            <td>
+                                <input name="Productos[@i].ProductoNombre" class="form-control productoInput" placeholder="Buscar producto..." />
+                                <input type="hidden" name="Productos[@i].ProductoCodigo" class="productoCodigo" />
+                            </td>
+                            <td>
+                                <input asp-for="Productos[@i].Presupuesto" type="number" step="0.01" class="form-control presupuesto" readonly />
+                            </td>
+                            <td>
+                                <input asp-for="Productos[@i].VariacionPresupuesto" type="number" step="0.01" class="form-control" readonly />
+                            </td>
+                            <td>
+                                <input asp-for="Productos[@i].Peso" type="number" step="0.01" class="form-control" />
+                            </td>
+                            <td>
+                                <input asp-for="Productos[@i].Precio" class="form-control" />
+                            </td>
+                            <td>
+                                <input asp-for="Productos[@i].Cajas" type="number" step="0.01" class="form-control" />
+                            </td>
+                            <td>
+                                <input class="form-control" type="text" value="@productos[i].Importe" readonly />
+                            </td>
+                            <td class="text-center">
+                                <!-- Botón para ver inventario -->
+                                <button type="button" class="btn btn-sm btn-info"  onclick="verInventario('@productos[i].ProductoCodigo', '@productos[i].ProductoNombre')">
+                                    Inventario
+                                </button>
+                            </td>
+                            <td>
+                                <a href="#" class="text-danger" onclick="eliminarProducto(this); return false;">Eliminar</a>
+                            </td>
+                        </tr>
+                    }
+
+                    @if (!productos.Any())
+                    {
+                        <tr>
+                            <td>1</td>
+                            <td>
+                                <input name="Productos[0].ProductoNombre" class="form-control productoInput" placeholder="Buscar producto..." />
+                                <input type="hidden" name="Productos[0].ProductoCodigo" class="productoCodigo" />
+                            </td>
+                            <td><input name="Productos[0].Presupuesto" class="form-control presupuesto" type="number" step="0.01" value="0" readonly /></td>
+                            <td><input name="Productos[${index}].VariacionPresupuesto" class="form-control variacionPresupuesto" type="number" step="0.01" value="${prod.PresupuestoDisponible || 0}" readonly /></td>
+                            <td><input name="Productos[0].Peso" class="form-control" type="number" step="0.01" value="0" /></td>
+                            <td><input name="Productos[0].Precio" class="form-control" type="number" step="0.01" value="0" /></td>
+                            <td><input name="Productos[0].Cajas" type="number" min="0" step="1" class="form-control cajas" value="0" /></td>
+                            <td><input class="form-control subtotal" type="text" value="0.00" readonly /></td>
+                            <td><a href="#" class="text-primary btn-inventario" data-codigo="@productos.ElementAtOrDefault(0)?.ProductoCodigo ?? ''" data-nombre="@productos.ElementAtOrDefault(0)?.ProductoNombre ?? ''">Inventario</a> </td>
+                            <td> <a href="#" class="text-danger" onclick="eliminarProducto(this); return false;">Eliminar</a></td>
+                           
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="d-flex justify-content-between mb-3">
+            <a href="#" style="color: #8B0000; font-weight: bold; text-decoration: none;" onclick="agregarProducto(); return false;">
+                [ Agregar Nuevo Producto ]
+            </a>
+        </div>
+
+        <!-- Final Productos -->
+
+
+
+        <!-- Totales dinámicos -->
+        <div class="mt-3 p-3 border rounded" style="background-color:#f8f9fa;">
+            <div class="d-flex justify-content-between">
+                <strong>Total Peso: </strong> <span id="totalPeso">0.00</span>
+                <strong>Total Importe: </strong> <span id="totalImporte">$0.00</span>
+            </div>
+        </div>
+        <br />
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <button type="submit" name="accion" value="salir" class="btn btn-primary">Guardar/Salir</button>
+                <button type="submit" name="accion" value="nuevo" class="btn btn-primary">Guardar/Nuevo</button>
+                <button type="button" class="btn btn-secondary" onclick="window.location='/Home/inicio'">Cancelar</button>
+            </div>
+            <div>
+                <button type="button" class="btn btn-success"
+                        data-bs-toggle="modal"
+                        data-bs-target="#modalCargaMasiva"
+                        style="background-color: #28a745; border-color: #28a745;">
+                    Carga masiva por SKU
+                </button>
+            </div>
+        </div>
+    </form>
+
+    <!-- CARGA MASIVA PRODUCTOS -->
+    <!-- Botón para abrir modal -->
+    @* <div class="d-flex justify-content-end mb-3">
+        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalCargaMasiva">
+            Carga masiva por SKU
+        </button>
+    </div> *@
+
+    <!-- Modal -->
+    <div class="modal fade" id="modalCargaMasiva" tabindex="-1" aria-labelledby="modalCargaMasivaLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalCargaMasivaLabel">Carga masiva de artículos</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Pega los SKUs separados por ENTER</label>
+                        <textarea id="articulosMasivos" class="form-control" rows="8" placeholder="SKU1&#10;SKU2&#10;SKU3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button id="btnAgregarArticulos" type="button" class="btn btn-success">
+                        <span id="btnText">Agregar artículos</span>
+                        <span id="btnSpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Modal de Inventario -->
+    <div class="modal fade" id="inventarioModal" tabindex="-1" aria-labelledby="inventarioModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header" style="background-color: #8B0000; color: white;">
+                    <h5 class="modal-title" id="inventarioModalLabel">Inventario de Producto</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Producto:</strong> <span id="modalProductoNombre"></span></p>
+                    <p><strong>Código:</strong> <span id="modalProductoCodigo"></span></p>
+                    <hr />
+                    <div id="modalInventarioContenido">
+                        <!-- Aquí se cargarán los datos de inventario via JS / AJAX -->
+                        Cargando inventario...
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- CARGA MASIVA PRODUCTOS -->
+    @section Scripts {
+        <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+        <!-- SOLO UNA VERSIÓN DE jQuery -->
+    @* <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script> *@
+        <!-- jQuery UI -->
+        <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+        <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+
+
+        <script>
+
+               //AUTORIZACION PARA NO DEJAR VACIO CAMPOS
+
+              $(document).ready(function() {
+                $("form").on("submit", function(e) {
+                    let valido = true;
+                    let mensaje = "";
+
+                    // 🔹 Validar cliente, fecha, serie, ruta, presentación y vendedor
+                    if (!$("#clienteHidden").val()) { valido = false; mensaje += "- Debes seleccionar un cliente.\n"; }
+                    if (!$("#FechaEntrega").val()) { valido = false; mensaje += "- Debes ingresar la fecha de entrega.\n"; }
+                    if (!$("#Serie").val()) { valido = false; mensaje += "- Debes seleccionar una serie.\n"; }
+                    if (!$("#rutaSelect").val()) { valido = false; mensaje += "- Debes seleccionar una ruta.\n"; }
+                    if (!$("#Presentacion").val()) { valido = false; mensaje += "- Debes seleccionar una presentación.\n"; }
+                    if (!$("#Vendedor").val()) { valido = false; mensaje += "- Debes ingresar un vendedor.\n"; }
+
+                    // 🔹 Validar productos (manuales o de servidor)
+                    $("#productosBody tr").each(function(index, tr) {
+                        const producto = $(tr).find(".productoInput").val();
+                        const peso = parseFloat($(tr).find(".peso").val()) || 0;
+                        const precio = parseFloat($(tr).find(".precio").val()) || 0;
+                        const cajas = parseFloat($(tr).find(".cajas").val()) || 0;
+
+                        // if (!producto) { valido = false; mensaje += `- Producto en fila ${index + 1} no está seleccionado.\n`; }
+                        // if (peso <= 0) { valido = false; mensaje += `- Peso debe ser mayor a 0 en fila ${index + 1}.\n`; }
+                        // if (precio <= 0) { valido = false; mensaje += `- Precio debe ser mayor a 0 en fila ${index + 1}.\n`; }
+                        // if (cajas <= 0) { valido = false; mensaje += `- Cajas debe ser mayor a 0 en fila ${index + 1}.\n`; }
+                    });
+
+                    if (!valido) {
+                        e.preventDefault(); // ❌ Evita que se envíe el formulario
+                        alert("Por favor corrige los siguientes errores:\n\n" + mensaje);
+                    }
+                });
+            });
+
+            // FIN AUTORIZACION PARA NO DEJAR VACIO CAMPOS
+
+
+        // === Bloquear fechas pasadas en #FechaEntrega ===
+                const hoy = new Date();
+                const anio = hoy.getFullYear();
+                const mes = (hoy.getMonth() + 1).toString().padStart(2, '0');
+                const dia = hoy.getDate().toString().padStart(2, '0');
+                const fechaMinima = `${anio}-${mes}-${dia}`;
+                $("#FechaEntrega").attr("min", fechaMinima);
+
+                $("#FechaEntrega").on("change", function() {
+                    const fechaSeleccionada = new Date($(this).val());
+                    if (fechaSeleccionada < hoy.setHours(0,0,0,0)) {
+                        alert("No se pueden seleccionar fechas pasadas.");
+                        $(this).val(fechaMinima);
+                    }
+                });
+             // === Bloquear fechas pasadas en #FechaEntrega ===
+
+
+
+            // === Autocompletado de clientes ===
+            $(function () {
+                $("#clienteInput").autocomplete({
+                    source: function (request, response) {
+                        $.ajax({
+                            url: '/Comercial/BuscarClientesAutocomplete',
+                            data: { term: request.term },
+                            success: function (data) {
+                                response(data);
+                            },
+                            error: function () {
+                                response([]);
+                            }
+                        });
+                    },
+                    minLength: 2,
+                    select: function (event, ui) {
+                        // Evitar que se escriba en el input el valor original del item
+                        event.preventDefault();
+
+                        // Asignar nombre y código del cliente
+                        $("#clienteInput").val(ui.item.label);
+                        $("#clienteHidden").val(ui.item.value);
+
+                        // 🔹 Saldos y créditos
+                        $("input[name='Saldo']").val(Number(ui.item.saldo || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 }));
+                        $("input[name='Credito']").val(Number(ui.item.credito || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 }));
+                        $("input[name='OtrosPedidos']").val(Number(ui.item.sumpedidos || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 }));
+                        $("input[name='SaldoVencido']").val(Number(ui.item.saldoVencido || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 }));
+
+                        // 🔹 Obtener vendedor
+                        $.getJSON('/Comercial/ObtenerVendedorCliente', { cardCode: ui.item.value }, function (vendedorData) {
+                            $("input[name='Vendedor']").val(vendedorData.vendedorNombre || 'No asignado');
+                        });
+
+                        // 🔹 Traer propiedades dinámicas
+                        $.getJSON('/Comercial/ObtenerPropiedadesCliente', { cardCode: ui.item.value }, function (propData) {
+                            let html = '<div class="d-flex flex-wrap gap-2">';
+                            propData.forEach(p => {
+                                html += `
+                                    <div class="form-check form-check-inline">
+                                        <input type="checkbox" class="form-check-input" name="Propiedades" value="${p.nombre}" ${p.valor ? 'checked' : ''} />
+                                        <label class="form-check-label">${p.nombre}</label>
+                                    </div>`;
+                            });
+                            html += '</div>';
+                            $("#propiedadesCliente").html(html);
+                        });
+
+                        // 🔹 Traer rutas desde SAP
+                                    $.getJSON('/Comercial/ObtenerDireccionesLocal', { cardCode: ui.item.value }, function (rutaData) {
+                            const rutaSelect = $("#rutaSelect");
+                            rutaSelect.empty();
+                            rutaSelect.append('<option value="">Selecciona ruta</option>');
+                            rutaData.forEach(r => {
+                                rutaSelect.append(`<option value="${r.value}">${r.text}</option>`);
+                            });
+                        });
+
+                        // ✅ Ahora sí: cargar productos con la fecha ya establecida
+                        cargarProductos();
+
+                        return false; // Evita que el valor original se escriba de nuevo
+                    }
+                });
+
+                // 🔹 Convertir lo escrito a mayúsculas
+                $("#clienteInput").on("input", function () {
+                    const start = this.selectionStart;
+                    const end = this.selectionEnd;
+                    this.value = this.value.toUpperCase();
+                    this.setSelectionRange(start, end);
+                });
+            });
+
+
+            // === Autocompletado de clientes ===
+
+
+
+            // === Inicializar autocomplete de productos ===
+            function initProductoAutocomplete(element) {
+                $(element).autocomplete({
+                    source: function (request, response) {
+                        $.ajax({
+                            url: '/Comercial/BuscarProductosAutocomplete',
+                            data: { term: request.term },
+                            success: function (data) {
+                                response($.map(data, function (item) {
+                                    return {
+                                        label: item.label.toUpperCase(),
+                                        value: item.value
+                                    };
+                                }));
+                            }
+                        });
+                    },
+                    minLength: 2,
+
+              select: function (event, ui) {
+                const row = $(element).closest("tr");
+                const precioInput = row.find("input[name$='.Precio']");
+                const cajasInput = row.find("input[name$='.Cajas']");
+                const pesoInput = row.find("input[name$='.Peso']");
+                const presupuestoInput = row.find("input[name$='.Presupuesto']");
+                const variacionInput = row.find("input[name$='.VariacionPresupuesto']");
+
+                $(element).val(ui.item.label);
+                $(element).siblings(".productoCodigo").val(ui.item.value);
+
+                const cardCode = $("#clienteHidden").val();
+                const productoCodigo = ui.item.value;
+
+                if (cardCode) {
+                    // 🔹 Obtener mes y año actuales automáticamente
+                    const fechaActual = new Date();
+                    const mes = fechaActual.getMonth() + 1; // Enero = 0
+                    const anio = fechaActual.getFullYear();
+
+                    // ✅ Obtener presupuesto del cliente/producto
+                    $.getJSON('/Comercial/ObtenerPresupuestoProducto', {
+                        cardCode: cardCode,
+                        productoCodigo: productoCodigo,
+                        mes: mes,
+                        anio: anio
+                    }, function(presupuesto) {
+                        if (presupuesto && presupuesto.presupuestoAsignado != null) {
+                            presupuestoInput.val(parseFloat(presupuesto.presupuestoAsignado).toFixed(2));
+                            variacionInput.val('0.00');
+                        } else {
+                            presupuestoInput.val('0.00');
+                            variacionInput.val('0.00');
+                        }
+                    });
+
+                    // 🔹 Obtener precio del artículo
+                    $.getJSON('/Comercial/ObtenerPrecioArticuloCliente', { cardCode: cardCode, itemCode: productoCodigo }, function (data) {
+                        if (data) {
+                            precioInput.val(parseFloat(data.precio || 0).toFixed(2));
+                            row.data("kilosCaja", parseFloat(data.kilosCaja || 0));
+
+                            const peso = parseFloat(pesoInput.val()) || 0;
+                            const kilosCaja = parseFloat(row.data("kilosCaja")) || 0;
+                            const cajas = kilosCaja > 0 ? peso / kilosCaja : 0;
+                            const importe = peso * (parseFloat(data.precio) || 0);
+
+                            cajasInput.val(cajas.toFixed(2));
+                            row.find("input[type='text']").val(importe.toFixed(2));
+                        }
+                    });
+                }
+
+                return false;
+            }
+                });
+
+                // Convertir a mayúsculas mientras escribes
+                $(element).on('input', function () {
+                    const start = this.selectionStart;
+                    const end = this.selectionEnd;
+                    this.value = this.value.toUpperCase();
+                    this.setSelectionRange(start, end);
+                });
+            }
+
+            // Calcular cajas e importe al cambiar peso
+            $(document).on("input", "input[name$='.Peso']", function () {
+                const row = $(this).closest("tr");
+                const peso = parseFloat($(this).val()) || 0;
+                const precio = parseFloat(row.find("input[name$='.Precio']").val()) || 0;
+                const kilosCaja = parseFloat(row.data("kilosCaja")) || 1;
+
+                const cajas = kilosCaja > 0 ? peso / kilosCaja : 0;
+                const cajasRedondeadas = Math.round(cajas); // 🔹 redondeo a entero
+                const importe = peso * precio;
+
+                // row.find("input[name$='.Cajas']").val(cajas.toFixed(2));
+                 row.find("input[name$='.Cajas']").val(cajasRedondeadas);
+                row.find("input[type='text']").val(importe.toFixed(2));
+            });
+
+            // Calcular peso e importe al cambiar cajas
+            $(document).on("input", "input[name$='.Cajas']", function () {
+                const row = $(this).closest("tr");
+                const cajas = parseFloat($(this).val()) || 0;
+                const precio = parseFloat(row.find("input[name$='.Precio']").val()) || 0;
+                const kilosCaja = parseFloat(row.data("kilosCaja")) || 1;
+
+                const peso = cajas * kilosCaja;
+                const importe = peso * precio;
+
+                row.find("input[name$='.Peso']").val(peso.toFixed(2));
+                row.find("input[type='text']").val(importe.toFixed(2));
+            });
+
+            // Inicializar autocomplete para inputs existentes
+            $(document).ready(function () {
+                $('.productoInput').each(function () {
+                    initProductoAutocomplete(this);
+                });
+            });
+
+            // === FINAL DE Inicializar autocomplete de productos ===
+
+
+
+
+            // === Agregar producto dinámicamente ===
+
+                    function agregarProducto() {
+                const tbody = document.getElementById('productosBody');
+                const index = tbody.rows.length;
+                const row = tbody.insertRow();
+            
+                row.innerHTML = `
+               <td>${index + 1}</td>
+               <td>
+                   <input name="Productos[${index}].ProductoNombre" class="form-control productoInput" placeholder="Buscar producto..." />
+                   <input type="hidden" name="Productos[${index}].ProductoCodigo" class="productoCodigo" />
+               </td>
+               <td><input name="Productos[${index}].Presupuesto" class="form-control presupuesto" type="number" step="0.01" value="0" readonly /></td>
+               <td><input name="Productos[${index}].VariacionPresupuesto" class="form-control variacionPresupuesto" type="number" step="0.01" value="0" readonly /></td>
+               <td><input name="Productos[${index}].Peso" class="form-control" type="number" step="0.01" value="0" /></td>
+               <td><input name="Productos[${index}].Precio" class="form-control" type="number" step="0.01" value="0" /></td>
+               <td><input name="Productos[${index}].Cajas" class="form-control" type="number" step="0.01" value="0" /></td>
+               <td><input class="form-control" type="text" value="0.00" readonly /></td>
+                           <td> <a href="#" class="text-primary btn-inventario"data-codigo="CODIGO_DEL_PRODUCTO"data-nombre="NOMBRE_DEL_PRODUCTO">Inventario</a></td>
+               <td><a href="#" class="text-danger" onclick="eliminarProducto(this); return false;">Eliminar</a></td>
+            `;
+
+                // 🔹 Inicializar autocomplete para el input de producto recién agregado
+                initProductoAutocomplete(row.querySelector('.productoInput'));
+
+                actualizarTotales();
+                row.querySelector('input[name$=".Producto"]').focus();
+            }
+
+            // === Agregar producto dinámicamente ===
+
+
+            // === Agregar PROPIEDADES dinámicamente ===
+                        function cargarPropiedadesModal(cardCode) {
+                    const body = document.getElementById("modalPropiedadesBody");
+                    body.innerHTML = "<p>Cargando información...</p>";
+
+                    fetch(`/Comercial/ObtenerPropiedadesCliente?cardCode=${cardCode}`)
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.length === 0) {
+                                body.innerHTML = "<p>No hay documentación disponible.</p>";
+                                return;
+                            }
+
+                            let html = '<div class="container">';
+                            data.forEach(p => {
+                                html += `
+                                    <div class="row mb-2">
+                                        <div class="col-4 fw-bold">${p.nombre}</div>
+                                        <div class="col-8">${p.valor ? p.valor : 'No asignado'}</div>
+                                    </div>`;
+                            });
+                            html += '</div>';
+
+                            body.innerHTML = html;
+                        })
+                        .catch(err => {
+                            console.error(err);
+                            body.innerHTML = "<p>Error al cargar la documentación.</p>";
+                        });
+                }
+
+                // Abrir modal con info al hacer click en el botón
+                document.querySelector('[data-bs-target="#modalPropiedades"]').addEventListener('click', () => {
+                    const cardCode = $("#clienteHidden").val();
+                    if (!cardCode) {
+                        alert("Selecciona un cliente primero.");
+                        return;
+                    }
+                    cargarPropiedadesModal(cardCode);
+                });
+
+              // === Agregar PROPIEDADES dinámicamente ===
+
+
+            //otras funcionalidades
+
+
+            // === Productos y totales dinámicos ===
+              function actualizarTotales() {
+                const tbody = document.getElementById('productosBody');
+                let totalPeso = 0;
+                let totalImporte = 0;
+
+                for (let i = 0; i < tbody.rows.length; i++) {
+                    const row = tbody.rows[i];
+                    const pesoInput = row.querySelector('input[name$=".Peso"]');
+                    const precioInput = row.querySelector('input[name$=".Precio"]');
+                    const subtotalInput = row.querySelector('input[type="text"], .subtotal');
+
+                    const peso = parseFloat(pesoInput?.value) || 0;
+                    const precio = parseFloat(precioInput?.value) || 0;
+                    const subtotal = peso * precio;
+
+                    if(subtotalInput) subtotalInput.value = subtotal.toFixed(2);
+
+                    totalPeso += peso;
+                    totalImporte += subtotal;
+
+                    // Actualiza el índice visible y los nombres
+                    row.cells[0].textContent = i + 1;
+                    row.querySelectorAll('input, textarea').forEach(input => {
+                        if (input.name) {
+                            const campo = input.name.split('.').pop();
+                            input.name = `Productos[${i}].${campo}`;
+                        }
+                    });
+                }
+
+                document.getElementById('totalPeso').textContent = totalPeso.toFixed(2);
+                document.getElementById('totalImporte').textContent = '$' + totalImporte.toFixed(2);
+            }
+
+
+            //FUNCION DE ELIMINAR 
+
+            function eliminarProducto(link) {
+                const row = link.closest('tr');
+                row.remove();
+                actualizarTotales();
+
+                const tbody = document.getElementById('productosBody');
+                if (tbody.rows.length === 0) agregarProducto(); // opcional
+            }
+
+            // recalcular totales al cambiar peso o precio
+            document.addEventListener('input', function(e) {
+                if (e.target.matches('input[name$=".Peso"], input[name$=".Precio"], .cajas')) actualizarTotales();
+            });
+
+            document.addEventListener('DOMContentLoaded', () => actualizarTotales());
+
+
+
+        
+            // ===== CARGA MASIVA DE ARTICULOS POR CLIENTE =====
+
+            let articuloIndex = $('#productosBody tr').length;
+
+            $('#btnAgregarArticulos').on('click', async function () {
+                const btnText = $('#btnText');
+                const btnSpinner = $('#btnSpinner');
+
+                const modal = bootstrap.Modal.getInstance($('#modalCargaMasiva')[0]);
+                modal.hide();
+
+                btnText.addClass('d-none');
+                btnSpinner.removeClass('d-none');
+
+                await cargarArticulosMasivos();
+
+                btnSpinner.addClass('d-none');
+                btnText.removeClass('d-none');
+            });
+
+            async function cargarArticulosMasivos() {
+                const cardCode = $("#clienteHidden").val();
+                if (!cardCode) { alert("Selecciona un cliente primero."); return; }
+
+                const codigos = $("#articulosMasivos").val()
+                    .trim()
+                    .toUpperCase()
+                    .split(/\r?\n/)
+                    .map(c => c.trim())
+                    .filter(c => c !== "");
+
+                if (codigos.length === 0) { alert("No hay SKUs para agregar."); return; }
+
+                // Buscar todos los productos en paralelo
+                const promesas = codigos.map(code =>
+                    $.getJSON('/Comercial/ObtenerPrecioArticuloCliente', { cardCode, itemCode: code })
+                        .catch(err => { console.warn("Error al buscar artículo:", code, err); return null; })
+                );
+
+                const productos = (await Promise.all(promesas)).filter(p => p && p.itemCode);
+
+                // Agregar filas en paralelo y obtener presupuestos
+                await Promise.all(productos.map(p => agregarFilaArticuloConPresupuesto(p, cardCode)));
+
+                actualizarTotales();
+                $("#articulosMasivos").val("");
+            }
+
+            // Función para agregar fila y asignar presupuesto
+            async function agregarFilaArticuloConPresupuesto(producto, cardCode) {
+                const tbody = $('#productosBody');
+                const row = $('<tr></tr>');
+
+                const precio = producto.precio || 0;
+                const kilosCaja = producto.kilosCaja || 1;
+
+                row.data('kilosCaja', kilosCaja);
+
+                const nombreConcatenado = `${(producto.itemName || "").toUpperCase()} (${(producto.itemCode || "").toUpperCase()})`;
+
+                row.html(`
+                    <td>${articuloIndex + 1}</td>
+                    <td>
+                        <input type="hidden" name="Productos[${articuloIndex}].ProductoCodigo" value="${(producto.itemCode || "").toUpperCase()}" />
+                        <input type="hidden" name="Productos[${articuloIndex}].ProductoNombre" value="${(producto.itemName || "").toUpperCase()}" />
+                        ${nombreConcatenado}
+                    </td>
+                    <td><input name="Productos[${articuloIndex}].Presupuesto" class="form-control presupuesto" type="number" step="0.01" value="0" readonly /></td>
+                    <td><input name="Productos[${articuloIndex}].VariacionPresupuesto" class="form-control variacionPresupuesto" type="number" step="0.01" value="0" readonly /></td>
+                    <td><input name="Productos[${articuloIndex}].Peso" class="form-control peso" type="number" step="0.01" value="0" /></td>
+                    <td><input name="Productos[${articuloIndex}].Precio" class="form-control precio" type="number" step="0.01" value="${precio}" /></td>
+                    <td><input name="Productos[${articuloIndex}].Cajas" class="form-control cajas" type="number" step="0.01" value="0" /></td>
+                    <td><input class="form-control subtotal" type="text" value="0.00" readonly /></td>
+                                <td> <a href="#" class="text-primary btn-inventario"data-codigo="CODIGO_DEL_PRODUCTO"data-nombre="NOMBRE_DEL_PRODUCTO">Inventario</a></td>
+                    <td><a href="#" class="text-danger" onclick="eliminarProducto(this); return false;">Eliminar</a></td>
+                `);
+
+                tbody.append(row);
+
+                const inputPresupuesto = row.find('.presupuesto');
+                const inputVariacion = row.find('.variacionPresupuesto');
+                const inputPrecio = row.find('.precio');
+
+                // 🔹 Obtener mes y año según fecha de entrega
+                let fechaEntrega = $("#FechaEntrega").val();
+                let mes = new Date().getMonth() + 1;
+                let anio = new Date().getFullYear();
+
+                if (fechaEntrega) {
+                    const f = new Date(fechaEntrega);
+                    if (!isNaN(f)) {
+                        mes = f.getMonth() + 1;
+                        anio = f.getFullYear();
+                    }
+                }
+
+                console.log("Buscando presupuesto:", producto.itemCode, cardCode, "Mes:", mes, "Año:", anio);
+
+                // 🔹 Llamada al backend para obtener presupuesto
+                try {
+                    const data = await $.getJSON('/Comercial/ObtenerPresupuestoCliente', {
+                        cardCode,
+                        productoCodigo: producto.itemCode,
+                        mes,
+                        anio
+                    });
+
+                    if (data && data.length > 0 && data[0].PresupuestoAsignado != null) {
+                        const pres = parseFloat(data[0].PresupuestoAsignado) || 0;
+                        inputPresupuesto.val(pres.toFixed(2));
+                        // Variación respecto al precio actual
+                        inputVariacion.val((parseFloat(inputPrecio.val()) - pres).toFixed(2));
+                    } else {
+                        inputPresupuesto.val("0.00");
+                        inputVariacion.val("0.00");
+                    }
+                } catch (err) {
+                    console.error("Error al obtener presupuesto:", err);
+                    inputPresupuesto.val("0.00");
+                    inputVariacion.val("0.00");
+                }
+
+                // Eventos dinámicos Peso ↔ Cajas ↔ Subtotal
+                row.find('.peso').on('input', function () {
+                    const r = $(this).closest('tr');
+                    const peso = parseFloat($(this).val()) || 0;
+                    const precio = parseFloat(r.find('.precio').val()) || 0;
+                    const kilosCaja = parseFloat(r.data('kilosCaja')) || 1;
+
+                    r.find('.cajas').val((peso / kilosCaja).toFixed(2));
+                    r.find('.subtotal').val((peso * precio).toFixed(2));
+                    actualizarTotales();
+                });
+
+                row.find('.cajas').on('input', function () {
+                    const r = $(this).closest('tr');
+                    const cajas = parseFloat($(this).val()) || 0;
+                    const precio = parseFloat(r.find('.precio').val()) || 0;
+                    const kilosCaja = parseFloat(r.data('kilosCaja')) || 1;
+
+                    r.find('.peso').val((cajas * kilosCaja).toFixed(2));
+                    r.find('.subtotal').val((cajas * kilosCaja * precio).toFixed(2));
+                    actualizarTotales();
+                });
+
+                articuloIndex++;
+            }
+
+            // ===== FIN CARGA MASIVA DE ARTICULOS POR CLIENTE =====
+
+
+
+                            // ===== Función para cargar presupuestos =====
+                               function cargarPresupuestoActual(cardCode, productoCodigo) {
+                const fecha = new Date();
+                const mes = fecha.getMonth() + 1; // JavaScript cuenta desde 0
+                const anio = fecha.getFullYear();
+
+                $.get(`/Comercial/ObtenerPresupuestoCliente?cardCode=${cardCode}&productoCodigo=${productoCodigo}&mes=${mes}&anio=${anio}`, function (data) {
+                    if (data && data.length > 0) {
+                        const presupuesto = data[0].PresupuestoAsignado;
+                        $("#presupuestoAsignado").val(presupuesto.toFixed(2));
+                    } else {
+                        $("#presupuestoAsignado").val("0.00");
+                    }
+                });
+            }
+
+// === Recalcular presupuesto al cambiar la FechaEntrega ===
+$("#FechaEntrega").on("change", function () {
+    const fecha = $(this).val(); // formato yyyy-mm-dd
+    if (!fecha) return;
+
+    const d = new Date(fecha);
+    const mes = d.getMonth() + 1; // JS cuenta de 0-11
+    const anio = d.getFullYear();
+
+    const cardCode = $("#clienteHidden").val();
+    if (!cardCode) return;
+
+    // Recalcular presupuesto para cada producto
+    $("#productosBody tr").each(function () {
+        const row = $(this);
+        const productoCodigo = row.find(".productoCodigo").val();
+        const presupuestoInput = row.find(".presupuesto");
+        const variacionInput = row.find(".variacionPresupuesto");
+
+        if (!productoCodigo) return;
+
+        $.getJSON('/Comercial/ObtenerPresupuestoProducto', {
+            cardCode: cardCode,
+            productoCodigo: productoCodigo,
+            mes: mes,
+            anio: anio
+        }, function (presupuesto) {
+            if (presupuesto && presupuesto.presupuestoAsignado != null) {
+                presupuestoInput.val(parseFloat(presupuesto.presupuestoAsignado).toFixed(2));
+                variacionInput.val("0.00");
+            } else {
+                presupuestoInput.val("0.00");
+                variacionInput.val("0.00");
+            }
+        });
+    });
+});
+
+
+
+             // Evento cuando cambian FechaEntrega o ClienteId
+                    $("#FechaEntrega, #ClienteId").on("change", function() {
+                        const fecha = $("#FechaEntrega").val();
+                        const cardCode = $("#ClienteId").val();
+
+                        if (!fecha || !cardCode) return;
+
+                        $.getJSON("/Comercial/ObtenerProductosPorClienteFecha", { cardCode, fechaEntrega: fecha }, function(productos) {
+                            const tbody = $("#productosBody");
+                            tbody.empty(); // Limpiar tabla actual
+
+                            productos.forEach((p, index) => {
+                                const fila = `<tr>
+                                    <td>${index + 1}</td>
+                                    <td>
+                                        <input name="Productos[${index}].ProductoNombre" class="form-control productoInput" value="${p.Nombre}" readonly />
+                                        <input type="hidden" name="Productos[${index}].ProductoCodigo" class="productoCodigo" value="${p.Codigo}" />
+                                    </td>
+                                    <td><input name="Productos[${index}].Presupuesto" class="form-control presupuesto" type="number" value="${p.Presupuesto.toFixed(2)}" readonly /></td>
+                                    <td><input name="Productos[${index}].VariacionPresupuesto" class="form-control variacionPresupuesto" type="number" value="0.00" readonly /></td>
+                                    <td><input name="Productos[${index}].Peso" class="form-control peso" type="number" value="0" /></td>
+                                    <td><input name="Productos[${index}].Precio" class="form-control precio" type="number" value="0" /></td>
+                                    <td><input name="Productos[${index}].Cajas" class="form-control cajas" type="number" value="0" /></td>
+                                    <td><input class="form-control subtotal" type="text" value="0.00" readonly /></td>
+                                    <td> <a href="#" class="text-primary btn-inventario"data-codigo="CODIGO_DEL_PRODUCTO"data-nombre="NOMBRE_DEL_PRODUCTO">Inventario</a></td>
+                                    <td><a href="#" class="text-danger" onclick="eliminarProducto(this); return false;">Eliminar</a></td>
+                   
+                                </tr>`;
+                                tbody.append(fila);
+                            });
+                        });
+                    });
+
+
+
+
+   // === Función para cargar productos del servidor ===
+            // === Función para cargar productos y presupuesto del servidor ===
+            function cargarProductos() {
+                const fecha = $("#FechaEntrega").val();
+                const cardCode = $("#clienteHidden").val();
+                const tbody = $("#productosBody");
+
+                if (!fecha || !cardCode) return;
+
+                // Mostrar spinner con texto dinámico
+                $("#loadingSpinner p").text(`Cargando productos y presupuesto del cliente ${cardCode}...`);
+                $("#loadingSpinner").css("display", "flex");
+
+                // Eliminar filas previas de servidor
+                tbody.find("tr[data-origen='servidor']").remove();
+
+                // Eliminar la primera fila vacía si existe (de origen manual)
+                const primeraFila = tbody.find("tr").first();
+                if (primeraFila.length && !primeraFila.data('origen')) {
+                    primeraFila.remove();
+                }
+
+                // 🔹 Cargar productos
+                $.getJSON("/Comercial/ObtenerProductosPorClienteFecha", { cardCode, fechaEntrega: fecha })
+                    .done(function (productos) {
+                        productos.forEach((prod, index) => {
+                            const fila = $(`
+                                <tr data-origen="servidor">
+                                    <td>${tbody.find("tr").length + 1}</td>
+                                    <td>
+                                        <input type="hidden" name="Productos[${index}].ProductoCodigo" value="${prod.productoCodigo}" />
+                                        <input type="hidden" name="Productos[${index}].ProductoNombre" value="${prod.productoNombre}" />
+                                        ${prod.productoNombre}
+                                    </td>
+                                    <td><input name="Productos[${index}].Presupuesto" class="form-control presupuesto" type="number" step="0.01" value="${prod.presupuesto || 0}" readonly /></td>
+                                    <td><input name="Productos[${index}].VariacionPresupuesto" class="form-control variacionPresupuesto" type="number" step="0.01" value="0" readonly /></td>
+                                    <td><input name="Productos[${index}].Peso" class="form-control peso" type="number" step="0.01" value="0" /></td>
+                                    <td><input name="Productos[${index}].Precio" class="form-control precio" type="number" step="0.01" value="${prod.precio || 0}" /></td>
+                                    <td><input name="Productos[${index}].Cajas" class="form-control cajas" type="number" step="0.01" value="0" /></td>
+                                    <td><input class="form-control subtotal" type="text" value="0.00" readonly /></td>
+                                    <td><a href="#" class="text-primary btn-inventario" data-codigo="${prod.productoCodigo}" data-nombre="${prod.productoNombre}">Inventario</a></td>
+                                    <td><a href="#" class="text-danger" onclick="eliminarProducto(this); return false;">Eliminar</a></td>
+                                </tr>
+                            `);
+
+                            tbody.append(fila);
+
+                            const kilosCaja = parseFloat(prod.kilosCaja || 1);
+                            fila.data('kilosCaja', kilosCaja);
+
+                            // Función para calcular subtotal
+                            function actualizarSubtotalYVariacion(peso, precio) {
+                                const subtotal = peso * precio;
+                                fila.find(".subtotal").val(subtotal.toFixed(2));
+                            }
+
+                            // Asignar valores iniciales: 1 caja y peso según kilosCaja
+                            fila.find(".cajas").val(1);
+                            fila.find(".peso").val(kilosCaja.toFixed(2));
+
+                            // Eventos Peso ↔ Cajas ↔ Precio
+                            fila.find('.peso').on('input', function () {
+                                const peso = parseFloat($(this).val()) || 0;
+                                const precio = parseFloat(fila.find('.precio').val()) || 0;
+                                fila.find('.cajas').val((peso / kilosCaja).toFixed(2));
+                                actualizarSubtotalYVariacion(peso, precio);
+                                actualizarTotales();
+                            });
+
+                            fila.find('.cajas').on('input', function () {
+                                const cajas = parseFloat($(this).val()) || 0;
+                                const precio = parseFloat(fila.find('.precio').val()) || 0;
+                                const peso = cajas * kilosCaja;
+                                fila.find('.peso').val(peso.toFixed(2));
+                                actualizarSubtotalYVariacion(peso, precio);
+                                actualizarTotales();
+                            });
+
+                            fila.find('.precio').on('input', function () {
+                                const peso = parseFloat(fila.find('.peso').val()) || 0;
+                                const precio = parseFloat($(this).val()) || 0;
+                                actualizarSubtotalYVariacion(peso, precio);
+                                actualizarTotales();
+                            });
+
+                            // Disparar cálculo inicial
+                            fila.find(".peso").trigger("input");
+                        });
+
+                        // 🔹 Una vez cargadas las filas, actualizar presupuesto disponible
+                        $.getJSON("/Comercial/ObtenerProductosConPresupuestoDisponible", { cardCode, fechaEntrega: fecha })
+                            .done(function (productosPresupuesto) {
+                                productosPresupuesto.forEach(prod => {
+                                    const fila = tbody.find(`input[name$='ProductoCodigo'][value='${prod.productoCodigo}']`).closest('tr');
+                                    if (fila.length) {
+                                        fila.find(".variacionPresupuesto").val(prod.presupuestoDisponible.toFixed(2));
+                                    }
+                                });
+                            });
+
+                        actualizarIndices();
+                        actualizarTotales();
+                    })
+                    .fail(function () {
+                        alert("Error al cargar productos");
+                    })
+                    .always(function () {
+                        $("#loadingSpinner").hide();
+                    });
+            }
+
+            // === Disparadores automáticos para cargar productos ===
+            $(document).ready(function () {
+                const clienteInput = $("#clienteHidden");
+                const fechaInput = $("#FechaEntrega");
+
+                function cargarSiHayClienteYFecha() {
+                    if (clienteInput.val() && fechaInput.val()) {
+                        cargarProductos();
+                    }
+                }
+
+                // 🔹 Al entrar a la vista
+                cargarSiHayClienteYFecha();
+
+                // 🔹 Cuando se cambia el cliente
+                clienteInput.on("change", cargarSiHayClienteYFecha);
+
+                // 🔹 Cuando se cambia la fecha de entrega
+                fechaInput.on("change", cargarSiHayClienteYFecha);
+            });
+
+            // === FUNCION DE PRESUPUESTO ===
+              function cargarPresupuestoDisponible() {
+                const fecha = $("#FechaEntrega").val();
+                const cardCode = $("#clienteHidden").val();
+                const tbody = $("#productosBody");
+
+                if (!fecha || !cardCode) return;
+
+                $("#loadingSpinner p").text(`Actualizando presupuesto disponible del cliente ${cardCode}...`);
+                $("#loadingSpinner").css("display", "flex");
+
+                $.getJSON("/Comercial/ObtenerProductosConPresupuestoDisponible", { cardCode, fechaEntrega: fecha })
+                    .done(function (productos) {
+                        productos.forEach(prod => {
+                            // Buscar fila existente por ProductoCodigo
+                            const fila = tbody.find(`input[name$='ProductoCodigo'][value='${prod.productoCodigo}']`).closest('tr');
+                            if (fila.length) {
+                                // Solo asignar el valor que viene del endpoint
+                                fila.find(".variacionPresupuesto").val(prod.presupuestoDisponible.toFixed(2));
+                            }
+                        });
+                    })
+                    .fail(function () {
+                        alert("Error al cargar presupuesto disponible");
+                    })
+                    .always(function () {
+                        $("#loadingSpinner").hide();
+                    });
+            }
+
+
+
+
+
+
+ // === Función para agregar una fila vacía manualmente ===
+            function agregarFilaProducto() {
+                const tbody = $("#productosBody");
+                const index = tbody.children().length;
+
+                const fila = $(`
+                    <tr data-origen="manual">
+                        <td></td>
+                        <td>
+                            <input name="Productos[${index}].ProductoNombre" class="form-control productoInput" placeholder="Buscar producto..." />
+                            <input type="hidden" name="Productos[${index}].ProductoCodigo" class="productoCodigo" />
+                        </td>
+                        <td><input name="Productos[${index}].Presupuesto" class="form-control presupuesto" type="number" step="0.01" value="0" readonly /></td>
+                        <td><input name="Productos[${index}].VariacionPresupuesto" class="form-control variacionPresupuesto" type="number" step="0.01" value="0" readonly /></td>
+                        <td><input name="Productos[${index}].Peso" class="form-control peso" type="number" step="0.01" value="0" /></td>
+                        <td><input name="Productos[${index}].Precio" class="form-control precio" type="number" step="0.01" value="0" /></td>
+                        <td><input name="Productos[${index}].Cajas" class="form-control cajas" type="number" step="0.01" value="0" /></td>
+                        <td><input class="form-control subtotal" type="text" value="0.00" readonly /></td>
+                        <td><a href="#" class="text-primary btn-inventario">Inventario</a></td>
+                        <td><a href="#" class="text-danger" onclick="eliminarProducto(this); return false;">Eliminar</a></td>                       
+                        
+                    </td>
+                `);
+
+                tbody.append(fila);
+
+                // Inicializar autocomplete
+                initProductoAutocomplete(fila.find(".productoInput")[0]);
+
+                // Recalcular variación y subtotal
+                fila.find(".precio, .peso, .cajas").on("input", function () {
+                    const precio = parseFloat(fila.find(".precio").val()) || 0;
+                    const presupuesto = parseFloat(fila.find(".presupuesto").val()) || 0;
+                    const peso = parseFloat(fila.find(".peso").val()) || 0;
+                    const cajas = parseFloat(fila.find(".cajas").val()) || 0;
+
+                    fila.find(".variacionPresupuesto").val((precio - presupuesto).toFixed(2));
+                    fila.find(".subtotal").val((precio * peso * cajas).toFixed(2));
+                });
+
+                actualizarIndices();
+            }
+
+            // === Actualiza la columna # y los índices de name para model binding ===
+            function actualizarIndices() {
+                $("#productosBody tr").each(function (i, tr) {
+                    $(tr).find("td:first").text(i + 1);
+
+                    $(tr).find("input").each(function () {
+                        const name = $(this).attr("name");
+                        if (name) {
+                            const nuevoName = name.replace(/Productos\[\d+\]/, `Productos[${i}]`);
+                            $(this).attr("name", nuevoName);
+                        }
+                    });
+                });
+            }
+
+            // === Función para eliminar una fila ===
+            function eliminarProducto(link) {
+                $(link).closest("tr").remove();
+                actualizarIndices();
+            }
+
+
+
+            function verInventario(codigo, nombre) {
+                // Mostrar nombre y código en el modal
+                document.getElementById('modalProductoNombre').textContent = nombre;
+                document.getElementById('modalProductoCodigo').textContent = codigo;
+                document.getElementById('modalInventarioContenido').innerHTML = 'Cargando inventario...';
+
+                // Mostrar modal
+                var modal = new bootstrap.Modal(document.getElementById('inventarioModal'));
+                modal.show();
+
+                // Hacer llamada AJAX para obtener inventario
+                fetch(`/Inventario/ObtenerStock?codigo=${codigo}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data && data.length > 0) {
+                            let html = '<ul class="list-group">';
+                            data.forEach(item => {
+                                html += `<li class="list-group-item d-flex justify-content-between align-items-center">
+                                            ${item.Almacen} - ${item.Ubicacion}
+                                            <span class="badge bg-primary rounded-pill">${item.Cantidad}</span>
+                                         </li>`;
+                            });
+                            html += '</ul>';
+                            document.getElementById('modalInventarioContenido').innerHTML = html;
+                        } else {
+                            document.getElementById('modalInventarioContenido').innerHTML = '<p>No hay stock disponible.</p>';
+                        }
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        document.getElementById('modalInventarioContenido').innerHTML = '<p>Error al cargar inventario.</p>';
+                    });
+            }
+
+            // Evento delegado para botones de inventario
+            $(document).on('click', '.btn-inventario', function(e) {
+                e.preventDefault();
+                const codigo = $(this).data('codigo');
+                const nombre = $(this).data('nombre');
+                verInventario(codigo, nombre);
+            });
+
+        </script>
+
+        <input type="hidden" id="productoCodigo" name="ProductoCodigo" />
+    }

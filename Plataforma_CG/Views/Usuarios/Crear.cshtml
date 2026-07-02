@@ -1,0 +1,480 @@
+﻿@using Microsoft.AspNetCore.Mvc.Rendering
+@model Plataforma_CG.Models.UsuarioSQL
+
+@{
+    ViewData["Title"] = "Crear Usuario SQL";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    var errores = ViewData["ModelErrors"] as IEnumerable<string>;
+
+    var series = ViewBag.Series as List<SelectListItem> ?? new List<SelectListItem>();
+    var seriesSeleccionadas = Model?.SeriesSeleccionadasIds ?? new List<int>();
+
+    var almacenes = ViewBag.Almacenes as List<SelectListItem> ?? new();
+    var almacenesSeleccionados = Model?.AlmacenesSeleccionados ?? new List<string>();
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger mt-3">@TempData["Error"]</div>
+}
+
+@if (errores != null && errores.Any())
+{
+    <div class="alert alert-danger mt-3">
+        <strong>Errores en el formulario:</strong>
+        <ul class="mb-0">
+            @foreach (var e in errores)
+            {
+                <li>@e</li>
+            }
+        </ul>
+    </div>
+}
+
+<style>
+    /* ================================
+       SAP-LIKE THEME (Carnes G)
+       ================================ */
+    :root {
+        --brand: #8B0000;
+        --brand-strong: #a30b0b;
+        --brand-grad: linear-gradient(90deg,#8B0000 0%,#5a0000 50%,#1a0000 100%);
+        --bg: linear-gradient(135deg,#eef2f6 0%,#e9edf2 50%,#d7dde3 100%);
+        --panel: #fff;
+        --line: #d8dce3;
+        --text: #20262e;
+        --muted: #636d7b;
+        --shadow: 0 1px 0 rgba(0,0,0,.04),0 12px 24px rgba(0,0,0,.06);
+        --shadow-sm: 0 6px 16px rgba(0,0,0,.06);
+        --radius: 12px;
+        --focus: 0 0 0 .2rem rgba(45,108,223,.25);
+    }
+
+    body {
+        background: var(--bg) !important;
+        color: var(--text);
+    }
+
+    /* Encabezado */
+    .encabezado {
+        background: var(--brand-grad);
+        padding: 15px 25px;
+        color: #fff;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 8px 20px rgba(139,0,0,.18);
+        border-radius: 12px;
+        width: 90%;
+        margin: 0 auto 18px auto;
+    }
+
+    /* Recuadro principal */
+    .recuadro-principal {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        width: 90%;
+        max-width: 900px;
+        margin: 0 auto 32px auto;
+        padding: 18px 22px;
+        box-shadow: var(--shadow);
+    }
+
+    .titulo-recuadro {
+        background: linear-gradient(#f6f8fb,#eef2f7);
+        border: 1px solid var(--line);
+        color: #2b3642;
+        font-weight: 800;
+        text-align: center;
+        font-size: 1.05rem;
+        border-radius: 10px;
+        padding: 10px;
+        margin-bottom: 16px;
+    }
+
+    /* Tarjeta de campo */
+    .formulario-campos {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        width: 100%;
+    }
+
+    .form-card {
+        display: flex;
+        align-items: center;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        box-shadow: var(--shadow-sm);
+        padding: 14px;
+        width: 100%;
+        max-width: 540px;
+        gap: 14px;
+    }
+
+    .form-icon-circle {
+        background: var(--brand);
+        color: #fff;
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+    }
+
+    .form-inpunt-seccion { /* conserva tu clase original */
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+        .form-inpunt-seccion label {
+            font-weight: 700;
+            color: #394452;
+            font-size: .92rem;
+        }
+
+        .form-inpunt-seccion input,
+        .form-inpunt-seccion select {
+            border-radius: 10px;
+            border: 1px solid #cfd6e2;
+            padding: 10px 12px;
+            transition: .15s ease;
+            font-size: .95rem;
+        }
+
+            .form-inpunt-seccion input:focus,
+            .form-inpunt-seccion select:focus {
+                border-color: #2d6cdf;
+                box-shadow: var(--focus);
+                outline: none;
+            }
+
+    /* Botones */
+    .btn-success {
+        background: var(--brand-grad);
+        border: none;
+        color: #fff;
+        border-radius: 999px;
+        padding: 10px 24px;
+        font-weight: 800;
+        letter-spacing: .2px;
+    }
+
+        .btn-success:hover {
+            filter: brightness(1.06);
+        }
+
+    .btn-secondary {
+        background: #e9edf4;
+        color: #1e2a35;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 10px 18px;
+        font-weight: 700;
+    }
+
+        .btn-secondary:hover {
+            background: #dde3ee;
+        }
+
+    .validation-summary-valid,
+    .validation-summary-errors {
+        border: 1px solid #f5c2c7;
+        background: #f8d7da;
+        color: #842029;
+        padding: 10px 12px;
+        border-radius: 10px;
+        box-shadow: var(--shadow-sm);
+    }
+
+    /* Toggle vendedor (tarjeta condicional) */
+    #vendedorIdCard {
+        display: none;
+    }
+
+    .form-card.series-card {
+        max-width: 780px;
+        align-items: flex-start;
+    }
+
+    .series-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+    }
+
+    .series-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 8px;
+    }
+
+    .serie-item {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px 10px;
+        background: #f8fafc;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 600;
+        color: #2b3642;
+    }
+
+        .serie-item:hover {
+            background: #eef2f7;
+        }
+
+        .serie-item input {
+            width: 16px;
+            height: 16px;
+        }
+
+</style>
+
+<div class="container-fluid mt-4">
+    <div class="encabezado">
+        <h4 class="m-0 fw-800">Crear nuevo usuario Local</h4>
+    </div>
+
+    <div class="recuadro-principal">
+        <div class="titulo-recuadro">Formulario de usuario</div>
+
+        @* Validación MVC estándar *@
+        <div asp-validation-summary="ModelOnly" class="validation-summary-errors" style="display:@(ViewData.ModelState.IsValid ? "none" : "block")"></div>
+
+        <form asp-controller="Usuarios" asp-action="Crear" method="post" class="mt-3" autocomplete="off">
+            @Html.AntiForgeryToken()
+
+            <div class="formulario-campos">
+
+                <div class="form-card">
+                    <div class="form-icon-circle"><i class="fa-solid fa-user"></i></div>
+                    <div class="form-inpunt-seccion">
+                        <label for="Usuario">Usuario</label>
+                        <input asp-for="Usuario" class="form-control" id="Usuario" placeholder="usuario.sistema" autofocus />
+                        <span asp-validation-for="Usuario" class="text-danger"></span>
+                    </div>
+                </div>
+
+                <div class="form-card">
+                    <div class="form-icon-circle"><i class="fa-solid fa-id-card"></i></div>
+                    <div class="form-inpunt-seccion">
+                        <label for="Nombre">Nombre completo</label>
+                        <input asp-for="Nombre" class="form-control" id="Nombre" placeholder="Nombre y apellidos" />
+                        <span asp-validation-for="Nombre" class="text-danger"></span>
+                    </div>
+                </div>
+
+                <div class="form-card">
+                    <div class="form-icon-circle"><i class="fa-solid fa-lock"></i></div>
+                    <div class="form-inpunt-seccion">
+                        <label for="Password">Contraseña</label>
+                        <input asp-for="Password" type="password" class="form-control" id="Password" placeholder="••••••••" />
+                        <span asp-validation-for="Password" class="text-danger"></span>
+                    </div>
+                </div>
+
+                <div class="form-card">
+                    <div class="form-icon-circle"><i class="fa-solid fa-briefcase"></i></div>
+                    <div class="form-inpunt-seccion">
+                        <label class="form-label" for="chkVendedor">¿Es Vendedor?</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input asp-for="EsVendedor" type="checkbox" class="form-check-input ms-1" id="chkVendedor" />
+                            <small class="text-muted">Actívalo para capturar el ID de vendedor</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-card" id="vendedorIdCard">
+                    <div class="form-icon-circle"><i class="fa-solid fa-id-card"></i></div>
+                    <div class="form-inpunt-seccion">
+                        <label for="VendedorId">ID Vendedor</label>
+                        <input asp-for="VendedorId" class="form-control" type="number" id="VendedorId" min="0" placeholder="Ej. 102" />
+                        <span asp-validation-for="VendedorId" class="text-danger"></span>
+                    </div>
+                </div>
+
+                <div class="form-card">
+                    <div class="form-icon-circle"><i class="fa-solid fa-user-gear"></i></div>
+                    <div class="form-inpunt-seccion">
+                        <label for="PerfilId">Perfil</label>
+                        <select asp-for="PerfilId" class="form-control" id="PerfilId"
+                                asp-items="@(new SelectList(ViewBag.Perfiles, "Id", "Nombre"))">
+                            <option value="">-- Seleccione un perfil --</option>
+                        </select>
+                        <span asp-validation-for="PerfilId" class="text-danger"></span>
+                    </div>
+                </div>
+
+                <div class="form-card series-card">
+                    <div class="form-icon-circle"><i class="fa-solid fa-diagram-project"></i></div>
+                    <div class="form-inpunt-seccion">
+                        <label>Series permitidas para Orden de Venta</label>
+
+                        <div class="series-actions">
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="btnMarcarSeries">
+                                <i class="fa-solid fa-check-double me-1"></i> Marcar todas
+                            </button>
+
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnLimpiarSeries">
+                                <i class="fa-solid fa-eraser me-1"></i> Limpiar
+                            </button>
+                        </div>
+
+                        @if (!series.Any())
+                        {
+                            <div class="alert alert-warning mb-0">
+                                No hay series registradas en el catálogo.
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="series-grid">
+                                @foreach (var s in series)
+                                {
+                                    var serieId = int.Parse(s.Value);
+                                    var estaSeleccionada = seriesSeleccionadas.Contains(serieId);
+
+                                    <label class="serie-item">
+                                        <input class="form-check-input serie-check"
+                                               type="checkbox"
+                                               name="SeriesSeleccionadasIds"
+                                               value="@s.Value"
+                                               checked="@estaSeleccionada" />
+                                        <span>@s.Text</span>
+                                    </label>
+                                }
+                            </div>
+                        }
+
+                        <small class="text-muted mt-2">
+                            El usuario solo podrá seleccionar estas series al crear una Orden de Venta.
+                        </small>
+                    </div>
+                </div>
+
+                <div class="form-card series-card">
+                    <div class="form-icon-circle">
+                        <i class="bi bi-box-seam"></i>
+                    </div>
+
+                    <div class="form-inpunt-seccion">
+                        <label>Almacenes permitidos</label>
+
+                        @* Aun no funciona este btn *@
+                        <div class="series-actions">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-primary" 
+                                    id="btnMarcarAlmacenes">
+                                <i class="fa-solid fa-check-double me-1"></i> 
+                                Marcar todas
+                            </button>
+
+                            @* Aun no funciona este btn *@
+                            <button type="button" 
+                                    class="btn btn-sm btn-outline-secondary" 
+                                    id="btnLimpiarAlmacenes">
+                                <i class="fa-solid fa-eraser me-1"></i> 
+                                Limpiar
+                            </button>
+                        </div>
+
+                            @if (!almacenes.Any())
+                            {
+                                <div class="alert alert-warning mb-0">
+                                    No hay almacenes configurados.
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="series-grid">
+                                    @foreach (var almacen in almacenes)
+                                    {
+                                        var seleccionado = almacenesSeleccionados.Contains(almacen.Value);
+
+                                        <label class="serie-item">
+                                            <input class="form-check-input almacen-check"
+                                                    type="checkbox"
+                                                    name="AlmacenesSeleccionados"
+                                                    value="@almacen.Value"
+                                                    checked="@seleccionado" />
+
+                                            <span>@almacen.Text</span>
+                                        </label>
+                                    }
+                                </div>
+                            }
+
+
+                        <small class="text-muted mt-2">
+                            El usuario solo podrá utilizar estos almacenes
+                        </small>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="text-center mt-3 d-flex justify-content-center gap-2">
+                <button type="submit" class="btn btn-success">
+                    <i class="fa-solid fa-floppy-disk me-1"></i> Guardar
+                </button>
+                <a href="@Url.Action("UsuariosConfiguracion", "Usuarios")" class="btn btn-secondary">
+                    Cancelar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        const chkVendedor = document.getElementById("chkVendedor");
+        const cardVendedor = document.getElementById("vendedorIdCard");
+        function toggleVendedor() {
+          cardVendedor.style.display = chkVendedor.checked ? "flex" : "none";
+          if (!chkVendedor.checked) {
+            const input = document.getElementById("VendedorId");
+            if (input) input.value = "";
+          }
+        }
+        chkVendedor.addEventListener("change", toggleVendedor);
+        toggleVendedor(); // al cargar
+
+        const btnMarcarSeries = document.getElementById("btnMarcarSeries");
+        const btnLimpiarSeries = document.getElementById("btnLimpiarSeries");
+
+        btnMarcarSeries?.addEventListener("click", function () {
+            document.querySelectorAll(".serie-check").forEach(x => x.checked = true);
+        });
+
+        btnLimpiarSeries?.addEventListener("click", function () {
+            document.querySelectorAll(".serie-check").forEach(x => x.checked = false);
+        });
+
+
+        const btnMarcarAlmacenes = document.getElementById("btnMarcarAlmacenes");
+        const btnLimpiarAlmacenes = document.getElementById("btnLimpiarAlmacenes");
+
+        btnMarcarAlmacenes?.addEventListener("click", function () {
+            console.log("Click en almacenes")
+            document.querySelectorAll(".almacen-check")
+                .forEach(x => x.checked = true);
+        });
+
+        btnLimpiarAlmacenes?.addEventListener("click", function () {
+            document.querySelectorAll(".almacen-check")
+                .forEach(x => x.checked = false);
+        });
+
+
+    </script>
+}

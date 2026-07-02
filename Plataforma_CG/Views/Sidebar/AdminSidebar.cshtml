@@ -1,0 +1,604 @@
+﻿@model Plataforma_CG.Models.ViewModels.SidebarAdminViewModel
+@{
+    ViewBag.Title = "Administración del Sidebar";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<style>
+    /* ================================
+           SAP-LIKE THEME (Paleta CEDIS)
+           ================================ */
+    :root {
+        --brand-grad: linear-gradient(90deg,#8B0000 0%,#5a0000 50%,#1a0000 100%);
+        --brand: linear-gradient(90deg, #8B0000 0%, #5a0000 50%, #1a0000 100%);
+        --pane: #fff;
+        --bar: #e6e9ef;
+        --bar-2: #dde2ea;
+        --line: #d8dce3;
+        --ink: #20262e;
+        --muted: #636d7b;
+        --accent: #2d6cdf;
+        --radius: 10px;
+        --shadow: 0 1px 0 rgba(0,0,0,.05), 0 12px 24px rgba(0,0,0,.06);
+        --shadow-sm: 0 6px 16px rgba(0,0,0,.06);
+        --focus: 0 0 0 .2rem rgba(45,108,223,.25);
+    }
+
+    body {
+        background: var(--bg) !important;
+        color: var(--ink);
+    }
+
+    .container-sap {
+        max-width: 1100px;
+        margin: 1.25rem auto 2rem;
+    }
+
+    .sap-titlebar {
+        background: linear-gradient(#eef1f6,#e7ebf2);
+        border: 1px solid var(--bar-2);
+        border-radius: var(--radius);
+        padding: .8rem 1rem;
+        box-shadow: var(--shadow);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        flex-wrap: wrap;
+    }
+
+        .sap-titlebar .left h4 {
+            margin: 0;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+        }
+
+        .sap-titlebar .left .sub {
+            margin: 0;
+            color: var(--muted);
+            font-size: .92rem;
+        }
+
+    .sap-toolbar {
+        background: var(--bar);
+        border: 1px solid var(--bar-2);
+        border-top: none;
+        border-radius: 0 0 var(--radius) var(--radius);
+        padding: .45rem .65rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+        box-shadow: var(--shadow);
+    }
+
+    .tbtn {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        height: 34px;
+        padding: 0 .65rem;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        color: #1e2a35;
+        font-size: .92rem;
+        transition: .15s ease;
+    }
+
+        .tbtn:hover {
+            background: #f8fafc;
+            border-color: #cfd6e2;
+        }
+
+        .tbtn.primary {
+            background: var(--brand-grad);
+            color: #fff;
+            border-color: transparent;
+        }
+
+    .sap-card {
+        background: var(--pane);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+    }
+
+    .sap-card-head {
+        padding: .75rem 1rem;
+        border-bottom: 1px solid var(--line);
+        background: linear-gradient(#f6f8fb,#eef2f7);
+        font-weight: 800;
+        color: #2b3642;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+    }
+
+    .perfil-select {
+        border: 1.5px solid var(--brand);
+        border-radius: 999px;
+        padding: .55rem 1rem;
+        max-width: 400px;
+    }
+
+    .categoria-card {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
+        margin-bottom: .8rem;
+        box-shadow: var(--shadow-sm);
+        overflow: hidden;
+    }
+
+    .categoria-header {
+        padding: .75rem 1rem;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #f9fafb;
+        font-weight: 700;
+    }
+
+        .categoria-header .icono {
+            color: var(--muted);
+            transition: transform .2s;
+        }
+
+    .categoria-card.active .icono {
+        transform: rotate(90deg);
+        color: var(--brand);
+    }
+
+    .modulos-panel {
+        background: #f7f9fc;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height .35s ease;
+        padding: 0 1rem;
+    }
+
+    .categoria-card.active .modulos-panel {
+        max-height: 99999px;
+        padding-bottom: .8rem;
+    }
+
+    .modulo-item {
+        background: #fff;
+        border: 1px solid #e6e9f0;
+        border-radius: 10px;
+        padding: .55rem .8rem;
+        margin: .45rem 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: .2s;
+    }
+
+        .modulo-item.active {
+            background: #eaf7ef;
+            border-color: #9fd1b2;
+        }
+
+        .modulo-item:hover {
+            box-shadow: var(--shadow-sm);
+        }
+
+        .modulo-item input[type="checkbox"] {
+            transform: scale(1.2);
+            accent-color: var(--brand);
+        }
+
+    /* ============================================================
+       DARK MODE - ADMINISTRACIÓN DEL SIDEBAR / PERMISOS POR PERFIL
+============================================================ */
+
+body[data-theme="dark"] {
+    --pane: #111827;
+    --bar: #172033;
+    --bar-2: rgba(255,255,255,0.12);
+    --line: rgba(255,255,255,0.12);
+    --ink: #f9fafb;
+    --muted: #cbd5e1;
+    --accent: #ef4444;
+    --shadow: 0 14px 34px rgba(0,0,0,.42);
+    --shadow-sm: 0 10px 26px rgba(0,0,0,.34);
+    --focus: 0 0 0 .2rem rgba(239,68,68,.22);
+}
+
+/* Fondo general */
+body[data-theme="dark"] {
+    background: #0f172a !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .layout-main-content {
+    background: #0f172a !important;
+}
+
+body[data-theme="dark"] .layout-main-content .layout-container-fluid {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+body[data-theme="dark"] .container-sap {
+    color: #e5e7eb !important;
+}
+
+/* Titlebar */
+body[data-theme="dark"] .sap-titlebar {
+    background: linear-gradient(180deg, #1f2937 0%, #111827 100%) !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow) !important;
+}
+
+body[data-theme="dark"] .sap-titlebar .left h4 {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .sap-titlebar .left h4 i {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .sap-titlebar .left .sub {
+    color: #cbd5e1 !important;
+}
+
+/* Botón volver */
+body[data-theme="dark"] .btn-secondary {
+    background: #334155 !important;
+    border-color: #475569 !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .btn-secondary:hover {
+    background: #475569 !important;
+    border-color: #64748b !important;
+    color: #ffffff !important;
+}
+
+/* Toolbar */
+body[data-theme="dark"] .sap-toolbar {
+    background: #172033 !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+/* Botones toolbar */
+body[data-theme="dark"] .tbtn {
+    background: #0b1220 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+body[data-theme="dark"] .tbtn:hover {
+    background: rgba(248,113,113,0.14) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.55) !important;
+}
+
+body[data-theme="dark"] .tbtn.primary {
+    background: linear-gradient(90deg, #991b1b 0%, #7f1d1d 50%, #450a0a 100%) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.45) !important;
+}
+
+body[data-theme="dark"] .tbtn.primary:hover {
+    filter: brightness(1.08);
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .tbtn:disabled {
+    opacity: .7;
+    cursor: not-allowed;
+}
+
+/* Card principal */
+body[data-theme="dark"] .sap-card {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow) !important;
+}
+
+body[data-theme="dark"] .sap-card-head {
+    background: linear-gradient(180deg, #1f2937 0%, #172033 100%) !important;
+    color: #f9fafb !important;
+    border-bottom-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .sap-card-head span,
+body[data-theme="dark"] .sap-card-head i {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .sap-card-head i {
+    color: #fca5a5 !important;
+}
+
+/* Select de perfil */
+body[data-theme="dark"] .perfil-select,
+body[data-theme="dark"] .form-select,
+body[data-theme="dark"] select {
+    background: #0b1220 !important;
+    color: #f9fafb !important;
+    border-color: rgba(248,113,113,0.45) !important;
+    box-shadow: none !important;
+}
+
+body[data-theme="dark"] .perfil-select:focus,
+body[data-theme="dark"] .form-select:focus,
+body[data-theme="dark"] select:focus {
+    background: #0f172a !important;
+    color: #ffffff !important;
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 .2rem rgba(239,68,68,.22) !important;
+    outline: none !important;
+}
+
+body[data-theme="dark"] .perfil-select option,
+body[data-theme="dark"] select option {
+    background: #111827 !important;
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .perfil-select {
+    color-scheme: dark;
+}
+
+/* Contenedor de módulos */
+body[data-theme="dark"] #modulosContainer {
+    background: transparent !important;
+    color: #e5e7eb !important;
+}
+
+/* Categorías */
+body[data-theme="dark"] .categoria-card {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+body[data-theme="dark"] .categoria-header {
+    background: #172033 !important;
+    color: #f9fafb !important;
+    border-bottom: 1px solid rgba(255,255,255,0.10) !important;
+}
+
+body[data-theme="dark"] .categoria-header:hover {
+    background: #1f2937 !important;
+}
+
+body[data-theme="dark"] .categoria-header span,
+body[data-theme="dark"] .categoria-header i {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .categoria-header i {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .categoria-header .icono {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .categoria-card.active .icono {
+    color: #fca5a5 !important;
+}
+
+/* Panel desplegable */
+body[data-theme="dark"] .modulos-panel {
+    background: #0f172a !important;
+    color: #e5e7eb !important;
+}
+
+/* Módulos */
+body[data-theme="dark"] .modulo-item {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .modulo-item:hover {
+    background: #172033 !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+body[data-theme="dark"] .modulo-item label {
+    color: #e5e7eb !important;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+body[data-theme="dark"] .modulo-item.active {
+    background: rgba(22,101,52,0.24) !important;
+    border-color: rgba(74,222,128,0.42) !important;
+}
+
+body[data-theme="dark"] .modulo-item.active label {
+    color: #bbf7d0 !important;
+}
+
+body[data-theme="dark"] .modulo-item.active:hover {
+    background: rgba(22,101,52,0.34) !important;
+}
+
+/* Checkboxes */
+body[data-theme="dark"] .modulo-item input[type="checkbox"],
+body[data-theme="dark"] .permiso-checkbox {
+    background-color: #0b1220 !important;
+    border-color: rgba(203,213,225,0.45) !important;
+    accent-color: #dc2626;
+}
+
+body[data-theme="dark"] .modulo-item input[type="checkbox"]:checked,
+body[data-theme="dark"] .permiso-checkbox:checked {
+    accent-color: #22c55e;
+}
+
+/* Utilidades Bootstrap / textos */
+body[data-theme="dark"] .text-muted {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .text-secondary {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .border {
+    border-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .shadow-sm {
+    box-shadow: var(--shadow-sm) !important;
+}
+
+/* Responsive */
+@@media (max-width: 768px) {
+    body[data-theme="dark"] .sap-titlebar,
+    body[data-theme="dark"] .sap-toolbar,
+    body[data-theme="dark"] .sap-card {
+        border-left-color: rgba(255,255,255,0.10) !important;
+        border-right-color: rgba(255,255,255,0.10) !important;
+    }
+
+    body[data-theme="dark"] .sap-card-head {
+        gap: .75rem;
+    }
+
+    body[data-theme="dark"] .perfil-select {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    body[data-theme="dark"] .tbtn {
+        flex: 1 1 auto;
+        justify-content: center;
+    }
+
+    body[data-theme="dark"] .modulo-item {
+        align-items: flex-start;
+    }
+}
+</style>
+
+<div class="container-sap">
+    <!-- Titlebar -->
+    <div class="sap-titlebar">
+        <div class="left">
+            <h4><i class="bi bi-menu-button-wide"></i> Administración del Sidebar</h4>
+            <p class="sub mb-0">Gestiona qué módulos son visibles para cada perfil.</p>
+        </div>
+        <div class="actions">
+            <a class="btn btn-secondary btn-sm" href="@Url.Action("Administrar", "Sidebar")">
+                <i class="bi bi-arrow-left-circle me-1"></i> Volver a Sidebar
+            </a>
+        </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="sap-toolbar">
+        <button type="button" class="tbtn primary" onclick="guardarCambios()"><i class="bi bi-save"></i>Guardar</button>
+        <button type="button" class="tbtn" onclick="expandirTodos(true)"><i class="bi bi-arrows-angle-expand"></i>Expandir</button>
+        <button type="button" class="tbtn" onclick="expandirTodos(false)"><i class="bi bi-arrows-angle-contract"></i>Colapsar</button>
+        <button type="button" class="tbtn" onclick="location.href='/Home/Inicio'"><i class="bi bi-x-lg"></i>Salir</button>
+    </div>
+
+    <!-- Tarjeta principal -->
+    <div class="sap-card mt-3">
+        <div class="sap-card-head">
+            <span><i class="bi bi-diagram-3"></i> Asignar Módulos a Perfiles</span>
+            <select id="perfilSelect" class="perfil-select" onchange="cargarPermisosPerfil()">
+                <option value="">-- Selecciona un perfil --</option>
+                @foreach (var perfil in Model.Perfiles)
+                {
+                    <option value="@perfil.Id">@perfil.Nombre</option>
+                }
+            </select>
+        </div>
+
+        <div class="p-3" id="modulosContainer" style="display:none;">
+            @foreach (var categoria in Model.Categorias)
+            {
+                <div class="categoria-card">
+                    <div class="categoria-header">
+                        <span><i class="@categoria.Icono"></i> @categoria.Nombre</span>
+                        <span class="icono">&gt;</span>
+                    </div>
+                    <div class="modulos-panel">
+                        @foreach (var modulo in categoria.Modulos)
+                        {
+                            <div class="modulo-item">
+                                <div class="d-flex align-items-center gap-2">
+                                    <input type="checkbox" class="permiso-checkbox" data-moduloid="@modulo.Id">
+                                    <label>@modulo.Nombre</label>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+
+    <script>
+        // Accordion categorías
+        document.querySelectorAll(".categoria-header").forEach(h => {
+            h.addEventListener("click", () => {
+                const card = h.closest(".categoria-card");
+                const active = card.classList.contains("active");
+                document.querySelectorAll(".categoria-card").forEach(c => c.classList.remove("active"));
+                if (!active) card.classList.add("active");
+            });
+        });
+
+        function expandirTodos(expand) {
+            document.querySelectorAll(".categoria-card").forEach(c => c.classList.toggle("active", expand));
+        }
+
+        async function cargarPermisosPerfil() {
+            const perfilId = document.getElementById("perfilSelect").value;
+            if (!perfilId) {
+                document.getElementById("modulosContainer").style.display = "none";
+                return;
+            }
+
+            const resp = await fetch(`/SidebarAdmin/GetPermisosPerfil?perfilId=${perfilId}`);
+            const permisos = await resp.json();
+
+            document.getElementById("modulosContainer").style.display = "block";
+            document.querySelectorAll(".permiso-checkbox").forEach(chk => {
+                const modId = parseInt(chk.dataset.moduloid);
+                chk.checked = permisos.includes(modId);
+                chk.closest('.modulo-item').classList.toggle("active", chk.checked);
+                chk.onchange = () => togglePermiso(perfilId, modId, chk);
+            });
+        }
+
+        function togglePermiso(perfilId, moduloId, checkbox) {
+            const activo = checkbox.checked;
+            checkbox.closest('.modulo-item').classList.toggle("active", activo);
+            fetch('/SidebarAdmin/TogglePermiso', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ perfilId, moduloId, activo })
+            });
+        }
+
+        function guardarCambios() {
+            const btn = document.querySelector('.tbtn.primary');
+            btn.disabled = true;
+            const original = btn.innerHTML;
+            btn.innerHTML = 'Guardando…';
+            setTimeout(() => { btn.disabled = false; btn.innerHTML = original; }, 800);
+        }
+    </script>
+
+}

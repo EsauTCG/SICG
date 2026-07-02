@@ -1,0 +1,771 @@
+﻿@model Plataforma_CG.Models.ViewModels.SideAdminViewModel
+@{
+    ViewData["Title"] = "Administrar Sidebar";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<style>
+    /* === Tema SAP-like (CARNES G) === */
+    :root {
+        --brand-grad: linear-gradient(90deg,#8B0000 0%,#5a0000 50%,#1a0000 100%);
+        --brand: linear-gradient(90deg, #8B0000 0%, #5a0000 50%, #1a0000 100%);
+        --pane: #fff;
+        --bar: #e6e9ef;
+        --bar-2: #dde2ea;
+        --line: #d8dce3;
+        --ink: #20262e;
+        --muted: #636d7b;
+        --radius: 10px;
+        --shadow: 0 1px 0 rgba(0,0,0,.05), 0 12px 24px rgba(0,0,0,.06);
+        --shadow-sm: 0 6px 16px rgba(0,0,0,.06);
+    }
+
+    .container-sap {
+        max-width: 1200px;
+        margin: 1.25rem auto 2rem;
+    }
+
+    .sap-titlebar {
+        background: linear-gradient(#eef1f6,#e7ebf2);
+        border: 1px solid var(--bar-2);
+        border-radius: var(--radius);
+        padding: .85rem 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        flex-wrap: wrap;
+        box-shadow: var(--shadow);
+    }
+
+        .sap-titlebar .title {
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+            font-weight: 800;
+            color: #2b3642;
+        }
+
+        .sap-titlebar .sub {
+            font-size: .92rem;
+            color: var(--muted);
+        }
+
+    .sap-toolbar {
+        background: var(--bar);
+        border: 1px solid var(--bar-2);
+        border-top: none;
+        border-radius: 0 0 var(--radius) var(--radius);
+        padding: .45rem .65rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+        box-shadow: var(--shadow);
+    }
+
+    .tbtn {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        height: 34px;
+        padding: 0 .65rem;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        color: #1e2a35;
+        font-size: .92rem;
+        transition: .15s ease;
+        text-decoration:none;
+    }
+
+        .tbtn:hover {
+            background: #f8fafc;
+            border-color: #cfd6e2;
+        }
+
+        .tbtn.primary {
+            background: var(--brand-grad);
+            color: #fff;
+            border: none;
+        }
+
+    .sap-card {
+        background: var(--pane);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        margin-top: 1rem;
+    }
+
+    .sap-card-head {
+        padding: .75rem 1rem;
+        border-bottom: 1px solid var(--line);
+        background: linear-gradient(#f6f8fb,#eef2f7);
+        font-weight: 800;
+        color: #2b3642;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .5rem;
+        flex-wrap: wrap;
+    }
+
+    .form-label {
+        font-weight: 600;
+        color: var(--ink);
+    }
+
+    .form-control, .form-select {
+        border-radius: 8px;
+        border-color: var(--line);
+    }
+
+    .list-group-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .5rem;
+    }
+
+        .list-group-item i {
+            color: var(--brand);
+        }
+
+    #lista-modulos li {
+        cursor: grab;
+        transition: background .2s ease;
+    }
+
+        #lista-modulos li:active {
+            cursor: grabbing;
+            background: #f1f3f6;
+        }
+
+    .lista-categoria {
+        border: 1px solid var(--bar-2);
+        border-radius: 8px;
+        margin-top: .5rem;
+        background: #fdfdfd;
+    }
+
+        .lista-categoria li {
+            cursor: grab;
+            transition: background .2s ease;
+        }
+
+            .lista-categoria li:active {
+                cursor: grabbing;
+                background: #f1f3f6;
+            }
+
+    .sap-toolbar .side {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+    }
+
+        /* (opcional) si quieres que no se baje tan fácil en pantallas medianas */
+        .sap-toolbar .side .tbtn {
+            white-space: nowrap;
+        }
+
+    /* ============================================================
+       DARK MODE - ADMINISTRAR SIDEBAR
+============================================================ */
+
+body[data-theme="dark"] {
+    --pane: #111827;
+    --bar: #172033;
+    --bar-2: rgba(255,255,255,0.12);
+    --line: rgba(255,255,255,0.12);
+    --ink: #f9fafb;
+    --muted: #cbd5e1;
+    --shadow: 0 14px 34px rgba(0,0,0,.42);
+    --shadow-sm: 0 10px 26px rgba(0,0,0,.34);
+}
+
+/* Fondo general */
+body[data-theme="dark"] .layout-main-content {
+    background: #0f172a !important;
+}
+
+body[data-theme="dark"] .layout-main-content .layout-container-fluid {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+body[data-theme="dark"] .container-sap {
+    color: #e5e7eb !important;
+}
+
+/* Titlebar */
+body[data-theme="dark"] .sap-titlebar {
+    background: linear-gradient(180deg, #1f2937 0%, #111827 100%) !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow) !important;
+}
+
+body[data-theme="dark"] .sap-titlebar .title {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .sap-titlebar .title i {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .sap-titlebar .sub {
+    color: #cbd5e1 !important;
+}
+
+/* Toolbar */
+body[data-theme="dark"] .sap-toolbar {
+    background: #172033 !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+/* Botones custom */
+body[data-theme="dark"] .tbtn {
+    background: #0b1220 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+body[data-theme="dark"] .tbtn:hover {
+    background: rgba(248,113,113,0.14) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.55) !important;
+}
+
+body[data-theme="dark"] .tbtn.primary {
+    background: linear-gradient(90deg, #991b1b 0%, #7f1d1d 50%, #450a0a 100%) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.45) !important;
+}
+
+body[data-theme="dark"] .tbtn.primary:hover {
+    filter: brightness(1.08);
+}
+
+/* Botón volver */
+body[data-theme="dark"] .btn-secondary {
+    background: #334155 !important;
+    border-color: #475569 !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .btn-secondary:hover {
+    background: #475569 !important;
+    border-color: #64748b !important;
+}
+
+/* Cards */
+body[data-theme="dark"] .sap-card {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow) !important;
+}
+
+body[data-theme="dark"] .sap-card-head {
+    background: linear-gradient(180deg, #1f2937 0%, #172033 100%) !important;
+    color: #f9fafb !important;
+    border-bottom-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .sap-card-head i {
+    color: #fca5a5 !important;
+}
+
+/* Formularios */
+body[data-theme="dark"] .form-label {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .form-control,
+body[data-theme="dark"] .form-select {
+    background: #0b1220 !important;
+    color: #f9fafb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+    box-shadow: none !important;
+}
+
+body[data-theme="dark"] .form-control:focus,
+body[data-theme="dark"] .form-select:focus {
+    background: #0f172a !important;
+    color: #ffffff !important;
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 .2rem rgba(239,68,68,.22) !important;
+}
+
+body[data-theme="dark"] .form-control::placeholder {
+    color: #94a3b8 !important;
+}
+
+body[data-theme="dark"] .form-select {
+    color-scheme: dark;
+}
+
+body[data-theme="dark"] .form-select option {
+    background: #111827 !important;
+    color: #f9fafb !important;
+}
+
+/* Botones Bootstrap */
+body[data-theme="dark"] .btn-outline-primary {
+    background: #0b1220 !important;
+    color: #bfdbfe !important;
+    border-color: rgba(96,165,250,0.45) !important;
+}
+
+body[data-theme="dark"] .btn-outline-primary:hover {
+    background: rgba(37,99,235,0.28) !important;
+    color: #ffffff !important;
+    border-color: rgba(147,197,253,0.70) !important;
+}
+
+body[data-theme="dark"] .btn-outline-danger {
+    background: #0b1220 !important;
+    color: #fca5a5 !important;
+    border-color: rgba(248,113,113,0.45) !important;
+}
+
+body[data-theme="dark"] .btn-outline-danger:hover {
+    background: rgba(220,38,38,0.28) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.75) !important;
+}
+
+/* Listas */
+body[data-theme="dark"] .lista-categoria,
+body[data-theme="dark"] .list-group,
+body[data-theme="dark"] .list-group-flush {
+    background: #111827 !important;
+    border-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .list-group-item {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .list-group-item:hover {
+    background: #172033 !important;
+}
+
+body[data-theme="dark"] #lista-modulos li:active,
+body[data-theme="dark"] .lista-categoria li:active {
+    background: rgba(248,113,113,0.14) !important;
+}
+
+body[data-theme="dark"] .list-group-item strong {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .list-group-item small,
+body[data-theme="dark"] .text-muted {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .list-group-item i {
+    color: #fca5a5 !important;
+}
+
+/* Bloques de categoría que traen bg-white */
+body[data-theme="dark"] .bg-white {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .border {
+    border-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .border-bottom {
+    border-bottom-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .shadow-sm {
+    box-shadow: var(--shadow-sm) !important;
+}
+
+/* Títulos de categorías */
+body[data-theme="dark"] .text-secondary {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] h6,
+body[data-theme="dark"] h6 i {
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] h6.text-secondary {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] h6.text-secondary i {
+    color: #fca5a5 !important;
+}
+
+/* Ghost de Sortable */
+body[data-theme="dark"] .bg-light,
+body[data-theme="dark"] .sortable-ghost {
+    background: rgba(248,113,113,0.18) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.45) !important;
+}
+
+/* Alert/confirm no se pueden estilizar mucho por ser nativos,
+   pero dejamos preparado por si luego cambias a toast/modal */
+body[data-theme="dark"] .alert {
+    background: #172033 !important;
+    color: #f9fafb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+}
+
+/* Responsive */
+@@media (max-width: 768px) {
+    body[data-theme="dark"] .sap-titlebar,
+    body[data-theme="dark"] .sap-toolbar,
+    body[data-theme="dark"] .sap-card {
+        border-left-color: rgba(255,255,255,0.10) !important;
+        border-right-color: rgba(255,255,255,0.10) !important;
+    }
+
+    body[data-theme="dark"] .sap-toolbar .side {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    body[data-theme="dark"] .sap-toolbar .side .tbtn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+</style>
+
+<div class="container-sap">
+
+    <!-- Titlebar -->
+    <div class="sap-titlebar">
+        <div>
+            <h4 class="title"><i class="bi bi-ui-checks-grid"></i> Administración del Sidebar</h4>
+            <p class="sub mb-0">Agrega, edita o elimina módulos y submódulos visibles en el menú lateral.</p>
+        </div>
+        <div class="actions">
+            <a class="btn btn-secondary btn-sm" href="@Url.Action("Inicio", "Home")">
+                <i class="bi bi-arrow-left-circle me-1"></i> Volver al inicio
+            </a>
+        </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="sap-toolbar">
+        <button class="tbtn primary" type="button" onclick="document.getElementById('formModulo').scrollIntoView({behavior:'smooth'})">
+            <i class="bi bi-plus-circle"></i><span>Crear nuevo módulo</span>
+        </button>
+        <button type="button" class="tbtn" onclick="location.href='@Url.Action("Categorias", "Sidebar")'">
+            <i class="bi bi-folder-plus"></i><span>Administrar categorías</span>
+        </button>
+        <button type="button" class="tbtn" onclick="location.reload()">
+            <i class="bi bi-arrow-clockwise"></i><span>Refrescar</span>
+        </button>
+
+        <div class="side">
+            <a class="tbtn" href="@Url.Action("AdminSidebar", "SidebarAdmin")">
+                <i class="bi bi-file-earmark-medical-fill"></i><span>Otorgar Vistas</span>
+            </a>
+        </div>
+
+    </div>
+
+    <!-- Card principal -->
+    <div class="sap-card">
+        <div class="sap-card-head">
+            <span><i class="bi bi-pencil-square me-1"></i> Crear o Editar módulo</span>
+        </div>
+
+        <div class="p-3">
+            <form id="formModulo">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Nombre del módulo o submódulo</label>
+                        <input type="text" id="nombre" class="form-control" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Ícono (FontAwesome)</label>
+                        <input type="text" id="icono" class="form-control" placeholder="fas fa-box">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">URL (opcional)</label>
+                        <input type="text" id="url" class="form-control" placeholder="/Controlador/Acción">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Categoría</label>
+                        <select id="categoriaId" class="form-select">
+                            <option value="">(Sin categoría)</option>
+                            @foreach (var c in Model.CategoriasExistentes)
+                            {
+                                <option value="@c.Id">@c.Nombre</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Módulo Padre</label>
+                        <select id="padreId" class="form-select">
+                            <option value="">(Ninguno, será módulo principal)</option>
+                            @foreach (var m in Model.ModulosExistentes)
+                            {
+                                <option value="@m.Id">@m.Nombre</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <div class="text-end mt-4">
+                    <button type="submit" class="btn btn-outline-primary">
+                        <i class="bi bi-save me-1"></i> Guardar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+
+
+    <!-- ================================
+     ORDENAR MÓDULOS PRINCIPALES (PADRES)
+     ================================ -->
+    <div class="sap-card mt-4">
+        <div class="sap-card-head">
+            <span><i class="bi bi-list-nested me-2"></i> Ordenar módulos principales</span>
+        </div>
+
+        <div class="p-3">
+            <p class="text-muted small mb-2">
+                Arrastra los módulos principales para definir el orden en que aparecerán en el sidebar.
+            </p>
+
+            <ul class="list-group list-group-flush lista-categoria" id="lista-padres-global">
+                @foreach (var padre in Model.ModulosExistentes
+                                .Where(m => m.PadreId == null)
+                                .OrderBy(m => m.Orden))
+                {
+                    <li class="list-group-item d-flex justify-content-between align-items-center" data-id="@padre.Id">
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <i class="@padre.Icono"></i>
+                            <strong>@padre.Nombre</strong>
+                            <small class="text-muted">(@padre.Url)</small>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-primary"
+                                    onclick="location.href='@Url.Action("EditarModulo", "Sidebar")?id=@padre.Id'">
+                                <i class="bi bi-pencil-square"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger btn-eliminar" data-id="@padre.Id">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </li>
+                }
+            </ul>
+        </div>
+    </div>
+
+
+
+
+
+    <!-- ================================
+         LISTADO DE MÓDULOS AGRUPADOS POR CATEGORÍA
+         ================================ -->
+    <div class="sap-card mt-4">
+        <div class="sap-card-head">
+            <span><i class="bi bi-list-ul me-2"></i> Organización de Módulos</span>
+        </div>
+
+        @{
+            // Agrupar por categoría
+            var grupos = Model.ModulosExistentes
+            .GroupBy(m => m.CategoriaId)
+            .OrderBy(g => g.Key ?? int.MaxValue); // 👈 los sin categoría al final
+
+        }
+
+        @foreach (var grupo in grupos)
+        {
+            var categoria = Model.CategoriasExistentes.FirstOrDefault(c => c.Id == grupo.Key);
+            string nombreCategoria = categoria?.Nombre ?? "Sin Categoría";
+            string iconoCategoria = categoria?.Icono ?? "bi bi-folder";
+
+            // Separar padres e hijos dentro de esta categoría
+            var padres = grupo.Where(m => m.PadreId == null).OrderBy(m => m.Orden);
+            var hijos = grupo.Where(m => m.PadreId != null).OrderBy(m => m.Orden);
+
+            <div class="mt-4 border rounded p-3 shadow-sm bg-white">
+                <h6 class="fw-bold text-uppercase text-secondary mb-2 border-bottom pb-1 d-flex align-items-center gap-2">
+                    <i class="@iconoCategoria"></i> @nombreCategoria
+                </h6>
+
+                <!-- Módulos principales -->
+                <div class="mb-3">
+                    <h6 class="text-muted fw-bold small text-uppercase">Módulos Principales</h6>
+                    <ul class="list-group list-group-flush lista-categoria lista-padres" id="padres-@nombreCategoria.Replace(" ", "_")">
+                        @foreach (var modulo in padres)
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center" data-id="@modulo.Id">
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    <i class="@modulo.Icono"></i>
+                                    <strong>@modulo.Nombre</strong>
+                                    <small class="text-muted">(@modulo.Url)</small>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-outline-primary"
+                                            onclick="location.href='@Url.Action("EditarModulo", "Sidebar")?id=@modulo.Id'">
+                                        <i class="bi bi-pencil-square"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger btn-eliminar" data-id="@modulo.Id">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                </div>
+
+                <!-- Submódulos -->
+                <div>
+                    <h6 class="text-muted fw-bold small text-uppercase">Submódulos</h6>
+                    <ul class="list-group list-group-flush lista-categoria lista-hijos" id="hijos-@nombreCategoria.Replace(" ", "_")">
+                        @foreach (var modulo in hijos)
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center" data-id="@modulo.Id">
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    <i class="@modulo.Icono"></i>
+                                    <strong>@modulo.Nombre</strong>
+                                    <small class="text-muted">(@modulo.Url)</small>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-outline-primary"
+                                            onclick="location.href='@Url.Action("EditarModulo", "Sidebar")?id=@modulo.Id'">
+                                        <i class="bi bi-pencil-square"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger btn-eliminar" data-id="@modulo.Id">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        }
+
+    </div>
+
+
+</div>
+
+@section Scripts {
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+
+    <script>
+        document.getElementById("formModulo").addEventListener("submit", async e => {
+            e.preventDefault();
+
+            const data = {
+                Nombre: document.getElementById("nombre").value,
+                Icono: document.getElementById("icono").value,
+                Url: document.getElementById("url").value,
+                PadreId: document.getElementById("padreId").value || null,
+                CategoriaId: document.getElementById("categoriaId").value || null
+            };
+
+            const res = await fetch("/Sidebar/CrearModulo", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data)
+            });
+
+            const result = await res.json();
+            alert(result.mensaje);
+            if (res.ok) location.reload();
+        });
+
+        document.querySelectorAll(".btn-eliminar").forEach(btn => {
+            btn.addEventListener("click", async () => {
+                const li = btn.closest("li");
+                const id = li.dataset.id;
+                const nombre = li.querySelector("strong").innerText;
+
+                if (!confirm(`¿Seguro que deseas eliminar el módulo "${nombre}"?`)) return;
+
+                const res = await fetch(`/Sidebar/EliminarModulo?id=${id}`, { method: "POST" });
+                const result = await res.json();
+
+                if (!res.ok) {
+                    alert(result.mensaje);
+                    return;
+                }
+
+                alert(result.mensaje);
+                li.remove();
+            });
+        });
+
+        // ================================
+        // DRAG & DROP ORDENAMIENTO POR CATEGORÍA
+        // ================================
+
+        document.querySelectorAll('.lista-padres, .lista-hijos').forEach(lista => {
+            new Sortable(lista, {
+                animation: 150,
+                ghostClass: 'bg-light',
+                onEnd: async function () {
+                    const nuevoOrden = Array.from(lista.querySelectorAll('li')).map(li => parseInt(li.dataset.id));
+
+                    const res = await fetch('/Sidebar/ActualizarOrden', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(nuevoOrden)
+                    });
+
+                    const result = await res.json();
+                    console.log(`[${lista.id}] -> ${result.mensaje}`);
+                }
+            });
+        });
+
+
+        // ================================
+        // DRAG & DROP GLOBAL PARA MÓDULOS PADRES
+        // ================================
+        const listaPadresGlobal = document.getElementById("lista-padres-global");
+        if (listaPadresGlobal) {
+            new Sortable(listaPadresGlobal, {
+                animation: 150,
+                ghostClass: 'bg-light',
+                onEnd: async function () {
+                    const nuevoOrden = Array.from(listaPadresGlobal.querySelectorAll('li'))
+                        .map(li => parseInt(li.dataset.id));
+
+                    const res = await fetch('/Sidebar/ActualizarOrden', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(nuevoOrden)
+                    });
+
+                    const result = await res.json();
+                    console.log(`[Orden global] -> ${result.mensaje}`);
+                }
+            });
+        }
+
+
+
+    </script>
+}

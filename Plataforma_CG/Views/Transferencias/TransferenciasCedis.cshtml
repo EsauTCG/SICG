@@ -1,0 +1,3989 @@
+﻿@using Plataforma_CG.ViewModels
+@model SolicitudTransferenciaViewModel
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Nueva Solicitud de Transferencia";
+    var items = Model?.Productos ?? new List<SolicitudTransferenciaProductoVM>();
+}
+
+<style>
+    :root {
+        --brand-solid: #8B0000;
+        --brand-dark: #5c0000;
+        --brand-mid: #7a0000;
+        --brand-soft: #f6e7e7;
+        --brand-soft-2: #f1dcdc;
+        --brand-line: #c99f9f;
+        /* texto más oscuro */
+        --brand-text: #111111;
+        --panel: #ffffff;
+        --panel-soft: #fff9f9;
+        --muted: #222222;
+        --line: #d8bcbc;
+        --line-dark: #8f4c4c;
+        --radius: 8px;
+        --shadow: 0 1px 0 rgba(0,0,0,.04), 0 12px 24px rgba(70,12,12,.10);
+        --shadow-sm: 0 6px 16px rgba(70,12,12,.08);
+        --focus: 0 0 0 .2rem rgba(139,0,0,.18);
+        --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        --brand-grad: linear-gradient(180deg, #b30000 0%, #8B0000 55%, #5c0000 100%);
+        /* Escala compacta */
+        --fs-base: 13px;
+        --fs-sm: 12px;
+        --fs-xs: 11px;
+    }
+
+    html, body {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+        margin: 0;
+        padding: 0;
+        background: #ffffff !important;
+        font-family: var(--font);
+        color: var(--brand-text);
+        font-size: var(--fs-base);
+    }
+
+    body {
+        background: #ffffff !important;
+        color: #111 !important;
+    }
+
+    .container,
+    .container-fluid,
+    main,
+    .content-wrapper,
+    .card {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        background: #ffffff !important;
+        box-shadow: none !important;
+        border: none !important;
+    }
+
+    .shell {
+        width: 100%;
+        max-width: 100%;
+        margin: 8px auto 14px;
+        padding: 0 10px;
+        box-sizing: border-box;
+        background: #ffffff;
+        border: none;
+        box-shadow: none;
+        overflow: visible;
+    }
+
+    .module-titlebar {
+        background: var(--brand-grad);
+        border: 1px solid #4a0000;
+        border-bottom: none;
+        padding: .65rem .85rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        border-radius: 10px 10px 0 0;
+        flex-wrap: wrap;
+    }
+
+    .module-title {
+        margin: 0;
+        font-weight: 800;
+        color: #fff !important;
+        letter-spacing: .2px;
+        font-size: 1.1rem;
+        line-height: 1.1;
+    }
+
+    .module-subtitle {
+        margin: 0;
+        color: #f4d7d7 !important;
+        font-size: var(--fs-sm);
+        line-height: 1.2;
+    }
+
+    .toolbar {
+        background: #ffffff;
+        border-top: 1px solid rgba(255,255,255,.12);
+        border-bottom: 1px solid var(--brand-line);
+        padding: .35rem .5rem;
+        display: flex;
+        gap: .35rem;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        align-items: center;
+    }
+
+    .tbtn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .35rem;
+        min-width: 118px;
+        height: 30px;
+        padding: 0 .65rem;
+        border: 1px solid var(--brand-line);
+        border-radius: 6px;
+        background: #fff;
+        color: #111 !important;
+        font-size: var(--fs-sm);
+        font-weight: 600;
+        line-height: 1;
+        text-decoration: none;
+        transition: .15s ease;
+        white-space: nowrap;
+        flex: 0 0 auto;
+    }
+
+        .tbtn:hover {
+            background: #fff7f7;
+            border-color: #b77474;
+            color: #111 !important;
+        }
+
+        .tbtn.primary {
+            background: var(--brand-grad);
+            color: #fff !important;
+            border-color: #6a0000;
+        }
+
+            .tbtn.primary:hover {
+                filter: brightness(1.05);
+                color: #fff !important;
+            }
+
+    .content-block,
+    .p-3 {
+        padding: .75rem !important;
+        background: #ffffff;
+        border: 1px solid var(--brand-line);
+        border-top: none;
+        border-radius: 0 0 10px 10px;
+        box-shadow: var(--shadow);
+        color: #111 !important;
+    }
+
+    .panel {
+        background: #ffffff;
+        border: 1px solid var(--brand-line);
+        border-radius: 8px;
+        margin-top: 10px;
+        box-shadow: var(--shadow-sm);
+        overflow: hidden;
+        color: #111 !important;
+    }
+
+    .panel-head {
+        background: var(--brand-grad);
+        border-bottom: 1px solid #5c0000;
+        padding: .55rem .75rem;
+        font-weight: 700;
+        color: #fff !important;
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        font-size: var(--fs-sm);
+        line-height: 1.1;
+    }
+
+        .panel-head i {
+            color: #fff !important;
+        }
+
+    .panel-body {
+        padding: .7rem;
+        background: #ffffff;
+        color: #111 !important;
+    }
+
+    .row > [class*="col-"] {
+        min-width: 0;
+    }
+
+    .form-label {
+        color: #111 !important;
+        font-weight: 700;
+        margin-bottom: .25rem;
+        font-size: var(--fs-sm);
+        line-height: 1.15;
+    }
+
+    .form-control,
+    .form-select,
+    input,
+    select,
+    textarea {
+        border-radius: 6px;
+        border: 1px solid #c79b9b !important;
+        background: #fff !important;
+        color: #111 !important;
+        font-size: var(--fs-sm);
+        min-height: 32px;
+        padding: .32rem .55rem;
+        box-shadow: none !important;
+    }
+
+        .form-control:focus,
+        .form-select:focus,
+        input:focus,
+        select:focus,
+        textarea:focus {
+            box-shadow: var(--focus) !important;
+            border-color: var(--brand-solid) !important;
+            outline: none;
+            color: #111 !important;
+        }
+
+        .form-control::placeholder,
+        textarea::placeholder,
+        input::placeholder {
+            color: #5f5f5f !important;
+            opacity: 1 !important;
+        }
+
+        textarea.form-control {
+            resize: vertical;
+            min-height: 90px;
+        }
+
+    .text-danger.small,
+    .small.text-danger {
+        font-size: var(--fs-xs) !important;
+        line-height: 1.2;
+    }
+
+    .bg-light {
+        background: #fff7f7 !important;
+        border-color: #d9b7b7 !important;
+        color: #111 !important;
+    }
+
+    .table-responsive {
+        width: 100%;
+        overflow-x: hidden;
+        background: #fffafa;
+    }
+
+    .table {
+        width: 100%;
+        margin-bottom: 0;
+        min-width: 0;
+        table-layout: fixed;
+        font-size: var(--fs-sm);
+        color: #111 !important;
+    }
+
+    table.table-sm th,
+    table.table-sm td {
+        vertical-align: middle;
+        white-space: normal;
+        word-break: break-word;
+        padding: .35rem .4rem !important;
+        color: #111 !important;
+    }
+
+    .table thead th {
+        font-size: var(--fs-xs);
+        line-height: 1.1;
+        font-weight: 700;
+        color: #fff !important;
+    }
+
+    /* Ajuste proporcional de columnas */
+    .table.table-sm thead th:nth-child(1),
+    .table.table-sm tbody td:nth-child(1) {
+        width: 4%;
+        text-align: center;
+    }
+
+    .table.table-sm thead th:nth-child(2),
+    .table.table-sm tbody td:nth-child(2) {
+        width: 28%;
+    }
+
+    .table.table-sm thead th:nth-child(3),
+    .table.table-sm tbody td:nth-child(3) {
+        width: 14%;
+    }
+
+    .table.table-sm thead th:nth-child(4),
+    .table.table-sm tbody td:nth-child(4) {
+        width: 12%;
+    }
+
+    .table.table-sm thead th:nth-child(5),
+    .table.table-sm tbody td:nth-child(5) {
+        width: 14%;
+    }
+
+    .table.table-sm thead th:nth-child(6),
+    .table.table-sm tbody td:nth-child(6) {
+        width: 14%;
+    }
+
+    .table.table-sm thead th:nth-child(7),
+    .table.table-sm tbody td:nth-child(7) {
+        width: 8%;
+        text-align: center;
+    }
+
+    .table.table-sm thead th:nth-child(8),
+    .table.table-sm tbody td:nth-child(8) {
+        width: 6%;
+        text-align: center;
+    }
+
+    td > input[type="number"] {
+        text-align: right;
+        padding-right: .5rem;
+        color: #111 !important;
+    }
+
+    .cell-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 28px;
+        border-radius: 6px;
+        padding: 0;
+        font-size: var(--fs-sm);
+    }
+
+    .note-exists {
+        outline: 2px solid #0d6efd;
+        outline-offset: -2px;
+        border-radius: 4px;
+    }
+
+    .btn-reflejo,
+    .btn-success,
+    .btn-danger {
+        background: var(--brand-grad) !important;
+        color: #fff !important;
+        border: 1px solid #6a0000 !important;
+        font-size: var(--fs-sm);
+    }
+
+        .btn-reflejo:hover,
+        .btn-success:hover,
+        .btn-danger:hover {
+            filter: brightness(1.06);
+            border-color: #6a0000 !important;
+            color: #fff !important;
+        }
+
+    .btn-sm,
+    .btn-group-sm > .btn {
+        padding: .25rem .5rem;
+        font-size: var(--fs-sm);
+        border-radius: .25rem;
+    }
+
+    .btn-outline-secondary {
+        border-color: #b78383 !important;
+        color: #111 !important;
+        background: #fff !important;
+        font-size: var(--fs-sm);
+    }
+
+        .btn-outline-secondary:hover {
+            background: #f7e7e7 !important;
+            border-color: #a55d5d !important;
+            color: #111 !important;
+        }
+
+    .btn-outline-danger {
+        border-color: #b55e5e !important;
+        color: #8B0000 !important;
+        font-size: var(--fs-sm);
+    }
+
+        .btn-outline-danger:hover {
+            background: #8B0000 !important;
+            color: #fff !important;
+            border-color: #8B0000 !important;
+        }
+
+    a,
+    a[style*="color:#8B0000"] {
+        color: #7a0000 !important;
+        font-weight: 700 !important;
+        text-decoration: none !important;
+        font-size: var(--fs-sm);
+    }
+
+        a:hover,
+        a[style*="color:#8B0000"]:hover {
+            text-decoration: underline !important;
+        }
+
+    .modal-content {
+        border: 1px solid #b78383;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 16px 40px rgba(70,12,12,.18);
+    }
+
+    .modal-header {
+        background: var(--brand-grad);
+        border-bottom: 1px solid #5c0000;
+        color: #fff !important;
+        padding: .6rem .8rem;
+    }
+
+        .modal-header .modal-title {
+            font-weight: 700;
+            color: #fff !important;
+            font-size: .95rem;
+        }
+
+        .modal-header .btn-close {
+            filter: invert(1) brightness(200%);
+        }
+
+    .modal-body {
+        background: #fffdfd;
+        font-size: var(--fs-sm);
+        color: #111 !important;
+    }
+
+    .modal-footer {
+        background: #fff6f6;
+        border-top: 1px solid #d7b3b3;
+        padding: .5rem .8rem;
+    }
+
+    #comentarioModal .modal-dialog {
+        max-width: 620px;
+    }
+
+    #comentarioModal textarea {
+        min-height: 120px;
+    }
+
+    @@media (max-width: 1400px) {
+        .shell {
+            width: min(1440px, calc(100% - 18px));
+            margin: 8px auto 12px;
+        }
+    }
+
+    @@media (max-width: 1200px) {
+        .shell {
+            width: calc(100% - 14px);
+            margin: 6px auto 12px;
+        }
+
+        .module-titlebar {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .toolbar {
+            width: 100%;
+            justify-content: flex-end;
+        }
+
+        .p-3,
+        .content-block {
+            padding: .65rem !important;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .shell {
+            width: calc(100% - 8px);
+            margin: 4px auto 8px;
+        }
+
+        .p-3,
+        .content-block {
+            padding: .5rem !important;
+        }
+
+        .panel-body {
+            padding: .6rem;
+        }
+
+        .toolbar,
+        .toolbar .tbtn,
+        .mt-3 .btn,
+        .mt-3 a.btn {
+            width: 100%;
+        }
+
+        .shell {
+            width: 100%;
+            max-width: 100%;
+            margin: 4px auto 8px;
+            padding: 0 6px;
+            box-sizing: border-box;
+        }
+
+        .p-3,
+        .content-block {
+            padding: .5rem !important;
+        }
+
+        .panel-body {
+            padding: .6rem;
+        }
+
+        .toolbar,
+        .toolbar .tbtn,
+        .mt-3 .btn,
+        .mt-3 a.btn {
+            width: 100%;
+        }
+
+        .table-responsive {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .table {
+            width: 100%;
+            min-width: 0;
+            table-layout: auto;
+            font-size: 11px;
+        }
+
+            .table th,
+            .table td {
+                white-space: normal;
+                word-break: break-word;
+            }
+    }
+
+    .module-title-group {
+        display: flex;
+        flex-direction: column;
+        gap: .2rem;
+        min-width: 0;
+    }
+    /* Encabezados de tabla que vienen como links */
+    .table thead th a,
+    .table thead th a:link,
+    .table thead th a:visited,
+    .table thead th a:hover,
+    .table thead th a:active,
+    .table thead th a:focus,
+    .table.table-sm thead th a,
+    .table.table-sm thead th a:link,
+    .table.table-sm thead th a:visited,
+    .table.table-sm thead th a:hover,
+    .table.table-sm thead th a:active,
+    .table.table-sm thead th a:focus {
+        color: #111 !important;
+        text-decoration: none !important;
+        font-weight: 700 !important;
+    }
+
+    /* Por si el th trae spans o labels internos */
+    .table thead th,
+    .table thead th span,
+    .table thead th label {
+        color: #111 !important;
+    }
+
+    /* ROSITA / GRIS + RESPONSIVO TRANSFERENCIAS */
+    html,
+    body {
+        background: #e9edf2 !important;
+        overflow-x: hidden !important;
+    }
+
+    body,
+    main,
+    .main,
+    .body-content,
+    .container,
+    .container-fluid,
+    .card {
+        background: #e9edf2 !important;
+    }
+
+    .shell {
+        width: 100% !important;
+        max-width: 1850px !important;
+        margin: 8px auto !important;
+        padding: 0 12px !important;
+        background: transparent !important;
+    }
+
+    .p-3,
+    .content-block {
+        background: #f0dede !important;
+        border: 1px solid #c79d9d !important;
+        border-top: none !important;
+    }
+
+    .toolbar,
+    .modal-footer {
+        background: #f1dede !important;
+        border-color: #c79d9d !important;
+    }
+
+    .panel,
+    .modal-content,
+    .bg-light {
+        background: #fffafa !important;
+        border: 1px solid #c79d9d !important;
+        border-radius: 0 !important;
+    }
+
+    .panel-body,
+    .modal-body {
+        background: #fffafa !important;
+    }
+
+    .form-control,
+    .form-select,
+    .input-group-text,
+    input,
+    select,
+    textarea {
+        background: #fffafa !important;
+        border: 1px solid #b48787 !important;
+        color: #421414 !important;
+        border-radius: 0 !important;
+    }
+
+    .table-responsive {
+        background: #fffafa !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+
+    .table {
+        min-width: 1050px !important;
+        table-layout: auto !important;
+        background: #fffafa !important;
+    }
+
+        .table thead th,
+        .table thead th span,
+        .table thead th label,
+        .table thead th a {
+            background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+            color: #fff !important;
+            border-color: #7b2a2a !important;
+        }
+
+        .table tbody td {
+            background: #fffafa !important;
+            border-color: #d8bcbc !important;
+        }
+
+        .table tbody tr:nth-of-type(even) td {
+            background: #f9eded !important;
+        }
+
+    .table-hover tbody tr:hover td {
+        background: #f4dddd !important;
+    }
+
+    /* RESPONSIVO */
+    @@media (max-width: 768px) {
+        .shell {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        .module-titlebar {
+            display: block !important;
+            border-radius: 0 !important;
+        }
+
+        .toolbar {
+            display: grid !important;
+            grid-template-columns: 1fr !important;
+            gap: 6px !important;
+            width: 100% !important;
+        }
+
+        .tbtn,
+        .btn,
+        .form-control,
+        .form-select {
+            width: 100% !important;
+            font-size: 12px !important;
+        }
+
+        .p-3,
+        .content-block {
+            padding: 6px !important;
+        }
+
+        .table-responsive {
+            width: 100% !important;
+            max-height: 65vh !important;
+            overflow-x: auto !important;
+            overflow-y: auto !important;
+        }
+
+        .table {
+            min-width: 980px !important;
+            font-size: 10px !important;
+        }
+
+            .table th,
+            .table td {
+                font-size: 10px !important;
+                padding: 4px 3px !important;
+                white-space: nowrap !important;
+            }
+    }
+
+    /* ============================================================
+       DARK MODE - NUEVA SOLICITUD DE TRANSFERENCIA
+============================================================ */
+
+body[data-theme="dark"] {
+    --brand-solid: #dc2626;
+    --brand-dark: #450a0a;
+    --brand-mid: #991b1b;
+    --brand-soft: rgba(127,29,29,0.22);
+    --brand-soft-2: rgba(127,29,29,0.32);
+    --brand-line: rgba(248,113,113,0.35);
+    --brand-text: #f9fafb;
+
+    --panel: #111827;
+    --panel-soft: #172033;
+    --muted: #cbd5e1;
+    --line: rgba(255,255,255,0.12);
+    --line-dark: rgba(248,113,113,0.45);
+
+    --brand-grad: linear-gradient(180deg, #7f1d1d 0%, #450a0a 58%, #111827 100%);
+    --shadow: 0 18px 38px rgba(0,0,0,0.42);
+    --shadow-sm: 0 10px 26px rgba(0,0,0,0.34);
+    --focus: 0 0 0 .2rem rgba(248,113,113,.22);
+}
+
+/* Fondo general */
+body[data-theme="dark"],
+body[data-theme="dark"] html,
+body[data-theme="dark"] main,
+body[data-theme="dark"] .main,
+body[data-theme="dark"] .body-content,
+body[data-theme="dark"] .container,
+body[data-theme="dark"] .container-fluid,
+body[data-theme="dark"] .card {
+    background: #0f172a !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .layout-main-content {
+    background: #0f172a !important;
+}
+
+body[data-theme="dark"] .layout-main-content .layout-container-fluid {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+/* Shell */
+body[data-theme="dark"] .shell {
+    background: transparent !important;
+    color: #e5e7eb !important;
+}
+
+/* Encabezado superior */
+body[data-theme="dark"] .module-titlebar {
+    background: linear-gradient(180deg, #7f1d1d 0%, #450a0a 58%, #111827 100%) !important;
+    border-color: rgba(248,113,113,0.28) !important;
+    box-shadow: 0 14px 34px rgba(0,0,0,.38) !important;
+}
+
+body[data-theme="dark"] .module-title,
+body[data-theme="dark"] .module-title i {
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .module-subtitle {
+    color: #fecaca !important;
+}
+
+/* Toolbar */
+body[data-theme="dark"] .toolbar {
+    background: #172033 !important;
+    border-color: rgba(255,255,255,0.12) !important;
+}
+
+/* Botones toolbar */
+body[data-theme="dark"] .tbtn {
+    background: #0b1220 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+body[data-theme="dark"] .tbtn:hover {
+    background: rgba(248,113,113,0.14) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.55) !important;
+}
+
+body[data-theme="dark"] .tbtn.primary {
+    background: linear-gradient(180deg, #dc2626 0%, #991b1b 58%, #7f1d1d 100%) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.55) !important;
+}
+
+body[data-theme="dark"] .tbtn.primary:hover {
+    filter: brightness(1.08) !important;
+    color: #ffffff !important;
+}
+
+/* Bloque principal */
+body[data-theme="dark"] .p-3,
+body[data-theme="dark"] .content-block {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: 0 18px 38px rgba(0,0,0,0.42) !important;
+}
+
+/* Paneles */
+body[data-theme="dark"] .panel {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+body[data-theme="dark"] .panel-head {
+    background: linear-gradient(180deg, #7f1d1d 0%, #450a0a 58%, #111827 100%) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.28) !important;
+}
+
+body[data-theme="dark"] .panel-head i {
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .panel-body {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+}
+
+/* Labels y textos */
+body[data-theme="dark"] .form-label {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .text-danger,
+body[data-theme="dark"] .text-danger.small,
+body[data-theme="dark"] .small.text-danger {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .text-muted,
+body[data-theme="dark"] .form-text,
+body[data-theme="dark"] small {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] strong,
+body[data-theme="dark"] #totKg {
+    color: #f9fafb !important;
+}
+
+/* Inputs / selects / textareas */
+body[data-theme="dark"] .form-control,
+body[data-theme="dark"] .form-select,
+body[data-theme="dark"] .input-group-text,
+body[data-theme="dark"] input,
+body[data-theme="dark"] select,
+body[data-theme="dark"] textarea {
+    background: #0b1220 !important;
+    color: #f9fafb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+    box-shadow: none !important;
+}
+
+body[data-theme="dark"] .form-control:focus,
+body[data-theme="dark"] .form-select:focus,
+body[data-theme="dark"] input:focus,
+body[data-theme="dark"] select:focus,
+body[data-theme="dark"] textarea:focus {
+    background: #0f172a !important;
+    color: #ffffff !important;
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 .2rem rgba(239,68,68,.22) !important;
+    outline: none !important;
+}
+
+body[data-theme="dark"] .form-control::placeholder,
+body[data-theme="dark"] input::placeholder,
+body[data-theme="dark"] textarea::placeholder {
+    color: #94a3b8 !important;
+    opacity: 1 !important;
+}
+
+body[data-theme="dark"] input[readonly],
+body[data-theme="dark"] .form-control[readonly],
+body[data-theme="dark"] input:read-only {
+    background: #111827 !important;
+    color: #cbd5e1 !important;
+    border-color: rgba(203,213,225,0.22) !important;
+}
+
+body[data-theme="dark"] .form-select {
+    color-scheme: dark;
+}
+
+body[data-theme="dark"] .form-select option {
+    background: #111827 !important;
+    color: #f9fafb !important;
+}
+
+/* bg-light usado en presupuesto/disponible */
+body[data-theme="dark"] .bg-light,
+body[data-theme="dark"] .form-control.bg-light {
+    background: #172033 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(203,213,225,0.22) !important;
+}
+
+/* Tabla */
+body[data-theme="dark"] .table-responsive {
+    background: #111827 !important;
+    border-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .table {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    --bs-table-bg: #111827;
+    --bs-table-color: #e5e7eb;
+    --bs-table-border-color: rgba(255,255,255,0.12);
+    --bs-table-striped-bg: #172033;
+    --bs-table-striped-color: #e5e7eb;
+    --bs-table-hover-bg: rgba(248,113,113,0.12);
+    --bs-table-hover-color: #ffffff;
+}
+
+body[data-theme="dark"] .table thead th,
+body[data-theme="dark"] .table thead th span,
+body[data-theme="dark"] .table thead th label,
+body[data-theme="dark"] .table thead th a {
+    background: linear-gradient(180deg, #7f1d1d 0%, #450a0a 58%, #111827 100%) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.28) !important;
+}
+
+body[data-theme="dark"] table.table-sm th,
+body[data-theme="dark"] table.table-sm td,
+body[data-theme="dark"] .table td,
+body[data-theme="dark"] .table tbody tr td,
+body[data-theme="dark"] .table tbody tr th {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .table tbody tr:nth-of-type(even) td {
+    background: #172033 !important;
+}
+
+body[data-theme="dark"] .table-hover tbody tr:hover td {
+    background: rgba(248,113,113,0.13) !important;
+    color: #ffffff !important;
+}
+
+/* Fila marcada como error o sobre presupuesto */
+body[data-theme="dark"] .table-danger,
+body[data-theme="dark"] tr.table-danger td {
+    background: rgba(220,38,38,0.22) !important;
+    color: #fecaca !important;
+}
+
+body[data-theme="dark"] tr.table-danger input {
+    border-color: rgba(248,113,113,0.65) !important;
+}
+
+/* Botón de comentario */
+body[data-theme="dark"] .btn-light {
+    background: #0b1220 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+body[data-theme="dark"] .btn-light:hover {
+    background: rgba(248,113,113,0.14) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.55) !important;
+}
+
+body[data-theme="dark"] .note-exists {
+    outline: 2px solid #60a5fa !important;
+    outline-offset: -2px;
+}
+
+/* Botones */
+body[data-theme="dark"] .btn-reflejo,
+body[data-theme="dark"] .btn-success,
+body[data-theme="dark"] .btn-danger {
+    background: linear-gradient(180deg, #dc2626 0%, #991b1b 58%, #7f1d1d 100%) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.50) !important;
+}
+
+body[data-theme="dark"] .btn-reflejo:hover,
+body[data-theme="dark"] .btn-success:hover,
+body[data-theme="dark"] .btn-danger:hover {
+    filter: brightness(1.08) !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .btn-outline-secondary {
+    background: #0b1220 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(203,213,225,0.32) !important;
+}
+
+body[data-theme="dark"] .btn-outline-secondary:hover {
+    background: rgba(248,113,113,0.14) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.55) !important;
+}
+
+body[data-theme="dark"] .btn-outline-danger {
+    background: #0b1220 !important;
+    color: #fca5a5 !important;
+    border-color: rgba(248,113,113,0.45) !important;
+}
+
+body[data-theme="dark"] .btn-outline-danger:hover {
+    background: rgba(220,38,38,0.28) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.75) !important;
+}
+
+/* Links */
+body[data-theme="dark"] a,
+body[data-theme="dark"] a[style*="color:#8B0000"] {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] a:hover,
+body[data-theme="dark"] a[style*="color:#8B0000"]:hover {
+    color: #fecaca !important;
+    text-decoration: underline !important;
+}
+
+/* Modales */
+body[data-theme="dark"] .modal-content {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: 0 22px 50px rgba(0,0,0,0.58) !important;
+}
+
+body[data-theme="dark"] .modal-header {
+    background: linear-gradient(180deg, #7f1d1d 0%, #450a0a 58%, #111827 100%) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.28) !important;
+}
+
+body[data-theme="dark"] .modal-header .modal-title {
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .modal-header .btn-close,
+body[data-theme="dark"] .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%) !important;
+    opacity: .95 !important;
+}
+
+body[data-theme="dark"] .modal-body {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .modal-footer {
+    background: #172033 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] #comentarioModal textarea {
+    background: #0b1220 !important;
+    color: #f9fafb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+body[data-theme="dark"] #skuInfo {
+    color: #f9fafb !important;
+}
+
+/* Validaciones */
+body[data-theme="dark"] .is-invalid {
+    border-color: #ef4444 !important;
+}
+
+body[data-theme="dark"] .field-validation-error,
+body[data-theme="dark"] [data-valmsg-for] {
+    color: #fca5a5 !important;
+}
+
+/* Toast dinámico creado por JS */
+body[data-theme="dark"] .toast {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border: 1px solid rgba(255,255,255,0.12) !important;
+    box-shadow: 0 16px 36px rgba(0,0,0,0.42) !important;
+}
+
+body[data-theme="dark"] .toast-header {
+    background: #172033 !important;
+    color: #f9fafb !important;
+    border-bottom: 1px solid rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .toast-header small {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .toast-body {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .toast .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%) !important;
+}
+
+/* Overlay "Procesando…" creado por JS */
+body[data-theme="dark"] #savingOverlay {
+    background: rgba(15,23,42,.82) !important;
+    backdrop-filter: blur(2px);
+}
+
+body[data-theme="dark"] #savingOverlay div,
+body[data-theme="dark"] #savingOverlay .mt-2 {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] #savingOverlay .spinner-border {
+    color: #f87171 !important;
+}
+
+/* jQuery UI Autocomplete */
+body[data-theme="dark"] .ui-widget,
+body[data-theme="dark"] .ui-widget-content,
+body[data-theme="dark"] .ui-autocomplete {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+    box-shadow: 0 16px 34px rgba(0,0,0,0.42) !important;
+}
+
+body[data-theme="dark"] .ui-menu .ui-menu-item-wrapper {
+    color: #e5e7eb !important;
+    background: #111827 !important;
+}
+
+body[data-theme="dark"] .ui-menu .ui-menu-item-wrapper.ui-state-active,
+body[data-theme="dark"] .ui-menu .ui-menu-item-wrapper:hover {
+    background: rgba(220,38,38,0.65) !important;
+    color: #ffffff !important;
+    border-color: transparent !important;
+}
+
+/* Tooltips */
+body[data-theme="dark"] .tooltip-inner {
+    background: #020617 !important;
+    color: #f9fafb !important;
+    border: 1px solid rgba(255,255,255,0.12);
+}
+
+body[data-theme="dark"] .tooltip.bs-tooltip-top .tooltip-arrow::before {
+    border-top-color: #020617 !important;
+}
+
+body[data-theme="dark"] .tooltip.bs-tooltip-bottom .tooltip-arrow::before {
+    border-bottom-color: #020617 !important;
+}
+
+body[data-theme="dark"] .tooltip.bs-tooltip-start .tooltip-arrow::before {
+    border-left-color: #020617 !important;
+}
+
+body[data-theme="dark"] .tooltip.bs-tooltip-end .tooltip-arrow::before {
+    border-right-color: #020617 !important;
+}
+
+/* Scrollbars */
+body[data-theme="dark"] .table-responsive,
+body[data-theme="dark"] .modal-body,
+body[data-theme="dark"] textarea {
+    scrollbar-color: rgba(248,113,113,0.42) #0f172a;
+}
+
+body[data-theme="dark"] .table-responsive::-webkit-scrollbar,
+body[data-theme="dark"] .modal-body::-webkit-scrollbar,
+body[data-theme="dark"] textarea::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+}
+
+body[data-theme="dark"] .table-responsive::-webkit-scrollbar-track,
+body[data-theme="dark"] .modal-body::-webkit-scrollbar-track,
+body[data-theme="dark"] textarea::-webkit-scrollbar-track {
+    background: #0f172a;
+}
+
+body[data-theme="dark"] .table-responsive::-webkit-scrollbar-thumb,
+body[data-theme="dark"] .modal-body::-webkit-scrollbar-thumb,
+body[data-theme="dark"] textarea::-webkit-scrollbar-thumb {
+    background: rgba(248,113,113,0.42);
+    border-radius: 999px;
+}
+
+/* Responsive */
+@@media (max-width: 768px) {
+    body[data-theme="dark"] .module-titlebar {
+        border-radius: 0 !important;
+    }
+
+    body[data-theme="dark"] .toolbar {
+        background: #172033 !important;
+    }
+
+    body[data-theme="dark"] .p-3,
+    body[data-theme="dark"] .content-block {
+        border-left: none !important;
+        border-right: none !important;
+    }
+
+    body[data-theme="dark"] .table {
+        background: #111827 !important;
+    }
+}
+
+
+/* ============================================================
+   FIX FINAL RESPONSIVO SIDEBAR - TRANSFERENCIA
+   Hace que la vista se encoja al abrir el sidebar como OrdenVenta
+============================================================ */
+
+.st-page {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    transform: none !important;
+    padding: 8px 12px !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+    background: #e9edf2 !important;
+}
+
+.st-page .shell {
+    width: 100% !important;
+    max-width: 1850px !important;
+    margin: 8px auto !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+}
+
+.st-page .p-3,
+.st-page .content-block {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+/* Desktop: ajusta ancho cuando el sidebar está abierto */
+@@media (min-width: 992px) {
+    body.st-sidebar-final-ready {
+        overflow-x: hidden !important;
+    }
+
+    body.st-sidebar-final-ready .st-page {
+        margin-left: var(--st-sidebar-push, 0px) !important;
+        width: var(--st-page-width, 100%) !important;
+        max-width: var(--st-page-width, 100%) !important;
+        transform: none !important;
+        box-sizing: border-box !important;
+        overflow-x: hidden !important;
+        transition:
+            margin-left .12s ease-out,
+            width .12s ease-out,
+            max-width .12s ease-out !important;
+    }
+
+    body.st-sidebar-final-ready .st-page .shell,
+    body.st-sidebar-final-ready .st-page .p-3,
+    body.st-sidebar-final-ready .st-page .content-block {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    body.st-sidebar-final-ready .st-page .table-responsive {
+        max-width: 100% !important;
+        overflow-x: auto !important;
+    }
+}
+
+/* Celular */
+@@media (max-width: 768px) {
+    .st-page {
+        padding: 0 !important;
+    }
+
+    .st-page .shell {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+}
+
+/* Dark mode */
+body[data-theme="dark"] .st-page {
+    background: #0f172a !important;
+}
+
+
+
+
+/* ============================================================
+   UX EJECUTIVO - SOLICITUD DE TRANSFERENCIA SIMPLE E INTUITIVA
+   Conserva IDs/clases funcionales existentes.
+============================================================ */
+:root {
+    --st-bg: #f3f4f6;
+    --st-surface: #ffffff;
+    --st-surface-soft: #f9fafb;
+    --st-ink: #111827;
+    --st-muted: #6b7280;
+    --st-border: #e5e7eb;
+    --st-brand: #8B0000;
+    --st-brand-2: #5c0000;
+    --st-brand-soft: #fff1f2;
+    --st-blue-soft: #eff6ff;
+    --st-blue-border: #bfdbfe;
+    --st-blue-ink: #1e3a8a;
+    --st-success: #166534;
+    --st-warning: #92400e;
+    --st-radius-lg: 18px;
+    --st-radius-md: 14px;
+    --st-radius-sm: 10px;
+    --st-shadow: 0 18px 44px rgba(17, 24, 39, .10);
+    --st-shadow-sm: 0 10px 24px rgba(17, 24, 39, .08);
+}
+
+html,
+body,
+body,
+main,
+.main,
+.body-content,
+.container,
+.container-fluid,
+.card,
+.st-page,
+.st-executive {
+    background: var(--st-bg) !important;
+    color: var(--st-ink) !important;
+}
+
+.st-executive {
+    padding: 12px !important;
+}
+
+.st-executive .shell {
+    max-width: 1850px !important;
+    margin: 0 auto 18px !important;
+    padding: 0 !important;
+    background: transparent !important;
+}
+
+.st-hero {
+    background:
+        radial-gradient(circle at top right, rgba(255,255,255,.22), transparent 28%),
+        linear-gradient(135deg, #991b1b 0%, #7f1d1d 48%, #450a0a 100%) !important;
+    border: 0 !important;
+    padding: 18px 20px !important;
+    box-shadow: var(--st-shadow) !important;
+    border-radius: var(--st-radius-lg) var(--st-radius-lg) 0 0 !important;
+}
+
+.st-hero-copy {
+    display: grid;
+    gap: 2px;
+}
+
+.st-kicker {
+    color: #fecaca;
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+}
+
+.st-executive .module-title {
+    font-size: clamp(1.35rem, 1.2vw + 1rem, 2rem) !important;
+    color: #ffffff !important;
+    line-height: 1.05 !important;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.st-executive .module-subtitle {
+    color: rgba(255,255,255,.84) !important;
+    font-size: 13px !important;
+}
+
+.st-executive .toolbar,
+.st-hero-actions {
+    background: transparent !important;
+    border: 0 !important;
+    padding: 0 !important;
+    gap: 10px !important;
+}
+
+.st-executive .tbtn {
+    min-height: 42px !important;
+    height: auto !important;
+    border-radius: 999px !important;
+    padding: 0 16px !important;
+    font-weight: 800 !important;
+    box-shadow: 0 10px 20px rgba(0,0,0,.12) !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.st-hero .tbtn.primary {
+    background: #ffffff !important;
+    color: #7f1d1d !important;
+    border-color: rgba(255,255,255,.72) !important;
+}
+
+.st-hero .tbtn.primary:hover {
+    color: #450a0a !important;
+    background: #fff7ed !important;
+}
+
+.st-hero .tbtn.ghost {
+    background: rgba(255,255,255,.12) !important;
+    color: #ffffff !important;
+    border-color: rgba(255,255,255,.30) !important;
+}
+
+.st-hero .tbtn.ghost:hover {
+    background: rgba(255,255,255,.20) !important;
+    color: #ffffff !important;
+}
+
+.st-steps {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    background: #ffffff;
+    border: 1px solid var(--st-border);
+    border-top: 0;
+    padding: 12px;
+    box-shadow: var(--st-shadow-sm);
+}
+
+.st-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    background: var(--st-surface-soft);
+    border: 1px solid var(--st-border);
+    border-radius: var(--st-radius-md);
+    padding: 12px;
+    transition: .16s ease;
+}
+
+.st-step.is-active {
+    background: var(--st-brand-soft);
+    border-color: rgba(139,0,0,.26);
+}
+
+.st-step-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    background: var(--st-brand);
+    color: #ffffff;
+    font-weight: 900;
+    flex: 0 0 auto;
+}
+
+.st-step-text {
+    min-width: 0;
+}
+
+.st-step-title {
+    display: block;
+    color: var(--st-ink);
+    font-size: 13px;
+    font-weight: 900;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.st-step-help {
+    display: block;
+    color: var(--st-muted);
+    font-size: 11px;
+    line-height: 1.15;
+}
+
+.st-executive .content-block,
+.st-executive .p-3 {
+    background: #ffffff !important;
+    border: 1px solid var(--st-border) !important;
+    border-top: 0 !important;
+    border-radius: 0 0 var(--st-radius-lg) var(--st-radius-lg) !important;
+    padding: 16px !important;
+    box-shadow: var(--st-shadow) !important;
+}
+
+.st-guidance {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: linear-gradient(180deg, #fff7ed 0%, #fff 100%);
+    border: 1px solid #fed7aa;
+    border-radius: var(--st-radius-md);
+    padding: 12px 14px;
+    margin-bottom: 14px;
+}
+
+.st-guidance-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 800;
+    color: #7c2d12;
+}
+
+.st-guidance-main i {
+    font-size: 1.25rem;
+}
+
+.st-guidance small {
+    color: #9a3412 !important;
+}
+
+.st-executive .panel,
+.st-executive .modal-content,
+.st-executive .bg-light {
+    border-radius: var(--st-radius-md) !important;
+    border: 1px solid var(--st-border) !important;
+    background: var(--st-surface) !important;
+    box-shadow: var(--st-shadow-sm) !important;
+    overflow: hidden;
+}
+
+.st-executive .panel {
+    margin-top: 0 !important;
+}
+
+.st-executive .panel-head {
+    background: #ffffff !important;
+    color: var(--st-ink) !important;
+    border-bottom: 1px solid var(--st-border) !important;
+    padding: 13px 16px !important;
+    font-size: 14px !important;
+    font-weight: 900 !important;
+}
+
+.st-executive .panel-head i {
+    color: var(--st-brand) !important;
+}
+
+.st-executive .panel-body,
+.st-executive .modal-body {
+    background: #ffffff !important;
+    padding: 16px !important;
+}
+
+.st-panel-head-split {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 10px !important;
+    flex-wrap: wrap !important;
+}
+
+.st-card-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.st-card-title .st-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    background: var(--st-brand);
+    color: #ffffff;
+    font-weight: 900;
+}
+
+.st-mini-note {
+    color: var(--st-muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.st-executive .form-label {
+    color: #374151 !important;
+    font-size: 12px !important;
+    text-transform: uppercase;
+    letter-spacing: .035em;
+    font-weight: 900 !important;
+}
+
+.st-executive .form-control,
+.st-executive .form-select,
+.st-executive .input-group-text,
+.st-executive input,
+.st-executive select,
+.st-executive textarea {
+    border-radius: var(--st-radius-sm) !important;
+    border: 1px solid #d1d5db !important;
+    background: #ffffff !important;
+    min-height: 42px !important;
+    font-size: 14px !important;
+    color: var(--st-ink) !important;
+}
+
+.st-executive .form-control:focus,
+.st-executive .form-select:focus,
+.st-executive input:focus,
+.st-executive select:focus,
+.st-executive textarea:focus {
+    border-color: var(--st-brand) !important;
+    box-shadow: 0 0 0 .2rem rgba(139,0,0,.14) !important;
+}
+
+.st-executive textarea.form-control,
+.st-executive textarea {
+    min-height: 92px !important;
+}
+
+.st-primary-field {
+    min-height: 52px !important;
+    font-size: 18px !important;
+    font-weight: 900 !important;
+}
+
+.st-field-readonly input[readonly],
+.st-field-readonly .form-control[readonly] {
+    background: #f9fafb !important;
+    color: #4b5563 !important;
+    font-weight: 800;
+}
+
+.st-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.st-summary-card {
+    display: grid;
+    gap: 8px;
+    min-height: 118px;
+    background: var(--st-surface-soft);
+    border: 1px solid var(--st-border);
+    border-radius: var(--st-radius-md);
+    padding: 14px;
+}
+
+.st-summary-card i {
+    color: var(--st-brand);
+    font-size: 1.3rem;
+}
+
+.st-summary-label {
+    color: var(--st-muted);
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.st-summary-value {
+    color: var(--st-ink);
+    font-size: 1.45rem;
+    font-weight: 950;
+    line-height: 1;
+}
+
+.st-summary-help {
+    color: var(--st-muted);
+    font-size: 12px;
+    line-height: 1.2;
+}
+
+.st-products-panel {
+    margin-top: 16px !important;
+}
+
+.st-products-tip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 12px 12px 0;
+    padding: 10px 12px;
+    border-radius: var(--st-radius-md);
+    background: var(--st-blue-soft);
+    border: 1px solid var(--st-blue-border);
+    color: var(--st-blue-ink);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.st-table-wrap {
+    max-height: 58vh !important;
+    border-radius: 0 !important;
+    padding: 12px !important;
+    background: #ffffff !important;
+    overflow: auto !important;
+}
+
+.st-product-table,
+.st-executive .table {
+    min-width: 1120px !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    background: #ffffff !important;
+}
+
+.st-executive .table thead th,
+.st-executive .table thead th span,
+.st-executive .table thead th label,
+.st-executive .table thead th a {
+    background: #7f1d1d !important;
+    color: #ffffff !important;
+    border-color: #7f1d1d !important;
+    font-size: 11px !important;
+    letter-spacing: .04em;
+    padding: 10px 8px !important;
+    text-transform: uppercase;
+}
+
+.st-executive .table tbody td {
+    background: #ffffff !important;
+    padding: 8px !important;
+    border-color: var(--st-border) !important;
+}
+
+.st-executive .table tbody tr:nth-of-type(even) td {
+    background: #fafafa !important;
+}
+
+.st-executive .table-hover tbody tr:hover td {
+    background: #fff7ed !important;
+}
+
+.st-executive #tbodyArt tr td:first-child {
+    font-weight: 900;
+    color: var(--st-brand);
+    text-align: center;
+    font-size: 14px;
+}
+
+.st-executive #tbodyArt .productoInput {
+    min-width: 360px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.st-executive #tbodyArt .cant,
+.st-executive #tbodyArt .cajas,
+.st-executive #tbodyArt input[name$='.Presupuesto'],
+.st-executive #tbodyArt input[name$='.Disponible'] {
+    text-align: right;
+    font-weight: 800;
+}
+
+.st-executive .cell-btn {
+    border-radius: 999px !important;
+    min-width: 34px;
+    height: 34px;
+}
+
+.st-product-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+}
+
+.st-product-actions-left,
+.st-product-actions-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.st-add-btn,
+.st-executive .btn-reflejo,
+.st-executive .btn-success,
+.st-executive .btn-danger,
+.st-executive .btn-primary {
+    border-radius: 999px !important;
+    min-height: 42px;
+    font-weight: 900 !important;
+}
+
+.st-executive .btn-outline-secondary,
+.st-executive .btn-outline-primary,
+.st-executive .btn-outline-danger {
+    border-radius: 999px !important;
+    min-height: 42px;
+    font-weight: 800 !important;
+}
+
+.st-sticky-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+    padding: 14px;
+    background: rgba(255,255,255,.92);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--st-border);
+    border-radius: var(--st-radius-md);
+    box-shadow: 0 -10px 30px rgba(17, 24, 39, .08);
+}
+
+.st-sticky-actions strong {
+    display: block;
+    color: var(--st-ink);
+    font-size: 14px;
+}
+
+.st-sticky-actions span {
+    color: var(--st-muted);
+    font-size: 12px;
+}
+
+.st-sticky-actions .st-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.st-sticky-actions .tbtn.primary {
+    background: linear-gradient(180deg, #b30000 0%, #8B0000 55%, #6a0000 100%) !important;
+    color: #ffffff !important;
+    border-color: #6a0000 !important;
+}
+
+.st-sticky-actions .tbtn:not(.primary) {
+    background: #ffffff !important;
+    color: var(--st-ink) !important;
+    border-color: var(--st-border) !important;
+}
+
+.st-empty-hint {
+    color: var(--st-muted);
+    font-size: 12px;
+}
+
+.st-executive tr.table-danger td {
+    background: #fee2e2 !important;
+}
+
+body[data-theme="dark"] .st-executive,
+body[data-theme="dark"] .st-page,
+body[data-theme="dark"] main,
+body[data-theme="dark"] .main,
+body[data-theme="dark"] .body-content,
+body[data-theme="dark"] .container,
+body[data-theme="dark"] .container-fluid,
+body[data-theme="dark"] .card {
+    background: #0f172a !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .st-hero {
+    background:
+        radial-gradient(circle at top right, rgba(248,113,113,.20), transparent 28%),
+        linear-gradient(135deg, #7f1d1d 0%, #450a0a 55%, #111827 100%) !important;
+    border-color: rgba(248,113,113,0.28) !important;
+}
+
+body[data-theme="dark"] .st-steps,
+body[data-theme="dark"] .st-executive .content-block,
+body[data-theme="dark"] .st-executive .p-3,
+body[data-theme="dark"] .st-executive .panel,
+body[data-theme="dark"] .st-executive .panel-body,
+body[data-theme="dark"] .st-executive .modal-body,
+body[data-theme="dark"] .st-table-wrap,
+body[data-theme="dark"] .st-executive .table,
+body[data-theme="dark"] .st-executive .table tbody td {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .st-step,
+body[data-theme="dark"] .st-summary-card,
+body[data-theme="dark"] .st-sticky-actions {
+    background: #172033 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .st-step.is-active {
+    background: rgba(127,29,29,.30) !important;
+    border-color: rgba(248,113,113,.35) !important;
+}
+
+body[data-theme="dark"] .st-step-title,
+body[data-theme="dark"] .st-summary-value,
+body[data-theme="dark"] .st-sticky-actions strong,
+body[data-theme="dark"] .st-executive .panel-head {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .st-step-help,
+body[data-theme="dark"] .st-summary-label,
+body[data-theme="dark"] .st-summary-help,
+body[data-theme="dark"] .st-sticky-actions span,
+body[data-theme="dark"] .st-mini-note {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .st-executive .panel-head {
+    background: #111827 !important;
+    border-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .st-guidance {
+    background: rgba(180,83,9,0.18) !important;
+    border-color: rgba(245,158,11,0.34) !important;
+}
+
+body[data-theme="dark"] .st-guidance-main,
+body[data-theme="dark"] .st-guidance small {
+    color: #fde68a !important;
+}
+
+body[data-theme="dark"] .st-products-tip {
+    background: rgba(30,64,175,0.24) !important;
+    border-color: rgba(96,165,250,0.45) !important;
+    color: #bfdbfe !important;
+}
+
+body[data-theme="dark"] .st-executive .form-control,
+body[data-theme="dark"] .st-executive .form-select,
+body[data-theme="dark"] .st-executive .input-group-text,
+body[data-theme="dark"] .st-executive input,
+body[data-theme="dark"] .st-executive select,
+body[data-theme="dark"] .st-executive textarea {
+    background: #0b1220 !important;
+    color: #f9fafb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+body[data-theme="dark"] .st-executive .table tbody tr:nth-of-type(even) td {
+    background: #172033 !important;
+}
+
+body[data-theme="dark"] .st-executive .table-hover tbody tr:hover td {
+    background: rgba(248,113,113,0.13) !important;
+}
+
+body[data-theme="dark"] .st-sticky-actions .tbtn:not(.primary) {
+    background: #0b1220 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+@@media (max-width: 1200px) {
+    .st-summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .st-steps {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@@media (max-width: 768px) {
+    .st-executive {
+        padding: 0 !important;
+    }
+
+    .st-hero {
+        border-radius: 0 !important;
+        padding: 16px !important;
+    }
+
+    .st-hero .toolbar,
+    .st-hero-actions,
+    .st-sticky-actions .st-actions {
+        width: 100%;
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+    }
+
+    .st-executive .tbtn,
+    .st-executive .btn,
+    .st-executive .form-control,
+    .st-executive .form-select {
+        width: 100% !important;
+    }
+
+    .st-steps {
+        grid-template-columns: 1fr;
+        border-left: 0;
+        border-right: 0;
+    }
+
+    .st-executive .content-block,
+    .st-executive .p-3 {
+        border-radius: 0 !important;
+        border-left: 0 !important;
+        border-right: 0 !important;
+        padding: 10px !important;
+    }
+
+    .st-guidance {
+        display: grid;
+    }
+
+    .st-product-actions {
+        display: grid;
+    }
+
+    .st-product-actions-left,
+    .st-product-actions-right {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .st-product-table,
+    .st-executive .table {
+        min-width: 980px !important;
+    }
+
+    .st-sticky-actions {
+        position: static;
+        display: grid;
+        border-radius: var(--st-radius-md);
+    }
+}
+
+/* ============================================================
+   AJUSTE COMPACTO FINAL - SOLICITUD DE TRANSFERENCIA
+   Letra más chica + más contenido visible en pantalla
+   Pegar al FINAL del <style>
+============================================================ */
+
+:root {
+    --fs-base: 12px !important;
+    --fs-sm: 11px !important;
+    --fs-xs: 10px !important;
+}
+
+/* Texto general de la vista */
+html,
+body,
+.st-page,
+.st-executive,
+.st-executive .content-block,
+.st-executive .p-3,
+.st-executive .panel-body,
+.st-executive .modal-body,
+.st-executive .form-control,
+.st-executive .form-select,
+.st-executive input,
+.st-executive select,
+.st-executive textarea,
+.st-executive .btn,
+.st-executive .tbtn {
+    font-size: 12px !important;
+}
+
+/* Encabezado principal más compacto */
+.st-hero {
+    padding: 12px 14px !important;
+}
+
+.st-kicker {
+    font-size: 10px !important;
+}
+
+.st-executive .module-title {
+    font-size: clamp(1.05rem, .9vw + .8rem, 1.45rem) !important;
+    line-height: 1.05 !important;
+    gap: 6px !important;
+}
+
+.st-executive .module-subtitle {
+    font-size: 11px !important;
+}
+
+/* Botones superiores más chicos */
+.st-executive .toolbar,
+.st-hero-actions {
+    gap: 6px !important;
+}
+
+.st-executive .tbtn,
+.st-executive .btn,
+.st-executive .btn-reflejo,
+.st-executive .btn-success,
+.st-executive .btn-danger,
+.st-executive .btn-primary,
+.st-executive .btn-outline-secondary,
+.st-executive .btn-outline-primary,
+.st-executive .btn-outline-danger {
+    min-height: 30px !important;
+    height: 30px !important;
+    padding: 0 11px !important;
+    font-size: 11px !important;
+    line-height: 1 !important;
+}
+
+/* Pasos superiores más compactos */
+.st-steps {
+    padding: 8px !important;
+    gap: 7px !important;
+}
+
+.st-step {
+    padding: 8px !important;
+    gap: 7px !important;
+    border-radius: 10px !important;
+}
+
+.st-step-number {
+    width: 26px !important;
+    height: 26px !important;
+    font-size: 11px !important;
+}
+
+.st-step-title {
+    font-size: 11px !important;
+}
+
+.st-step-help {
+    font-size: 9.5px !important;
+}
+
+/* Contenido principal */
+.st-executive {
+    padding: 8px !important;
+}
+
+.st-executive .shell {
+    margin-bottom: 10px !important;
+}
+
+.st-executive .content-block,
+.st-executive .p-3 {
+    padding: 10px !important;
+}
+
+.st-guidance {
+    padding: 8px 10px !important;
+    margin-bottom: 10px !important;
+    gap: 8px !important;
+}
+
+.st-guidance-main {
+    font-size: 11px !important;
+    gap: 7px !important;
+}
+
+.st-guidance-main i {
+    font-size: 1rem !important;
+}
+
+.st-guidance small {
+    font-size: 10px !important;
+}
+
+/* Paneles */
+.st-executive .panel-head {
+    padding: 9px 12px !important;
+    font-size: 12px !important;
+}
+
+.st-executive .panel-body,
+.st-executive .modal-body {
+    padding: 10px !important;
+}
+
+.st-card-title {
+    gap: 7px !important;
+}
+
+.st-card-title .st-num {
+    width: 24px !important;
+    height: 24px !important;
+    font-size: 10px !important;
+}
+
+.st-mini-note {
+    font-size: 10px !important;
+}
+
+/* Labels e inputs */
+.st-executive .form-label {
+    font-size: 10px !important;
+    margin-bottom: 2px !important;
+    letter-spacing: .025em !important;
+}
+
+.st-executive .form-control,
+.st-executive .form-select,
+.st-executive .input-group-text,
+.st-executive input,
+.st-executive select,
+.st-executive textarea {
+    min-height: 30px !important;
+    padding: .24rem .42rem !important;
+    font-size: 11px !important;
+    border-radius: 7px !important;
+}
+
+.st-primary-field {
+    min-height: 36px !important;
+    font-size: 13px !important;
+}
+
+.st-executive textarea.form-control,
+.st-executive textarea {
+    min-height: 64px !important;
+}
+
+/* Resumen rápido más compacto */
+.st-summary-grid {
+    gap: 8px !important;
+}
+
+.st-summary-card {
+    min-height: 82px !important;
+    padding: 10px !important;
+    gap: 5px !important;
+    border-radius: 10px !important;
+}
+
+.st-summary-card i {
+    font-size: 1rem !important;
+}
+
+.st-summary-label {
+    font-size: 10px !important;
+}
+
+.st-summary-value {
+    font-size: 1.1rem !important;
+}
+
+.st-summary-help {
+    font-size: 10px !important;
+}
+
+/* Panel de productos */
+.st-products-panel {
+    margin-top: 10px !important;
+}
+
+.st-products-tip {
+    margin: 8px 8px 0 !important;
+    padding: 7px 9px !important;
+    font-size: 11px !important;
+    gap: 7px !important;
+}
+
+/* Tabla más compacta */
+.st-table-wrap {
+    max-height: 64vh !important;
+    padding: 8px !important;
+}
+
+.st-product-table,
+.st-executive .table {
+    min-width: 1050px !important;
+    font-size: 11px !important;
+}
+
+.st-executive .table thead th,
+.st-executive .table thead th span,
+.st-executive .table thead th label,
+.st-executive .table thead th a {
+    font-size: 10px !important;
+    padding: 6px 5px !important;
+    letter-spacing: .025em !important;
+}
+
+.st-executive .table tbody td {
+    font-size: 11px !important;
+    padding: 5px !important;
+}
+
+.st-executive #tbodyArt tr td:first-child {
+    font-size: 11px !important;
+}
+
+.st-executive #tbodyArt .productoInput {
+    min-width: 300px !important;
+    font-size: 11px !important;
+}
+
+.st-executive .cell-btn {
+    min-width: 28px !important;
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 11px !important;
+}
+
+/* Acciones inferiores */
+.st-product-actions {
+    margin-top: 9px !important;
+    gap: 8px !important;
+}
+
+.st-product-actions-left,
+.st-product-actions-right {
+    gap: 7px !important;
+}
+
+.st-sticky-actions {
+    margin-top: 10px !important;
+    padding: 9px !important;
+    gap: 8px !important;
+    border-radius: 10px !important;
+}
+
+.st-sticky-actions strong {
+    font-size: 12px !important;
+}
+
+.st-sticky-actions span {
+    font-size: 10px !important;
+}
+
+.st-sticky-actions .st-actions {
+    gap: 7px !important;
+}
+
+/* Laptop / pantallas medianas */
+@@media (max-width: 1366px) {
+    :root {
+        --fs-base: 11px !important;
+        --fs-sm: 10.5px !important;
+        --fs-xs: 9.5px !important;
+    }
+
+    .st-executive {
+        padding: 6px !important;
+    }
+
+    .st-hero {
+        padding: 10px 12px !important;
+    }
+
+    .st-executive .module-title {
+        font-size: 1.15rem !important;
+    }
+
+    .st-executive .content-block,
+    .st-executive .p-3 {
+        padding: 8px !important;
+    }
+
+    .st-executive .panel-body,
+    .st-executive .modal-body {
+        padding: 8px !important;
+    }
+
+    .st-executive .form-control,
+    .st-executive .form-select,
+    .st-executive input,
+    .st-executive select,
+    .st-executive textarea {
+        min-height: 28px !important;
+        font-size: 10.5px !important;
+    }
+
+    .st-primary-field {
+        min-height: 32px !important;
+        font-size: 12px !important;
+    }
+
+    .st-product-table,
+    .st-executive .table {
+        min-width: 1000px !important;
+        font-size: 10.5px !important;
+    }
+
+    .st-executive .table tbody td {
+        font-size: 10.5px !important;
+        padding: 4px !important;
+    }
+
+    .st-executive .table thead th {
+        font-size: 9.5px !important;
+        padding: 5px 4px !important;
+    }
+}
+
+/* Celular */
+@@media (max-width: 768px) {
+    :root {
+        --fs-base: 11px !important;
+        --fs-sm: 10px !important;
+        --fs-xs: 9px !important;
+    }
+
+    .st-executive {
+        padding: 0 !important;
+    }
+
+    .st-hero {
+        padding: 11px !important;
+    }
+
+    .st-executive .module-title {
+        font-size: 1.05rem !important;
+    }
+
+    .st-executive .module-subtitle {
+        font-size: 10px !important;
+    }
+
+    .st-steps {
+        padding: 6px !important;
+        gap: 6px !important;
+    }
+
+    .st-step {
+        padding: 7px !important;
+    }
+
+    .st-executive .content-block,
+    .st-executive .p-3 {
+        padding: 6px !important;
+    }
+
+    .st-guidance {
+        padding: 7px !important;
+    }
+
+    .st-executive .panel-body,
+    .st-executive .modal-body {
+        padding: 7px !important;
+    }
+
+    .st-summary-card {
+        min-height: 72px !important;
+        padding: 8px !important;
+    }
+
+    .st-table-wrap {
+        max-height: 65vh !important;
+        padding: 5px !important;
+    }
+
+    .st-product-table,
+    .st-executive .table {
+        min-width: 940px !important;
+        font-size: 9.5px !important;
+    }
+
+    .st-executive .table th,
+    .st-executive .table td,
+    .st-executive .table tbody td {
+        font-size: 9.5px !important;
+        padding: 3px !important;
+        white-space: nowrap !important;
+    }
+
+    .st-executive .form-control,
+    .st-executive .form-select,
+    .st-executive input,
+    .st-executive select,
+    .st-executive textarea,
+    .st-executive .btn,
+    .st-executive .tbtn {
+        font-size: 10px !important;
+        min-height: 26px !important;
+    }
+
+    .st-sticky-actions {
+        padding: 7px !important;
+    }
+}
+
+</style>
+
+<div class="container-fluid st-page st-executive">
+    <div class="shell">
+        <div class="module-titlebar st-hero">
+            <div class="st-hero-copy">
+                <div class="st-kicker">Transferencias internas</div>
+                <h5 class="module-title"><i class="bi bi-arrow-left-right"></i> Nueva Solicitud de Transferencia</h5>
+                <p class="module-subtitle">Captura guiada: selecciona sucursal, confirma fecha, agrega productos y guarda.</p>
+            </div>
+
+            <div class="toolbar st-hero-actions" role="toolbar" aria-label="Acciones principales">
+                <button type="submit" form="formST" name="accion" value="salir" class="tbtn primary" title="Guardar y salir">
+                    <i class="bi bi-check2-circle"></i><span>Guardar y salir</span>
+                </button>
+                <button type="submit" form="formST" name="accion" value="nuevo" class="tbtn primary" title="Guardar y crear nueva solicitud">
+                    <i class="bi bi-plus-circle"></i><span>Guardar y nueva</span>
+                </button>
+                <a href="/Home/inicio" class="tbtn ghost" title="Cancelar captura">
+                    <i class="bi bi-x-lg"></i><span>Cancelar</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="st-steps" aria-label="Flujo de captura">
+            <div class="st-step" id="stStepSucursal">
+                <span class="st-step-number">1</span>
+                <span class="st-step-text">
+                    <span class="st-step-title">Sucursal</span>
+                    <span class="st-step-help">Elige el origen/destino autorizado</span>
+                </span>
+            </div>
+            <div class="st-step" id="stStepFecha">
+                <span class="st-step-number">2</span>
+                <span class="st-step-text">
+                    <span class="st-step-title">Fecha</span>
+                    <span class="st-step-help">Confirma cuándo se solicita</span>
+                </span>
+            </div>
+            <div class="st-step" id="stStepProductos">
+                <span class="st-step-number">3</span>
+                <span class="st-step-text">
+                    <span class="st-step-title">Productos</span>
+                    <span class="st-step-help">SKU, kilos, cajas y disponible</span>
+                </span>
+            </div>
+            <div class="st-step" id="stStepGuardar">
+                <span class="st-step-number">4</span>
+                <span class="st-step-text">
+                    <span class="st-step-title">Guardar</span>
+                    <span class="st-step-help">Revisa y confirma</span>
+                </span>
+            </div>
+        </div>
+
+        <div class="content-block">
+            <form id="formST" asp-action="Guardar" asp-controller="Transferencias" method="post">
+                <input type="hidden" name="accion" id="accionField" value="salir" />
+                @Html.AntiForgeryToken()
+
+                <div class="st-guidance">
+                    <div class="st-guidance-main">
+                        <i class="bi bi-lightning-charge-fill"></i>
+                        <span>Flujo rápido: primero sucursal y fecha; después productos. Presupuesto y disponible se calculan automáticamente.</span>
+                    </div>
+                    <small><i class="bi bi-info-circle me-1"></i>Los campos en gris son informativos y no se capturan manualmente.</small>
+                </div>
+
+                <div class="row g-3 st-capture-grid">
+                    <div class="col-12 col-xl-5">
+                        <div class="panel h-100">
+                            <div class="panel-head">
+                                <span class="st-card-title">
+                                    <span class="st-num">1</span>
+                                    <span><i class="bi bi-clipboard-check"></i> Datos de la solicitud</span>
+                                </span>
+                            </div>
+                            <div class="panel-body">
+                                <div class="row g-3">
+                                    <div class="col-12 col-md-4 col-xl-12 st-field-readonly">
+                                        <label class="form-label">Consecutivo</label>
+                                        <input asp-for="Consecutivo" class="form-control" readonly />
+                                    </div>
+
+                                    <div class="col-12 col-md-4 col-xl-12">
+                                        <label class="form-label">Sucursal</label>
+                                        <select asp-for="Sucursal" class="form-select st-primary-field" asp-items="Model.SeriesDisponibles">
+                                            <option value="">Selecciona Sucursal</option>
+                                        </select>
+                                        <span asp-validation-for="Sucursal" class="text-danger small"></span>
+                                    </div>
+
+                                    <div class="col-12 col-md-4 col-xl-12">
+                                        <label class="form-label">Fecha Solicitud</label>
+                                        <input asp-for="FechaSolicitud" type="date" class="form-control st-primary-field" />
+                                        <span asp-validation-for="FechaSolicitud" class="text-danger small"></span>
+                                    </div>
+
+                                    <div class="col-12">
+                                        <label class="form-label">Observación</label>
+                                        <textarea asp-for="Observacion" rows="2" class="form-control" placeholder="Comentarios de la transferencia, prioridad, referencia o indicaciones..."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-xl-7">
+                        <div class="panel h-100">
+                            <div class="panel-head st-panel-head-split">
+                                <span class="st-card-title">
+                                    <span class="st-num">2</span>
+                                    <span><i class="bi bi-speedometer2"></i> Resumen rápido</span>
+                                </span>
+                                <span class="st-mini-note">Vista para validar antes de guardar</span>
+                            </div>
+                            <div class="panel-body">
+                                <div class="st-summary-grid">
+                                    <div class="st-summary-card">
+                                        <i class="bi bi-box-seam"></i>
+                                        <span class="st-summary-label">Productos</span>
+                                        <span class="st-summary-value" id="stItemCount">0</span>
+                                        <span class="st-summary-help">Renglones capturados en la solicitud.</span>
+                                    </div>
+
+                                    <div class="st-summary-card">
+                                        <i class="bi bi-truck"></i>
+                                        <span class="st-summary-label">Total kg</span>
+                                        <span class="st-summary-value"><span id="totKg">0.00</span></span>
+                                        <span class="st-summary-help">Suma automática de la columna Cantidad.</span>
+                                    </div>
+
+                                    <div class="st-summary-card">
+                                        <i class="bi bi-shield-check"></i>
+                                        <span class="st-summary-label">Estado</span>
+                                        <span class="st-summary-value" id="stEstadoCaptura" style="font-size:1rem;line-height:1.25;">Pendiente</span>
+                                        <span class="st-summary-help">Completa sucursal, fecha y al menos un producto.</span>
+                                    </div>
+                                </div>
+
+                                <div class="st-products-tip mt-3" style="margin-left:0;margin-right:0;">
+                                    <i class="bi bi-magic"></i>
+                                    <span>Escribe dos letras del producto, selecciónalo y captura cajas o kilos. El sistema recalcula presupuesto, disponible y total.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel st-products-panel">
+                    <div class="panel-head st-panel-head-split">
+                        <span class="st-card-title">
+                            <span class="st-num">3</span>
+                            <span><i class="bi bi-boxes"></i> Productos solicitados</span>
+                        </span>
+                        <span class="st-mini-note">Captura simple por producto</span>
+                    </div>
+
+                    <div class="st-products-tip">
+                        <i class="bi bi-info-circle"></i>
+                        <span>Si el disponible queda negativo, el renglón se marca en rojo para corregir antes de guardar.</span>
+                    </div>
+
+                    <div class="panel-body p-0">
+                        <div class="table-responsive st-table-wrap">
+                            <table class="table table-sm table-hover align-middle mb-0 st-product-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width:50px">#</th>
+                                        <th>Producto</th>
+                                        <th style="width:140px">Cantidad kg</th>
+                                        <th style="width:120px">Cajas</th>
+                                        <th style="width:140px">Presupuesto</th>
+                                        <th style="width:140px">Disponible</th>
+                                        <th style="width:115px">Comentario</th>
+                                        <th style="width:70px">Quitar</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbodyArt">
+                                            @for (int i = 0; i < items.Count; i++)
+                                            {
+                                                <tr>
+                                                    <td>@(i + 1)</td>
+                                                    <td>
+                                                        <input name="Productos[@i].ProductoNombre" class="form-control productoInput" placeholder="Buscar producto…" value="@items[i].ProductoNombre" />
+                                                        <input type="hidden" name="Productos[@i].ProductoCodigo" class="productoCodigo" value="@items[i].ProductoCodigo" />
+                                                    </td>
+                                                    <td>
+                                                        <input name="Productos[@i].CantidadKg"
+                                                               type="number"
+                                                               step="0.01"
+                                                               min="0.01"
+                                                               class="form-control cant"
+                                                               value="@(items[i].CantidadKg == 0 ? 0 : items[i].CantidadKg)" />
+                                                    </td>
+                                                    <td>
+                                                        <input name="Productos[@i].Cajas"
+                                                               type="number"
+                                                               step="1"
+                                                               min="0"
+                                                               inputmode="numeric"
+                                                               pattern="[0-9]*"
+                                                               class="form-control cajas"
+                                                               value="@(items[i].Cajas <= 0 ? 0 : (int)Math.Round(items[i].Cajas))" />
+                                                    </td>
+
+                                                    <td>
+                                                        <input name="Productos[@i].Presupuesto"
+                                                               type="number"
+                                                               step="0.01"
+                                                               min="0"
+                                                               class="form-control bg-light"
+                                                               value="@(items[i].Presupuesto == 0 ? 0 : items[i].Presupuesto)"
+                                                               readonly />
+                                                    </td>
+                                                    <td>
+                                                        <input name="Productos[@i].Disponible"
+                                                               type="number"
+                                                               step="0.01"
+                                                               min="0"
+                                                               class="form-control bg-light"
+                                                               value="@(items[i].Disponible == 0 ? 0 : items[i].Disponible)"
+                                                               readonly />
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <button type="button"
+                                                                class="btn btn-light btn-sm cell-btn @(string.IsNullOrWhiteSpace(items[i].Nota) ? "" : "note-exists")"
+                                                                title="@(string.IsNullOrWhiteSpace(items[i].Nota) ? "Agregar comentario" : items[i].Nota)"
+                                                                data-bs-toggle="tooltip"
+                                                                onclick="abrirComentarioModal(this)">
+                                                            <i class="bi bi-chat-left-text"></i>
+                                                        </button>
+                                                        <input type="hidden" name="Productos[@i].Nota" class="notaHidden" value="@items[i].Nota" />
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <a href="#" class="btn btn-outline-danger btn-sm cell-btn" title="Eliminar" data-bs-toggle="tooltip" onclick="eliminarFila(this);return false;">
+                                                            <i class="bi bi-trash"></i>
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                            }
+                                            @if (!items.Any())
+                                            {
+                                                <tr>
+                                                    <td>1</td>
+                                                    <td>
+                                                        <input name="Productos[0].ProductoNombre" class="form-control productoInput" placeholder="Buscar producto…" />
+                                                        <input type="hidden" name="Productos[0].ProductoCodigo" class="productoCodigo" />
+                                                    </td>
+                                                    <td>
+                                                        <input name="Productos[0].CantidadKg"
+                                                               type="number"
+                                                               step="0.01"
+                                                               min="0.01"
+                                                               class="form-control cant"
+                                                               value="0" />
+                                                    </td>
+                                                    <td>
+                                                        <input name="Productos[0].Cajas"
+                                                               type="number"
+                                                               step="1"
+                                                               min="0"
+                                                               inputmode="numeric"
+                                                               pattern="[0-9]*"
+                                                               class="form-control cajas"
+                                                               value="0" />
+                                                    </td>
+                                                    <td>
+                                                        <input name="Productos[0].Presupuesto"
+                                                               type="number"
+                                                               step="0.01"
+                                                               min="0"
+                                                               class="form-control bg-light"
+                                                               value="0"
+                                                               readonly />
+                                                    </td>
+                                                    <td>
+                                                        <input name="Productos[0].Disponible"
+                                                               type="number"
+                                                               step="0.01"
+                                                               min="0"
+                                                               class="form-control bg-light"
+                                                               value="0"
+                                                               readonly />
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <button type="button" class="btn btn-light btn-sm cell-btn" title="Agregar comentario" data-bs-toggle="tooltip" onclick="abrirComentarioModal(this)">
+                                                            <i class="bi bi-chat-left-text"></i>
+                                                        </button>
+                                                        <input type="hidden" name="Productos[0].Nota" class="notaHidden" />
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <a href="#" class="btn btn-outline-danger btn-sm cell-btn" title="Eliminar" data-bs-toggle="tooltip" onclick="eliminarFila(this);return false;">
+                                                            <i class="bi bi-trash"></i>
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="st-product-actions">
+                    <div class="st-product-actions-left">
+                        <a href="#" onclick="agregarFila();return false;" class="btn btn-reflejo st-add-btn">
+                            <i class="bi bi-plus-circle"></i> Agregar producto
+                        </a>
+                        <span class="st-empty-hint"><i class="bi bi-keyboard me-1"></i>También puedes capturar con teclado; Enter no envía el formulario.</span>
+                    </div>
+                    <div class="st-product-actions-right">
+                        <span class="st-mini-note"><i class="bi bi-calculator me-1"></i>Total kg se actualiza automáticamente.</span>
+                    </div>
+                </div>
+
+                <div class="st-sticky-actions">
+                    <div>
+                        <strong>Último paso: revisar y guardar solicitud</strong>
+                        <span>Valida sucursal, fecha, productos, kilos, cajas y disponible antes de confirmar.</span>
+                    </div>
+
+                    <div class="st-actions">
+                        <button type="submit" name="accion" value="salir" class="tbtn primary">
+                            <i class="bi bi-check2-circle"></i> Guardar y salir
+                        </button>
+                        <button type="submit" name="accion" value="nuevo" class="tbtn primary">
+                            <i class="bi bi-plus-circle"></i> Guardar y nueva
+                        </button>
+                        <a class="tbtn" href="/Home/inicio">
+                            <i class="bi bi-x-lg"></i> Cancelar
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Comentario -->
+<div class="modal fade" id="comentarioModal" tabindex="-1" aria-labelledby="comentarioLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="comentarioLabel">Comentario del producto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <strong id="skuInfo">SKU: -</strong>
+                </div>
+                <textarea id="comentarioText" class="form-control" rows="4" placeholder="Escribe instrucciones, observaciones o aclaraciones del producto..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="btnGuardarComentario" class="btn btn-danger">
+                    <i class="bi bi-check2-circle"></i> Guardar comentario
+                </button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+    <partial name="_ValidationScriptsPartial" />
+
+    @* <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script> *@
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.min.js"></script>
+
+    <style>
+        .ui-autocomplete {
+        z-index: 2000 !important
+        }
+    </style>
+
+    <script>
+        // ===== Toast / Overlay =====
+        let toastInst = null;
+        let pendingPresupuestos = 0; // para saber cuándo esconder el spinner
+
+        function ensureToast() {
+        if (document.getElementById('saveToast')) return;
+        const wrap = document.createElement('div');
+        wrap.innerHTML = `
+        <div aria-live="polite" aria-atomic="true" class="position-relative">
+        <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:1080">
+        <div id="saveToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+        <i class="bi bi-check2-circle me-2"></i>
+        <strong class="me-auto">Transferencia</strong>
+        <small>ahora</small>
+        <button type="button" class="btn-close ms-2 mb-1" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body" id="saveToastBody">Guardado.</div>
+        </div>
+        </div>
+        </div>`;
+        document.body.appendChild(wrap);
+        }
+        function showToast(msg) {
+        ensureToast();
+        document.getElementById('saveToastBody').innerText = msg || 'Listo.';
+        const el = document.getElementById('saveToast');
+        if (!toastInst && window.bootstrap) toastInst = new bootstrap.Toast(el, { delay: 2200 });
+        toastInst ? toastInst.show() : alert(msg || 'Listo.');
+        }
+        function ensureOverlay() {
+        if (document.getElementById('savingOverlay')) return;
+        const ov = document.createElement('div');
+        ov.id = 'savingOverlay';
+        ov.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(255,255,255,.6);z-index:1070';
+        ov.innerHTML = `
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center">
+        <div class="spinner-border" role="status" aria-hidden="true"></div>
+        <div class="mt-2">Procesando…</div>
+        </div>`;
+        document.body.appendChild(ov);
+        }
+        function showOverlay() { ensureOverlay(); document.getElementById('savingOverlay').style.display = 'block'; }
+        function hideOverlay() { const el = document.getElementById('savingOverlay'); if (el) el.style.display = 'none'; }
+
+        // ===== Utilidades =====
+        let modalElem, modalInstance, currentRow = null;
+        const toUpper = (s) => (s ?? "").toString().toUpperCase().trim();
+
+        function enableTooltips(scope) {
+        (scope || document).querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+        if (window.bootstrap && bootstrap.Tooltip) { new bootstrap.Tooltip(el); }
+        });
+        }
+
+        function renumerar() {
+        $("#tbodyArt tr").each(function (i) {
+        $(this).find("td:first").text(i + 1);
+        $(this).find("input").each(function () {
+        const n = $(this).attr("name"); if (!n) return;
+        $(this).attr("name", n.replace(/Productos\[\d+\]/, `Productos[${i}]`));
+        });
+        });
+        }
+
+        function agregarFila() {
+        const i = $("#tbodyArt tr").length;
+        const html = `
+        <tr>
+        <td>${i + 1}</td>
+        <td>
+        <input name="Productos[${i}].ProductoNombre" class="form-control productoInput" placeholder="Buscar producto…" />
+        <input type="hidden" name="Productos[${i}].ProductoCodigo" class="productoCodigo" />
+        </td>
+        <td>
+        <input name="Productos[${i}].CantidadKg" type="number" step="0.01" min="0.01" class="form-control cant" value="0" />
+        </td>
+        <td>
+        <input name="Productos[${i}].Cajas"
+        type="number"
+        step="1"
+        min="0"
+        inputmode="numeric"
+        pattern="[0-9]*"
+        class="form-control cajas"
+        value="0" />
+        </td>
+        <td>
+        <input name="Productos[${i}].Presupuesto"
+        type="number"
+        step="0.01"
+        min="0"
+        class="form-control bg-light"
+        value="0"
+        readonly />
+        </td>
+        <td>
+        <input name="Productos[${i}].Disponible"
+        type="number"
+        step="0.01"
+        class="form-control bg-light"
+        value="0"
+        readonly />
+        </td>
+        <td class="text-center">
+        <button type="button" class="btn btn-light btn-sm cell-btn" title="Agregar comentario" data-bs-toggle="tooltip" onclick="abrirComentarioModal(this)">
+        <i class="bi bi-chat-left-text"></i>
+        </button>
+        <input type="hidden" name="Productos[${i}].Nota" class="notaHidden" />
+        </td>
+        <td class="text-center">
+        <a href="#" class="btn btn-outline-danger btn-sm cell-btn" title="Eliminar" data-bs-toggle="tooltip" onclick="eliminarFila(this);return false;">
+        <i class="bi bi-trash"></i>
+        </a>
+        </td>
+        </tr>`;
+        $("#tbodyArt").append(html);
+        const $last = $("#tbodyArt tr:last .productoInput");
+        initAutoComplete($last);
+        enableTooltips($("#tbodyArt tr:last")[0]);
+        }
+
+        function eliminarFila(a) {
+        const tr = a.closest("tr"); tr.remove();
+        if ($("#tbodyArt tr").length === 0) agregarFila();
+        renumerar(); calcKg();
+        }
+
+        function calcKg() {
+        let t = 0;
+        $(".cant").each(function () { t += parseFloat($(this).val()) || 0; });
+        $("#totKg").text(t.toFixed(2));
+        }
+
+        // ✅ Resetear fila (cuando NO hay presupuesto)
+        function resetRow($row) {
+        $row.find(".productoInput").val("");
+        $row.find(".productoCodigo").val("");
+
+        $row.find(".cant").val("0.00");
+        $row.find(".cajas").val("0").attr("placeholder", "");
+
+        $row.find("input[name$='.Presupuesto']").val("0.00");
+        $row.find("input[name$='.Disponible']").val("0.00").data("base", 0);
+
+        $row.data("factorCaja", 0);
+
+        $row.find(".notaHidden").val("");
+        const $btnNota = $row.find("button.cell-btn").first();
+        $btnNota.removeClass("note-exists")
+        .attr("title", "Agregar comentario")
+        .attr("data-bs-original-title", "Agregar comentario");
+
+        $row.removeClass("table-danger");
+        calcKg();
+        }
+
+        // ✅ NUEVO: Recalcular fila con lo que ya capturó el usuario (evita “brinco” al cambiar sucursal)
+        function recalcularFila($row) {
+        const cant = parseFloat($row.find(".cant").val()) || 0;
+
+        const $dispInput = $row.find("input[name$='.Disponible']");
+        const dispBase = parseFloat($dispInput.data("base"));
+        const dispOriginal = isFinite(dispBase) ? dispBase : (parseFloat($dispInput.val()) || 0);
+
+        const dispFinal = dispOriginal - cant;
+        $dispInput.val(dispFinal.toFixed(2));
+
+        if (dispFinal < 0) $row.addClass("table-danger");
+        else $row.removeClass("table-danger");
+
+        return dispFinal;
+        }
+
+        // ====== MODAL DE COMENTARIO ======
+        function abrirComentarioModal(btn) {
+        currentRow = $(btn).closest("tr");
+        const sku = toUpper(currentRow.find(".productoCodigo").val());
+        const nota = currentRow.find(".notaHidden").val() || "";
+        $("#skuInfo").text(`SKU: ${sku || "-"}`);
+        $("#comentarioText").val(nota);
+        if (!modalElem) {
+        modalElem = document.getElementById('comentarioModal');
+        modalInstance = new bootstrap.Modal(modalElem);
+        }
+        modalInstance.show();
+        setTimeout(() => { $("#comentarioText").trigger("focus"); }, 250);
+        }
+        $("#btnGuardarComentario").on("click", function () {
+        if (!currentRow) return;
+        const txt = $("#comentarioText").val() || "";
+        const hidden = currentRow.find(".notaHidden");
+        const btn = currentRow.find(".cell-btn i.bi-chat-left-text").closest("button");
+        hidden.val(txt);
+        if (txt.trim()) {
+        btn.addClass("note-exists").attr("title", txt).attr("data-bs-original-title", txt);
+        } else {
+        btn.removeClass("note-exists").attr("title", "Agregar comentario").attr("data-bs-original-title", "Agregar comentario");
+        }
+        if (window.bootstrap && bootstrap.Tooltip) {
+        const tip = bootstrap.Tooltip.getInstance(btn[0]); if (tip) { tip.dispose(); }
+        new bootstrap.Tooltip(btn[0]);
+        }
+        modalInstance.hide();
+        });
+
+        // ====== AUTOCOMPLETE ======
+        function initAutoComplete($el) {
+        $el.autocomplete({
+        appendTo: 'body',
+        position: { my: "left top+2", at: "left bottom" },
+        minLength: 2,
+        source: function (request, response) {
+        $.getJSON('/Transferencias/BuscarProductosAutocomplete', { term: request.term }, data => {
+        response(data || []);
+        });
+        },
+        focus: function () { return false; },
+        select: function (e, ui) {
+        const row = $(this).closest("tr");
+        const label = (ui.item.label || "").toString().toUpperCase();
+        const sku = (ui.item.value || "").toString().toUpperCase();
+
+        const kilosCaja = parseFloat(ui.item.kilosCaja ?? ui.item.KilosCaja) || 0;
+
+        $(this).val(label);
+        row.find(".productoCodigo").val(sku);
+
+        const $cajasInput = row.find(".cajas");
+        if (kilosCaja > 0) {
+        row.data("factorCaja", kilosCaja);
+        $cajasInput.attr("placeholder", `1 caja = ${kilosCaja.toFixed(2)} kg`);
+        } else {
+        row.data("factorCaja", 0);
+        $cajasInput.attr("placeholder", "");
+        }
+
+        cargarPresupuestoRow(row);
+        return false;
+        },
+        open: function () {
+        const $menu = $(this).autocomplete("widget");
+        $menu.css("width", $(this).outerWidth());
+        }
+        }).on('input', function () {
+        const s = this.selectionStart, e = this.selectionEnd;
+        this.value = toUpper(this.value);
+        this.setSelectionRange(s, e);
+
+        const $row = $(this).closest("tr");
+        $row.find(".productoCodigo").val("");
+        $row.data("factorCaja", 0);
+        $row.find(".cajas").attr("placeholder", "");
+        });
+        }
+
+        // ====== ERRORES ======
+        function clearErrors() {
+        $('.is-invalid').removeClass('is-invalid');
+        $('[data-valmsg-for]').text('');
+        }
+        function renderErrors(errors) {
+        Object.entries(errors || {}).forEach(([key, msgs]) => {
+        if (!msgs || !msgs.length) return;
+        if (key) {
+        const nameSel = `[name="${key}"]`;
+        const spanSel = `[data-valmsg-for="${key}"]`;
+        $(nameSel).addClass('is-invalid');
+        const $span = $(spanSel);
+        if ($span.length) $span.text(msgs[0]);
+        } else {
+        showToast(msgs[0]);
+        }
+        });
+        const $first = $('.is-invalid').first();
+        if ($first.length) {
+        $('html, body').animate({ scrollTop: Math.max(0, $first.offset().top - 120) }, 250);
+        }
+        }
+
+        // ====== Cargar presupuesto/disponible para una fila ======
+        function cargarPresupuestoRow($row) {
+        const sku = toUpper($row.find(".productoCodigo").val());
+        const sucursal = ($("select[name='Sucursal']").val() || "").toString().trim();
+        const fecha = $("input[name='FechaSolicitud']").val();
+
+        if (!sku || !sucursal || !fecha) {
+        $row.find("input[name$='.Presupuesto']").val("0.00");
+        $row.find("input[name$='.Disponible']").val("0.00").data("base", 0);
+        $row.find(".cajas").val("0").attr("placeholder", "");
+        $row.data("factorCaja", 0);
+        $row.removeClass('table-danger');
+        return;
+        }
+
+        pendingPresupuestos++;
+
+        $.getJSON('/Transferencias/PresupuestoDisponible', {
+        sucursal: sucursal,
+        sku: sku,
+        fechaSolicitud: fecha
+        }).done(function (data) {
+        if (!data) return;
+
+        const pres = parseFloat(data.presupuesto) || 0;
+        const disp = parseFloat(data.disponible) || 0;
+        const factorCajaSrv = parseFloat(data.factorCaja) || 0;
+
+        const sinDisponible = disp <= 0; // <-- manda tu endpoint
+
+        if (sinDisponible) {
+        showToast(`No puedes agregar el SKU ${sku}: no tiene disponible para este producto.`);
+        resetRow($row);
+        setTimeout(() => { $row.find(".productoInput").trigger("focus"); }, 150);
+        return;
+        }
+
+        const $presInput = $row.find("input[name$='.Presupuesto']");
+        const $dispInput = $row.find("input[name$='.Disponible']");
+
+        $presInput.val(pres.toFixed(2));
+        $dispInput.val(disp.toFixed(2));
+        $dispInput.data("base", disp);
+
+        if (factorCajaSrv > 0) {
+        $row.data("factorCaja", factorCajaSrv);
+        }
+
+        const factorCaja = parseFloat($row.data("factorCaja")) || 0;
+        const $cajasInput = $row.find(".cajas");
+        if (factorCaja > 0) $cajasInput.attr("placeholder", `1 caja = ${factorCaja.toFixed(2)} kg`);
+        else $cajasInput.attr("placeholder", "");
+
+        // ✅ clave: al recargar por cambio de sucursal/fecha, reaplica lo capturado
+        const dispFinal = recalcularFila($row);
+        if (dispFinal < 0) {
+        showToast(`El SKU ${sku} se pasa del presupuesto. Disponible final: ${dispFinal.toFixed(2)} kg`);
+        }
+
+        }).fail(function (xhr) {
+        console.error(xhr);
+        const $presInput = $row.find("input[name$='.Presupuesto']");
+        const $dispInput = $row.find("input[name$='.Disponible']");
+        $presInput.val("0.00");
+        $dispInput.val("0.00").data("base", 0);
+        $row.find(".cajas").val("0").attr("placeholder", "");
+        $row.data("factorCaja", 0);
+        $row.addClass('table-danger');
+        }).always(function () {
+        pendingPresupuestos--;
+        if (pendingPresupuestos <= 0) hideOverlay();
+        });
+        }
+
+        let _fromCajas = false;
+
+        // ====== Cambio de cantidad (kg): recalcula total, disponible simulado y cajas ======
+        $(document).on("input", ".cant", function () {
+        const $row = $(this).closest("tr");
+        const cant = parseFloat($(this).val()) || 0;
+
+        const $dispInput = $row.find("input[name$='.Disponible']");
+        const dispBase = parseFloat($dispInput.data("base"));
+        const dispOriginal = isFinite(dispBase) ? dispBase : (parseFloat($dispInput.val()) || 0);
+
+        const dispFinal = dispOriginal - cant;
+        $dispInput.val(dispFinal.toFixed(2));
+
+        const factorCaja = parseFloat($row.data("factorCaja")) || 0;
+        const $cajasInput = $row.find(".cajas");
+
+        if (!_fromCajas) {
+        if (factorCaja > 0) {
+        const cajas = cant / factorCaja;
+        $cajasInput.val(Math.round(cajas)); // entero
+        } else {
+        $cajasInput.val("0");
+        }
+        }
+
+        if (dispFinal < 0) $row.addClass('table-danger');
+        else $row.removeClass('table-danger');
+
+        calcKg();
+        });
+
+        // ====== Cambio de cajas: recalcula kg y disponible simulado ======
+        $(document).on("input", ".cajas", function () {
+        const $row = $(this).closest("tr");
+        const factorCaja = parseFloat($row.data("factorCaja")) || 0;
+
+        const raw = ($(this).val() || "").toString().replace(",", ".");
+        const cajas = parseFloat(raw);
+        if (!isFinite(cajas)) return;
+
+        _fromCajas = true;
+        try {
+        if (factorCaja > 0) {
+        const kg = cajas * factorCaja;
+        $row.find(".cant").val(kg.toFixed(2)).trigger("input");
+        } else {
+        $row.find(".cant").val("0.00").trigger("input");
+        }
+        } finally {
+        _fromCajas = false;
+        }
+        });
+
+        // ====== Cambio de sucursal o fecha: recargar todos los presupuestos ======
+        $(document).on('change', "select[name='Sucursal'], input[name='FechaSolicitud']", function () {
+        const sucursal = ($("select[name='Sucursal']").val() || "").toString().trim();
+        const fecha = $("input[name='FechaSolicitud']").val();
+
+        let haySku = false;
+        $("#tbodyArt tr").each(function () {
+        const sku = toUpper($(this).find(".productoCodigo").val());
+        if (sku) { haySku = true; return false; }
+        });
+
+        if (!sucursal || !fecha) {
+        $("#tbodyArt tr").each(function () {
+        $(this).find("input[name$='.Presupuesto']").val("0.00");
+        $(this).find("input[name$='.Disponible']").val("0.00").data("base", 0);
+        $(this).find(".cajas").val("0").attr("placeholder", "");
+        $(this).data("factorCaja", 0);
+        $(this).removeClass('table-danger');
+        });
+        calcKg();
+        hideOverlay();
+        return;
+        }
+
+        if (!haySku) {
+        $("#tbodyArt tr").each(function () {
+        $(this).find("input[name$='.Presupuesto']").val("0.00");
+        $(this).find("input[name$='.Disponible']").val("0.00").data("base", 0);
+        $(this).find(".cajas").val("0").attr("placeholder", "");
+        $(this).data("factorCaja", 0);
+        $(this).removeClass('table-danger');
+        });
+        calcKg();
+        hideOverlay();
+        return;
+        }
+
+        showOverlay();
+        pendingPresupuestos = 0;
+
+        $("#tbodyArt tr").each(function () {
+        const $row = $(this);
+        const sku = toUpper($row.find(".productoCodigo").val());
+
+        if (sku) {
+        cargarPresupuestoRow($row);
+        } else {
+        $row.find("input[name$='.Presupuesto']").val("0.00");
+        $row.find("input[name$='.Disponible']").val("0.00").data("base", 0);
+        $row.find(".cajas").val("0").attr("placeholder", "");
+        $row.data("factorCaja", 0);
+        $row.removeClass('table-danger');
+        }
+        });
+        });
+
+        // ====== READY ======
+        $(function () {
+        $(".productoInput").each(function () { initAutoComplete($(this)); });
+
+        $('#formST').on('keydown', 'input, select', function (e) {
+        if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+        }
+        });
+
+        const hoy = new Date(),
+        y = hoy.getFullYear(),
+        m = String(hoy.getMonth() + 1).padStart(2, '0'),
+        d = String(hoy.getDate()).padStart(2, '0');
+        $("input[name='FechaSolicitud']").attr("min", `${y}-${m}-${d}`);
+
+        enableTooltips();
+
+        $(document).on('click', 'button[form="formST"][type="submit"], #formST button[type="submit"]', function () {
+        const val = (this.value || 'salir').toLowerCase();
+        $('#accionField').val(val);
+        });
+
+        $('#formST').on('submit', async function (e) {
+        const sucursal = ($("select[name='Sucursal']").val() || "").toString().trim();
+        const fecha = $("input[name='FechaSolicitud']").val();
+        let ok = true, msg = "";
+        if (!sucursal) { ok = false; msg += "- Debes seleccionar una Sucursal.\n"; }
+
+        let alMenosUno = false;
+        $("#tbodyArt tr").each(function () {
+        const $row = $(this);
+        const code = toUpper($row.find(".productoCodigo").val());
+        const kg = parseFloat($row.find(".cant").val()) || 0;
+        const cajas = parseFloat($row.find(".cajas").val()) || 0;
+        const disp = parseFloat($row.find("input[name$='.Disponible']").val()) || 0;
+        const pres = parseFloat($row.find("input[name$='.Presupuesto']").val()) || 0;
+
+        $row.removeClass('table-danger');
+
+        if (code) {
+        if (pres <= 0) {
+        ok = false;
+        msg += `- El producto ${code} no se puede agregar porque no tiene presupuesto asignado.\n`;
+        $row.addClass('table-danger');
+        return;
+        }
+
+        if (kg <= 0 || cajas <= 0) {
+        ok = false;
+        msg += `- El producto ${code} debe tener CANTIDAD y CAJAS mayores a 0. Corrige o elimina la línea.\n`;
+        $row.addClass('table-danger');
+        return;
+        }
+
+        if (disp < 0) {
+        ok = false;
+        msg += `- El producto ${code} no se puede agregar porque el DISPONIBLE es ${disp.toFixed(2)} (debe ser > 0).\n`;
+        $row.addClass('table-danger');
+        return;
+        }
+
+        alMenosUno = true;
+        }
+        });
+
+        if (!alMenosUno) { ok = false; msg += "- Debes agregar al menos un producto con cantidad.\n"; }
+        if (!fecha) { ok = false; msg += "- Debes seleccionar la fecha de solicitud.\n"; }
+
+        if (!ok) {
+        e.preventDefault();
+        alert("Corrige:\n\n" + msg);
+        return false;
+        }
+
+        e.preventDefault();
+        clearErrors(); showOverlay();
+
+        try {
+        const form = document.getElementById('formST');
+        const fd = new FormData(form);
+        const token = $('input[name="__RequestVerificationToken"]').val();
+
+        const resp = await fetch(form.action, {
+        method: 'POST',
+        body: fd,
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'RequestVerificationToken': token || '' },
+        credentials: 'same-origin'
+        });
+
+        const raw = await resp.text();
+        let data = {};
+        try { data = JSON.parse(raw); } catch { }
+
+        hideOverlay();
+
+        if (!resp.ok || !data.ok) {
+        if (!data || data.ok === undefined) {
+        console.warn('Respuesta no JSON:', raw.slice(0, 300));
+        showToast('No se pudo guardar. Revisa la captura.');
+        return false;
+        }
+        if (data.errors) renderErrors(data.errors);
+        showToast(data.message || 'Revisa la captura de la solicitud.');
+        return false;
+        }
+
+        if (data.sobrePresupuesto && data.skusSobrePresupuesto && data.skusSobrePresupuesto.length) {
+        const lista = data.skusSobrePresupuesto.join(', ');
+        showToast(`Transferencia guardada con folio ${data.folio}. SKUs sobre presupuesto: ${lista}. Queda pendiente de autorización.`);
+        } else {
+        showToast(`Transferencia guardada con folio ${data.folio}.`);
+        }
+
+        const accionSel = (data.accion || $('#accionField').val() || 'salir').toLowerCase();
+        const url = data.redirect || (accionSel === 'nuevo' ? '/Transferencias/TransferenciasCedis' : '/Home/inicio');
+        setTimeout(() => { window.location.href = url; }, 1200);
+
+        } catch (err) {
+        hideOverlay();
+        console.error(err);
+        showToast('Error de red. Intenta de nuevo.');
+        }
+        });
+        });
+    </script>
+
+    <script>
+        /* ============================================================
+           FIX FINAL RESPONSIVO SIDEBAR - TRANSFERENCIA
+           Calcula empuje faltante + ancho real disponible.
+        ============================================================ */
+        (function () {
+            const page = document.querySelector('.st-page');
+            if (!page) return;
+
+            const sidebar = document.querySelector('.layout-sidebar, .sidebar');
+            const main = page.closest('.layout-main-content')
+                || document.querySelector('.layout-main-content, .content-wrapper, main')
+                || document.body;
+
+            if (!sidebar || !main) return;
+
+            let lastPush = -1;
+            let lastWidth = -1;
+
+            function applyTransferenciaSidebar() {
+                if (window.innerWidth < 992) {
+                    document.body.classList.remove('st-sidebar-final-ready');
+                    document.documentElement.style.setProperty('--st-sidebar-push', '0px');
+                    document.documentElement.style.setProperty('--st-page-width', '100%');
+                    lastPush = 0;
+                    lastWidth = 0;
+                    return;
+                }
+
+                const sidebarStyle = window.getComputedStyle(sidebar);
+                const sidebarRect = sidebar.getBoundingClientRect();
+                const mainRect = main.getBoundingClientRect();
+
+                const sidebarVisible =
+                    sidebarStyle.display !== 'none' &&
+                    sidebarStyle.visibility !== 'hidden' &&
+                    sidebarRect.width > 0 &&
+                    sidebarRect.right > 0;
+
+                let sidebarRight = sidebarVisible ? Math.round(sidebarRect.right) : 0;
+
+                // Si solo queda una pestaña pequeña del sidebar cerrado, no empuja.
+                if (sidebarRight < 90) sidebarRight = 0;
+
+                const mainLeft = Math.max(0, Math.round(mainRect.left));
+
+                // Empuja solo lo que todavía esté encimado por el sidebar.
+                const push = Math.max(0, sidebarRight - mainLeft);
+
+                // Ancho real desde donde empieza la vista hasta el borde derecho.
+                const pageLeft = mainLeft + push;
+                const width = Math.max(320, Math.round(window.innerWidth - pageLeft - 12));
+
+                if (push === lastPush && width === lastWidth) return;
+
+                lastPush = push;
+                lastWidth = width;
+
+                document.body.classList.add('st-sidebar-final-ready');
+                document.documentElement.style.setProperty('--st-sidebar-push', push + 'px');
+                document.documentElement.style.setProperty('--st-page-width', width + 'px');
+            }
+
+            function trackFor(ms) {
+                const end = performance.now() + ms;
+
+                function frame(now) {
+                    applyTransferenciaSidebar();
+                    if (now < end) requestAnimationFrame(frame);
+                }
+
+                requestAnimationFrame(frame);
+            }
+
+            applyTransferenciaSidebar();
+            setInterval(applyTransferenciaSidebar, 60);
+
+            window.addEventListener('resize', function () {
+                trackFor(700);
+            }, { passive: true });
+
+            if (window.ResizeObserver) {
+                const resizeObserver = new ResizeObserver(function () {
+                    trackFor(700);
+                });
+
+                resizeObserver.observe(sidebar);
+                resizeObserver.observe(main);
+            }
+
+            const mutationObserver = new MutationObserver(function () {
+                trackFor(900);
+            });
+
+            mutationObserver.observe(sidebar, {
+                attributes: true,
+                attributeFilter: ['class', 'style', 'aria-expanded']
+            });
+
+            mutationObserver.observe(document.body, {
+                attributes: true,
+                attributeFilter: ['class', 'style']
+            });
+
+            sidebar.addEventListener('transitionstart', function () { trackFor(1000); });
+            sidebar.addEventListener('transitionrun', function () { trackFor(1000); });
+            sidebar.addEventListener('transitionend', function () { trackFor(300); });
+
+            document.addEventListener('click', function (e) {
+                if (e.target.closest('[data-bs-toggle], .sidebar-toggle, .layout-menu-toggle, .hamburger, .menu-toggle, button, a')) {
+                    trackFor(1100);
+                }
+            }, true);
+        })();
+    </script>
+
+
+
+    <script>
+        /* ============================================================
+           FIX: CONVERSIÓN BIDIRECCIONAL CAJAS <-> KG
+           - Cajas cambia kg.
+           - Kg cambia cajas.
+           - Refuerza el factor de caja aunque venga como:
+             factorCaja, FactorCaja, kilosCaja, KilosCaja, kgCaja, PesoCaja, etc.
+           - No cambia guardado, nombres, IDs ni modelo.
+        ============================================================ */
+        (function () {
+            if (window.__stFixCajasKgActivo) return;
+            window.__stFixCajasKgActivo = true;
+
+            const factorPorSku = window.__stFactorCajaPorSku || (window.__stFactorCajaPorSku = {});
+            let sincronizando = false;
+            let fetchTimer = null;
+
+            function n(v) {
+                if (v === null || v === undefined) return 0;
+                const x = parseFloat(String(v).replace(",", "."));
+                return isFinite(x) ? x : 0;
+            }
+
+            function txt(v) {
+                return String(v || "").trim().toUpperCase();
+            }
+
+            function getSku($row) {
+                return txt($row.find(".productoCodigo").val());
+            }
+
+            function parseFactorFromObject(obj) {
+                if (!obj) return 0;
+
+                const posibles = [
+                    "factorCaja", "FactorCaja",
+                    "kilosCaja", "KilosCaja",
+                    "kgCaja", "KgCaja", "KGCaja", "KgPorCaja",
+                    "pesoCaja", "PesoCaja",
+                    "pesoPorCaja", "PesoPorCaja",
+                    "kilogramosCaja", "KilogramosCaja"
+                ];
+
+                for (const k of posibles) {
+                    const val = n(obj[k]);
+                    if (val > 0) return val;
+                }
+
+                return 0;
+            }
+
+            function parseFactorFromPlaceholder($row) {
+                const ph = String($row.find(".cajas").attr("placeholder") || "");
+                const m = ph.match(/=\s*([0-9]+(?:[.,][0-9]+)?)/);
+                return m ? n(m[1]) : 0;
+            }
+
+            function setFactor($row, factor) {
+                factor = n(factor);
+                if (factor <= 0) return 0;
+
+                const sku = getSku($row);
+                if (sku) factorPorSku[sku] = factor;
+
+                $row.data("factorCaja", factor);
+                $row.attr("data-factor-caja", factor);
+
+                const $cajas = $row.find(".cajas");
+                $cajas.data("factorCaja", factor);
+                $cajas.attr("data-factor-caja", factor);
+                $cajas.attr("placeholder", `1 caja = ${factor.toFixed(2)} kg`);
+
+                return factor;
+            }
+
+            function getFactor($row) {
+                const sku = getSku($row);
+
+                let factor =
+                    n($row.data("factorCaja")) ||
+                    n($row.attr("data-factor-caja")) ||
+                    n($row.find(".cajas").data("factorCaja")) ||
+                    n($row.find(".cajas").attr("data-factor-caja")) ||
+                    (sku ? n(factorPorSku[sku]) : 0) ||
+                    parseFactorFromPlaceholder($row);
+
+                if (factor > 0) setFactor($row, factor);
+                return factor;
+            }
+
+            function actualizarDisponibleYTotal($row, kg) {
+                kg = n(kg);
+
+                const $disp = $row.find("input[name$='.Disponible']");
+                const base = n($disp.data("base"));
+                if (base > 0 || $disp.data("base") !== undefined) {
+                    const final = base - kg;
+                    $disp.val(final.toFixed(2));
+                    $row.toggleClass("table-danger", final < 0);
+                }
+
+                if (typeof calcKg === "function") {
+                    calcKg();
+                } else {
+                    let total = 0;
+                    $(".cant").each(function () { total += n($(this).val()); });
+                    $("#totKg").text(total.toFixed(2));
+                }
+
+                if (typeof window.stRefreshExecutiveState === "function") {
+                    setTimeout(window.stRefreshExecutiveState, 0);
+                }
+            }
+
+            function fetchFactorSiHaceFalta($row, callback) {
+                let factor = getFactor($row);
+                if (factor > 0) {
+                    callback(factor);
+                    return;
+                }
+
+                const sku = getSku($row);
+                const sucursal = $("select[name='Sucursal']").val() || "";
+                const fecha = $("input[name='FechaSolicitud']").val() || "";
+
+                if (!sku || !sucursal || !fecha) {
+                    callback(0);
+                    return;
+                }
+
+                clearTimeout(fetchTimer);
+                fetchTimer = setTimeout(function () {
+                    $.getJSON("/Transferencias/PresupuestoDisponible", {
+                        sucursal: sucursal,
+                        sku: sku,
+                        fechaSolicitud: fecha
+                    }).done(function (data) {
+                        const factorSrv = parseFactorFromObject(data);
+                        if (factorSrv > 0) {
+                            factor = setFactor($row, factorSrv);
+                        }
+                        callback(factor || 0);
+                    }).fail(function () {
+                        callback(0);
+                    });
+                }, 80);
+            }
+
+            function recalcularDesdeCajas(input) {
+                if (sincronizando) return;
+
+                const $row = $(input).closest("tr");
+                const cajas = n($(input).val());
+
+                fetchFactorSiHaceFalta($row, function (factor) {
+                    if (factor <= 0) return;
+
+                    const kg = cajas * factor;
+
+                    sincronizando = true;
+                    try {
+                        $row.find(".cant").val(kg.toFixed(2));
+                    } finally {
+                        sincronizando = false;
+                    }
+
+                    actualizarDisponibleYTotal($row, kg);
+                });
+            }
+
+            function recalcularDesdeKg(input) {
+                if (sincronizando) return;
+
+                const $row = $(input).closest("tr");
+                const kg = n($(input).val());
+
+                fetchFactorSiHaceFalta($row, function (factor) {
+                    if (factor <= 0) return;
+
+                    const cajas = kg / factor;
+
+                    sincronizando = true;
+                    try {
+                        $row.find(".cajas").val(Math.round(cajas));
+                    } finally {
+                        sincronizando = false;
+                    }
+
+                    actualizarDisponibleYTotal($row, kg);
+                });
+            }
+
+            /*
+               Captura el factor desde el autocomplete del producto.
+               Esto no reemplaza el select original; solo guarda el dato
+               de forma más persistente para la conversión.
+            */
+            $(document).on("autocompleteselect.stFixCajasKg", ".productoInput", function (e, ui) {
+                const $row = $(this).closest("tr");
+                const factor = parseFactorFromObject(ui && ui.item);
+                if (factor > 0) setFactor($row, factor);
+            });
+
+            /*
+               Intercepta futuras consultas de presupuesto/disponible para
+               guardar el factor aunque el backend lo mande con otro nombre.
+            */
+            if (!$.getJSON.__stFixCajasKgWrapped) {
+                const originalGetJSON = $.getJSON;
+
+                $.getJSON = function (url, data, success) {
+                    const req = originalGetJSON.apply($, arguments);
+
+                    try {
+                        const urlTxt = String(url || "");
+                        if (urlTxt.indexOf("/Transferencias/PresupuestoDisponible") >= 0) {
+                            req.done(function (resp) {
+                                const factor = parseFactorFromObject(resp);
+                                const sku = txt(data && data.sku);
+                                if (factor > 0 && sku) {
+                                    factorPorSku[sku] = factor;
+
+                                    $("#tbodyArt tr").each(function () {
+                                        const $row = $(this);
+                                        if (getSku($row) === sku) setFactor($row, factor);
+                                    });
+                                }
+                            });
+                        }
+                    } catch (err) {
+                        console.warn("No se pudo registrar factorCaja:", err);
+                    }
+
+                    return req;
+                };
+
+                $.getJSON.__stFixCajasKgWrapped = true;
+            }
+
+            /*
+               Se ejecuta después del handler original para corregir cualquier
+               renglón que haya quedado sin sincronizar.
+            */
+            $(document)
+                .on("input.stFixCajasKg change.stFixCajasKg", ".cajas", function () {
+                    const el = this;
+                    setTimeout(function () { recalcularDesdeCajas(el); }, 0);
+                })
+                .on("input.stFixCajasKg change.stFixCajasKg", ".cant", function () {
+                    const el = this;
+                    setTimeout(function () { recalcularDesdeKg(el); }, 0);
+                });
+
+            /*
+               Inicializa factores visibles si ya había productos cargados.
+            */
+            $(function () {
+                $("#tbodyArt tr").each(function () {
+                    const $row = $(this);
+                    const factor = getFactor($row);
+                    if (factor > 0) setFactor($row, factor);
+                });
+            });
+        })();
+    </script>
+
+
+    <script>
+        // ===== UX EJECUTIVO: Estado visual de la captura =====
+        (function () {
+            function stNumber(value) {
+                const n = parseFloat((value || "0").toString().replace(",", "."));
+                return isFinite(n) ? n : 0;
+            }
+
+            function stFilledRows() {
+                let count = 0;
+                document.querySelectorAll("#tbodyArt tr").forEach(function (row) {
+                    const sku = (row.querySelector(".productoCodigo")?.value || "").trim();
+                    const nombre = (row.querySelector(".productoInput")?.value || "").trim();
+                    const kg = stNumber(row.querySelector(".cant")?.value);
+                    const cajas = stNumber(row.querySelector(".cajas")?.value);
+                    if (sku || nombre || kg > 0 || cajas > 0) count++;
+                });
+                return count;
+            }
+
+            function stSetStep(id, active) {
+                const el = document.getElementById(id);
+                if (el) el.classList.toggle("is-active", !!active);
+            }
+
+            window.stRefreshExecutiveState = function () {
+                const sucursal = (document.querySelector("select[name='Sucursal']")?.value || "").trim();
+                const fecha = (document.querySelector("input[name='FechaSolicitud']")?.value || "").trim();
+                const productos = stFilledRows();
+
+                const countEl = document.getElementById("stItemCount");
+                if (countEl) countEl.textContent = productos.toString();
+
+                const estadoEl = document.getElementById("stEstadoCaptura");
+                if (estadoEl) {
+                    if (!sucursal) estadoEl.textContent = "Falta sucursal";
+                    else if (!fecha) estadoEl.textContent = "Falta fecha";
+                    else if (productos <= 0) estadoEl.textContent = "Faltan productos";
+                    else estadoEl.textContent = "Lista para revisar";
+                }
+
+                stSetStep("stStepSucursal", !!sucursal);
+                stSetStep("stStepFecha", !!fecha);
+                stSetStep("stStepProductos", productos > 0);
+                stSetStep("stStepGuardar", !!sucursal && !!fecha && productos > 0);
+            };
+
+            document.addEventListener("input", function (e) {
+                if (e.target.closest("#formST")) setTimeout(window.stRefreshExecutiveState, 0);
+            }, true);
+
+            document.addEventListener("change", function (e) {
+                if (e.target.closest("#formST")) setTimeout(window.stRefreshExecutiveState, 0);
+            }, true);
+
+            document.addEventListener("DOMContentLoaded", function () {
+                const tbody = document.getElementById("tbodyArt");
+                if (tbody && window.MutationObserver) {
+                    new MutationObserver(function () {
+                        setTimeout(window.stRefreshExecutiveState, 0);
+                    }).observe(tbody, { childList: true, subtree: true, attributes: true, attributeFilter: ["value", "class"] });
+                }
+
+                setTimeout(window.stRefreshExecutiveState, 100);
+                setTimeout(window.stRefreshExecutiveState, 700);
+
+                if (window.jQuery) {
+                    jQuery(document).ajaxStop(function () {
+                        setTimeout(window.stRefreshExecutiveState, 0);
+                    });
+                }
+            });
+        })();
+    </script>
+
+}

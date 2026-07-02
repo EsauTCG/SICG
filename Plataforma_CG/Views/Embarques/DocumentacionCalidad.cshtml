@@ -1,0 +1,1716 @@
+﻿@model IEnumerable<Plataforma_CG.Models.Embarque>
+
+@{
+    ViewData["Title"] = "Documentación de Calidad";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+
+    var tiposCalidad = new[]
+    {
+        // =========================
+        // EXPEDIENTE DE CALIDAD
+        // =========================
+        new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_AVISO_MOVILIZACION", Label = "Aviso de movilización", Name = "avisoMovilizacionArchivos", Icon = "bi-truck", Sub = "Aviso o permiso de movilización" },
+        new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_HOJA_TRABAJO", Label = "Hoja de trabajo", Name = "hojaTrabajoArchivos", Icon = "bi-clipboard-check", Sub = "Hoja de trabajo del embarque" },
+        new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_CARTA_GARANTIA", Label = "Carta Garantía", Name = "cartaGarantiaCalidadArchivos", Icon = "bi-patch-check", Sub = "Documento de garantía emitido por calidad" },
+        new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_CARTA_EEB", Label = "Carta Libre de EEB", Name = "cartaEEBArchivos", Icon = "bi-file-earmark-medical", Sub = "Documento relacionado a EEB" },
+        new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_LIBRE_CLEMBUTEROL", Label = "Carta libre de Clembuterol", Name = "cartaLibreClembuterolArchivos", Icon = "bi-shield-check", Sub = "Carta de producto libre de clembuterol" },
+        new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_LIBRE_RESIDUOS_TOXICOS", Label = "Carta libre de residuos tóxicos", Name = "cartaLibreResiduosToxicosArchivos", Icon = "bi-shield-exclamation", Sub = "Garantía libre de residuos tóxicos" },
+
+        new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_MICROBIOLOGICOS", Label = "Microbiológicos", Name = "microbiologicosArchivos", Icon = "bi-virus", Sub = "Resultados o documentos microbiológicos" },
+        new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_FICHA_TECNICA", Label = "Ficha Técnica", Name = "fichaTecnicaCalidadArchivos", Icon = "bi-file-earmark-text", Sub = "Ficha técnica del producto o embarque" },
+        new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_FACTURA", Label = "Factura", Name = "facturaCalidadArchivos", Icon = "bi-receipt", Sub = "Factura relacionada al embarque" },
+
+        // =========================
+        // POCO PRESENTES
+        // =========================
+        new { Grupo = "Documentos poco presentes", Tipo = "CALIDAD_ROMANEOS", Label = "Romaneos", Name = "romaneosArchivos", Icon = "bi-box-seam", Sub = "Romaneos o soportes de peso" },
+        new { Grupo = "Documentos poco presentes", Tipo = "CALIDAD_REMISION", Label = "Remisión", Name = "remisionArchivos", Icon = "bi-journal-text", Sub = "Remisión o documento de salida" }
+    };
+
+    // Modelo principal: ahora SOLO trae pendientes desde el controller
+    var pendientes = Model?.ToList()
+        ?? new List<Plataforma_CG.Models.Embarque>();
+
+    // Historial: viene separado desde ViewBag
+    var historialDocumentacionCalidad =
+        ViewBag.HistorialDocumentacionCalidad as List<Plataforma_CG.Models.Embarque>
+        ?? new List<Plataforma_CG.Models.Embarque>();
+
+    bool buscoHistorialDocumentacionCalidad =
+        Convert.ToBoolean(ViewBag.BuscoHistorialDocumentacionCalidad ?? false);
+
+    var busqueda = Context.Request.Query["busqueda"].ToString();
+    var fechaInicio = Context.Request.Query["fechaInicio"].ToString();
+    var fechaFin = Context.Request.Query["fechaFin"].ToString();
+
+    var busquedaHistorial = Context.Request.Query["busquedaHistorial"].ToString();
+    var fechaInicioHistorial = Context.Request.Query["fechaInicioHistorial"].ToString();
+    var fechaFinHistorial = Context.Request.Query["fechaFinHistorial"].ToString();
+
+    var totalEmbarques = pendientes.Count;
+    var totalPendientes = pendientes.Count;
+    var totalValidados = historialDocumentacionCalidad.Count;
+
+    var totalConDocsCalidad = pendientes.Count(x =>
+        x.Archivos != null &&
+        tiposCalidad.Any(t => x.Archivos.Any(a => a.Tipo == t.Tipo))
+    );
+
+    var totalCartaGarantia = pendientes.Count(x =>
+        x.Archivos != null &&
+        x.Archivos.Any(a => a.Tipo == "CALIDAD_CARTA_GARANTIA")
+    );
+
+    var totalClembuterol = pendientes.Count(x =>
+        x.Archivos != null &&
+        x.Archivos.Any(a => a.Tipo == "CALIDAD_LIBRE_CLEMBUTEROL")
+    );
+
+    var totalResiduos = pendientes.Count(x =>
+        x.Archivos != null &&
+        x.Archivos.Any(a => a.Tipo == "CALIDAD_LIBRE_RESIDUOS_TOXICOS")
+    );
+}
+
+<style>
+    :root {
+        --primary: #8B0000;
+        --primary-dark: #5a0000;
+        --primary-soft: #f8eaea;
+        --bg-main: #f4f6f9;
+        --bg-card: #ffffff;
+        --text: #1f2937;
+        --text-soft: #6b7280;
+        --border: #e5e7eb;
+        --border-strong: #d1d5db;
+        --success: #198754;
+        --warning: #f59e0b;
+        --radius-xl: 18px;
+        --radius-lg: 14px;
+        --shadow-sm: 0 4px 10px rgba(0,0,0,.05);
+        --shadow-md: 0 10px 30px rgba(0,0,0,.08);
+        --transition: all .22s ease;
+    }
+
+    body {
+        background: linear-gradient(180deg, #f8f9fb 0%, #eef2f7 100%);
+        color: var(--text);
+        font-family: "Segoe UI", sans-serif;
+    }
+
+    .docs-page {
+        max-width: 1280px;
+        margin: 2rem auto;
+        padding: 0 1rem 2rem;
+    }
+
+    .page-header {
+        background: linear-gradient(135deg, var(--primary) 0%, #6d0000 55%, #2c0000 100%);
+        color: #fff;
+        border-radius: var(--radius-xl);
+        padding: 1.4rem 1.5rem;
+        box-shadow: var(--shadow-md);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+
+    .page-header-left {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .header-icon {
+        width: 58px;
+        height: 58px;
+        border-radius: 16px;
+        display: grid;
+        place-items: center;
+        background: rgba(255,255,255,.14);
+        border: 1px solid rgba(255,255,255,.18);
+        font-size: 1.5rem;
+    }
+
+    .page-title {
+        margin: 0;
+        font-size: 1.6rem;
+        font-weight: 800;
+        line-height: 1.1;
+    }
+
+    .page-subtitle {
+        margin: .3rem 0 0;
+        color: rgba(255,255,255,.85);
+        font-size: .95rem;
+        max-width: 760px;
+    }
+
+    .page-header-right {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        flex-wrap: wrap;
+    }
+
+    .header-chip {
+        background: rgba(255,255,255,.12);
+        border: 1px solid rgba(255,255,255,.18);
+        border-radius: 999px;
+        padding: .55rem .9rem;
+        font-size: .92rem;
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        color: inherit;
+    }
+
+    .btn-top {
+        border: none;
+        border-radius: 999px;
+        padding: .72rem 1rem;
+        font-weight: 700;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        transition: var(--transition);
+    }
+
+    .btn-top-light {
+        background: #fff;
+        color: var(--primary);
+    }
+
+        .btn-top-light:hover {
+            transform: translateY(-1px);
+            color: var(--primary-dark);
+        }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0,1fr));
+        gap: 1rem;
+        margin: 1.1rem 0 1.3rem;
+    }
+
+    .summary-card {
+        background: rgba(255,255,255,.85);
+        border: 1px solid rgba(255,255,255,.9);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-sm);
+        padding: 1rem 1.1rem;
+        display: flex;
+        align-items: center;
+        gap: .9rem;
+    }
+
+    .summary-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 12px;
+        background: var(--primary-soft);
+        color: var(--primary);
+        display: grid;
+        place-items: center;
+        font-size: 1.1rem;
+        flex-shrink: 0;
+    }
+
+    .summary-label {
+        font-size: .82rem;
+        text-transform: uppercase;
+        letter-spacing: .6px;
+        color: var(--text-soft);
+        margin-bottom: .2rem;
+        font-weight: 700;
+    }
+
+    .summary-value {
+        font-size: 1.35rem;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    .docs-filter-panel {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-sm);
+        padding: 1rem 1.1rem;
+        margin: 1rem 0 1.2rem;
+    }
+
+    .docs-filter-title {
+        font-weight: 800;
+        font-size: 1rem;
+        margin-bottom: .85rem;
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+        color: var(--text);
+    }
+
+    .docs-filter-grid {
+        display: grid;
+        grid-template-columns: minmax(240px, 1.4fr) repeat(2, minmax(180px, .8fr)) auto auto;
+        gap: .8rem;
+        align-items: end;
+    }
+
+    .form-label-ui {
+        font-weight: 700;
+        margin-bottom: .55rem;
+        display: block;
+        color: var(--text);
+    }
+
+    .input-text-ui,
+    .input-date-ui,
+    .input-file-ui {
+        width: 100%;
+        border: 1.5px solid var(--border);
+        border-radius: 12px;
+        padding: .75rem .9rem;
+        background: #fff;
+        transition: var(--transition);
+        outline: none;
+    }
+
+    .input-file-ui {
+        padding: .9rem 1rem;
+    }
+
+        .input-text-ui:focus,
+        .input-date-ui:focus,
+        .input-file-ui:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(139,0,0,.08);
+        }
+
+    .alert {
+        border-radius: 14px;
+        box-shadow: var(--shadow-sm);
+        border: none;
+    }
+
+    .section-block {
+        margin-top: 1.5rem;
+    }
+
+    .section-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+        padding: 1rem 1.1rem;
+        border-radius: 16px;
+        background: #fff;
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .section-title {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+    }
+
+    .section-subtitle {
+        margin: .2rem 0 0;
+        color: var(--text-soft);
+        font-size: .9rem;
+    }
+
+    .docs-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1.1rem;
+    }
+
+    .embarque-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-sm);
+        overflow: hidden;
+        transition: var(--transition);
+    }
+
+        .embarque-card:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+    .embarque-head {
+        padding: 1rem 1.2rem;
+        background: linear-gradient(180deg, #fff 0%, #fafafb 100%);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .9rem;
+        flex-wrap: wrap;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .embarque-title {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+    }
+
+        .embarque-title i {
+            color: var(--primary);
+        }
+
+    .embarque-sub {
+        margin-top: .35rem;
+        color: var(--text-soft);
+        font-size: .9rem;
+    }
+
+    .head-badges {
+        display: flex;
+        gap: .5rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .badge-soft {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        border-radius: 999px;
+        padding: .48rem .8rem;
+        font-size: .84rem;
+        font-weight: 700;
+        border: 1px solid var(--border);
+        background: #fff;
+        color: var(--text);
+    }
+
+        .badge-soft.ok {
+            background: #eef9f1;
+            border-color: #cfead7;
+            color: #157347;
+        }
+
+        .badge-soft.pending {
+            background: #fff8e6;
+            border-color: #f5dfaa;
+            color: #9a6700;
+        }
+
+    .toggle-btn {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: #fff;
+        color: var(--primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        transition: var(--transition);
+        box-shadow: 0 4px 10px rgba(0,0,0,.04);
+        flex-shrink: 0;
+    }
+
+    .embarque-card.active .toggle-btn {
+        background: var(--primary);
+        color: #fff;
+        border-color: var(--primary);
+        transform: rotate(180deg);
+    }
+
+    .embarque-body {
+        display: none;
+        padding: 1.2rem;
+        border-top: 1px solid var(--border);
+        background: linear-gradient(180deg, #fcfcfd 0%, #f8fafc 100%);
+    }
+
+    .embarque-card.active .embarque-body {
+        display: block;
+    }
+
+    .docs-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .doc-box {
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: linear-gradient(180deg, #ffffff 0%, #fafbfd 100%);
+        padding: 1rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,.03);
+    }
+
+    .doc-box-head {
+        display: flex;
+        align-items: center;
+        gap: .7rem;
+        margin-bottom: .9rem;
+    }
+
+    .doc-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        background: var(--primary-soft);
+        color: var(--primary);
+        display: grid;
+        place-items: center;
+        font-size: 1rem;
+        flex-shrink: 0;
+    }
+
+    .doc-title {
+        margin: 0;
+        font-size: .98rem;
+        font-weight: 800;
+    }
+
+    .doc-sub {
+        color: var(--text-soft);
+        font-size: .82rem;
+        margin-top: .15rem;
+    }
+
+    .upload-box {
+        border: 2px dashed #d7dce3;
+        border-radius: 16px;
+        background: linear-gradient(180deg, #fff 0%, #fafafa 100%);
+        padding: 1rem;
+        transition: var(--transition);
+    }
+
+        .upload-box:hover {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(139,0,0,.05);
+        }
+
+        .upload-box.has-selected-file {
+            border-color: #198754;
+            background: linear-gradient(180deg, #eef9f1 0%, #f8fdf9 100%);
+            box-shadow: 0 0 0 4px rgba(25,135,84,.08);
+        }
+
+    .hint-text {
+        font-size: .85rem;
+        color: var(--text-soft);
+        margin-top: .55rem;
+    }
+
+    .selected-file-preview {
+        display: none;
+        margin-top: .85rem;
+        border-radius: 12px;
+        padding: .75rem .85rem;
+        border: 1px solid #cfead7;
+        background: #eef9f1;
+        color: #157347;
+    }
+
+        .selected-file-preview.active {
+            display: block;
+        }
+
+    .selected-file-label {
+        font-size: .76rem;
+        text-transform: uppercase;
+        letter-spacing: .35px;
+        font-weight: 800;
+        margin-bottom: .2rem;
+    }
+
+    .selected-file-name {
+        font-size: .9rem;
+        font-weight: 700;
+        word-break: break-word;
+    }
+
+    .file-status {
+        margin-top: .9rem;
+        padding: .75rem .85rem;
+        border-radius: 12px;
+        font-size: .88rem;
+        font-weight: 600;
+        background: #f8fafc;
+        border: 1px solid var(--border);
+    }
+
+        .file-status.ok {
+            background: #eef9f1;
+            border-color: #cfead7;
+            color: #157347;
+        }
+
+        .file-status.pending {
+            background: #fff8e6;
+            border-color: #f5dfaa;
+            color: #9a6700;
+        }
+
+    .file-link {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        margin-top: .55rem;
+        font-weight: 700;
+        color: var(--primary);
+        text-decoration: none;
+    }
+
+    .actions-bar {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: .8rem;
+        flex-wrap: wrap;
+        padding-top: .4rem;
+        border-top: 1px solid var(--border);
+    }
+
+    .btn-ui {
+        border: none;
+        border-radius: 12px;
+        padding: .8rem 1rem;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: .55rem;
+        transition: var(--transition);
+        cursor: pointer;
+        text-decoration: none;
+    }
+
+    .btn-primary-ui {
+        background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+        color: #fff;
+        box-shadow: 0 8px 18px rgba(139,0,0,.18);
+    }
+
+    .btn-secondary-ui {
+        background: #fff;
+        color: var(--primary);
+        border: 1px solid var(--border);
+    }
+
+    .empty-state,
+    .mini-empty {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-sm);
+        padding: 2rem 1.25rem;
+        text-align: center;
+        color: var(--text-soft);
+    }
+
+    @@media (max-width: 1100px) {
+        .summary-grid {
+            grid-template-columns: repeat(2, minmax(0,1fr));
+        }
+
+        .docs-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @@media (max-width: 992px) {
+        .docs-filter-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+    @@media (max-width: 650px) {
+        .docs-page {
+            padding: 0 .7rem 1.5rem;
+        }
+
+        .page-header {
+            padding: 1.1rem;
+        }
+
+        .page-title {
+            font-size: 1.3rem;
+        }
+
+        .summary-grid,
+        .docs-filter-grid {
+            grid-template-columns: 1fr;
+        }
+
+            .docs-filter-grid .btn-ui,
+            .actions-bar .btn-ui {
+                justify-content: center;
+                width: 100%;
+            }
+
+        .embarque-head {
+            align-items: stretch;
+        }
+
+        .head-badges {
+            width: 100%;
+        }
+    }
+
+    /* ============================================================
+       DARK MODE - DOCUMENTACIÓN DE CALIDAD
+============================================================ */
+
+body[data-theme="dark"] {
+    --primary: #ef4444;
+    --primary-dark: #991b1b;
+    --primary-soft: rgba(127,29,29,0.24);
+
+    --bg-main: #0f172a;
+    --bg-card: #111827;
+    --text: #f9fafb;
+    --text-soft: #cbd5e1;
+    --border: rgba(255,255,255,0.12);
+    --border-strong: rgba(203,213,225,0.28);
+
+    --success: #22c55e;
+    --warning: #f59e0b;
+
+    --shadow-sm: 0 10px 26px rgba(0,0,0,.34);
+    --shadow-md: 0 18px 42px rgba(0,0,0,.46);
+}
+
+/* Fondo general */
+body[data-theme="dark"] {
+    background: #0f172a !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .layout-main-content {
+    background: #0f172a !important;
+}
+
+body[data-theme="dark"] .layout-main-content .layout-container-fluid {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+body[data-theme="dark"] .docs-page {
+    color: #e5e7eb !important;
+}
+
+/* Header */
+body[data-theme="dark"] .page-header {
+    background: linear-gradient(135deg, #7f1d1d 0%, #450a0a 55%, #111827 100%) !important;
+    border: 1px solid rgba(248,113,113,0.22) !important;
+    box-shadow: var(--shadow-md) !important;
+}
+
+body[data-theme="dark"] .header-icon {
+    background: rgba(255,255,255,.10) !important;
+    border-color: rgba(255,255,255,.14) !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .page-title {
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .page-subtitle {
+    color: #fecaca !important;
+}
+
+body[data-theme="dark"] .header-chip {
+    background: rgba(255,255,255,.10) !important;
+    border-color: rgba(255,255,255,.16) !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .btn-top-light {
+    background: #0b1220 !important;
+    color: #fca5a5 !important;
+    border: 1px solid rgba(248,113,113,0.35) !important;
+}
+
+body[data-theme="dark"] .btn-top-light:hover {
+    background: rgba(248,113,113,0.14) !important;
+    color: #ffffff !important;
+}
+
+/* Summary cards */
+body[data-theme="dark"] .summary-card {
+    background: rgba(17,24,39,.94) !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+body[data-theme="dark"] .summary-icon {
+    background: rgba(127,29,29,0.24) !important;
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .summary-label {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .summary-value {
+    color: #f9fafb !important;
+}
+
+/* Panel de filtros */
+body[data-theme="dark"] .docs-filter-panel {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+body[data-theme="dark"] .docs-filter-title {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .docs-filter-title i {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .form-label-ui {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .input-text-ui,
+body[data-theme="dark"] .input-date-ui,
+body[data-theme="dark"] .input-file-ui,
+body[data-theme="dark"] input,
+body[data-theme="dark"] select,
+body[data-theme="dark"] textarea {
+    background: #0b1220 !important;
+    color: #f9fafb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+    box-shadow: none !important;
+}
+
+body[data-theme="dark"] .input-text-ui:focus,
+body[data-theme="dark"] .input-date-ui:focus,
+body[data-theme="dark"] .input-file-ui:focus,
+body[data-theme="dark"] input:focus,
+body[data-theme="dark"] select:focus,
+body[data-theme="dark"] textarea:focus {
+    background: #0f172a !important;
+    color: #ffffff !important;
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 4px rgba(239,68,68,.22) !important;
+    outline: none !important;
+}
+
+body[data-theme="dark"] .input-text-ui::placeholder,
+body[data-theme="dark"] input::placeholder,
+body[data-theme="dark"] textarea::placeholder {
+    color: #94a3b8 !important;
+    opacity: 1 !important;
+}
+
+/* Alertas */
+body[data-theme="dark"] .alert-danger {
+    background: rgba(153,27,27,0.30) !important;
+    color: #fecaca !important;
+    border-color: rgba(248,113,113,0.48) !important;
+}
+
+body[data-theme="dark"] .alert-success {
+    background: rgba(22,101,52,0.26) !important;
+    color: #bbf7d0 !important;
+    border-color: rgba(74,222,128,0.40) !important;
+}
+
+body[data-theme="dark"] .alert {
+    box-shadow: var(--shadow-sm) !important;
+}
+
+/* Section headers */
+body[data-theme="dark"] .section-head {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+body[data-theme="dark"] .section-title {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .section-title i {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .section-subtitle {
+    color: #cbd5e1 !important;
+}
+
+/* Corrige header-chip con style inline dentro de section-head */
+body[data-theme="dark"] .section-head .header-chip {
+    background: #0b1220 !important;
+    color: #fca5a5 !important;
+    border-color: rgba(248,113,113,0.35) !important;
+}
+
+/* Empty states */
+body[data-theme="dark"] .empty-state,
+body[data-theme="dark"] .mini-empty {
+    background: #111827 !important;
+    color: #cbd5e1 !important;
+    border-color: rgba(203,213,225,0.28) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+body[data-theme="dark"] .empty-state i,
+body[data-theme="dark"] .mini-empty i {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .empty-state h4 {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .empty-state p {
+    color: #cbd5e1 !important;
+}
+
+/* Cards de embarque */
+body[data-theme="dark"] .embarque-card {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+body[data-theme="dark"] .embarque-card:hover {
+    box-shadow: var(--shadow-md) !important;
+}
+
+body[data-theme="dark"] .embarque-head {
+    background: linear-gradient(180deg, #1f2937 0%, #172033 100%) !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .embarque-title {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .embarque-title i {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .embarque-sub {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .embarque-body {
+    background: #0f172a !important;
+    border-top-color: rgba(255,255,255,0.12) !important;
+}
+
+/* Badges */
+body[data-theme="dark"] .badge-soft {
+    background: #0b1220 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+body[data-theme="dark"] .badge-soft.ok {
+    background: rgba(22,101,52,0.26) !important;
+    color: #bbf7d0 !important;
+    border-color: rgba(74,222,128,0.40) !important;
+}
+
+body[data-theme="dark"] .badge-soft.pending {
+    background: rgba(180,83,9,0.22) !important;
+    color: #fde68a !important;
+    border-color: rgba(245,158,11,0.45) !important;
+}
+
+body[data-theme="dark"] .toggle-btn {
+    background: #0b1220 !important;
+    color: #fca5a5 !important;
+    border-color: rgba(248,113,113,0.35) !important;
+}
+
+body[data-theme="dark"] .embarque-card.active .toggle-btn {
+    background: #dc2626 !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.55) !important;
+}
+
+/* Document boxes */
+body[data-theme="dark"] .doc-box {
+    background: linear-gradient(180deg, #111827 0%, #172033 100%) !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+body[data-theme="dark"] .doc-icon {
+    background: rgba(127,29,29,0.24) !important;
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .doc-title {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .doc-sub {
+    color: #cbd5e1 !important;
+}
+
+/* Upload boxes */
+body[data-theme="dark"] .upload-box {
+    background: linear-gradient(180deg, #172033 0%, #111827 100%) !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+body[data-theme="dark"] .upload-box:hover {
+    border-color: rgba(248,113,113,0.55) !important;
+    box-shadow: 0 0 0 4px rgba(248,113,113,.12) !important;
+}
+
+body[data-theme="dark"] .upload-box.has-selected-file {
+    background: rgba(22,101,52,0.16) !important;
+    border-color: rgba(74,222,128,0.40) !important;
+    box-shadow: 0 0 0 4px rgba(74,222,128,.12) !important;
+}
+
+body[data-theme="dark"] .hint-text {
+    color: #cbd5e1 !important;
+}
+
+/* Preview archivo seleccionado */
+body[data-theme="dark"] .selected-file-preview {
+    background: rgba(22,101,52,0.20) !important;
+    color: #bbf7d0 !important;
+    border-color: rgba(74,222,128,0.40) !important;
+}
+
+body[data-theme="dark"] .selected-file-label {
+    color: #bbf7d0 !important;
+}
+
+body[data-theme="dark"] .selected-file-name {
+    color: #f0fdf4 !important;
+}
+
+/* File status */
+body[data-theme="dark"] .file-status {
+    background: #172033 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .file-status.ok {
+    background: rgba(22,101,52,0.26) !important;
+    color: #bbf7d0 !important;
+    border-color: rgba(74,222,128,0.40) !important;
+}
+
+body[data-theme="dark"] .file-status.pending {
+    background: rgba(180,83,9,0.22) !important;
+    color: #fde68a !important;
+    border-color: rgba(245,158,11,0.45) !important;
+}
+
+/* Links */
+body[data-theme="dark"] .file-link {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .file-link:hover {
+    color: #fecaca !important;
+    text-decoration: underline !important;
+}
+
+/* Actions */
+body[data-theme="dark"] .actions-bar {
+    border-top-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .btn-primary-ui {
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 60%, #7f1d1d 100%) !important;
+    color: #ffffff !important;
+    box-shadow: 0 10px 22px rgba(0,0,0,.28) !important;
+}
+
+body[data-theme="dark"] .btn-primary-ui:hover {
+    color: #ffffff !important;
+    box-shadow: 0 14px 28px rgba(0,0,0,.34) !important;
+}
+
+body[data-theme="dark"] .btn-secondary-ui {
+    background: #0b1220 !important;
+    color: #fca5a5 !important;
+    border-color: rgba(248,113,113,0.35) !important;
+}
+
+body[data-theme="dark"] .btn-secondary-ui:hover {
+    background: rgba(248,113,113,0.14) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.55) !important;
+}
+
+/* File input button */
+body[data-theme="dark"] input[type="file"]::file-selector-button {
+    background: #1f2937 !important;
+    color: #f9fafb !important;
+    border: 0 !important;
+    border-right: 1px solid rgba(255,255,255,0.12) !important;
+    margin-right: .75rem;
+}
+
+body[data-theme="dark"] input[type="file"]::file-selector-button:hover {
+    background: rgba(248,113,113,0.18) !important;
+}
+
+/* Responsive */
+@@media (max-width: 768px) {
+    body[data-theme="dark"] .page-header,
+    body[data-theme="dark"] .summary-card,
+    body[data-theme="dark"] .docs-filter-panel,
+    body[data-theme="dark"] .section-head,
+    body[data-theme="dark"] .embarque-card,
+    body[data-theme="dark"] .doc-box,
+    body[data-theme="dark"] .empty-state,
+    body[data-theme="dark"] .mini-empty {
+        box-shadow: 0 8px 22px rgba(0,0,0,.32) !important;
+    }
+}
+
+    .docs-group {
+        margin-bottom: 1.2rem;
+    }
+
+    .docs-group-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .8rem;
+        flex-wrap: wrap;
+        margin-bottom: .85rem;
+        padding: .85rem 1rem;
+        border-radius: 14px;
+        background: #fff;
+        border: 1px solid var(--border);
+        box-shadow: 0 2px 8px rgba(0,0,0,.03);
+    }
+
+        .docs-group-head h4 {
+            margin: 0;
+            font-size: 1rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+            color: var(--text);
+        }
+
+            .docs-group-head h4 i {
+                color: var(--primary);
+            }
+
+        .docs-group-head p {
+            margin: .2rem 0 0;
+            color: var(--text-soft);
+            font-size: .84rem;
+        }
+
+        .docs-group-head span {
+            border-radius: 999px;
+            padding: .4rem .75rem;
+            background: var(--primary-soft);
+            color: var(--primary);
+            font-weight: 800;
+            font-size: .82rem;
+        }
+
+    .doc-box-ok {
+        border-color: #cfead7;
+        box-shadow: 0 0 0 4px rgba(25,135,84,.05);
+    }
+
+    body[data-theme="dark"] .docs-group-head {
+        background: #111827 !important;
+        border-color: rgba(255,255,255,0.12) !important;
+        box-shadow: var(--shadow-sm) !important;
+    }
+
+        body[data-theme="dark"] .docs-group-head h4 {
+            color: #f9fafb !important;
+        }
+
+            body[data-theme="dark"] .docs-group-head h4 i {
+                color: #fca5a5 !important;
+            }
+
+        body[data-theme="dark"] .docs-group-head p {
+            color: #cbd5e1 !important;
+        }
+
+        body[data-theme="dark"] .docs-group-head span {
+            background: rgba(127,29,29,0.24) !important;
+            color: #fca5a5 !important;
+        }
+
+    body[data-theme="dark"] .doc-box-ok {
+        border-color: rgba(74,222,128,0.35) !important;
+        box-shadow: 0 0 0 4px rgba(34,197,94,.08) !important;
+    }
+
+</style>
+
+<div class="docs-page">
+
+    <div class="page-header">
+        <div class="page-header-left">
+            <div class="header-icon">
+                <i class="bi bi-shield-check"></i>
+            </div>
+            <div>
+                <h1 class="page-title">Documentación de Calidad</h1>
+                <div class="page-subtitle">
+                    Carga y consulta cartas, avisos y hojas de trabajo requeridas por el área de calidad.
+                </div>
+            </div>
+        </div>
+
+        <div class="page-header-right">
+            <span class="header-chip">
+                <i class="bi bi-calendar3"></i>
+                @DateTime.Now.ToShortDateString()
+            </span>
+
+            <a class="btn-top btn-top-light" href="@Url.Action("Documentacion", "Embarques")">
+                <i class="bi bi-folder2-open"></i> Documentación logística
+            </a>
+        </div>
+    </div>
+
+    <div class="summary-grid">
+        <div class="summary-card">
+            <div class="summary-icon">
+                <i class="bi bi-truck"></i>
+            </div>
+            <div>
+                <div class="summary-label">Embarques</div>
+                <div class="summary-value">@totalEmbarques</div>
+            </div>
+        </div>
+
+        <div class="summary-card">
+            <div class="summary-icon">
+                <i class="bi bi-folder2-open"></i>
+            </div>
+            <div>
+                <div class="summary-label">Con documentos</div>
+                <div class="summary-value">@totalConDocsCalidad</div>
+            </div>
+        </div>
+
+        <div class="summary-card">
+            <div class="summary-icon">
+                <i class="bi bi-hourglass-split"></i>
+            </div>
+            <div>
+                <div class="summary-label">Pendientes</div>
+                <div class="summary-value">@totalPendientes</div>
+            </div>
+        </div>
+
+        <div class="summary-card">
+            <div class="summary-icon">
+                <i class="bi bi-folder-check"></i>
+            </div>
+            <div>
+                <div class="summary-label">Validados</div>
+                <div class="summary-value">@totalValidados</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="docs-filter-panel">
+        <div class="docs-filter-title">
+            <i class="bi bi-funnel"></i>
+            Filtros de búsqueda
+        </div>
+
+        <form method="get" asp-action="DocumentacionCalidad" class="docs-filter-grid">
+            <div>
+                <label class="form-label-ui">Buscar embarque</label>
+                <input type="text"
+                       name="busqueda"
+                       value="@busqueda"
+                       class="input-text-ui"
+                       placeholder="Ej. EMB-0001, 125, consecutivo..." />
+            </div>
+
+            <div>
+                <label class="form-label-ui">Fecha inicio</label>
+                <input type="date"
+                       name="fechaInicio"
+                       value="@fechaInicio"
+                       class="input-date-ui" />
+            </div>
+
+            <div>
+                <label class="form-label-ui">Fecha fin</label>
+                <input type="date"
+                       name="fechaFin"
+                       value="@fechaFin"
+                       class="input-date-ui" />
+            </div>
+
+            <button type="submit" class="btn-ui btn-primary-ui">
+                <i class="bi bi-search"></i>
+                Buscar
+            </button>
+
+            <a asp-action="DocumentacionCalidad" class="btn-ui btn-secondary-ui">
+                <i class="bi bi-arrow-clockwise"></i>
+                Limpiar
+            </a>
+        </form>
+    </div>
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>@TempData["Error"]
+        </div>
+    }
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success">
+            <i class="bi bi-check-circle-fill me-2"></i>@TempData["Success"]
+        </div>
+    }
+
+    @if (Model == null)
+    {
+        <div class="empty-state">
+            <i class="bi bi-inbox"></i>
+            <h4 class="mb-2">No hay información para mostrar</h4>
+            <p class="mb-0">Intenta actualizar la página o revisar los filtros.</p>
+        </div>
+    }
+    else
+    {
+        <div class="section-block">
+            <div class="section-head">
+                <div>
+                    <h2 class="section-title">
+                        <i class="bi bi-hourglass-split"></i>
+                        Embarques pendientes
+                    </h2>
+                    <div class="section-subtitle">
+                        Aquí se muestran los embarques que todavía no tienen validada la documentación de calidad.
+                    </div>
+                </div>
+
+                <span class="header-chip" style="background:#fff;color:var(--primary);border-color:var(--border);">
+                    <i class="bi bi-truck"></i>
+                    @pendientes.Count pendiente(s)
+                </span>
+            </div>
+
+            @if (!pendientes.Any())
+            {
+                <div class="mini-empty">
+                    <i class="bi bi-check-circle me-2"></i>
+                    No hay embarques pendientes por validar en calidad.
+                </div>
+            }
+            else
+            {
+                <div class="docs-list">
+                    @foreach (var e in pendientes)
+                    {
+                        var cardId = $"calidad_pendiente_{e.Id}";
+                        var documentacionCalidadAprobada = e.DocumentacionCalidadAprobada == true;
+                        var tieneCualquierDocumento = tiposCalidad.Any(t => e.Archivos.Any(a => a.Tipo == t.Tipo));
+
+                        <div class="embarque-card" id="@cardId">
+                            <div class="embarque-head" onclick="toggleCard('@cardId')">
+                                <div>
+                                    <h3 class="embarque-title">
+                                        <i class="bi bi-truck-front"></i>
+                                        Embarque #@e.Consecutivo
+                                    </h3>
+                                    <div class="embarque-sub">
+                                        ID: @e.Id · Fecha de creación: @e.FechaCreacion.ToString("yyyy-MM-dd HH:mm")
+                                    </div>
+                                </div>
+
+                                <div class="head-badges">
+                                    <span class="badge-soft @(tieneCualquierDocumento ? "ok" : "pending")">
+                                        <i class="bi bi-file-earmark-arrow-up"></i>
+                                        @(tieneCualquierDocumento ? "Con documentos" : "Sin documentos")
+                                    </span>
+
+                                    <span class="badge-soft @(documentacionCalidadAprobada ? "ok" : "pending")">
+                                        <i class="bi bi-folder-check"></i>
+                                        Calidad @(documentacionCalidadAprobada ? "validada" : "pendiente")
+                                    </span>
+
+                                    <button type="button" class="toggle-btn" onclick="event.stopPropagation(); toggleCard('@cardId')">
+                                        <i class="bi bi-chevron-down"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="embarque-body">
+                                <form asp-action="CargarDocumentosCalidad" method="post" enctype="multipart/form-data">
+                                    <input type="hidden" name="id" value="@e.Id" />
+
+                                    @foreach (var grupo in tiposCalidad.GroupBy(x => x.Grupo))
+                                    {
+                                        var grupoIcon = grupo.Key == "Expediente de calidad"
+                                        ? "bi-folder2-open"
+                                        : "bi-archive";
+
+                                        <div class="docs-group">
+                                            <div class="docs-group-head">
+                                                <div>
+                                                    <h4>
+                                                        <i class="bi @grupoIcon"></i>
+                                                        @grupo.Key
+                                                    </h4>
+                                                    <p>
+                                                        @(grupo.Key == "Expediente de calidad"
+                                                            ? "Carga los documentos correspondientes al expediente documental del embarque."
+                                                            : "Carga estos documentos solo cuando apliquen para el embarque.")
+                                                    </p>
+                                                </div>
+
+                                                <span>
+                                                    @grupo.Count() tipo(s)
+                                                </span>
+                                            </div>
+
+                                            <div class="docs-grid">
+                                                @foreach (var tipo in grupo)
+                                                {
+                                                    var archivos = e.Archivos.Where(a => a.Tipo == tipo.Tipo).ToList();
+                                                    var tieneArchivo = archivos.Any();
+                                                    var uploadBoxId = $"uploadBox_{tipo.Tipo}_{e.Id}";
+                                                    var previewId = $"preview_{tipo.Tipo}_{e.Id}";
+                                                    var nameId = $"name_{tipo.Tipo}_{e.Id}";
+
+                                                    <div class="doc-box @(tieneArchivo ? "doc-box-ok" : "")">
+                                                        <div class="doc-box-head">
+                                                            <div class="doc-icon">
+                                                                <i class="bi @tipo.Icon"></i>
+                                                            </div>
+                                                            <div>
+                                                                <h5 class="doc-title">@tipo.Label</h5>
+                                                                <div class="doc-sub">@tipo.Sub</div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div class="upload-box" id="@uploadBoxId">
+                                                            <label class="form-label-ui">Selecciona archivo</label>
+
+                                                            <input type="file"
+                                                                   name="@tipo.Name"
+                                                                   multiple
+                                                                   class="input-file-ui"
+                                                                   accept=".pdf,.xml,.jpg,.jpeg,.png,.doc,.docx,.xlsx,.xls"
+                                                                   onchange="mostrarArchivoSeleccionado(this, '@uploadBoxId', '@previewId', '@nameId')" />
+
+                                                            <div class="hint-text">
+                                                                Formatos permitidos: PDF, XML, JPG, PNG, DOC, DOCX, XLS y XLSX.
+                                                            </div>
+
+                                                            <div class="selected-file-preview" id="@previewId">
+                                                                <div class="selected-file-label">Archivo seleccionado</div>
+                                                                <div class="selected-file-name" id="@nameId"></div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div class="file-status @(tieneArchivo ? "ok" : "pending")">
+                                                            @(tieneArchivo ? $"{archivos.Count} archivo(s) cargado(s)." : "Sin archivo cargado. Este tipo es opcional.")
+                                                        </div>
+
+                                                        @if (tieneArchivo)
+                                                        {
+                                                            <div class="mt-2">
+                                                                @foreach (var archivo in archivos)
+                                                                {
+                                                                    <a href="@archivo.RutaArchivo" target="_blank" class="file-link d-flex">
+                                                                        <i class="bi bi-box-arrow-up-right"></i>
+                                                                        Ver @tipo.Label #@archivo.Id
+                                                                    </a>
+                                                                }
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+
+                                    <div class="actions-bar">
+                                        <button type="submit" class="btn-ui btn-primary-ui">
+                                            <i class="bi bi-save"></i>
+                                            Guardar y validar documentación de calidad
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="section-block">
+            <div class="section-head">
+                <div>
+                    <h2 class="section-title">
+                        <i class="bi bi-clock-history"></i>
+                        Histórico de documentación de calidad
+                    </h2>
+                    <div class="section-subtitle">
+                        Consulta embarques ya validados por documentación de calidad. No carga registros hasta seleccionar un rango de fechas.
+                    </div>
+                </div>
+
+                <span class="header-chip" style="background:#fff;color:var(--primary);border-color:var(--border);">
+                    <i class="bi bi-folder-check"></i>
+                    @historialDocumentacionCalidad.Count registro(s)
+                </span>
+            </div>
+
+            <div class="docs-filter-panel">
+                <div class="docs-filter-title">
+                    <i class="bi bi-funnel"></i>
+                    Filtros de historial
+                </div>
+
+                <form method="get" asp-action="DocumentacionCalidad" class="docs-filter-grid">
+                    <input type="hidden" name="busqueda" value="@busqueda" />
+                    <input type="hidden" name="fechaInicio" value="@fechaInicio" />
+                    <input type="hidden" name="fechaFin" value="@fechaFin" />
+
+                    <div>
+                        <label class="form-label-ui">Buscar embarque</label>
+                        <input type="text"
+                               name="busquedaHistorial"
+                               value="@busquedaHistorial"
+                               class="input-text-ui"
+                               placeholder="Ej. EMB-0001, 125, nombre..." />
+                    </div>
+
+                    <div>
+                        <label class="form-label-ui">Fecha validación inicio</label>
+                        <input type="date"
+                               name="fechaInicioHistorial"
+                               value="@fechaInicioHistorial"
+                               class="input-date-ui" />
+                    </div>
+
+                    <div>
+                        <label class="form-label-ui">Fecha validación fin</label>
+                        <input type="date"
+                               name="fechaFinHistorial"
+                               value="@fechaFinHistorial"
+                               class="input-date-ui" />
+                    </div>
+
+                    <button type="submit" class="btn-ui btn-primary-ui">
+                        <i class="bi bi-search"></i>
+                        Buscar historial
+                    </button>
+
+                    <a asp-action="DocumentacionCalidad"
+                       asp-route-busqueda="@busqueda"
+                       asp-route-fechaInicio="@fechaInicio"
+                       asp-route-fechaFin="@fechaFin"
+                       class="btn-ui btn-secondary-ui">
+                        <i class="bi bi-arrow-clockwise"></i>
+                        Limpiar historial
+                    </a>
+                </form>
+            </div>
+
+            @if (!buscoHistorialDocumentacionCalidad)
+            {
+                <div class="empty-state">
+                    <i class="bi bi-calendar-range"></i>
+                    <h4 class="mb-2">Selecciona un rango de fechas</h4>
+                    <p class="mb-0">
+                        El historial de documentación de calidad no carga información hasta que indiques fecha inicio y fecha fin.
+                    </p>
+                </div>
+            }
+            else if (!historialDocumentacionCalidad.Any())
+            {
+                <div class="empty-state">
+                    <i class="bi bi-search"></i>
+                    <h4 class="mb-2">No se encontraron registros</h4>
+                    <p class="mb-0">
+                        No existen embarques validados por documentación de calidad dentro del rango seleccionado.
+                    </p>
+                </div>
+            }
+            else
+            {
+                <div class="docs-list">
+                    @foreach (var e in historialDocumentacionCalidad)
+                    {
+                        var cardId = $"hist_doc_calidad_{e.Id}";
+                        var tieneCualquierDocumento = tiposCalidad.Any(t => e.Archivos.Any(a => a.Tipo == t.Tipo));
+
+                        <div class="embarque-card" id="@cardId">
+                            <div class="embarque-head" onclick="toggleCard('@cardId')">
+                                <div>
+                                    <h3 class="embarque-title">
+                                        <i class="bi bi-folder-check"></i>
+                                        Embarque #@e.Consecutivo
+                                    </h3>
+                                    <div class="embarque-sub">
+                                        ID: @e.Id · Validado:
+                                        @(e.FechaValidacionDocumentacionCalidad?.ToString("yyyy-MM-dd HH:mm") ?? "Sin fecha")
+                                        · Usuario:
+                                        @(e.UsuarioValidaDocumentacionCalidad ?? "Sistema")
+                                    </div>
+                                </div>
+
+                                <div class="head-badges">
+                                    <span class="badge-soft @(tieneCualquierDocumento ? "ok" : "pending")">
+                                        <i class="bi bi-file-earmark-check"></i>
+                                        @(tieneCualquierDocumento ? "Con documentos" : "Sin documentos")
+                                    </span>
+
+                                    <span class="badge-soft ok">
+                                        <i class="bi bi-check-circle"></i>
+                                        Validado
+                                    </span>
+
+                                    <button type="button" class="toggle-btn" onclick="event.stopPropagation(); toggleCard('@cardId')">
+                                        <i class="bi bi-chevron-down"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="embarque-body">
+                                @foreach (var grupo in tiposCalidad.GroupBy(x => x.Grupo))
+                                {
+                                    var grupoIcon = grupo.Key == "Expediente de calidad"
+                                    ? "bi-folder2-open"
+                                    : "bi-archive";
+
+                                    <div class="docs-group">
+                                        <div class="docs-group-head">
+                                            <div>
+                                                <h4>
+                                                    <i class="bi @grupoIcon"></i>
+                                                    @grupo.Key
+                                                </h4>
+                                                <p>
+                                                    @(grupo.Key == "Expediente de calidad"
+                                                                                        ? "Documentos cargados como parte del expediente de calidad."
+                                                                                        : "Documentos poco frecuentes cargados para este embarque.")
+                                </p>
+                            </div>
+
+                                            <span>
+                                                @grupo.Count() tipo(s)
+                                            </span>
+                                        </div>
+
+                                        <div class="docs-grid">
+                            @foreach (var tipo in grupo)
+                                            {
+                                                var archivos = e.Archivos.Where(a => a.Tipo == tipo.Tipo).ToList();
+                                                var tieneArchivo = archivos.Any();
+
+                                                <div class="doc-box @(tieneArchivo ? "doc-box-ok" : "")">
+                                                    <div class="doc-box-head">
+                                                        <div class="doc-icon">
+                                                            <i class="bi @tipo.Icon"></i>
+                                                        </div>
+                                                        <div>
+                                                            <h5 class="doc-title">@tipo.Label</h5>
+                                                            <div class="doc-sub">@tipo.Sub</div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="file-status @(tieneArchivo ? "ok" : "pending")">
+                                                        @(tieneArchivo ? $"{archivos.Count} archivo(s) cargado(s)." : "No se cargó este documento.")
+                                                    </div>
+
+                                                    @if (tieneArchivo)
+                                                    {
+                                                        <div class="mt-2">
+                                                            @foreach (var archivo in archivos)
+                                                            {
+                                                                <a href="@archivo.RutaArchivo" target="_blank" class="file-link d-flex">
+                                                                    <i class="bi bi-box-arrow-up-right"></i>
+                                                                    Ver @tipo.Label #@archivo.Id
+                                                                </a>
+                                                            }
+                                                        </div>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<script>
+    function toggleCard(cardId) {
+        const card = document.getElementById(cardId);
+        if (!card) return;
+        card.classList.toggle("active");
+    }
+
+    function mostrarArchivoSeleccionado(input, uploadBoxId, previewId, nameId) {
+        const uploadBox = document.getElementById(uploadBoxId);
+        const preview = document.getElementById(previewId);
+        const nameBox = document.getElementById(nameId);
+
+        if (!uploadBox || !preview || !nameBox) return;
+
+        if (input.files && input.files.length > 0) {
+            uploadBox.classList.add("has-selected-file");
+            preview.classList.add("active");
+
+            const nombres = Array.from(input.files).map(f => f.name);
+            nameBox.textContent = nombres.join(", ");
+        } else {
+            uploadBox.classList.remove("has-selected-file");
+            preview.classList.remove("active");
+            nameBox.textContent = "";
+        }
+    }
+</script>

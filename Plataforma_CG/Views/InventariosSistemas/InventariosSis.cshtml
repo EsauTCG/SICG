@@ -1,0 +1,3409 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Inventario Independiente";
+}
+
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
+
+<style>
+    :root {
+        --brand-main: #4a0e0e;
+        --brand-hover: #6b1515;
+        --bg-page: #fdf5f4;
+        --card-bg: #ffffff;
+        --panel-bg: #fcf5f4;
+        --border-color: #ebdcdb;
+        --text-dark: #333333;
+        --text-muted: #888888;
+    }
+
+    body {
+        background-color: var(--bg-page);
+        color: var(--text-dark);
+        font-family: 'Segoe UI', Tahoma, sans-serif;
+        font-size: 0.85rem;
+    }
+
+    .dashboard-panel {
+        background-color: var(--card-bg);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        margin-bottom: 1.5rem;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+    }
+
+    .panel-header {
+        background-color: transparent;
+        border-bottom: 1px solid var(--border-color);
+        padding: 1rem 1.25rem;
+    }
+
+    .panel-title {
+        font-size: 1rem;
+        font-weight: 800;
+        color: var(--text-dark);
+        margin: 0;
+    }
+
+    .panel-subtitle {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin: 0;
+    }
+
+    .top-banner {
+        background-color: var(--brand-main);
+        color: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .kpi-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-top: 1.5rem;
+    }
+
+    .kpi-box {
+        background-color: rgba(255,255,255,0.08);
+        border-radius: 8px;
+        padding: 1rem;
+        flex: 1 1 200px;
+        min-width: 150px;
+    }
+
+    .kpi-title {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        opacity: 0.8;
+        margin-bottom: 0.3rem;
+    }
+
+    .kpi-value {
+        font-size: 1.8rem;
+        font-weight: bold;
+        margin: 0;
+    }
+
+    .nav-tabs {
+        border-bottom: 2px solid var(--border-color);
+        margin-bottom: 1.5rem;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 2px;
+    }
+
+        .nav-tabs::-webkit-scrollbar {
+            height: 4px;
+        }
+
+        .nav-tabs::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        .nav-tabs .nav-link {
+            color: var(--text-muted);
+            font-weight: 600;
+            border: none;
+            padding: 10px 20px;
+            transition: 0.3s;
+            background: transparent;
+        }
+
+            .nav-tabs .nav-link:hover {
+                color: var(--brand-main);
+            }
+
+            .nav-tabs .nav-link.active {
+                color: var(--brand-main);
+                border-bottom: 3px solid var(--brand-main);
+                background-color: transparent;
+            }
+
+    .tab-content > .tab-pane {
+        display: none;
+    }
+
+    .tab-content > .active {
+        display: block;
+        animation: slideFade 0.4s ease-out forwards;
+    }
+
+    @@keyframes slideFade {
+        0%
+
+    {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+    }
+
+    .btn-brand {
+        background-color: var(--brand-main);
+        color: white;
+        border: none;
+        padding: 6px 16px;
+        border-radius: 20px;
+        font-weight: 600;
+        transition: 0.3s;
+    }
+
+        .btn-brand:hover:not(:disabled) {
+            background-color: var(--brand-hover);
+            color: white;
+        }
+
+        .btn-brand:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+    .btn-outline {
+        border: 1px solid var(--border-color);
+        background: white;
+        color: var(--text-dark);
+        border-radius: 20px;
+        font-weight: 600;
+    }
+
+        .btn-outline:hover {
+            background: var(--bg-page);
+            border-color: var(--brand-main);
+            color: var(--brand-main);
+        }
+
+    .form-control, .form-select {
+        border-color: var(--border-color);
+        font-size: 0.85rem;
+        border-radius: 6px;
+    }
+
+        .form-control:focus, .form-select:focus {
+            border-color: var(--brand-main);
+            box-shadow: 0 0 0 0.2rem rgba(74, 14, 14, 0.15);
+        }
+
+    .table-custom {
+        margin-bottom: 0;
+    }
+
+        .table-custom thead th {
+            background-color: var(--panel-bg);
+            color: var(--text-muted);
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.7rem;
+            border-bottom: 2px solid var(--border-color);
+            padding: 12px;
+            white-space: nowrap;
+        }
+
+        .table-custom tbody tr {
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .table-custom tbody td {
+            vertical-align: middle;
+            padding: 12px;
+        }
+
+    .btn-sm-action {
+        padding: 4px 8px;
+        font-size: 0.75rem;
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+        background: white;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: var(--text-dark);
+        margin-bottom: 2px;
+        margin-right: 2px;
+    }
+
+        .btn-sm-action:hover:not(:disabled) {
+            background: var(--bg-page);
+            border-color: var(--brand-main);
+            color: var(--brand-main);
+        }
+
+    .badge-entrada {
+        background-color: #dcfce7;
+        color: #166534;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-weight: bold;
+        font-size: 0.7rem;
+        border: 1px solid #bbf7d0;
+    }
+
+    .badge-salida {
+        background-color: #fef08a;
+        color: #854d0e;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-weight: bold;
+        font-size: 0.7rem;
+        border: 1px solid #fde047;
+    }
+
+    .scroll-panel::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .scroll-panel::-webkit-scrollbar-thumb {
+        background: var(--border-color);
+        border-radius: 4px;
+    }
+
+    .alerta-item {
+        padding: 8px;
+        border-radius: 6px;
+        border-left: 4px solid;
+        margin-bottom: 8px;
+        font-size: 0.8rem;
+        background: white;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    .btn-check:checked + .btn-outline-danger {
+        background-color: var(--brand-main);
+        border-color: var(--brand-main);
+        color: white;
+    }
+
+    .btn-outline-danger {
+        border-color: var(--border-color);
+        color: var(--text-muted);
+        font-weight: bold;
+        font-size: 0.75rem;
+        white-space: normal;
+    }
+
+        .btn-outline-danger:hover {
+            background-color: var(--panel-bg);
+            color: var(--brand-main);
+        }
+
+    .firma-container {
+        border: 2px dashed var(--border-color);
+        background-color: white;
+        border-radius: 8px;
+        overflow: hidden;
+        position: relative;
+        touch-action: none;
+    }
+
+    #firmaCanvas {
+        width: 100%;
+        height: 150px;
+        cursor: crosshair;
+    }
+
+    @@media (max-width: 768px) {
+        .kpi-box
+
+    {
+        flex: 1 1 45%;
+        padding: 0.8rem;
+        min-width: 40%;
+    }
+
+    .kpi-value {
+        font-size: 1.4rem;
+    }
+
+    .top-banner {
+        padding: 1rem;
+    }
+
+    .table-custom tbody td {
+        white-space: nowrap;
+    }
+
+    .btn-sm-action {
+        padding: 6px 10px;
+        font-size: 0.8rem;
+    }
+
+    }
+
+
+    .select2-container--bootstrap-5 .select2-selection {
+        font-size: 0.85rem;
+        min-height: calc(1.5em + .75rem + 2px);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+    }
+
+    .select2-container--bootstrap-5.select2-container--focus .select2-selection,
+    .select2-container--bootstrap-5.select2-container--open .select2-selection {
+        border-color: var(--brand-main);
+        box-shadow: 0 0 0 0.2rem rgba(74, 14, 14, 0.15);
+    }
+
+    .select2-container--bootstrap-5 .select2-results__option--highlighted[aria-selected] {
+        background-color: var(--brand-main) !important;
+        color: white !important;
+    }
+
+    .select2-container--bootstrap-5 .select2-search__field:focus {
+        box-shadow: 0 0 0 0.2rem rgba(74, 14, 14, 0.15);
+        border-color: var(--brand-main);
+    }
+
+    /* ESTILO ROSITA / VINO + RESPONSIVO */
+html,
+body {
+    background: #e9edf2 !important;
+    overflow-x: hidden !important;
+}
+
+body,
+main,
+.main,
+.body-content,
+.container,
+.container-fluid {
+    background: #e9edf2 !important;
+}
+
+.container-fluid {
+    width: min(100%, calc(100vw - 48px)) !important;
+    max-width: 1900px !important;
+    margin: 0 auto !important;
+    padding: 8px !important;
+}
+
+.top-banner {
+    background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+    border: 1px solid #7e4a4a !important;
+    border-radius: 0 !important;
+    box-shadow: 0 8px 18px rgba(70,12,12,.14) !important;
+}
+
+.kpi-box {
+    background: rgba(255,255,255,.12) !important;
+    border: 1px solid rgba(255,255,255,.22) !important;
+    border-radius: 0 !important;
+}
+
+.dashboard-panel {
+    background: #f8eeee !important;
+    border: 1px solid #c79d9d !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+.panel-header {
+    background: #f1dede !important;
+    border-bottom: 1px solid #c79d9d !important;
+}
+
+.panel-title {
+    color: #5c1a1a !important;
+}
+
+.panel-subtitle {
+    color: #6a3a3a !important;
+}
+
+.nav-tabs {
+    background: #f1dede !important;
+    border: 1px solid #c79d9d !important;
+    padding: 4px !important;
+    margin-bottom: 12px !important;
+}
+
+.nav-tabs .nav-link {
+    background: linear-gradient(#fffefe,#ecd7d7) !important;
+    border: 1px solid #caa0a0 !important;
+    color: #5c1a1a !important;
+    border-radius: 0 !important;
+    margin-right: 4px !important;
+    font-weight: 700 !important;
+}
+
+.nav-tabs .nav-link.active {
+    background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+    color: #fff !important;
+    border-color: #7a2d2d !important;
+}
+
+.form-control,
+.form-select,
+.input-group-text,
+.select2-container--bootstrap-5 .select2-selection {
+    background: #fffafa !important;
+    border: 1px solid #b48787 !important;
+    color: #421414 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    font-size: 12px !important;
+}
+
+.form-control:focus,
+.form-select:focus,
+.select2-container--bootstrap-5.select2-container--focus .select2-selection,
+.select2-container--bootstrap-5.select2-container--open .select2-selection {
+    border-color: #8b0000 !important;
+    box-shadow: 0 0 0 .15rem rgba(139,0,0,.12) !important;
+}
+
+.btn-brand {
+    background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+    border: 1px solid #7a2d2d !important;
+    color: #fff !important;
+    border-radius: 0 !important;
+}
+
+.btn-outline,
+.btn-outline-secondary,
+.btn-sm-action {
+    background: linear-gradient(#fffefe,#ecd7d7) !important;
+    border: 1px solid #b48787 !important;
+    color: #4b1f1f !important;
+    border-radius: 0 !important;
+    font-weight: 700 !important;
+}
+
+.btn-outline:hover,
+.btn-outline-secondary:hover,
+.btn-sm-action:hover {
+    background: #f4dddd !important;
+    border-color: #8b0000 !important;
+    color: #5c0000 !important;
+}
+
+.table-responsive {
+    background: #fffafa !important;
+    border-top: 1px solid #d9b8b8 !important;
+}
+
+.table-custom {
+    background: #fffafa !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    font-size: 12px !important;
+}
+
+.table-custom thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+    color: #fff !important;
+    border-right: 1px solid #8e3b3b !important;
+    border-bottom: 1px solid #5c0000 !important;
+    padding: 7px 6px !important;
+    font-size: 12px !important;
+    text-transform: none !important;
+    white-space: nowrap !important;
+}
+
+.table-custom tbody td {
+    background: #fffafa !important;
+    border-right: 1px solid #d8bcbc !important;
+    border-bottom: 1px solid #d8bcbc !important;
+    color: #401515 !important;
+    padding: 6px !important;
+}
+
+.table-custom tbody tr:nth-of-type(even) > td {
+    background: #f9eded !important;
+}
+
+.table-custom tbody tr:hover > td {
+    background: #f4dddd !important;
+}
+
+.modal-content {
+    border: 1px solid #7d4949 !important;
+    border-radius: 0 !important;
+}
+
+.modal-header {
+    background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+    color: #fff !important;
+    border-bottom: 1px solid #5c0000 !important;
+}
+
+.modal-title {
+    color: #fff !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+}
+
+.modal-body {
+    background: #f0dede !important;
+}
+
+.modal-footer {
+    background: #f7eaea !important;
+    border-top: 1px solid #d3b0b0 !important;
+}
+
+.firma-container,
+.alerta-item {
+    background: #fffafa !important;
+    border-color: #c79d9d !important;
+    border-radius: 0 !important;
+}
+
+/* RESPONSIVO */
+@@media (min-width: 1400px) {
+    .container-fluid {
+        width: calc(100vw - 80px) !important;
+    }
+}
+
+@@media (max-width: 1200px) {
+    .container-fluid {
+        width: calc(100vw - 24px) !important;
+    }
+}
+
+@@media (max-width: 768px) {
+    .container-fluid {
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 6px !important;
+    }
+
+    .top-banner {
+        padding: 12px !important;
+    }
+
+    .top-banner h2 {
+        font-size: 18px !important;
+    }
+
+    .kpi-container {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 8px !important;
+    }
+
+    .kpi-box {
+        min-width: 0 !important;
+        padding: 8px !important;
+    }
+
+    .kpi-value {
+        font-size: 18px !important;
+    }
+
+    .dashboard-panel {
+        padding: 0 !important;
+    }
+
+    .panel-header {
+        padding: 8px !important;
+    }
+
+    .nav-tabs {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+    }
+
+    .nav-tabs .nav-link {
+        min-width: max-content !important;
+        font-size: 11px !important;
+        padding: 7px 10px !important;
+    }
+
+    .btn,
+    .btn-brand,
+    .btn-outline,
+    .btn-sm-action {
+        width: 100% !important;
+        font-size: 12px !important;
+    }
+
+    .table-responsive {
+        width: 100% !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        max-height: 65vh !important;
+    }
+
+    .table-custom {
+        min-width: 900px !important;
+        font-size: 10px !important;
+    }
+
+    .table-custom thead th,
+    .table-custom tbody td {
+        font-size: 10px !important;
+        padding: 4px 3px !important;
+    }
+
+    .modal-dialog {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+    }
+
+    .modal-content {
+        min-height: 100vh !important;
+    }
+}
+
+
+/* =========================================================
+   KPIS A COLOR - INVENTARIO SISTEMAS
+   ========================================================= */
+
+.kpi-container {
+    align-items: stretch !important;
+}
+
+.kpi-container .kpi-box {
+    position: relative !important;
+    overflow: hidden !important;
+    min-height: 112px !important;
+    border-radius: 16px !important;
+    border: 1px solid rgba(255,255,255,.30) !important;
+    padding: 14px 16px !important;
+    box-shadow: inset 4px 0 0 rgba(255,255,255,.18), 0 14px 28px rgba(45, 8, 8, .18) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+}
+
+.kpi-container .kpi-box::after {
+    content: "";
+    position: absolute;
+    right: -38px;
+    bottom: -48px;
+    width: 132px;
+    height: 132px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.15);
+    pointer-events: none;
+}
+
+.kpi-container .kpi-box::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,.10), rgba(255,255,255,0) 58%);
+    pointer-events: none;
+}
+
+.kpi-container .kpi-title,
+.kpi-container .kpi-value {
+    position: relative;
+    z-index: 1;
+}
+
+.kpi-container .kpi-title {
+    color: rgba(255,255,255,.90) !important;
+    opacity: 1 !important;
+    font-size: .72rem !important;
+    font-weight: 900 !important;
+    letter-spacing: .06em !important;
+}
+
+.kpi-container .kpi-value {
+    color: #ffffff !important;
+    font-size: clamp(1.65rem, 2.2vw, 2.35rem) !important;
+    line-height: 1 !important;
+    font-weight: 900 !important;
+    text-shadow: 0 2px 8px rgba(0,0,0,.24);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Total de artículos */
+.kpi-container .kpi-total {
+    background: linear-gradient(135deg, #7b1113 0%, #a3161a 55%, #5c090b 100%) !important;
+}
+
+/* Alertas: ámbar en cero / rojo cuando hay alertas */
+.kpi-container .kpi-alertas {
+    background: linear-gradient(135deg, #b7791f 0%, #d99a28 55%, #8a4f05 100%) !important;
+}
+
+.kpi-container .kpi-alertas.kpi-peligro {
+    background: linear-gradient(135deg, #b91c1c 0%, #dc2626 55%, #7f1d1d 100%) !important;
+    box-shadow: inset 4px 0 0 rgba(255,255,255,.20), 0 16px 30px rgba(185,28,28,.28) !important;
+}
+
+/* Equipos asignados */
+.kpi-container .kpi-asignados {
+    background: linear-gradient(135deg, #157f49 0%, #22a65a 55%, #0f5132 100%) !important;
+}
+
+/* Equipos disponibles */
+.kpi-container .kpi-disponibles {
+    background: linear-gradient(135deg, #0f766e 0%, #14b8a6 55%, #134e4a 100%) !important;
+}
+
+@@media (max-width: 768px) {
+    .kpi-container .kpi-box {
+        min-height: 96px !important;
+        padding: 11px 12px !important;
+        border-radius: 14px !important;
+    }
+
+    .kpi-container .kpi-title {
+        font-size: .63rem !important;
+    }
+
+    .kpi-container .kpi-value {
+        font-size: clamp(1.35rem, 7vw, 1.8rem) !important;
+    }
+}
+
+@@media (max-width: 460px) {
+    .kpi-container {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+</style>
+
+<div class="container-fluid py-4">
+
+    <div class="top-banner">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h2 class="fw-bold mb-1">Inventario Sistemas</h2>
+                <p class="mb-0" style="font-size: 0.85rem; opacity: 0.85;">Búsqueda, asignaciones, historial auditable y alertas.</p>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-light fw-bold" data-bs-toggle="modal" data-bs-target="#modalNivelesEquipo">
+                <i class="bi bi-info-circle-fill me-1"></i> Guia Equipos
+            </button>
+        </div>
+
+        <div class="kpi-container">
+            <div class="kpi-box kpi-total">
+                <div class="kpi-title">Artículos Activos</div>
+                <div class="kpi-value" id="kpiTotal">0</div>
+            </div>
+
+            <div class="kpi-box kpi-alertas">
+                <div class="kpi-title">Alertas Activas</div>
+                <div class="kpi-value" id="kpiAlertas">0</div>
+            </div>
+
+            <div class="kpi-box kpi-asignados">
+                <div class="kpi-title">Equipos Asignados</div>
+                <div class="kpi-value" id="kpiAsignados">0</div>
+            </div>
+
+            <div class="kpi-box kpi-disponibles">
+                <div class="kpi-title">Equipos Disponibles</div>
+                <div class="kpi-value" id="kpiDisponibles">0</div>
+            </div>
+        </div>
+    </div>
+   
+    <ul class="nav nav-tabs" id="myTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="explorador-tab" data-bs-toggle="tab" data-bs-target="#explorador" type="button" role="tab">Explorador de inventario</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="movimientos-tab" data-bs-toggle="tab" data-bs-target="#movimientos" type="button" role="tab">Stock y Entradas/Salidas</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="asignaciones-tab" data-bs-toggle="tab" data-bs-target="#asignaciones" type="button" role="tab">Asignaciones e Historial</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="recuperaciones-tab" data-bs-toggle="tab" data-bs-target="#recuperaciones" type="button" role="tab">Recuperaciones</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="taller-tab" data-bs-toggle="tab" data-bs-target="#taller" type="button" role="tab">Taller/Reparaciones </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="myTabContent">
+
+        <div class="tab-pane fade show active" id="explorador" role="tabpanel">
+            <div class="dashboard-panel">
+                <div class="panel-header d-flex flex-column flex-md-row justify-content-between align-items-md-center">
+                    <div class="mb-2 mb-md-0">
+                        <h3 class="panel-title">Explorador de inventario</h3>
+                        <p class="panel-subtitle">Consulta de equipos y generación de etiquetas QR.</p>
+                    </div>
+                    <div class="mt-2 mt-md-0">
+                        <button class="btn btn-success fw-bold w-100 w-md-auto" onclick="exportarExcel()"><i class="bi bi-file-earmark-excel me-1"></i> Exportar Excel</button>
+                    </div>
+                </div>
+
+                <div class="p-3">
+                    <div class="row g-2 mb-3 align-items-end" style="background-color: var(--panel-bg); padding: 15px; border-radius: 8px; border: 1px solid var(--border-color);">
+                        <div class="col-12 col-md-4">
+                            <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">BUSCAR (SAP, NOMBRE, SERIE)</label>
+                            <input type="text" class="form-control" id="filtroGeneral" placeholder="Escribe aquí..." onkeyup="aplicarFiltros()">
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">TIPO ARTÍCULO</label>
+                            <select class="form-select" id="filtroTipo" onchange="aplicarFiltros()">
+                                <option value="">Todos</option>
+                                <option value="Activo Fijo">Activo Fijo</option>
+                                <option value="Consumible">Consumible</option>
+                                <option value="Herramienta">Herramienta</option>
+                                <option value="Chatarra/Piezas">Chatarra/Piezas</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">PLANTA</label>
+                            <select class="form-select" id="filtroPlanta" onchange="aplicarFiltros()">
+                                <option value="">Todas</option>
+                                <option value="TIF">TIF</option>
+                                <option value="P1">P1</option>
+                                <option value="ALMACEN">ALMACÉN</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">ESTADO</label>
+                            <select class="form-select" id="filtroEstado" onchange="aplicarFiltros()">
+                                <option value="">Todos</option>
+                                <option value="disponible">Disponibles</option>
+                                <option value="asignado">Asignados</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-2 mt-3 mt-md-0">
+                            <button class="btn btn-brand w-100" onclick="limpiarFiltros()">Limpiar</button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-custom align-middle" id="tablaInventario">
+                            <thead>
+                                <tr>
+                                    <th>Artículo</th>
+                                    <th>Usuario / Serie</th>
+                                    <th>Planta / Ubicación</th>
+                                    <th>Fechas / Vida Útil</th>
+                                    <th>Stock / Garantía</th>
+                                    <th class="text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyInventario">
+                                <tr><td colspan="6" class="text-center py-4">Cargando datos...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="movimientos" role="tabpanel">
+            <div class="row">
+                <div class="col-12 col-lg-5 mb-3">
+                    <div class="dashboard-panel" style="background-color: var(--panel-bg);">
+                        <div class="panel-header bg-transparent border-0 pb-0">
+                            <h3 class="panel-title">Registrar entrada o salida</h3>
+                            <p class="panel-subtitle">Guarda folio SAP, referencia y observaciones.</p>
+                        </div>
+                        <div class="p-3">
+                            <div class="mb-3">
+                                <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">MOVIMIENTO</label>
+                                <select class="form-select fw-bold text-center" id="panelTipoOp" onchange="togglePanelOperacion()" style="border-color: var(--brand-main);">
+                                    <option value="ENTRADA">ENTRADA A SISTEMA (+)</option>
+                                    <option value="SALIDA">SALIDA DE STOCK (-)</option>
+                                </select>
+                            </div>
+
+                            <div id="panelSalida" style="display: none;">
+                                <div class="mb-3">
+                                    <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">ARTÍCULO EXISTENTE</label>
+                                    <select class="form-select" id="salArticulo"></select>
+
+                                    <div id="stockInfoSalida" class="mt-2 p-2 rounded shadow-sm" style="display:none; background-color: #fff; border-left: 4px solid var(--brand-main); font-size: 0.8rem; border: 1px solid var(--border-color);">
+                                        Stock actual disponible: <strong id="lblStockSalida" class="fs-6 ms-1" style="color: var(--brand-main);">0</strong>
+                                    </div>
+                                </div>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-12">
+                                        <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">CANTIDAD A RETIRAR (-)</label>
+                                        <input type="number" class="form-control" id="salCantidad" min="1">
+                                    </div>
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">COMENTARIO / OBSERVACIONES *</label>
+                                    <input type="text" class="form-control" id="salReferencia" placeholder="Motivo o comentario de la salida">
+                                </div>
+                                <button class="btn btn-brand w-100" onclick="ejecutarSalida(this)">Guardar movimiento</button>
+                            </div>
+
+                            <div id="panelEntrada">
+                                <div class="btn-group w-100 mb-3 d-flex" role="group">
+                                    <input type="radio" class="btn-check" name="tipoEntrada" id="optRestock" onchange="toggleTipoEntrada()" checked>
+                                    <label class="btn btn-outline-danger flex-fill" for="optRestock">Reabastecer Existente</label>
+
+                                    <input type="radio" class="btn-check" name="tipoEntrada" id="optNuevo" onchange="toggleTipoEntrada()">
+                                    <label class="btn btn-outline-danger flex-fill" for="optNuevo">Alta de Artículo</label>
+                                </div>
+
+                                <div id="formRestock">
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-12 col-md-4">
+                                            <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">FILTRAR TIPO</label>
+                                            <select class="form-select" id="resFiltroTipo" onchange="llenarSelects()">
+                                                <option value="todos">Todos</option>
+                                                <option value="Activo Fijo">Activo Fijo</option>
+                                                <option value="Consumible">Consumible</option>
+                                                <option value="Herramienta">Herramienta</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-12 col-md-8">
+                                            <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">ARTÍCULO A REABASTECER</label>
+                                            <select class="form-select" id="resArticulo"></select>
+                                        </div>
+                                        <div class="col-12 mt-0">
+                                            <div id="stockInfoRestock" class="mt-2 p-2 rounded shadow-sm" style="display:none; background-color: #fff; border-left: 4px solid #198754; font-size: 0.8rem; border: 1px solid var(--border-color);">
+                                                Stock actual en sistema: <strong id="lblStockRestock" class="fs-6 ms-1 text-success">0</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">CANTIDAD QUE ENTRA (+)</label>
+                                            <input type="number" class="form-control" id="resCantidad" min="1">
+                                        </div>
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">NUEVO COSTO ($)</label>
+                                            <input type="number" class="form-control" id="resCosto" placeholder="Opcional">
+                                        </div>
+                                    </div>
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">FECHA DE COMPRA LOTE</label>
+                                            <input type="date" class="form-control" id="resFechaCompra">
+                                        </div>
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">NUEVO PROVEEDOR</label>
+                                            <input type="text" class="form-control" id="resProveedor" placeholder="Opcional">
+                                        </div>
+                                    </div>
+                                    <div class="mb-4">
+                                        <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">COMENTARIO  *</label>
+                                        <input type="text" class="form-control" id="resReferencia" placeholder="Obligatorio">
+                                    </div>
+                                    <button class="btn btn-brand w-100" onclick="ejecutarRestock(this)">Guardar movimiento</button>
+                                </div>
+
+                                <div id="formNuevo" class="scroll-panel" style="display: none; max-height: 380px; overflow-y: auto; overflow-x: hidden; padding-right: 5px;">
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-12 mb-2 pb-2 border-bottom">
+                                            <label class="form-label text-muted mb-0 fw-bold" style="font-size:0.65rem;">TIPO DE ARTÍCULO *</label>
+                                            <select id="entTipoArticulo" class="form-select form-select-sm" style="border-color: var(--brand-main);" onchange="toggleCamposPorTipo()">
+                                                <option value="">Seleccione...</option>
+                                                <option value="Activo Fijo">Activo Fijo</option>
+                                                <option value="Consumible">Consumible</option>
+                                                <option value="Herramienta">Herramienta</option>
+                                                <option value="Chatarra/Piezas">Chatarra / Piezas</option>
+                                            </select>
+                                        </div>
+
+                                        <!-- Nuevo bloque para destino de chatarra (Oculto por defecto) -->
+                                        <div class="col-12 border-bottom pb-2 mb-2" id="divChatarraDestino" style="display:none;">
+                                            <label class="form-label text-danger mb-1 fw-bold" style="font-size:0.65rem;">DESTINO DE LA CHATARRA *</label>
+                                            <div class="d-flex flex-wrap gap-3">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="optChatarraDestino" id="chatPiezas" value="PARA PIEZAS" checked>
+                                                    <label class="form-check-label text-dark fw-bold" style="font-size:0.8rem;" for="chatPiezas"><i class="bi bi-puzzle me-1 text-primary"></i> Banco de Piezas</label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="optChatarraDestino" id="chatBasura" value="BAJA DEFINITIVA">
+                                                    <label class="form-check-label text-danger fw-bold" style="font-size:0.8rem;" for="chatBasura"><i class="bi bi-trash-fill me-1"></i> Basura / Merma</label>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-12 col-md-5"><input type="text" id="entSap" class="form-control form-control-sm border-danger" placeholder="ID SAP *"></div>
+                                        <div class="col-12 col-md-7"><input type="text" id="entNombre" class="form-control form-control-sm border-danger" placeholder="Nombre Equipo *"></div>
+
+                                        <div class="col-12 col-md-6"><input type="text" id="entMarca" class="form-control form-control-sm border-danger" placeholder="Marca *"></div>
+                                        <div class="col-12 col-md-6"><input type="text" id="entModelo" class="form-control form-control-sm border-danger" placeholder="Modelo *"></div>
+                                        <div class="col-12 col-md-6 mt-1 campo-avanzado"><input type="text" id="entSerie" class="form-control form-control-sm border-danger" placeholder="# Serie *"></div>
+
+                                        <!-- Campos Avanzados (Se ocultan si es chatarra) -->
+                                        <div class="col-12 col-md-6 mt-1 campo-avanzado"><input type="text" id="entProveedor" class="form-control form-control-sm border-danger" placeholder="Proveedor *"></div>
+                                        <div class="col-12 col-md-6 mt-1 campo-avanzado"><div class="input-group input-group-sm"><span class="input-group-text">$</span><input type="number" id="entCosto" class="form-control border-danger" placeholder="Costo *"></div></div>
+
+                                        <div class="col-12 col-md-6 mt-1" id="divIP" style="display:none;">
+                                            <label class="form-label text-muted mb-0 fw-bold" style="font-size:0.65rem;">DIRECCIÓN IP (Opcional)</label>
+                                            <input type="text" id="entIP" class="form-control form-control-sm" placeholder="Ej. 192.168.1.50">
+                                        </div>
+
+                                        <div class="col-12 col-md-5 mt-1">
+                                            <select id="entPlanta" class="form-select form-select-sm border-danger">
+                                                <option value="">Planta *</option>
+                                                <option value="TIF">TIF</option>
+                                                <option value="P1">P1</option>
+                                                <option value="ALMACEN">ALMACÉN</option>
+                                                <option value="BANCO DE PIEZAS">BANCO DE PIEZAS</option>
+                                                <option value="BAJA TOTAL">BAJA TOTAL</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-12 col-md-7 mt-1"><input type="text" id="entUbicacion" class="form-control form-control-sm border-danger" placeholder="Ubicación *"></div>
+
+                                        <div class="col-12 mt-2 pt-2 border-top campo-avanzado">
+                                            <label class="form-label text-muted mb-0 fw-bold" style="font-size:0.65rem;">FECHA DE ENTRADA AL SISTEMA *</label>
+                                            <input type="date" id="entFechaEntrada" class="form-control form-control-sm border-danger">
+                                        </div>
+                                        <div class="col-12 col-md-6 mt-1 campo-avanzado">
+                                            <label class="form-label text-muted mb-0 fw-bold" style="font-size:0.65rem;">FECHA COMPRA *</label>
+                                            <input type="date" id="entFechaCompra" class="form-control form-control-sm border-danger" onchange="calcularGarantiaPanel()">
+                                        </div>
+                                        <div class="col-12 col-md-6 mt-1 campo-avanzado">
+                                            <label class="form-label text-muted mb-0 fw-bold" style="font-size:0.65rem;">DÍAS GARANTÍA *</label>
+                                            <input type="number" id="entDiasGarantia" class="form-control form-control-sm border-danger" placeholder="Ej. 365" onkeyup="calcularGarantiaPanel()" onchange="calcularGarantiaPanel()">
+                                        </div>
+                                        <div class="col-12 mt-1 campo-avanzado">
+                                            <label class="form-label text-muted mb-0 fw-bold" style="font-size:0.65rem;">VIDA ÚTIL ESTIMADA (Años) *</label>
+                                            <input type="number" id="entTiempoVida" class="form-control form-control-sm border-danger" placeholder="Ej. 3" min="1">
+                                        </div>
+
+                                        <div class="col-12 text-center mb-1 campo-avanzado"><small id="panelGarantiaTxt" class="text-success fw-bold"></small></div>
+
+                                        <div class="col-12 col-md-6 border-top pt-2">
+                                            <label class="form-label text-muted mb-0 fw-bold" style="font-size:0.65rem;">CANTIDAD INICIAL *</label>
+                                            <input type="number" id="entStock" class="form-control form-control-sm border-danger" placeholder="Ej. 1" min="1">
+                                        </div>
+                                        <div class="col-12 col-md-6 border-top pt-2" id="divStockMinimo" style="display:none;">
+                                            <label class="form-label text-muted mb-0 fw-bold" style="font-size:0.65rem;">STOCK MÍNIMO *</label>
+                                            <input type="number" id="entStockMinimo" class="form-control form-control-sm border-danger" placeholder="Ej. 5" min="1">
+                                        </div>
+
+                                        <div class="col-12 border-top mt-2 pt-2" id="divEditAsignacion" style="display:none;">
+                                            <label class="form-label text-warning mb-0 fw-bold" style="font-size:0.65rem;">CORREGIR USUARIO ASIGNADO</label>
+                                            <input type="text" id="entAsignacion" class="form-control form-control-sm border-warning" placeholder="Nombre correcto">
+                                        </div>
+
+                                        <div class="col-12 border-top mt-2 pt-2">
+                                            <label class="form-label text-muted mb-0 fw-bold" style="font-size:0.65rem;">REFERENCIA (Fac/OC) *</label>
+                                            <input type="text" id="entReferencia" class="form-control form-control-sm border-danger" placeholder="Obligatorio">
+                                        </div>
+                                    </div>
+                                    <button id="btnGuardarAlta" class="btn btn-brand w-100 mt-3" onclick="ejecutarAlta(this)">Registrar artículo</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-lg-7">
+                    <div class="dashboard-panel mb-3 pb-2">
+                        <div class="panel-header bg-transparent border-0 pb-1 d-flex justify-content-between align-items-center">
+                            <h3 class="panel-title" style="color: var(--brand-main);">Alertas de reabastecimiento</h3>
+                        </div>
+                        <div id="contenedorAlertasGlobales" class="p-3 pt-0 scroll-panel" style="max-height: 250px; overflow-y:auto;"></div>
+                    </div>
+
+                    <div class="dashboard-panel">
+                        <div class="panel-header">
+                            <h3 class="panel-title">Movimientos recientes</h3>
+                            <p class="panel-subtitle">Entradas, salidas y cruce con folio SAP.</p>
+                        </div>
+                        <div class="table-responsive scroll-panel" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-custom align-middle mb-0">
+                                <thead style="position: sticky; top: 0; z-index: 10;">
+                                    <tr><th>Fecha</th><th>Artículo</th><th>Movimiento</th><th>Referencia</th></tr>
+                                </thead>
+                                <tbody id="tbodyMovimientos"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="asignaciones" role="tabpanel">
+            <div class="row">
+
+                <div class="col-12 col-lg-4 mb-3">
+                    <div class="dashboard-panel" style="background-color: var(--panel-bg);">
+                        <div class="panel-header bg-transparent border-0 pb-0">
+                            <h3 class="panel-title">Asignar o Mover Equipo</h3>
+                            <p class="panel-subtitle">Actualiza usuario, ubicación, fotos y firma.</p>
+                        </div>
+                        <div class="p-3">
+
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <label class="form-label text-muted fw-bold mb-0" style="font-size: 0.7rem;">SELECCIONA EQUIPO</label>
+                                    <select id="filtroSelectAsignar" class="form-select form-select-sm border-0 p-0 text-end fw-bold" style="width: auto; font-size: 0.7rem; color: var(--brand-main); background-color: transparent; box-shadow: none; cursor: pointer;" onchange="llenarSelects()">
+                                        <option value="todos">Mostrar Todos</option>
+                                        <option value="disponibles">Solo Disponibles</option>
+                                        <option value="asignados">Solo Asignados</option>
+                                    </select>
+                                </div>
+                                <select class="form-select" id="asigArticulo"></select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">USUARIO RESPONSABLE</label>
+                                <input type="text" class="form-control" id="asigUsuario" placeholder="(Vacío = Regresar a Disponible)">
+                            </div>
+
+                            <div class="row g-2 mb-3">
+                                <div class="col-12 col-md-5">
+                                    <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">NUEVA PLANTA *</label>
+                                    <select class="form-select" id="asigPlanta">
+                                        <option value="">Seleccione...</option>
+                                        <option value="TIF">TIF</option>
+                                        <option value="P1">P1</option>
+                                        <option value="ALMACEN">ALMACÉN</option>
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-7">
+                                    <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">NUEVA UBICACIÓN *</label>
+                                    <input type="text" class="form-control" id="asigUbicacion" placeholder="Ej. Oficina Desarrollo">
+                                </div>
+                            </div>
+
+                            <div class="row g-2 mb-3">
+                                <div class="col-12">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <label class="form-label text-muted fw-bold mb-0" style="font-size: 0.7rem;"><i class=" me-1"></i> FOTO DE EVIDENCIA</label>
+                                        <button type="button" class="btn btn-outline-danger px-3 py-1 shadow-sm" style="font-size:0.85rem; border-radius: 8px;" onclick="abrirCamara()" title="Usar Cámara">
+                                            <i class="fas fa-camera me-1"></i> Tomar Foto
+                                        </button>
+                                    </div>
+                                    <input type="file" class="form-control form-control-sm" id="asigFotoFile" accept="image/*">
+                                    <img id="previewFoto" src="" style="display:none; max-width:100%; max-height:120px; margin-top:5px; border-radius:5px; border:1px solid var(--border-color); object-fit:contain;" />
+                                </div>
+                                <div class="col-12 mt-2">
+                                    <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;"><i class=" me-1"></i> PDF COMODATO</label>
+                                    <input type="file" class="form-control form-control-sm" id="asigDocFile" accept=".pdf, image/*">
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;"><i class=" me-1"></i> FIRMA DE CONFORMIDAD</label>
+                                <div class="firma-container">
+                                    <canvas id="firmaCanvas"></canvas>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline w-100 mt-1" onclick="limpiarFirma()" style="font-size: 0.75rem;">Borrar firma y volver a intentar</button>
+                            </div>
+                            <button class="btn btn-brand w-100" onclick="guardarAsignacionTab(this)">Guardar Cambio</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-lg-8">
+                    <div class="dashboard-panel">
+                        <div class="panel-header d-flex justify-content-between align-items-center flex-wrap">
+                            <div>
+                                <h3 class="panel-title">Estado de Asignaciones</h3>
+                                <p class="panel-subtitle">Consulta a quién pertenece cada equipo.</p>
+                                <div class="mt-2 text-muted" style="font-size: 0.70rem; font-weight: 600;">
+                                    <span class="me-2"><span class="badge bg-secondary px-1">AC</span> ARTICULO DE COMPUTO</span>
+                                    <span class="me-2"><span class="badge bg-secondary px-1">EC</span> EQUIPOS DE COMPUTO</span>
+                                    <span><span class="badge bg-secondary px-1">AR</span> ARTICULO REACONDICIONADO</span>
+                                    <span><span class="badge bg-secondary px-1">PZ</span>PIEZAS</span>
+                                    <span><span class="badge bg-secondary px-1">CH</span> CHATARRA/BASURA</span>
+
+                                </div>
+                            </div>
+                            <div class="mt-2 mt-md-0 d-flex gap-2">
+                                <select class="form-select form-select-sm w-auto" id="filtroEstadoAsignaciones" onchange="renderTablaAsignaciones()">
+                                    <option value="">Todos</option>
+                                    <option value="asignado">Asignados</option>
+                                    <option value="disponible">Disponibles</option>
+                                </select>
+                                <div class="input-group input-group-sm" style="width: 250px;">
+                                    <span class="input-group-text bg-white border-end-0"><i class="text-muted" style="font-style: normal;">🔍</i></span>
+                                    <input type="text" class="form-control border-start-0 ps-0" id="filtroAsignaciones" placeholder="Buscar empleado, SAP o serie..." onkeyup="renderTablaAsignaciones()">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-custom align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>SAP / Equipo</th>
+                                        <th>Serie</th>
+                                        <th>Responsable / Lugar</th>
+                                        <th class="text-center">Información</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbodyAsignaciones">
+                                    <tr><td colspan="4" class="text-center py-4">Cargando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="recuperaciones" role="tabpanel">
+            <div class="row">
+                <div class="col-12 col-lg-4 mb-3">
+                    <div class="dashboard-panel" style="background-color: var(--panel-bg);">
+                        <div class="panel-header bg-transparent border-0 pb-0">
+                            <h3 class="panel-title text-danger">Registrar Baja de Usuario</h3>
+                            <p class="panel-subtitle">Marca todos los equipos de un usuario para recuperación.</p>
+                        </div>
+                        <div class="p-3">
+                            <div class="mb-3">
+                                <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">BUSCAR USUARIO ACTIVO</label>
+                                <select class="form-select" id="selectUsuarioBaja"></select>
+                            </div>
+                            <div id="listaEquiposBaja" class="mb-3" style="display:none;">
+                                <small class="text-muted fw-bold d-block mb-2">EQUIPOS QUE TIENE ASIGNADOS:</small>
+                                <ul class="list-group list-group-flush border rounded bg-white" id="ulEquiposBaja" style="max-height:200px; overflow-y:auto; font-size:0.8rem;"></ul>
+                            </div>
+                            <button class="btn btn-danger w-100 fw-bold" id="btnMarcarBaja" onclick="confirmarBajaUsuario()" disabled>
+                                <i class="bi bi-person-x me-1"></i> Poner en Recuperación
+                            </button>
+
+                            <hr class="my-4" style="border-color: var(--border-color);">
+
+                            <h6 class="text-danger fw-bold mb-2"><i class="bi bi-file-earmark-excel"></i> Carga Masiva desde RRHH</h6>
+                            <p class="text-muted" style="font-size: 0.7rem;">Sube el reporte de bajas. El sistema buscará si tienen equipos asignados.</p>
+
+                            <input type="file" class="form-control form-control-sm border-danger mb-3" id="excelBajas" accept=".xlsx, .xls, .csv" onchange="procesarExcelBajas(event)">
+
+                            <div id="resultadoExcelBajas" class="p-2 rounded bg-light mb-3" style="display:none; font-size:0.75rem; border: 1px solid var(--border-color);">
+                            </div>
+
+                            <button class="btn btn-outline-danger w-100 fw-bold btn-sm" id="btnProcesarMasivo" style="display:none;" onclick="ejecutarBajaMasiva()">
+                                <i class="bi bi-check2-all"></i> Procesar Coincidencias
+                            </button>
+
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-lg-8">
+                    <div class="dashboard-panel">
+                        <div class="panel-header">
+                            <h3 class="panel-title">Equipos Pendientes de Devolución</h3>
+                            <p class="panel-subtitle">Monitoreo de hardware en proceso de recuperación.</p>
+                        </div>
+                        <div class="table-responsive scroll-panel" style="max-height: 500px;">
+                            <table class="table table-custom align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Artículo / SAP</th>
+                                        <th>Ex-Responsable</th>
+                                        <th>Estado</th>
+                                        <th class="text-center">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbodyRecuperaciones">
+                                    <tr><td colspan="4" class="text-center py-4 text-muted">No hay equipos pendientes de recuperar</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="tab-pane fade" id="taller" role="tabpanel">
+            <div class="row">
+                <div class="col-12 col-lg-4 mb-3">
+                    <div class="dashboard-panel" style="background-color: var(--panel-bg);">
+                        <div class="panel-header bg-transparent border-0 pb-0">
+                            <h3 class="panel-title" style="color: var(--brand-main);"><i class=""></i>Mandar a Taller</h3>                            <p class="panel-subtitle">Registra hardware dañado para su reparación.</p>
+                        </div>
+                        <div class="p-3">
+                            <div class="mb-3">
+                                <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">SELECCIONA EQUIPO CON FALLA *</label>
+                                <select class="form-select" id="tallerArticulo"></select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">MOTIVO DE LA FALLA  *</label>
+                                <textarea id="tallerMotivo" class="form-control" style="border-color: var(--brand-main);" rows="3" placeholder="Ej. El equipo no enciende, hace ruido en el ventilador..."></textarea>
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">FOTO DE EVIDENCIA </label>
+                                <input type="file" class="form-control form-control-sm" id="tallerFotoFile" accept="image/*">
+                            </div>
+                            <button class="btn btn-brand w-100 fw-bold" onclick="ejecutarMandarTaller(this)">
+                                <i class=""></i> Ingresar a Taller
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-lg-8">
+                    <div class="dashboard-panel">
+                        <div class="panel-header d-flex justify-content-between align-items-center">
+                            <div>
+                                <h3 class="panel-title">Equipos en Reparación</h3>
+                                <p class="panel-subtitle mb-0">Da seguimiento y bitácora a equipos descompuestos.</p>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-outline-danger fw-bold me-2" onclick="abrirModalHistorialBajas()">
+                                    <i class="bi bi-clock-history me-1"></i> Historial Bajas
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary fw-bold" onclick="abrirModalInventarioChatarra()">
+                                    <i class="bi bi-archive me-1"></i> Chatarra / Piezas
+                                </button>
+                            </div>
+                        </div>
+                        <div class="table-responsive scroll-panel" style="max-height: 550px;">
+                            <table class="table table-custom align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 25%;">Equipo / Falla Inicial</th>
+                                        <th style="width: 45%;">Bitácora de Reparación</th>
+                                        <th class="text-center" style="width: 30%;">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbodyTaller">
+                                    <tr><td colspan="3" class="text-center py-4 text-muted">El taller está vacío.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ============================================== -->
+<!-- ZONA DE MODALES (SOLO UNA VEZ) -->
+<!-- ============================================== -->
+
+<div class="modal fade" id="modalConsultar" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color: var(--brand-main); color: white;">
+                <h5 class="modal-title">Información Completa del Artículo</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="row g-4" id="detalleArticulo"></div>
+            </div>
+            <div class="modal-footer" id="footerModalConsultar">
+                <button type="button" class="btn btn-outline" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalHistorial" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color: var(--brand-main); color: white;">
+                <h5 class="modal-title">Historial de Asignaciones</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <h6 id="historialNombreEquipo" class="fw-bold mb-3" style="color: var(--brand-main);"></h6>
+                <div id="historialAsignacionesDiv" class="p-3 rounded" style="background-color: var(--panel-bg); max-height: 350px; overflow-y: auto;"></div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-outline" data-bs-dismiss="modal">Cerrar</button></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalReportesQR" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color: var(--brand-main); color: white;">
+                <h5 class="modal-title">Reportes Técnicos / Inspecciones</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <h6 id="reportesNombreEquipo" class="fw-bold mb-3 text-danger"></h6>
+                <div id="listaReportesDiv" class="p-3 rounded" style="background-color: var(--panel-bg); max-height: 350px; overflow-y: auto;"></div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-outline" data-bs-dismiss="modal">Cerrar</button></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalVisorHistorial" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color: #333; color: white;">
+                <h5 class="modal-title" id="visorTitulo">Archivo Histórico</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center p-3" id="visorCuerpo"></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalInfoResponsable" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color: var(--brand-main); color: white;">
+                <h5 class="modal-title">Expediente Actual</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center p-4">
+                <img id="infoFoto" src="" alt="Foto" class="mb-3" style="width: 120px; height: 120px; object-fit: cover; border-radius: 50%; border: 3px solid var(--border-color); box-shadow: 0 4px 8px rgba(0,0,0,0.1);" onerror="this.src='https://cdn-icons-png.flaticon.com/512/149/149071.png'" />
+                <h5 id="infoNombre" class="fw-bold" style="color: var(--brand-main);"></h5>
+                <p class="text-muted small mb-4" id="infoLugar"></p>
+
+                <div id="infoFirmaContainer" style="display:none;" class="mb-3 mt-3">
+                    <small class="text-muted fw-bold d-block mb-1" style="font-size: 0.65rem;">FIRMA DE CONFORMIDAD</small>
+                    <img id="infoFirma" src="" style="max-height: 80px; width: auto; margin-top: 10px; border-bottom: 1px solid var(--border-color);" alt="Firma del usuario" />
+                </div>
+
+                <a id="infoDocumento" href="#" target="_blank" class="btn btn-outline w-100" style="display:none;" download="Comodato">Descargar Comodato</a>
+                <p id="infoSinDocumento" class="text-danger small fw-bold" style="display:none;">Sin documento cargado.</p>
+            </div>
+            <div class="modal-footer justify-content-center"><button type="button" class="btn btn-outline" data-bs-dismiss="modal">Cerrar</button></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalCamara" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color: var(--brand-main); color: white;">
+                <h5 class="modal-title">Tomar Foto</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center p-3">
+                <video id="videoCamara" width="100%" autoplay playsinline style="background:#000; border-radius:8px; max-height:300px;"></video>
+                <canvas id="canvasCamara" style="display:none;"></canvas>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-brand" onclick="capturarFoto()">Capturar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalBaja" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-trash3 me-2"></i>Dar de Baja</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3">
+                <input type="hidden" id="bajaId">
+
+                <div class="mb-3 bg-light p-2 rounded border">
+                    <label class="form-label text-muted fw-bold mb-2" style="font-size: 0.7rem;">TIPO DE BAJA *</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="tipoBajaStatus" id="bajaPiezas" value="PIEZAS" checked>
+                        <label class="form-check-label fw-bold text-dark" style="font-size: 0.8rem;" for="bajaPiezas">
+                            <i class="bi bi-puzzle me-1 text-primary"></i> Conservar para Piezas
+                        </label>
+                    </div>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="radio" name="tipoBajaStatus" id="bajaDefinitiva" value="DEFINITIVA">
+                        <label class="form-check-label fw-bold text-danger" style="font-size: 0.8rem;" for="bajaDefinitiva">
+                            <i class="bi bi-trash-fill me-1"></i> Desecho Definitivo
+                        </label>
+                    </div>
+                </div>
+
+                <div class="text-start">
+                    <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">MOTIVO DE LA BAJA *</label>
+                    <textarea id="bajaMotivo" class="form-control border-danger" rows="3" placeholder="Ej. Tarjeta madre quemada, display roto..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer pt-0 border-0 justify-content-between">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger btn-sm px-3 fw-bold" onclick="ejecutarBaja(this)">Confirmar Baja</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalHistorialBajas" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content shadow-lg border-0">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-clock-history me-2"></i>Historial de Bajas</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Fecha</th>
+                                <th>SAP / Equipo</th>
+                                <th>Destino / Motivo</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyHistorialBajas"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalActualizarTaller" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Agregar Nota</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3">
+                <input type="hidden" id="tallerEditId">
+                <label class="form-label text-muted fw-bold" style="font-size: 0.75rem;">NUEVA ACTUALIZACIÓN *</label>
+                <textarea id="tallerNuevaNota" class="form-control" rows="3" placeholder="Ej. Se pidió la pieza, esperando entrega..."></textarea>
+            </div>
+            <div class="modal-footer pt-0 border-0 justify-content-between">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-brand btn-sm px-3 fw-bold" onclick="guardarNotaTaller(this)">Guardar Nota</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalFinReparacion" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header text-white" style="background-color: var(--brand-main);">
+                <h5 class="modal-title"><i class="bi bi-check-circle me-2"></i>Alta Reparacion</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3">
+                <input type="hidden" id="finReparacionId">
+
+                <div class="mb-3 bg-light p-2 rounded border" id="opcionesDevolucion" style="display:none;">
+                    <label class="form-label text-muted fw-bold mb-2" style="font-size: 0.7rem;">DESTINO DEL EQUIPO *</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="destinoRep" id="destDisponible" value="disponible">
+                        <label class="form-check-label text-dark" style="font-size: 0.8rem;" for="destDisponible">
+                            Mandar a Stock (Disponible)
+                        </label>
+                    </div>
+                    <div class="form-check mt-1">
+                        <input class="form-check-input" type="radio" name="destinoRep" id="destUsuario" value="usuario" checked>
+                        <label class="form-check-label text-primary fw-bold" style="font-size: 0.8rem;" id="lblDestUsuario" for="destUsuario">
+                            Regresar a usuario
+                        </label>
+                    </div>
+                </div>
+
+                <div class="text-start">
+                    <label class="form-label text-muted fw-bold" style="font-size: 0.75rem;">REPORTE FINAL *</label>
+                    <textarea id="finReparacionNota" class="form-control border-success" rows="3" placeholder="Ej. Se instaló disco sólido y Windows 11."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer pt-0 border-0 justify-content-between">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success btn-sm px-3 fw-bold" onclick="ejecutarAltaReparacion(this)">Concluir Reparación</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalVerFotoTaller" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title"><i class="bi bi-camera me-2"></i>Evidencia de Falla</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0 text-center bg-light">
+                <img id="imgVerFotoTaller" src="" class="img-fluid" alt="Cargando imagen..." style="max-height: 80vh;">
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalCanibalizar" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header text-white" style="background-color: var(--brand-main);">
+                <h5 class="modal-title"><i class="bi bi-puzzle me-2"></i>Importar Piezas</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3">
+                <input type="hidden" id="canibalTargetId">
+                <p class="small text-muted mb-3">Extrae componentes de un equipo en <b>Chatarra / Baja</b> para instalarlo en este.</p>
+
+                <div class="mb-3">
+                    <label class="form-label text-muted fw-bold" style="font-size: 0.75rem;">EQUIPO DONADOR (CHATARRA) *</label>
+                    <select class="form-select" id="canibalDonador"></select>
+                </div>
+
+                <div class="text-start">
+                    <label class="form-label text-muted fw-bold" style="font-size: 0.75rem;">PIEZA(S) EXTRAÍDA(S) *</label>
+                    <textarea id="canibalPiezas" class="form-control" style="border-color: var(--brand-main);" rows="2" placeholder="Ej. Memoria RAM 8GB y Display..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer pt-0 border-0 justify-content-between">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-brand btn-sm px-3 fw-bold" onclick="ejecutarCanibalizacion(this)">Registrar Transplante</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalInventarioChatarra" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header text-white" style="background-color: var(--brand-main);">
+                <h5 class="modal-title"><i class="bi bi-box-seam me-2"></i>Banco de Órganos (Chatarra)</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0" style="font-size: 0.8rem;">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Equipo (Baja)</th>
+                                <th>Componentes Extraídos / Estatus</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyInventarioChatarra"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalNivelesEquipo" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0">
+            <div class="modal-header text-white" style="background-color: var(--brand-main);">
+                <h5 class="modal-title"><i class="bi bi-list-columns me-2"></i>Guía de Asignación de Equipos</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4 py-3" style="width: 25%;">Nivel</th>
+                                <th class="py-3" style="width: 35%;">Áreas que lo usan</th>
+                                <th class="py-3" style="width: 40%;">Especificaciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="ps-4 fw-bold">
+                                    <span style="color: #20c997; font-size: 1.2rem; vertical-align: middle;" class="me-2">●</span>D (Básico)
+                                </td>
+                                <td>Administrativa, Operaciones</td>
+                                <td class="py-3 text-muted">
+                                    <div class="mb-1">i3 / Ryzen 3-5</div><div class="mb-1">8 GB RAM</div><div class="mb-1">256-512 GB SSD</div><div>Gráficos integrados</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="ps-4 fw-bold">
+                                    <span style="color: #0d6efd; font-size: 1.2rem; vertical-align: middle;" class="me-2">●</span>C (Medio)
+                                </td>
+                                <td>Ventas, Contabilidad</td>
+                                <td class="py-3 text-muted">
+                                    <div class="mb-1">i5 / Ryzen 5</div><div class="mb-1">8-16 GB RAM</div><div class="mb-1">512 GB SSD</div><div>Gráficos integrados</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="ps-4 fw-bold">
+                                    <span style="color: #fd7e14; font-size: 1.2rem; vertical-align: middle;" class="me-2">●</span>B (Alto)
+                                </td>
+                                <td>TI, Programadores</td>
+                                <td class="py-3 text-muted">
+                                    <div class="mb-1">i7 / Ryzen 7</div><div class="mb-1">16-32 GB RAM</div><div class="mb-1">512 GB-1TB SSD</div><div>Gráficos integrados o ligeros</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="ps-4 fw-bold">
+                                    <span style="color: #e83e8c; font-size: 1.2rem; vertical-align: middle;" class="me-2">●</span>A (Premium)
+                                </td>
+                                <td>Diseño, Gerencia, Directivos</td>
+                                <td class="py-3 text-muted">
+                                    <div class="mb-1">i7 / Ryzen 7-9</div><div class="mb-1">16-32 GB RAM</div><div class="mb-1">1 TB SSD</div><div>GPU dedicada (en diseño)</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer border-0 bg-light">
+                <button type="button" class="btn btn-sm btn-secondary fw-bold px-4" data-bs-dismiss="modal">Entendido</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <script>
+        let datosInventario = [];
+        let movimientosInventario = [];
+        let consultarModal, historialModal, infoResponsableModal, camaraModal, visorHistorialModal, reportesModal, bajaModal;
+        let signaturePad;
+        let streamActual = null;
+        let fotoCapturadaBase64 = null;
+        let idArticuloEditando = 0;
+        let usuariosCoincidentesBaja = [];
+                let permisosInventario = { puedeLeer: false, puedeEscribir: false, puedeEliminar: false };
+
+        $(document).ready(async function () {
+            await cargarPermisosInventario();
+            // ... el resto del código existente ...
+        });
+
+        async function cargarPermisosInventario() {
+            try {
+                const res = await fetch('@Url.Action("ObtenerPermisosVistaInventarioSistemas", "InventariosSistemas")');
+                if (res.ok) {
+                    permisosInventario = await res.json();
+                    aplicarPermisosInventario();
+                }
+            } catch (e) {
+                console.error("Error permisos:", e);
+            }
+        }
+
+                function aplicarPermisosInventario() {
+            if (!permisosInventario.puedeEscribir) {
+                document.querySelectorAll(
+                    '#movimientos > .row > .col-lg-5:first-child, ' +
+                    '#asignaciones > .row > .col-lg-4:first-child, ' +
+                    '#recuperaciones > .row > .col-lg-4:first-child, ' +
+                    '#taller > .row > .col-lg-4:first-child'
+                ).forEach(el => el.style.display = 'none');
+            }
+        }
+
+
+
+        $(document).ready(function () {
+            consultarModal = new bootstrap.Modal(document.getElementById('modalConsultar'));
+            historialModal = new bootstrap.Modal(document.getElementById('modalHistorial'));
+            infoResponsableModal = new bootstrap.Modal(document.getElementById('modalInfoResponsable'));
+            camaraModal = new bootstrap.Modal(document.getElementById('modalCamara'));
+            visorHistorialModal = new bootstrap.Modal(document.getElementById('modalVisorHistorial'));
+            reportesModal = new bootstrap.Modal(document.getElementById('modalReportesQR'));
+            bajaModal = new bootstrap.Modal(document.getElementById('modalBaja'));
+            // Evento para autocompletar destino de chatarra
+        $('input[name="optChatarraDestino"]').on('change', actualizarDestinoChatarra);
+
+            // Buscadores normales
+            $('#salArticulo, #resArticulo, #asigArticulo, #selectUsuarioBaja, #tallerArticulo').select2({
+                theme: 'bootstrap-5',
+                width: '100%',
+                language: { noResults: function() { return "No se encontró coincidencia"; } }
+            });
+
+            // Buscador que vive ADENTRO del modal de canibalizar
+            $('#canibalDonador').select2({
+                theme: 'bootstrap-5',
+                width: '100%',
+                dropdownParent: $('#modalCanibalizar'),
+                language: { noResults: function() { return "No se encontró coincidencia"; } }
+            });
+
+            cargarInventario();
+
+            $('#salArticulo').on('change', function() {
+                const id = parseInt($(this).val());
+                if(id) {
+                    const item = datosInventario.find(i => i.id === id);
+                    $('#lblStockSalida').text(item.stock);
+                    $('#stockInfoSalida').slideDown(200);
+                } else { $('#stockInfoSalida').slideUp(200); }
+            });
+
+            $('#resArticulo').on('change', function() {
+                const id = parseInt($(this).val());
+                if(id) {
+                    const item = datosInventario.find(i => i.id === id);
+                    $('#lblStockRestock').text(item.stock);
+                    $('#stockInfoRestock').slideDown(200);
+                } else { $('#stockInfoRestock').slideUp(200); }
+            });
+
+            $('#asigArticulo').on('change', function() {
+                const id = parseInt($(this).val());
+                limpiarFirma();
+                fotoCapturadaBase64 = null;
+                $('#previewFoto').hide().attr('src', '');
+
+                if(!id) {
+                    $('#asigUsuario, #asigPlanta, #asigUbicacion, #asigFotoFile, #asigDocFile').val('');
+                    return;
+                }
+                const item = datosInventario.find(i => i.id === id);
+                $('#asigUsuario').val(item.asignacion || '');
+                $('#asigPlanta').val(item.planta || '');
+                $('#asigUbicacion').val(item.ubicacion || '');
+                $('#asigFotoFile, #asigDocFile').val('');
+            });
+
+            $('#asigFotoFile').on('change', function() {
+                fotoCapturadaBase64 = null;
+                $('#previewFoto').hide().attr('src', '');
+            });
+
+            $('#selectUsuarioBaja').on('change', function() {
+                const usuario = $(this).val();
+                if(!usuario) {
+                    $('#listaEquiposBaja').hide();
+                    $('#btnMarcarBaja').prop('disabled', true);
+                    return;
+                }
+
+                let equipos = datosInventario.filter(i => i.asignacion === usuario && !i.enRecuperacion);
+                let html = '';
+                equipos.forEach(e => {
+                    html += `<li class="list-group-item py-1"><i class="bi bi-pc-display me-2"></i>${e.idArticuloSap} - ${e.nombre}</li>`;
+                });
+
+                $('#ulEquiposBaja').html(html);
+                $('#listaEquiposBaja').show();
+                $('#btnMarcarBaja').prop('disabled', false);
+            });
+
+            $('#modalCamara').on('hidden.bs.modal', function () {
+                cerrarCamaraTracks();
+            });
+
+            const canvas = document.getElementById('firmaCanvas');
+            function resizeCanvas() {
+                const ratio =  Math.max(window.devicePixelRatio || 1, 1);
+                if (canvas.offsetWidth > 0) {
+                    canvas.width = canvas.offsetWidth * ratio;
+                    canvas.height = canvas.offsetHeight * ratio;
+                    canvas.getContext("2d").scale(ratio, ratio);
+                    if(signaturePad) signaturePad.clear();
+                }
+            }
+
+            signaturePad = new SignaturePad(canvas, { penColor: "rgb(74, 14, 14)" });
+
+            $('button[data-bs-target="#asignaciones"]').on('shown.bs.tab', function (e) {
+                resizeCanvas();
+            });
+            window.addEventListener("resize", resizeCanvas);
+        });
+
+        async function abrirCamara() {
+            try {
+                streamActual = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+                const video = document.getElementById('videoCamara');
+                video.srcObject = streamActual;
+                camaraModal.show();
+            } catch (err) {
+                alert("No se pudo acceder a la cámara. Asegúrate de dar permisos en tu navegador.");
+                console.error(err);
+            }
+        }
+
+        function cerrarCamaraTracks() {
+            if (streamActual) {
+                streamActual.getTracks().forEach(track => track.stop());
+                streamActual = null;
+            }
+        }
+
+        function capturarFoto() {
+            const video = document.getElementById('videoCamara');
+            const canvas = document.getElementById('canvasCamara');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            fotoCapturadaBase64 = canvas.toDataURL('image/jpeg');
+            $('#previewFoto').attr('src', fotoCapturadaBase64).show();
+            $('#asigFotoFile').val('');
+            cerrarCamaraTracks();
+            camaraModal.hide();
+        }
+
+        function limpiarFirma() {
+            if(signaturePad) signaturePad.clear();
+        }
+
+        const getBase64 = (file) => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+        });
+
+        async function cargarInventario() {
+            try {
+                const response = await fetch('@Url.Action("GetInventario", "InventariosSistemas")');
+                if (!response.ok) throw new Error("Error de red o servidor.");
+                const data = await response.json();
+                if (data.ok) {
+                    datosInventario = data.inventario || [];
+                    movimientosInventario = data.movimientos || [];
+
+                    aplicarFiltros();
+                    llenarSelects();
+                    llenarSelectBaja();
+                    renderMovimientos(movimientosInventario);
+                    renderTablaAsignaciones();
+                    generarAlertasDashboard();
+                    renderTablaRecuperaciones();
+                    llenarSelectTaller();
+                    renderTablaTaller();
+                }
+            } catch (error) { console.error("Error cargando inventario: ", error); }
+        }
+        function aplicarFiltros() {
+             const texto = $('#filtroGeneral').val().toLowerCase();
+             const tipo = $('#filtroTipo').val();
+             const planta = $('#filtroPlanta').val();
+             const estado = $('#filtroEstado').val();
+
+             let filtrado = datosInventario.filter(i => {
+                 const matchTexto = !texto || (i.idArticuloSap && i.idArticuloSap.toLowerCase().includes(texto)) || (i.nombre && i.nombre.toLowerCase().includes(texto)) || (i.numeroSerie && i.numeroSerie.toLowerCase().includes(texto));
+                 const matchPlanta = !planta || i.planta === planta;
+
+                 // Lógica centralizada para identificar qué es chatarra/baja
+                 const esBaja = i.asignacion === 'BAJA DEFINITIVA' || i.asignacion === 'PARA PIEZAS' || i.tipoArticulo === 'Chatarra/Piezas';
+                 const esAsignado = !esBaja && i.asignacion && i.asignacion.trim() !== '';
+                 const estaDisponible = !esBaja && (!i.asignacion || i.asignacion.trim() === '');
+
+                 let matchTipo = true;
+                 if (tipo === 'Chatarra/Piezas') {
+                     // Si el filtro de tipo es Chatarra, mostramos todo lo que se considere baja
+                     matchTipo = esBaja;
+                 } else if (tipo !== '') {
+                     // Si el filtro de tipo es otro, tiene que coincidir exactamente y NO debe ser baja
+                     matchTipo = i.tipoArticulo === tipo && !esBaja;
+                 }
+
+                 let matchEstado = true;
+                 // Si el artículo es chatarra/baja, ignoramos el filtro de estado (porque ni están asignados ni disponibles)
+                 if (esBaja && estado !== '') {
+                    matchEstado = false;
+                 } else {
+                     if (estado === 'asignado') matchEstado = esAsignado;
+                     else if (estado === 'disponible') matchEstado = estaDisponible;
+                 }
+
+                 return matchTexto && matchTipo && matchPlanta && matchEstado;
+             });
+             renderTabla(filtrado);
+         }
+
+        function limpiarFiltros() { $('#filtroGeneral, #filtroTipo, #filtroPlanta, #filtroEstado').val(''); aplicarFiltros(); }
+
+        function renderTabla(datos) {
+            const hoy = new Date();
+            let tbody = '';
+            if(datos.length === 0) { $('#tbodyInventario').html('<tr><td colspan="6" class="text-center py-4">Sin datos</td></tr>'); return; }
+
+            datos.forEach(item => {
+                let fCompraStr = item.fechaCompra ? new Date(item.fechaCompra).toLocaleDateString('es-MX') : '-';
+                let vidaStr = '<span class="text-muted">N/A</span>';
+                let garantiaBadge = '-';
+
+                let aniosVida = parseInt(item.tiempoVida) || 4;
+                let fBaseVida = item.fechaCompra ? new Date(item.fechaCompra) : (item.fechaEntrada ? new Date(item.fechaEntrada) : null);
+
+                if (fBaseVida) {
+                    let fFinVida = new Date(fBaseVida.getTime());
+                    fFinVida.setFullYear(fFinVida.getFullYear() + aniosVida);
+                    vidaStr = `<span style="color:var(--brand-main); font-weight:bold;">Expira: ${fFinVida.toLocaleDateString('es-MX')}</span>`;
+                }
+
+                if (item.fechaCompra && item.diasGarantia) {
+                    let finGarantia = new Date(item.fechaCompra);
+                    finGarantia.setDate(finGarantia.getDate() + item.diasGarantia);
+                    let dias = Math.ceil((finGarantia - hoy) / (1000 * 60 * 60 * 24));
+                    garantiaBadge = dias < 0 ? `<span class="text-danger fw-bold">Vencida</span>` : `<span class="text-success">${dias} d. rest.</span>`;
+                }
+
+                let stockStr = `<div style="font-size:1.1rem; font-weight:bold;">${item.stock}</div>`;
+                if(item.tipoArticulo === 'Consumible') {
+                    stockStr += `<small class="text-muted">Mín: ${item.stockMinimo}</small>`;
+                    if (item.stock <= item.stockMinimo) stockStr += `<br><span class="text-danger fw-bold" style="font-size:0.7rem;">¡Bajo!</span>`;
+                } else {
+                    stockStr += `<small class="text-muted">Fijo</small>`;
+                }
+
+                let btnBaja = (item.asignacion === 'BAJA DEFINITIVA' || item.asignacion === 'PARA PIEZAS')
+                    ? `<button class="btn-sm-action text-muted" style="background:#eee; cursor:not-allowed;" disabled>Dado de Baja</button>`
+                    : `<button class="btn-sm-action" onclick="darDeBajaArticulo(${item.id})">Dar Baja</button>`;
+
+                let usuarioBadge = '';
+                if (item.enRecuperacion) {
+                    usuarioBadge = `<span class="badge bg-warning text-dark"><i class="bi bi-clock-history"></i> En Recuperación</span><br><small class="text-muted">${item.asignacion}</small>`;
+                } else if (item.asignacion && item.asignacion.trim() !== '') {
+                    usuarioBadge = `<b>${item.asignacion}</b>`;
+                } else {
+                    usuarioBadge = `<span class="badge bg-success px-2 py-1">Disponible</span>`;
+                }
+
+                let badgeClase = "bg-secondary";
+                if (item.tipoArticulo === 'Activo Fijo') badgeClase = "bg-primary";
+                else if (item.tipoArticulo === 'Consumible') badgeClase = "bg-success";
+                else if (item.tipoArticulo === 'Herramienta') badgeClase = "bg-warning text-dark";
+
+                tbody += `<tr>
+                    <td>
+                        <strong style="color:var(--brand-main); font-size:1rem;">${item.idArticuloSap}</strong><br>
+                        <span class="fw-bold">${item.nombre}</span><br>
+                        <span class="badge ${badgeClase} px-2 py-1 mt-1" style="font-size:0.65rem; font-weight:600;">${item.tipoArticulo || 'N/A'}</span>
+                    </td>
+                    <td><span class="text-muted">Usuario:</span> ${usuarioBadge}<br><span class="text-muted" style="font-family:monospace;">Serie: ${item.numeroSerie || '-'}</span></td>
+                    <td><strong>${item.planta || 'N/A'}</strong><br><small class="text-muted">${item.ubicacion || ''}</small></td>
+                    <td><small class="text-muted">Compra:</small> ${fCompraStr}<br>${vidaStr}</td>
+                    <td class="text-center">${stockStr}<br><small class="text-muted">Gar:</small> <small>${garantiaBadge}</small></td>
+                    <td class="text-center text-nowrap">
+                        <button class="btn-sm-action" onclick="consultarArticulo(${item.id})">Detalles</button>
+                        <button class="btn-sm-action" onclick="imprimirQR(${item.id})">Imprimir</button>
+                        ${btnBaja}
+                    </td>
+                </tr>`;
+            });
+            $('#tbodyInventario').html(tbody);
+        }
+
+        function llenarSelects() {
+            let optionsTodos = '<option value="">Selecciona un artículo...</option>';
+            let optionsRestock = '<option value="">Selecciona un artículo...</option>';
+            let optionsAsignables = '<option value="">Selecciona un artículo...</option>';
+
+            let filtroPanel = $('#filtroSelectAsignar').val() || 'todos';
+            let filtroRestock = $('#resFiltroTipo').val() || 'todos';
+
+            datosInventario.forEach(i => {
+                optionsTodos += `<option value="${i.id}">${i.idArticuloSap} - ${i.nombre}</option>`;
+
+                if (i.asignacion !== 'BAJA DEFINITIVA' && i.asignacion !== 'PARA PIEZAS' && !i.enRecuperacion) {
+                    let estaDisponible = !i.asignacion || i.asignacion.trim() === '';
+                    let pasaFiltro = true;
+
+                    if (filtroPanel === 'disponibles' && !estaDisponible) pasaFiltro = false;
+                    if (filtroPanel === 'asignados' && estaDisponible) pasaFiltro = false;
+
+                    if (pasaFiltro) {
+                        optionsAsignables += `<option value="${i.id}">${i.idArticuloSap} - ${i.nombre}</option>`;
+                    }
+
+                    let pasaFiltroRestock = true;
+                    if (filtroRestock !== 'todos' && i.tipoArticulo !== filtroRestock) pasaFiltroRestock = false;
+
+                    if (pasaFiltroRestock) {
+                        optionsRestock += `<option value="${i.id}">${i.idArticuloSap} - ${i.nombre}</option>`;
+                    }
+                }
+            });
+
+            $('#salArticulo').html(optionsTodos).trigger('change');
+            $('#resArticulo').html(optionsRestock).trigger('change');
+            $('#asigArticulo').html(optionsAsignables).trigger('change');
+        }
+
+        function llenarSelectBaja() {
+            let usuariosConEquipo = [...new Set(datosInventario
+                .filter(i => i.asignacion && i.asignacion.trim() !== '' && i.asignacion !== 'BAJA DEFINITIVA' && i.asignacion !== 'PARA PIEZAS' && !i.enRecuperacion)
+                .map(i => i.asignacion))];
+
+            let options = '<option value="">Selecciona usuario...</option>';
+            usuariosConEquipo.sort().forEach(u => {
+                options += `<option value="${u}">${u}</option>`;
+            });
+            $('#selectUsuarioBaja').html(options).trigger('change');
+        }
+
+        function renderTablaRecuperaciones() {
+            let pendientes = datosInventario.filter(i => i.enRecuperacion);
+            let tbody = '';
+
+            if(pendientes.length === 0) {
+                $('#tbodyRecuperaciones').html('<tr><td colspan="4" class="text-center py-4 text-muted">No hay equipos pendientes</td></tr>');
+                return;
+            }
+
+            pendientes.forEach(i => {
+                tbody += `
+                <tr>
+                    <td><strong class="text-danger">${i.idArticuloSap}</strong><br><small>${i.nombre}</small></td>
+                    <td><span class="badge bg-light text-dark border">${i.asignacion}</span></td>
+                    <td><span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i> En Recuperación</span></td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-success fw-bold" onclick="marcarComoRecibido(${i.id})">
+                            <i class="bi bi-check-lg"></i> Recibido
+                        </button>
+                    </td>
+                </tr>`;
+            });
+            $('#tbodyRecuperaciones').html(tbody);
+        }
+
+        async function confirmarBajaUsuario() {
+            const usuario = $('#selectUsuarioBaja').val();
+            if(confirm(`¿Confirmas la baja de ${usuario}? Todos sus equipos pasarán a estatus 'En Recuperación'.`)) {
+                try {
+                    const res = await fetch(`@Url.Action("MarcarBajaUsuario", "InventariosSistemas")?usuario=${encodeURIComponent(usuario)}`, { method: 'POST' });
+                    const data = await res.json();
+                    if(data.ok) {
+                        cargarInventario();
+                        $('#listaEquiposBaja').hide();
+                    } else {
+                        alert("Error: " + data.mensaje);
+                    }
+                } catch(e) { alert("Error de red: " + e.message); }
+            }
+        }
+
+        async function marcarComoRecibido(id) {
+            if(confirm("¿Confirmas que has recibido el equipo físicamente? Se marcará como Disponible.")) {
+                try {
+                    const res = await fetch(`@Url.Action("FinalizarRecuperacion", "InventariosSistemas")?id=${id}`, { method: 'POST' });
+                    const data = await res.json();
+                    if(data.ok) {
+                        cargarInventario();
+                    } else {
+                        alert("Error: " + data.mensaje);
+                    }
+                } catch(e) { alert("Error de red: " + e.message); }
+            }
+        }
+
+        function procesarExcelBajas(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            $('#resultadoExcelBajas').html('<span class="spinner-border spinner-border-sm text-danger"></span> Leyendo archivo...').show();
+            $('#btnProcesarMasivo').hide();
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const json = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+
+                    let nombresExcel = json.map(row => Object.values(row)[0])
+                                           .filter(n => n && typeof n === 'string')
+                                           .map(n => n.trim().toLowerCase());
+
+                    let usuariosConEquipo = [...new Set(datosInventario
+                        .filter(i => i.asignacion && i.asignacion !== 'BAJA DEFINITIVA' && i.asignacion !== 'PARA PIEZAS' && !i.enRecuperacion)
+                        .map(i => i.asignacion))];
+
+                    usuariosCoincidentesBaja = usuariosConEquipo.filter(u =>
+                        nombresExcel.includes(u.trim().toLowerCase())
+                    );
+
+                    if (usuariosCoincidentesBaja.length > 0) {
+                        let html = `<strong class="text-danger">¡Atención!</strong> Se encontraron <b>${usuariosCoincidentesBaja.length}</b> ex-empleados con equipo pendiente:<br><ul class="mb-0 mt-1 ps-3">`;
+                        usuariosCoincidentesBaja.forEach(u => html += `<li>${u}</li>`);
+                        html += `</ul>`;
+                        $('#resultadoExcelBajas').html(html);
+                        $('#btnProcesarMasivo').show();
+                    } else {
+                        $('#resultadoExcelBajas').html('<strong class="text-success">Todo limpio.</strong> Ninguno de los empleados en el Excel tiene equipo asignado actualmente.');
+                    }
+                } catch (error) {
+                    $('#resultadoExcelBajas').html('<strong class="text-danger">Error:</strong> No se pudo leer el Excel. Verifica el formato.');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        async function ejecutarBajaMasiva() {
+            if(!confirm(`¿Estás seguro de poner en estatus 'En Recuperación' los equipos de estos ${usuariosCoincidentesBaja.length} usuarios?`)) return;
+
+            const btn = document.getElementById('btnProcesarMasivo');
+            btn.disabled = true;
+            btn.innerHTML = "Procesando...";
+
+            try {
+                const res = await fetch('@Url.Action("BajaMasivaUsuarios", "InventariosSistemas")', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(usuariosCoincidentesBaja)
+                });
+
+                const data = await res.json();
+                if (data.ok) {
+                    alert(`✅ Se pasaron ${data.equiposAfectados} equipos a estatus de recuperación.`);
+                    $('#excelBajas').val('');
+                    $('#resultadoExcelBajas').hide();
+                    $('#btnProcesarMasivo').hide();
+                    usuariosCoincidentesBaja = [];
+                    cargarInventario();
+                } else {
+                    alert("Error: " + data.mensaje);
+                }
+            } catch(e) {
+                alert("Fallo la conexión: " + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check2-all"></i> Procesar Coincidencias';
+            }
+        }
+
+        function togglePanelOperacion() {
+            const tipo = $('#panelTipoOp').val();
+            if (tipo === 'ENTRADA') {
+                $('#panelSalida').hide(); $('#panelEntrada').show();
+            } else {
+                $('#panelEntrada').hide(); $('#panelSalida').show();
+            }
+        }
+
+        function toggleTipoEntrada() {
+            if ($('#optNuevo').is(':checked')) {
+                $('#formRestock').hide(); $('#formNuevo').show();
+            } else {
+                $('#formNuevo').hide(); $('#formRestock').show();
+            }
+        }
+        function generarIdChatarra() {
+            const destino = $('input[name="optChatarraDestino"]:checked').val();
+            const prefijo = destino === 'PARA PIEZAS' ? 'PZ-' : 'CH-';
+
+            // Bloqueamos el campo para que el usuario no lo edite 
+            $('#entSap').prop('readonly', true).addClass('bg-light text-primary fw-bold');
+
+            // Si estamos en modo "Editar", respetamos el ID que ya tiene 
+            if (idArticuloEditando > 0) return;
+
+            let maxNum = 0;
+
+            // Recorremos el inventario buscando el número más alto con ese prefijo
+            datosInventario.forEach(i => {
+                if (i.idArticuloSap && i.idArticuloSap.startsWith(prefijo)) {
+                    let numStr = i.idArticuloSap.substring(prefijo.length);
+                    let num = parseInt(numStr);
+                    if (!isNaN(num) && num > maxNum) {
+                        maxNum = num;
+                    }
+                }
+            });
+
+            const idGenerado = prefijo + String(maxNum + 1).padStart(3, '0');
+            $('#entSap').val(idGenerado);
+        }
+        function toggleCamposPorTipo() {
+            const tipo = $('#entTipoArticulo').val();
+
+            if (tipo === 'Chatarra/Piezas') {
+                $('.campo-avanzado').hide();
+                $('#divChatarraDestino').show();
+                $('#divStockMinimo').hide();
+                $('#divIP').hide();
+                $('#entIP').val('');
+
+                actualizarDestinoChatarra();
+            } else {
+                $('.campo-avanzado').show();
+                $('#divChatarraDestino').hide();
+
+                // Si veníamos de chatarra, liberamos el campo SAP y lo limpiamos
+                if ($('#entSap').prop('readonly')) {
+                    $('#entSap').prop('readonly', false).val('').removeClass('bg-light text-primary fw-bold');
+                }
+
+                if (tipo === 'Consumible') {
+                    $('#divStockMinimo').show();
+                    $('#divIP').hide();
+                    $('#entIP').val('');
+                }
+                else if (tipo === 'Activo Fijo') {
+                    $('#divStockMinimo').hide();
+                    $('#divIP').show();
+                }
+                else {
+                    $('#divStockMinimo').hide();
+                    $('#divIP').hide();
+                }
+            }
+        }
+
+        function actualizarDestinoChatarra() {
+            const destino = $('input[name="optChatarraDestino"]:checked').val();
+            if (destino === 'PARA PIEZAS') {
+                $('#entPlanta').val('BANCO DE PIEZAS');
+                $('#entUbicacion').val('ALMACÉN DE PIEZAS');
+            } else {
+                $('#entPlanta').val('BAJA TOTAL');
+                $('#entUbicacion').val('DESECHO DEFINITIVO');
+            }
+
+            // Generar el ID automático según el radio seleccionado
+            generarIdChatarra();
+        }
+
+        function calcularGarantiaPanel() {
+            let f = $('#entFechaCompra').val(); let d = parseInt($('#entDiasGarantia').val()) || 0;
+            if(f && d > 0) {
+                let date = new Date(f); date.setDate(date.getDate() + d + 1);
+                $('#panelGarantiaTxt').text('Vence: ' + date.toLocaleDateString('es-MX'));
+            } else { $('#panelGarantiaTxt').text(''); }
+        }
+
+        async function ejecutarRestock(btnElement) {
+            const id = parseInt($('#resArticulo').val());
+            const cant = parseInt($('#resCantidad').val()) || 0;
+            const ref = $('#resReferencia').val().trim();
+            const nCosto = $('#resCosto').val();
+            const nProveedor = $('#resProveedor').val();
+            const nFechaCompra = $('#resFechaCompra').val();
+
+            if(!id || cant <= 0 || !ref) { alert("Completa Artículo, Cantidad y Comentario (Obligatorios)."); return; }
+
+            const originalText = btnElement.innerHTML;
+
+            try {
+                btnElement.disabled = true;
+                btnElement.innerHTML = "Guardando...";
+
+                const itemOriginal = datosInventario.find(i => i.id === id);
+                if (nCosto) itemOriginal.costo = parseFloat(nCosto);
+                if (nProveedor) itemOriginal.proveedor = nProveedor;
+                if (nFechaCompra) itemOriginal.fechaCompra = nFechaCompra;
+
+                const envio = {
+                    Id: itemOriginal.id,
+                    Costo: itemOriginal.costo,
+                    Proveedor: itemOriginal.proveedor,
+                    FechaCompra: itemOriginal.fechaCompra
+                };
+
+                let res1 = await fetch('@Url.Action("GuardarArticulo", "InventariosSistemas")', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(envio) });
+                if(!res1.ok) throw new Error("Error al guardar información del artículo.");
+
+                let res2 = await fetch(`@Url.Action("RegistrarMovimiento", "InventariosSistemas")?idArticulo=${id}&tipo=ENTRADA&cantidad=${cant}&referencia=${ref}`, { method: 'POST' });
+                if(!res2.ok) throw new Error("Error al guardar el historial de movimiento.");
+
+                $('#resCantidad').val(''); $('#resReferencia, #resCosto, #resProveedor, #resFechaCompra').val('');
+                $('#stockInfoRestock').hide();
+                cargarInventario();
+            }
+            catch(error) { alert("Ocurrió un error de conexión: " + error.message); }
+            finally {
+                btnElement.disabled = false;
+                btnElement.innerHTML = originalText;
+            }
+        }
+
+        async function ejecutarAlta(btnElement) {
+             const tipoArt = $('#entTipoArticulo').val();
+             const sap = $('#entSap').val().trim();
+             const nombre = $('#entNombre').val().trim();
+             const marca = $('#entMarca').val().trim();
+             const modelo = $('#entModelo').val().trim();
+             const planta = $('#entPlanta').val();
+             const ubicacion = $('#entUbicacion').val().trim();
+             const stock = $('#entStock').val().trim();
+             const ref = $('#entReferencia').val().trim();
+             const ip = $('#entIP').val().trim();
+
+             let serie = $('#entSerie').val().trim();
+             let proveedor = $('#entProveedor').val().trim();
+             let costo = $('#entCosto').val().trim();
+             let fEntrada = $('#entFechaEntrada').val();
+             let fCompra = $('#entFechaCompra').val();
+             let dGarantia = $('#entDiasGarantia').val().trim();
+             let tVida = $('#entTiempoVida').val().trim();
+             let stockMinimo = $('#entStockMinimo').val().trim();
+
+             if (!tipoArt || !sap || !nombre || !marca || !modelo || !planta || !ubicacion || !stock || !ref) {
+                 alert('Llena TODOS los campos básicos marcados (*).');
+                 return;
+             }
+
+             if (tipoArt === 'Chatarra/Piezas') {
+                 proveedor = "N/A";
+                 costo = "0";
+                 serie = "N/A";
+                 fEntrada = new Date().toISOString().split('T')[0];
+                 fCompra = null; // <-- BLINDAJE C#
+                 dGarantia = "0";
+                 tVida = "0";
+                 stockMinimo = "0";
+             } else {
+                 // Si NO es chatarra, exigimos los campos avanzados
+                 if (!proveedor || !costo || !serie || !fEntrada || !fCompra || !dGarantia || !tVida) {
+                     alert('Llena TODOS los campos avanzados para registrar el equipo.');
+                     return;
+                 }
+                 if (tipoArt === 'Consumible' && !stockMinimo) {
+                     alert('Ingresa el Stock Mínimo para el artículo consumible.');
+                     return;
+                 }
+             }
+
+             let asignacionActual = idArticuloEditando > 0 ? $('#entAsignacion').val().trim() : '';
+
+             if (tipoArt === 'Chatarra/Piezas' && idArticuloEditando === 0) {
+                 asignacionActual = $('input[name="optChatarraDestino"]:checked').val();
+             }
+
+             const item = {
+                 Id: idArticuloEditando,
+                 TipoArticulo: tipoArt,
+                 IdArticuloSap: sap, Nombre: nombre, Marca: marca, Modelo: modelo,
+                 Proveedor: proveedor, Costo: parseFloat(costo) || 0,
+                 NumeroSerie: serie, IP: ip, Planta: planta, Ubicacion: ubicacion,
+                 Asignacion: asignacionActual,
+                 DiasGarantia: parseInt(dGarantia) || 0,
+                 FechaCompra: fCompra ? fCompra : null, // <-- BLINDAJE C#
+                 FechaEntrada: fEntrada ? fEntrada : null, // <-- BLINDAJE C#
+                 TiempoVida: tVida, Stock: parseInt(stock) || 1,
+                 StockMinimo: tipoArt === 'Consumible' ? parseInt(stockMinimo) || 1 : 0
+             };
+
+             const originalText = btnElement.innerHTML;
+
+             try {
+                 btnElement.disabled = true;
+                 btnElement.innerHTML = "Guardando...";
+
+                 let urlGuardar = '@Url.Action("GuardarArticulo", "InventariosSistemas")';
+                 if (idArticuloEditando > 0) urlGuardar += '?esCorreccion=true';
+
+                 const res = await fetch(urlGuardar, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(item) });
+                 if (!res.ok) throw new Error("Fallo la comunicación con el servidor de base de datos.");
+
+                 const data = await res.json();
+                 if(data.ok) {
+                     $('#entTipoArticulo, #entSap, #entNombre, #entMarca, #entModelo, #entProveedor, #entCosto, #entSerie, #entPlanta, #entUbicacion, #entFechaEntrada, #entFechaCompra, #entDiasGarantia, #entTiempoVida, #entStock, #entStockMinimo, #entReferencia, #entIP, #entAsignacion').val('');
+                     $('#panelGarantiaTxt').text('');
+                     $('#optRestock').prop('checked', true);
+                     toggleTipoEntrada();
+                     toggleCamposPorTipo();
+                     $('#divEditAsignacion').hide();
+                     cargarInventario();
+
+                     idArticuloEditando = 0;
+                     $('#entStock').prop('disabled', false);
+                     $('#btnGuardarAlta').text('Registrar artículo').removeClass('btn-warning text-dark').addClass('btn-brand');
+
+                 } else { alert(data.mensaje); }
+             }
+             catch(error) { alert("Ocurrió un error al guardar: " + error.message); }
+             finally {
+                 btnElement.disabled = false;
+                 if(idArticuloEditando === 0) {
+                     btnElement.innerHTML = 'Registrar artículo';
+                 } else {
+                     btnElement.innerHTML = originalText;
+                 }
+             }
+         }
+
+        async function ejecutarSalida(btnElement) {
+            const id = $('#salArticulo').val();
+            const cant = $('#salCantidad').val();
+            const ref = $('#salReferencia').val().trim();
+
+            if(!id || cant <= 0 || !ref) { alert("Completa Artículo, Cantidad y Comentario para la salida."); return; }
+
+            const originalText = btnElement.innerHTML;
+
+            try {
+                btnElement.disabled = true;
+                btnElement.innerHTML = "Guardando...";
+
+                const res = await fetch(`@Url.Action("RegistrarMovimiento", "InventariosSistemas")?idArticulo=${id}&tipo=SALIDA&cantidad=${cant}&referencia=${ref}`, { method: 'POST' });
+                if(!res.ok) throw new Error("Error en el servidor al registrar salida.");
+
+                const data = await res.json();
+                if(data.ok) {
+                    $('#salCantidad').val(''); $('#salReferencia').val('');
+                    $('#stockInfoSalida').hide();
+                    $('#salArticulo').val('').trigger('change');
+                    cargarInventario();
+                } else { alert(data.mensaje); }
+            }
+            catch(error) { alert("Error de red: " + error.message); }
+            finally {
+                btnElement.disabled = false;
+                btnElement.innerHTML = originalText;
+            }
+        }
+
+        function renderMovimientos(movs) {
+            let tbody = '';
+            movs.forEach(m => {
+                let textoMovimiento = (m.tipoMovimiento || "").trim().toUpperCase();
+                let badge = textoMovimiento.includes('ENTRADA') || textoMovimiento.includes('ALTA')
+                            ? '<span class="badge-entrada">ENTRADA</span>'
+                            : '<span class="badge-salida">SALIDA</span>';
+
+                tbody += `<tr>
+                    <td style="font-size:0.75rem;">${new Date(m.fecha).toLocaleString('es-MX')}</td>
+                    <td><strong style="color:var(--brand-main);">${m.articuloSap}</strong><br>${m.nombreArticulo}</td>
+                    <td>${badge}<br><small class="text-muted">Cant: ${m.cantidad}</small></td>
+                    <td style="font-size:0.75rem;"><strong>${m.referencia || '-'}</strong></td>
+                </tr>`;
+            });
+            $('#tbodyMovimientos').html(tbody || '<tr><td colspan="4" class="text-center text-muted">No hay historial reciente</td></tr>');
+        }
+
+        function generarAlertasDashboard() {
+            let htmlStock = ''; let htmlGarantia = ''; let htmlVida = '';
+            let conteoAlertas = 0; let asignados = 0; let disponibles = 0; let activos = 0;
+            const hoy = new Date();
+            const diasParaDesaparecer = 10;
+
+            datosInventario.forEach(i => {
+                const esBajaOChatarra = i.asignacion === 'BAJA DEFINITIVA' || i.asignacion === 'PARA PIEZAS' || i.tipoArticulo === 'Chatarra/Piezas';
+                if (esBajaOChatarra) {
+                    return; 
+                }
+                if (i.asignacion === 'BAJA DEFINITIVA' || i.asignacion === 'PARA PIEZAS') {
+                    // No sumamos a nadie
+                } else if (i.asignacion && i.asignacion !== '') {
+                    asignados++; activos++;
+                } else {
+                    disponibles++; activos++;
+                }
+
+                if(i.tipoArticulo === 'Consumible' && i.stock <= i.stockMinimo) {
+                    conteoAlertas++;
+                    htmlStock += `<div class="alerta-item alerta-critica"><strong class="text-danger">${i.idArticuloSap} - ${i.nombre}</strong><br><span class="text-muted">${i.ubicacion} | Stock: <b>${i.stock}</b> (Mín: ${i.stockMinimo})</span></div>`;
+                }
+
+                if(i.fechaCompra && i.diasGarantia) {
+                    let finG = new Date(i.fechaCompra);
+                    finG.setDate(finG.getDate() + i.diasGarantia);
+                    let diasRestG = Math.ceil((finG - hoy) / (1000 * 60 * 60 * 24));
+
+                    if (diasRestG < 0 && diasRestG >= -diasParaDesaparecer) {
+                        conteoAlertas++;
+                        let diasPasados = Math.abs(diasRestG);
+                        htmlGarantia += `<div class="alerta-item alerta-critica"><strong style="color:#dc3545;">${i.idArticuloSap} - ${i.nombre}</strong><br><span class="text-muted">Vencida hace ${diasPasados} días</span></div>`;
+                    }
+                    else if (diasRestG >= 0 && diasRestG <= 30) {
+                        conteoAlertas++;
+                        htmlGarantia += `<div class="alerta-item" style="border-color: #ffc107;"><strong class="text-warning">${i.idArticuloSap} - ${i.nombre}</strong><br><span class="text-muted">Vence en ${diasRestG} días</span></div>`;
+                    }
+                }
+
+                let aniosVida = parseInt(i.tiempoVida) || 4;
+                let fBaseVida = i.fechaCompra ? new Date(i.fechaCompra) : (i.fechaEntrada ? new Date(i.fechaEntrada) : null);
+                if(fBaseVida) {
+                    let fFinVida = new Date(fBaseVida.getTime()); fFinVida.setFullYear(fFinVida.getFullYear() + aniosVida);
+                    let diasRestV = Math.ceil((fFinVida - hoy) / (1000 * 60 * 60 * 24));
+                    if (diasRestV < 0) {
+                        conteoAlertas++;
+                        htmlVida += `<div class="alerta-item alerta-critica"><strong class="text-danger">${i.idArticuloSap} - ${i.nombre}</strong><br><span class="text-muted">Vida útil Terminada</span></div>`;
+                    } else if (diasRestV <= 60) {
+                        conteoAlertas++;
+                        htmlVida += `<div class="alerta-item" style="border-color: #adb5bd;"><strong class="text-secondary">${i.idArticuloSap} - ${i.nombre}</strong><br><span class="text-muted">Expira en ${diasRestV} días</span></div>`;
+                    }
+                }
+            });
+
+            $('#kpiTotal').text(activos);
+            $('#kpiDisponibles').text(disponibles);
+            $('#kpiAsignados').text(asignados);
+            $('#kpiAlertas').text(conteoAlertas);
+
+            if(conteoAlertas > 0) {
+                $('#kpiAlertas').parent().addClass('kpi-peligro');
+            } else {
+                $('#kpiAlertas').parent().removeClass('kpi-peligro');
+            }
+
+            let htmlFinal = '';
+            if(htmlStock) htmlFinal += `<div class="mb-3"><h6 class="text-danger fw-bold"><i class="bi bi-exclamation-triangle-fill"></i> Stock Crítico</h6>${htmlStock}</div>`;
+            if(htmlGarantia) htmlFinal += `<div class="mb-3"><h6 class="fw-bold" style="color:#fd7e14;">Garantías / Fallos</h6>${htmlGarantia}</div>`;
+            if(htmlVida) htmlFinal += `<div class="mb-3"><h6 class="text-secondary fw-bold">Vida Útil</h6>${htmlVida}</div>`;
+
+            if(!htmlFinal) htmlFinal = '<div class="text-success text-center py-3"><br>Todo en orden</div>';
+            $('#contenedorAlertasGlobales').html(htmlFinal);
+        }
+
+        function renderTablaAsignaciones() {
+            let tbody = '';
+            let textoFiltro = ($('#filtroAsignaciones').val() || '').toLowerCase();
+            let estadoFiltro = $('#filtroEstadoAsignaciones').val();
+
+            let datosFiltrados = datosInventario.filter(item => {
+                if (item.asignacion === 'BAJA DEFINITIVA' || item.asignacion === 'PARA PIEZAS') return false;
+
+                let tieneAsignacion = item.asignacion && item.asignacion.trim() !== '';
+                let estaDisponible = !item.asignacion || item.asignacion.trim() === '';
+
+                if (estadoFiltro === 'asignado' && !tieneAsignacion) return false;
+                if (estadoFiltro === 'disponible' && !estaDisponible) return false;
+                if (!textoFiltro) return true;
+
+                let asignacion = (item.asignacion || 'Disponible').toLowerCase();
+                let sap = (item.idArticuloSap || '').toLowerCase();
+                let nombre = (item.nombre || '').toLowerCase();
+                let serie = (item.numeroSerie || '').toLowerCase();
+
+                return asignacion.includes(textoFiltro) || sap.includes(textoFiltro) || nombre.includes(textoFiltro) || serie.includes(textoFiltro);
+            });
+
+            datosFiltrados.forEach(item => {
+                let badgeAsignacion = '';
+                if (item.enRecuperacion) {
+                    badgeAsignacion = `<span class="badge bg-warning text-dark px-2 py-1"><i class="bi bi-clock-history"></i> En Recuperación</span><br><small class="text-muted">${item.asignacion}</small>`;
+                } else if (item.asignacion && item.asignacion.trim() !== '') {
+                    badgeAsignacion = `<span class="badge bg-info text-dark px-2 py-1">${item.asignacion}</span>`;
+                } else {
+                    badgeAsignacion = `<span class="badge bg-success px-2 py-1">Disponible</span>`;
+                }
+
+                tbody += `<tr>
+                    <td><strong style="color:var(--brand-main);">${item.idArticuloSap}</strong><br>${item.nombre}</td>
+                    <td style="font-family:monospace;" class="text-muted">${item.numeroSerie || '-'}</td>
+                    <td>${badgeAsignacion}<br><small class="text-muted">${item.planta} - ${item.ubicacion}</small></td>
+                    <td class="text-center">
+                        <div class="d-flex flex-wrap justify-content-center gap-1">
+                            <button class="btn-sm-action m-0" onclick="verInfoResponsable(${item.id})">Expediente</button>
+                            <button class="btn-sm-action m-0" onclick="verHistorialAsignacion(${item.id})">Historial</button>
+                            <button class="btn-sm-action m-0" onclick="verReportesTecnicos(${item.id})">Reportes</button>
+                        </div>
+                    </td>
+                </tr>`;
+            });
+            $('#tbodyAsignaciones').html(tbody || '<tr><td colspan="4" class="text-center py-4">No se encontraron resultados</td></tr>');
+        }
+
+        async function guardarAsignacionTab(btnElement) {
+            const id = parseInt($('#asigArticulo').val());
+            const nuevoUsuario = $('#asigUsuario').val().trim();
+            const nuevaPlanta = $('#asigPlanta').val();
+            const nuevaUbicacion = $('#asigUbicacion').val().trim();
+
+            const fileFoto = document.getElementById('asigFotoFile').files[0];
+            const fileDoc = document.getElementById('asigDocFile').files[0];
+
+            if(!id) { alert("Por favor selecciona un equipo primero."); return; }
+            if(!nuevaPlanta || !nuevaUbicacion) { alert("Es obligatorio especificar la Planta y la Ubicación del equipo."); return; }
+
+            const originalText = btnElement.innerHTML;
+
+            try {
+                btnElement.disabled = true;
+                btnElement.innerHTML = "Guardando...";
+
+                const itemOriginal = datosInventario.find(i => i.id === id);
+                const item = { ...itemOriginal };
+
+                item.asignacion = nuevoUsuario;
+                item.planta = nuevaPlanta;
+                item.ubicacion = nuevaUbicacion;
+
+                item.fotoUsuario = "";
+                item.documentoComodato = "";
+                item.firmaDigital = "";
+
+                if (nuevoUsuario !== "") {
+                    if (fotoCapturadaBase64) {
+                        item.fotoUsuario = fotoCapturadaBase64;
+                    } else if (fileFoto) {
+                        item.fotoUsuario = await getBase64(fileFoto);
+                    }
+
+                    if (fileDoc) { item.documentoComodato = await getBase64(fileDoc); }
+
+                    if (signaturePad && !signaturePad.isEmpty()) {
+                        item.firmaDigital = signaturePad.toDataURL();
+                    }
+                }
+
+                const res = await fetch('@Url.Action("GuardarArticulo", "InventariosSistemas")', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(item)
+                });
+                if (!res.ok) throw new Error("Fallo en el servidor al intentar guardar.");
+
+                $('#asigArticulo').val('').trigger('change');
+                $('#asigUsuario, #asigPlanta, #asigUbicacion').val('');
+                $('#asigFotoFile, #asigDocFile').val('');
+                fotoCapturadaBase64 = null;
+                $('#previewFoto').hide().attr('src', '');
+                limpiarFirma();
+
+                cargarInventario();
+                alert("Asignación o actualización guardada correctamente.");
+            }
+            catch(error) { alert("Error de guardado: " + error.message); }
+            finally {
+                btnElement.disabled = false;
+                btnElement.innerHTML = originalText;
+            }
+        }
+
+        async function verInfoResponsable(id) {
+            try {
+                $('#infoNombre').text('Cargando...');
+                $('#infoNombre').removeClass('text-primary text-muted').addClass('text-primary');
+                $('#infoLugar').text('');
+                $('#infoFoto').attr('src', '');
+                $('#infoDocumento').hide().attr('href', '#');
+                $('#infoSinDocumento').hide();
+                $('#infoFirmaContainer').hide();
+                $('#infoFirma').attr('src', '');
+
+                infoResponsableModal.show();
+
+                const url = `@Url.Action("GetDetalleArticulo", "InventariosSistemas")?id=${id}`;
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('No se pudo consultar el expediente.');
+
+                const data = await response.json();
+                if (!data.ok || !data.articulo) {
+                    $('#infoNombre').text('Sin información');
+                    $('#infoNombre').removeClass('text-primary').addClass('text-muted');
+                    $('#infoSinDocumento').text(data.mensaje || 'No se encontró el expediente.').show();
+                    return;
+                }
+
+                const item = data.articulo;
+                if (!item.asignacion) {
+                    $('#infoNombre').text('Equipo no asignado (Stock)');
+                    $('#infoNombre').removeClass('text-primary').addClass('text-muted');
+                } else {
+                    $('#infoNombre').text(item.asignacion);
+                    $('#infoNombre').removeClass('text-muted').addClass('text-primary');
+                }
+
+                $('#infoLugar').text(`${item.planta || ''} - ${item.ubicacion || ''}`);
+                if (item.fotoUsuario) { $('#infoFoto').attr('src', item.fotoUsuario); }
+                else { $('#infoFoto').attr('src', ''); }
+
+                if (item.documentoComodato) {
+                    $('#infoDocumento').attr('href', item.documentoComodato).show();
+                    $('#infoSinDocumento').hide();
+                } else {
+                    $('#infoDocumento').hide();
+                    $('#infoSinDocumento').text('Sin documento cargado.').show();
+                }
+
+                if (item.firmaDigital) {
+                    $('#infoFirma').attr('src', item.firmaDigital);
+                    $('#infoFirmaContainer').show();
+                } else { $('#infoFirmaContainer').hide(); }
+
+            } catch (error) {
+                $('#infoNombre').text('Error al cargar');
+                $('#infoNombre').removeClass('text-primary').addClass('text-muted');
+                $('#infoDocumento, #infoFirmaContainer').hide();
+                $('#infoSinDocumento').text(error.message || 'No se pudo cargar el expediente.').show();
+            }
+        }
+
+        async function verHistorialAsignacion(id) {
+            try {
+                const item = datosInventario.find(i => i.id === id);
+                $('#historialNombreEquipo').text(`${item.idArticuloSap} - ${item.nombre}`);
+                $('#historialAsignacionesDiv').html('<div class="text-muted fst-italic py-3">Cargando historial...</div>');
+                historialModal.show();
+
+                const response = await fetch(`@Url.Action("GetHistorialArticulo", "InventariosSistemas")?id=${id}`);
+                if (!response.ok) throw new Error('No se pudo consultar el historial.');
+
+                const data = await response.json();
+                if (!data.ok) {
+                    $('#historialAsignacionesDiv').html(`<div class="text-danger fst-italic py-3">${data.mensaje || 'No se pudo cargar el historial.'}</div>`);
+                    return;
+                }
+
+                const historial = (data.historial || []).filter(h => !h.nota || !h.nota.includes('REPORTE QR'));
+
+                if (!historial.length) {
+                    $('#historialAsignacionesDiv').html('<div class="text-muted fst-italic py-3">Este equipo no tiene historial de asignaciones previas.</div>');
+                    return;
+                }
+
+                let html = '<ul class="list-unstyled mb-0" style="font-size: 0.85rem;">';
+                historial.forEach(h => {
+                    html += `<li class="border-bottom py-2">
+                    <strong>${h.fechaHora || ''}</strong><br>
+                    <span class="text-muted">${h.nota || ''}</span><br>
+                    <div class="mt-2 d-flex flex-wrap gap-2">
+                    ${h.tieneFoto ? `<button class="btn btn-sm btn-outline-secondary py-0" style="font-size:0.7rem;" onclick="mostrarArchivoHistorico(${h.id}, 'Foto')">Foto</button>` : ''}
+                    ${h.tieneDocumento ? `<button class="btn btn-sm btn-outline-secondary py-0" style="font-size:0.7rem;" onclick="mostrarArchivoHistorico(${h.id}, 'Documento')">Doc</button>` : ''}
+                    ${h.tieneFirma ? `<button class="btn btn-sm btn-outline-secondary py-0" style="font-size:0.7rem;" onclick="mostrarArchivoHistorico(${h.id}, 'Firma')">Firma</button>` : ''}
+                    </div></li>`;
+                });
+                html += '</ul>';
+                $('#historialAsignacionesDiv').html(html);
+            } catch (error) {
+                $('#historialAsignacionesDiv').html(`<div class="text-danger fst-italic py-3">${error.message || 'No se pudo cargar el historial.'}</div>`);
+            }
+        }
+
+        async function mostrarArchivoHistorico(idHistorial, tipo) {
+            try {
+                $('#visorTitulo').text(tipo);
+                $('#visorCuerpo').html('<div class="text-muted py-3">Cargando archivo...</div>');
+                visorHistorialModal.show();
+
+                const response = await fetch(`@Url.Action("GetDetalleHistorial", "InventariosSistemas")?id=${idHistorial}`);
+                if (!response.ok) throw new Error('No se pudo consultar el archivo histórico.');
+
+                const data = await response.json();
+                if (!data.ok || !data.historial) {
+                    $('#visorCuerpo').html(`<div class="text-danger py-3">${data.mensaje || 'No se encontró el archivo.'}</div>`);
+                    return;
+                }
+
+                const h = data.historial;
+                let contenido = '';
+
+                if (tipo === 'Foto' && h.fotoBase64) {
+                    contenido = `<img src="${h.fotoBase64}" class="img-fluid rounded border" />`;
+                } else if (tipo === 'Firma' && h.firmaBase64) {
+                    contenido = `<img src="${h.firmaBase64}" class="img-fluid rounded border" />`;
+                } else if (tipo === 'Documento' && h.documentoBase64) {
+                    if (h.documentoBase64.toLowerCase().includes('.pdf') || h.documentoBase64.toLowerCase().includes('application/pdf')) {
+                        contenido = `<iframe src="${h.documentoBase64}" style="width:100%; height:70vh; border:none;"></iframe>
+                                     <div class="mt-3"><a href="${h.documentoBase64}" target="_blank" class="btn btn-outline">Abrir documento</a></div>`;
+                    } else {
+                        contenido = `<img src="${h.documentoBase64}" class="img-fluid rounded border" />`;
+                    }
+                } else {
+                    contenido = `<div class="text-muted py-3">No hay ${tipo.toLowerCase()} disponible.</div>`;
+                }
+                $('#visorCuerpo').html(contenido);
+            } catch (error) {
+                $('#visorCuerpo').html(`<div class="text-danger py-3">${error.message || 'No se pudo abrir el archivo.'}</div>`);
+            }
+        }
+
+        function verReportesTecnicos(id) {
+            const item = datosInventario.find(i => i.id === id);
+            $('#reportesNombreEquipo').text(`${item.idArticuloSap} - ${item.nombre}`);
+            let histHtml = '<ul class="list-unstyled mb-0" style="font-size: 0.85rem;">';
+            let reportes = (item.registrosHistorial || []).filter(h => h.nota && h.nota.includes('REPORTE QR'));
+
+            if(reportes.length > 0) {
+                let invertido = [...reportes].reverse();
+                invertido.forEach(h => {
+                    let notaLimpia = h.nota.replace('REPORTE QR:', '').trim();
+                    histHtml += `<li class="border-bottom py-2">
+                        <strong>${h.fechaHora}</strong><br>
+                        <span class="text-dark">${notaLimpia}</span><br>
+                        <div class="mt-2">`;
+                        if(h.fotoBase64) {
+                            histHtml += `<button class="btn btn-sm btn-outline-danger py-0" style="font-size:0.7rem;" onclick="mostrarArchivoHistorico('Evidencia Fotográfica', '${h.fotoBase64}')"><i class="fas fa-camera"></i> Ver Foto</button>`;
+                        }
+                    histHtml += `</div></li>`;
+                });
+            } else {
+                histHtml += '<li class="text-muted fst-italic py-3">No hay reportes de inspección para este equipo.</li>';
+            }
+            $('#listaReportesDiv').html(histHtml + '</ul>');
+            reportesModal.show();
+        }
+
+        function consultarArticulo(id) {
+            const item = datosInventario.find(i => i.id === id);
+            const fCompra = item.fechaCompra ? new Date(item.fechaCompra).toLocaleDateString('es-MX') : 'N/A';
+            const fEntrada = item.fechaEntrada ? new Date(item.fechaEntrada).toLocaleDateString('es-MX') : 'N/A';
+
+            let vidaUtil = 'N/A'; let aniosVida = parseInt(item.tiempoVida) || 4;
+            let fBaseVida = item.fechaCompra ? new Date(item.fechaCompra) : (item.fechaEntrada ? new Date(item.fechaEntrada) : null);
+            if (fBaseVida) { let d = new Date(fBaseVida.getTime()); d.setFullYear(d.getFullYear() + aniosVida); vidaUtil = d.toLocaleDateString('es-MX'); }
+
+            $('#detalleArticulo').html(`
+                <div class="col-12 border-bottom pb-2 mb-2 text-center"><h4 style="color: var(--brand-main); margin:0;">${item.idArticuloSap} - ${item.nombre}</h4></div>
+                <div class="col-12 col-md-4"><small class="text-muted fw-bold d-block">TIPO / MARCA / MODELO</small><span>${item.tipoArticulo || 'N/A'} - ${item.marca || '-'} / ${item.modelo || '-'}</span></div>
+                <div class="col-12 col-md-4"><small class="text-muted fw-bold d-block">NÚMERO DE SERIE</small><span style="font-family: monospace;">${item.numeroSerie || '-'}</span></div>
+                <div class="col-12 col-md-4"><small class="text-muted fw-bold d-block">DIRECCIÓN IP</small><span style="font-family: monospace;">${item.ip || 'N/A'}</span></div>
+                <div class="col-12 col-md-4 mt-3"><small class="text-muted fw-bold d-block">USUARIO ACTUAL</small><span>${item.asignacion || 'Disponible'}</span></div>
+                <div class="col-12 col-md-4 mt-3"><small class="text-muted fw-bold d-block">PROVEEDOR</small><span>${item.proveedor || '-'}</span></div>
+                <div class="col-12 col-md-4 mt-3"><small class="text-muted fw-bold d-block">COSTO</small><span>$${item.costo || 0}</span></div>
+                <div class="col-12 col-md-4 mt-3"><small class="text-muted fw-bold d-block">STOCK ACTUAL</small><span>${item.stock} ${item.tipoArticulo === 'Consumible' ? '(Mín: ' + item.stockMinimo + ')' : ''}</span></div>
+                <div class="col-12 col-md-4 mt-3"><small class="text-muted fw-bold d-block">PLANTA</small><span>${item.planta || '-'}</span></div>
+                <div class="col-12 col-md-8 mt-3"><small class="text-muted fw-bold d-block">UBICACIÓN ESPECÍFICA</small><span>${item.ubicacion || '-'}</span></div>
+                <div class="col-12 col-md-3 mt-3 pt-3 border-top"><small class="text-muted fw-bold d-block">ENTRADA A SISTEMA</small><span>${fEntrada}</span></div>
+                <div class="col-12 col-md-3 mt-3 pt-3 border-top"><small class="text-muted fw-bold d-block">FECHA COMPRA</small><span>${fCompra}</span></div>
+                <div class="col-12 col-md-3 mt-3 pt-3 border-top"><small class="text-muted fw-bold d-block">GARANTÍA</small><span>${item.diasGarantia || 0} días</span></div>
+                <div class="col-12 col-md-3 mt-3 pt-3 border-top"><small class="text-muted fw-bold d-block">FIN VIDA ÚTIL (${aniosVida} Años)</small><span class="text-danger fw-bold">${vidaUtil}</span></div>
+            `);
+
+            $('#footerModalConsultar').html(`
+                <button type="button" class="btn btn-outline" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-brand" onclick="editarArticulo(${item.id})"><i class="bi bi-pencil-square"></i> Editar Datos</button>
+            `);
+
+            consultarModal.show();
+        }
+
+        function editarArticulo(id) {
+            consultarModal.hide();
+            const item = datosInventario.find(i => i.id === id);
+            idArticuloEditando = item.id;
+
+            $('#entTipoArticulo').val(item.tipoArticulo);
+            $('#entSap').val(item.idArticuloSap);
+            $('#entNombre').val(item.nombre);
+            $('#entMarca').val(item.marca);
+            $('#entModelo').val(item.modelo);
+            $('#entProveedor').val(item.proveedor);
+            $('#entCosto').val(item.costo);
+            $('#entIP').val(item.ip || '');
+            $('#entSerie').val(item.numeroSerie);
+            $('#entPlanta').val(item.planta);
+            $('#entUbicacion').val(item.ubicacion);
+
+            if(item.fechaEntrada) $('#entFechaEntrada').val(item.fechaEntrada.split('T')[0]);
+            if(item.fechaCompra) $('#entFechaCompra').val(item.fechaCompra.split('T')[0]);
+
+            $('#entDiasGarantia').val(item.diasGarantia);
+            $('#entTiempoVida').val(item.tiempoVida);
+            $('#entStockMinimo').val(item.stockMinimo);
+            $('#entReferencia').val('ACTUALIZACIÓN DE DATOS DEL EQUIPO');
+            $('#entStock').val(item.stock).prop('disabled', true);
+            $('#entAsignacion').val(item.asignacion || '');
+            $('#divEditAsignacion').show();
+
+            toggleCamposPorTipo();
+            calcularGarantiaPanel();
+
+            const tab = new bootstrap.Tab(document.getElementById('movimientos-tab'));
+            tab.show();
+
+            $('#panelTipoOp').val('ENTRADA');
+            togglePanelOperacion();
+            $('#optNuevo').prop('checked', true);
+            toggleTipoEntrada();
+
+            $('#btnGuardarAlta').html('<i class="bi bi-save"></i> Actualizar Equipo').removeClass('btn-brand').addClass('btn-warning text-dark');
+        }
+
+        function imprimirQR(id) {
+            const item = datosInventario.find(i => i.id === id);
+            const asignacionTxt = item.asignacion ? item.asignacion : 'STOCK';
+            const ubicacionTxt = item.ubicacion ? item.ubicacion : 'N/A';
+            const hoy = new Date();
+            let fCompraStr = 'N/A'; let fGarantiaStr = 'N/A'; let fVidaStr = 'N/A';
+
+            if (item.fechaCompra) {
+                const fCompra = new Date(item.fechaCompra);
+                fCompraStr = fCompra.toLocaleDateString('es-MX');
+
+                if (item.diasGarantia) {
+                    let fGarantia = new Date(fCompra); fGarantia.setDate(fGarantia.getDate() + item.diasGarantia);
+                    let diasRest = Math.ceil((fGarantia - hoy) / (1000 * 60 * 60 * 24));
+                    let estadoG = diasRest < 0 ? "(VENCIDA)" : `(${diasRest} dias)`;
+                    fGarantiaStr = `${fGarantia.toLocaleDateString('es-MX')} ${estadoG}`;
+                }
+
+                let aniosVida = parseInt(item.tiempoVida) || 4;
+                let fVida = new Date(fCompra); fVida.setFullYear(fVida.getFullYear() + aniosVida);
+                fVidaStr = fVida.toLocaleDateString('es-MX');
+            }
+
+            let dominioActual = window.location.origin;
+            let linkAlSistema = `${dominioActual}/InventariosSistemas/EscanerRapido?id=${item.id}`;
+
+            let textoOffline =
+                `[ CONTROL DE INVENTARIOS IT ]\n` +
+                `==========================\n` +
+                ` SAP:   ${item.idArticuloSap}\n` +
+                ` EQUIP: ${item.nombre}\n` +
+                ` INFO:  ${item.marca || '-'} ${item.modelo || '-'}\n` +
+                ` N/S:   ${item.numeroSerie || 'N/A'}\n` +
+                ` IP:    ${item.ip || 'N/A'}\n` +
+                `--------------------------\n` +
+                ` LUGAR: ${item.planta || 'N/A'} | ${ubicacionTxt}\n` +
+                ` RESP:  ${asignacionTxt}\n` +
+                `--------------------------\n` +
+                ` COMPRA:   ${fCompraStr}\n` +
+                ` GARANTIA: ${fGarantiaStr}\n` +
+                ` FIN VIDA: ${fVidaStr}\n` +
+                `==========================\n` +
+                ` REVISION IT (ESCANEA AQUI):\n` +
+                ` ${linkAlSistema}`;
+
+            textoOffline = textoOffline.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const qrUrl = `@Url.Action("GenerarQRLocal", "InventariosSistemas")?texto=${encodeURIComponent(textoOffline)}`;
+
+            const w = window.open('', '_blank', 'width=400,height=550');
+            w.document.write(`
+                <style>
+                    body { font-family: sans-serif; text-align: center; padding: 20px; }
+                    .ticket { border: 2px solid #555555; padding: 20px 15px; display: inline-block; width: 220px; border-radius: 6px; background-color: #fff; }
+                    .info-name { color: #333333; font-size: 1.1rem; font-weight: bold; margin-bottom: 15px; word-wrap: break-word; }
+                    img { margin: 0 auto; display: block; }
+                    .btn-print { padding: 10px 20px; background: #555555; color: white; border: none; border-bottom: 3px solid #cc0000; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 20px; }
+                    @@media print { button { display: none; } .ticket { border: 1px solid #000; } }
+                </style>
+                <div class="ticket">
+                    <div class="info-name">${item.nombre}</div>
+                    <img src="${qrUrl}" alt="QR Code" width="160" height="160"/>
+                </div>
+                <br><button class="btn-print" onclick="window.print()">Imprimir Etiqueta</button>
+            `);
+            w.document.close();
+        }
+
+        function exportarExcel() {
+            let csv = 'SAP,Tipo,Nombre,Marca,Modelo,Proveedor,Costo,Planta,Ubicacion,Asignacion,Serie,IP,Stock\n';
+            datosInventario.forEach(i => {
+                let nomSeguro = (i.nombre || "").replace(/"/g, '""');
+                let marSeguro = (i.marca || "").replace(/"/g, '""');
+                let modSeguro = (i.modelo || "").replace(/"/g, '""');
+                let proSeguro = (i.proveedor || "").replace(/"/g, '""');
+                csv += `"${i.idArticuloSap}","${i.tipoArticulo}","${nomSeguro}","${marSeguro}","${modSeguro}","${proSeguro}","${i.costo||0}","${i.planta}","${i.ubicacion}","${i.asignacion}","${i.numeroSerie}","${i.ip || ''}","${i.stock}"\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = "InventarioIT.csv";
+            link.click();
+        }
+
+        function darDeBajaArticulo(id) {
+            $('#bajaId').val(id);
+            $('#bajaMotivo').val('');
+            $('#bajaPiezas').prop('checked', true);
+            bajaModal.show();
+        }
+
+        async function ejecutarBaja(btnElement) {
+            const id = $('#bajaId').val();
+            const motivo = $('#bajaMotivo').val().trim();
+            const tipo = $('input[name="tipoBajaStatus"]:checked').val();
+
+            const btn = btnElement || document.getElementById('btnConfirmarBaja');
+
+            if (!motivo) {
+                alert("Por favor, ingresa el motivo de la baja para el historial.");
+                $('#bajaMotivo').focus();
+                return;
+            }
+
+            try {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Procesando...';
+
+                const res = await fetch(`@Url.Action("DarDeBajaArticulo", "InventariosSistemas")?id=${id}&motivo=${encodeURIComponent(motivo)}&tipoBaja=${tipo}`, { method: 'POST' });
+                const data = await res.json();
+
+                if (data.ok) {
+                    bajaModal.hide();
+                    cargarInventario();
+                    alert("✅ " + data.mensaje);
+                } else {
+                    alert(" Error: " + data.mensaje);
+                }
+            } catch(error) {
+                alert("Ocurrió un error al intentar comunicar con el servidor: " + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Confirmar Baja';
+            }
+        }
+
+        function llenarSelectTaller() {
+            let options = '<option value="">Selecciona un artículo...</option>';
+            datosInventario.forEach(i => {
+                if (i.asignacion !== 'BAJA DEFINITIVA' && i.asignacion !== 'PARA PIEZAS' && !i.enReparacion && !i.EnReparacion) {
+                    options += `<option value="${i.id}">${i.idArticuloSap} - ${i.nombre}</option>`;
+                }
+            });
+            $('#tallerArticulo').html(options).trigger('change');
+        }
+
+        function renderTablaTaller() {
+            let enTaller = datosInventario.filter(i => i.enReparacion || i.EnReparacion);
+            let tbody = '';
+
+            if(enTaller.length === 0) {
+                $('#tbodyTaller').html('<tr><td colspan="3" class="text-center py-5 text-muted"><i class="bi bi-emoji-smile fs-3 d-block mb-2"></i>Ningún equipo reportado en Taller</td></tr>');
+                return;
+            }
+
+            enTaller.forEach(i => {
+                let bitacoraHtml = '<ul class="list-unstyled mb-0" style="font-size:0.75rem;">';
+                if (i.bitacoraReparacion) {
+                    let notas = (i.bitacoraReparacion).split('||');
+                    notas.forEach(nota => { bitacoraHtml += `<li class="border-bottom py-1 border-light text-muted">${nota}</li>`; });
+                } else {
+                    bitacoraHtml += `<li class="text-muted fst-italic">Sin historial aún...</li>`;
+                }
+                bitacoraHtml += '</ul>';
+
+                let btnFoto = '';
+                if (i.tieneFotoFalla) {
+                    btnFoto = `<button class="btn btn-sm btn-outline-secondary py-0 mt-1" style="font-size:0.7rem;" onclick="verFotoFalla(${i.id})"><i class="fas fa-camera"></i> Ver Falla</button>`;
+                }
+
+                tbody += `<tr>
+                    <td>
+                        <strong style="color: var(--brand-main);">${i.idArticuloSap}</strong><br>
+                        <span class="fw-bold">${i.nombre}</span><br>
+                        <div class="mt-2 p-2 bg-light rounded text-danger small"><b>Falla:</b> ${i.motivoFalla || 'No detallado'}</div>
+                        ${btnFoto}
+                    </td>
+                    <td style="background-color: #f8f9fa;">
+                        <div style="max-height: 120px; overflow-y:auto;" class="scroll-panel pe-2">${bitacoraHtml}</div>
+                        <button class="btn btn-sm p-0 mt-1 fw-bold" style="color: var(--brand-main); font-size:0.75rem;" onclick="abrirModalActualizarTaller(${i.id})"><i class="bi bi-plus-circle me-1"></i>Añadir Nota</button>
+                    </td>
+                    <td class="text-center">
+                        <div class="d-flex flex-column gap-2 px-2">
+                            <button class="btn btn-sm btn-success fw-bold" onclick="abrirModalFinReparacion(${i.id})"><i class="bi bi-check-lg me-1"></i>Alta Reparado</button>
+                            <button class="btn btn-sm btn-outline-secondary fw-bold" onclick="abrirModalCanibalizar(${i.id})"><i class="bi bi-puzzle me-1"></i>Importar Piezas</button>
+                            <button class="btn btn-sm btn-outline-danger fw-bold" onclick="darDeBajaArticulo(${i.id})"><i class="bi bi-trash3 me-1"></i>Para Piezas / Baja</button>
+                        </div>
+                    </td>
+                </tr>`;
+            });
+            $('#tbodyTaller').html(tbody);
+        }
+
+        async function ejecutarMandarTaller(btnElement) {
+            const id = parseInt($('#tallerArticulo').val());
+            const motivo = $('#tallerMotivo').val().trim();
+            const fileFoto = document.getElementById('tallerFotoFile').files[0];
+
+            if(!id || !motivo) { alert("Debes seleccionar el equipo y escribir el motivo de la falla."); return; }
+
+            const originalText = btnElement.innerHTML;
+            try {
+                btnElement.disabled = true;
+                btnElement.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Enviando...';
+
+                let fotoBase64 = "";
+                if (fileFoto) { fotoBase64 = await getBase64(fileFoto); }
+
+                const envio = { Id: id, MotivoFalla: motivo, FotoFalla: fotoBase64 };
+
+                const res = await fetch('@Url.Action("MandarATaller", "InventariosSistemas")', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(envio)
+                });
+
+                const data = await res.json();
+                if (data.ok) {
+                    $('#tallerArticulo').val('').trigger('change');
+                    $('#tallerMotivo').val('');
+                    $('#tallerFotoFile').val('');
+                    cargarInventario();
+                    alert("Equipo ingresado al taller correctamente.");
+                } else { alert("Error: " + data.mensaje); }
+            } catch(e) { alert("Fallo la conexión: " + e.message); }
+            finally { btnElement.disabled = false; btnElement.innerHTML = originalText; }
+        }
+
+        function abrirModalActualizarTaller(id) {
+            $('#tallerEditId').val(id);
+            $('#tallerNuevaNota').val('');
+            new bootstrap.Modal(document.getElementById('modalActualizarTaller')).show();
+        }
+
+        async function guardarNotaTaller(btnElement) {
+            const id = $('#tallerEditId').val();
+            const nota = $('#tallerNuevaNota').val().trim();
+            if (!nota) { alert("Escribe una actualización."); return; }
+
+            try {
+                btnElement.disabled = true;
+                const res = await fetch(`@Url.Action("AgregarBitacoraReparacion", "InventariosSistemas")?id=${id}&nota=${encodeURIComponent(nota)}`, { method: 'POST' });
+                const data = await res.json();
+                if(data.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('modalActualizarTaller')).hide();
+                    cargarInventario();
+                }
+            } catch(e) { alert("Error: " + e.message); }
+            finally { btnElement.disabled = false; }
+        }
+
+        function abrirModalFinReparacion(id) {
+            $('#finReparacionId').val(id);
+            $('#finReparacionNota').val('');
+
+            let item = datosInventario.find(i => i.id === id);
+
+            if(item.asignacion && item.asignacion.trim() !== '') {
+                $('#lblDestUsuario').text(`Devolver a: ${item.asignacion}`);
+                $('#opcionesDevolucion').show();
+                $('#destUsuario').prop('checked', true);
+            } else {
+                $('#opcionesDevolucion').hide();
+                $('#destDisponible').prop('checked', true);
+            }
+            new bootstrap.Modal(document.getElementById('modalFinReparacion')).show();
+        }
+
+        async function ejecutarAltaReparacion(btnElement) {
+            const id = $('#finReparacionId').val();
+            const nota = $('#finReparacionNota').val().trim();
+            const regresarAlUsuario = $('#destUsuario').is(':checked');
+
+            if (!nota) { alert("Ingresa el reporte final para la bitácora."); return; }
+
+            try {
+                btnElement.disabled = true;
+                const res = await fetch(`@Url.Action("FinalizarReparacion", "InventariosSistemas")?id=${id}&comentarioFinal=${encodeURIComponent(nota)}&regresarAlUsuario=${regresarAlUsuario}`, { method: 'POST' });
+                const data = await res.json();
+                if(data.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('modalFinReparacion')).hide();
+                    cargarInventario();
+                    alert("Reparación concluida exitosamente.");
+                }
+            } catch(e) { alert("Error: " + e.message); }
+            finally { btnElement.disabled = false; }
+        }
+
+        async function verFotoFalla(id) {
+            $('#imgVerFotoTaller').attr('src', '').hide();
+            let modalCuerpo = document.querySelector('#modalVerFotoTaller .modal-body');
+            let loadingMsg = document.createElement('div');
+            loadingMsg.id = 'loadingFotoTaller';
+            loadingMsg.className = 'p-5 text-muted';
+            loadingMsg.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Descargando evidencia...';
+
+            if(document.getElementById('loadingFotoTaller')) document.getElementById('loadingFotoTaller').remove();
+            modalCuerpo.prepend(loadingMsg);
+
+            new bootstrap.Modal(document.getElementById('modalVerFotoTaller')).show();
+
+            try {
+                const res = await fetch(`@Url.Action("GetFotoTaller", "InventariosSistemas")?id=${id}`);
+                const data = await res.json();
+
+                if (data.ok && data.fotoBase64) {
+                    $('#imgVerFotoTaller').attr('src', data.fotoBase64).show();
+                } else {
+                    $('#imgVerFotoTaller').attr('alt', 'No se pudo cargar la imagen').show();
+                }
+            } catch (e) {
+                console.error("Error al traer la foto", e);
+            } finally {
+                if(document.getElementById('loadingFotoTaller')) document.getElementById('loadingFotoTaller').remove();
+            }
+        }
+
+        function abrirModalCanibalizar(id) {
+            $('#canibalTargetId').val(id);
+            $('#canibalPiezas').val('');
+
+            let options = '<option value="">Selecciona un donador...</option>';
+            let equiposChatarra = datosInventario.filter(i => i.asignacion === 'PARA PIEZAS' && i.id !== id);
+            equiposChatarra.forEach(i => {
+                options += `<option value="${i.id}">${i.idArticuloSap} - ${i.nombre}</option>`;
+            });
+
+            $('#canibalDonador').html(options).trigger('change');
+            new bootstrap.Modal(document.getElementById('modalCanibalizar')).show();
+        }
+
+        async function ejecutarCanibalizacion(btnElement) {
+            const idDestino = $('#canibalTargetId').val();
+            const idDonante = $('#canibalDonador').val();
+            const piezas = $('#canibalPiezas').val().trim();
+
+            if (!idDonante || !piezas) {
+                alert("Selecciona el equipo donador y escribe qué piezas vas a extraer.");
+                return;
+            }
+
+            const originalText = btnElement.innerHTML;
+            try {
+                btnElement.disabled = true;
+                btnElement.innerHTML = "Guardando...";
+
+                const url = `@Url.Action("ExtraerPiezas", "InventariosSistemas")?idDestino=${idDestino}&idDonante=${idDonante}&piezas=${encodeURIComponent(piezas)}`;
+                const res = await fetch(url, { method: 'POST' });
+                const data = await res.json();
+
+                if(data.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('modalCanibalizar')).hide();
+                    cargarInventario();
+                    alert("Las piezas han sido registradas en la bitácora de ambos equipos.");
+                } else {
+                    alert("Error: " + data.mensaje);
+                }
+            } catch(e) { alert("Error: " + e.message); }
+            finally {
+                btnElement.disabled = false;
+                btnElement.innerHTML = originalText;
+            }
+        }
+
+        async function abrirModalHistorialBajas() {
+            const tbody = $('#tbodyHistorialBajas');
+            tbody.html('<tr><td colspan="3" class="text-center py-4"><span class="spinner-border spinner-border-sm"></span> Cargando...</td></tr>');
+            new bootstrap.Modal(document.getElementById('modalHistorialBajas')).show();
+
+            try {
+                const res = await fetch('@Url.Action("GetHistorialBajas", "InventariosSistemas")');
+                const result = await res.json();
+
+                if (result.ok && result.data.length > 0) {
+                    let html = '';
+                    result.data.forEach(b => {
+                        let fecha = new Date(b.fecha).toLocaleString('es-MX', {day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit'});
+                        let refColor = b.referencia.includes('BAJA DEFINITIVA') ? 'text-danger' : 'text-primary';
+
+                        html += `<tr>
+                            <td class="ps-3 text-muted">${fecha}</td>
+                            <td><strong class="${refColor}">${b.articuloSap}</strong><br><span>${b.nombreArticulo}</span></td>
+                            <td class="small text-muted">${b.referencia}</td>
+                        </tr>`;
+                    });
+                    tbody.html(html);
+                } else {
+                    tbody.html('<tr><td colspan="3" class="text-center py-4 text-muted">No hay registro de bajas en el sistema.</td></tr>');
+                }
+            } catch(e) {
+                tbody.html('<tr><td colspan="3" class="text-center text-danger">Error de conexión al cargar historial.</td></tr>');
+            }
+        }
+
+        async function abrirModalInventarioChatarra() {
+            const tbody = $('#tbodyInventarioChatarra');
+            tbody.html('<tr><td colspan="2" class="text-center py-4"><span class="spinner-border spinner-border-sm"></span> Cargando banco de piezas...</td></tr>');
+            new bootstrap.Modal(document.getElementById('modalInventarioChatarra')).show();
+
+            try {
+                const res = await fetch('@Url.Action("GetInventarioChatarra", "InventariosSistemas")');
+                const result = await res.json();
+
+                if (result.ok) {
+                    let html = '';
+                    if (result.data.length === 0) {
+                        html = '<tr><td colspan="2" class="text-center py-4 text-muted">No hay equipos para piezas.</td></tr>';
+                    } else {
+                        result.data.forEach(i => {
+                            let listaExtracciones = '';
+                            if (i.extracciones.length > 0) {
+                                i.extracciones.forEach(e => {
+                                    listaExtracciones += `<div class="mb-1 text-danger">
+                                        <i class="bi bi-dash-circle-fill me-1"></i><b>${e.fechaHora}:</b> ${e.nota.replace('DONACIÓN DE PIEZAS: ', '')}
+                                    </div>`;
+                                });
+                            } else {
+                                listaExtracciones = '<span class="text-success small"><i class="bi bi-check-circle me-1"></i> Equipo completo (Sin extracciones)</span>';
+                            }
+
+                            html += `<tr>
+                                <td class="ps-3 py-3" style="width: 35%;">
+                                    <strong style="color: var(--brand-main);">${i.idArticuloSap}</strong><br>
+                                    <span class="fw-bold">${i.nombre}</span><br>
+                                    <small class="text-muted">${i.marca} ${i.modelo}</small>
+                                </td>
+                                <td class="py-3">${listaExtracciones}</td>
+                            </tr>`;
+                        });
+                    }
+                    tbody.html(html);
+                }
+            } catch (e) {
+                tbody.html('<tr><td colspan="2" class="text-center py-4 text-danger">Error al cargar datos.</td></tr>');
+            }
+        }
+    </script>
+}

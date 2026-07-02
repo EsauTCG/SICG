@@ -1,0 +1,3887 @@
+﻿@model List<Plataforma_CG.ViewModels.EntregaSapRowVM>
+@removeTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "";
+
+    var source = (string)(ViewBag.Source ?? "P1");
+    DateTime desde = ViewBag.Desde != null ? (DateTime)ViewBag.Desde : DateTime.Today;
+    DateTime hasta = ViewBag.Hasta != null ? (DateTime)ViewBag.Hasta : DateTime.Today;
+    var cliente = (string)(ViewBag.Cliente ?? "");
+
+    var totalEntregasSap = Model?.Count ?? 0;
+    var totalEnviadasSap = Model?.Count(x => x.EnviadoSap == true) ?? 0;
+    var totalFallidasSap = Model?.Count(x => x.EnviadoSap == false) ?? 0;
+    var totalPendientesSap = totalEntregasSap - totalEnviadasSap - totalFallidasSap;
+    var totalClientesSap = Model?
+        .Where(x => !string.IsNullOrWhiteSpace(x.Cliente))
+        .Select(x => x.Cliente.Trim())
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .Count() ?? 0;
+    var periodoSap = desde.Date == hasta.Date
+        ? desde.ToString("dd/MM/yyyy")
+        : $"{desde:dd/MM/yyyy} - {hasta:dd/MM/yyyy}";
+}
+
+<style>
+    :root {
+        --bg: #f0dede;
+        --panel: #f8eeee;
+        --panel-2: #f1dede;
+        --line: #c79d9d;
+        --text: #3b1717;
+        --muted: #6a3a3a;
+        --white: #ffffff;
+        --shadow: 0 1px 0 rgba(255,255,255,.55) inset;
+        --brand: #8B0000;
+        --vino-1: #5c0000;
+        --vino-2: #7a0000;
+        --vino-3: #980000;
+        --vino-4: #b30000;
+        --vino-border: #9a5a5a;
+        --vino-text-dark: #4a1111;
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        background: transparent !important;
+        color: var(--text);
+    }
+
+    .container, .container-fluid {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .window {
+        width: 100%;
+        max-width: 100%;
+        margin: 0 !important;
+        border: 1px solid #7e4a4a;
+        background: var(--panel);
+        box-shadow: 0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70,12,12,.14);
+        overflow: hidden;
+        padding: 0 !important;
+    }
+
+        .window > *:first-child, .titlebar {
+            margin-top: 0 !important;
+        }
+
+    .titlebar {
+        height: 34px;
+        /*  display: flex; */
+        display: none !important;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 10px;
+        background: linear-gradient(180deg, #c00000 0%, #8b0000 60%, #5c0000 100%);
+        border-bottom: 1px solid #5c0000;
+        color: #fff;
+        font-size: 13px;
+        font-weight: bold;
+    }
+
+        .titlebar .actions {
+            display: flex;
+            gap: 6px;
+        }
+
+    .win-btn {
+        width: 16px;
+        height: 16px;
+        border: 1px solid #7c4848;
+        background: linear-gradient(#fff6f6, #ead0d0);
+    }
+
+    .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end; /* mueve botones a la derecha */
+        gap: 6px;
+        padding: 4px 6px;
+        background: linear-gradient(#fff6f6, #ecd8d8);
+        border-bottom: 1px solid var(--line);
+        font-size: 12px;
+        flex-wrap: wrap;
+    }
+
+    .tool-btn {
+        min-width: 72px;
+        height: 28px;
+        padding: 0 10px;
+        border: 1px solid #7a2d2d;
+        color: #fff;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        font-weight: 700;
+    }
+
+        .tool-btn:hover {
+            filter: brightness(1.08);
+        }
+
+        .tool-btn.auto-on {
+            background: linear-gradient(180deg, #1a6ebd 0%, #0d5aa7 100%);
+            border-color: #0a4d8f;
+            color: #fff;
+        }
+
+    .content {
+        padding: 8px;
+        background: var(--bg);
+    }
+
+    .tabs {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 6px;
+        flex-wrap: wrap;
+    }
+
+    .tab {
+        font-size: 12px;
+        background: linear-gradient(#f7e7e7, #ead1d1);
+        border: 1px solid #caa0a0;
+        border-bottom: none;
+        padding: 7px 12px;
+        color: #5c1a1a;
+        user-select: none;
+    }
+
+        .tab.active {
+            background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+            font-weight: bold;
+            color: #fff;
+            border-color: #7a2d2d;
+        }
+
+    .workspace {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        padding: 8px;
+    }
+
+    .section {
+        border: 1px solid var(--line);
+        background: var(--white);
+        margin-bottom: 10px;
+    }
+
+    .section-title {
+        padding: 6px 8px;
+        font-size: 12px;
+        font-weight: bold;
+        color: #fff;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-bottom: 1px solid #6b1f1f;
+    }
+
+
+    /* ── Filtros ── */
+    .filters {
+        display: grid;
+        grid-template-columns: 140px /* Origen */
+        180px /* Cliente */
+        160px /* Estatus */
+        130px /* Desde */
+        130px /* Hasta */
+        auto; /* Botones */
+        gap: 10px;
+        padding: 10px;
+        background: var(--panel-2);
+        align-items: end;
+    }
+
+    .filter-actions-group {
+        min-width: 360px;
+    }
+
+    .pm-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .btn-enviar {
+        color: #fff;
+        background: linear-gradient(#198754, #146c43);
+        border-color: #146c43;
+    }
+
+    .btn-auto {
+        color: #fff;
+        background: linear-gradient(#0d6efd, #0a58ca);
+        border-color: #0a58ca;
+    }
+
+    .filter-group label {
+        display: block;
+        color: #5c1a1a;
+        font-size: 12px;
+        margin-bottom: 4px;
+        font-weight: bold;
+    }
+
+    input, select, .form-control, .form-select {
+        height: 28px !important;
+        padding: 3px 6px !important;
+        border: 1px solid #b48787 !important;
+        background: #fffdfd !important;
+        font-family: inherit !important;
+        font-size: 12px !important;
+        width: 100%;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        color: #421414 !important;
+    }
+
+        input[type="checkbox"],
+        input[type="checkbox"].ck {
+            height: 14px !important;
+            width: 14px !important;
+            min-width: 14px !important;
+            max-width: 14px !important;
+            padding: 0 !important;
+            border-radius: 2px !important;
+            cursor: pointer;
+            flex-shrink: 0;
+            display: inline-block !important;
+        }
+
+    .pm-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .pm-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        height: 28px;
+        padding: 0 10px;
+        border: 1px solid transparent;
+        border-radius: 0;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        text-decoration: none;
+        box-shadow: var(--shadow);
+        white-space: nowrap;
+    }
+
+        .pm-btn:hover {
+            filter: brightness(.97);
+        }
+
+        .pm-btn:active {
+            transform: translateY(1px);
+        }
+
+    .pm-btn-primary {
+        color: #fff;
+        border-color: #7a2d2d;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+    }
+
+    .pm-btn-success {
+        color: #fff;
+        border-color: #157347;
+        background: linear-gradient(180deg, #27ae60 0%, #1f9a54 55%, #198754 100%);
+    }
+
+    .pm-btn-warning {
+        color: #3d2000;
+        border-color: #c87800;
+        background: linear-gradient(180deg, #ffc107 0%, #e6a800 100%);
+    }
+
+    .pm-btn-secondary {
+        background: linear-gradient(#fffefe, #ecd7d7);
+        border-color: var(--vino-border);
+        color: var(--vino-text-dark);
+    }
+
+    .pm-btn-outline {
+        background: transparent;
+        border-color: var(--vino-border);
+        color: #5a0000;
+    }
+
+    .pm-btn-auto-on {
+        color: #fff;
+        border-color: #0a4d8f;
+        background: linear-gradient(180deg, #1a6ebd 0%, #0d5aa7 100%);
+    }
+
+
+    /* ── Intervalo select ── */
+    .interval-wrap {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        border: 1px solid #b48787;
+        background: #fffdfd;
+        padding: 0 6px;
+        height: 28px;
+        font-size: 12px;
+        color: #421414;
+    }
+
+        .interval-wrap select {
+            border: none !important;
+            background: transparent !important;
+            height: 22px !important;
+            width: auto !important;
+            padding: 0 !important;
+            font-weight: 700;
+            color: #421414 !important;
+        }
+
+
+    /* ── Tabla ── */
+    .table-wrap {
+        overflow: auto;
+        max-height: 70vh;
+        background: #fffafa;
+        width: 100%;
+        position: relative;
+        border-top: 1px solid #d9b8b8;
+    }
+
+        .table-wrap table {
+            width: 100%;
+            table-layout: fixed;
+            border-collapse: separate !important;
+            border-spacing: 0 !important;
+            font-size: 12px;
+            background: #fffafa;
+        }
+
+        .table-wrap thead,
+        .table-wrap thead tr,
+        .table-wrap thead th {
+            background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+            color: #fff !important;
+        }
+
+            .table-wrap thead th {
+                position: sticky;
+                top: -1px;
+                z-index: 20;
+                border-top: 1px solid #c46a6a !important;
+                border-right: 1px solid #8e3b3b !important;
+                border-bottom: 1px solid #5c0000 !important;
+                padding: 6px 5px !important;
+                font-weight: 700 !important;
+                font-size: 12px !important;
+                white-space: nowrap;
+                line-height: 1.2 !important;
+                box-shadow: 0 2px 0 #6f1d1d;
+            }
+
+                .table-wrap thead th:first-child {
+                    border-left: 1px solid #8e3b3b !important;
+                }
+
+        .table-wrap tbody td {
+            background: #fffafa !important;
+            border-right: 1px solid #d8bcbc !important;
+            border-bottom: 1px solid #d8bcbc !important;
+            padding: 5px 5px !important;
+            white-space: nowrap;
+            vertical-align: middle;
+            font-size: 12px !important;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.2 !important;
+            color: #111111 !important;
+            font-weight: 400;
+        }
+
+            .table-wrap tbody td:first-child {
+                border-left: 1px solid #d8bcbc !important;
+            }
+
+        .table-wrap tbody tr:nth-child(even) td {
+            background: #f9eded !important;
+        }
+
+        .table-wrap tbody tr:hover td {
+            background: #f4dddd !important;
+        }
+
+
+    /* anchos */
+    .tbl-sap th:nth-child(1), .tbl-sap td:nth-child(1) {
+        width: 40px;
+    }
+
+    /* check + est */
+    .tbl-sap th:nth-child(2), .tbl-sap td:nth-child(2) {
+        width: 120px;
+    }
+
+    /* Fecha */
+    .tbl-sap th:nth-child(3), .tbl-sap td:nth-child(3) {
+        width: 60px;
+    }
+
+    /* Solicitud */
+    .tbl-sap th:nth-child(4), .tbl-sap td:nth-child(4) {
+        width: 200px;
+    }
+
+    /* Cliente */
+    .tbl-sap th:nth-child(5), .tbl-sap td:nth-child(5) {
+        width: 150px;
+    }
+
+    /* Pedido */
+    .tbl-sap th:nth-child(6), .tbl-sap td:nth-child(6) {
+        width: 160px;
+    }
+
+    /* Remisión */
+    .tbl-sap th:nth-child(7), .tbl-sap td:nth-child(7) {
+        width: 40px;
+    }
+
+    /* Estatus SAP */
+    .tbl-sap th:nth-child(8), .tbl-sap td:nth-child(8) {
+        width: 70px;
+    }
+
+    /* Devoluciones */
+    .tbl-sap th:nth-child(9), .tbl-sap td:nth-child(9) {
+        width: 80px;
+    }
+
+    /* Acciones */
+    .text-end {
+        text-align: right !important;
+    }
+
+    .text-center {
+        text-align: center !important;
+    }
+
+
+    /* ── Estatus icono ── */
+    .sap-est {
+        font-size: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: default;
+    }
+
+
+    /* ── Devoluciones icono ── */
+    .dev-est {
+        min-width: 24px;
+        height: 22px;
+        padding: 0 6px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 900;
+        cursor: default;
+        border: 1px solid #c9a0a0;
+        background: #f4eeee;
+        color: #6a3a3a;
+    }
+
+    .dev-ok {
+        background: #dff3e2;
+        border-color: #6aa84f;
+        color: #2f6b1f;
+    }
+
+    .dev-pending {
+        background: #fde2e2;
+        border-color: #d9534f;
+        color: #a10000;
+    }
+
+    .dev-diff {
+        background: #fff4cc;
+        border-color: #d6b656;
+        color: #7a5a00;
+    }
+
+    .dev-none {
+        background: #f4f4f4;
+        border-color: #c7c7c7;
+        color: #777;
+    }
+
+    .dev-unknown {
+        background: #eef4ff;
+        border-color: #86a8e7;
+        color: #1e4f9f;
+    }
+
+
+    /* ── Log box ── */
+    #logBox {
+        margin-top: 8px;
+        display: none;
+    }
+
+    .log-inner {
+        padding: 6px 10px;
+        font-size: 12px;
+        border: 1px solid var(--line);
+        white-space: pre-wrap;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+    }
+
+    .log-info    {
+        background: #e8f4fd;
+        border-color: #7ab8d4;
+        color: #064b6b;
+    }
+
+    .log-success {
+        background: #dff3e2;
+        border-color: #6aa84f;
+        color: #2f6b1f;
+    }
+
+    .log-danger  {
+        background: #fde2e2;
+        border-color: #d9534f;
+        color: #b00000;
+    }
+
+    .log-warning {
+        background: #fff4cc;
+        border-color: #d6b656;
+        color: #7a5a00;
+    }
+
+    .log-secondary {
+        background: #f4f4f4;
+        border-color: #ccc;
+        color: #555;
+    }
+
+
+    /* ── Modal ── */
+    #reserveKgModal .modal-content {
+        border: 1px solid #7d4949;
+        border-radius: 0;
+    }
+
+    #reserveKgModal .modal-header {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: #fff !important;
+        border-bottom: 1px solid #5c0000 !important;
+        padding: .65rem 1rem !important;
+        border-radius: 0;
+    }
+
+    #reserveKgModal .modal-title {
+        color: #fff !important;
+        font-weight: 700;
+        font-size: 13px;
+    }
+
+    #reserveKgModal .btn-close {
+        filter: invert(1) grayscale(100%) !important;
+        opacity: .95 !important;
+    }
+
+    #reserveKgModal .modal-body {
+        background: #f4e4e4;
+        padding: .75rem !important;
+    }
+
+    #reserveKgModal .modal-footer {
+        background: #f7eaea;
+        border-top: 1px solid #d3b0b0;
+    }
+
+    #reserveKgModal .table-responsive {
+        border: 1px solid #d8bcbc;
+        background: #fffafa;
+        overflow: auto;
+    }
+
+    #reserveKgModal table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 12px;
+    }
+
+        #reserveKgModal table thead th {
+            background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+            color: #fff !important;
+            border-right: 1px solid #8e3b3b;
+            border-bottom: 1px solid #5c0000;
+            padding: 6px 5px;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        #reserveKgModal table tbody td {
+            background: #fffafa;
+            border-bottom: 1px solid #d8bcbc;
+            border-right: 1px solid #d8bcbc;
+            padding: 5px;
+            font-size: 12px;
+            color: #111111;
+            font-weight: 400;
+        }
+
+        #reserveKgModal table tbody tr:nth-child(even) td {
+            background: #f9eded;
+        }
+
+
+    /* ── Dropdown acciones ── */
+    .dropdown-menu {
+        font-size: 12px !important;
+        border-radius: 0 !important;
+        border: 1px solid #b48787 !important;
+        background: #fffafa !important;
+        min-width: 170px;
+    }
+
+    .dropdown-item {
+        font-size: 12px !important;
+        color: #111111 !important;
+        font-weight: 400;
+        padding: 5px 10px !important;
+    }
+
+        .dropdown-item:hover {
+            background: #f4dddd !important;
+        }
+
+
+    /* ── Statusbar ── */
+    .statusbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 6px 10px;
+        font-size: 11px;
+        color: #4a1a1a;
+        border-top: 1px solid #b88c8c;
+        background: linear-gradient(#f6e9e9, #ead5d5);
+        flex-wrap: wrap;
+    }
+
+    @@media(max-width: 992px) {
+        .filters {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+    @@media(max-width: 768px) {
+        .filters {
+            grid-template-columns: 1fr;
+        }
+
+        .tbl-sap {
+            min-width: 900px;
+        }
+    }
+
+    .btn-enviar {
+        background: linear-gradient(#198754, #146c43);
+        border-color: #146c43;
+    }
+
+    .btn-auto {
+        background: linear-gradient(#0d6efd, #0a58ca);
+        border-color: #0a58ca;
+    }
+
+    .btn-limpiar {
+        background: linear-gradient(#fd7e14, #d65f00);
+        border-color: #d65f00;
+    }
+
+    .btn-actualizar {
+        background: linear-gradient(#6f42c1, #59359a);
+        border-color: #59359a;
+    }
+
+    .pm-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        height: 31px;
+        padding: 0 10px;
+        font-weight: 700;
+        text-decoration: none;
+    }
+
+    .pm-icon {
+        font-size: 13px;
+        line-height: 1;
+    }
+
+    .tbl-sap th:nth-child(9),
+    .tbl-sap td:nth-child(9) {
+        width: 260px;
+    }
+
+    .tbl-sap td:nth-child(9) {
+        overflow: visible !important;
+    }
+
+        .tbl-sap td:nth-child(9) .pm-actions {
+            display: inline-flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 4px;
+            flex-wrap: nowrap !important;
+            white-space: nowrap;
+        }
+
+        .tbl-sap td:nth-child(9) .pm-btn {
+            height: 24px;
+            min-width: auto;
+            padding: 0 7px;
+            gap: 3px;
+            font-size: 11px !important;
+            line-height: 1;
+        }
+
+        .tbl-sap td:nth-child(9) .pm-icon {
+            font-size: 10px;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+        }
+
+
+    /* Filas con error SAP - alerta parpadeo tenue */
+    @@keyframes sapErrorBlink {
+        0%, 100% {
+            box-shadow: inset 0 0 0 9999px rgba(255, 235, 235, .65);
+        }
+
+        50% {
+            box-shadow: inset 0 0 0 9999px rgba(220, 53, 69, .28);
+        }
+    }
+
+    .table-wrap .tbl-sap tbody tr.sap-error > td {
+        animation: sapErrorBlink 1.1s ease-in-out infinite;
+    }
+
+    .table-wrap .tbl-sap tbody tr.sap-error:hover > td {
+        animation: none;
+        box-shadow: inset 0 0 0 9999px rgba(220, 53, 69, .22);
+    }
+
+    .table-wrap .tbl-sap tbody tr.sap-error .sap-est {
+        color: #c62828 !important;
+        font-weight: 700;
+    }
+
+    .pdf-modal-width {
+        max-width: 560px;
+    }
+
+    .pdf-modal {
+        border: 1px solid #7a2d2d;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 18px 45px rgba(0,0,0,.35);
+    }
+
+    .pdf-modal-header {
+        height: 58px;
+        padding: 0 22px;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .pdf-modal-title {
+        font-size: 17px;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .pdf-title-icon {
+        font-size: 20px;
+    }
+
+    .pdf-close {
+        border: none;
+        background: transparent;
+        color: #fff;
+        font-size: 30px;
+        font-weight: 700;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .pdf-modal-body {
+        padding: 36px 28px 30px;
+        background: #fff;
+        text-align: center;
+    }
+
+    .pdf-icon-circle {
+        width: 78px;
+        height: 78px;
+        margin: 0 auto 18px;
+        border-radius: 50%;
+        background: #f4dada;
+        color: #b30000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 900;
+        border: 1px solid #efc2c2;
+    }
+
+    .pdf-heading {
+        margin: 0;
+        font-size: 19px;
+        font-weight: 800;
+        color: #222;
+    }
+
+    .pdf-line {
+        width: 370px;
+        max-width: 100%;
+        height: 1px;
+        background: #b30000;
+        margin: 14px auto 16px;
+    }
+
+    .pdf-subtitle {
+        margin: 0 auto 22px;
+        max-width: 390px;
+        font-size: 14px;
+        line-height: 1.55;
+        color: #333;
+    }
+
+    .pdf-field {
+        text-align: left;
+    }
+
+        .pdf-field label {
+            display: block;
+            margin-bottom: 7px;
+            font-size: 13px;
+            font-weight: 800;
+            color: #222;
+        }
+
+        .pdf-field textarea {
+            width: 100%;
+            height: auto !important;
+            min-height: 120px;
+            resize: vertical;
+            padding: 12px 14px !important;
+            border: 1px solid #cbd3df !important;
+            border-radius: 5px !important;
+            background: #fff !important;
+            font-size: 13px !important;
+            color: #222 !important;
+            outline: none;
+        }
+
+            .pdf-field textarea:focus {
+                border-color: #8b0000 !important;
+                box-shadow: 0 0 0 3px rgba(139,0,0,.12) !important;
+            }
+
+    .pdf-counter {
+        text-align: right;
+        margin-top: 4px;
+        font-size: 12px;
+        color: #5f6673;
+    }
+
+    .pdf-alert {
+        margin-top: 18px;
+        padding: 14px 16px;
+        border: 1px solid #b9c9f5;
+        background: #f4f7ff;
+        border-radius: 5px;
+        color: #102a6b;
+        display: flex;
+        gap: 12px;
+        text-align: left;
+        font-size: 13px;
+        line-height: 1.35;
+    }
+
+
+    .pdf-source-box {
+        margin: 18px 0 16px;
+        padding: 14px;
+        border: 1px solid #ead0d0;
+        background: #fffafa;
+        border-radius: 6px;
+        text-align: left;
+    }
+
+    .pdf-source-title {
+        margin-bottom: 10px;
+        font-size: 13px;
+        font-weight: 900;
+        color: #222;
+    }
+
+    .pdf-source-options {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .pdf-source-option {
+        min-height: 88px;
+        padding: 12px;
+        border: 1px solid #d8bcbc;
+        background: #fff;
+        border-radius: 6px;
+        display: flex;
+        align-items: flex-start;
+        gap: 9px;
+        cursor: pointer;
+    }
+
+        .pdf-source-option:hover {
+            border-color: #8b0000;
+            box-shadow: 0 0 0 3px rgba(139,0,0,.08);
+        }
+
+        .pdf-source-option input[type="radio"] {
+            width: 16px !important;
+            min-width: 16px !important;
+            max-width: 16px !important;
+            height: 16px !important;
+            margin-top: 2px;
+            padding: 0 !important;
+            cursor: pointer;
+        }
+
+    .pdf-source-name {
+        display: block;
+        font-size: 13px;
+        font-weight: 900;
+        color: #4a1111;
+        line-height: 1.2;
+    }
+
+    .pdf-source-desc {
+        display: block;
+        margin-top: 4px;
+        font-size: 12px;
+        line-height: 1.35;
+        color: #5f6673;
+    }
+
+    .pdf-source-context {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 12px;
+        font-size: 12px;
+        color: #421414;
+    }
+
+        .pdf-source-context div {
+            padding: 7px 8px;
+            background: #f7eaea;
+            border: 1px solid #ead0d0;
+            border-radius: 5px;
+        }
+
+        .pdf-source-context strong {
+            color: #8b0000;
+            font-weight: 900;
+        }
+
+    .pdf-source-note {
+        margin-top: 10px;
+        padding: 9px 10px;
+        border: 1px solid #b9c9f5;
+        background: #f4f7ff;
+        border-radius: 5px;
+        color: #102a6b;
+        font-size: 12px;
+        line-height: 1.35;
+    }
+
+    .pdf-modal-footer {
+        padding: 18px 28px 22px;
+        background: #fff;
+        border-top: 1px solid #e5e5e5;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    .pdf-btn {
+        height: 42px;
+        padding: 0 22px;
+        border-radius: 5px;
+        font-size: 14px;
+        font-weight: 800;
+        cursor: pointer;
+    }
+
+    .pdf-btn-cancel {
+        background: #fff;
+        color: #222;
+        border: 1px solid #777;
+    }
+
+    .pdf-btn-generate {
+        color: #fff;
+        border: 1px solid #7a0000;
+        background: linear-gradient(180deg, #c80000 0%, #9b0000 55%, #720000 100%);
+    }
+
+    .pdf-btn:hover {
+        filter: brightness(.97);
+    }
+
+    /* =========================
+                       RESPONSIVE MOBILE
+                       ========================= */
+    @@media (max-width: 768px) {
+        body {
+            overflow-x: hidden;
+        }
+
+        .content {
+            padding: 6px !important;
+        }
+
+        .workspace {
+            padding: 6px !important;
+            border: none;
+        }
+
+        .section {
+            margin-bottom: 8px;
+        }
+
+        .section-title {
+            font-size: 13px;
+            padding: 8px 10px;
+        }
+
+        .filters {
+            grid-template-columns: 1fr !important;
+            gap: 10px;
+            padding: 10px;
+        }
+
+        .filter-actions-group {
+            min-width: 0 !important;
+            width: 100%;
+        }
+
+        .pm-actions {
+            width: 100%;
+            justify-content: stretch !important;
+            gap: 8px;
+        }
+
+        .filter-actions-group .pm-btn {
+            flex: 1 1 100%;
+            width: 100%;
+            height: 38px;
+            font-size: 13px !important;
+        }
+
+        input,
+        select,
+        .form-control,
+        .form-select {
+            height: 38px !important;
+            font-size: 14px !important;
+        }
+
+        .table-wrap {
+            max-height: calc(100vh - 300px);
+            overflow-x: auto;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .tbl-sap {
+            min-width: 980px !important;
+        }
+
+        .table-wrap thead th,
+        .table-wrap tbody td {
+            font-size: 11px !important;
+            padding: 6px 5px !important;
+        }
+
+        .tbl-sap td:nth-child(9) .pm-actions {
+            justify-content: flex-start !important;
+            flex-wrap: nowrap !important;
+        }
+
+        .tbl-sap td:nth-child(9) .pm-btn {
+            height: 28px;
+            padding: 0 8px;
+            font-size: 11px !important;
+        }
+
+        .statusbar {
+            font-size: 10px;
+            gap: 4px;
+            padding: 6px;
+        }
+
+            .statusbar div {
+                flex: 1 1 100%;
+            }
+
+        .pdf-modal-width {
+            max-width: calc(100vw - 18px) !important;
+            margin: 9px auto;
+        }
+
+        .pdf-modal-header {
+            height: auto;
+            min-height: 52px;
+            padding: 12px 14px;
+        }
+
+        .pdf-modal-title {
+            font-size: 15px;
+        }
+
+        .pdf-modal-body {
+            padding: 22px 16px 18px;
+        }
+
+        .pdf-icon-circle {
+            width: 62px;
+            height: 62px;
+            margin-bottom: 12px;
+        }
+
+        .pdf-heading {
+            font-size: 17px;
+        }
+
+        .pdf-subtitle {
+            font-size: 13px;
+        }
+
+
+        .pdf-source-options,
+        .pdf-source-context {
+            grid-template-columns: 1fr;
+        }
+
+        .pdf-modal-footer {
+            padding: 14px 16px;
+            flex-direction: column;
+        }
+
+        .pdf-btn {
+            width: 100%;
+            height: 42px;
+        }
+
+        #reserveKgModal .modal-dialog {
+            margin: 8px;
+        }
+
+        #reserveKgModal .modal-footer {
+            flex-direction: column;
+        }
+
+            #reserveKgModal .modal-footer .pm-btn {
+                width: 100%;
+                height: 38px;
+            }
+    }
+
+    @@media (max-width: 480px) {
+        .tbl-sap {
+            min-width: 920px !important;
+        }
+
+        .table-wrap {
+            max-height: calc(100vh - 330px);
+        }
+
+        .section-title {
+            font-size: 12px;
+        }
+    }
+
+    /* =========================
+                       MODAL TRAZABILIDAD
+                       ========================= */
+    #trazabilidadModal .modal-dialog {
+        max-width: 1180px;
+    }
+
+    .trz-modal {
+        border: 1px solid #7a2d2d;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 18px 45px rgba(0,0,0,.35);
+    }
+
+    .trz-header {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        color: #fff;
+        padding: 14px 18px;
+        border-bottom: 1px solid #5c0000;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .trz-title {
+        font-size: 15px;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .trz-close {
+        border: none;
+        background: transparent;
+        color: #fff;
+        font-size: 28px;
+        font-weight: 700;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .trz-body {
+        background: #fff8e6;
+        padding: 16px;
+    }
+
+    .trz-alert-main {
+        border: 1px solid #d6b656;
+        background: linear-gradient(180deg, #fff7d7 0%, #fff1bd 100%);
+        color: #6b4d00;
+        padding: 12px 14px;
+        border-radius: 7px;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        margin-bottom: 14px;
+        font-size: 13px;
+        line-height: 1.35;
+    }
+
+        .trz-alert-main .trz-icon {
+            font-size: 22px;
+            line-height: 1;
+        }
+
+    .trz-ref-box {
+        background: #fff;
+        border: 1px solid #ead28d;
+        padding: 8px 10px;
+        border-radius: 6px;
+        margin-bottom: 12px;
+        font-size: 12px;
+        color: #4a1111;
+    }
+
+        .trz-ref-box strong {
+            color: #8b0000;
+        }
+
+    .trz-table-wrap {
+        border: 1px solid #d8bcbc;
+        background: #fffafa;
+        overflow: auto;
+        max-height: 360px;
+    }
+
+    .trz-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 12px;
+    }
+
+        .trz-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+            color: #fff;
+            border-right: 1px solid #8e3b3b;
+            border-bottom: 1px solid #5c0000;
+            padding: 7px 6px;
+            white-space: nowrap;
+            font-weight: 700;
+        }
+
+        .trz-table tbody td {
+            background: #fffafa;
+            border-right: 1px solid #d8bcbc;
+            border-bottom: 1px solid #d8bcbc;
+            padding: 6px;
+            color: #111;
+            white-space: nowrap;
+        }
+
+        .trz-table tbody tr:nth-child(even) td {
+            background: #f9eded;
+        }
+
+    .trz-badge-danger {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 7px;
+        border-radius: 999px;
+        background: #fde2e2;
+        border: 1px solid #d9534f;
+        color: #a10000;
+        font-weight: 700;
+        font-size: 11px;
+    }
+
+    .trz-badge-warning {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 7px;
+        border-radius: 999px;
+        background: #fff4cc;
+        border: 1px solid #d6b656;
+        color: #7a5a00;
+        font-weight: 700;
+        font-size: 11px;
+    }
+
+
+    .trz-badge-success {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 7px;
+        border-radius: 999px;
+        background: #dff3e2;
+        border: 1px solid #6aa84f;
+        color: #2f6b1f;
+        font-weight: 700;
+        font-size: 11px;
+    }
+
+    .trz-footer {
+        background: #fff;
+        border-top: 1px solid #e5d5b5;
+        padding: 12px 16px;
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+    }
+
+    .trz-btn-close {
+        height: 34px;
+        padding: 0 16px;
+        border: 1px solid #7a2d2d;
+        background: linear-gradient(#fffefe, #ecd7d7);
+        color: #4a1111;
+        font-weight: 800;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    .trz-summary {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+
+    .trz-summary-card {
+        background: #fff;
+        border: 1px solid #ead28d;
+        border-radius: 6px;
+        padding: 9px 10px;
+    }
+
+        .trz-summary-card .label {
+            font-size: 11px;
+            color: #6a3a3a;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .trz-summary-card .value {
+            font-size: 17px;
+            color: #8b0000;
+            font-weight: 900;
+            margin-top: 2px;
+        }
+
+    @@media(max-width: 768px) {
+        #trazabilidadModal .modal-dialog {
+            max-width: calc(100vw - 16px);
+            margin: 8px auto;
+        }
+
+        .trz-summary {
+            grid-template-columns: 1fr;
+        }
+
+        .trz-table {
+            min-width: 760px;
+        }
+    }
+
+    
+    .filter-group input[type="date"] {
+        width: 130px !important;
+    }
+
+    .loading-row {
+        padding: 28px !important;
+        text-align: center !important;
+        color: #5c1a1a !important;
+        font-weight: 700;
+    }
+
+    .pm-spinner {
+        width: 34px;
+        height: 34px;
+        border: 4px solid #f1caca;
+        border-top: 4px solid #8b0000;
+        border-radius: 50%;
+        animation: pmSpin .8s linear infinite;
+        margin: 0 auto 10px auto;
+    }
+
+    @@keyframes pmSpin {
+        from {
+            transform: rotate(0deg);
+        }
+
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    .loading-text {
+        font-size: 13px;
+    }
+
+
+    /* =========================================================
+           KPIS EJECUTIVOS ENTREGAS SAP
+           ========================================================= */
+
+    .sap-kpi-section {
+        background: linear-gradient(180deg, #fffafa, #f2dddd);
+    }
+
+    .sap-kpi-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+        .sap-kpi-title span {
+            font-size: 11px;
+            font-weight: 700;
+            color: #ffe4e4;
+            opacity: .95;
+        }
+
+    .sap-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(120px, 1fr));
+        gap: 10px;
+        padding: 10px;
+        background: linear-gradient(180deg, #fffafa 0%, #f4e4e4 100%);
+    }
+
+    .sap-kpi {
+        position: relative;
+        min-height: 96px;
+        overflow: hidden;
+        border-radius: 12px;
+        padding: 12px 13px;
+        border: 1px solid rgba(255,255,255,.25);
+        color: #fff;
+        box-shadow: 0 12px 22px rgba(72, 12, 12, .16);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        isolation: isolate;
+    }
+
+        .sap-kpi::before {
+            content: "";
+            position: absolute;
+            right: -34px;
+            bottom: -46px;
+            width: 118px;
+            height: 118px;
+            border-radius: 999px;
+            background: rgba(255,255,255,.16);
+            z-index: -1;
+        }
+
+        .sap-kpi::after {
+            content: "";
+            position: absolute;
+            right: -10px;
+            bottom: -30px;
+            width: 78px;
+            height: 78px;
+            border-radius: 999px;
+            background: rgba(0,0,0,.08);
+            z-index: -1;
+        }
+
+        .sap-kpi label {
+            margin: 0;
+            color: rgba(255,255,255,.92);
+            font-size: 11px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            line-height: 1.2;
+        }
+
+        .sap-kpi strong {
+            display: block;
+            margin-top: 10px;
+            color: #fff;
+            font-size: clamp(24px, 2.4vw, 36px);
+            font-weight: 900;
+            line-height: 1;
+            text-shadow: 0 2px 10px rgba(0,0,0,.25);
+            word-break: break-word;
+        }
+
+        .sap-kpi small {
+            display: block;
+            margin-top: 8px;
+            color: rgba(255,255,255,.90);
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+    .sap-kpi-total {
+        background: linear-gradient(135deg, #8b0000 0%, #b30000 56%, #5c0000 100%);
+    }
+
+    .sap-kpi-ok {
+        background: linear-gradient(135deg, #157347 0%, #22a461 55%, #0d5d37 100%);
+    }
+
+    .sap-kpi-pending {
+        background: linear-gradient(135deg, #b7791f 0%, #f0b429 55%, #805400 100%);
+    }
+
+    .sap-kpi-error {
+        background: linear-gradient(135deg, #b91c1c 0%, #e03333 55%, #7f1111 100%);
+    }
+
+    .sap-kpi-selected {
+        background: linear-gradient(135deg, #0d5aa7 0%, #2787d9 55%, #083d75 100%);
+    }
+
+    .sap-kpi-dev {
+        background: linear-gradient(135deg, #4c1d95 0%, #7c3aed 55%, #2e1065 100%);
+    }
+
+        .sap-kpi-dev.ok {
+            background: linear-gradient(135deg, #157347 0%, #22a461 55%, #0d5d37 100%);
+        }
+
+        .sap-kpi-dev.warn {
+            background: linear-gradient(135deg, #b7791f 0%, #f0b429 55%, #805400 100%);
+        }
+
+        .sap-kpi-dev.bad {
+            background: linear-gradient(135deg, #b91c1c 0%, #e03333 55%, #7f1111 100%);
+        }
+
+    @@media(max-width: 1300px) {
+        .sap-kpi-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+    }
+
+    @@media(max-width: 768px) {
+        .sap-kpi-title {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .sap-kpi-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .sap-kpi {
+            min-height: 88px;
+        }
+
+            .sap-kpi strong {
+                font-size: 26px;
+            }
+    }
+
+    @@media(max-width: 480px) {
+        .sap-kpi-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="window">
+
+    <div class="titlebar">
+        <div></div>
+        <div class="actions">
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+        </div>
+    </div>
+
+
+
+    <div class="content">
+
+
+
+        <div class="workspace">
+
+            <div class="section">
+                <div class="section-title">Filtros de búsqueda</div>
+
+                <form id="frmFiltros" method="get">
+                    <div class="filters">
+
+                        <div class="filter-group">
+                            <label>Origen</label>
+                            <select name="source" class="form-select">
+                                @if (source == "P1")
+                                {
+                                    <option value="P1" selected>Planta 1</option>
+                                }
+                                else
+                                {
+                                    <option value="P1">Planta 1</option>
+                                }
+
+                                @if (source == "TIF")
+                                {
+                                    <option value="TIF" selected>Planta TIF</option>
+                                }
+                                else
+                                {
+                                    <option value="TIF">Planta TIF</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
+                            <label>Cliente</label>
+                            <input type="text"
+                                   class="form-control"
+                                   name="cliente"
+                                   value="@cliente"
+                                   placeholder="Buscar cliente..." />
+                        </div>
+
+                        
+                        <div class="filter-group">
+                            <label>Estatus SAP</label>
+                            <select name="estatusSap" class="form-select">
+                                <option value="todos">Todos</option>
+                                <option value="enviados">Enviados ✅</option>
+                                <option value="noenviados">No enviados ❌</option>
+                            </select>
+                        </div>
+
+
+                        <div class="filter-group">
+                            <label>Desde</label>
+                            <input type="date"
+                                   class="form-control"
+                                   name="desde"
+                                   value="@desde.ToString("yyyy-MM-dd")" />
+                        </div>
+
+                        <div class="filter-group">
+                            <label>Hasta</label>
+                            <input type="date"
+                                   class="form-control"
+                                   name="hasta"
+                                   value="@hasta.ToString("yyyy-MM-dd")" />
+                        </div>
+
+                        <div class="filter-group filter-actions-group">
+                            <label>&nbsp;</label>
+                            <div class="pm-actions" style="justify-content:flex-end;">
+                                <button class="pm-btn pm-btn-primary" type="submit">
+                                    <i class="bi bi-search"></i> Buscar
+                                </button>
+
+                                <button class="pm-btn btn-enviar" type="button" onclick="sendMany()">
+                                    <i class="bi bi-send-fill"></i> Enviar seleccionados
+                                </button>
+
+                                <button class="pm-btn btn-auto" type="button" id="btnAuto">
+                                    <span id="autoIco">⏸</span> Auto
+                                </button>
+
+                                <button class="pm-btn pm-btn-warning" type="button" onclick="validarDevolucionesVisibles()" title="Valida devoluciones visibles en la tabla">
+                                    <span class="pm-icon">✅</span> Dev.
+                                </button>
+
+                                <button class="pm-btn btn-auto" type="button" id="btnAutoDev" title="Activar validación automática de devoluciones">
+                                    <span id="autoDevIco">⏸</span> Auto Dev
+                                </button>
+
+                                <button class="pm-btn btn-actualizar" type="button" onclick="abrirInventarioModal()">
+                                    <span class="pm-icon">📦</span> Inventario
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                </form>
+            </div>
+
+
+            <div class="section sap-kpi-section">
+                <div class="section-title sap-kpi-title">
+                    <div>Resumen ejecutivo de entregas SAP</div>
+                    <span>Origen: @source | Periodo: @periodoSap | Clientes: @totalClientesSap</span>
+                </div>
+
+                <div class="sap-kpi-grid">
+                    <div class="sap-kpi sap-kpi-total">
+                        <label>Total entregas</label>
+                        <strong id="kpiSapTotal">@totalEntregasSap.ToString("N0")</strong>
+                        <small>Registros visibles en consulta</small>
+                    </div>
+
+                    <div class="sap-kpi sap-kpi-ok">
+                        <label>Enviadas SAP</label>
+                        <strong id="kpiSapEnviadas">@totalEnviadasSap.ToString("N0")</strong>
+                        <small>Confirmadas correctamente</small>
+                    </div>
+
+                    <div class="sap-kpi sap-kpi-pending">
+                        <label>Pendientes</label>
+                        <strong id="kpiSapPendientes">@totalPendientesSap.ToString("N0")</strong>
+                        <small>Sin intento / por enviar</small>
+                    </div>
+
+                    <div class="sap-kpi sap-kpi-error">
+                        <label>Fallidas</label>
+                        <strong id="kpiSapFallidas">@totalFallidasSap.ToString("N0")</strong>
+                        <small>Requieren revisión</small>
+                    </div>
+
+                    <div class="sap-kpi sap-kpi-selected">
+                        <label>Seleccionadas</label>
+                        <strong id="kpiSapSeleccionadas">0</strong>
+                        <small>Marcadas para envío masivo</small>
+                    </div>
+
+                    <div class="sap-kpi sap-kpi-dev" id="kpiSapDevCard">
+                        <label>Dev. revisar</label>
+                        <strong id="kpiSapDevRevisar">0</strong>
+                        <small id="kpiSapDevTexto">Pendiente de validar</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                @*  <div class="section-title">Listado de entregas</div> *@
+
+                <div class="table-wrap">
+                    <table class="tbl-sap">
+                        <thead>
+                            <tr>
+                                <th class="text-center">#</th>
+                                <th>Fecha</th>
+                                <th>Solicitud</th>
+                                <th>Cliente</th>
+                                <th>Pedido</th>
+                                <th>Remisión</th>
+                                <th class="text-center">Est.</th>
+                                <th class="text-center">Dev.</th>
+                                <th class="text-end">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model != null && Model.Any())
+                            {
+                                foreach (var x in Model)
+                                {
+                                    var icon = x.EnviadoSap == true ? "✅" : (x.EnviadoSap == false ? "❌" : "—");
+                                    var title = x.EnviadoSap == true
+                                    ? $"Enviado{(x.FechaEnvioSap != null ? " (" + x.FechaEnvioSap.Value.ToString("dd/MM/yyyy HH:mm") + ")" : "")}"
+                                    : (x.EnviadoSap == false
+                                    ? $"Falló{(x.FechaEnvioSap != null ? " (" + x.FechaEnvioSap.Value.ToString("dd/MM/yyyy HH:mm") + ")" : "")}{(!string.IsNullOrWhiteSpace(x.MsgSap) ? " - " + x.MsgSap : "")}"
+                                    : "Sin intento");
+
+                                    <tr class="@(x.EnviadoSap == false ? "sap-error" : "")"
+                                        data-ref="@x.ReferenciaDocMeat"
+                                        data-fecha="@((x.FechaDocumento?.ToString("o")) ?? "")">
+
+                                        <td class="text-center">
+                                            <span style="font-size:11px;color:#9a6a6a;font-weight:700;display:block;margin-bottom:2px;">@(Model.IndexOf(x) + 1)</span>
+                                            <input type="checkbox" class="ck" value="@x.ReferenciaDocMeat"
+                                                   style="width:14px!important;height:14px!important;min-width:14px!important;" />
+                                        </td>
+                                        <td title="@((x.FechaDocumento?.ToString("dd/MM/yyyy HH:mm")) ?? "-")">@((x.FechaDocumento?.ToString("dd/MM/yyyy HH:mm")) ?? "-")</td>
+                                        <td title="@x.SolicitudSurtidoId">@x.SolicitudSurtidoId</td>
+                                        <td title="@((string.IsNullOrWhiteSpace(x.Cliente) ? "-" : x.Cliente))">@((string.IsNullOrWhiteSpace(x.Cliente) ? "-" : x.Cliente))</td>
+                                        <td title="@x.Remision">@x.Remision</td>
+                                        <td title="@x.ReferenciaDocMeat"><code style="font-size:11px;">@x.ReferenciaDocMeat</code></td>
+                                        <td class="text-center">
+                                            <span class="sap-est js-est" title="@title">@icon</span>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="dev-est js-dev-est dev-unknown"
+                                                  title="Devolución sin validar">⏳</span>
+                                        </td>
+                                        <td class="text-end">
+                                            <div class="pm-actions" style="justify-content:flex-end;">
+                                                <a class="pm-btn pm-btn-outline"
+                                                   target="_blank"
+                                                   href="@Url.Action("EntregaJson", "ProcesosCg", new { referencia = x.ReferenciaDocMeat, source = source })"
+                                                   style="font-size:11px;">
+                                                    <span class="pm-icon">📄</span> JSON
+                                                </a>
+
+                                                <button class="pm-btn pm-btn-warning js-traza"
+                                                        type="button"
+                                                        onclick="validarTrazabilidad('@x.ReferenciaDocMeat')"
+                                                        style="font-size:11px;">
+                                                    <span class="pm-icon">🔎</span> Trazabilidad
+                                                </button>
+
+                                                <button class="pm-btn pm-btn-success"
+                                                        type="button"
+                                                        onclick="abrirPdfConComentarios('@x.SolicitudSurtidoId', '@x.ReferenciaDocMeat')"
+                                                        style="font-size:11px;">
+                                                    <span class="pm-icon">📕</span> PDF
+                                                </button>
+
+                                                <button class="pm-btn pm-btn-primary js-send-one"
+                                                        type="button"
+                                                        onclick="sendOne('@x.ReferenciaDocMeat')"
+                                                        style="font-size:11px;">
+                                                    <span class="pm-icon">📤</span> Enviar
+                                                </button>
+                                                <div class="dropdown">
+                                                    @*  <button class="pm-btn pm-btn-warning dropdown-toggle js-reserve"
+            type="button"
+            data-bs-toggle="dropdown"
+            style="font-size:11px; opacity:.5; pointer-events:none;"
+            aria-disabled="true">
+        Reserva
+    </button> *@
+                                                    <ul class="dropdown-menu dropdown-menu-end">
+                                                        <li>
+                                                            <button class="dropdown-item" type="button"
+                                                                    onclick="sendReserveByDelivery('@x.ReferenciaDocMeat')">
+                                                                📦 Por entrega
+                                                            </button>
+                                                        </li>
+                                                        <li>
+                                                            <button class="dropdown-item" type="button"
+                                                                    onclick="openReserveManual('@x.ReferenciaDocMeat')">
+                                                                ✍️ Manual (KG)
+                                                            </button>
+                                                        </li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="9" class="text-center text-muted">Sin resultados.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Log -->
+            <div id="logBox">
+                <div id="log" class="log-inner log-secondary"></div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="statusbar">
+        <div>Registro listo</div>
+        <div>Usuario: @(User?.Identity?.Name ?? "")</div>
+        <div>Empresa: Carnes G SA de CV</div>
+        <div>Módulo: Entregas SAP</div>
+    </div>
+
+</div>
+
+<div class="modal fade" id="pdfComentariosModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered pdf-modal-width">
+        <div class="modal-content pdf-modal">
+
+            <div class="pdf-modal-header">
+                <div class="pdf-modal-title">
+                    <span class="pdf-title-icon">📄</span>
+                    Generar PDF con comentarios
+                </div>
+
+                <button type="button"
+                        class="pdf-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar">
+                    ×
+                </button>
+            </div>
+
+            <div class="pdf-modal-body">
+
+                <div class="pdf-icon-circle">
+                    <span>PDF</span>
+                </div>
+
+                <h4 class="pdf-heading">Agrega comentarios para el PDF</h4>
+
+                <div class="pdf-line"></div>
+
+                <p class="pdf-subtitle">
+                    Los comentarios que escribas se incluirán en el PDF
+                    en la sección de Comentarios.
+                </p>
+
+                <div class="pdf-source-box">
+                    <div class="pdf-source-title">Selecciona de dónde tomar los datos del PDF</div>
+
+                    <div class="pdf-source-options">
+                        <label class="pdf-source-option" for="pdfOrigenRemision">
+                            <input type="radio"
+                                   id="pdfOrigenRemision"
+                                   name="pdfOrigenDatos"
+                                   value="remision"
+                                   checked />
+                            <span>
+                                <span class="pdf-source-name">Remisión / Surtido real</span>
+                                <span class="pdf-source-desc">
+                                    Usa lo que realmente se cargó y viene en el Meat de la entrega.
+                                </span>
+                            </span>
+                        </label>
+
+                        <label class="pdf-source-option" for="pdfOrigenOrden">
+                            <input type="radio"
+                                   id="pdfOrigenOrden"
+                                   name="pdfOrigenDatos"
+                                   value="orden" />
+                            <span>
+                                <span class="pdf-source-name">Orden de venta / Pedido</span>
+                                <span class="pdf-source-desc">
+                                    Usa los datos originales de la solicitud que genera el pedido.
+                                </span>
+                            </span>
+                        </label>
+                    </div>
+
+                    <div class="pdf-source-context">
+                        <div>Solicitud: <strong id="pdfSolicitudLabel">-</strong></div>
+                        <div>Remisión / JSON: <strong id="pdfReferenciaLabel">-</strong></div>
+                    </div>
+
+                    <div class="pdf-source-note" id="pdfOrigenNota">
+                        Se generará el PDF con los datos realmente surtidos de la remisión/JSON.
+                    </div>
+                </div>
+
+                <div class="pdf-field">
+                    <label for="pdfComentarios">Comentarios opcional</label>
+
+                    <textarea id="pdfComentarios"
+                              maxlength="1000"
+                              rows="5"
+                              placeholder="Escribe aquí tus comentarios..."></textarea>
+
+                    <div class="pdf-counter" id="pdfComentariosCount">0/1000</div>
+                </div>
+
+                <div class="pdf-alert">
+                    <span>ℹ️</span>
+                    <div>
+                        Si no agregas comentarios, se mostrará el comentario
+                        registrado en el sistema, si existe.
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="pdf-modal-footer">
+                <button type="button"
+                        class="pdf-btn pdf-btn-cancel"
+                        data-bs-dismiss="modal">
+                    ✕ Cancelar
+                </button>
+
+                <button type="button"
+                        class="pdf-btn pdf-btn-generate"
+                        onclick="generarPdfConComentarios()">
+                    📄 Generar PDF
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+
+<div class="modal fade" id="trazabilidadModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content trz-modal">
+
+            <div class="trz-header">
+                <div class="trz-title">
+                    <span>🔎</span>
+                    Diferencias de trazabilidad
+                </div>
+
+                <button type="button"
+                        class="trz-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar">
+                    ×
+                </button>
+            </div>
+
+            <div class="trz-body">
+
+                <div class="trz-alert-main" id="trzAlertBox">
+                    <div class="trz-icon" id="trzAlertIcon">⚠️</div>
+                    <div>
+                        <strong id="trzAlertTitle">Validación de trazabilidad y devoluciones.</strong><br />
+                        <span id="trzAlertText">
+                            Revisa los lotes, kilos solicitados, disponibilidad en SAP y devoluciones aplicadas.
+                        </span>
+                    </div>
+                </div>
+
+                <div class="trz-ref-box">
+                    Entrega / Referencia: <strong id="trzRef">-</strong>
+                </div>
+
+                <div class="trz-summary">
+                    <div class="trz-summary-card">
+                        <div class="label">Partidas</div>
+                        <div class="value" id="trzTotalPartidas">0</div>
+                    </div>
+
+                    <div class="trz-summary-card">
+                        <div class="label">Kg solicitados</div>
+                        <div class="value" id="trzKgSolicitados">0</div>
+                    </div>
+
+                    <div class="trz-summary-card">
+                        <div class="label">Kg faltantes</div>
+                        <div class="value" id="trzKgFaltantes">0</div>
+                    </div>
+                </div>
+
+                <div class="trz-table-wrap">
+                    <table class="trz-table">
+                        <thead>
+                            <tr>
+                                <th>Artículo</th>
+                                <th>Almacén</th>
+                                <th>Lote</th>
+                                <th class="text-end">SIGO</th>
+                                <th class="text-end">SAP Disp.</th>
+                                <th class="text-end">Falta</th>
+                                <th>Estatus</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trzDetalleBody">
+                            <tr>
+                                <td colspan="7" class="text-center">Sin detalle.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="trz-ref-box" style="margin-top:14px;">
+                    Devoluciones Meat vs SAP:
+                    <strong>comparativo por artículo, lote y kilos</strong>
+                </div>
+
+                <div class="trz-summary">
+                    <div class="trz-summary-card">
+                        <div class="label">Partidas devolución</div>
+                        <div class="value" id="devTotalPartidas">0</div>
+                    </div>
+
+                    <div class="trz-summary-card">
+                        <div class="label">Kg Meat</div>
+                        <div class="value" id="devKgMeat">0</div>
+                    </div>
+
+                    <div class="trz-summary-card">
+                        <div class="label">Kg SAP</div>
+                        <div class="value" id="devKgSap">0</div>
+                    </div>
+                </div>
+
+                <div class="trz-summary">
+                    <div class="trz-summary-card">
+                        <div class="label">Diferencia KG</div>
+                        <div class="value" id="devKgDif">0</div>
+                    </div>
+
+                    <div class="trz-summary-card">
+                        <div class="label">Aplicadas</div>
+                        <div class="value" id="devTotalAplicadas">0</div>
+                    </div>
+
+                    <div class="trz-summary-card">
+                        <div class="label">Pendientes / Diferencias</div>
+                        <div class="value" id="devTotalPendientes">0</div>
+                    </div>
+                </div>
+
+                <div class="trz-table-wrap" style="max-height:360px;">
+                    <table class="trz-table" style="min-width:1120px;">
+                        <thead>
+                            <tr>
+                                <th>Pedido SAP</th>
+                                <th>Artículo</th>
+                                <th>Lote</th>
+                                <th class="text-end">Kg Meat</th>
+                                <th class="text-end">Kg SAP</th>
+                                <th class="text-end">Dif.</th>
+                                <th>Doc SAP</th>
+                                <th>Tipo</th>
+                                <th>Estatus</th>
+                            </tr>
+                        </thead>
+                        <tbody id="devDetalleBody">
+                            <tr>
+                                <td colspan="9" class="text-center">Sin devoluciones para comparar.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+
+            <div class="trz-footer">
+                <button type="button"
+                        class="trz-btn-close"
+                        data-bs-dismiss="modal">
+                    Cerrar
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="inventarioModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:1180px;">
+        <div class="modal-content trz-modal">
+
+            <div class="trz-header">
+                <div class="trz-title">
+                    <span>📦</span>
+                    Conciliación de inventario local vs SAP
+                </div>
+
+                <button type="button"
+                        class="trz-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar">
+                    ×
+                </button>
+            </div>
+
+            <div class="trz-body">
+
+                <div class="trz-alert-main">
+                    <div class="trz-icon">ℹ️</div>
+                    <div>
+                        <strong>Validación por almacén, artículo y lote.</strong><br />
+                        Compara los kilos del inventario local contra la existencia registrada en SAP.
+                    </div>
+                </div>
+
+                <div class="trz-summary" style="grid-template-columns: repeat(4, 1fr);">
+                    <div class="trz-summary-card">
+                        <div class="label">Registros</div>
+                        <div class="value" id="invTotalRegistros">0</div>
+                    </div>
+
+                    <div class="trz-summary-card">
+                        <div class="label">OK</div>
+                        <div class="value" id="invTotalOk">0</div>
+                    </div>
+
+                    <div class="trz-summary-card">
+                        <div class="label">Diferencias</div>
+                        <div class="value" id="invTotalDif">0</div>
+                    </div>
+
+                    <div class="trz-summary-card">
+                        <div class="label">Kg diferencia</div>
+                        <div class="value" id="invKgDif">0</div>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:150px 150px 150px 170px auto auto; gap:8px; margin-bottom:10px; align-items:end;">
+
+                    <div class="filter-group">
+                        <label>Almacén</label>
+                        <select id="invSucursal" class="form-select">
+                            <option value="">Todos</option>
+                            <option value="PLAP1GEN">PLAP1GEN</option>
+                            <option value="PLATIFGE">PLATIFGE</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Artículo</label>
+                        <input type="text" id="invArticulo" class="form-control" placeholder="SKU..." />
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Lote</label>
+                        <input type="text" id="invLote" class="form-control" placeholder="Lote..." />
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Estatus</label>
+                        <select id="invEstatus" class="form-select">
+                            <option value="">Todos</option>
+                            <option value="OK">OK</option>
+                            <option value="DIFERENCIA KG">DIFERENCIA KG</option>
+                            <option value="FALTA SAP">FALTA SAP</option>
+                            <option value="FALTA LOCAL">FALTA MEAT</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label>&nbsp;</label>
+                        <button class="pm-btn pm-btn-primary" type="button" onclick="cargarInventarioModal()">
+                            🔎 Validar
+                        </button>
+                    </div>
+
+                    <div class="filter-group">
+                        <label>&nbsp;</label>
+                        <button class="pm-btn pm-btn-success" type="button" onclick="descargarInventarioExcel()">
+                            📥 Excel
+                        </button>
+                    </div>
+
+                </div>
+
+                <div class="trz-table-wrap" style="max-height:460px;">
+                    <table class="trz-table" style="min-width:1050px;">
+                        <thead>
+                            <tr>
+                                <th>Almacén</th>
+                                <th>Artículo</th>
+                                <th>Descripción SAP</th>
+                                <th>Lote</th>
+                                <th class="text-end">Kg Meat</th>
+                                <th class="text-end">Cantidad SAP</th>
+                                <th class="text-end">Comprometido</th>
+                                <th class="text-end">Disponible</th>
+                                <th class="text-end">Dif.</th>
+                                <th>Estatus</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventarioBody">
+                            <tr>
+                                <td colspan="10" class="text-center">Sin información.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+
+            <div class="trz-footer">
+                <button type="button"
+                        class="trz-btn-close"
+                        data-bs-dismiss="modal">
+                    Cerrar
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+
+<div class="modal fade" id="loadingModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:360px;">
+        <div class="modal-content trz-modal">
+            <div class="trz-body" style="text-align:center; padding:32px 20px;">
+                <div class="pm-spinner"></div>
+                <div class="loading-text" id="loadingModalText">
+                    Cargando información...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Reserva Manual -->
+<div class="modal fade" id="reserveKgModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Factura de Reserva Manual</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:12px; color:#6a3a3a; margin-bottom:8px;">Captura los KG por ItemCode.</p>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ItemCode</th>
+                                <th class="text-end">KG</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reserveLinesBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="pm-btn pm-btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button class="pm-btn pm-btn-warning" onclick="sendReserveKg()">Enviar Reserva</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+                const SOURCE = '@source';
+                const RESERVE_AFTER_MINUTES = 20;
+
+                // =========================================================
+                // AJUSTE TEMPORAL DE ENVÍO SAP
+                // =========================================================
+                // false = permite enviar la entrega a SAP sin validar primero trazabilidad/devoluciones.
+                // true  = obliga a validar trazabilidad/devoluciones antes de enviar.
+                // Cuando ya tengas estable la comunicación con SAP/trazabilidad, cámbialo a true.
+                const VALIDAR_TRAZABILIDAD_ANTES_DE_ENVIAR = false;
+
+                // Evita doble clic / envíos simultáneos en botones individuales, masivos y auto.
+                let isSending = false;
+
+                async function validarPrevioEnvioSap(ref) {
+                    if (!ref) {
+                        showLog('warning', 'Referencia vacía. No se puede enviar a SAP.');
+                        return false;
+                    }
+
+                    if (!VALIDAR_TRAZABILIDAD_ANTES_DE_ENVIAR) {
+                        showLog('warning', 'Modo prueba: se omitió validación previa de trazabilidad/devoluciones para ' + ref + '.');
+                        return true;
+                    }
+
+                    try {
+                        return await validarTrazabilidad(ref, false);
+                    } catch (e) {
+                        showLog('danger', 'No se pudo validar trazabilidad/devoluciones para ' + ref + ': ' + (e?.message || e));
+                        return false;
+                    }
+                }
+
+                function setSendButtonsDisabled(disabled) {
+                    document.querySelectorAll('.btn-enviar, .js-send-one, #btnAuto')
+                        .forEach(btn => {
+                            if (!btn) return;
+                            btn.disabled = !!disabled;
+                            btn.style.opacity = disabled ? '.65' : '';
+                            btn.style.pointerEvents = disabled ? 'none' : '';
+                        });
+                }
+
+                async function postEnviarEntregaSap(ref) {
+                    const res = await fetch('@Url.Action("EnviarEntrega", "ProcesosCg")', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: 'referencia=' + encodeURIComponent(ref) + '&source=' + encodeURIComponent(SOURCE)
+                    });
+
+                    const data = await readResponse(res);
+                    return { res, data };
+                }
+
+                function showLog(type, text) {
+                    const box = document.getElementById('logBox');
+                    const log = document.getElementById('log');
+                    box.style.display = 'block';
+                    log.className = 'log-inner log-' + (type || 'secondary');
+                    log.textContent = text || '';
+                }
+
+                function selectAll(on) {
+                    document.querySelectorAll('.ck').forEach(x => x.checked = !!on);
+                }
+
+                function buildMsg(data, fallback) {
+                    if (!data) return fallback || '';
+                    let msg = data.msg || fallback || '';
+                    const extras = [];
+                    if (data.referencia) extras.push('Ref: ' + data.referencia);
+                    if (data.docNum)     extras.push('DocNum: ' + data.docNum);
+                    if (data.docEntry)   extras.push('DocEntry: ' + data.docEntry);
+                    if (extras.length)   msg += ' (' + extras.join(' | ') + ')';
+                    return msg;
+                }
+
+              async function readResponse(res) {
+            const ct = (res.headers.get('content-type') || '').toLowerCase();
+            const t = await res.text();
+
+            if (ct.includes('application/json')) {
+                try {
+                    return JSON.parse(t);
+                } catch (e) {
+                    return {
+                        ok: false,
+                        msg: 'La respuesta dice ser JSON, pero no se pudo leer.',
+                        detalle: t
+                    };
+                }
+            }
+
+            try {
+                return JSON.parse(t);
+            } catch {
+                return {
+                    ok: false,
+                    msg: ct.includes('text/html')
+                        ? 'El servidor regresó HTML en lugar de JSON. Posible sesión vencida, error MVC o redirección a login.'
+                        : 'El servidor no regresó JSON.',
+                    detalle: t.substring(0, 500)
+                };
+            }
+        }
+
+                function getStatusSymbolFromRow(row) {
+                    const est = row?.querySelector('.js-est');
+                    return (est?.textContent || '').trim();
+                }
+
+                function parseRowDateIso(row) {
+                    const iso = row?.getAttribute('data-fecha');
+                    if (!iso) return null;
+                    const d = new Date(iso);
+                    return isNaN(d.getTime()) ? null : d;
+                }
+
+                function isReserveCandidateStatus(sym) {
+                    return sym === '—' || sym === '❌' || sym === '';
+                }
+
+                function canEnableReserve(row) {
+                    const sym = getStatusSymbolFromRow(row);
+                    if (!isReserveCandidateStatus(sym)) return false;
+                    const d = parseRowDateIso(row);
+                    if (!d) return false;
+                    return (Date.now() - d.getTime()) / 60000 >= RESERVE_AFTER_MINUTES;
+                }
+
+                function updateReserveButtons() {
+                    document.querySelectorAll('tr[data-ref]').forEach(row => {
+                        const btn = row.querySelector('.js-reserve');
+                        if (!btn) return;
+                        const enabled = canEnableReserve(row);
+                        if (enabled) {
+                btn.style.opacity = '';
+                btn.style.pointerEvents = '';
+                btn.removeAttribute('aria-disabled');
+            } else {
+                btn.style.opacity = '.5';
+                btn.style.pointerEvents = 'none';
+                btn.setAttribute('aria-disabled', 'true');
+            }
+                        if (enabled) {
+                            btn.title = 'Generar y enviar Factura de Reserva';
+                        } else {
+                            const d = parseRowDateIso(row);
+                            if (!d) { btn.title = 'Sin fecha'; return; }
+                            const minutes = (Date.now() - d.getTime()) / 60000;
+                            const faltan = Math.ceil(RESERVE_AFTER_MINUTES - minutes);
+                            const sym = getStatusSymbolFromRow(row);
+                            btn.title = !isReserveCandidateStatus(sym)
+                                ? 'No disponible: entrega ya enviada'
+                                : (faltan > 0 ? `Disponible en ~${faltan} min` : 'No disponible');
+                        }
+                    });
+                }
+
+                function setRowStatus(ref, ok, msg) {
+                    const row = document.querySelector(`tr[data-ref="${CSS.escape(ref)}"]`);
+                    if (!row) return;
+
+                        row.classList.toggle('sap-error', ok === false);
+                    row.querySelectorAll('.js-est').forEach(est => {
+                        if (ok === true)       { est.textContent = '✅'; est.title = msg || 'Enviado'; }
+                        else if (ok === false) { est.textContent = '❌'; est.title = msg || 'Falló'; }
+                        else                   { est.textContent = '—';  est.title = msg || 'Sin intento'; }
+                    });
+                    updateReserveButtons();
+                }
+
+            function escapeHtml(value) {
+                return String(value ?? '')
+                    .replaceAll('&', '&amp;')
+                    .replaceAll('<', '&lt;')
+                    .replaceAll('>', '&gt;')
+                    .replaceAll('"', '&quot;')
+                    .replaceAll("'", '&#039;');
+            }
+
+            function toNumber(value) {
+                const n = Number(value);
+                return isNaN(n) ? 0 : n;
+            }
+
+            function formatKg(value) {
+                const n = toNumber(value);
+                return n.toLocaleString('es-MX', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+            }
+
+
+            function getArrayProp(obj, camelName, pascalName) {
+                const v = obj?.[camelName];
+                if (Array.isArray(v)) return v;
+
+                const p = obj?.[pascalName];
+                if (Array.isArray(p)) return p;
+
+                return [];
+            }
+
+            function getPropValue(obj, camelName, pascalName, fallback = '') {
+                if (obj && obj[camelName] !== undefined && obj[camelName] !== null) return obj[camelName];
+                if (obj && obj[pascalName] !== undefined && obj[pascalName] !== null) return obj[pascalName];
+                return fallback;
+            }
+
+            function getDevResumenFromData(data) {
+                const devoluciones = getArrayProp(data, 'devoluciones', 'Devoluciones');
+                const devolucionError = getPropValue(data, 'devolucionError', 'DevolucionError', '');
+
+                if (devoluciones.length === 0) {
+                    if (devolucionError) {
+                        return {
+                            cls: 'dev-diff',
+                            icon: '⚠️',
+                            title: 'Error al consultar devoluciones: ' + devolucionError,
+                            texto: 'Error'
+                        };
+                    }
+
+                    return {
+                        cls: 'dev-none',
+                        icon: '—',
+                        title: 'Sin devolución Meat para comparar',
+                        texto: 'Sin devolución'
+                    };
+                }
+
+                const estatus = devoluciones.map(x =>
+                    String(getPropValue(x, 'estatus', 'Estatus', '')).toUpperCase()
+                ).join('|');
+
+                const totalKgMeat = devoluciones.reduce((s, x) =>
+                    s + toNumber(getPropValue(x, 'kgDevueltosMeat', 'KgDevueltosMeat', 0)), 0);
+
+                const totalKgSap = devoluciones.reduce((s, x) =>
+                    s + toNumber(getPropValue(x, 'kgDevueltosSap', 'KgDevueltosSap', 0)), 0);
+
+                const totalDif = devoluciones.reduce((s, x) =>
+                    s + toNumber(getPropValue(x, 'diferenciaKg', 'DiferenciaKg', 0)), 0);
+
+                const titleBase = `Meat: ${formatKg(totalKgMeat)} kg | SAP: ${formatKg(totalKgSap)} kg | Dif: ${formatKg(totalDif)} kg`;
+
+                if (estatus.includes('PENDIENTE')) {
+                    return {
+                        cls: 'dev-pending',
+                        icon: '❌',
+                        title: 'Devolución pendiente en SAP. ' + titleBase,
+                        texto: 'Pendiente'
+                    };
+                }
+
+                if (estatus.includes('DIFERENCIA') || estatus.includes('FALTA') || estatus.includes('SOBRANTE')) {
+                    return {
+                        cls: 'dev-diff',
+                        icon: '⚠️',
+                        title: 'Devolución con diferencia. ' + titleBase,
+                        texto: 'Diferencia'
+                    };
+                }
+
+                if (estatus.includes('APLICADA')) {
+                    return {
+                        cls: 'dev-ok',
+                        icon: '✅',
+                        title: 'Devolución aplicada en SAP. ' + titleBase,
+                        texto: 'Aplicada'
+                    };
+                }
+
+                return {
+                    cls: 'dev-diff',
+                    icon: '⚠️',
+                    title: 'Devolución requiere revisión. ' + titleBase,
+                    texto: 'Revisar'
+                };
+            }
+
+            function actualizarEstatusDevolucionFila(ref, data) {
+                const row = document.querySelector(`tr[data-ref="${CSS.escape(ref)}"]`);
+                if (!row) return;
+
+                const info = getDevResumenFromData(data);
+
+                row.querySelectorAll('.js-dev-est').forEach(el => {
+                    el.className = 'dev-est js-dev-est ' + info.cls;
+                    el.textContent = info.icon;
+                    el.title = info.title;
+                    el.setAttribute('data-dev-status', info.texto);
+                });
+            }
+
+            async function validarDevolucionFila(ref) {
+                try {
+                    const res = await fetch('@Url.Action("ValidarTrazabilidadEntrega", "ProcesosCg")'
+                        + '?referencia=' + encodeURIComponent(ref)
+                        + '&source=' + encodeURIComponent(SOURCE), {
+                        credentials: 'same-origin'
+                    });
+
+                    const data = await readResponse(res);
+                    actualizarEstatusDevolucionFila(ref, data);
+                    return data;
+                } catch (e) {
+                    const row = document.querySelector(`tr[data-ref="${CSS.escape(ref)}"]`);
+                    if (row) {
+                        row.querySelectorAll('.js-dev-est').forEach(el => {
+                            el.className = 'dev-est js-dev-est dev-diff';
+                            el.textContent = '⚠️';
+                            el.title = 'Error al validar devolución: ' + (e?.message || e);
+                            el.setAttribute('data-dev-status', 'Error');
+                        });
+                    }
+                    return null;
+                }
+            }
+
+            async function validarDevolucionesVisibles() {
+                const refs = Array.from(document.querySelectorAll('tr[data-ref]'))
+                    .map(row => row.getAttribute('data-ref'))
+                    .filter(Boolean);
+
+                if (!refs.length) {
+                    showLog('warning', 'No hay entregas visibles para validar.');
+                    return;
+                }
+
+                showLog('info', `Validando devoluciones de ${refs.length} entregas visibles...`);
+
+                for (const ref of refs) {
+                    const row = document.querySelector(`tr[data-ref="${CSS.escape(ref)}"]`);
+                    if (row) {
+                        row.querySelectorAll('.js-dev-est').forEach(el => {
+                            el.className = 'dev-est js-dev-est dev-unknown';
+                            el.textContent = '⏳';
+                            el.title = 'Validando devolución...';
+                        });
+                    }
+
+                    await validarDevolucionFila(ref);
+                    await new Promise(resolve => setTimeout(resolve, 80));
+                }
+
+                showLog('success', 'Validación de devoluciones visibles terminada.');
+            }
+
+
+            function abrirModalTrazabilidad(ref, data) {
+                const detalle = getArrayProp(data, 'detalle', 'Detalle');
+                const devoluciones = getArrayProp(data, 'devoluciones', 'Devoluciones');
+
+                const totalKgSolicitados = detalle.reduce((sum, x) => sum + toNumber(x.kgSolicitadosJson), 0);
+                const totalKgFaltantes = detalle.reduce((sum, x) => sum + toNumber(x.kgFaltantes), 0);
+
+                const totalKgMeat = devoluciones.reduce((sum, x) => sum + toNumber(getPropValue(x, 'kgDevueltosMeat', 'KgDevueltosMeat', 0)), 0);
+                const totalKgSap = devoluciones.reduce((sum, x) => sum + toNumber(getPropValue(x, 'kgDevueltosSap', 'KgDevueltosSap', 0)), 0);
+                const totalKgDif = devoluciones.reduce((sum, x) => sum + toNumber(getPropValue(x, 'diferenciaKg', 'DiferenciaKg', 0)), 0);
+
+                const devAplicadas = devoluciones.filter(x =>
+                    String(getPropValue(x, 'estatus', 'Estatus', '')).toUpperCase().includes('APLICADA')
+                ).length;
+
+                const devPendientes = devoluciones.filter(x => {
+                    const e = String(getPropValue(x, 'estatus', 'Estatus', '')).toUpperCase();
+                    return e.includes('PENDIENTE') ||
+                           e.includes('DIFERENCIA') ||
+                           e.includes('FALTA') ||
+                           e.includes('SOBRANTE');
+                }).length;
+
+                const hayErrorTrazabilidad = detalle.some(x => {
+                    const e = String(x.estatus || '').toUpperCase();
+                    return e.includes('NO EXISTE') ||
+                           e.includes('SIN DISPONIBLE') ||
+                           e.includes('FALTAN KG') ||
+                           e.includes('JSON SIN LOTES');
+                });
+
+                const hayErrorDevolucion = devoluciones.some(x => {
+                    const e = String(getPropValue(x, 'estatus', 'Estatus', '')).toUpperCase();
+                    return e.includes('PENDIENTE') ||
+                           e.includes('DIFERENCIA') ||
+                           e.includes('FALTA') ||
+                           e.includes('SOBRANTE');
+                });
+
+                const okGeneral = !hayErrorTrazabilidad && !hayErrorDevolucion;
+
+                document.getElementById('trzRef').textContent = ref || '-';
+                document.getElementById('trzTotalPartidas').textContent = detalle.length;
+                document.getElementById('trzKgSolicitados').textContent = formatKg(totalKgSolicitados);
+                document.getElementById('trzKgFaltantes').textContent = formatKg(totalKgFaltantes);
+
+                document.getElementById('devTotalPartidas').textContent = devoluciones.length;
+                document.getElementById('devKgMeat').textContent = formatKg(totalKgMeat);
+                document.getElementById('devKgSap').textContent = formatKg(totalKgSap);
+                document.getElementById('devKgDif').textContent = formatKg(totalKgDif);
+                document.getElementById('devTotalAplicadas').textContent = devAplicadas;
+                document.getElementById('devTotalPendientes').textContent = devPendientes;
+
+                const alertIcon = document.getElementById('trzAlertIcon');
+                const alertTitle = document.getElementById('trzAlertTitle');
+                const alertText = document.getElementById('trzAlertText');
+
+                if (okGeneral) {
+                    alertIcon.textContent = '✅';
+                    alertTitle.textContent = 'Validación correcta.';
+                    alertText.textContent = 'La trazabilidad está correcta y las devoluciones, si existen, están aplicadas en SAP.';
+                } else if (hayErrorDevolucion) {
+                    alertIcon.textContent = '⚠️';
+                    alertTitle.textContent = 'La entrega tiene devoluciones pendientes o diferencias.';
+                    alertText.textContent = 'Revisa las devoluciones Meat vs SAP antes de enviar.';
+                } else {
+                    alertIcon.textContent = '⚠️';
+                    alertTitle.textContent = 'La entrega tiene diferencias de trazabilidad.';
+                    alertText.textContent = 'Revisa los lotes, kilos solicitados y disponibilidad en SAP antes de enviar.';
+                }
+
+                function badgeInfo(estatus) {
+                    const e = String(estatus || '').toUpperCase();
+
+                    if (e.includes('APLICADA') || e.includes('OK EXACTO')) {
+                        return { cls: 'trz-badge-success', icon: '✅' };
+                    }
+
+                    if (e.includes('PENDIENTE') ||
+                        e.includes('DIFERENCIA') ||
+                        e.includes('FALTA') ||
+                        e.includes('NO EXISTE') ||
+                        e.includes('SIN DISPONIBLE')) {
+                        return { cls: 'trz-badge-danger', icon: '⛔' };
+                    }
+
+                    return { cls: 'trz-badge-warning', icon: '⚠️' };
+                }
+
+                const body = document.getElementById('trzDetalleBody');
+
+                if (!detalle.length) {
+                    body.innerHTML = `
+                        <tr>
+                            <td colspan="7" class="text-center">No se recibió detalle de trazabilidad.</td>
+                        </tr>`;
+                } else {
+                    body.innerHTML = detalle.map(x => {
+                        const estatus = x.estatus || '';
+                        const b = badgeInfo(estatus);
+
+                        return `
+                            <tr>
+                                <td>${escapeHtml(x.articulo)}</td>
+                                <td>${escapeHtml(x.almacen)}</td>
+                                <td>${escapeHtml(x.lote)}</td>
+                                <td class="text-end">${formatKg(x.kgSolicitadosJson)}</td>
+                                <td class="text-end">${formatKg(x.disponibleSap)}</td>
+                                <td class="text-end">${formatKg(x.kgFaltantes)}</td>
+                                <td>
+                                    <span class="${b.cls}">
+                                        ${b.icon}
+                                        ${escapeHtml(estatus)}
+                                    </span>
+                                </td>
+                            </tr>`;
+                    }).join('');
+                }
+
+                const devBody = document.getElementById('devDetalleBody');
+
+                if (!devoluciones.length) {
+                    devBody.innerHTML = `
+                        <tr>
+                            <td colspan="9" class="text-center">Sin devoluciones Meat para comparar.</td>
+                        </tr>`;
+                } else {
+                    devBody.innerHTML = devoluciones.map(x => {
+                        const estatus = getPropValue(x, 'estatus', 'Estatus', '');
+                        const b = badgeInfo(estatus);
+
+                        const docNum = getPropValue(x, 'docNumDevolucion', 'DocNumDevolucion', '');
+                        const docSap = docNum ? String(docNum) : '-';
+
+                        return `
+                            <tr>
+                                <td>${escapeHtml(getPropValue(x, 'pedidoSap', 'PedidoSap', ''))}</td>
+                                <td>${escapeHtml(getPropValue(x, 'articulo', 'Articulo', ''))}</td>
+                                <td>${escapeHtml(getPropValue(x, 'lote', 'Lote', ''))}</td>
+                                <td class="text-end">${formatKg(getPropValue(x, 'kgDevueltosMeat', 'KgDevueltosMeat', 0))}</td>
+                                <td class="text-end">${formatKg(getPropValue(x, 'kgDevueltosSap', 'KgDevueltosSap', 0))}</td>
+                                <td class="text-end">${formatKg(getPropValue(x, 'diferenciaKg', 'DiferenciaKg', 0))}</td>
+                                <td>${escapeHtml(docSap)}</td>
+                                <td>${escapeHtml(getPropValue(x, 'tipoAplicacion', 'TipoAplicacion', '-'))}</td>
+                                <td>
+                                    <span class="${b.cls}">
+                                        ${b.icon}
+                                        ${escapeHtml(estatus)}
+                                    </span>
+                                </td>
+                            </tr>`;
+                    }).join('');
+                }
+
+                bootstrap.Modal.getOrCreateInstance(
+                    document.getElementById('trazabilidadModal')
+                ).show();
+            }
+
+           async function validarTrazabilidad(ref, mostrarModal = true) {
+            try {
+                showLog('info', 'Validando trazabilidad y devoluciones: ' + ref + ' ...');
+
+                const res = await fetch('@Url.Action("ValidarTrazabilidadEntrega", "ProcesosCg")'
+                    + '?referencia=' + encodeURIComponent(ref)
+                    + '&source=' + encodeURIComponent(SOURCE), {
+                    credentials: 'same-origin'
+                });
+
+                const data = await readResponse(res);
+                actualizarEstatusDevolucionFila(ref, data);
+
+                const esOk = res.ok && data?.ok;
+
+                if (mostrarModal || !esOk) {
+                    abrirModalTrazabilidad(ref, data);
+                }
+
+                if (esOk) {
+                    showLog('success', data.msg || 'Trazabilidad y devoluciones correctas.');
+                    return true;
+                }
+
+                showLog('warning', data?.msg || 'La entrega tiene diferencias de trazabilidad o devoluciones.');
+                return false;
+
+            } catch (e) {
+                showLog('danger', 'Error al validar trazabilidad/devoluciones: ' + (e?.message || e));
+                return false;
+            }
+        }
+
+            async function sendOne(ref) {
+                if (isSending) {
+                    showLog('warning', 'Hay un envío en proceso. Espera a que termine.');
+                    return;
+                }
+
+                isSending = true;
+                setSendButtonsDisabled(true);
+
+                try {
+                    const validacionOk = await validarPrevioEnvioSap(ref);
+
+                    if (!validacionOk) {
+                        setRowStatus(ref, false, 'Pendiente de trazabilidad/devolución SAP');
+                        return;
+                    }
+
+                    showLog('info', 'Enviando entrega a SAP: ' + ref + ' ...');
+
+                    const { res, data } = await postEnviarEntregaSap(ref);
+
+                    if (res.ok && data?.ok) {
+                        const m = buildMsg(data, 'Enviado con éxito.');
+                        setRowStatus(ref, true, m);
+                        showLog('success', m);
+                    } else {
+                        const err = buildMsg(data, 'No se pudo enviar.');
+                        setRowStatus(ref, false, err);
+                        showLog('danger', err + (data?.detalle ? String.fromCharCode(10) + data.detalle : ''));
+                    }
+                } catch (e) {
+                    setRowStatus(ref, false, 'Error de red');
+                    showLog('danger', 'Error de red al enviar a SAP: ' + (e?.message || e));
+                } finally {
+                    isSending = false;
+                    setSendButtonsDisabled(false);
+                }
+            }
+
+                async function sendMany() {
+                    if (isSending) {
+                        showLog('warning', 'Hay un envío en proceso.');
+                        return;
+                    }
+
+                    const refs = Array.from(document.querySelectorAll('.ck:checked'))
+                        .map(x => x.value)
+                        .filter(Boolean);
+
+                    if (!refs.length) {
+                        showLog('warning', 'Selecciona al menos una entrega.');
+                        return;
+                    }
+
+                    isSending = true;
+                    setSendButtonsDisabled(true);
+
+                    let okCount = 0;
+                    let failCount = 0;
+                    let omitidosValidacion = 0;
+
+                    try {
+                        showLog('info', `Enviando ${refs.length} entregas a SAP...`);
+
+                        for (let i = 0; i < refs.length; i++) {
+                            const ref = refs[i];
+                            showLog('info', `(${i + 1}/${refs.length}) Validando / enviando: ${ref}...`);
+
+                            const validacionOk = await validarPrevioEnvioSap(ref);
+
+                            if (!validacionOk) {
+                                failCount++;
+                                omitidosValidacion++;
+                                setRowStatus(ref, false, 'Pendiente de trazabilidad/devolución SAP');
+                                continue;
+                            }
+
+                            const { res, data } = await postEnviarEntregaSap(ref);
+
+                            if (res.ok && data?.ok) {
+                                okCount++;
+                                setRowStatus(ref, true, buildMsg(data, 'Enviado.'));
+                            } else {
+                                failCount++;
+                                setRowStatus(ref, false, buildMsg(data, `Falló: ${ref}`));
+                            }
+                        }
+
+                        let resumen = `Terminado. OK: ${okCount} | Fallidos: ${failCount}`;
+                        if (omitidosValidacion > 0) {
+                            resumen += ` | Bloqueados por validación: ${omitidosValidacion}`;
+                        }
+
+                        showLog(failCount === 0 ? 'success' : 'warning', resumen);
+                    } catch (e) {
+                        showLog('danger', 'Error de red al enviar masivo a SAP: ' + (e?.message || e));
+                    } finally {
+                        isSending = false;
+                        setSendButtonsDisabled(false);
+                    }
+                }
+
+                let autoEnabled = false, autoTimer = null, autoRefreshTimer = null;
+
+                function isAutoCandidateStatus(sym) { return sym === '—' || sym === '❌' || sym === ''; }
+
+                function getAutoRefsToSend() {
+                    return Array.from(document.querySelectorAll('tr[data-ref]'))
+                        .filter(row => isAutoCandidateStatus(getStatusSymbolFromRow(row)))
+                        .map(row => row.getAttribute('data-ref'))
+                        .filter(Boolean);
+                }
+
+                async function sendManyRefs(refs) {
+                    if (isSending || !refs?.length) return;
+
+                    isSending = true;
+                    setSendButtonsDisabled(true);
+
+                    try {
+                        showLog('info', `Auto: enviando ${refs.length} entrega(s) a SAP...`);
+
+                        for (let i = 0; i < refs.length; i++) {
+                            const ref = refs[i];
+                            const row = document.querySelector(`tr[data-ref="${CSS.escape(ref)}"]`);
+
+                            if (!isAutoCandidateStatus(getStatusSymbolFromRow(row))) continue;
+
+                            const validacionOk = await validarPrevioEnvioSap(ref);
+
+                            if (!validacionOk) {
+                                setRowStatus(ref, false, 'Pendiente de trazabilidad/devolución SAP');
+                                continue;
+                            }
+
+                            const { res, data } = await postEnviarEntregaSap(ref);
+
+                            if (res.ok && data?.ok) {
+                                setRowStatus(ref, true, buildMsg(data, 'Enviado.'));
+                            } else {
+                                setRowStatus(ref, false, buildMsg(data, `Falló: ${ref}`));
+                            }
+                        }
+                    } catch (e) {
+                        showLog('danger', 'Error de red en envío automático SAP: ' + (e?.message || e));
+                    } finally {
+                        isSending = false;
+                        setSendButtonsDisabled(false);
+                    }
+                }
+
+                function updateAutoButton() {
+                    const b   = document.getElementById('btnAuto');
+                    const ico = document.getElementById('autoIco');
+                    if (!b || !ico) return;
+                    if (autoEnabled) {
+                        b.classList.add('auto-on');
+                        ico.textContent = '▶';
+                        b.title = 'Auto: ON — clic para desactivar';
+                    } else {
+                        b.classList.remove('auto-on');
+                        ico.textContent = '⏸';
+                        b.title = 'Auto: OFF — clic para activar';
+                    }
+                }
+
+                async function serverAutoSet(enabled) {
+                    const intervalMs = parseInt(document.getElementById('autoInterval')?.value || '5000', 10);
+                    const res = await fetch('/ProcesosCG/AutoSapSet', {
+                        method: 'POST', credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: 'enabled='+encodeURIComponent(enabled)+'&source=ALL&intervalMs='+encodeURIComponent(intervalMs)
+                    });
+                    const data = await readResponse(res);
+                    if (!res.ok || !data?.ok) throw new Error(data?.msg || 'Error auto servidor');
+                    return data;
+                }
+
+                async function serverAutoStatus() {
+                    const res = await fetch('/ProcesosCG/AutoSapStatus?source=ALL', { credentials: 'same-origin' });
+                    const data = await readResponse(res);
+                    if (!res.ok || !data?.ok) throw new Error(data?.msg || 'Error estado auto');
+                    return data;
+                }
+
+                async function refreshSapTableSilentSafe() {
+                    const container = document.querySelector('.table-wrap');
+                    const tbody = document.querySelector('tbody');
+                    if (!container || !tbody) return;
+                    const checked = new Set(Array.from(document.querySelectorAll('.ck:checked')).map(x => x.value));
+                    const scrollTop = container.scrollTop;
+                    const res = await fetch(window.location.href, { credentials: 'same-origin' });
+                    const html = await res.text();
+                    const tmp = document.createElement('div');
+                    tmp.innerHTML = html;
+                    const newTbody = tmp.querySelector('tbody');
+                    if (!newTbody) return;
+                    tbody.replaceWith(newTbody);
+                    document.querySelectorAll('.ck').forEach(x => { if (checked.has(x.value)) x.checked = true; });
+                    container.scrollTop = scrollTop;
+                    updateReserveButtons();
+                }
+
+                function startAutoRefresh() {
+                    if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+                    autoRefreshTimer = setInterval(async () => {
+                        if (!autoEnabled) return;
+                        await refreshSapTableSilentSafe();
+                    }, 30000);
+                }
+
+                function stopAutoRefresh() {
+                    if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+                    autoRefreshTimer = null;
+                }
+
+                function stopAuto() {
+                    autoEnabled = false;
+                    if (autoTimer) clearInterval(autoTimer);
+                    autoTimer = null;
+                    stopAutoRefresh();
+                    updateAutoButton();
+                    showLog('secondary', 'Envío automático desactivado.');
+                    serverAutoSet(false).catch(e => console.warn(e));
+                }
+
+                async function startAuto() {
+                    autoEnabled = true;
+                    updateAutoButton();
+                    showLog('info', 'Activando envío automático...');
+                    try {
+                        const r = await serverAutoSet(true);
+                        if (r?.msg) showLog('info', r.msg);
+                    } catch(e) {
+                        showLog('danger', 'No pude activar auto en servidor: '+(e?.message||e));
+                        autoEnabled = false; updateAutoButton(); return;
+                    }
+                    const intervalMs = parseInt(document.getElementById('autoInterval')?.value || '5000', 10);
+                    const first = getAutoRefsToSend();
+                    if (first.length) await sendManyRefs(first);
+                    if (autoTimer) clearInterval(autoTimer);
+                    autoTimer = setInterval(async () => {
+                        if (!autoEnabled || isSending) return;
+                        const refs = getAutoRefsToSend();
+                        if (refs.length) await sendManyRefs(refs);
+                    }, intervalMs);
+                    startAutoRefresh();
+                }
+
+                document.getElementById('btnAuto')?.addEventListener('click', () => {
+                    if (autoEnabled) stopAuto(); else startAuto();
+                });
+
+                document.getElementById('autoInterval')?.addEventListener('change', () => {
+                    if (autoEnabled) startAuto();
+                });
+
+                (async function initAutoState() {
+                    try {
+                        const s = await serverAutoStatus();
+                        const anyOn = (s?.all || []).some(x => x.enabled === true || x.Enabled === true);
+                        if (anyOn) {
+                            autoEnabled = true; updateAutoButton();
+                            showLog('info', 'Auto server ya estaba ACTIVADO');
+                            startAutoRefresh();
+                        } else { updateAutoButton(); }
+                    } catch(e) { console.warn('AutoSapStatus error:', e); updateAutoButton(); }
+                })();
+
+                updateReserveButtons();
+                setInterval(updateReserveButtons, 15000);
+                window.addEventListener('beforeunload', () => {
+                    if (autoTimer) clearInterval(autoTimer);
+                    if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+                });
+
+                let currentReserveRef = null;
+
+                async function sendReserveByDelivery(ref) {
+                    if (!confirm(`¿Generar Factura de Reserva COMPLETA para la entrega ${ref}?`)) return;
+                    showLog('info', 'Generando Reserva por entrega: ' + ref);
+                    try {
+                        const res = await fetch('@Url.Action("EnviarFacturaReservaEntrega", "ProcesosCg")', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: 'referencia=' + encodeURIComponent(ref) + '&source=' + encodeURIComponent(SOURCE)
+                        });
+                        const data = await readResponse(res);
+                        showLog(res.ok && data?.ok ? 'success' : 'danger',
+                            buildMsg(data, res.ok && data?.ok ? 'Reserva enviada.' : 'No se pudo generar la reserva.'));
+                    } catch(e) { showLog('danger', 'Error de red: ' + e.message); }
+                }
+
+                async function openReserveManual(ref) {
+                    currentReserveRef = ref;
+                    const body = document.getElementById('reserveLinesBody');
+                    body.innerHTML = '<tr><td colspan="2" style="padding:8px;color:#6a3a3a;">Cargando...</td></tr>';
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('reserveKgModal')).show();
+                    try {
+                        const res = await fetch(`/ProcesosCg/GetEntregaLines?referencia=${encodeURIComponent(ref)}&source=${encodeURIComponent(SOURCE)}`);
+                        const data = await res.json();
+                        body.innerHTML = '';
+                        data.forEach(x => {
+                            const tr = document.createElement('tr');
+                            tr.innerHTML = `
+                                <td>${x.itemCode}</td>
+                                <td class="text-end">
+                                    <input type="number" class="form-control reserve-qty"
+                                           data-baseline="${x.baseLine}" max="${x.openQuantity}"
+                                           min="0" step="0.01" placeholder="0.00"
+                                           style="width:100px;display:inline-block;">
+                                </td>`;
+                            body.appendChild(tr);
+                        });
+                    } catch(e) {
+                        body.innerHTML = '<tr><td colspan="2">Error al cargar items</td></tr>';
+                    }
+                }
+
+                async function sendReserveKg() {
+                    const lines = [];
+                    document.querySelectorAll('.reserve-qty').forEach(inp => {
+                        const qty = parseFloat(inp.value);
+                        if (qty > 0) lines.push({ baseLine: parseInt(inp.dataset.baseline), quantity: qty });
+                    });
+                    if (!lines.length) { alert('Captura al menos un KG.'); return; }
+                    if (!confirm('¿Generar reserva MANUAL con los KG capturados?')) return;
+                    showLog('info', 'Generando Reserva Manual...');
+                    try {
+                        const res = await fetch('@Url.Action("EnviarFacturaReservaManual", "ProcesosCg")', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ referencia: currentReserveRef, source: SOURCE, lines })
+                        });
+                        const data = await readResponse(res);
+                        if (res.ok && data?.ok) {
+                            showLog('success', buildMsg(data, 'Reserva manual enviada.'));
+                            bootstrap.Modal.getInstance(document.getElementById('reserveKgModal'))?.hide();
+                        } else {
+                            showLog('danger', buildMsg(data, 'Error al generar reserva.'));
+                        }
+                    } catch(e) { showLog('danger', 'Error de red: ' + e.message); }
+                }
+
+                let pdfSolicitudId = null;
+                let pdfReferenciaDocMeat = null;
+
+                function actualizarNotaOrigenPdf() {
+                    const origen = document.querySelector('input[name="pdfOrigenDatos"]:checked')?.value || 'remision';
+                    const nota = document.getElementById('pdfOrigenNota');
+                    if (!nota) return;
+
+                    nota.textContent = origen === 'orden'
+                        ? 'Se generará el PDF con los datos de la orden de venta / pedido original.'
+                        : 'Se generará el PDF con los datos realmente surtidos de la remisión/JSON.';
+                }
+
+                function abrirPdfConComentarios(solicitudId, referenciaDocMeat) {
+                    pdfSolicitudId = solicitudId;
+                    pdfReferenciaDocMeat = referenciaDocMeat;
+
+                    const txt = document.getElementById('pdfComentarios');
+                    const count = document.getElementById('pdfComentariosCount');
+                    const origenRemision = document.getElementById('pdfOrigenRemision');
+                    const solicitudLabel = document.getElementById('pdfSolicitudLabel');
+                    const referenciaLabel = document.getElementById('pdfReferenciaLabel');
+
+                    txt.value = '';
+                    count.textContent = '0/1000';
+
+                    if (origenRemision) origenRemision.checked = true;
+                    if (solicitudLabel) solicitudLabel.textContent = solicitudId || '-';
+                    if (referenciaLabel) referenciaLabel.textContent = referenciaDocMeat || '-';
+
+                    actualizarNotaOrigenPdf();
+
+                    bootstrap.Modal.getOrCreateInstance(
+                        document.getElementById('pdfComentariosModal')
+                    ).show();
+                }
+
+                function generarPdfConComentarios() {
+                    const comentarios = document.getElementById('pdfComentarios').value || '';
+                    const origenDatos = document.querySelector('input[name="pdfOrigenDatos"]:checked')?.value || 'remision';
+
+                    const params = new URLSearchParams();
+                    params.set('id', pdfSolicitudId || '');
+                    params.set('referencia', pdfReferenciaDocMeat || '');
+                    params.set('source', SOURCE || '');
+                    params.set('origenDatos', origenDatos);
+                    params.set('comentarios', comentarios);
+
+                    const url = '@Url.Action("OrdenVentaPdf", "ProcesosCG")' + '?' + params.toString();
+
+                    bootstrap.Modal.getInstance(
+                        document.getElementById('pdfComentariosModal')
+                    )?.hide();
+
+                    window.open(url, '_blank');
+                }
+
+                document.addEventListener('input', function (e) {
+                    if (e.target && e.target.id === 'pdfComentarios') {
+                        document.getElementById('pdfComentariosCount').textContent =
+                            e.target.value.length + '/1000';
+                    }
+                });
+
+                document.addEventListener('change', function (e) {
+                    if (e.target && e.target.name === 'pdfOrigenDatos') {
+                        actualizarNotaOrigenPdf();
+                    }
+                });
+                    // ===== CONTROL DE PERMISOS =====
+            let permisosEntregas = { puedeLeer: false, puedeEscribir: false, puedeEliminar: false };
+
+            document.addEventListener("DOMContentLoaded", async () => {
+                await cargarPermisosEntregas();
+            });
+
+            async function cargarPermisosEntregas() {
+                try {
+                    let response = await fetch('@Url.Action("ObtenerPermisosVistaEntregas", "ProcesosCG")');
+                    if (response.ok) {
+                        permisosEntregas = await response.json();
+                        aplicarPermisosEntregas();
+                    }
+                } catch (error) {
+                    console.error("Error al verificar seguridad:", error);
+                }
+            }
+
+            document.querySelector('[name="estatusSap"]')?.addEventListener('change', function () {
+
+                const val = this.value;
+
+                document.querySelectorAll('tbody tr[data-ref]').forEach(row => {
+
+                    const icon = row.querySelector('.js-est')?.textContent.trim();
+
+                    if (val === "todos")
+                        row.style.display = "";
+
+                    else if (val === "enviados")
+                        row.style.display = (icon === "✅") ? "" : "none";
+
+                    else if (val === "noenviados")
+                        row.style.display = (icon !== "✅") ? "" : "none";
+
+                });
+            });
+            ``
+
+            function aplicarPermisosEntregas() {
+                if (!permisosEntregas.puedeEscribir) {
+                    document.querySelectorAll('.btn-enviar, .js-send-one, .js-reserve, .js-traza, [onclick*="sendOne"], [onclick*="sendMany"], [onclick*="sendReserve"], [onclick*="openReserveManual"], #btnAuto')
+                        .forEach(el => el.style.display = 'none');
+                }
+            }
+
+            function sapWhsFromSource() {
+                if (SOURCE === 'P1') return 'PLAP1GEN';
+                if (SOURCE === 'TIF') return 'PLATIFGE';
+                return '';
+            }
+
+            function abrirInventarioModal() {
+                document.getElementById('invSucursal').value = sapWhsFromSource();
+
+                bootstrap.Modal.getOrCreateInstance(
+                    document.getElementById('inventarioModal')
+                ).show();
+
+                cargarInventarioModal();
+            }
+
+            function badgeInventario(estatus) {
+                const e = String(estatus || '').toUpperCase();
+
+                if (e === 'OK') {
+                    return `<span class="trz-badge-warning" style="background:#dff3e2;border-color:#6aa84f;color:#2f6b1f;">✅ OK</span>`;
+                }
+
+                if (e === 'FALTA SAP') {
+                    return `<span class="trz-badge-danger">⛔ FALTA SAP</span>`;
+                }
+
+                if (e === 'FALTA LOCAL') {
+                    return `<span class="trz-badge-danger">⛔ FALTA MEAT</span>`;
+                }
+
+                return `<span class="trz-badge-warning">⚠️ ${escapeHtml(estatus)}</span>`;
+            }
+
+            async function cargarInventarioModal() {
+                const body = document.getElementById('inventarioBody');
+
+                const sucursal = document.getElementById('invSucursal')?.value || '';
+                const articulo = document.getElementById('invArticulo')?.value || '';
+                const lote = document.getElementById('invLote')?.value || '';
+                const estatus = document.getElementById('invEstatus')?.value || '';
+
+                body.innerHTML = htmlSpinnerTabla(10, 'Cargando conciliación de inventario...');
+
+                try {
+                    const url = '@Url.Action("ConciliacionInventarioJson", "ProcesosCg")'
+                        + '?sucursal=' + encodeURIComponent(sucursal)
+                        + '&articulo=' + encodeURIComponent(articulo)
+                        + '&lote=' + encodeURIComponent(lote)
+                        + '&estatus=' + encodeURIComponent(estatus);
+
+                    const res = await fetch(url, {
+                        credentials: 'same-origin'
+                    });
+
+                    const data = await readResponse(res);
+
+                if (!res.ok || !data?.ok) {
+            const msg = data?.msg || data?.message || data?.detalle || data?.error || data?.inner || 'Error al consultar inventario.';
+
+            console.error('Error inventario:', {
+                status: res.status,
+                statusText: res.statusText,
+                url: url,
+                response: data
+            });
+
+            body.innerHTML = `
+                <tr>
+                    <td colspan="10" class="text-center">
+                        <b>Error al consultar inventario.</b><br>
+                        HTTP: ${res.status} ${escapeHtml(res.statusText)}<br>
+                        ${escapeHtml(msg)}<br>
+                        ${data?.error ? 'Error: ' + escapeHtml(data.error) + '<br>' : ''}
+                        ${data?.inner ? 'Detalle: ' + escapeHtml(data.inner) : ''}
+                    </td>
+                </tr>`;
+
+            showLog('danger',
+                'Error al consultar inventario.\n' +
+                'HTTP: ' + res.status + ' ' + res.statusText + '\n' +
+                'URL: ' + url + '\n' +
+                'Mensaje: ' + msg
+            );
+
+            return;
+        }
+
+                    const rows = Array.isArray(data.rows) ? data.rows : [];
+
+                    const total = rows.length;
+                    const ok = rows.filter(x => String(x.estatus || '').toUpperCase() === 'OK').length;
+                    const dif = rows.filter(x => String(x.estatus || '').toUpperCase() !== 'OK').length;
+                    const kgDif = rows.reduce((sum, x) => sum + Math.abs(toNumber(getPropValue(x, 'diferenciaKg', 'DiferenciaKg', 0))), 0);
+
+                    document.getElementById('invTotalRegistros').textContent = total;
+                    document.getElementById('invTotalOk').textContent = ok;
+                    document.getElementById('invTotalDif').textContent = dif;
+                    document.getElementById('invKgDif').textContent = formatKg(kgDif);
+
+                    if (!rows.length) {
+                        body.innerHTML = `
+                            <tr>
+                                <td colspan="10" class="text-center">Sin información.</td>
+                            </tr>`;
+                        return;
+                    }
+
+                    body.innerHTML = rows.map(x => `
+                        <tr>
+                            <td>${escapeHtml(x.sucursal)}</td>
+                            <td>${escapeHtml(x.productoCodigo)}</td>
+                            <td title="${escapeHtml(x.descripcionSap)}">${escapeHtml(x.descripcionSap || '-')}</td>
+                            <td>${escapeHtml(x.lote)}</td>
+                            <td class="text-end">${formatKg(x.kgLocal)}</td>
+                            <td class="text-end">${formatKg(x.cantidadSap)}</td>
+                            <td class="text-end">${formatKg(x.comprometidoSap)}</td>
+                            <td class="text-end">${formatKg(x.disponibleSap)}</td>
+                            <td class="text-end">${formatKg(x.diferenciaKg)}</td>
+                            <td>${badgeInventario(x.estatus)}</td>
+                        </tr>
+                    `).join('');
+
+                    showLog(dif === 0 ? 'success' : 'warning',
+                        dif === 0
+                            ? 'Inventario conciliado correctamente.'
+                            : `Inventario con diferencias: ${dif} registros.`
+                    );
+
+                } catch (e) {
+                    body.innerHTML = `
+                        <tr>
+                            <td colspan="10" class="text-center">Error de red al consultar inventario.</td>
+                        </tr>`;
+
+                    showLog('danger', 'Error al consultar inventario: ' + (e?.message || e));
+                }
+            }
+
+            function mostrarCargando(texto) {
+                const el = document.getElementById('loadingModalText');
+                if (el) {
+                    el.textContent = texto || 'Cargando información...';
+                }
+
+                bootstrap.Modal.getOrCreateInstance(
+                    document.getElementById('loadingModal')
+                ).show();
+            }
+
+            function ocultarCargando() {
+                const modalEl = document.getElementById('loadingModal');
+                if (!modalEl) return;
+
+                try {
+                    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                    modal.hide();
+                } catch (e) {
+                    // No bloquear la pantalla si Bootstrap no alcanza a cerrar el modal.
+                }
+
+                // Refuerzo: cuando se abren/cierra modales muy rápido, Bootstrap puede dejar
+                // el loading visible. Forzamos el cierre sin afectar el modal de trazabilidad.
+                setTimeout(() => {
+                    modalEl.classList.remove('show');
+                    modalEl.style.display = 'none';
+                    modalEl.setAttribute('aria-hidden', 'true');
+                    modalEl.removeAttribute('aria-modal');
+                    modalEl.removeAttribute('role');
+
+                    const modalesAbiertos = Array.from(document.querySelectorAll('.modal.show'))
+                        .filter(x => x.id !== 'loadingModal');
+
+                    if (modalesAbiertos.length === 0) {
+                        document.body.classList.remove('modal-open');
+                        document.body.style.removeProperty('overflow');
+                        document.body.style.removeProperty('padding-right');
+                        document.querySelectorAll('.modal-backdrop').forEach(x => x.remove());
+                    } else {
+                        // Deja máximo un backdrop para el modal que sí queda abierto.
+                        const backs = Array.from(document.querySelectorAll('.modal-backdrop'));
+                        backs.slice(1).forEach(x => x.remove());
+                        document.body.classList.add('modal-open');
+                    }
+                }, 120);
+            }
+
+            function htmlSpinnerTabla(colspan, texto) {
+                return `
+                    <tr>
+                        <td colspan="${colspan}" class="loading-row">
+                            <div class="pm-spinner"></div>
+                            <div class="loading-text">${escapeHtml(texto || 'Cargando...')}</div>
+                        </td>
+                    </tr>`;
+            }
+
+            function descargarInventarioExcel() {
+                const sucursal = document.getElementById('invSucursal')?.value || '';
+                const articulo = document.getElementById('invArticulo')?.value || '';
+                const lote = document.getElementById('invLote')?.value || '';
+                const estatus = document.getElementById('invEstatus')?.value || '';
+
+                const url = '@Url.Action("ConciliacionInventarioExcel", "ProcesosCg")'
+                    + '?sucursal=' + encodeURIComponent(sucursal)
+                    + '&articulo=' + encodeURIComponent(articulo)
+                    + '&lote=' + encodeURIComponent(lote)
+                    + '&estatus=' + encodeURIComponent(estatus);
+
+                window.location.href = url;
+            }
+
+            // ======================================================
+    // AUTO VALIDACIÓN DE DEVOLUCIONES
+    // ======================================================
+    const DEV_AUTO_KEY = `entregas_dev_auto_${SOURCE}`;
+    const DEV_AUTO_INTERVAL_MS = 3 * 60 * 1000; // cada 3 minutos
+    const DEV_AUTO_VALIDATE_ALL_VISIBLE = true; // true = valida todas las visibles
+
+    let devAutoTimer = null;
+    let devAutoBusy = false;
+
+    function sleepDev(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function getRowsVisiblesDevoluciones() {
+        return Array.from(document.querySelectorAll('tr[data-ref]'))
+            .filter(row => row.offsetParent !== null);
+    }
+
+    function getRefsParaValidarDevoluciones() {
+        const rows = getRowsVisiblesDevoluciones();
+
+        return rows
+            .filter(row => {
+                if (DEV_AUTO_VALIDATE_ALL_VISIBLE) return true;
+
+                const dev = row.querySelector('.js-dev-est');
+                if (!dev) return false;
+
+                const status = dev.getAttribute('data-dev-status') || '';
+                const cls = dev.className || '';
+
+                return (
+                    !status ||
+                    status === 'Error' ||
+                    status === 'Pendiente' ||
+                    status === 'Diferencia' ||
+                    cls.includes('dev-unknown') ||
+                    cls.includes('dev-pending') ||
+                    cls.includes('dev-diff')
+                );
+            })
+            .map(row => row.getAttribute('data-ref'))
+            .filter(Boolean);
+    }
+
+    async function validarDevolucionesAutomatico() {
+        if (devAutoBusy) return;
+
+        const refs = getRefsParaValidarDevoluciones();
+
+        if (!refs.length) {
+            showLog('secondary', 'Auto Dev: no hay entregas visibles para validar.');
+            return;
+        }
+
+        devAutoBusy = true;
+
+        try {
+            showLog('info', `Auto Dev: validando devoluciones de ${refs.length} entrega(s)...`);
+
+            for (let i = 0; i < refs.length; i++) {
+                const ref = refs[i];
+
+                const row = document.querySelector(`tr[data-ref="${CSS.escape(ref)}"]`);
+
+                if (row) {
+                    row.querySelectorAll('.js-dev-est').forEach(el => {
+                        el.className = 'dev-est js-dev-est dev-unknown';
+                        el.textContent = '⏳';
+                        el.title = 'Validando devolución automáticamente...';
+                    });
+                }
+
+                await validarDevolucionFila(ref);
+
+                // Pausa pequeña para no saturar el servidor
+                await sleepDev(120);
+            }
+
+            showLog('success', `Auto Dev: validación terminada. ${refs.length} entrega(s) revisadas.`);
+        } catch (e) {
+            showLog('danger', 'Auto Dev: error al validar devoluciones: ' + (e?.message || e));
+        } finally {
+            devAutoBusy = false;
+        }
+    }
+
+    function setAutoDevUi(activo) {
+        const btn = document.getElementById('btnAutoDev');
+        const ico = document.getElementById('autoDevIco');
+
+        if (!btn || !ico) return;
+
+        if (activo) {
+            btn.classList.add('pm-btn-auto-on');
+            ico.textContent = '▶';
+            btn.title = 'Auto Dev: ON';
+        } else {
+            btn.classList.remove('pm-btn-auto-on');
+            ico.textContent = '⏸';
+            btn.title = 'Auto Dev: OFF';
+        }
+    }
+
+    function iniciarAutoDev() {
+        detenerAutoDev();
+
+        localStorage.setItem(DEV_AUTO_KEY, '1');
+        setAutoDevUi(true);
+
+        // Ejecuta una vez inmediatamente
+        validarDevolucionesAutomatico();
+
+        // Luego ejecuta cada intervalo
+        devAutoTimer = setInterval(() => {
+            validarDevolucionesAutomatico();
+        }, DEV_AUTO_INTERVAL_MS);
+    }
+
+    function detenerAutoDev() {
+        if (devAutoTimer) {
+            clearInterval(devAutoTimer);
+            devAutoTimer = null;
+        }
+
+        localStorage.setItem(DEV_AUTO_KEY, '0');
+        setAutoDevUi(false);
+    }
+
+    function toggleAutoDev() {
+        const activo = localStorage.getItem(DEV_AUTO_KEY) === '1';
+
+        if (activo) {
+            detenerAutoDev();
+            showLog('warning', 'Auto Dev desactivado.');
+        } else {
+            iniciarAutoDev();
+            showLog('success', 'Auto Dev activado.');
+        }
+    }
+
+    document.getElementById('btnAutoDev')?.addEventListener('click', function () {
+        toggleAutoDev();
+    });
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const activo = localStorage.getItem(DEV_AUTO_KEY) === '1';
+
+        setAutoDevUi(activo);
+
+        if (activo) {
+            iniciarAutoDev();
+        } else {
+            // Validación inicial una sola vez al cargar la página
+            setTimeout(() => {
+                validarDevolucionesAutomatico();
+            }, 800);
+        }
+    });
+
+    // Si la pestaña vuelve a estar visible, refresca devoluciones
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden && localStorage.getItem(DEV_AUTO_KEY) === '1') {
+            validarDevolucionesAutomatico();
+        }
+    });
+
+
+
+    /* =========================
+       KPIS ENTREGAS SAP
+       ========================= */
+    function actualizarKpisEntregasSap() {
+        const rows = Array.from(document.querySelectorAll('.tbl-sap tbody tr[data-ref]'));
+
+        const seleccionadas = rows.filter(row => row.querySelector('.ck')?.checked).length;
+
+        const devBad = rows.filter(row => {
+            const el = row.querySelector('.js-dev-est');
+            const cls = String(el?.className || '');
+            const txt = String(el?.getAttribute('data-dev-status') || el?.title || '').toUpperCase();
+
+            return cls.includes('dev-pending') ||
+                   cls.includes('dev-diff') ||
+                   txt.includes('PENDIENTE') ||
+                   txt.includes('DIFERENCIA') ||
+                   txt.includes('FALTA') ||
+                   txt.includes('SOBRANTE') ||
+                   txt.includes('ERROR');
+        }).length;
+
+        const devOk = rows.filter(row => {
+            const el = row.querySelector('.js-dev-est');
+            const cls = String(el?.className || '');
+            const txt = String(el?.getAttribute('data-dev-status') || el?.title || '').toUpperCase();
+
+            return cls.includes('dev-ok') ||
+                   txt.includes('APLICADA') ||
+                   txt.includes('OK');
+        }).length;
+
+        const devPendientes = Math.max(rows.length - devOk - devBad, 0);
+
+        const setText = (id, value) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = Number(value || 0).toLocaleString('es-MX');
+        };
+
+        setText('kpiSapSeleccionadas', seleccionadas);
+        setText('kpiSapDevRevisar', devBad);
+
+        const cardDev = document.getElementById('kpiSapDevCard');
+        const txtDev = document.getElementById('kpiSapDevTexto');
+
+        if (cardDev) {
+            cardDev.classList.remove('ok', 'warn', 'bad');
+
+            if (devBad > 0) {
+                cardDev.classList.add('bad');
+                if (txtDev) txtDev.textContent = 'Con diferencias / pendientes';
+            } else if (devPendientes > 0) {
+                cardDev.classList.add('warn');
+                if (txtDev) txtDev.textContent = `${devPendientes.toLocaleString('es-MX')} sin validar`;
+            } else {
+                cardDev.classList.add('ok');
+                if (txtDev) txtDev.textContent = 'Devoluciones correctas';
+            }
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        actualizarKpisEntregasSap();
+
+        document.querySelectorAll('.ck').forEach(chk => {
+            chk.addEventListener('change', actualizarKpisEntregasSap);
+        });
+
+        const devTargets = document.querySelectorAll('.js-dev-est');
+        if (devTargets.length) {
+            const observer = new MutationObserver(actualizarKpisEntregasSap);
+            devTargets.forEach(el => {
+                observer.observe(el, {
+                    attributes: true,
+                    childList: true,
+                    characterData: true,
+                    subtree: true
+                });
+            });
+        }
+    });
+
+</script>

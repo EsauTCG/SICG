@@ -1,0 +1,174 @@
+﻿@model Plataforma_CG.Models.ViewModels.KpiCatalogoFormVM
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Editar KPI";
+    var preview = string.IsNullOrWhiteSpace(Model.ImagenUrlActual) ? "/img/kpi/kpi-default.png" : Model.ImagenUrlActual;
+}
+
+<style>
+    :root {
+        --brand-grad: linear-gradient(90deg,#8B0000 0%,#5a0000 50%,#1a0000 100%);
+        --pane: #fff;
+        --bar: #e6e9ef;
+        --bar-2: #dde2ea;
+        --line: #d8dce3;
+        --ink: #20262e;
+        --muted: #636d7b;
+        --radius: 10px;
+        --shadow: 0 1px 0 rgba(0,0,0,.05), 0 12px 24px rgba(0,0,0,.06);
+    }
+
+    .container-sap {
+        max-width: 980px;
+        margin: 1.25rem auto 2rem;
+    }
+
+    .sap-titlebar {
+        background: linear-gradient(#eef1f6,#e7ebf2);
+        border: 1px solid var(--bar-2);
+        border-radius: var(--radius);
+        padding: .85rem 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        flex-wrap: wrap;
+        box-shadow: var(--shadow);
+    }
+
+        .sap-titlebar .title {
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+            font-weight: 800;
+            color: #2b3642;
+        }
+
+        .sap-titlebar .sub {
+            margin: 0;
+            font-size: .92rem;
+            color: var(--muted);
+        }
+
+    .sap-card {
+        background: var(--pane);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        margin-top: 1rem;
+    }
+
+    .sap-card-head {
+        padding: .75rem 1rem;
+        border-bottom: 1px solid var(--line);
+        background: linear-gradient(#f6f8fb,#eef2f7);
+        font-weight: 800;
+        color: #2b3642;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .5rem;
+        flex-wrap: wrap;
+    }
+</style>
+
+<div class="container-sap">
+    <div class="sap-titlebar">
+        <div>
+            <h4 class="title"><i class="bi bi-pencil-square"></i> Editar KPI</h4>
+            <p class="sub">Actualiza información y/o reemplaza la imagen.</p>
+        </div>
+        <div class="actions">
+            <a class="btn btn-secondary btn-sm" href="@Url.Action("InicioKpi", "KpisAdmin")">
+                <i class="bi bi-arrow-left-circle me-1"></i> Volver
+            </a>
+        </div>
+    </div>
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger mt-3"><i class="bi bi-exclamation-triangle me-2"></i>@TempData["Error"]</div>
+    }
+
+    <div class="sap-card mt-3">
+        <div class="sap-card-head">
+            <span><i class="bi bi-card-image me-1"></i> Imagen actual</span>
+        </div>
+
+        <div class="p-3 d-flex gap-3 flex-wrap align-items-center">
+            <img src="@preview" style="width:220px;height:130px;object-fit:cover;border-radius:10px;border:1px solid rgba(0,0,0,.08);" />
+            <div class="text-muted">
+                <div class="fw-bold text-dark">Ruta:</div>
+                <code>@(Model.ImagenUrlActual ?? "(sin imagen)")</code>
+            </div>
+        </div>
+    </div>
+
+    <div class="sap-card mt-3">
+        <div class="sap-card-head">
+            <span><i class="bi bi-pencil-square me-1"></i> Datos del KPI</span>
+        </div>
+
+        <div class="p-3">
+            <form method="post" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="Id" />
+                <input type="hidden" asp-for="ImagenUrlActual" />
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Título</label>
+                        <input class="form-control" asp-for="Titulo" />
+                        <span class="text-danger" asp-validation-for="Titulo"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Categoría</label>
+                        <input class="form-control" asp-for="Categoria" />
+                        <span class="text-danger" asp-validation-for="Categoria"></span>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Descripción</label>
+                        <textarea class="form-control" rows="4" asp-for="Descripcion"></textarea>
+                        <span class="text-danger" asp-validation-for="Descripcion"></span>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Embed URL (Power BI)</label>
+                        <input class="form-control" asp-for="EmbedUrl" />
+                        <span class="text-danger" asp-validation-for="EmbedUrl"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Reemplazar imagen (opcional)</label>
+                        <input class="form-control" asp-for="Imagen" type="file" accept="image/*" />
+                    </div>
+
+                    <div class="col-md-6 d-flex align-items-end justify-content-between flex-wrap gap-2">
+                        <div class="form-check">
+                            <input class="form-check-input" asp-for="Activo" />
+                            <label class="form-check-label fw-bold" asp-for="Activo">Activo</label>
+                        </div>
+
+                        <div class="form-check">
+                            <input class="form-check-input" asp-for="QuitarImagen" />
+                            <label class="form-check-label fw-bold" asp-for="QuitarImagen">Quitar imagen</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-end mt-4">
+                    <button class="btn btn-outline-primary">
+                        <i class="bi bi-save me-1"></i> Guardar cambios
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+    <partial name="_ValidationScriptsPartial" />
+}

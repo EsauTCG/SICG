@@ -1,0 +1,3243 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewBag.Title = "Inventario Por Planta";
+}
+
+<style>
+    :root {
+        --bg: #f0dede;
+        --panel: #f8eeee;
+        --line: #c79d9d;
+        --text: #3b1717;
+        --brand: #8B0000;
+        --brand-dark: #5c0000;
+        --brand-light: #b30000;
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    html,
+    body {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    body {
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        background: transparent !important;
+    }
+
+    body,
+    main,
+    .main,
+    .body-content,
+    .container,
+    .container-fluid,
+    .container-sm,
+    .container-md,
+    .container-lg,
+    .container-xl,
+    .container-xxl,
+    .pb-3 {
+        background: transparent !important;
+        box-shadow: none !important;
+        border: none !important;
+    }
+
+    .camaras-page {
+        width: calc(100vw - 48px);
+        max-width: none;
+        margin-left: 50%;
+        transform: translateX(-50%);
+        margin-top: 0 !important;
+    }
+
+    .window {
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0 auto 18px auto !important;
+        border: 1px solid #7e4a4a;
+        background: var(--panel);
+        box-shadow: 0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70,12,12,.14);
+        overflow: hidden;
+        border-radius: 0 !important;
+    }
+
+    .titlebar {
+        min-height: 36px;
+        /* display: flex; */
+         display: none !important;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 8px 12px;
+        background: linear-gradient(180deg, #c00000 0%, #8b0000 60%, #5c0000 100%) !important;
+        border-bottom: 1px solid #5c0000 !important;
+        color: #fff;
+        font-size: 14px;
+        font-weight: bold;
+    }
+
+    .actions {
+        display: flex;
+        gap: 6px;
+        flex-shrink: 0;
+    }
+
+    .win-btn {
+        width: 16px;
+        height: 16px;
+        border: 1px solid #7c4848;
+        background: linear-gradient(#fff6f6,#ead0d0);
+    }
+
+    .content {
+        padding: 12px 14px;
+        background: var(--bg);
+    }
+
+    .section {
+        border: 1px solid var(--line);
+        background: #fff;
+        margin-bottom: 14px;
+        min-width: 0;
+    }
+
+    .section-title {
+        padding: 8px 10px;
+        font-size: 13px;
+        font-weight: bold;
+        color: #fff;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        border-bottom: 1px solid #6b1f1f !important;
+    }
+
+    .section-body {
+        padding: 12px;
+        background: #fffafa;
+        min-width: 0;
+    }
+
+    .btn-planta,
+    .btn-main,
+    .btn-excel,
+    .btn-light {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .45rem;
+        height: 34px;
+        padding: 0 14px;
+        font-weight: 700;
+        border-radius: 0;
+        font-size: 13px;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .btn-planta {
+        border: 1px solid #b48787;
+        color: #4b1f1f;
+        background: linear-gradient(#fffefe,#ecd7d7);
+    }
+
+        .btn-planta.active {
+            background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%);
+            color: #fff;
+            border-color: #7a2d2d;
+        }
+
+    .btn-main {
+        border: 1px solid #7a2d2d;
+        color: #fff;
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%);
+    }
+
+    .btn-excel {
+        border: 1px solid #146c43;
+        color: #fff;
+        background: linear-gradient(180deg,#198754 0%, #146c43 100%);
+    }
+
+    .filters-one-line {
+        display: grid;
+        grid-template-columns: 180px minmax(160px, 1fr) minmax(260px, 1.5fr) auto;
+        align-items: end;
+        gap: 12px;
+    }
+
+    .planta-bar-inline {
+        display: flex;
+        gap: 6px;
+    }
+
+    .filter-actions {
+        display: flex;
+        gap: 8px;
+        align-items: end;
+        justify-content: flex-end;
+    }
+
+    .form-label {
+        display: block;
+        color: #5c1a1a;
+        font-size: 13px;
+        margin-bottom: 5px;
+        font-weight: bold;
+    }
+
+    .form-control,
+    .form-select {
+        width: 100%;
+        max-width: 100%;
+        border: 1px solid #b48787 !important;
+        background: #fffdfd !important;
+        color: #421414 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        font-size: 13px !important;
+        height: 34px !important;
+    }
+
+    .inv-layout {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        min-width: 0;
+    }
+
+    .sidebar {
+        width: 160px;
+        flex: 0 0 160px;
+        border: 1px solid var(--line);
+        background: #fff;
+        overflow: hidden;
+    }
+
+    .sidebar-title {
+        padding: 7px 8px;
+        font-size: 12px;
+        font-weight: bold;
+        color: #fff;
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%);
+        border-bottom: 1px solid #6b1f1f;
+    }
+
+    .sidebar-list {
+        max-height: 520px;
+        overflow-y: auto;
+    }
+
+    .cam-item {
+        padding: 7px 8px;
+        font-size: 12px;
+        cursor: pointer;
+        color: #3b1717;
+        border-bottom: 1px solid #ecd7d7;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        user-select: none;
+    }
+
+        .cam-item:hover {
+            background: #f4dddd;
+        }
+
+        .cam-item.active {
+            background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%);
+            color: #fff;
+            font-weight: bold;
+        }
+
+    .sidebar-actions {
+        border-top: 1px solid #d8bcbc;
+        background: #f6e9e9;
+        padding: 6px 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+        .sidebar-actions button {
+            width: 100%;
+            height: 30px;
+            font-size: 12px;
+            font-weight: 700;
+            border-radius: 0;
+            cursor: pointer;
+        }
+
+            .sidebar-actions button:first-child {
+                border: 1px solid #146c43;
+                color: #fff;
+                background: linear-gradient(180deg,#198754 0%, #146c43 100%);
+            }
+
+            .sidebar-actions button:last-child {
+                border: 1px solid #c99700;
+                color: #3b2b00;
+                background: linear-gradient(180deg,#ffd54d 0%, #e0a800 100%);
+            }
+
+    .inv-right,
+    .traz-left,
+    .traz-right {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
+    .inv-right {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .totales-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .totales-text {
+        font-size: 14px;
+        font-weight: bold;
+        color: #401515;
+    }
+
+        .totales-text span {
+            color: #8b0000;
+        }
+
+    .table-card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        overflow: hidden;
+        min-width: 0;
+        width: 100%;
+    }
+
+    .table-responsive-sticky {
+        max-height: 72vh;
+        overflow: auto;
+        border-top: 1px solid #d9b8b8;
+        background: #fffafa;
+        width: 100%;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    #tbl-inv,
+    #tbl-traz {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        margin-bottom: 0;
+        background: #fffafa;
+    }
+
+    #tbl-inv {
+        font-size: 13px;
+        min-width: 850px;
+    }
+
+    #tbl-traz {
+        font-size: 12px;
+        min-width: 1250px;
+    }
+
+        #tbl-inv thead th,
+        #tbl-traz thead th {
+            position: sticky;
+            top: -1px;
+            z-index: 20;
+            background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+            color: #fff !important;
+            border-top: 1px solid #c46a6a !important;
+            border-right: 1px solid #8e3b3b !important;
+            border-bottom: 1px solid #5c0000 !important;
+            font-weight: 700 !important;
+            white-space: nowrap;
+        }
+
+    #tbl-inv thead th {
+        padding: 8px 6px !important;
+        font-size: 13px !important;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    #tbl-traz thead th {
+        padding: 7px 5px !important;
+        font-size: 12px !important;
+    }
+
+    #tbl-inv tbody td,
+    #tbl-traz tbody td {
+        background: #fffafa !important;
+        border-right: 1px solid #d8bcbc !important;
+        border-bottom: 1px solid #d8bcbc !important;
+        color: #111 !important;
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+
+    #tbl-inv tbody td {
+        padding: 7px 6px !important;
+        font-size: 13px;
+    }
+
+    #tbl-traz tbody td {
+        padding: 6px 5px !important;
+        font-size: 12px;
+    }
+
+    #tbl-inv tbody tr:nth-of-type(even) > *,
+    #tbl-traz tbody tr:nth-of-type(even) > * {
+        background-color: #f9eded !important;
+    }
+
+    #tbl-inv tbody tr:hover > *,
+    #tbl-traz tbody tr:hover > * {
+        background: #f4dddd !important;
+    }
+
+    #tbl-inv tbody tr.row-sel > * {
+        background: #fff3a3 !important;
+        border-top: 2px solid #c9a100 !important;
+        border-bottom: 2px solid #c9a100 !important;
+    }
+
+  
+  #tbl-traz tbody td:nth-child(2),
+#tbl-traz tbody td:nth-child(7) {
+    background: #fff3a3 !important;
+    color: #000 !important;
+}
+
+    .traz-panel {
+        display: flex;
+        gap: 12px;
+        min-width: 0;
+    }
+
+    .text-end {
+        text-align: right !important;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .text-center {
+        text-align: center !important;
+    }
+
+    .badge-activo,
+    .badge-inactivo {
+        display: inline-block;
+        padding: 2px 7px;
+        font-size: 11px;
+        font-weight: 700;
+        color: #fff;
+    }
+
+    .badge-activo {
+        background: #198754;
+    }
+
+    .badge-inactivo {
+        background: #dc3545;
+    }
+
+    .statusbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 8px 10px;
+        font-size: 12px;
+        color: #4a1a1a;
+        border-top: 1px solid #b88c8c;
+        background: linear-gradient(#f6e9e9,#ead5d5);
+        flex-wrap: wrap;
+    }
+
+    .rack-title {
+        padding: 7px 10px !important;
+        font-size: 12px !important;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .btn-rack3d {
+        height: 24px;
+        padding: 0 10px;
+        border: 1px solid #ffd36a;
+        background: linear-gradient(180deg,#ffdd6b,#d99a00);
+        color: #2d1800;
+        font-size: 11px;
+        font-weight: 800;
+        cursor: pointer;
+    }
+
+    /* ===================== MODAL THREE.JS ===================== */
+
+    .rack-modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        background: rgba(0,0,0,.72);
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+    }
+
+        .rack-modal.show {
+            display: flex;
+        }
+
+    .rack-modal-box {
+        width: min(1500px, 96vw);
+        height: min(850px, 92vh);
+        background: #170909;
+        border: 1px solid #b30000;
+        box-shadow: 0 20px 70px rgba(0,0,0,.65);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .rack-modal-head {
+        height: 46px;
+        background: linear-gradient(180deg,#b30000,#5c0000);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 14px;
+        border-bottom: 1px solid #2d0000;
+    }
+
+        .rack-modal-head span {
+            display: block;
+            font-size: 11px;
+            color: #ffd8d8;
+            margin-top: 2px;
+        }
+
+    .rack-close {
+        width: 30px;
+        height: 30px;
+        border: 1px solid #ffd0d0;
+        background: #fff;
+        color: #8b0000;
+        font-size: 22px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+
+    .rack3d-body {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 1fr 330px;
+        min-height: 0;
+    }
+
+    #rack3d-canvas {
+        width: 100%;
+        height: 100%;
+        background: #d8d8d8;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .rack-info {
+        background: #fff8f8;
+        border-left: 1px solid #8b0000;
+        padding: 14px;
+        overflow: auto;
+        color: #270d0d;
+    }
+
+        .rack-info h4 {
+            margin: 0 0 12px 0;
+            color: #8b0000;
+            font-size: 22px;
+        }
+
+    .rack-info-row {
+        border-bottom: 1px solid #e2bcbc;
+        padding: 8px 0;
+        font-size: 12px;
+    }
+
+        .rack-info-row b {
+            display: block;
+            color: #5c0000;
+            margin-bottom: 3px;
+        }
+
+    @@media (min-width: 1400px) {
+        .camaras-page {
+            width: calc(100vw - 80px);
+        }
+
+        .table-responsive-sticky {
+            max-height: 68vh;
+        }
+    }
+
+    @@media (max-width: 1200px) {
+        .traz-panel {
+            flex-direction: column;
+        }
+
+        #tbl-traz {
+            min-width: 1150px;
+        }
+    }
+
+    @@media (max-width: 992px) {
+        .content {
+            padding: 10px;
+        }
+
+        .filters-one-line {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .filter-actions {
+            justify-content: flex-start;
+        }
+
+        .inv-layout {
+            flex-direction: column;
+        }
+
+        .sidebar {
+            width: 100%;
+            flex: 0 0 auto;
+        }
+
+        .sidebar-list {
+            max-height: 220px;
+        }
+
+        .sidebar-actions {
+            flex-direction: row;
+            flex-wrap: wrap;
+        }
+
+            .sidebar-actions button {
+                flex: 1 1 140px;
+            }
+    }
+
+    @@media (max-width: 768px) {
+        .camaras-page {
+            width: calc(100vw - 12px);
+        }
+
+            .camaras-page .window {
+                margin: 6px auto !important;
+            }
+
+        .rack3d-body {
+            grid-template-columns: 1fr;
+        }
+
+        .rack-info {
+            max-height: 220px;
+            border-left: none;
+            border-top: 1px solid #8b0000;
+        }
+    }
+
+    @@media (max-width: 576px) {
+        .titlebar {
+            font-size: 13px;
+            align-items: flex-start;
+        }
+
+        .content {
+            padding: 6px;
+        }
+
+        .section {
+            margin-bottom: 10px;
+        }
+
+        .section-body {
+            padding: 8px;
+        }
+
+        .filters-one-line {
+            grid-template-columns: 1fr;
+            gap: 8px;
+        }
+
+        .filter-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+        }
+
+            .filter-actions button,
+            .btn-main,
+            .btn-excel {
+                width: 100%;
+                padding: 0 8px;
+                font-size: 12px;
+            }
+
+        .totales-bar {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .totales-text {
+            font-size: 13px;
+        }
+
+        .table-responsive-sticky {
+            max-height: 62vh;
+        }
+
+        #tbl-inv {
+            min-width: 760px;
+        }
+
+        #tbl-traz {
+            min-width: 1050px;
+        }
+
+            #tbl-inv thead th,
+            #tbl-inv tbody td,
+            #tbl-traz thead th,
+            #tbl-traz tbody td {
+                font-size: 11px !important;
+                padding: 5px 4px !important;
+            }
+
+        .statusbar {
+            font-size: 11px;
+            padding: 6px 8px;
+        }
+    }
+
+    .rack-kpi-bar {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 8px;
+        padding: 8px;
+        background: #fff8f8;
+        border-bottom: 1px solid #8b0000;
+    }
+
+    .rack-kpi-card {
+        border: 1px solid #d8bcbc;
+        background: linear-gradient(#fffefe, #f3e2e2);
+        padding: 8px 10px;
+        min-height: 58px;
+    }
+
+        .rack-kpi-card.danger {
+            background: linear-gradient(#ffecec, #ffd1d1);
+            border-color: #b30000;
+        }
+
+    .rack-kpi-title {
+        font-size: 11px;
+        font-weight: 800;
+        color: #5c0000;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+    }
+
+    .rack-kpi-value {
+        font-size: 20px;
+        font-weight: 900;
+        color: #111;
+        font-variant-numeric: tabular-nums;
+    }
+
+    @@media (max-width: 992px) {
+        .rack-kpi-bar {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    .rack-search-bar {
+        display: grid;
+        grid-template-columns: 260px 1fr 260px;
+        gap: 10px;
+        align-items: center;
+        padding: 8px;
+        background: #fffafa;
+        border-bottom: 1px solid #b30000;
+        color: #4a0000;
+        font-size: 13px;
+        font-weight: 700;
+    }
+
+    .rack-search-box {
+        display: flex;
+        gap: 6px;
+    }
+
+    #txt-buscar-rack {
+        width: 100%;
+        height: 30px;
+        border: 1px solid #b48787;
+        padding: 0 10px;
+        font-size: 13px;
+    }
+
+    #btn-buscar-rack {
+        height: 30px;
+        border: 1px solid #7a2d2d;
+        background: linear-gradient(180deg,#b30000,#5c0000);
+        color: #fff;
+        font-weight: 800;
+        padding: 0 14px;
+        cursor: pointer;
+    }
+
+    #rack-search-result {
+        color: #8b0000;
+        font-weight: 800;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    @@media (max-width: 992px) {
+        .rack-search-bar {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    #tbl-traz tbody td.dias-verde {
+        background: #d1e7dd !important;
+        color: #0f5132 !important;
+        font-weight: 900 !important;
+    }
+
+    #tbl-traz tbody td.dias-amarillo {
+        background: #fff3cd !important;
+        color: #664d03 !important;
+        font-weight: 900 !important;
+    }
+
+    #tbl-traz tbody td.dias-rojo {
+        background: #f8d7da !important;
+        color: #842029 !important;
+        font-weight: 900 !important;
+    }
+
+    th[data-col] {
+        cursor: pointer;
+        user-select: none;
+        position: relative;
+    }
+
+    .sort-arrow {
+        display: inline-flex;
+        flex-direction: column;
+        margin-left: 5px;
+        vertical-align: middle;
+    }
+
+    .arr-up, .arr-dn {
+        width: 0;
+        height: 0;
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+    }
+
+    .arr-up {
+        border-bottom: 6px solid rgba(255,255,255,.6);
+        margin-bottom: 1px;
+    }
+
+    .arr-dn {
+        border-top: 6px solid rgba(255,255,255,.6);
+    }
+
+    th.asc .arr-up {
+        border-bottom-color: #fff;
+    }
+
+    th.desc .arr-dn {
+        border-top-color: #fff;
+    }
+
+    .btn-total-camara {
+        height: 24px;
+        padding: 0 10px;
+        border: 1px solid #146c43;
+        background: linear-gradient(180deg,#198754,#146c43);
+        color: #fff;
+        font-size: 11px;
+        font-weight: 800;
+        cursor: pointer;
+    }
+
+        .btn-total-camara:hover {
+            background: linear-gradient(180deg,#20a164,#0f5a37);
+        }
+
+    /* Quitar fondo blanco de atrás */
+    html,
+    body,
+    main,
+    .main,
+    .body-content,
+    .container,
+    .container-fluid,
+    .pb-3 {
+        background: transparent !important;
+    }
+
+  
+
+
+    /* RESPONSIVO REAL CELULAR */
+    @@media (max-width: 768px) {
+        html,
+        body {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow-x: hidden !important;
+        }
+
+        .camaras-page {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            transform: none !important;
+            padding: 0 4px !important;
+        }
+
+        .window,
+        .content,
+        .section,
+        .section-body,
+        .inv-right,
+        .traz-left,
+        .traz-right,
+        .table-card {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+        }
+
+        .content {
+            padding: 4px !important;
+        }
+
+        .filters-one-line {
+            display: grid !important;
+            grid-template-columns: 1fr !important;
+            gap: 8px !important;
+        }
+
+        .planta-bar-inline,
+        .filter-actions {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 6px !important;
+        }
+
+        .btn-planta,
+        .btn-main,
+        .btn-excel {
+            width: 100% !important;
+            font-size: 11px !important;
+            padding: 0 6px !important;
+        }
+
+        .inv-layout,
+        .traz-panel {
+            display: flex !important;
+            flex-direction: column !important;
+            width: 100% !important;
+            gap: 8px !important;
+        }
+
+        .sidebar {
+            width: 100% !important;
+            flex: none !important;
+        }
+
+        .sidebar-list {
+            max-height: 150px !important;
+        }
+
+        .totales-bar {
+            display: block !important;
+        }
+
+        .totales-text {
+            font-size: 12px !important;
+            margin-bottom: 6px;
+        }
+
+        .table-responsive-sticky {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow-x: auto !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+        }
+
+        #tbl-inv {
+            min-width: 620px !important;
+            font-size: 10px !important;
+        }
+
+        #tbl-traz {
+            min-width: 900px !important;
+            font-size: 10px !important;
+        }
+
+            #tbl-inv th,
+            #tbl-inv td,
+            #tbl-traz th,
+            #tbl-traz td {
+                font-size: 10px !important;
+                padding: 4px 3px !important;
+                line-height: 1.1 !important;
+            }
+
+        .rack-title {
+            flex-direction: column !important;
+            align-items: stretch !important;
+        }
+
+            .rack-title > div {
+                display: grid !important;
+                grid-template-columns: 1fr 1fr !important;
+                width: 100% !important;
+            }
+
+        .btn-total-camara,
+        .btn-rack3d {
+            width: 100% !important;
+            font-size: 10px !important;
+        }
+
+        .statusbar {
+            display: block !important;
+            font-size: 10px !important;
+        }
+    }
+
+    /* ESTILO ROSITA / GRIS COMO LA OTRA VISTA */
+    body {
+        background: #e9edf2 !important;
+    }
+
+    .camaras-page {
+        background: transparent !important;
+    }
+
+    .window {
+        background: #f8eeee !important;
+        border: 1px solid #7e4a4a !important;
+        box-shadow: 0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70,12,12,.14) !important;
+    }
+
+    .content {
+        background: #f0dede !important;
+    }
+
+    .section,
+    .table-card,
+    .sidebar {
+        background: #ffffff !important;
+        border: 1px solid #c79d9d !important;
+    }
+
+    .section-body,
+    .table-responsive-sticky,
+    #tbl-inv,
+    #tbl-traz {
+        background: #fffafa !important;
+    }
+
+    .sidebar-actions,
+    .statusbar {
+        background: linear-gradient(#f6e9e9, #ead5d5) !important;
+    }
+
+    .sidebar-list,
+    .cam-item {
+        background: #fffafa !important;
+    }
+
+        .cam-item:hover {
+            background: #f4dddd !important;
+        }
+
+    #tbl-inv tbody td,
+    #tbl-traz tbody td {
+        background: #fffafa !important;
+    }
+
+    #tbl-inv tbody tr:nth-of-type(even) > *,
+    #tbl-traz tbody tr:nth-of-type(even) > * {
+        background: #f9eded !important;
+    }
+
+    #tbl-inv tbody tr:hover > *,
+    #tbl-traz tbody tr:hover > * {
+        background: #f4dddd !important;
+    }
+
+    /* Mantener cámara seleccionada en rojo, no blanco */
+    .cam-item.active,
+    .sidebar-list .cam-item.active {
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+        color: #fff !important;
+        font-weight: 800 !important;
+    }
+
+    /* Fila seleccionada en amarillo */
+    #tbl-inv tbody tr.row-sel > td,
+    #tbl-inv tbody tr.row-sel > *,
+    #tbl-traz tbody tr.row-sel > td,
+    #tbl-traz tbody tr.row-sel > * {
+        background: #fff3a3 !important;
+        color: #000 !important;
+        border-top: 2px solid #c9a100 !important;
+        border-bottom: 2px solid #c9a100 !important;
+    }
+
+    /* Que el hover NO quite el amarillo */
+    #tbl-inv tbody tr.row-sel:hover > td,
+    #tbl-inv tbody tr.row-sel:hover > *,
+    #tbl-traz tbody tr.row-sel:hover > td,
+    #tbl-traz tbody tr.row-sel:hover > * {
+        background: #fff3a3 !important;
+        color: #000 !important;
+    }
+
+    /* Mantener columnas amarillas del detalle */
+   
+    #tbl-traz tbody td:nth-child(2),   
+    #tbl-traz tbody td:nth-child(6) {
+        background: #fff3a3 !important;
+        color: #000 !important;
+    }
+
+    /* Pero si la fila está seleccionada, toda la fila queda amarilla */
+  #tbl-traz tbody tr.row-sel > td:nth-child(2),
+#tbl-traz tbody tr.row-sel > td:nth-child(7) {
+    background: #fff3a3 !important;
+}
+
+    /* SEMÁFORO DÍAS INVENTARIO - fuerza colores correctos */
+    #tbl-traz tbody td.dias-verde {
+        background: #d1e7dd !important;
+        color: #0f5132 !important;
+        font-weight: 900 !important;
+    }
+
+    #tbl-traz tbody td.dias-amarillo {
+        background: #fff3cd !important;
+        color: #664d03 !important;
+        font-weight: 900 !important;
+    }
+
+    #tbl-traz tbody td.dias-rojo {
+        background: #f8d7da !important;
+        color: #842029 !important;
+        font-weight: 900 !important;
+    }
+
+    /* Que el zebra/hover NO tape el semáforo */
+    #tbl-traz tbody tr:nth-of-type(even) td.dias-verde,
+    #tbl-traz tbody tr:hover td.dias-verde {
+        background: #d1e7dd !important;
+        color: #0f5132 !important;
+    }
+
+    #tbl-traz tbody tr:nth-of-type(even) td.dias-amarillo,
+    #tbl-traz tbody tr:hover td.dias-amarillo {
+        background: #fff3cd !important;
+        color: #664d03 !important;
+    }
+
+    #tbl-traz tbody tr:nth-of-type(even) td.dias-rojo,
+    #tbl-traz tbody tr:hover td.dias-rojo {
+        background: #f8d7da !important;
+        color: #842029 !important;
+    }
+
+    /* COMPACTAR LETRA - Inventario por Planta */
+
+    body {
+        font-size: 12px !important;
+    }
+
+    .section-title {
+        font-size: 12px !important;
+        padding: 6px 8px !important;
+    }
+
+    .section-body {
+        padding: 8px !important;
+    }
+
+    .form-label {
+        font-size: 11px !important;
+    }
+
+    .form-control,
+    .form-select {
+        font-size: 12px !important;
+        height: 30px !important;
+    }
+
+    .btn-planta,
+    .btn-main,
+    .btn-excel,
+    .btn-light {
+        font-size: 12px !important;
+        height: 30px !important;
+        padding: 0 10px !important;
+    }
+
+    /* Sidebar cámaras */
+    .sidebar-title {
+        font-size: 11px !important;
+        padding: 6px 7px !important;
+    }
+
+    .cam-item {
+        font-size: 11px !important;
+        padding: 6px 7px !important;
+    }
+
+    .sidebar-actions button {
+        font-size: 11px !important;
+        height: 26px !important;
+    }
+
+    /* Totales */
+    .totales-text {
+        font-size: 12px !important;
+    }
+
+    /* Tabla inventario */
+    #tbl-inv {
+        font-size: 11px !important;
+    }
+
+        #tbl-inv thead th,
+        #tbl-inv tbody td {
+            font-size: 11px !important;
+            padding: 5px 4px !important;
+        }
+
+    /* Tabla trazabilidad */
+    #tbl-traz {
+        font-size: 11px !important;
+    }
+
+        #tbl-traz thead th,
+        #tbl-traz tbody td {
+            font-size: 11px !important;
+            padding: 5px 4px !important;
+        }
+
+    /* Encabezados sort */
+    .th-inner {
+        padding: 5px 4px !important;
+    }
+
+    /* Rack KPIs */
+    .rack-kpi-title {
+        font-size: 10px !important;
+    }
+
+    .rack-kpi-value {
+        font-size: 16px !important;
+    }
+
+    /* Barra búsqueda rack */
+    .rack-search-bar {
+        font-size: 11px !important;
+    }
+
+    #txt-buscar-rack,
+    #btn-buscar-rack {
+        font-size: 11px !important;
+    }
+
+    /* Status bar */
+    .statusbar {
+        font-size: 11px !important;
+        padding: 6px 8px !important;
+    }
+
+
+    /* =========================================================
+       KPIS EJECUTIVOS CON COLOR - INVENTARIO POR PLANTA
+       ========================================================= */
+
+    .main-kpi-panel {
+        margin-bottom: 12px !important;
+        border: 1px solid #c79d9d !important;
+        background: #fffafa !important;
+        box-shadow: 0 8px 18px rgba(70,12,12,.10) !important;
+        overflow: hidden;
+    }
+
+    .main-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(130px, 1fr));
+        gap: 10px;
+        padding: 10px;
+        background: linear-gradient(180deg, #fffafa 0%, #f2dddd 100%);
+    }
+
+    .main-kpi-card {
+        position: relative;
+        min-height: 96px;
+        overflow: hidden;
+        border-radius: 14px;
+        border: 1px solid rgba(255,255,255,.30);
+        padding: 12px 13px;
+        color: #fff;
+        box-shadow: 0 12px 24px rgba(56, 9, 9, .18);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .main-kpi-card::after {
+        content: "";
+        position: absolute;
+        right: -34px;
+        bottom: -42px;
+        width: 125px;
+        height: 125px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.15);
+        pointer-events: none;
+    }
+
+    .main-kpi-title,
+    .main-kpi-value,
+    .main-kpi-sub {
+        position: relative;
+        z-index: 1;
+    }
+
+    .main-kpi-title {
+        font-size: 10px;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        color: rgba(255,255,255,.90);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .main-kpi-value {
+        margin-top: 8px;
+        font-size: clamp(20px, 1.8vw, 30px);
+        line-height: 1.05;
+        font-weight: 900;
+        color: #fff;
+        text-shadow: 0 2px 8px rgba(0,0,0,.22);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .main-kpi-sub {
+        margin-top: 6px;
+        font-size: 10.5px;
+        font-weight: 800;
+        color: rgba(255,255,255,.86);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .kpi-main-camaras {
+        background: linear-gradient(135deg, #7b1113 0%, #a3161a 58%, #4b0608 100%);
+    }
+
+    .kpi-main-skus {
+        background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 58%, #172554 100%);
+    }
+
+    .kpi-main-cajas {
+        background: linear-gradient(135deg, #b7791f 0%, #d99a28 58%, #7a3f05 100%);
+    }
+
+    .kpi-main-kg {
+        background: linear-gradient(135deg, #157f49 0%, #22a65a 58%, #0f5132 100%);
+    }
+
+    .kpi-main-prom {
+        background: linear-gradient(135deg, #0f766e 0%, #14b8a6 58%, #134e4a 100%);
+    }
+
+    .kpi-main-alertas {
+        background: linear-gradient(135deg, #2b1515 0%, #4b1113 58%, #160505 100%);
+    }
+
+    .kpi-main-alertas.con-alerta {
+        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 58%, #7f1d1d 100%);
+    }
+
+    .kpi-main-alertas.sin-alerta {
+        background: linear-gradient(135deg, #14532d 0%, #15803d 58%, #052e16 100%);
+    }
+
+    /* KPIs del rack 3D con color operativo */
+    .rack-kpi-card {
+        position: relative;
+        overflow: hidden;
+        border-radius: 12px !important;
+        border: 1px solid rgba(255,255,255,.28) !important;
+        color: #fff !important;
+        box-shadow: 0 10px 22px rgba(45,8,8,.16) !important;
+    }
+
+    .rack-kpi-card::after {
+        content: "";
+        position: absolute;
+        right: -28px;
+        bottom: -36px;
+        width: 100px;
+        height: 100px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.14);
+    }
+
+    .rack-kpi-title,
+    .rack-kpi-value {
+        position: relative;
+        z-index: 1;
+    }
+
+    .rack-kpi-title {
+        color: rgba(255,255,255,.88) !important;
+        letter-spacing: .05em;
+    }
+
+    .rack-kpi-value {
+        color: #fff !important;
+        text-shadow: 0 2px 8px rgba(0,0,0,.22);
+    }
+
+    .rack-kpi-capacidad {
+        background: linear-gradient(135deg, #7b1113 0%, #a3161a 58%, #4b0608 100%) !important;
+    }
+
+    .rack-kpi-valor {
+        background: linear-gradient(135deg, #157f49 0%, #22a65a 58%, #0f5132 100%) !important;
+    }
+
+    .rack-kpi-rotacion {
+        background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 58%, #172554 100%) !important;
+    }
+
+    .rack-kpi-dos {
+        background: linear-gradient(135deg, #0f766e 0%, #14b8a6 58%, #134e4a 100%) !important;
+    }
+
+    .rack-kpi-reorden {
+        background: linear-gradient(135deg, #b7791f 0%, #d99a28 58%, #7a3f05 100%) !important;
+    }
+
+    .rack-kpi-criticos,
+    .rack-kpi-card.danger {
+        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 58%, #7f1d1d 100%) !important;
+        border-color: rgba(255,255,255,.30) !important;
+    }
+
+    @@media (max-width: 1400px) {
+        .main-kpi-grid {
+            grid-template-columns: repeat(3, minmax(130px, 1fr));
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .main-kpi-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+            padding: 8px;
+        }
+
+        .main-kpi-card {
+            min-height: 86px;
+            padding: 10px;
+        }
+
+        .main-kpi-value {
+            font-size: clamp(18px, 5vw, 24px);
+        }
+    }
+
+    @@media (max-width: 480px) {
+        .main-kpi-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+</style>
+
+<div class="camaras-page">
+    <div class="window">
+        <div class="titlebar">
+            <div> </div>
+            <div class="actions">
+                <div class="win-btn"></div>
+                <div class="win-btn"></div>
+                <div class="win-btn"></div>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="section">
+               @*  <div class="section-title">Filtros</div> *@
+                <div class="section-body">
+                    <div class="filters-one-line">
+                        <div>
+                            <label class="form-label">Planta</label>
+                            <div class="planta-bar-inline">
+                                <button type="button" class="btn-planta active" data-planta="P1">PLANTA 1</button>
+                                <button type="button" class="btn-planta" data-planta="TIF">TIF 776</button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="form-label">SKU</label>
+                            <input type="text" id="txt-sku" class="form-control" placeholder="SKU" />
+                        </div>
+
+                        <div>
+                            <label class="form-label">Producto</label>
+                            <input type="text" id="txt-producto" class="form-control" placeholder="Nombre producto" />
+                        </div>
+
+                        <div class="filter-actions">
+                            <button type="button" id="btn-buscar" class="btn-main">Buscar</button>
+                            <button type="button" id="btn-excel" class="btn-excel">Excel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="section main-kpi-panel">
+                <div class="section-title">KPIs de inventario</div>
+                <div class="main-kpi-grid">
+                    <div class="main-kpi-card kpi-main-camaras">
+                        <div class="main-kpi-title">Cámaras</div>
+                        <div class="main-kpi-value" id="kpi-main-camaras">0</div>
+                        <div class="main-kpi-sub" id="kpi-main-camaras-sub">Sin selección</div>
+                    </div>
+
+                    <div class="main-kpi-card kpi-main-skus">
+                        <div class="main-kpi-title">SKUs</div>
+                        <div class="main-kpi-value" id="kpi-main-skus">0</div>
+                        <div class="main-kpi-sub">Productos distintos</div>
+                    </div>
+
+                    <div class="main-kpi-card kpi-main-cajas">
+                        <div class="main-kpi-title">Cajas</div>
+                        <div class="main-kpi-value" id="kpi-main-cajas">0</div>
+                        <div class="main-kpi-sub">Total filtrado</div>
+                    </div>
+
+                    <div class="main-kpi-card kpi-main-kg">
+                        <div class="main-kpi-title">Kg inventario</div>
+                        <div class="main-kpi-value" id="kpi-main-kg">0.000</div>
+                        <div class="main-kpi-sub">Peso total</div>
+                    </div>
+
+                    <div class="main-kpi-card kpi-main-prom">
+                        <div class="main-kpi-title">Promedio kg/caja</div>
+                        <div class="main-kpi-value" id="kpi-main-prom">0.00</div>
+                        <div class="main-kpi-sub">Kg ÷ cajas</div>
+                    </div>
+
+                    <div class="main-kpi-card kpi-main-alertas sin-alerta" id="kpi-main-alertas-card">
+                        <div class="main-kpi-title">Inactivos / alertas</div>
+                        <div class="main-kpi-value" id="kpi-main-alertas">0</div>
+                        <div class="main-kpi-sub" id="kpi-main-alertas-sub">Sin alertas</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="inv-layout">
+                <div class="sidebar">
+                    <div class="sidebar-title" id="sidebar-title">Cámaras</div>
+                    <div class="sidebar-list" id="sidebar-list"></div>
+                    <div class="sidebar-actions">
+                        <button type="button" onclick="seleccionarTodas()">Seleccionar Todas</button>
+                        <button type="button" onclick="limpiarSeleccion()">Limpiar</button>
+                    </div>
+                </div>
+
+                <div class="inv-right">
+                    <div class="totales-bar">
+                        <div class="totales-text">
+                            Total: <span id="tot-cajas">0</span> Cajas &nbsp;|&nbsp; <span id="tot-kg">0</span> Kg
+                        </div>
+                        <div style="font-size:12px; color:#7a2d2d; font-weight:bold;" id="lbl-camara-activa">
+                            Cámara: Todas
+                        </div>
+                    </div>
+
+                    <div class="traz-panel">
+                        <div class="traz-left">
+                            <div class="table-card">
+                                @* <div class="section-title" style="padding:7px 10px; font-size:12px;">Inventario</div> *@
+                                <div class="table-responsive-sticky">
+                                    <table id="tbl-inv">
+                                        <thead>
+                                            <tr>
+                                                <th class="text-center" style="width:32px;">
+                                                    <div class="th-inner">#</div>
+                                                </th>
+                                                <th data-col="almacen" style="width:75px;">
+                                                    <div class="th-inner">Almacen <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span></div>
+                                                </th>
+                                                <th data-col="sku" style="width:60px;">
+                                                    <div class="th-inner">SKU <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span></div>
+                                                </th>
+                                                <th data-col="nombre" style="width:220px;">
+                                                    <div class="th-inner">Nombre <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span></div>
+                                                </th>
+                                                <th data-col="cajas" class="text-end" style="width:65px;">
+                                                    <div class="th-inner">CAJAS <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span></div>
+                                                </th>
+                                                <th data-col="kg" class="text-end" style="width:80px;">
+                                                    <div class="th-inner">Kg <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span></div>
+                                                </th>
+                                                <th data-col="prom" class="text-end" style="width:55px;">
+                                                    <div class="th-inner">Prom <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span></div>
+                                                </th>
+                                                <th data-col="lineaId" style="width:70px;">
+                                                    <div class="th-inner">LineaId <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span></div>
+                                                </th>
+                                                <th data-col="estatus" style="width:65px;">
+                                                    <div class="th-inner">Estatus <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span></div>
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="tbody-inv">
+                                            <tr><td colspan="9" class="text-center" style="color:#888;">Sin datos.</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="traz-right">
+                            <div class="table-card">
+                                <div class="section-title rack-title">
+                                    <span>Detalle</span>
+
+                                    <div style="display:flex; gap:6px;">
+                                        <button type="button" id="btn-total-camara" class="btn-total-camara">Total Cámara</button>
+                                        <button type="button" id="btn-rack3d" class="btn-rack3d">Ver Rack 3D</button>
+                                    </div>
+                                </div>
+
+                                <div class="table-responsive-sticky">
+                                    <table id="tbl-traz">
+                                        <thead>
+                                            <tr>
+                                                <th style="width:32px;" class="text-center">#</th>
+                                               <th data-col-traz="fecha" style="width:90px;">
+    Fecha Producción
+    <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span>
+</th>
+
+<th data-col-traz="FechaIngresoCamara" style="width:130px;">
+    Ingreso Cámara
+    <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span>
+</th>
+
+<th data-col-traz="CodigoEtiqueta" style="width:130px;">
+    CodigoEtiqueta
+    <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span>
+</th>
+                                                <th data-col-traz="Sku" style="width:45px;">SKU <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span></th>
+                                                <th data-col-traz="Producto" style="width:160px;">Producto <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span></th>
+                                                <th data-col-traz="Kg" style="width:55px;" class="text-end">Kg <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span></th>
+                                                <th data-col-traz="Nombre" style="width:130px;">Nombre <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span></th>
+                                                <th data-col-traz="Lote" style="width:90px;">Lote <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span></th>
+                                                <th data-col-traz="Empaque" style="width:120px;">Empaque <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span></th>
+                                                <th data-col-traz="Cantidad" style="width:80px;">Cantidad <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span></th>
+                                                <th data-col-traz="Tar" style="width:100px;">Tarima <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span></th>
+                                                <th data-col-traz="ActTar" style="width:70px;">ActTar <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span></th>
+                                                <th data-col-traz="Ubic" style="width:80px;">Ubic <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span></th>
+                                                <th data-col-traz="diasInv" style="width:80px;">Días Inv. <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span></th>
+                                                <th data-col-traz="Reclasificacion" style="width:120px;">Reclasificación <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span></th>
+                                                <th data-col-traz="Caducidad" style="width:90px;">Caducidad <span class="sort-arrow"><span class="arr-up"></span><span class="arr-dn"></span></span></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="tbody-traz">
+                                            <tr><td colspan="17" class="text-center" style="color:#888;">Seleccione una fila.</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="statusbar">
+            <div id="sb-registros">Registros: 0</div>
+            <div>Usuario: @User.Identity.Name</div>
+            <div>Empresa: Carnes G SA de CV</div>
+            <div>Módulo: Inventario Por Planta</div>
+        </div>
+    </div>
+</div>
+
+<div id="modal-rack3d" class="rack-modal">
+    <div class="rack-modal-box">
+        <div class="rack-modal-head">
+            <div>
+                <strong id="rack-title-camara">Vista Cámara</strong>
+                <span id="rack-subtitle">Sin datos</span>
+            </div>
+            <button type="button" id="btn-close-rack" class="rack-close">×</button>
+        </div>
+
+        <div class="rack-search-bar">
+            <div>
+                <b>Almacén:</b> <span id="rack-almacen-actual">-</span>
+            </div>
+
+            <div class="rack-search-box">
+                <input type="text"
+                       id="txt-buscar-rack"
+                       placeholder="Buscar SKU o CódigoEtiqueta..."
+                       autocomplete="off" />
+
+                <button type="button" id="btn-buscar-rack">Buscar</button>
+                <button type="button" id="btn-limpiar-rack">Limpiar</button>
+            </div>
+
+            <div id="rack-search-result">Sin búsqueda</div>
+        </div>
+
+        <div class="rack-kpi-bar">
+            <div class="rack-kpi-card rack-kpi-capacidad">
+                <div class="rack-kpi-title">Capacidad</div>
+                <div class="rack-kpi-value" id="kpi-capacidad">0%</div>
+            </div>
+
+            <div class="rack-kpi-card rack-kpi-valor">
+                <div class="rack-kpi-title">Valor inventario</div>
+                <div class="rack-kpi-value" id="kpi-valor">$0</div>
+            </div>
+
+            <div class="rack-kpi-card rack-kpi-rotacion">
+                <div class="rack-kpi-title">Rotación</div>
+                <div class="rack-kpi-value" id="kpi-rotacion">0</div>
+            </div>
+
+            <div class="rack-kpi-card rack-kpi-dos">
+                <div class="rack-kpi-title">Days of Supply</div>
+                <div class="rack-kpi-value" id="kpi-dos">0</div>
+            </div>
+
+            <div class="rack-kpi-card rack-kpi-reorden">
+                <div class="rack-kpi-title">Reorden</div>
+                <div class="rack-kpi-value" id="kpi-reorden">0</div>
+            </div>
+
+            <div class="rack-kpi-card rack-kpi-criticos danger">
+                <div class="rack-kpi-title">Críticos</div>
+                <div class="rack-kpi-value" id="kpi-criticos">0</div>
+            </div>
+        </div>
+
+        <div class="rack3d-body">
+            <div id="rack3d-canvas"></div>
+
+            <div class="rack-info">
+                <h4>Producto seleccionado</h4>
+                <div id="rack-info-content">
+                    Selecciona una tarima.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+       
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+
+<script>
+    const nf = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 });
+    const nfK = new Intl.NumberFormat('es-MX', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+    const nfP = new Intl.NumberFormat('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    let plantaActual = "P1";
+    let camaraActual = null;
+    let camarasSeleccionadas = new Set();
+    let datosInv = [];
+    let datosTraz = [];
+
+    let rackScene = null;
+    let rackCamera = null;
+    let rackRenderer = null;
+    let rackIndexMap = {};
+    let rackControls = null;
+    let rackRaycaster = null;
+    let rackMouse = null;
+    let rackObjects = [];
+    let rackAnimationId = null;
+    let rackItemsIndex = [];
+    let rackCamaraActualVista = "";
+    let datosTrazOriginal = [];
+
+    let sortCol = "";
+    let sortDir = "asc";
+
+    let sortTrazCol = "";
+    let sortTrazDir = "asc";
+
+    const PLANTAS = {
+    P1: { label: 'PLANTA 1', camaras: [] },
+    TIF: { label: 'TIF', camaras: [] }
+    };
+
+    function esc(v) {
+    return String(v ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+    }
+
+    function getVal(obj, ...keys) {
+    for (const k of keys) {
+    if (obj && obj[k] !== undefined && obj[k] !== null) return obj[k];
+    }
+    return "";
+    }
+
+    function formatDate(v) {
+    if (!v) return "-";
+
+    const s = String(v);
+
+    if (s.includes("T")) {
+    return s.substring(0, 10);
+    }
+
+    return s.length >= 10 ? s.substring(0, 10) : s;
+    }
+
+    function formatDateTime(v) {
+    if (!v) return "-";
+
+    const s = String(v);
+
+    if (s.includes("T")) {
+        return s.substring(0, 16).replace("T", " ");
+    }
+
+    return s.length >= 16 ? s.substring(0, 16) : s;
+}
+
+    async function cargarCamarasPorPlanta() {
+    const list = document.getElementById('sidebar-list');
+    list.innerHTML = '<div class="cam-item">Cargando...</div>';
+
+    try {
+    const resp = await fetch(`/ProcesosCG/ObtenerCamaras?planta=${encodeURIComponent(plantaActual)}`);
+    const data = await resp.json();
+
+    if (!data.ok) {
+    alert(data.mensaje || 'Error cargando cámaras');
+    PLANTAS[plantaActual].camaras = [];
+    renderSidebar();
+    return;
+    }
+
+    PLANTAS[plantaActual].camaras = data.camaras || [];
+    renderSidebar();
+
+    } catch (err) {
+    console.error(err);
+    alert('Error conectando con ObtenerCamaras');
+    PLANTAS[plantaActual].camaras = [];
+    renderSidebar();
+    }
+    }
+
+    function renderSidebar() {
+    const planta = PLANTAS[plantaActual];
+    document.getElementById("sidebar-title").textContent = "Cámaras" 
+
+    const list = document.getElementById("sidebar-list");
+
+    if (!planta.camaras.length) {
+    list.innerHTML = '<div class="cam-item">Sin cámaras</div>';
+    return;
+    }
+
+    list.innerHTML = planta.camaras.map(c =>
+    `<div class="cam-item${camarasSeleccionadas.has(c) ? " active" : ""}" data-cam="${esc(c)}">${esc(c)}</div>`
+    ).join("");
+    }
+
+    async function cargarInventario() {
+    const skuFiltro = document.getElementById("txt-sku").value.trim().toLowerCase();
+    const productoFiltro = document.getElementById("txt-producto").value.trim().toLowerCase();
+
+    try {
+    const camaras = [...camarasSeleccionadas];
+    const camarasParaConsultar = camaras.length ? camaras : [""];
+
+    let todasLasFilas = [];
+
+    for (const cam of camarasParaConsultar) {
+    const url = `/ProcesosCG/InventarioCamaras?planta=${encodeURIComponent(plantaActual)}&camara=${encodeURIComponent(cam)}`;
+
+    const resp = await fetch(url);
+    const data = await resp.json();
+
+    if (!data.ok) {
+    console.warn(data.mensaje || "Error cargando inventario");
+    continue;
+    }
+
+    const rows = (data.rows || []).map(r => ({
+    fecha: getVal(r, "Fecha", "fecha") || "-",
+    almacen: getVal(r, "Almacen", "almacen") || cam || "",
+    sku: getVal(r, "Sku", "sku") || "",
+    nombre: getVal(r, "Nombre", "nombre", "Producto", "producto") || "",
+    cajas: Number(getVal(r, "Cajas", "cajas") || 0),
+    kg: Number(getVal(r, "Kg", "kg") || 0),
+    prom: Number(getVal(r, "Prom", "prom") || 0),
+    lineaId: getVal(r, "LineaId", "lineaId") || "",
+    estatus: getVal(r, "Estatus", "estatus") || "",
+    ubic: getVal(r, "Ubic", "ubic") || "-"
+    }));
+
+    todasLasFilas = todasLasFilas.concat(rows);
+    }
+
+    if (skuFiltro) {
+    todasLasFilas = todasLasFilas.filter(r =>
+    String(r.sku).toLowerCase().includes(skuFiltro)
+    );
+    }
+
+    if (productoFiltro) {
+    todasLasFilas = todasLasFilas.filter(r =>
+    String(r.nombre).toLowerCase().includes(productoFiltro)
+    );
+    }
+
+    datosInv = todasLasFilas;
+    datosTraz = [];
+
+    renderInventario(todasLasFilas);
+    renderTrazabilidad([]);
+
+    } catch (err) {
+    console.error(err);
+    alert("Error conectando con InventarioCamaras");
+    datosInv = [];
+    datosTraz = [];
+    renderInventario([]);
+    renderTrazabilidad([]);
+    }
+    }
+
+
+    function actualizarKpisInventario(rows) {
+    rows = Array.isArray(rows) ? rows : [];
+
+    const totalCajas = rows.reduce((s, r) => s + Number(r.cajas || 0), 0);
+    const totalKg = rows.reduce((s, r) => s + Number(r.kg || 0), 0);
+    const skus = new Set(rows.map(r => String(r.sku || "").trim()).filter(Boolean));
+    const almacenes = new Set(rows.map(r => String(r.almacen || "").trim()).filter(Boolean));
+    const inactivos = rows.filter(r => String(r.estatus || "").trim().toUpperCase() !== "ACTIVO").length;
+    const promedio = totalCajas > 0 ? totalKg / totalCajas : 0;
+
+    const totalCamaras = Number(PLANTAS[plantaActual]?.camaras?.length || 0);
+    const seleccionadas = camarasSeleccionadas.size;
+    const camarasMostradas = seleccionadas || almacenes.size || totalCamaras;
+
+    const setText = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+    };
+
+    setText("kpi-main-camaras", nf.format(camarasMostradas));
+    setText("kpi-main-camaras-sub", seleccionadas ? "Seleccionadas" : "Todas / visibles");
+    setText("kpi-main-skus", nf.format(skus.size));
+    setText("kpi-main-cajas", nf.format(totalCajas));
+    setText("kpi-main-kg", nfK.format(totalKg));
+    setText("kpi-main-prom", nfP.format(promedio));
+    setText("kpi-main-alertas", nf.format(inactivos));
+    setText("kpi-main-alertas-sub", inactivos > 0 ? "Revisar estatus" : "Sin alertas");
+
+    const alertaCard = document.getElementById("kpi-main-alertas-card");
+    if (alertaCard) {
+        alertaCard.classList.toggle("con-alerta", inactivos > 0);
+        alertaCard.classList.toggle("sin-alerta", inactivos <= 0);
+    }
+    }
+
+    function renderInventario(rows) {
+    const tbody = document.getElementById("tbody-inv");
+
+    actualizarKpisInventario(rows);
+
+    const totalCajas = rows.reduce((s, r) => s + Number(r.cajas || 0), 0);
+    const totalKg = rows.reduce((s, r) => s + Number(r.kg || 0), 0);
+
+    document.getElementById("tot-cajas").textContent = nf.format(totalCajas);
+    document.getElementById("tot-kg").textContent = nfK.format(totalKg);
+    document.getElementById("sb-registros").textContent = "Registros: " + nf.format(rows.length);
+
+  const cams = [...camarasSeleccionadas];
+const totalCamaras = PLANTAS[plantaActual].camaras.length;
+
+let textoCamara = "";
+
+if (!cams.length || cams.length === totalCamaras) {
+    textoCamara = "Cámara: Todas (" + PLANTAS[plantaActual].label + ")";
+} else if (cams.length === 1) {
+    textoCamara = "Cámara: " + cams[0];
+} else if (cams.length <= 3) {
+    textoCamara = "Cámaras: " + cams.join(", ");
+} else {
+    textoCamara = "Cámaras seleccionadas: " + cams.length;
+}
+
+document.getElementById("lbl-camara-activa").textContent = textoCamara;
+
+    if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center" style="color:#888;">Sin datos.</td></tr>';
+    return;
+    }
+
+    tbody.innerHTML = rows.map((r, i) => `
+    <tr data-idx="${i}">
+    <td class="text-center">${i + 1}</td>
+    <td>${esc(r.almacen)}</td>
+    <td>${esc(r.sku)}</td>
+    <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;">${esc(r.nombre)}</td>
+    <td class="text-end">${nf.format(r.cajas)}</td>
+    <td class="text-end">${nfK.format(r.kg)}</td>
+    <td class="text-end">${nfP.format(r.prom)}</td>
+    <td>${esc(r.lineaId)}</td>
+    <td class="text-center">
+    <span class="${r.estatus === "Activo" ? "badge-activo" : "badge-inactivo"}">${esc(r.estatus || "-")}</span>
+    </td>
+    </tr>
+    `).join("");
+    }
+
+    async function cargarTrazabilidad(row) {
+    if (!row || !row.sku) return;
+
+    const camaraDetalle = row.almacen || camaraActual || [...camarasSeleccionadas][0] || "";
+
+    if (!camaraDetalle) {
+    alert("Selecciona una cámara para consultar el detalle.");
+    return;
+    }
+
+    try {
+    const url = `/ProcesosCG/TrazabilidadCamara?planta=${encodeURIComponent(plantaActual)}&sku=${encodeURIComponent(row.sku)}&camara=${encodeURIComponent(camaraDetalle)}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+
+    if (!data.ok) {
+    alert(data.mensaje || "Error cargando trazabilidad");
+    datosTraz = [];
+    renderTrazabilidad([]);
+    return;
+    }
+
+    datosTraz = data.rows || [];
+    renderTrazabilidad(datosTraz);
+
+    } catch (err) {
+    console.error(err);
+    alert("Error conectando con TrazabilidadCamara");
+    datosTraz = [];
+    renderTrazabilidad([]);
+    }
+    }
+
+    function renderTrazabilidad(rows) {
+    const tbody = document.getElementById("tbody-traz");
+
+    if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="17" class="text-center" style="color:#888;">Seleccione una fila.</td></tr>';
+    return;
+    }
+
+    const totalKgDetalle = rows.reduce((s, t) => s + Number(getVal(t, "Kg", "kg") || 0), 0);
+
+    document.getElementById("lbl-camara-activa").textContent =
+    `Detalle: ${nf.format(rows.length)} Cajas | ${nfK.format(totalKgDetalle)} Kg`;
+
+    tbody.innerHTML = rows.map((r, i) => {
+    const fecha = getVal(r, "Fecha", "fecha");
+    const cad = getVal(r, "Fechas_Caducidad", "Caducidad", "caducidad");
+    const diasInv = diasInventario(fecha);
+    const clsDias = claseDiasInventario(diasInv);
+
+    return `
+    <tr>
+   <td class="text-center">${i + 1}</td>
+<td>${esc(formatDate(fecha))}</td>
+<td>${esc(formatDateTime(getVal(r, "FechaIngresoCamara", "fechaIngresoCamara")))}</td>
+<td>${esc(getVal(r, "CodigoEtiqueta", "codigoEtiqueta"))}</td>
+    <td>${esc(getVal(r, "Sku", "sku"))}</td>
+    <td>${esc(getVal(r, "Producto", "producto"))}</td>
+    <td class="text-end">${nfK.format(Number(getVal(r, "Kg", "kg") || 0))}</td>
+    <td>${esc(getVal(r, "Nombre", "nombre"))}</td>
+    <td>${esc(getVal(r, "Lote", "lote"))}</td>
+    <td>${esc(getVal(r, "Empaque", "empaque"))}</td>
+    <td>${esc(getVal(r, "Cantidad", "cantidad"))}</td>
+    <td>${esc(getVal(r, "Tar", "tar"))}</td>
+    <td>${esc(getVal(r, "ActTar", "actTar"))}</td>
+    <td>${esc(getVal(r, "Ubic", "ubic"))}</td>
+    <td class="text-center ${clsDias}">${nf.format(diasInv)}</td>
+    <td>${esc(getVal(r, "Reclasificacion", "reclasificacion"))}</td>
+    <td>${esc(formatDate(cad))}</td>
+    </tr>
+    `;
+    }).join("");
+    }
+
+    function parseUbicacionRack(ubic) {
+    const txt = String(ubic || "").trim().toUpperCase();
+    const m = txt.match(/^R(\d+)-(\d+)([A-Z])$/);
+
+    if (!m) return null;
+
+    return {
+    rack: Number(m[1]),
+    posicion: Number(m[2]),
+    altura: m[3],
+    raw: txt
+    };
+    }
+
+    function alturaToIndex(altura) {
+    const alturas = "ABCDEFG";
+    const idx = alturas.indexOf(String(altura || "").toUpperCase());
+    return idx >= 0 ? idx : 0;
+    }
+
+    async function abrirRack3D() {
+    const camara = camaraActual || [...camarasSeleccionadas][0] || "";
+    rackCamaraActualVista = camara;
+
+    if (!camara) {
+    alert("Selecciona una cámara/almacén primero.");
+    return;
+    }
+
+    try {
+    const url = `/ProcesosCG/DetalleCamaraCompleta?planta=${encodeURIComponent(plantaActual)}&camara=${encodeURIComponent(camara)}`;
+
+    const resp = await fetch(url);
+    const data = await resp.json();
+
+    if (!data.ok) {
+    alert(data.mensaje || "Error cargando cámara completa");
+    return;
+    }
+
+    datosTrazOriginal = data.rows || [];
+    datosTraz = datosTrazOriginal;
+    calcularKpisCamara(datosTraz);
+
+    if (!datosTraz.length) {
+    alert("La cámara seleccionada no tiene productos con ubicación.");
+    return;
+    }
+
+    } catch (err) {
+    console.error(err);
+    alert("Error conectando con DetalleCamaraCompleta");
+    return;
+    }
+
+    document.getElementById("modal-rack3d").classList.add("show");
+    document.getElementById("rack-title-camara").textContent = "Vista Cámara - " + camara;
+    document.getElementById("rack-almacen-actual").textContent = camara;
+    document.getElementById("txt-buscar-rack").value = "";
+    document.getElementById("rack-search-result").textContent = "Sin búsqueda";
+
+    setTimeout(() => {
+    try {
+    if (typeof THREE === "undefined") {
+    alert("No cargó THREE.js");
+    return;
+    }
+
+    if (typeof THREE.OrbitControls === "undefined") {
+    alert("No cargó OrbitControls");
+    return;
+    }
+
+    iniciarRackThree();
+    renderRackThree();
+    } catch (err) {
+    console.error(err);
+    alert("Error iniciando vista 3D: " + err.message);
+    }
+    }, 80);
+    }
+
+    function cerrarRack3D() {
+    document.getElementById("modal-rack3d").classList.remove("show");
+
+    if (rackAnimationId) {
+    cancelAnimationFrame(rackAnimationId);
+    rackAnimationId = null;
+    }
+
+    if (rackRenderer) {
+    rackRenderer.dispose();
+    rackRenderer = null;
+    }
+
+    const cont = document.getElementById("rack3d-canvas");
+    if (cont) cont.innerHTML = "";
+    }
+
+    function iniciarRackThree() {
+    const cont = document.getElementById("rack3d-canvas");
+
+    cont.innerHTML = "";
+
+    rackScene = new THREE.Scene();
+    rackScene.background = new THREE.Color(0xd9d9d9);
+
+    rackCamera = new THREE.PerspectiveCamera(
+    45,
+    cont.clientWidth / cont.clientHeight,
+    0.1,
+    2000
+    );
+
+    rackCamera.position.set(28, 24, 34);
+
+    rackRenderer = new THREE.WebGLRenderer({ antialias: true });
+    rackRenderer.setSize(cont.clientWidth, cont.clientHeight);
+    rackRenderer.setPixelRatio(window.devicePixelRatio || 1);
+    rackRenderer.shadowMap.enabled = true;
+
+    cont.appendChild(rackRenderer.domElement);
+
+    rackControls = new THREE.OrbitControls(rackCamera, rackRenderer.domElement);
+    rackControls.enableDamping = true;
+    rackControls.dampingFactor = 0.08;
+    rackControls.target.set(10, 3, 8);
+
+    rackRaycaster = new THREE.Raycaster();
+    rackMouse = new THREE.Vector2();
+
+    const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+    rackScene.add(ambient);
+
+    const dir = new THREE.DirectionalLight(0xffffff, 1.1);
+    dir.position.set(20, 40, 30);
+    dir.castShadow = true;
+    rackScene.add(dir);
+
+    const grid = new THREE.GridHelper(90, 90, 0x888888, 0xb5b5b5);
+    rackScene.add(grid);
+
+    const floorGeo = new THREE.BoxGeometry(80, 0.2, 55);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0xbfbfbf });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.position.set(18, -0.12, 12);
+    floor.receiveShadow = true;
+    rackScene.add(floor);
+
+    rackRenderer.domElement.addEventListener("click", onRackClick);
+
+    window.removeEventListener("resize", resizeRackThree);
+    window.addEventListener("resize", resizeRackThree);
+
+    animateRackThree();
+    }
+
+    function limpiarEscenaRack() {
+    if (!rackScene) return;
+
+    const conservar = [];
+
+    rackScene.children.forEach(obj => {
+    if (obj.type === "AmbientLight" || obj.type === "DirectionalLight") {
+    conservar.push(obj);
+    }
+    });
+
+    rackScene.children.slice().forEach(obj => {
+    rackScene.remove(obj);
+
+    if (obj.geometry) obj.geometry.dispose();
+
+    if (obj.material) {
+    if (Array.isArray(obj.material)) {
+    obj.material.forEach(m => m.dispose && m.dispose());
+    } else {
+    obj.material.dispose && obj.material.dispose();
+    }
+    }
+    });
+
+    conservar.forEach(obj => rackScene.add(obj));
+
+    rackObjects = [];
+    rackItemsIndex = [];
+
+    const grid = new THREE.GridHelper(90, 90, 0x888888, 0xb5b5b5);
+    rackScene.add(grid);
+
+    const floorGeo = new THREE.BoxGeometry(80, 0.2, 55);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0xbfbfbf });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.position.set(18, -0.12, 12);
+    floor.receiveShadow = true;
+    rackScene.add(floor);
+    }
+
+    function renderRackThree() {
+    rackObjects = [];
+
+    const subtitle = document.getElementById("rack-subtitle");
+
+    const items = (datosTraz || [])
+    .map(x => {
+    const ubic = getVal(x, "Ubic", "ubic");
+    const parsed = parseUbicacionRack(ubic);
+
+    return {
+    raw: x,
+    parsed,
+    ubic,
+    sku: getVal(x, "Sku", "sku"),
+    producto: getVal(x, "Producto", "producto"),
+    kg: Number(getVal(x, "Kg", "kg") || 0),
+    fecha: getVal(x, "Fecha", "fecha"),
+    diasInv: diasInventario(getVal(x, "Fecha", "fecha")),
+    cajas: Number(getVal(x, "Cantidad", "cantidad") || 1),
+    lote: getVal(x, "Lote", "lote"),
+    tarima: getVal(x, "Tar", "tar"),
+    codigo: getVal(x, "CodigoEtiqueta", "codigoEtiqueta")
+    };
+    })
+    .filter(x => x.parsed);
+
+    if (!items.length) {
+    subtitle.textContent = "No hay ubicaciones válidas tipo R2-02A.";
+    document.getElementById("rack-info-content").innerHTML =
+    "Formato esperado: <b>R2-02A</b>.";
+    return;
+    }
+
+    const agrupado = {};
+
+    items.forEach(item => {
+    const key = `${item.parsed.rack}-${item.parsed.posicion}-${item.parsed.altura}`;
+
+    if (!agrupado[key]) {
+    agrupado[key] = {
+    ...item,
+    cajasTotal: 0,
+    kgTotal: 0,
+    productos: [],
+    diasMax: 0
+    };
+    }
+
+    agrupado[key].cajasTotal += item.cajas || 1;
+    agrupado[key].kgTotal += item.kg || 0;
+    agrupado[key].productos.push(item);
+    agrupado[key].diasMax = Math.max(agrupado[key].diasMax, item.diasInv || 0);
+    });
+
+    const ubicaciones = Object.values(agrupado);
+    rackItemsIndex = ubicaciones;
+
+    subtitle.textContent = `${ubicaciones.length} posiciones | ${items.length} etiquetas`;
+
+    const racks = [...new Set(ubicaciones.map(x => x.parsed.rack))].sort((a, b) => a - b);
+
+    rackIndexMap = {};
+
+    racks.forEach((rack, index) => {
+    rackIndexMap[rack] = index;
+    });
+    const maxPos = Math.max(8, ...ubicaciones.map(x => x.parsed.posicion));
+    const maxAltura = Math.max(4, ...ubicaciones.map(x => alturaToIndex(x.parsed.altura) + 1));
+
+    racks.forEach((rack, rackIndex) => {
+    crearRackFisico(rack, rackIndex, maxPos, maxAltura);
+    });
+
+    ubicaciones.forEach(item => {
+    crearTarima(item);
+    });
+
+    const first = rackObjects[0];
+
+    if (first) {
+    seleccionarRackObject(first);
+    }
+    }
+
+    function crearRackFisico(rack, rackIndex, maxPos, maxAltura) {
+    const rackGap = 7;
+    const posGap = 2.1;
+    const levelGap = 1.7;
+
+    const zBase = rackIndex * rackGap;
+
+    const blueMat = new THREE.MeshStandardMaterial({ color: 0x003399, metalness: 0.2, roughness: 0.45 });
+    const beamMat = new THREE.MeshStandardMaterial({ color: 0xd71920, metalness: 0.25, roughness: 0.4 });
+
+    for (let p = 1; p <= maxPos + 1; p++) {
+    const x = p * posGap;
+
+    const postGeo = new THREE.BoxGeometry(0.12, maxAltura * levelGap + 0.8, 0.12);
+
+    const post1 = new THREE.Mesh(postGeo, blueMat);
+    post1.position.set(x, (maxAltura * levelGap) / 2, zBase);
+    post1.castShadow = true;
+    rackScene.add(post1);
+
+    const post2 = new THREE.Mesh(postGeo, blueMat);
+    post2.position.set(x, (maxAltura * levelGap) / 2, zBase + 1.7);
+    post2.castShadow = true;
+    rackScene.add(post2);
+    }
+
+    for (let h = 0; h <= maxAltura; h++) {
+    const y = h * levelGap;
+
+    for (let p = 1; p <= maxPos; p++) {
+    const x = p * posGap + posGap / 2;
+
+    const beamGeo = new THREE.BoxGeometry(posGap, 0.12, 0.12);
+
+    const beam1 = new THREE.Mesh(beamGeo, beamMat);
+    beam1.position.set(x, y, zBase);
+    beam1.castShadow = true;
+    rackScene.add(beam1);
+
+    const beam2 = new THREE.Mesh(beamGeo, beamMat);
+    beam2.position.set(x, y, zBase + 1.7);
+    beam2.castShadow = true;
+    rackScene.add(beam2);
+    }
+    }
+
+    // Posiciones abajo: 01, 02, 03...
+    for (let p = 1; p <= maxPos; p++) {
+    const x = p * posGap + posGap / 2;
+    crearTextoPosicion(
+    String(p).padStart(2, "0"),
+    x,
+    -0.45,
+    zBase + 0.85
+    );
+    }
+
+    // Alturas a un lado: A, B, C...
+    const letrasAltura = "ABCDEFG";
+
+    for (let h = 0; h < maxAltura; h++) {
+    crearTextoAltura(
+    letrasAltura[h] || String(h + 1),
+    0.45,
+    h * levelGap + 0.55,
+    zBase - 0.35
+    );
+    }
+
+    crearLetreroRack(`RACK ${rack}`, 0.5, maxAltura * levelGap + 1.3, zBase + 0.85);
+    }
+
+    function claseDiasInventario(dias) {
+    dias = Number(dias || 0);
+
+    if (dias >= 50) return "dias-rojo";
+    if (dias >= 15) return "dias-amarillo";
+    return "dias-verde";
+    }
+
+    function crearTarima(item) {
+    const rackGap = 7;
+    const posGap = 2.1;
+    const levelGap = 1.7;
+
+    const rackIndex = rackIndexMap[item.parsed.rack] ?? 0;
+    const alturaIndex = alturaToIndex(item.parsed.altura);
+
+    const x = item.parsed.posicion * posGap + posGap / 2;
+    const y = alturaIndex * levelGap + 0.45;
+    const z = rackIndex * rackGap + 0.85;
+
+    const palletMat = new THREE.MeshStandardMaterial({ color: 0x8b5a1f, roughness: 0.6 });
+    const boxMat = new THREE.MeshStandardMaterial({
+    color: colorSemaforoPorDias(item.diasMax || 0),
+    roughness: 0.55
+    });
+
+    const palletGeo = new THREE.BoxGeometry(1.45, 0.18, 1.2);
+    const pallet = new THREE.Mesh(palletGeo, palletMat);
+    pallet.position.set(x, y - 0.25, z);
+    pallet.castShadow = true;
+    pallet.receiveShadow = true;
+    rackScene.add(pallet);
+
+    const cajasVisuales = Math.max(1, Math.min(8, item.cajasTotal || 1));
+    const cols = cajasVisuales >= 4 ? 2 : 1;
+    const rows = Math.ceil(cajasVisuales / cols);
+
+    let count = 0;
+
+    for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+    if (count >= cajasVisuales) break;
+
+    const boxGeo = new THREE.BoxGeometry(0.58, 0.45, 0.48);
+    const box = new THREE.Mesh(boxGeo, boxMat);
+
+    box.position.set(
+    x + (c - (cols - 1) / 2) * 0.62,
+    y + r * 0.47,
+    z
+    );
+
+    box.castShadow = true;
+    box.receiveShadow = true;
+    box.userData.item = item;
+
+    rackScene.add(box);
+    rackObjects.push(box);
+
+    count++;
+    }
+    }
+
+    crearTextoSprite(item.sku, x, y + rows * 0.55, z, 1.5, 0.38, item);
+    }
+
+    function crearTextoSprite(texto, x, y, z, sx, sy, item = null) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 64;
+
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "#000";
+    ctx.font = "bold 28px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(String(texto || "-"), 128, 32);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const mat = new THREE.SpriteMaterial({ map: texture });
+    const sprite = new THREE.Sprite(mat);
+
+    sprite.position.set(x, y + 0.5, z);
+    sprite.scale.set(sx, sy, 1);
+
+    if (item) {
+    sprite.userData.item = item;
+    }
+
+    rackScene.add(sprite);
+    }
+
+    function crearLetreroRack(texto, x, y, z) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 512;
+    canvas.height = 160;
+
+    const ctx = canvas.getContext("2d");
+
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = "#003399";
+    ctx.lineWidth = 10;
+    ctx.strokeRect(5, 5, canvas.width - 10, canvas.height - 10);
+
+    ctx.fillStyle = "#003399";
+    ctx.font = "bold 72px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(String(texto || "-"), 256, 80);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const mat = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthTest: false
+    });
+
+    const sprite = new THREE.Sprite(mat);
+    sprite.position.set(x, y, z);
+    sprite.scale.set(4.5, 1.4, 1);
+    sprite.renderOrder = 999;
+
+    rackScene.add(sprite);
+    }
+
+    function crearTextoPosicion(texto, x, y, z) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 160;
+    canvas.height = 80;
+
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    ctx.fillRect(0, 0, 160, 80);
+
+    ctx.strokeStyle = "#333";
+    ctx.lineWidth = 5;
+    ctx.strokeRect(4, 4, 152, 72);
+
+    ctx.fillStyle = "#111";
+    ctx.font = "bold 44px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(String(texto), 80, 40);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+
+    const sprite = new THREE.Sprite(mat);
+    sprite.position.set(x, y, z);
+    sprite.scale.set(0.85, 0.42, 1);
+    sprite.renderOrder = 1000;
+
+    rackScene.add(sprite);
+    }
+
+    function crearTextoAltura(texto, x, y, z) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 120;
+    canvas.height = 120;
+
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    ctx.fillRect(0, 0, 120, 120);
+
+    ctx.strokeStyle = "#003399";
+    ctx.lineWidth = 6;
+    ctx.strokeRect(4, 4, 112, 112);
+
+    ctx.fillStyle = "#003399";
+    ctx.font = "bold 64px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(String(texto), 60, 60);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+
+    const sprite = new THREE.Sprite(mat);
+    sprite.position.set(x, y, z);
+    sprite.scale.set(0.65, 0.65, 1);
+    sprite.renderOrder = 1000;
+
+    rackScene.add(sprite);
+    }
+
+
+    function onRackClick(event) {
+    const rect = rackRenderer.domElement.getBoundingClientRect();
+
+    rackMouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    rackMouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    rackRaycaster.setFromCamera(rackMouse, rackCamera);
+
+    const hits = rackRaycaster.intersectObjects(rackObjects, false);
+
+    if (!hits.length) return;
+
+    seleccionarRackObject(hits[0].object);
+    }
+
+    function seleccionarRackObject(obj) {
+    rackObjects.forEach(o => {
+    const item = o.userData.item;
+    o.material.color.set(colorSemaforoPorDias(item?.diasMax || 0));
+    });
+
+    obj.material.color.set(0xffeb3b);
+
+    const item = obj.userData.item;
+
+    if (item) {
+    mostrarInfoRackAgrupado(item);
+    }
+    }
+
+    function buscarEnRack3D() {
+    const q = document.getElementById("txt-buscar-rack").value.trim().toUpperCase();
+
+    if (!q) {
+    alert("Escribe un SKU o CódigoEtiqueta.");
+    return;
+    }
+
+    const filtrados = datosTrazOriginal.filter(x => {
+    const sku = String(getVal(x, "Sku", "sku") || "").toUpperCase();
+    const codigo = String(getVal(x, "CodigoEtiqueta", "codigoEtiqueta") || "").toUpperCase();
+    const tarima = String(getVal(x, "Tar", "tar") || "").toUpperCase();
+    const ubic = String(getVal(x, "Ubic", "ubic") || "").toUpperCase();
+
+    return sku === q
+    || codigo === q
+    || tarima === q
+    || ubic === q;
+    });
+
+    if (!filtrados.length) {
+    document.getElementById("rack-search-result").textContent = "No encontrado";
+    alert("No encontré ese SKU o CódigoEtiqueta en esta cámara.");
+    return;
+    }
+
+    datosTraz = filtrados;
+
+    limpiarEscenaRack();
+    renderRackThree();
+    calcularKpisCamara(datosTraz);
+
+    const primerObjeto = rackObjects[0];
+
+    if (primerObjeto) {
+    primerObjeto.material.color.set(0xff00ff);
+    enfocarCajaBuscada(primerObjeto);
+    }
+
+    const primero = filtrados[0];
+
+    const skuBuscado = String(getVal(primero, "Sku", "sku") || "").toUpperCase();
+    const codigoBuscado = String(getVal(primero, "CodigoEtiqueta", "codigoEtiqueta") || "").toUpperCase();
+
+    if (q === skuBuscado && q !== codigoBuscado) {
+    mostrarResumenFiltroSku(filtrados, q);
+    } else {
+    const item = rackItemsIndex[0];
+    if (item) {
+    const detalle = item.productos[0];
+    mostrarInfoRackDetalle(item, detalle, q);
+    }
+    }
+
+    document.getElementById("rack-search-result").textContent =
+    `${getVal(primero, "Sku", "sku")} | ${getVal(primero, "CodigoEtiqueta", "codigoEtiqueta")} | ${getVal(primero, "Ubic", "ubic")}`;
+    }
+
+
+    function mostrarResumenFiltroSku(rows, filtro) {
+    const totalCajas = rows.length;
+    const totalKg = rows.reduce((s, r) => s + Number(getVal(r, "Kg", "kg") || 0), 0);
+
+    const dias = rows
+    .map(r => diasInventario(getVal(r, "Fecha", "fecha")))
+    .filter(d => !isNaN(d));
+
+    const promDias = dias.length
+    ? Math.round(dias.reduce((s, d) => s + d, 0) / dias.length)
+    : 0;
+
+    const ubicaciones = [...new Set(rows.map(r => getVal(r, "Ubic", "ubic")).filter(Boolean))];
+    const tarimas = [...new Set(rows.map(r => getVal(r, "Tar", "tar")).filter(Boolean))];
+    const lotes = [...new Set(rows.map(r => getVal(r, "Lote", "lote")).filter(Boolean))];
+
+    const primero = rows[0];
+
+    document.getElementById("rack-info-content").innerHTML = `
+    <div class="rack-info-row"><b>Filtro SKU</b>${esc(filtro)}</div>
+    <div class="rack-info-row"><b>Producto</b>${esc(getVal(primero, "Producto", "producto") || "-")}</div>
+    <div class="rack-info-row"><b>Total cajas / etiquetas</b>${nf.format(totalCajas)}</div>
+    <div class="rack-info-row"><b>Kg totales</b>${nfK.format(totalKg)} Kg</div>
+    <div class="rack-info-row"><b>Promedio días inventario</b>${nf.format(promDias)} días</div>
+    <div class="rack-info-row"><b>Ubicaciones</b>${nf.format(ubicaciones.length)}</div>
+    <div class="rack-info-row"><b>Tarimas</b>${nf.format(tarimas.length)}</div>
+    <div class="rack-info-row"><b>Lotes</b>${esc(lotes.join(" / ") || "-")}</div>
+    `;
+    }
+
+ 
+    function mostrarInfoRackDetalle(item, detalle, filtro) {
+    const p = item.parsed;
+
+    document.getElementById("rack-info-content").innerHTML = `
+    <div class="rack-info-row"><b>Filtro buscado</b>${esc(filtro)}</div>
+    <div class="rack-info-row"><b>Ubicación</b>${esc(item.ubic)}</div>
+    <div class="rack-info-row"><b>Rack</b>Rack ${p.rack}</div>
+    <div class="rack-info-row"><b>Posición</b>${p.posicion}</div>
+    <div class="rack-info-row"><b>Altura</b>${p.altura}</div>
+    <div class="rack-info-row"><b>Código etiqueta</b>${esc(detalle.codigo || "-")}</div>
+    <div class="rack-info-row"><b>SKU</b>${esc(detalle.sku || "-")}</div>
+    <div class="rack-info-row"><b>Producto</b>${esc(detalle.producto || "-")}</div>
+    <div class="rack-info-row"><b>Kg etiqueta</b>${nfK.format(Number(detalle.kg || 0))} Kg</div>
+    <div class="rack-info-row"><b>Días inventario etiqueta</b>${nf.format(detalle.diasInv || 0)} días</div>
+    <div class="rack-info-row"><b>Tarima</b>${esc(detalle.tarima || "-")}</div>
+    <div class="rack-info-row"><b>Lote</b>${esc(detalle.lote || "-")}</div>
+    `;
+    }
+
+
+    function enfocarCajaBuscada(obj) {
+    if (!obj || !rackCamera || !rackControls) return;
+
+    const pos = obj.position.clone();
+
+    const distancia = 10;
+    const altura = 4;
+
+    rackControls.target.set(pos.x, pos.y + 0.6, pos.z);
+
+    rackCamera.position.set(
+    pos.x + distancia,
+    pos.y + altura,
+    pos.z + distancia
+    );
+
+    rackCamera.near = 0.1;
+    rackCamera.far = 3000;
+    rackCamera.updateProjectionMatrix();
+
+    rackControls.update();
+    }
+
+    function mostrarInfoRackAgrupado(item) {
+    const p = item.parsed;
+
+    const tarimas = [...new Set(item.productos.map(x => x.tarima).filter(Boolean))];
+    const skus = [...new Set(item.productos.map(x => x.sku).filter(Boolean))];
+    const productos = [...new Set(item.productos.map(x => x.producto).filter(Boolean))];
+
+    document.getElementById("rack-info-content").innerHTML = `
+    <div class="rack-info-row"><b>Ubicación</b>${esc(item.ubic)}</div>
+    <div class="rack-info-row"><b>Rack</b>Rack ${p.rack}</div>
+    <div class="rack-info-row"><b>Posición</b>${p.posicion}</div>
+    <div class="rack-info-row"><b>Altura</b>${p.altura}</div>
+    <div class="rack-info-row"><b>SKU</b>${esc(skus.join(" / ") || "-")}</div>
+    <div class="rack-info-row"><b>Producto</b>${esc(productos.join(" / ") || "-")}</div>
+    <div class="rack-info-row"><b>Cajas en ubicación</b>${nf.format(item.cajasTotal)}</div>
+    <div class="rack-info-row"><b>Kg en ubicación</b>${nfK.format(item.kgTotal)} Kg</div>
+    <div class="rack-info-row"><b>Días inventario</b>${nf.format(item.diasMax || 0)} días</div>
+    <div class="rack-info-row"><b>Tarima</b>${esc(tarimas.join(" / ") || "-")}</div>
+    <div class="rack-info-row"><b>Lote</b>${esc(item.lote || "-")}</div>
+    <div class="rack-info-row"><b>Etiquetas</b>${nf.format(item.productos.length)}</div>
+    `;
+    }
+
+    function calcularKpisCamara(rows) {
+    rows = rows || [];
+
+    const totalEtiquetas = rows.length;
+    const totalKg = rows.reduce((s, r) => s + Number(getVal(r, "Kg", "kg") || 0), 0);
+
+    const ubicaciones = new Set(
+    rows
+    .map(r => String(getVal(r, "Ubic", "ubic") || "").trim())
+    .filter(x => x && x !== "-")
+    );
+
+    const posicionesOcupadas = ubicaciones.size;
+
+    // Ajusta esta capacidad según tu cámara real.
+    // Ejemplo: 5 racks * 8 posiciones * 4 alturas = 160 posiciones.
+    const capacidadTotalPosiciones = 160;
+
+    const capacidad = capacidadTotalPosiciones > 0
+    ? Math.round((posicionesOcupadas / capacidadTotalPosiciones) * 100)
+    : 0;
+
+    // Temporal: valor aproximado por kg.
+    // Lo ideal es traer costo/precio desde SQL.
+    const costoPromedioKg = 80;
+    const valorInventario = totalKg * costoPromedioKg;
+
+    const fechas = rows
+    .map(r => getVal(r, "Fecha", "fecha"))
+    .filter(Boolean)
+    .map(f => diasInventario(f));
+
+    const diasPromedio = fechas.length
+    ? Math.round(fechas.reduce((s, d) => s + d, 0) / fechas.length)
+    : 0;
+
+    const diasMax = fechas.length ? Math.max(...fechas) : 0;
+
+    // Fórmulas base, después las podemos conectar con ventas reales.
+    const rotacion = diasPromedio > 0
+    ? (365 / diasPromedio)
+    : 0;
+
+    const daysOfSupply = diasPromedio;
+
+    const criticos = rows.filter(r => diasInventario(getVal(r, "Fecha", "fecha")) >= 30).length;
+
+    // Reorden provisional: productos con menos de 10 cajas/etiquetas por SKU.
+    const porSku = {};
+
+    rows.forEach(r => {
+    const sku = getVal(r, "Sku", "sku") || "-";
+    if (!porSku[sku]) porSku[sku] = 0;
+    porSku[sku]++;
+    });
+
+    const reorden = Object.keys(porSku).filter(sku => porSku[sku] <= 10).length;
+
+    document.getElementById("kpi-capacidad").textContent = nf.format(capacidad) + "%";
+    document.getElementById("kpi-valor").textContent = "$" + nf.format(valorInventario);
+    document.getElementById("kpi-rotacion").textContent = nfP.format(rotacion);
+    document.getElementById("kpi-dos").textContent = nf.format(daysOfSupply);
+    document.getElementById("kpi-reorden").textContent = nf.format(reorden);
+    document.getElementById("kpi-criticos").textContent = nf.format(criticos);
+    }
+
+    function resizeRackThree() {
+    const cont = document.getElementById("rack3d-canvas");
+
+    if (!rackRenderer || !rackCamera || !cont) return;
+
+    rackCamera.aspect = cont.clientWidth / cont.clientHeight;
+    rackCamera.updateProjectionMatrix();
+
+    rackRenderer.setSize(cont.clientWidth, cont.clientHeight);
+    }
+
+    function animateRackThree() {
+    rackAnimationId = requestAnimationFrame(animateRackThree);
+
+    if (rackControls) {
+    rackControls.update();
+    }
+
+    if (rackRenderer && rackScene && rackCamera) {
+    rackRenderer.render(rackScene, rackCamera);
+    }
+    }
+
+
+    function diasInventario(fecha) {
+    if (!fecha) return 0;
+
+    const f = new Date(String(fecha).substring(0, 10) + "T00:00:00");
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    if (isNaN(f.getTime())) return 0;
+
+    return Math.floor((hoy - f) / 86400000);
+    }
+
+    function colorSemaforoPorDias(dias) {
+    if (dias <= 15) return 0x22c55e;   // verde
+    if (dias <= 30) return 0xfacc15;   // amarillo
+    return 0xef4444;                   // rojo
+    }
+
+
+    function ordenarInventario(col){
+
+    if(sortCol === col){
+    sortDir = sortDir === "asc" ? "desc" : "asc";
+    }else{
+    sortCol = col;
+    sortDir = "asc";
+    }
+
+    datosInv.sort((a,b)=>{
+
+    let v1 = a[col];
+    let v2 = b[col];
+
+    if(!isNaN(v1) && !isNaN(v2)){
+    v1 = Number(v1);
+    v2 = Number(v2);
+    }else{
+    v1 = String(v1).toLowerCase();
+    v2 = String(v2).toLowerCase();
+    }
+
+    if(v1 > v2) return sortDir === "asc" ? 1 : -1;
+    if(v1 < v2) return sortDir === "asc" ? -1 : 1;
+    return 0;
+    });
+
+    document.querySelectorAll("#tbl-inv th").forEach(x=>{
+    x.classList.remove("asc");
+    x.classList.remove("desc");
+    });
+
+    let th = document.querySelector(`#tbl-inv th[data-col='${col}']`);
+    if(th) th.classList.add(sortDir);
+
+    renderInventario(datosInv);
+    }
+
+    function ordenarTrazabilidad(col) {
+    if (!datosTraz || !datosTraz.length) return;
+
+    if (sortTrazCol === col) {
+    sortTrazDir = sortTrazDir === "asc" ? "desc" : "asc";
+    } else {
+    sortTrazCol = col;
+    sortTrazDir = "asc";
+    }
+
+    datosTraz.sort((a, b) => {
+    let v1;
+    let v2;
+
+    if (col === "diasInv") {
+    v1 = diasInventario(getVal(a, "Fecha", "fecha"));
+    v2 = diasInventario(getVal(b, "Fecha", "fecha"));
+    } else {
+    v1 = getVal(a, col, col.charAt(0).toLowerCase() + col.slice(1));
+    v2 = getVal(b, col, col.charAt(0).toLowerCase() + col.slice(1));
+    }
+
+    if (!isNaN(v1) && !isNaN(v2) && v1 !== "" && v2 !== "") {
+    v1 = Number(v1);
+    v2 = Number(v2);
+    } else {
+    v1 = String(v1 || "").toLowerCase();
+    v2 = String(v2 || "").toLowerCase();
+    }
+
+    if (v1 > v2) return sortTrazDir === "asc" ? 1 : -1;
+    if (v1 < v2) return sortTrazDir === "asc" ? -1 : 1;
+    return 0;
+    });
+
+    document.querySelectorAll("#tbl-traz th").forEach(x => {
+    x.classList.remove("asc", "desc");
+    });
+
+    const th = document.querySelector(`#tbl-traz th[data-col-traz='${col}']`);
+    if (th) th.classList.add(sortTrazDir);
+
+    renderTrazabilidad(datosTraz);
+    }
+
+
+    async function cargarTotalCamara() {
+    const camara = camaraActual || [...camarasSeleccionadas][0] || "";
+
+    if (!camara) {
+    alert("Selecciona una cámara primero.");
+    return;
+    }
+
+    try {
+    const url = `/ProcesosCG/DetalleCamaraCompleta?planta=${encodeURIComponent(plantaActual)}&camara=${encodeURIComponent(camara)}`;
+
+    const resp = await fetch(url);
+    const data = await resp.json();
+
+    if (!data.ok) {
+    alert(data.mensaje || "Error cargando total cámara");
+    datosTraz = [];
+    renderTrazabilidad([]);
+    return;
+    }
+
+    datosTrazOriginal = data.rows || [];
+    datosTraz = datosTrazOriginal;
+
+    renderTrazabilidad(datosTraz);
+
+    } catch (err) {
+    console.error(err);
+    alert("Error conectando con DetalleCamaraCompleta");
+    }
+    }
+
+    function exportarExcelBasico() {
+    const table = document.getElementById("tbl-inv").outerHTML;
+    const blob = new Blob([table], { type: "application/vnd.ms-excel" });
+    const a = document.createElement("a");
+
+    a.href = URL.createObjectURL(blob);
+    a.download = "Inventario_Camaras.xls";
+    a.click();
+
+    URL.revokeObjectURL(a.href);
+    }
+
+    document.getElementById("sidebar-list").addEventListener("click", e => {
+    const item = e.target.closest(".cam-item");
+    if (!item || !item.dataset.cam) return;
+
+    const cam = item.dataset.cam;
+
+    if (e.ctrlKey || e.metaKey) {
+    if (camarasSeleccionadas.has(cam)) {
+    camarasSeleccionadas.delete(cam);
+    } else {
+    camarasSeleccionadas.add(cam);
+    }
+    } else {
+    camarasSeleccionadas.clear();
+    camarasSeleccionadas.add(cam);
+    }
+
+    camaraActual = camarasSeleccionadas.size === 1 ? [...camarasSeleccionadas][0] : null;
+
+    renderSidebar();
+    cargarInventario();
+    });
+
+    document.getElementById("tbody-inv").addEventListener("click", e => {
+    const tr = e.target.closest("tr");
+    if (!tr || !tr.dataset.idx) return;
+
+    document.querySelectorAll("#tbody-inv tr").forEach(x => x.classList.remove("row-sel"));
+    tr.classList.add("row-sel");
+
+    const row = datosInv[Number(tr.dataset.idx)];
+    cargarTrazabilidad(row);
+    });
+
+    document.querySelectorAll(".btn-planta").forEach(btn => {
+    btn.addEventListener("click", async () => {
+    document.querySelectorAll(".btn-planta").forEach(x => x.classList.remove("active"));
+    btn.classList.add("active");
+
+    plantaActual = btn.dataset.planta;
+    camaraActual = null;
+    camarasSeleccionadas.clear();
+    datosInv = [];
+    datosTraz = [];
+
+    await cargarCamarasPorPlanta();
+    renderInventario([]);
+    renderTrazabilidad([]);
+    cargarInventario();
+    });
+    });
+
+    document.getElementById("btn-buscar").addEventListener("click", cargarInventario);
+    document.getElementById("btn-excel").addEventListener("click", function () {
+
+    if (!datosInv || !datosInv.length) {
+        alert("No hay inventario para exportar.");
+        return;
+    }
+
+    let wb = XLSX.utils.book_new();
+
+    let ws1 = XLSX.utils.json_to_sheet(datosInv);
+    XLSX.utils.book_append_sheet(wb, ws1, "Inventario");
+
+    let ws2 = XLSX.utils.json_to_sheet(datosTraz || []);
+    XLSX.utils.book_append_sheet(wb, ws2, "Detalle");
+
+    XLSX.writeFile(wb, "Inventario_Camaras.xlsx");
+});
+
+   
+    document.getElementById("btn-rack3d").addEventListener("click", abrirRack3D);
+    document.getElementById("btn-close-rack").addEventListener("click", cerrarRack3D);
+    document.getElementById("btn-buscar-rack").addEventListener("click", buscarEnRack3D);
+    document.getElementById("btn-limpiar-rack").addEventListener("click", () => {
+    datosTraz = datosTrazOriginal;
+    document.getElementById("txt-buscar-rack").value = "";
+    document.getElementById("rack-search-result").textContent = "Sin búsqueda";
+
+    limpiarEscenaRack();
+    renderRackThree();
+    calcularKpisCamara(datosTraz);
+    });
+
+
+    document.querySelectorAll("#tbl-traz th[data-col-traz]").forEach(th => {
+    th.addEventListener("click", function () {
+        ordenarTrazabilidad(this.dataset.colTraz);
+    });
+});
+
+    document.getElementById("btn-total-camara").addEventListener("click", cargarTotalCamara);
+
+    document.getElementById("txt-buscar-rack").addEventListener("keydown", e => {
+    if (e.key === "Enter") {
+    buscarEnRack3D();
+    }
+    });
+
+    document.getElementById("modal-rack3d").addEventListener("click", e => {
+    if (e.target.id === "modal-rack3d") cerrarRack3D();
+    });
+
+    document.querySelectorAll("#tbl-inv th[data-col]").forEach(th=>{
+
+    th.addEventListener("click",function(){
+
+    let col = this.dataset.col;
+    ordenarInventario(col);
+
+    });
+
+    });
+
+    window.seleccionarTodas = function () {
+    camarasSeleccionadas = new Set(PLANTAS[plantaActual].camaras);
+    camaraActual = null;
+    renderSidebar();
+    cargarInventario();
+    };
+
+    window.limpiarSeleccion = function () {
+    camarasSeleccionadas.clear();
+    camaraActual = null;
+    datosInv = [];
+    datosTraz = [];
+    renderSidebar();
+    renderInventario([]);
+    renderTrazabilidad([]);
+    };
+
+    cargarCamarasPorPlanta().then(() => cargarInventario());
+</script>

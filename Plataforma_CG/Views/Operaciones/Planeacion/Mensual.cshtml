@@ -1,0 +1,1494 @@
+﻿@model IEnumerable<dynamic>
+@using System.Globalization
+@using System.Text.Json
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: "Segoe UI", Arial, sans-serif;
+        background: #f4f6f9;
+        color: #333;
+    }
+
+    .containers {
+        display: none;
+        padding: 20px;
+    }
+
+        .containers.active {
+            display: block;
+        }
+
+    .container-principal {
+        max-width: 1800px;
+        margin: 20px auto;
+        background: #fff;
+        border-radius: 10px;
+        border: 1.5px solid #8B0000;
+    }
+
+    .dia-card {
+        cursor: pointer;
+        transition: .2s;
+        border: 2px solid transparent;
+    }
+
+        .dia-card:hover {
+            transform: scale(1.05);
+            border-color: #8B0000;
+        }
+
+        .dia-card.selected {
+            background: #8B0000;
+            color: #fff;
+        }
+
+        .dia-card.fuera-mes {
+            opacity: .3;
+            pointer-events: none;
+        }
+
+    .registro {
+        background: #fff;
+        padding: 15px;
+        border: 1px solid #8B0000;
+        border-radius: 8px;
+        margin-bottom: 15px;
+    }
+</style>
+
+<div class="container-principal">
+
+    <!-- ================= MESES ================= -->
+    <div id="vista-meses" class="containers active">
+        <div class="p-3">
+            <h4 class="text-danger fw-bold mb-3">Selecciona un mes</h4>
+            <div class="row g-4">
+                @{
+                    var meses = new[] {
+                                "Enero","Febrero","Marzo","Abril","Mayo","Junio",
+                                "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"
+                                };
+                    var anio = DateTime.Now.Year;
+                }
+                @for (int i = 0; i < 12; i++)
+                {
+                    <div class="col-md-4">
+                        <div class="card shadow-sm text-center"
+                             style="cursor:pointer"
+                             onclick="mostrarMes(@(i + 1), '@meses[i]', @anio)">
+                            <div class="card-body">
+                                <h5>@meses[i] @anio</h5>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= SEMANAL / PLANEADOR ================= -->
+    <div id="vista-semanal" class="containers">
+
+        <div class="p-3">
+
+            <div id="panel-mes" style="display:none;">
+                <!-- Header -->
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="fw-bold text-danger" id="titulo-mes"></div>
+                    <button class="btn btn-sm btn-outline-danger" onclick="volverAMeses()">← Meses</button>
+                </div>
+
+                <div class="mb-2">
+                    <small class="text-muted fw-semibold">
+                        Canales restantes del mes
+                    </small>
+                </div>
+                <div id="resumen-clasificaciones" class="d-flex flex-wrap gap-2"></div>
+
+                <!-- Slider -->
+                <div id="barra-modo" class="d-flex justify-content-end mb-3">
+                    <div class="btn-group">
+                        <input type="radio" class="btn-check" name="modo" id="modoSemanal" checked>
+                        <label class="btn btn-outline-danger btn-sm" for="modoSemanal">Semanal</label>
+
+                        <input type="radio" class="btn-check" name="modo" id="modoPlaneador">
+                        <label class="btn btn-outline-danger btn-sm" for="modoPlaneador">Planeador</label>
+                    </div>
+                </div>
+
+                <div id="barra-dia" class="mb-3" style="display:none">
+                    <button class="btn btn-outline-danger btn-sm" onclick="volverASemanasDesdeDia()">
+                        ← Regresar a semanas
+                    </button>
+                </div>
+            </div>
+
+
+            <!-- Contenido -->
+            <div id="semanas-body"></div>
+            <div id="contenedor-planeador" style="display:none">
+                <!-- Por ahora vacío -->
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+<div class="modal fade" id="modalDistribucion" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    Distribución diaria
+                </h5>
+                <button type="button" class="btn-close"
+                        data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body" id="modalDistribucionBody">
+            </div>
+
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="modalSubclas" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h5 class="modal-title">Distribución por subclasificación</h5>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body">
+
+                <table class="table table-sm table-bordered text-center" id="tablaSubclasDia">
+
+                    <thead>
+                        <tr>
+                            <th>Subclasificación</th>
+                            <th>%</th>
+                            <th>Canales</th>
+                        </tr>
+                    </thead>
+
+                    <tbody></tbody>
+
+                    <tfoot>
+                        <tr>
+                            <th>Total</th>
+                            <th></th>
+                            <th id="totalSubclasDia">0</th>
+                        </tr>
+                    </tfoot>
+
+                </table>
+
+            </div>
+            <div class="text-end">
+                <button class="btn btn-success btn-sm" onclick="aplicarSubclasDia()">
+                    Aplicar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<div class="modal fade" id="modalPlantillaSemanal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable" style="max-width:95%;">
+        <div class="modal-content" style="height:90vh;">
+
+            <div class="modal-header">
+                <h5 class="modal-title">Plantilla semanal</h5>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body" id="contenidoPlantillaSemanal">
+                <div class="text-center">
+                    <span>Cargando...</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+
+
+
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+                    let distribucionClasificacion = {};
+                    let clasificacionActual = "";
+
+                        let overridesSubclas = {};
+
+
+
+
+                            function abrirPlantillaSemanal(fechaInicio, fechaFin) {
+
+        const tipo = "NOV"; // 🔥 como pediste
+
+        const url = `/Operaciones/PlantillaSemanal?tipo=${tipo}&fechain=${fechaInicio}&fechafin=${fechaFin}`;
+
+        const contenedor = document.getElementById("contenidoPlantillaSemanal");
+
+        contenedor.innerHTML = "<div class='text-center'>Cargando...</div>";
+
+        fetch(url)
+            .then(res => res.text())
+            .then(html => {
+                contenedor.innerHTML = html;
+                inicializarPlanSemanal();
+            })
+            .catch(err => {
+                console.error(err);
+                contenedor.innerHTML = "<div class='text-danger'>Error al cargar</div>";
+            });
+
+        const modal = new bootstrap.Modal(
+            document.getElementById("modalPlantillaSemanal")
+        );
+
+        modal.show();
+        
+    }
+
+
+
+
+
+                    function abrirModalDistribucion(clasificacion, btn) {
+
+            overridesSubclas = {};
+            clasificacionActual = clasificacion;
+
+            const card = btn.closest(".card");
+            const registro = btn.closest(".registro");
+                                        distribucionClasificacion = generarDistribucionClasificacion(registro, clasificacion);
+                                    console.log("Distribución:", distribucionClasificacion);
+            const inputSemana = card.querySelector("input[type='number']");
+            const totalSemana = parseInt(inputSemana.value) || 0;
+
+            const inicioOriginal = new Date(registro.dataset.fechaInicio);
+            const finOriginal = new Date(registro.dataset.fechaFin);
+
+            const fechasAjustadas = ajustarSemanaAlMes(
+                inicioOriginal,
+                finOriginal,
+                mesSel,
+                anioSel
+            );
+
+            let html = `
+                <div class="mb-3">
+                    <strong>Clasificación:</strong> ${clasificacion} <br>
+                    <strong>Total semana:</strong> ${totalSemana}
+                </div>
+
+                <button class="btn btn-success btn-sm"
+                    onclick="guardarDistribucion('${clasificacion}')">
+                    Guardar distribución
+                </button>
+
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Día</th>
+                            <th>Fecha</th>
+                            <th>Canales</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            let fecha = new Date(fechasAjustadas.inicio);
+
+            while (fecha <= fechasAjustadas.fin) {
+
+                const fechaStr = fecha.toISOString().split('T')[0];
+
+                html += `
+                    <tr>
+                        <td>${obtenerDiaSemana(fechaStr)}</td>
+                        <td>${fechaStr}</td>
+                        <td class="d-flex gap-1">
+
+                            <input type="number"
+                                class="form-control form-control-sm input-dia"
+                                data-fecha="${fechaStr}"
+                                data-total-semana="${totalSemana}"
+                                value="0"
+                                    oninput="onInputDia(this)">
+
+                            <button class="btn btn-sm btn-outline-primary"
+                                onclick="abrirDetalleDia(this)">
+                                ⚙
+                            </button>
+
+                        </td>
+                    </tr>
+                `;
+
+                fecha.setDate(fecha.getDate() + 1);
+            }
+
+            html += `
+                    </tbody>
+                </table>
+
+                <div class="mt-4">
+                    <canvas id="graficaSemana"></canvas>
+                </div>
+
+                <div class="text-end">
+                    <span id="sumaActual" class="fw-bold text-danger">
+                        0 / ${totalSemana}
+                    </span>
+                </div>
+            `;
+
+            const contenedor = document.getElementById("modalDistribucionBody");
+            contenedor.innerHTML = html;
+
+            const modal = new bootstrap.Modal(
+                document.getElementById("modalDistribucion")
+            );
+
+            modal.show();
+
+            // 🔥 IMPORTANTE: esperar a que el DOM del modal exista
+            setTimeout(() => {
+                console.log("modal listo, consultando datos...");
+                consultarValoresExistentes(clasificacion);
+                actualizarGraficaSemana();
+            }, 200);
+        }
+                                        async function consultarValoresExistentes(clasificacion) {
+
+            const inputs = document.querySelectorAll("#modalDistribucionBody .input-dia");
+
+            console.log("Inputs encontrados:", inputs.length);
+
+            for (const input of inputs) {
+
+                const fecha = input.dataset.fecha;
+
+                try {
+
+                    const res = await fetch(`/Operaciones/ObtenerDistribucionDia?clasificacion=${clasificacion}&fecha=${fecha}`);
+
+                    if (!res.ok) {
+                        console.error("Error HTTP:", res.status);
+                        input.value = 0;
+                        continue;
+                    }
+
+                    const data = await res.json();
+                        console.log("DATA CRUDA:", data);
+                            data.forEach(x => console.log("ITEM:", x));
+                    // 🔥 ASEGURAR ARRAY
+                    const lista = Array.isArray(data) ? data : [];
+
+                    // 🔥 GUARDAR DETALLE REAL
+                    overridesSubclas[fecha] = {};
+
+                    let total = 0;
+
+                    lista.forEach(item => {
+
+                        const sub = item.subclasificacion ?? item.Subclasificacion;
+                        const val = item.canales ?? item.Canales ?? 0;
+
+                        if (sub) {
+                            overridesSubclas[fecha][sub] = val;
+                        }
+
+                        total += val;
+                    });
+
+                    // 🔥 ASIGNAR TOTAL AL INPUT
+                    input.value = total;
+
+                } catch (e) {
+
+                    console.error("ERROR fetch:", e);
+                    input.value = 0;
+
+                }
+            }
+
+            if (inputs.length > 0) {
+                validarTotalDiario(inputs[0]);
+            }
+        }
+
+            function recalcularSubclas(){
+
+            const inputs = document.querySelectorAll(".input-subclas");
+
+            let suma = 0;
+
+            inputs.forEach(i=>{
+                suma += parseInt(i.value) || 0;
+            });
+
+            document.getElementById("totalSubclasDia").innerText = suma;
+
+        }
+            let inputDiaActual = null;
+
+                    async function abrirDetalleDia(btn){
+
+            const input = btn.closest("td").querySelector(".input-dia");
+            inputDiaActual = input;
+
+            const fecha = input.dataset.fecha;
+            const totalDia = parseInt(input.value) || 0;
+
+            const tbody = document.querySelector("#tablaSubclasDia tbody");
+            tbody.innerHTML = "";
+
+            let suma = 0;
+
+            let listaBackend = [];
+
+            try {
+
+                const res = await fetch(`/Operaciones/ObtenerDistribucionDia?clasificacion=${clasificacionActual}&fecha=${fecha}`);
+                const data = await res.json();
+
+                listaBackend = Array.isArray(data) ? data : [];
+
+            } catch (e) {
+                console.error("Error obteniendo detalle día:", e);
+            }
+
+            // 🔥 Convertir backend a diccionario rápido
+            const mapaBackend = {};
+
+            listaBackend.forEach(item => {
+
+                const key = (item.subClasificacion || item.Subclasificacion || "").trim();
+
+                mapaBackend[key] = item.canales ?? item.Canales ?? 0;
+
+            });
+
+            // 🔥 RECORRER CATÁLOGO BASE
+                console.log("Mapa backend:", mapaBackend);
+            Object.entries(distribucionClasificacion).forEach(([subclas, porcentaje]) => {
+
+                let canales = 0;
+
+                // 🔴 PRIORIDAD 1: override manual
+                if (overridesSubclas[fecha]?.[subclas] !== undefined) {
+
+                    canales = overridesSubclas[fecha][subclas];
+
+                }
+                // 🟢 PRIORIDAD 2: backend
+                else if (mapaBackend[subclas] !== undefined) {
+
+                    canales = mapaBackend[subclas];
+
+                }
+                // ⚪ PRIORIDAD 3: cálculo por porcentaje
+                else {
+
+                    canales = Math.round((totalDia * porcentaje) / 100);
+
+                }
+
+                suma += canales;
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${subclas}</td>
+                        <td>${porcentaje.toFixed(2)}%</td>
+                        <td>
+                            <input type="number"
+                                class="form-control form-control-sm input-subclas"
+                                value="${canales}"
+                                oninput="recalcularSubclas()">
+                        </td>
+                    </tr>
+                `;
+            });
+
+            document.getElementById("totalSubclasDia").innerText = suma;
+
+            const modal = new bootstrap.Modal(
+                document.getElementById("modalSubclas")
+            );
+
+            modal.show();
+        }
+
+            let graficaSemana = null;
+
+            function crearGraficaSemana(labels, datos, totalSemana) {
+
+            if (typeof Chart === "undefined") {
+                console.error("Chart.js no está cargado");
+                return;
+            }
+
+            const ctx = document.getElementById("graficaSemana");
+
+            if (!ctx) {
+                console.error("Canvas graficaSemana no encontrado");
+                return;
+            }
+
+            if (graficaSemana)
+                graficaSemana.destroy();
+
+            graficaSemana = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Canales por día',
+                        data: datos
+                    }]
+                },
+                options: {
+                    responsive: true
+                }
+            });
+        }
+
+            function actualizarGraficaSemana() {
+
+            const inputs = document.querySelectorAll(".input-dia");
+
+            const labels = [];
+            const datos = [];
+
+            inputs.forEach(input => {
+
+                const fecha = input.dataset.fecha;
+                const valor = parseInt(input.value) || 0;
+
+                labels.push(obtenerDiaSemana(fecha));
+                datos.push(valor);
+
+            });
+
+            const totalSemana = parseInt(inputs[0]?.dataset.totalSemana || 0);
+
+            crearGraficaSemana(labels, datos, totalSemana);
+
+        }
+
+
+
+                function generarDistribucionClasificacion(registro, clasificacion) {
+
+            const distribucion = {};
+
+            const cards = registro.querySelectorAll(".card");
+
+            cards.forEach(card => {
+
+                const nombre = card.querySelector(".fw-bold")?.innerText.trim();
+
+                if (nombre !== clasificacion)
+                    return;
+
+                const filas = card.querySelectorAll("tbody tr");
+
+                filas.forEach(fila => {
+
+                    const subClas = fila.querySelector(".nomClas")?.innerText.trim();
+                    const porcentaje = parseFloat(fila.dataset.porcentaje) || 0;
+
+                    distribucion[subClas] = porcentaje;
+
+                });
+
+            });
+
+            return distribucion;
+        }
+
+                                    function guardarDistribucion() {
+
+            const inputs = document.querySelectorAll(".input-dia");
+
+            const distribucion = [];
+
+            let total = 0;
+            let totalSemana = 0;
+
+            inputs.forEach(input => {
+
+                const cantidad = parseInt(input.value) || 0;
+                const fecha = input.dataset.fecha;
+
+                total += cantidad;
+                totalSemana = parseInt(input.dataset.totalSemana);
+
+                if (cantidad > 0) {
+
+                    // 🔥 USAR SOLO DATOS REALES SI EXISTEN
+                    if (overridesSubclas[fecha]) {
+
+                        for (const subClas in overridesSubclas[fecha]) {
+
+                            distribucion.push({
+                                Clasificacion: clasificacionActual,
+                                Subclasificacion: subClas,
+                                Fecha: fecha,
+                                Cantidad: overridesSubclas[fecha][subClas]
+                            });
+
+                        }
+
+                    } else {
+
+                        // 🟡 fallback SOLO si no hay override
+                        for (const subClas in distribucionClasificacion) {
+
+                            distribucion.push({
+                                Clasificacion: clasificacionActual,
+                                Subclasificacion: subClas,
+                                Fecha: fecha,
+                                Cantidad: 0
+                            });
+
+                        }
+                    }
+                }
+            });
+
+            // ⚠️ SOLO AVISO (NO BLOQUEO)
+            if (total > totalSemana) {
+                alert("⚠️ La suma excede el total semanal, pero se guardará de todas formas.");
+            }
+
+            const payload = [{
+                Distribucion: distribucion
+            }];
+
+            fetch("/Operaciones/GuardarDistribucion", {
+
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
+
+            })
+            .then(r => r.json())
+            .then(data => {
+
+                if (data.ok) {
+                    alert("Guardado correctamente");
+                }
+
+            })
+            .catch(err => {
+                console.error(err);
+                alert("Error al guardar");
+            });
+        }
+            function obtenerDiaSemana(fechaStr) {
+
+            const partes = fechaStr.split('-');
+
+            const anio = parseInt(partes[0]);
+            const mes = parseInt(partes[1]) - 1;
+            const dia = parseInt(partes[2]);
+
+            const fecha = new Date(anio, mes, dia);
+
+            return fecha.toLocaleDateString('es-MX', { weekday: 'long' });
+        }
+            let esCambioManual = false;
+           function validarTotalDiario(input) {
+
+            const tbody = input.closest("tbody");
+            const inputs = tbody.querySelectorAll(".input-dia");
+
+            let suma = 0;
+
+            inputs.forEach(i => {
+                suma += parseInt(i.value) || 0;
+            });
+
+            const totalSemana = parseInt(input.dataset.totalSemana) || 0;
+
+            const indicador = document.getElementById("sumaActual");
+
+            indicador.innerText = `${suma} / ${totalSemana}`;
+
+            actualizarGraficaSemana();
+            //////////////////////////////////////////////////////////////////////////////////////////////////////
+                    if (esCambioManual) {
+            recalcularSubclasPorDia(input);
+        }
+
+                    input.classList.add("border-warning");
+            // limpiar estilos
+            inputs.forEach(i => i.classList.remove("is-invalid"));
+
+            if (suma > totalSemana) {
+
+                indicador.classList.remove("text-success");
+                indicador.classList.add("text-warning");
+
+                // ⚠️ SOLO AVISO
+                indicador.title = "Excede el total semanal, pero se permitirá guardar";
+
+            } else {
+
+                indicador.classList.remove("text-warning");
+                indicador.classList.add("text-success");
+
+                indicador.title = "";
+            }
+                esCambioManual = false;
+        }
+        function onInputDia(input){
+            const nuevo = parseInt(input.value) || 0;
+            const anterior = input.dataset.prev || 0;
+
+            if(nuevo !== anterior){
+                esCambioManual = true;
+                input.dataset.prev = nuevo;
+            }
+
+            validarTotalDiario(input);
+        }
+
+        // ================= VARIABLES GLOBALES =================
+
+        let mesSel = null;
+        let anioSel = null;
+        let diaSel = null;
+        let fechaActual = null;
+        let planActivo = "NOV";
+
+        let ResumenMensualGlobal = [];
+
+        let semanasBody = null;
+        let contenedorPlaneador = null;
+
+        // ================= INIT =================
+
+        document.addEventListener("DOMContentLoaded", function () {
+
+            semanasBody = document.getElementById("semanas-body");
+            contenedorPlaneador = document.getElementById("contenedor-planeador");
+
+            document.getElementById("vista-semanal")?.classList.add("active");
+
+            document.getElementById("modoSemanal")
+                ?.addEventListener("change", function () {
+
+                    if (this.checked) {
+
+                        contenedorPlaneador.style.display = "none";
+                        semanasBody.style.display = "block";
+
+                        document.getElementById("barra-dia").style.display = "none";
+                        document.getElementById("barra-modo").style.display = "flex";
+                    }
+                });
+
+            document.getElementById("modoPlaneador")
+                ?.addEventListener("change", async function () {
+
+                    if (this.checked) {
+
+                        semanasBody.style.display = "none";
+                        document.getElementById("barra-dia").style.display = "none";
+
+                        contenedorPlaneador.style.display = "block";
+                        document.getElementById("barra-modo").style.display = "flex";
+
+                        await cargarPlaneacionMensual();
+                    }
+                });
+
+        });
+
+            function recalcularSubclasPorDia(input) {
+
+            const fecha = input.dataset.fecha;
+            const totalDia = parseInt(input.value) || 0;
+
+            console.log("Recalculando TODO por porcentaje:", fecha);
+
+            const nuevaDistribucion = {};
+
+            Object.entries(distribucionClasificacion).forEach(([subclas, porcentaje]) => {
+
+                const canales = Math.round((totalDia * porcentaje) / 100);
+
+                nuevaDistribucion[subclas] = canales;
+            });
+
+            // 🔥 sobrescribe TODO (incluye backend y overrides)
+            overridesSubclas[fecha] = nuevaDistribucion;
+
+        }
+        // ================= RESUMEN MENSUAL =================
+
+        async function cargarResumenMensual() {
+
+            if (!anioSel || !mesSel) return;
+
+            try {
+
+                const response = await fetch(
+                    `/Operaciones/ObtenerResumenMensual?anio=${anioSel}&mes=${mesSel}`
+                );
+
+                const data = await response.json();
+
+                const contenedor = document.getElementById("resumen-clasificaciones");
+                contenedor.innerHTML = "";
+
+                ResumenMensualGlobal = data || [];
+
+                if (!ResumenMensualGlobal.length) {
+                    contenedor.innerHTML =
+                        `<span class="text-muted">Sin clasificaciones</span>`;
+                    return;
+                }
+
+                ResumenMensualGlobal.forEach(item => {
+                    contenedor.innerHTML += `
+                        <span class="badge bg-danger me-2">
+                            ${item.clasificacion}:
+                            <b>${item.canales ?? 0}</b>
+                        </span>
+                    `;
+                });
+
+            } catch (err) {
+                console.error("Error resumen mensual:", err);
+            }
+        }
+
+        // ================= PLANEACION MENSUAL =================
+
+        async function cargarPlaneacionMensual() {
+
+            if (!anioSel || !mesSel) return;
+            contenedorPlaneador.innerHTML = "";
+            try {
+
+                const response = await fetch(
+                    `/Operaciones/PlaneacionMensual?anio=${anioSel}&mes=${mesSel}`
+                );
+
+                const html = await response.text();
+                contenedorPlaneador.innerHTML = html;
+
+            } catch (error) {
+                console.error("Error cargando planeación mensual:", error);
+            }
+        }
+
+        // ================= SEMANAS =================
+
+        function generarSemanas() {
+
+            if (!anioSel || !mesSel) return;
+
+            semanasBody.innerHTML = "";
+
+            const primerDia = new Date(anioSel, mesSel - 1, 1);
+            const ultimoDia = new Date(anioSel, mesSel, 0);
+
+            let inicioSemana = new Date(primerDia);
+            let ajuste = inicioSemana.getDay() === 0 ? -6 : 1 - inicioSemana.getDay();
+            inicioSemana.setDate(inicioSemana.getDate() + ajuste);
+
+            while (inicioSemana <= ultimoDia) {
+
+                let diasHtml = "";
+
+                const fechaInicioSemana = new Date(inicioSemana);
+                const fechaFinSemana = new Date(inicioSemana);
+                fechaFinSemana.setDate(fechaFinSemana.getDate() + 6);
+
+
+                    const fechasAjustadas = ajustarSemanaAlMes(
+            fechaInicioSemana,
+            fechaFinSemana,
+            mesSel,
+            anioSel
+        );
+
+            function formatearFechaLocal(fecha) {
+        const yyyy = fecha.getFullYear();
+        const mm = String(fecha.getMonth() + 1).padStart(2, '0');
+        const dd = String(fecha.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    }
+
+    const inicioVisible = formatearFechaLocal(fechasAjustadas.inicio);
+    const finVisible = formatearFechaLocal(fechasAjustadas.fin);
+        //const inicioVisible = fechasAjustadas.inicio.toISOString().split('T')[0];
+        //const finVisible = fechasAjustadas.fin.toISOString().split('T')[0];
+
+
+
+                const inicioStr = fechaInicioSemana.toISOString().split('T')[0];
+                const finStr = fechaFinSemana.toISOString().split('T')[0];
+
+                for (let d = 0; d < 7; d++) {
+
+                    let fecha = new Date(inicioSemana);
+                    fecha.setDate(fecha.getDate() + d);
+
+                    let fueraMes = (fecha.getMonth() + 1 !== mesSel) ? "fuera-mes" : "";
+                    let fechaStr = fecha.toISOString().split('T')[0];
+
+                    diasHtml += `
+                        <div class="col text-center">
+                            <div class="card dia-card ${fueraMes}"
+                                 onclick="seleccionarDia(this, '${fechaStr}')">
+                                <div class="card-body p-2">
+                                    <b>${fecha.toLocaleDateString('es-MX', { weekday: 'short' })}</b>
+                                    <div>${fecha.getDate()}</div>
+                                </div>
+                            </div>
+                        </div>`;
+                }
+
+                semanasBody.innerHTML += `
+                    <div class="registro"
+                         data-fecha-inicio="${inicioVisible}"
+                         data-fecha-fin="${finVisible}">
+
+
+
+                             <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="text-danger mb-0">
+            Semana (${inicioVisible} al ${finVisible})
+        </h6>
+
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-primary"
+                    onclick="abrirPlantillaSemanal('${inicioVisible}','${finVisible}')">
+                📊 Plantilla semanal
+            </button>
+
+            <button class="btn btn-sm btn-success"
+                    onclick="guardarSemana(this)">
+                Guardar semana
+            </button>
+        </div>
+    </div>
+
+
+
+                        <div class="row g-2 align-items-start">
+                            ${diasHtml}
+                            <div class="col-md-5 tabla-distribucion-semana d-flex gap-2"></div>
+                        </div>
+                    </div>`;
+
+                inicioSemana.setDate(inicioSemana.getDate() + 7);
+            }
+        }
+
+        // ================= TABLAS =================
+            function ajustarSemanaAlMes(fechaInicio, fechaFin, mes, anio) {
+
+            const inicioMes = new Date(anio, mes - 1, 1);
+            const finMes = new Date(anio, mes, 0); // último día del mes
+
+            const inicioValido = fechaInicio < inicioMes ? inicioMes : fechaInicio;
+            const finValido = fechaFin > finMes ? finMes : fechaFin;
+
+            return {
+                inicio: inicioValido,
+                fin: finValido
+            };
+        }
+            async function obtenerTotalSemanal(fechaInicio, fechaFin, clasificacion) {
+
+            const fechain = fechaInicio.toISOString().split('T')[0];
+            const fechafin = fechaFin.toISOString().split('T')[0];
+
+            const response = await fetch(`ObtenerSemanal?fechain=${fechain}&fechafin=${fechafin}&clas=${clasificacion}`);
+
+            if (!response.ok) {
+                console.error("Error al obtener semanal");
+                return 0;
+            }
+
+            return await response.json();
+        }
+            async function cargarTotalesSemanas(semanas, clasificaciones) {
+
+        const promesas = [];
+
+        for (let semana of semanas) {
+
+            const inicioOriginal = new Date(semana.dataset.fechaInicio);
+            const finOriginal = new Date(semana.dataset.fechaFin);
+
+            const fechasAjustadas = ajustarSemanaAlMes(
+                inicioOriginal,
+                finOriginal,
+                mesSel,
+                anioSel
+            );
+
+            for (let clasificacion of clasificaciones) {
+
+                const promesa = obtenerTotalSemanal(
+                    fechasAjustadas.inicio,
+                    fechasAjustadas.fin,
+                    clasificacion
+                ).then(lista => {
+
+                    // 🔥 encontrar el card correcto
+                    const cards = semana.querySelectorAll(".card");
+
+                    cards.forEach(card => {
+
+                        const nombre = card.querySelector(".fw-bold")?.innerText.trim();
+
+                        if (nombre !== clasificacion) return;
+
+                        const filas = card.querySelectorAll("tbody tr");
+
+                        // 🔥 MAPEAR RESPUESTA DEL BACKEND
+                        const mapa = {};
+
+                        if (Array.isArray(lista)) {
+                            lista.forEach(item => {
+                                const key = (item.subClasificacion || item.SubClasificacion || "").trim();
+                                mapa[key] = item.canales ?? item.Canales ?? 0;
+                            });
+                        }
+
+                        let total = 0;
+
+                        filas.forEach(fila => {
+
+                            const sub = fila.querySelector(".nomClas")?.innerText.trim();
+
+                            const input = fila.querySelector(".input-subclas-semana");
+
+                            let valor = mapa[sub] ?? 0;
+
+                            input.value = valor;
+
+                            total += valor;
+                        });
+
+                        // 🔥 actualizar total semanal
+                        const totalInput = card.querySelector(".total-semana");
+                        if (totalInput) {
+                            totalInput.value = total;
+                        }
+
+                        // 🔥 recalcular porcentajes visuales
+                        filas.forEach(fila => {
+
+                            const inputFila = fila.querySelector(".input-subclas-semana");
+                            const valor = parseInt(inputFila.value) || 0;
+
+                            const porcentaje = total > 0
+                                ? (valor / total) * 100
+                                : 0;
+
+                            const celda = fila.querySelector(".porcentaje-est");
+
+                            if (celda) {
+                                celda.innerText = porcentaje.toFixed(2) + "%";
+                            }
+                        });
+
+                    });
+
+                });
+
+                promesas.push(promesa);
+            }
+        }
+
+        await Promise.all(promesas);
+    }
+
+
+
+
+            async function renderTablasEnSemanas() {
+
+            if (!ResumenMensualGlobal.length) return;
+
+            const semanas = document.querySelectorAll(".registro");
+
+            for (const semana of semanas) {
+
+                const contenedor = semana.querySelector(".tabla-distribucion-semana");
+                if (!contenedor) continue;
+
+                let html = "";
+
+                ResumenMensualGlobal.forEach(clas => {
+
+                    html += `
+                        <div class="card p-2 shadow-sm" style="min-width:170px; max-width:200px; font-size:11px;">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="fw-bold text-danger">
+                ${clas.clasificacion}
+            </span>
+
+            <button class="btn btn-sm btn-outline-primary"
+                onclick="abrirModalDistribucion(
+                    '${clas.clasificacion}',
+                    this
+                )">
+                📅
+            </button>
+        </div>
+
+
+                            <input type="number"
+                                   id="input-${clas.clasificacion}-${semana.dataset.numero}"
+                                   class="form-control form-control-sm mb-2 total-semana"
+                                   placeholder="Total semana"
+                                   >
+
+                            <table class="table table-sm table-bordered mb-0">
+                                <thead class="table-light">
+                                    <tr>
+        <th>Sub</th>
+        <th>% Est.</th>
+        <th>Canales</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${clas.detalle?.map(det => `
+                                        <tr data-porcentaje="${det.porcentaje}">
+                                            <td class="nomClas">${det.nombreClasificacion}</td>
+                                                <td class="porcentaje-est">0%</td>
+    <td>
+        <input type="number"
+               class="form-control form-control-sm input-subclas-semana"
+               value="0"
+               oninput="recalcularSemana(this)">
+    </td>
+                                        </tr>
+                                    `).join("") || ""}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                });
+
+                contenedor.innerHTML = html;
+            }
+            const clasificaciones = ResumenMensualGlobal.map(c => c.clasificacion);
+
+            // ⚠️ IMPORTANTE: llamar una sola vez después de renderizar todo
+            await cargarTotalesSemanas(semanas,clasificaciones);
+        }
+                    function recalcularSemana(input){
+
+        const card = input.closest(".card");
+        if(!card) return;
+
+        const inputs = card.querySelectorAll(".input-subclas-semana");
+        const filas = card.querySelectorAll("tbody tr");
+
+        let total = 0;
+
+        inputs.forEach(i=>{
+            total += parseInt(i.value) || 0;
+        });
+
+        // ✅ actualizar total arriba
+        const totalInput = card.querySelector(".total-semana");
+        if(totalInput){
+            totalInput.value = total;
+        }
+
+        // ✅ recalcular porcentajes
+        filas.forEach(fila => {
+
+            const inputFila = fila.querySelector(".input-subclas-semana");
+            const valor = parseInt(inputFila.value) || 0;
+
+            let porcentaje = total > 0
+                ? (valor / total) * 100
+                : 0;
+
+            const celda = fila.querySelector(".porcentaje-est");
+            if(celda){
+                celda.innerText = porcentaje.toFixed(2) + "%";
+            }
+        });
+    }
+
+        // ================= FUNCIONES GLOBALES (ONCLICK) =================
+
+        async function seleccionarDia(card, fecha) {
+
+        if(card){
+            document.querySelectorAll(".dia-card")
+                .forEach(d => d.classList.remove("selected"));
+
+            card.classList.add("selected");
+        }
+            fechaActual = fecha;
+
+            try {
+
+                const response = await fetch(
+                    `/Operaciones/PlaneacionDia?plan=${planActivo}&fecha=${fecha}`
+                );
+
+                const html = await response.text();
+
+                contenedorPlaneador.innerHTML = html;
+
+                semanasBody.style.display = "none";
+                document.getElementById("barra-modo").style.display = "none";
+
+                contenedorPlaneador.style.display = "block";
+                document.getElementById("barra-dia").style.display = "block";
+                recalcularTodoDia();
+
+            } catch (error) {
+                console.error("Error cargando planeación día:", error);
+            }
+        }
+            function actualizarPlaneacionDia() {
+
+            const combo = document.getElementById("comboTipoPlan");
+
+            if (!combo) return;
+
+            planActivo = combo.value;
+
+            if (!fechaActual) {
+                alert("Primero selecciona un día");
+                return;
+            }
+
+            seleccionarDia(
+                document.querySelector(".dia-card.selected"),
+                fechaActual
+            );
+        }
+                    
+
+        function volverASemanasDesdeDia() {
+
+            contenedorPlaneador.style.display = "none";
+            contenedorPlaneador.innerHTML = "";
+            semanasBody.style.display = "block";
+
+            document.getElementById("barra-modo").style.display = "flex";
+            document.getElementById("barra-dia").style.display = "none";
+
+            document.getElementById("modoSemanal").checked = true;
+
+            document.querySelectorAll(".dia-card")
+                .forEach(d => d.classList.remove("selected"));
+        }
+
+        async function mostrarMes(mes, nombre, anio) {
+
+            mesSel = mes;
+            anioSel = anio;
+
+            document.getElementById("panel-mes").style.display = "block";
+
+            document.getElementById("vista-meses").classList.remove("active");
+            document.getElementById("vista-semanal").classList.add("active");
+
+            document.getElementById("titulo-mes").innerText = `${nombre} ${anio}`;
+            document.getElementById("modoSemanal").checked = true;
+            semanasBody.style.display="block";
+
+            generarSemanas();
+            await cargarResumenMensual();
+            await renderTablasEnSemanas();
+
+        }
+
+        function volverAMeses() {
+
+            document.getElementById("vista-semanal").classList.remove("active");
+            document.getElementById("vista-meses").classList.add("active");
+
+
+
+                document.getElementById("panel-mes").style.display = "none";
+
+        semanasBody.style.display = "none";
+        contenedorPlaneador.innerHTML = "";
+                // semanasBody.style.display = "block";
+             //contenedorPlaneador.style.display = "none";
+                 document.getElementById("modoSemanal").checked = true;
+        document.getElementById("modoPlaneador").checked = false;
+
+
+            document.getElementById("barra-modo").style.display = "flex";
+            document.getElementById("barra-dia").style.display = "none";
+
+            document.getElementById("modoSemanal").checked = true;
+
+            document.querySelectorAll(".dia-card")
+                .forEach(d => d.classList.remove("selected"));
+        }
+
+        async function guardarSemana(btn) {
+
+        const registro = btn.closest(".registro");
+
+        const fechaInicio = registro.dataset.fechaInicio;
+        const fechaFin = registro.dataset.fechaFin;
+
+        const cards = registro.querySelectorAll(".card");
+
+        let clasificaciones = [];
+
+        cards.forEach(card => {
+
+            const filas = card.querySelectorAll("tbody tr");
+
+            filas.forEach(fila => {
+
+                const subclasificacion =
+                    fila.querySelector(".nomClas")?.innerText.trim() || "";
+
+                const canales =
+                    parseInt(fila.querySelector(".input-subclas-semana")?.value) || 0;
+
+                // ✅ puedes decidir si guardar ceros o no
+                clasificaciones.push({
+                    clasificacion: subclasificacion,   // 👈 IMPORTANTE
+                    totalCanales: canales
+                });
+
+            });
+        });
+
+        const payload = {
+            fechaInicioSemana: fechaInicio,
+            fechaFinSemana: fechaFin,
+            clasificaciones: clasificaciones // 👈 nombre correcto
+        };
+
+        console.log("Payload correcto:", payload);
+
+        try {
+
+            const res = await fetch("/Operaciones/GuardarDistribucionSemanal", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) throw new Error("Error al guardar");
+
+            alert("✅ Semana guardada correctamente");
+
+        } catch (error) {
+
+            console.error("Error:", error);
+            alert("❌ Error al guardar");
+
+        }
+    }
+
+        function calcularDistribucion(input) {
+
+            const total = parseFloat(input.value) || 0;
+            const card = input.closest(".card");
+            const filas = card.querySelectorAll("tbody tr");
+
+            filas.forEach(fila => {
+                const porcentaje = parseFloat(fila.dataset.porcentaje) || 0;
+                const resultado = (total * porcentaje) / 100;
+                fila.querySelector(".canales-calc").innerText =
+                    Math.round(resultado);
+            });
+        }
+    //     function aplicarSubclasDia(){
+
+    //     const total = document.getElementById("totalSubclasDia").innerText;
+
+    //     if(inputDiaActual){
+    //         inputDiaActual.value = total;
+    //         validarTotalDiario(inputDiaActual);
+    //     }
+
+    //     bootstrap.Modal.getInstance(
+    //         document.getElementById("modalSubclas")
+    //     ).hide();
+    // }
+        function aplicarSubclasDia(){
+
+            const fecha = inputDiaActual.dataset.fecha;
+
+            const filas = document.querySelectorAll("#tablaSubclasDia tbody tr");
+
+            overridesSubclas[fecha] = {};
+
+            let total = 0;
+
+            filas.forEach(fila => {
+
+                const subclas = fila.children[0].innerText;
+                const valor = parseInt(fila.querySelector("input").value) || 0;
+
+                overridesSubclas[fecha][subclas] = valor;
+                total += valor;
+            });
+
+            inputDiaActual.value = total;
+            validarTotalDiario(inputDiaActual);
+
+            bootstrap.Modal.getInstance(
+                document.getElementById("modalSubclas")
+            ).hide();
+        }
+
+</script>
+
+
+
+@*<script src="~/js/planeacion-mes.js"></script>*@
+@*<script src="~/js/planeacion-diapp.js"></script>*@
+@* <script src="~/js/planeacion-dia.js"></script>
+<script src="~/js/planpro.js"></script> *@
+@section Scripts {
+     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>   
+     <script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script> 
+    <script src="~/js/planpro.js"></script>
+    <script src="~/js/planeacion-mes.js" asp-append-version="true"></script>
+     <script src="~/js/planDiario.js" asp-append-version="true"></script> 
+    <script src="~/js/planSemanal.js" asp-append-version="true"></script>
+}

@@ -1,0 +1,1664 @@
+﻿@model IEnumerable<Plataforma_CG.Models.OrdenVenta>
+@using Plataforma_CG.Models
+
+@{
+    ViewData["Title"] = "Nuevo Embarque";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+
+    var transferencias = ViewBag.Transferencias as List<Transferencia> ?? new List<Transferencia>();
+    var totalOV = Model?.Count() ?? 0;
+    var totalTR = transferencias.Count;
+}
+
+<style>
+    :root {
+        --primary: #8B0000;
+        --primary-dark: #5a0000;
+        --primary-soft: #f8eaea;
+        --accent: #c82333;
+        --bg-main: #f4f6f9;
+        --bg-card: #ffffff;
+        --bg-muted: #f8f9fb;
+        --text: #1f2937;
+        --text-soft: #6b7280;
+        --border: #e5e7eb;
+        --border-strong: #d1d5db;
+        --success: #198754;
+        --radius-xl: 18px;
+        --radius-lg: 14px;
+        --radius-md: 10px;
+        --shadow-sm: 0 4px 10px rgba(0,0,0,.05);
+        --shadow-md: 0 10px 30px rgba(0,0,0,.08);
+        --transition: all .22s ease;
+    }
+
+    body {
+        background: linear-gradient(180deg, #f8f9fb 0%, #eef2f7 100%);
+        color: var(--text);
+        font-family: "Segoe UI", sans-serif;
+    }
+
+    .embarque-page {
+        max-width: 1280px;
+        margin: 2rem auto;
+        padding: 0 1rem 2rem;
+    }
+
+    .page-header {
+        background: linear-gradient(135deg, var(--primary) 0%, #6d0000 55%, #2c0000 100%);
+        color: #fff;
+        border-radius: var(--radius-xl);
+        padding: 1.4rem 1.5rem;
+        box-shadow: var(--shadow-md);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+
+    .page-header-left {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .header-icon {
+        width: 58px;
+        height: 58px;
+        border-radius: 16px;
+        display: grid;
+        place-items: center;
+        background: rgba(255,255,255,.14);
+        border: 1px solid rgba(255,255,255,.18);
+        font-size: 1.5rem;
+    }
+
+    .page-title {
+        margin: 0;
+        font-size: 1.6rem;
+        font-weight: 800;
+        line-height: 1.1;
+    }
+
+    .page-subtitle {
+        margin: .3rem 0 0;
+        color: rgba(255,255,255,.85);
+        font-size: .95rem;
+    }
+
+    .page-header-right {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        flex-wrap: wrap;
+    }
+
+    .header-chip {
+        background: rgba(255,255,255,.12);
+        border: 1px solid rgba(255,255,255,.18);
+        border-radius: 999px;
+        padding: .55rem .9rem;
+        font-size: .92rem;
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+    }
+
+    .btn-top {
+        border: none;
+        border-radius: 999px;
+        padding: .72rem 1rem;
+        font-weight: 700;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        transition: var(--transition);
+    }
+
+    .btn-top-light {
+        background: #fff;
+        color: var(--primary);
+    }
+
+        .btn-top-light:hover {
+            transform: translateY(-1px);
+            color: var(--primary-dark);
+        }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0,1fr));
+        gap: 1rem;
+        margin: 1.1rem 0 1.3rem;
+    }
+
+    .summary-card {
+        background: rgba(255,255,255,.75);
+        backdrop-filter: blur(6px);
+        border: 1px solid rgba(255,255,255,.85);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-sm);
+        padding: 1rem 1.1rem;
+        display: flex;
+        align-items: center;
+        gap: .9rem;
+    }
+
+    .summary-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 12px;
+        background: var(--primary-soft);
+        color: var(--primary);
+        display: grid;
+        place-items: center;
+        font-size: 1.1rem;
+        flex-shrink: 0;
+    }
+
+    .summary-label {
+        font-size: .82rem;
+        text-transform: uppercase;
+        letter-spacing: .6px;
+        color: var(--text-soft);
+        margin-bottom: .2rem;
+        font-weight: 700;
+    }
+
+    .summary-value {
+        font-size: 1.4rem;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    .content-grid {
+        display: grid;
+        grid-template-columns: 1.1fr .9fr;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .card-ui {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-sm);
+        overflow: hidden;
+    }
+
+    .card-head {
+        padding: 1rem 1.2rem;
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(180deg, #fff 0%, #fafafb 100%);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .8rem;
+        flex-wrap: wrap;
+    }
+
+    .card-title {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+    }
+
+        .card-title i {
+            color: var(--primary);
+        }
+
+    .card-sub {
+        color: var(--text-soft);
+        font-size: .88rem;
+        margin-top: .2rem;
+    }
+
+    .card-body {
+        padding: 1.2rem;
+    }
+
+    .floating-toolbar {
+        position: sticky;
+        top: 70px;
+        z-index: 20;
+        margin-bottom: 1rem;
+        background: rgba(255,255,255,.88);
+        border: 1px solid var(--border);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        box-shadow: var(--shadow-sm);
+        padding: .75rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .75rem;
+        flex-wrap: wrap;
+    }
+
+    .toolbar-left,
+    .toolbar-right {
+        display: flex;
+        align-items: center;
+        gap: .65rem;
+        flex-wrap: wrap;
+    }
+
+    .btn-ui {
+        border: none;
+        border-radius: 12px;
+        padding: .8rem 1rem;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: .55rem;
+        transition: var(--transition);
+        cursor: pointer;
+    }
+
+    .btn-primary-ui {
+        background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+        color: #fff;
+        box-shadow: 0 8px 18px rgba(139,0,0,.18);
+    }
+
+        .btn-primary-ui:hover {
+            transform: translateY(-1px);
+        }
+
+    .btn-soft {
+        background: #fff;
+        color: var(--text);
+        border: 1px solid var(--border);
+    }
+
+        .btn-soft:hover {
+            background: #f9fafb;
+        }
+
+    .form-label-ui {
+        font-weight: 700;
+        margin-bottom: .55rem;
+        display: block;
+        color: var(--text);
+    }
+
+    .hint-text {
+        font-size: .88rem;
+        color: var(--text-soft);
+        margin-top: .5rem;
+    }
+
+    .textarea-ui,
+    .input-search,
+    .input-text-ui,
+    .input-file-ui {
+        width: 100%;
+        border: 1.5px solid var(--border);
+        border-radius: 12px;
+        padding: .9rem 1rem;
+        font-size: .95rem;
+        background: #fff;
+        transition: var(--transition);
+        outline: none;
+    }
+
+    .textarea-ui {
+        min-height: 170px;
+        resize: vertical;
+    }
+
+        .textarea-ui:focus,
+        .input-search:focus,
+        .input-text-ui:focus,
+        .input-file-ui:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(139,0,0,.08);
+        }
+
+    .upload-box {
+        border: 2px dashed #d7dce3;
+        border-radius: 16px;
+        background: linear-gradient(180deg, #fff 0%, #fafafa 100%);
+        padding: 1rem;
+    }
+
+    .table-card {
+        margin-top: 1rem;
+    }
+
+    .table-tools {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .8rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+
+    .table-meta {
+        font-size: .9rem;
+        color: var(--text-soft);
+        font-weight: 600;
+    }
+
+    .search-wrap {
+        position: relative;
+        min-width: 280px;
+        flex: 1;
+        max-width: 360px;
+    }
+
+        .search-wrap i {
+            position: absolute;
+            left: .9rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-soft);
+        }
+
+    .input-search {
+        padding-left: 2.5rem;
+    }
+
+    .table-scroll {
+        max-height: 430px;
+        overflow: auto;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+    }
+
+    .table-ui {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        min-width: 760px;
+    }
+
+        .table-ui thead th {
+            position: sticky;
+            top: 0;
+            background: #fcfcfd;
+            z-index: 2;
+            font-size: .78rem;
+            text-transform: uppercase;
+            letter-spacing: .6px;
+            color: var(--text-soft);
+            padding: 1rem .95rem;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+
+        .table-ui tbody td {
+            padding: .95rem;
+            border-bottom: 1px solid #eef1f4;
+            vertical-align: middle;
+        }
+
+        .table-ui tbody tr {
+            transition: var(--transition);
+        }
+
+            .table-ui tbody tr:hover {
+                background: #fafbfd;
+            }
+
+    .id-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 56px;
+        padding: .35rem .65rem;
+        background: var(--primary-soft);
+        color: var(--primary);
+        border-radius: 999px;
+        font-weight: 800;
+        font-size: .88rem;
+    }
+
+    .empty-note {
+        text-align: center;
+        padding: 2rem 1rem;
+        color: var(--text-soft);
+    }
+
+    .check-ui {
+        appearance: none;
+        width: 22px;
+        height: 22px;
+        border: 2px solid var(--primary);
+        border-radius: 7px;
+        background: #fff;
+        position: relative;
+        cursor: pointer;
+        transition: var(--transition);
+        vertical-align: middle;
+    }
+
+        .check-ui:hover {
+            transform: scale(1.03);
+            box-shadow: 0 0 0 4px rgba(139,0,0,.06);
+        }
+
+        .check-ui:checked {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border-color: var(--primary-dark);
+        }
+
+            .check-ui:checked::after {
+                content: "✓";
+                position: absolute;
+                left: 4px;
+                top: -1px;
+                color: #fff;
+                font-size: 14px;
+                font-weight: 800;
+            }
+
+    .section-divider {
+        margin-top: 1.1rem;
+    }
+
+    .alert {
+        border-radius: 14px;
+    }
+
+    @@media (max-width: 992px) {
+        .summary-grid,
+        .content-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .embarque-page {
+            padding: 0 .7rem 1.5rem;
+        }
+
+        .page-header {
+            padding: 1.1rem;
+        }
+
+        .page-title {
+            font-size: 1.3rem;
+        }
+
+
+        .floating-toolbar {
+            top: 6px;
+        }
+
+        .table-scroll {
+            max-height: 360px;
+            overflow: auto;
+        }
+
+        .table-ui {
+            min-width: 680px;
+        }
+
+        .table-ui {
+            min-width: 680px;
+        }
+    }
+
+    @@media (max-width: 580px) {
+        .page-header-left {
+            align-items: flex-start;
+        }
+
+        .header-icon {
+            width: 50px;
+            height: 50px;
+            font-size: 1.2rem;
+        }
+
+        .summary-card,
+        .card-head,
+        .card-body {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+
+        .search-wrap {
+            max-width: 100%;
+            min-width: 100%;
+        }
+
+        .table-scroll {
+            max-height: 480px;
+        }
+    }
+
+    .filters-grid {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: .8rem;
+        margin-bottom: 1rem;
+        align-items: end;
+    }
+
+    .filter-field label {
+        display: block;
+        font-size: .82rem;
+        font-weight: 700;
+        color: var(--text-soft);
+        margin-bottom: .45rem;
+    }
+
+    .filter-field input,
+    .filter-field select {
+        width: 100%;
+        border: 1.5px solid var(--border);
+        border-radius: 12px;
+        padding: .8rem .95rem;
+        font-size: .92rem;
+        background: #fff;
+        outline: none;
+        transition: var(--transition);
+    }
+
+        .filter-field input:focus,
+        .filter-field select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(139,0,0,.08);
+        }
+
+    .filter-actions {
+        display: flex;
+        gap: .6rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+
+    .result-counter {
+        font-size: .9rem;
+        color: var(--text-soft);
+        font-weight: 700;
+        margin-bottom: .8rem;
+    }
+
+    @@media (max-width: 1100px) {
+        .filters-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @@media (max-width: 640px) {
+        .filters-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .content-grid .card-ui {
+        grid-column: 1 / -1;
+    }
+
+    @@media (max-width: 768px) {
+        .table-scroll {
+            max-height: 520px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: .75rem;
+            background: #f8f9fb;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .table-ui {
+            min-width: 0 !important;
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+            .table-ui thead {
+                display: none;
+            }
+
+            .table-ui tbody {
+                display: flex;
+                flex-direction: column;
+                gap: .85rem;
+            }
+
+                .table-ui tbody tr {
+                    display: grid;
+                    grid-template-columns: 1fr;
+                    gap: .45rem;
+                    background: #fff;
+                    border: 1px solid var(--border);
+                    border-radius: 16px;
+                    padding: 1rem;
+                    box-shadow: var(--shadow-sm);
+                }
+
+                .table-ui tbody td {
+                    border-bottom: none;
+                    padding: .25rem 0;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    gap: 1rem;
+                    text-align: right;
+                    font-size: .92rem;
+                }
+
+                    .table-ui tbody td::before {
+                        content: attr(data-label);
+                        font-size: .78rem;
+                        font-weight: 800;
+                        color: var(--text-soft);
+                        text-transform: uppercase;
+                        letter-spacing: .4px;
+                        text-align: left;
+                        flex-shrink: 0;
+                    }
+
+                    .table-ui tbody td:first-child {
+                        background: var(--bg-muted);
+                        border-radius: 12px;
+                        padding: .75rem;
+                        margin-bottom: .25rem;
+                    }
+
+                        .table-ui tbody td:first-child::before {
+                            color: var(--primary);
+                        }
+
+        .check-ui {
+            width: 26px;
+            height: 26px;
+        }
+
+        .id-badge {
+            min-width: auto;
+        }
+
+        .empty-note {
+            display: block !important;
+            text-align: center !important;
+            padding: 1.5rem 1rem !important;
+        }
+
+        .table-ui tbody tr:has(.empty-note) {
+            display: block;
+        }
+    }
+
+    .form-grid-embarque {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .char-counter {
+        font-size: .82rem;
+        color: var(--text-soft);
+        font-weight: 700;
+        margin-top: .35rem;
+        text-align: right;
+    }
+
+    /* ============================================================
+       DARK MODE - CREAR EMBARQUE
+============================================================ */
+
+body[data-theme="dark"] {
+    --primary: #ef4444;
+    --primary-dark: #991b1b;
+    --primary-soft: rgba(127,29,29,0.24);
+    --accent: #f87171;
+
+    --bg-main: #0f172a;
+    --bg-card: #111827;
+    --bg-muted: #172033;
+    --text: #f9fafb;
+    --text-soft: #cbd5e1;
+    --border: rgba(255,255,255,0.12);
+    --border-strong: rgba(203,213,225,0.28);
+
+    --success: #22c55e;
+
+    --shadow-sm: 0 10px 26px rgba(0,0,0,.34);
+    --shadow-md: 0 18px 42px rgba(0,0,0,.46);
+}
+
+/* Fondo general */
+body[data-theme="dark"] {
+    background: #0f172a !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .layout-main-content {
+    background: #0f172a !important;
+}
+
+body[data-theme="dark"] .layout-main-content .layout-container-fluid {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+body[data-theme="dark"] .embarque-page {
+    color: #e5e7eb !important;
+}
+
+/* Header */
+body[data-theme="dark"] .page-header {
+    background: linear-gradient(135deg, #7f1d1d 0%, #450a0a 55%, #111827 100%) !important;
+    border: 1px solid rgba(248,113,113,0.22) !important;
+    box-shadow: var(--shadow-md) !important;
+}
+
+body[data-theme="dark"] .header-icon {
+    background: rgba(255,255,255,.10) !important;
+    border-color: rgba(255,255,255,.14) !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .page-title {
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .page-subtitle {
+    color: #fecaca !important;
+}
+
+body[data-theme="dark"] .header-chip {
+    background: rgba(255,255,255,.10) !important;
+    border-color: rgba(255,255,255,.16) !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .btn-top-light {
+    background: #0b1220 !important;
+    color: #fca5a5 !important;
+    border: 1px solid rgba(248,113,113,0.35) !important;
+}
+
+body[data-theme="dark"] .btn-top-light:hover {
+    background: rgba(248,113,113,0.14) !important;
+    color: #ffffff !important;
+}
+
+/* Summary cards */
+body[data-theme="dark"] .summary-card {
+    background: rgba(17,24,39,.94) !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+body[data-theme="dark"] .summary-icon {
+    background: rgba(127,29,29,0.24) !important;
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .summary-label {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .summary-value {
+    color: #f9fafb !important;
+}
+
+/* Toolbar flotante */
+body[data-theme="dark"] .floating-toolbar {
+    background: rgba(17,24,39,.94) !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+/* Cards */
+body[data-theme="dark"] .card-ui {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+body[data-theme="dark"] .card-head {
+    background: linear-gradient(180deg, #1f2937 0%, #172033 100%) !important;
+    color: #e5e7eb !important;
+    border-bottom-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .card-title {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .card-title i {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .card-sub {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .card-body {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+}
+
+/* Corrige header-chip con style inline dentro de card-head */
+body[data-theme="dark"] .card-head .header-chip {
+    background: #0b1220 !important;
+    color: #fca5a5 !important;
+    border-color: rgba(248,113,113,0.35) !important;
+}
+
+/* Botones */
+body[data-theme="dark"] .btn-primary-ui {
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 60%, #7f1d1d 100%) !important;
+    color: #ffffff !important;
+    box-shadow: 0 10px 22px rgba(0,0,0,.28) !important;
+}
+
+body[data-theme="dark"] .btn-primary-ui:hover {
+    color: #ffffff !important;
+    box-shadow: 0 14px 28px rgba(0,0,0,.34) !important;
+}
+
+body[data-theme="dark"] .btn-soft {
+    background: #0b1220 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+body[data-theme="dark"] .btn-soft:hover {
+    background: rgba(248,113,113,0.14) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.55) !important;
+}
+
+/* Labels / textos */
+body[data-theme="dark"] .form-label-ui,
+body[data-theme="dark"] .filter-field label {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .hint-text,
+body[data-theme="dark"] .table-meta,
+body[data-theme="dark"] .result-counter,
+body[data-theme="dark"] .char-counter {
+    color: #cbd5e1 !important;
+}
+
+/* Inputs / textarea / selects */
+body[data-theme="dark"] .textarea-ui,
+body[data-theme="dark"] .input-search,
+body[data-theme="dark"] .input-text-ui,
+body[data-theme="dark"] .input-file-ui,
+body[data-theme="dark"] .filter-field input,
+body[data-theme="dark"] .filter-field select,
+body[data-theme="dark"] input,
+body[data-theme="dark"] select,
+body[data-theme="dark"] textarea {
+    background: #0b1220 !important;
+    color: #f9fafb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+    box-shadow: none !important;
+}
+
+body[data-theme="dark"] .textarea-ui:focus,
+body[data-theme="dark"] .input-search:focus,
+body[data-theme="dark"] .input-text-ui:focus,
+body[data-theme="dark"] .input-file-ui:focus,
+body[data-theme="dark"] .filter-field input:focus,
+body[data-theme="dark"] .filter-field select:focus,
+body[data-theme="dark"] input:focus,
+body[data-theme="dark"] select:focus,
+body[data-theme="dark"] textarea:focus {
+    background: #0f172a !important;
+    color: #ffffff !important;
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 4px rgba(239,68,68,.22) !important;
+    outline: none !important;
+}
+
+body[data-theme="dark"] .textarea-ui::placeholder,
+body[data-theme="dark"] .input-search::placeholder,
+body[data-theme="dark"] .input-text-ui::placeholder,
+body[data-theme="dark"] input::placeholder,
+body[data-theme="dark"] textarea::placeholder {
+    color: #94a3b8 !important;
+    opacity: 1 !important;
+}
+
+body[data-theme="dark"] select,
+body[data-theme="dark"] .filter-field select {
+    color-scheme: dark;
+}
+
+body[data-theme="dark"] select option {
+    background: #111827 !important;
+    color: #f9fafb !important;
+}
+
+/* Search icon */
+body[data-theme="dark"] .search-wrap i {
+    color: #94a3b8 !important;
+}
+
+/* Upload */
+body[data-theme="dark"] .upload-box {
+    background: linear-gradient(180deg, #172033 0%, #111827 100%) !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+/* Alertas */
+body[data-theme="dark"] .alert-danger {
+    background: rgba(153,27,27,0.30) !important;
+    color: #fecaca !important;
+    border-color: rgba(248,113,113,0.48) !important;
+}
+
+body[data-theme="dark"] .alert-success {
+    background: rgba(22,101,52,0.26) !important;
+    color: #bbf7d0 !important;
+    border-color: rgba(74,222,128,0.40) !important;
+}
+
+body[data-theme="dark"] .alert {
+    box-shadow: var(--shadow-sm) !important;
+}
+
+/* Tablas */
+body[data-theme="dark"] .table-scroll {
+    background: #111827 !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    scrollbar-color: rgba(248,113,113,0.42) #0f172a;
+}
+
+body[data-theme="dark"] .table-ui {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .table-ui thead th {
+    background: linear-gradient(180deg, #1f2937 0%, #172033 100%) !important;
+    color: #f9fafb !important;
+    border-bottom-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .table-ui tbody td {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-bottom-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .table-ui tbody tr:hover td {
+    background: rgba(248,113,113,0.09) !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .id-badge {
+    background: rgba(127,29,29,0.24) !important;
+    color: #fca5a5 !important;
+    border: 1px solid rgba(248,113,113,0.35) !important;
+}
+
+body[data-theme="dark"] .empty-note {
+    color: #cbd5e1 !important;
+}
+
+/* Checkboxes custom */
+body[data-theme="dark"] .check-ui {
+    background: #0b1220 !important;
+    border-color: #ef4444 !important;
+}
+
+body[data-theme="dark"] .check-ui:hover {
+    box-shadow: 0 0 0 4px rgba(239,68,68,.16) !important;
+}
+
+body[data-theme="dark"] .check-ui:checked {
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%) !important;
+    border-color: #ef4444 !important;
+}
+
+/* Mobile table cards */
+@@media (max-width: 768px) {
+    body[data-theme="dark"] .table-scroll {
+        background: #0f172a !important;
+        border-color: rgba(255,255,255,0.12) !important;
+    }
+
+    body[data-theme="dark"] .table-ui tbody tr {
+        background: #111827 !important;
+        border-color: rgba(255,255,255,0.12) !important;
+        box-shadow: 0 8px 22px rgba(0,0,0,.32) !important;
+    }
+
+    body[data-theme="dark"] .table-ui tbody td {
+        background: transparent !important;
+        color: #e5e7eb !important;
+    }
+
+    body[data-theme="dark"] .table-ui tbody td::before {
+        color: #94a3b8 !important;
+    }
+
+    body[data-theme="dark"] .table-ui tbody td:first-child {
+        background: #172033 !important;
+    }
+
+    body[data-theme="dark"] .table-ui tbody td:first-child::before {
+        color: #fca5a5 !important;
+    }
+
+    body[data-theme="dark"] .page-header,
+    body[data-theme="dark"] .summary-card,
+    body[data-theme="dark"] .floating-toolbar,
+    body[data-theme="dark"] .card-ui {
+        box-shadow: 0 8px 22px rgba(0,0,0,.32) !important;
+    }
+}
+
+/* Scrollbars */
+body[data-theme="dark"] .table-scroll::-webkit-scrollbar,
+body[data-theme="dark"] textarea::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+}
+
+body[data-theme="dark"] .table-scroll::-webkit-scrollbar-track,
+body[data-theme="dark"] textarea::-webkit-scrollbar-track {
+    background: #0f172a;
+}
+
+body[data-theme="dark"] .table-scroll::-webkit-scrollbar-thumb,
+body[data-theme="dark"] textarea::-webkit-scrollbar-thumb {
+    background: rgba(248,113,113,0.42);
+    border-radius: 999px;
+}
+
+</style>
+
+<div class="embarque-page">
+
+    <div class="page-header">
+        <div class="page-header-left">
+            <div class="header-icon">
+                <i class="bi bi-truck"></i>
+            </div>
+            <div>
+                <h1 class="page-title">Crear Embarque</h1>
+                <div class="page-subtitle">
+                    Prepara el embarque y selecciona las órdenes o transferencias a integrar.
+                    La documentación se cargará posteriormente en un módulo separado.
+                </div>
+            </div>
+        </div>
+
+        <div class="page-header-right">
+            <span class="header-chip">
+                <i class="bi bi-calendar3"></i>
+                @DateTime.Now.ToShortDateString()
+            </span>
+
+            <a class="btn-top btn-top-light" href="@Url.Action("Embarque", "Embarques")">
+                <i class="bi bi-arrow-left-circle"></i> Volver
+            </a>
+        </div>
+    </div>
+
+    <div class="summary-grid">
+        <div class="summary-card">
+            <div class="summary-icon">
+                <i class="bi bi-bag-check"></i>
+            </div>
+            <div>
+                <div class="summary-label">Órdenes disponibles</div>
+                <div class="summary-value">@totalOV</div>
+            </div>
+        </div>
+
+        <div class="summary-card">
+            <div class="summary-icon">
+                <i class="bi bi-arrow-left-right"></i>
+            </div>
+            <div>
+                <div class="summary-label">Transferencias disponibles</div>
+                <div class="summary-value">@totalTR</div>
+            </div>
+        </div>
+
+        <div class="summary-card">
+            <div class="summary-icon">
+                <i class="bi bi-file-earmark-arrow-up"></i>
+            </div>
+            <div>
+                <div class="summary-label">Carga posterior</div>
+                <div class="summary-value" style="font-size:1.05rem;">Documentación</div>
+            </div>
+        </div>
+    </div>
+
+    <form asp-action="Crear" method="post">
+
+        <div class="floating-toolbar">
+            <div class="toolbar-left">
+                <button type="submit" class="btn-ui btn-primary-ui">
+                    <i class="bi bi-save"></i>
+                    Crear Embarque
+                </button>
+            </div>
+
+            <div class="toolbar-right">
+                <button type="button" class="btn-ui btn-soft" onclick="irASeccion('seccionOV')">
+                    <i class="bi bi-bag-check"></i>
+                    Ir a OV
+                </button>
+
+                <button type="button" class="btn-ui btn-soft" onclick="irASeccion('seccionTR')">
+                    <i class="bi bi-arrow-left-right"></i>
+                    Ir a Transferencias
+                </button>
+            </div>
+        </div>
+
+        <div class="content-grid">
+            <div class="card-ui">
+                <div class="card-head">
+                    <div>
+                        <div class="card-title">
+                            <i class="bi bi-tag"></i>
+                            Identificación del Embarque
+                        </div>
+                        <div class="card-sub">
+                            Agrega un nombre fácil de reconocer para identificar este embarque además del consecutivo.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-body">
+                    <div class="form-grid-embarque">
+
+                        <div>
+                            <label class="form-label-ui" for="nombreEmbarque">
+                                Nombre del embarque
+                            </label>
+
+                            <input type="text"
+                                   id="nombreEmbarque"
+                                   name="nombreEmbarque"
+                                   class="input-text-ui"
+                                   maxlength="150"
+                                   placeholder="Ejemplo: Ruta León - Cliente Walmart - Carga urgente"
+                                   autocomplete="off" />
+
+                            <div class="char-counter">
+                                <span id="contadorNombreEmbarque">0</span>/150
+                            </div>
+
+                            <div class="hint-text">
+                                Este nombre es opcional, pero ayudará a buscar e identificar el embarque más rápido.
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="form-label-ui" for="observaciones">
+                                Notas del embarque
+                            </label>
+
+                            <textarea class="textarea-ui"
+                                      id="observaciones"
+                                      name="observaciones"
+                                      placeholder="Ejemplo: condiciones de salida, observaciones del transporte, comentarios para validación, etc."></textarea>
+
+                            <div class="hint-text">
+                                Este campo es opcional, pero ayuda a dejar evidencia clara del embarque.
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger shadow-sm">@TempData["Error"]</div>
+        }
+
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success shadow-sm">@TempData["Success"]</div>
+        }
+
+        <div class="card-ui table-card scroll-target" id="seccionOV">
+            <div class="card-head">
+                <div>
+                    <div class="card-title">
+                        <i class="bi bi-list-check"></i>
+                        Órdenes disponibles
+                    </div>
+                    <div class="card-sub">
+                        Selecciona las órdenes de venta que formarán parte del embarque.
+                    </div>
+                </div>
+                <span class="header-chip" style="color:var(--text); background:#fff; border:1px solid var(--border);">
+                    Total: @totalOV
+                </span>
+            </div>
+
+            <div class="card-body">
+                <div class="table-tools">
+                    <div class="table-meta">Listado de órdenes listo para selección</div>
+                </div>
+
+                <div class="filters-grid" id="filtrosOV">
+                    <div class="filter-field">
+                        <label for="buscarOV">Búsqueda general</label>
+                        <input type="text" id="buscarOV" class="input-search" placeholder="Cliente, consecutivo o ruta..." autocomplete="off" />
+                    </div>
+
+                    <div class="filter-field">
+                        <label for="filtroClienteOV">Cliente</label>
+                        <input type="text" id="filtroClienteOV" placeholder="Filtrar por cliente..." autocomplete="off" />
+                    </div>
+
+                    <div class="filter-field">
+                        <label for="filtroConsecutivoOV">Consecutivo</label>
+                        <input type="text" id="filtroConsecutivoOV" placeholder="Filtrar por consecutivo..." autocomplete="off" />
+                    </div>
+
+                    <div class="filter-field">
+                        <label for="filtroRutaOV">Ruta</label>
+                        <input type="text" id="filtroRutaOV" placeholder="Filtrar por ruta..." autocomplete="off" />
+                    </div>
+
+                    <div class="filter-field">
+                        <label for="soloSeleccionadasOV">Mostrar</label>
+                        <select id="soloSeleccionadasOV">
+                            <option value="todas">Todas</option>
+                            <option value="seleccionadas">Solo seleccionadas</option>
+                            <option value="noseleccionadas">Solo no seleccionadas</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="filter-actions">
+                    <button type="button" class="btn-ui btn-soft" onclick="limpiarFiltrosOV()">
+                        <i class="bi bi-eraser"></i>
+                        Limpiar filtros
+                    </button>
+                </div>
+
+                <div class="result-counter" id="contadorOV">Mostrando 0 registros</div>
+
+                <div class="table-scroll">
+                    <table class="table-ui" id="tablaOV">
+                        <thead>
+                            <tr>
+                                <th style="width:70px;">Sel.</th>
+                                <th>ID</th>
+                                <th>Cliente</th>
+                                <th>Consecutivo</th>
+                                <th>Ruta</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model != null && Model.Any())
+                            {
+                                @foreach (var ov in Model)
+                                {
+                                    <tr data-cliente="@ov.NombreCliente"
+                                        data-consecutivo="@ov.Consecutivo"
+                                        data-ruta="@ov.Ruta">
+                                        <td data-label="Seleccionar">
+                                            <input type="checkbox"
+                                                   class="check-ui"
+                                                   name="ordenesSeleccionadas"
+                                                   value="@ov.Id" />
+                                        </td>
+                                        <td data-label="ID"><span class="id-badge">#@ov.Id</span></td>
+                                        <td data-label="Cliente">@ov.NombreCliente</td>
+                                        <td data-label="Consecutivo">@ov.Consecutivo</td>
+                                        <td data-label="Ruta">@ov.Ruta</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="5" class="empty-note">
+                                        No hay órdenes disponibles para mostrar.
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-ui table-card section-divider scroll-target" id="seccionTR">
+            <div class="card-head">
+                <div>
+                    <div class="card-title">
+                        <i class="bi bi-arrow-left-right"></i>
+                        Transferencias disponibles
+                    </div>
+                    <div class="card-sub">
+                        Selecciona las transferencias que también se incluirán en el embarque.
+                    </div>
+                </div>
+                <span class="header-chip" style="color:var(--text); background:#fff; border:1px solid var(--border);">
+                    Total: @totalTR
+                </span>
+            </div>
+
+            <div class="card-body">
+                <div class="table-tools">
+                    <div class="table-meta">Listado de transferencias listo para selección</div>
+                </div>
+
+                <div class="filters-grid" id="filtrosTR">
+                    <div class="filter-field">
+                        <label for="buscarTR">Búsqueda general</label>
+                        <input type="text" id="buscarTR" class="input-search" placeholder="Sucursal, consecutivo o fecha..." />
+                    </div>
+
+                    <div class="filter-field">
+                        <label for="filtroSucursalTR">Sucursal</label>
+                        <input type="text" id="filtroSucursalTR" placeholder="Filtrar por sucursal..." />
+                    </div>
+
+                    <div class="filter-field">
+                        <label for="filtroConsecutivoTR">Consecutivo</label>
+                        <input type="text" id="filtroConsecutivoTR" placeholder="Filtrar por consecutivo..." />
+                    </div>
+
+                    <div class="filter-field">
+                        <label for="filtroFechaTR">Fecha</label>
+                        <input type="text" id="filtroFechaTR" placeholder="Ej. 15/04/2026" />
+                    </div>
+
+                    <div class="filter-field">
+                        <label for="soloSeleccionadasTR">Mostrar</label>
+                        <select id="soloSeleccionadasTR">
+                            <option value="todas">Todas</option>
+                            <option value="seleccionadas">Solo seleccionadas</option>
+                            <option value="noseleccionadas">Solo no seleccionadas</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="filter-actions">
+                    <button type="button" class="btn-ui btn-soft" onclick="limpiarFiltrosTR()">
+                        <i class="bi bi-eraser"></i>
+                        Limpiar filtros
+                    </button>
+                </div>
+
+                <div class="result-counter" id="contadorTR">Mostrando 0 registros</div>
+
+                <div class="table-scroll">
+                    <table class="table-ui" id="tablaTR">
+                        <thead>
+                            <tr>
+                                <th style="width:70px;">Sel.</th>
+                                <th>ID</th>
+                                <th>Sucursal</th>
+                                <th>Consecutivo</th>
+                                <th>Fecha Solicitud</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (transferencias.Any())
+                            {
+                                @foreach (var tr in transferencias)
+                                {
+                                    <tr data-sucursal="@tr.Sucursal"
+                                        data-consecutivo="@tr.Consecutivo"
+                                        data-fecha="@tr.FechaSolicitud?.ToShortDateString()">
+                                        <td data-label="Seleccionar">
+                                            <input type="checkbox"
+                                                   class="check-ui"
+                                                   name="transferenciasSeleccionadas"
+                                                   value="@tr.Id" />
+                                        </td>
+                                        <td data-label="ID"><span class="id-badge">#@tr.Id</span></td>
+                                        <td data-label="Sucursal">@tr.Sucursal</td>
+                                        <td data-label="Consecutivo">@tr.Consecutivo</td>
+                                        <td data-label="Fecha">@tr.FechaSolicitud?.ToShortDateString()</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="5" class="empty-note">
+                                        No hay transferencias disponibles para mostrar.
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+
+    function irASeccion(id) {
+        const seccion = document.getElementById(id);
+
+        if (!seccion) {
+            console.warn("No se encontró la sección:", id);
+            return;
+        }
+
+        const toolbar = document.querySelector(".floating-toolbar");
+        const toolbarHeight = toolbar ? toolbar.offsetHeight : 0;
+
+        const extraOffset = 18;
+
+        const posicion =
+            seccion.getBoundingClientRect().top +
+            window.pageYOffset -
+            toolbarHeight -
+            extraOffset;
+
+        window.scrollTo({
+            top: posicion,
+            behavior: "smooth"
+        });
+    }
+
+    function normalizar(valor) {
+        return (valor || "").toString().trim().toLowerCase();
+    }
+
+    function actualizarContador(tableId, counterId) {
+        const table = document.getElementById(tableId);
+        const counter = document.getElementById(counterId);
+        if (!table || !counter) return;
+
+        const filas = [...table.querySelectorAll("tbody tr")]
+            .filter(f => !f.querySelector(".empty-note") && f.style.display !== "none");
+
+        counter.textContent = `Mostrando ${filas.length} registro(s)`;
+    }
+
+    function filtrarOV() {
+        const table = document.getElementById("tablaOV");
+        if (!table) return;
+
+        const general = normalizar(document.getElementById("buscarOV").value);
+        const cliente = normalizar(document.getElementById("filtroClienteOV").value);
+        const consecutivo = normalizar(document.getElementById("filtroConsecutivoOV").value);
+        const ruta = normalizar(document.getElementById("filtroRutaOV").value);
+        const modo = document.getElementById("soloSeleccionadasOV").value;
+
+        const filas = table.querySelectorAll("tbody tr");
+
+        filas.forEach(fila => {
+            if (fila.querySelector(".empty-note")) return;
+
+            const txtCliente = normalizar(fila.dataset.cliente);
+            const txtConsecutivo = normalizar(fila.dataset.consecutivo);
+            const txtRuta = normalizar(fila.dataset.ruta);
+            const textoCompleto = normalizar(fila.innerText);
+            const check = fila.querySelector('input[type="checkbox"]');
+            const seleccionada = check ? check.checked : false;
+
+            const cumpleGeneral = !general || textoCompleto.includes(general);
+            const cumpleCliente = !cliente || txtCliente.includes(cliente);
+            const cumpleConsecutivo = !consecutivo || txtConsecutivo.includes(consecutivo);
+            const cumpleRuta = !ruta || txtRuta.includes(ruta);
+
+            let cumpleSeleccion = true;
+            if (modo === "seleccionadas") cumpleSeleccion = seleccionada;
+            if (modo === "noseleccionadas") cumpleSeleccion = !seleccionada;
+
+            fila.style.display =
+                cumpleGeneral &&
+                cumpleCliente &&
+                cumpleConsecutivo &&
+                cumpleRuta &&
+                cumpleSeleccion
+                    ? ""
+                    : "none";
+        });
+
+        actualizarContador("tablaOV", "contadorOV");
+    }
+
+    function filtrarTR() {
+        const table = document.getElementById("tablaTR");
+        if (!table) return;
+
+        const general = normalizar(document.getElementById("buscarTR").value);
+        const sucursal = normalizar(document.getElementById("filtroSucursalTR").value);
+        const consecutivo = normalizar(document.getElementById("filtroConsecutivoTR").value);
+        const fecha = normalizar(document.getElementById("filtroFechaTR").value);
+        const modo = document.getElementById("soloSeleccionadasTR").value;
+
+        const filas = table.querySelectorAll("tbody tr");
+
+        filas.forEach(fila => {
+            if (fila.querySelector(".empty-note")) return;
+
+            const txtSucursal = normalizar(fila.dataset.sucursal);
+            const txtConsecutivo = normalizar(fila.dataset.consecutivo);
+            const txtFecha = normalizar(fila.dataset.fecha);
+            const textoCompleto = normalizar(fila.innerText);
+            const check = fila.querySelector('input[type="checkbox"]');
+            const seleccionada = check ? check.checked : false;
+
+            const cumpleGeneral = !general || textoCompleto.includes(general);
+            const cumpleSucursal = !sucursal || txtSucursal.includes(sucursal);
+            const cumpleConsecutivo = !consecutivo || txtConsecutivo.includes(consecutivo);
+            const cumpleFecha = !fecha || txtFecha.includes(fecha);
+
+            let cumpleSeleccion = true;
+            if (modo === "seleccionadas") cumpleSeleccion = seleccionada;
+            if (modo === "noseleccionadas") cumpleSeleccion = !seleccionada;
+
+            fila.style.display =
+                cumpleGeneral &&
+                cumpleSucursal &&
+                cumpleConsecutivo &&
+                cumpleFecha &&
+                cumpleSeleccion
+                    ? ""
+                    : "none";
+        });
+
+        actualizarContador("tablaTR", "contadorTR");
+    }
+
+    function limpiarFiltrosOV() {
+        document.getElementById("buscarOV").value = "";
+        document.getElementById("filtroClienteOV").value = "";
+        document.getElementById("filtroConsecutivoOV").value = "";
+        document.getElementById("filtroRutaOV").value = "";
+        document.getElementById("soloSeleccionadasOV").value = "todas";
+        filtrarOV();
+    }
+
+    function limpiarFiltrosTR() {
+        document.getElementById("buscarTR").value = "";
+        document.getElementById("filtroSucursalTR").value = "";
+        document.getElementById("filtroConsecutivoTR").value = "";
+        document.getElementById("filtroFechaTR").value = "";
+        document.getElementById("soloSeleccionadasTR").value = "todas";
+        filtrarTR();
+    }
+
+    function enlazarEventosOV() {
+        ["buscarOV", "filtroClienteOV", "filtroConsecutivoOV", "filtroRutaOV", "soloSeleccionadasOV"]
+            .forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener("input", filtrarOV);
+                    el.addEventListener("change", filtrarOV);
+                }
+            });
+
+        document.querySelectorAll('#tablaOV input[type="checkbox"]').forEach(chk => {
+            chk.addEventListener("change", filtrarOV);
+        });
+    }
+
+    function enlazarEventosTR() {
+        ["buscarTR", "filtroSucursalTR", "filtroConsecutivoTR", "filtroFechaTR", "soloSeleccionadasTR"]
+            .forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener("input", filtrarTR);
+                    el.addEventListener("change", filtrarTR);
+                }
+            });
+
+        document.querySelectorAll('#tablaTR input[type="checkbox"]').forEach(chk => {
+            chk.addEventListener("change", filtrarTR);
+        });
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        enlazarEventosOV();
+        enlazarEventosTR();
+
+        document.getElementById("buscarOV").value = "";
+        document.getElementById("filtroClienteOV").value = "";
+        document.getElementById("filtroConsecutivoOV").value = "";
+        document.getElementById("filtroRutaOV").value = "";
+        document.getElementById("soloSeleccionadasOV").value = "todas";
+
+        document.getElementById("buscarTR").value = "";
+        document.getElementById("filtroSucursalTR").value = "";
+        document.getElementById("filtroConsecutivoTR").value = "";
+        document.getElementById("filtroFechaTR").value = "";
+        document.getElementById("soloSeleccionadasTR").value = "todas";
+
+        filtrarOV();
+        filtrarTR();
+    });
+
+    window.addEventListener("pageshow", function () {
+        filtrarOV();
+        filtrarTR();
+    });
+
+    const inputNombreEmbarque = document.getElementById("nombreEmbarque");
+    const contadorNombreEmbarque = document.getElementById("contadorNombreEmbarque");
+
+    if (inputNombreEmbarque && contadorNombreEmbarque) {
+        inputNombreEmbarque.addEventListener("input", function () {
+            contadorNombreEmbarque.textContent = this.value.length;
+        });
+    }
+</script>

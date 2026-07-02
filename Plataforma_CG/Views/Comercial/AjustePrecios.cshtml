@@ -1,0 +1,993 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Simulador y Ajuste de Precios por SKU";
+}
+
+<style>
+    :root {
+        --bg: #f0dede;
+        --panel: #f8eeee;
+        --panel-2: #f1dede;
+        --line: #c79d9d;
+        --text: #3b1717;
+        --white: #ffffff;
+        --font: Tahoma, sans-serif;
+    }
+
+    .app-shell {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        font-family: var(--font);
+        font-size: 11px;
+        color: var(--text);
+        background: var(--bg);
+        min-height: 85vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+        .app-shell * {
+            box-sizing: border-box;
+        }
+
+    /* ENCABEZADO */
+    .module-header {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-bottom: 1px solid #4a0000;
+        padding: 10px 15px;
+        box-shadow: 0 4px 8px rgba(0,0,0,.15);
+        position: sticky;
+        top: 0;
+        z-index: 100;
+    }
+
+    .header-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 15px;
+        flex-wrap: wrap;
+    }
+
+    .brand {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .brand-mark {
+        width: 30px;
+        height: 30px;
+        display: grid;
+        place-items: center;
+        background: rgba(255,255,255,.15);
+        border: 1px solid rgba(255,255,255,.25);
+        font-weight: bold;
+        font-size: 14px;
+        color: #fff;
+        border-radius: 2px;
+    }
+
+    .brand h1 {
+        font-size: 14px;
+        margin: 0;
+        font-weight: bold;
+        color: #fff;
+    }
+
+    .brand small {
+        display: block;
+        color: #f4d7d7;
+        font-size: 10px;
+        margin-top: 2px;
+    }
+
+    .module-main {
+        padding: 12px;
+        flex: 1;
+    }
+
+    /* BOTONES */
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 26px;
+        padding: 0 12px;
+        border: 1px solid #7a2d2d;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 100%);
+        color: #fff;
+        font-size: 11px;
+        font-weight: bold;
+        cursor: pointer;
+        text-decoration: none;
+    }
+
+        .btn:hover {
+            filter: brightness(1.1);
+        }
+
+    .btn-sec {
+        background: linear-gradient(#fff, #ecd7d7);
+        border-color: #9a5a5a;
+        color: #4a1111;
+    }
+
+        .btn-sec:hover {
+            background: #fff;
+            color: #000;
+        }
+
+    .btn-green {
+        background: linear-gradient(180deg, #1f9a54 0%, #166534 100%);
+        border-color: #14532d;
+        color: #fff !important;
+    }
+
+    .btn-log {
+        background: linear-gradient(#fff, #fef08a);
+        border-color: #ca8a04;
+        color: #854d0e;
+    }
+
+        .btn-log:hover {
+            background: #fef08a;
+            color: #000;
+        }
+
+    /* CONTENEDORES Y REJILLAS */
+    .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        padding: 10px;
+        margin-bottom: 10px;
+    }
+
+    .card-title {
+        font-size: 11px;
+        font-weight: bold;
+        color: #fff;
+        background: #8b0000;
+        padding: 4px 8px;
+        margin: -10px -10px 10px -10px;
+        border-bottom: 1px solid #5c0000;
+    }
+
+    .grid-superior {
+        display: grid;
+        grid-template-columns: 1fr 220px;
+        gap: 10px;
+        align-items: end;
+    }
+
+    .split-layout {
+        display: grid;
+        grid-template-columns: 1fr 310px;
+        gap: 12px;
+        align-items: start;
+    }
+
+    .panel-lateral {
+        position: sticky;
+        top: 58px;
+        background: var(--panel);
+        height: calc(100vh - 240px);
+        display: flex;
+        flex-direction: column;
+    }
+
+    label {
+        display: block;
+        color: #5c1a1a;
+        font-weight: bold;
+        margin-bottom: 3px;
+        font-size: 10px;
+        text-transform: uppercase;
+    }
+
+    input, select {
+        width: 100%;
+        border: 1px solid #b48787;
+        background: #fffdfd;
+        color: #111;
+        font-size: 11px;
+        height: 24px;
+        padding: 1px 6px;
+        outline: none;
+    }
+
+        input:focus, select:focus {
+            border-color: #8b0000;
+            background: #fff;
+        }
+
+    /* TABLAS */
+    /* TABLAS */
+    .table-wrap { 
+        width: 100%; 
+        border: 1px solid var(--line); 
+        background: #fffafa; 
+        height: calc(100vh - 240px); /* Ajuste dinámico que calcula el espacio sobrante */
+        overflow-y: auto; 
+    }
+
+    table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    th, td {
+        padding: 5px 8px;
+        text-align: left;
+        border-bottom: 1px solid #d8bcbc;
+        border-right: 1px solid #d8bcbc;
+    }
+
+    th {
+        background: #8b0000;
+        color: #fff;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        border-right-color: #6b0000;
+        font-weight: bold;
+    }
+
+    tbody tr:nth-child(even) td {
+        background: #f9eded;
+    }
+
+    tbody tr:hover td {
+        background: #f2d6d6;
+    }
+
+    .caja-tags {
+        flex: 1;
+        overflow-y: auto;
+        background: #fff;
+        border: 1px solid var(--line);
+        padding: 4px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-height: 50px;
+    }
+    /* INDICADORES */
+    .input-precio {
+        width: 85px;
+        text-align: right;
+        font-family: Consolas, monospace;
+        font-size: 11px;
+        font-weight: bold;
+        color: #000;
+    }
+
+    .badge-dif {
+        display: inline-block;
+        padding: 1px 5px;
+        font-family: Consolas, monospace;
+        font-size: 10px;
+        font-weight: bold;
+        border-radius: 2px;
+    }
+
+    .b-up {
+        background: #dcfce7;
+        color: #14532d;
+        border: 1px solid #86efac;
+    }
+
+    .b-down {
+        background: #fee2e2;
+        color: #991b1b;
+        border: 1px solid #fca5a5;
+    }
+
+    .b-zero {
+        background: #f1f5f9;
+        color: #64748b;
+        border: 1px solid #cbd5e1;
+    }
+
+    /* MODAL DE AUDITORIA */
+    .modal-backdrop-custom {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,.6);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 15px;
+        z-index: 1900;
+    }
+
+        .modal-backdrop-custom.show {
+            display: flex;
+        }
+
+    .modal-custom {
+        background: var(--bg);
+        border: 1px solid #8b0000;
+        max-width: 860px;
+        width: 100%;
+        max-height: 88vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 10px 30px rgba(0,0,0,.3);
+    }
+
+    .modal-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 12px;
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%);
+        border-bottom: 1px solid #5c0000;
+        color: #fff;
+        flex-shrink: 0;
+    }
+
+        .modal-head h3 {
+            margin: 0;
+            color: #fff;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+    .link-sku {
+        color: #8b0000;
+        font-weight: 900;
+        text-decoration: underline;
+        cursor: pointer;
+    }
+
+        .link-sku:hover {
+            color: #b30000;
+        }
+
+    .toast {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        background: #3b1717;
+        color: #fff;
+        padding: 8px 14px;
+        border: 1px solid #8b0000;
+        font-weight: bold;
+        opacity: 0;
+        transition: 0.25s;
+        pointer-events: none;
+        z-index: 2000;
+    }
+
+        .toast.show {
+            opacity: 1;
+        }
+</style>
+
+<div class="app-shell">
+    <header class="module-header">
+        <div class="header-content">
+            <div class="brand">
+                <div class="brand-mark">$</div>
+                <div>
+                    <h1> Ajuste de Precios SKU</h1>
+                </div>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <label style="color: #fff; margin: 0; font-size: 11px;">Planta:</label>
+                <select id="selPlanta" style="width: 70px; height: 26px; font-weight: bold;" onchange="cambiarPlanta()">
+                    <option value="TIF">TIF</option>
+                    <option value="P1">P1</option>
+                </select>
+
+                <input type="file" id="inputCargaMasiva" accept=".csv" style="display: none;" onchange="procesarArchivoCSV(event)">
+                <button type="button" class="btn btn-sec" onclick="qs('#inputCargaMasiva').click()">Cargar CSV</button>
+                <button type="button" class="btn btn-log" onclick="abrirBitacoraGeneral()">Bitácora general</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="module-main">
+        <div class="card">
+            <div class="grid-superior" style="grid-template-columns: 1fr 160px 220px;">
+                <div>
+                    <label>Buscar por código SKU o descripción del producto</label>
+                    <input type="text" id="filtroTexto" placeholder="Teclee para filtrar la lista en tiempo real..." autocomplete="off">
+                </div>
+                <div>
+                    <label>Filtrar por Categoría</label>
+                    <select id="filtroMaster" onchange="aplicarFiltrosTabla()">
+                        <option value="todas">Todas las categorías</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Filtrar por estatus de edición</label>
+                    <select id="filtroEstado" onchange="aplicarFiltrosTabla()">
+                        <option value="todos">Mostrar todo el listado</option>
+                        <option value="modificados">Solo artículos modificados</option>
+                        <option value="sin_cambio">Solo artículos sin alterar</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="split-layout">
+
+            <div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 28px; text-align: center;"><input type="checkbox" id="chkMaster" onclick="toggleTodosPagina(this)"></th>
+                                <th style="width: 70px;">SKU</th>
+                                <th>Descripción SAP</th>
+                                <th style="width: 100px;">Categoría</th>
+                                <th style="width: 85px; text-align: right;">Base ($)</th>
+                                <th style="width: 95px; text-align: right;">Nuevo ($)</th>
+                                <th style="width: 120px; text-align: center;">Variación</th>
+                                <th style="width: 125px; text-align: center;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaBody">
+                            <tr><td colspan="7" style="text-align: center;">Estableciendo conexión con SQL Server...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="paginador">
+                    <button type="button" class="btn btn-sec" onclick="cambiarPagina(-1)">Anterior</button>
+                    <span class="pag-texto" id="lblPaginacion">Página 1 de 1</span>
+                    <button type="button" class="btn btn-sec" onclick="cambiarPagina(1)">Siguiente</button>
+                </div>
+            </div>
+
+            <div class="card panel-lateral">
+                <div class="card-title">Operación Masiva</div>
+                <div style="display: flex; flex-direction: column; flex: 1; gap: 8px; min-height: 0;">
+                    <div>
+                        <label>Acción matemática</label>
+                        <select id="opTipo">
+                            <option value="sumar">Sumar monto fijo (+$)</option>
+                            <option value="restar">Restar monto fijo (-$)</option>
+                            <option value="fijar">Establecer precio fijo (=)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Cantidad en pesos</label>
+                        <input type="number" step="0.01" id="opValor" placeholder="Ej. 15.50">
+                    </div>
+
+                    <button type="button" class="btn" style="width: 100%;" onclick="aplicarCalculoMasivo()">Impactar marcados</button>
+
+                    <hr style="border: 0; border-top: 1px dashed var(--line); margin: 2px 0;">
+
+                    <div style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                            <label style="margin: 0;">Previsualizar Selección</label>
+                            <span id="kpiSeleccionados" style="font-size: 9px; font-weight: bold; color: #8b0000;">0 activos</span>
+                        </div>
+                        <div id="contenedorTags" class="caja-tags"></div>
+                    </div>
+
+                    <div style="background: var(--panel-2); border: 1px solid var(--line); padding: 6px; text-align: center;">
+                        <span style="display: block; font-size: 9px; color: #5c1a1a; font-weight: bold; text-transform: uppercase;">Modificados en sesión</span>
+                        <strong id="kpiModificados" style="font-size: 15px; color: #8b0000; display: block; margin-top: 2px;">0 / 0</strong>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                        <button type="button" class="btn btn-sec" style="height: 28px; font-size: 10px;" onclick="deshacerMasivo()">Deshacer masivo</button>
+                        <button type="button" class="btn btn-green" id="btnGuardarMasivo" style="height: 28px; font-size: 10px;" onclick="guardarMasivoOficial()">Guardar masivo</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+</div>
+
+<div class="modal-backdrop-custom" id="modalLogPrecios" onclick="cerrarModalLog(event)">
+    <div class="modal-custom">
+        <div class="modal-head">
+            <h3 id="txtTituloModalLog">Centro de Auditoría de Precios </h3>
+            <button type="button" class="btn btn-sec" style="height:22px;" onclick="qs('#modalLogPrecios').classList.remove('show')">Cerrar</button>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 130px 100px 120px 110px; gap: 8px; margin-bottom: 10px; background: var(--panel-2); padding: 8px; border: 1px solid var(--line);">
+            <div>
+                <label style="color:#111;">Rastrear por código SKU</label>
+                <input type="text" id="inputBuscarSkuLog" placeholder="Ej. 2201" style="height: 25px;" onkeydown="siEsEnterBuscar(event)">
+            </div>
+            <div>
+                <label style="color:#111;">Mes (Opcional)</label>
+                <input type="month" id="inputMesLog" style="height: 25px;">
+            </div>
+            <div>
+                <label style="color:#111;">Planta</label>
+                <select id="inputPlantaLog" style="height: 25px;" onchange="abrirBitacoraGeneral()">
+                    <option value="TODAS">Ambas</option>
+                    <option value="TIF">TIF</option>
+                    <option value="P1">P1</option>
+                </select>
+            </div>
+            <div style="align-self: end;">
+                <button type="button" class="btn" style="width:100%; height:25px;" onclick="ejecutarRastreoProfundo()">Rastrear SKU</button>
+            </div>
+            <div style="align-self: end;">
+                <button type="button" class="btn btn-sec" style="width:100%; height:25px;" onclick="abrirBitacoraGeneral()">Log General</button>
+            </div>
+        </div>
+
+            <div id="bannerResumenHistorial" style="display: none; background: #fefce8; border: 1px solid #fef08a; padding: 8px 12px; margin-bottom: 10px; color: #713f12;"></div>
+
+            <div class="table-wrap" style="flex: 1; max-height: 56vh;">
+                <table style="margin:0; width:100%;">
+                <thead>
+                    <tr>
+                        <th style="width: 130px;">Fecha / Hora</th>
+                        <th style="width: 50px; text-align: center;">Planta</th>
+                        <th style="width: 65px;">SKU</th>
+                        <th>Usuario responsable</th>
+                        <th style="text-align: right; width: 85px;">Anterior</th>
+                        <th style="text-align: right; width: 85px;">Nuevo</th>
+                        <th style="text-align: center; width: 95px;">Impacto</th>
+                    </tr>
+                </thead>
+                    <tbody id="modalLogBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+@section Scripts {
+    <script>
+        const qs = s => document.querySelector(s);
+        const qsa = s => Array.from(document.querySelectorAll(s));
+
+        let catalogoOriginal = [];
+        let inventarioTrabajo = [];
+
+        let indicesFiltrados = [];
+        let skusSeleccionados = new Set();
+
+        let paginaActual = 1;
+        const itemsPorPagina = 100;
+
+                        async function descargarPreciosCommerciaNet() {
+            const tbody = qs('#tablaBody');
+            const planta = qs('#selPlanta').value; // Leer planta activa
+
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">Conectando con base ' + planta + '...</td></tr>';
+
+            try {
+                const res = await fetch(`@Url.Action("ObtenerPreciosGuadalajara", "Comercial")?planta=${planta}`);
+                const data = await res.json();
+                if (data.ok === false) throw new Error(data.mensaje);
+
+                if (Array.isArray(data) && data.length > 0) {
+                    catalogoOriginal = data.map(x => ({
+                        Sku: x.Sku || x.sku || '',
+                        Nombre: x.Nombre || x.nombre || '',
+                        CategoriaMaster: x.CategoriaMaster || x.categoriaMaster || '(SIN MASTER)',
+                        Precio: Number(x.Precio || x.precio || 0)
+                    }));
+
+                    const categoriasUnicas = [...new Set(catalogoOriginal.map(x => x.CategoriaMaster))].sort();
+                    const selectMaster = qs('#filtroMaster');
+                    selectMaster.innerHTML = '<option value="todas">Todas las categorías</option>' +
+                        categoriasUnicas.map(c => `<option value="${c}">${c}</option>`).join('');
+
+                    inventarioTrabajo = JSON.parse(JSON.stringify(catalogoOriginal));
+                    aplicarFiltrosTabla();
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px;">0 registros en planta ' + planta + '.</td></tr>';
+                }
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:20px; color:#b30000;">Error SQL: ${e.message}</td></tr>`;
+            }
+        }
+
+                        function dibujarTabla() {
+            const body = qs('#tablaBody');
+            const totalPaginas = Math.ceil(indicesFiltrados.length / itemsPorPagina) || 1;
+            if(paginaActual > totalPaginas) paginaActual = totalPaginas;
+            const inicio = (paginaActual - 1) * itemsPorPagina;
+            const indicesBloque = indicesFiltrados.slice(inicio, inicio + itemsPorPagina);
+
+            if(indicesBloque.length === 0) {
+                body.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:15px; color:#666;">No hay coincidencias de búsqueda.</td></tr>';
+            } else {
+                body.innerHTML = indicesBloque.map(idx => {
+                    const prod = inventarioTrabajo[idx];
+                    const base = catalogoOriginal[idx].Precio;
+                    const dif = prod.Precio - base;
+                    const pct = base > 0 ? ((dif / base) * 100).toFixed(1) : 0;
+
+                    let badge = '<span class="badge-dif b-zero">$0.00 (0%)</span>';
+                    if (dif > 0) badge = `<span class="badge-dif b-up">+$${dif.toFixed(2)} (+${pct}%)</span>`;
+                    if (dif < 0) badge = `<span class="badge-dif b-down">-$${Math.abs(dif).toFixed(2)} (${pct}%)</span>`;
+                    const isChecked = skusSeleccionados.has(idx) ? 'checked' : '';
+
+                    return `
+                        <tr class="fila-producto" data-idx="${idx}">
+                            <td style="text-align: center;"><input type="checkbox" class="chk-fila" ${isChecked} onchange="toggleSeleccionUnitaria(${idx}, this.checked)"></td>
+                            <td><b>${prod.Sku}</b></td>
+                            <td class="texto-desc">${prod.Nombre}</td>
+                            <td style="color: #4a1111; font-weight: bold; font-size: 10px;">${prod.CategoriaMaster}</td>
+                            <td style="text-align: right; color: #666; font-family: Consolas;">$${base.toFixed(2)}</td>
+                            <td style="text-align: right;">
+                                <input type="number" step="0.01" class="input-precio" value="${prod.Precio.toFixed(2)}" oninput="cambioManualVisual(${idx}, this.value)" />
+                            </td>
+                            <td style="text-align: center;" class="celda-dif">${badge}</td>
+                            <td style="text-align: center; white-space: nowrap;">
+                                <button type="button" class="btn btn-green" style="height:20px; padding:0 6px; font-size:10px;" onclick="guardarFilaIndividual(${idx})">Guardar</button>
+                                <button type="button" class="btn btn-sec" style="height:20px; padding:0 5px; font-size:10px;" onclick="restaurarFila(${idx})">Deshacer</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            qs('#lblPaginacion').textContent = `Página ${paginaActual} de ${totalPaginas}`;
+            qs('#chkMaster').checked = indicesBloque.length > 0 && indicesBloque.every(idx => skusSeleccionados.has(idx));
+            actualizarMetricas();
+            actualizarBandejaTagsUI();
+        }
+
+        function cambiarPagina(salto) {
+            const totalPaginas = Math.ceil(indicesFiltrados.length / itemsPorPagina) || 1;
+            paginaActual += salto;
+            if (paginaActual < 1) paginaActual = 1;
+            if (paginaActual > totalPaginas) paginaActual = totalPaginas;
+            dibujarTabla();
+        }
+
+                function aplicarFiltrosTabla() {
+            const texto = qs('#filtroTexto').value.toLowerCase().trim();
+            const estado = qs('#filtroEstado').value;
+            const master = qs('#filtroMaster').value;
+            indicesFiltrados = [];
+
+            inventarioTrabajo.forEach((prod, idx) => {
+                const pasaTexto = prod.Nombre.toLowerCase().includes(texto) || prod.Sku.toLowerCase().includes(texto);
+                const cambiado = catalogoOriginal[idx].Precio !== prod.Precio;
+
+                let pasaEstado = true;
+                if(estado === 'modificados') pasaEstado = cambiado;
+                if(estado === 'sin_cambio') pasaEstado = !cambiado;
+
+                let pasaMaster = true;
+                if(master !== 'todas') pasaMaster = prod.CategoriaMaster === master;
+
+                // Deben cumplirse los tres filtros
+                if(pasaTexto && pasaEstado && pasaMaster) {
+                    indicesFiltrados.push(idx);
+                }
+            });
+
+            paginaActual = 1;
+            dibujarTabla();
+        }
+
+        function cambioManualVisual(idx, valEscribido) {
+            const num = parseFloat(valEscribido) || 0;
+            inventarioTrabajo[idx].Precio = num;
+            const base = catalogoOriginal[idx].Precio;
+            const dif = num - base;
+            const pct = base > 0 ? ((dif / base) * 100).toFixed(1) : 0;
+
+            let badge = '<span class="badge-dif b-zero">$0.00 (0%)</span>';
+            if (dif > 0) badge = `<span class="badge-dif b-up">+$${dif.toFixed(2)} (+${pct}%)</span>`;
+            if (dif < 0) badge = `<span class="badge-dif b-down">-$${Math.abs(dif).toFixed(2)} (${pct}%)</span>`;
+
+            const row = qs(`tr[data-idx="${idx}"]`);
+            if(row) row.querySelector('.celda-dif').innerHTML = badge;
+
+            actualizarMetricas();
+            actualizarBandejaTagsUI();
+        }
+
+        function toggleSeleccionUnitaria(idx, isChecked) {
+            if(isChecked) skusSeleccionados.add(idx);
+            else skusSeleccionados.delete(idx);
+
+            const inicio = (paginaActual - 1) * itemsPorPagina;
+            const indicesBloque = indicesFiltrados.slice(inicio, inicio + itemsPorPagina);
+            qs('#chkMaster').checked = indicesBloque.every(i => skusSeleccionados.has(i));
+
+            actualizarBandejaTagsUI();
+        }
+
+        function toggleTodosPagina(master) {
+            const inicio = (paginaActual - 1) * itemsPorPagina;
+            const indicesBloque = indicesFiltrados.slice(inicio, inicio + itemsPorPagina);
+
+            if(master.checked) {
+                indicesBloque.forEach(idx => skusSeleccionados.add(idx));
+            } else {
+                indicesBloque.forEach(idx => skusSeleccionados.delete(idx));
+            }
+
+            dibujarTabla();
+        }
+
+                function actualizarBandejaTagsUI() {
+            const cont = qs('#contenedorTags');
+            qs('#kpiSeleccionados').textContent = `${skusSeleccionados.size} activos`;
+
+            if (skusSeleccionados.size === 0) {
+                cont.innerHTML = '<span style="color:#999; font-size:11px; padding:6px;">Ninguno seleccionado</span>';
+                return;
+            }
+
+            const v = parseFloat(qs('#opValor').value) || 0;
+            const operacion = qs('#opTipo').value;
+
+            cont.innerHTML = Array.from(skusSeleccionados).map(idx => {
+                const prod = inventarioTrabajo[idx];
+                const base = catalogoOriginal[idx].Precio;
+
+                let precioSimulado = prod.Precio;
+                if (v > 0) {
+                    if (operacion === 'sumar') precioSimulado = base + v;
+                    else if (operacion === 'restar') precioSimulado = base - v;
+                    else if (operacion === 'fijar') precioSimulado = v; // LÓGICA DE PRECIO FIJO
+
+                    precioSimulado = Math.round(precioSimulado * 100) / 100;
+                    if (precioSimulado < 0) precioSimulado = 0;
+                }
+
+                const dif = precioSimulado - base;
+                let colorTxt = '#64748b';
+                let signo = '';
+                if (dif > 0) { colorTxt = '#166534'; signo = '+'; }
+                if (dif < 0) { colorTxt = '#991b1b'; }
+
+                return `
+                    <div style="display:flex; justify-content:space-between; align-items:center; width:100%; background:#fff; border:1px solid var(--line); padding:6px 8px; font-size:13px; font-family:Consolas, monospace; margin-bottom:4px;">
+                        <span style="font-weight:bold; color:#3b1717;">${prod.Sku}</span>
+                        <span style="color:#777;">$${base.toFixed(2)}</span>
+                        <span style="font-size:14px;">&rarr; <b style="color:#111;">$${precioSimulado.toFixed(2)}</b></span>
+                        <span style="color:${colorTxt}; font-weight:bold; font-size:12px;">(${signo}${dif.toFixed(2)})</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        qs('#opValor').addEventListener('input', actualizarBandejaTagsUI);
+        qs('#opTipo').addEventListener('change', actualizarBandejaTagsUI);
+
+        function aplicarCalculoMasivo() {
+            if(skusSeleccionados.size === 0) { mostrarToast("Seleccione al menos un artículo"); return; }
+            const v = parseFloat(qs('#opValor').value);
+            if(isNaN(v) || v <= 0) { mostrarToast("Escriba un monto mayor a cero"); return; }
+            const operacion = qs('#opTipo').value;
+
+            skusSeleccionados.forEach(idx => {
+                let calc = catalogoOriginal[idx].Precio;
+                if (operacion === 'sumar') calc = calc + v;
+                else if (operacion === 'restar') calc = calc - v;
+                else if (operacion === 'fijar') calc = v; // APLICACIÓN DE PRECIO FIJO
+
+                calc = Math.round(calc * 100) / 100;
+                if(calc < 0) calc = 0;
+                inventarioTrabajo[idx].Precio = calc;
+            });
+
+            dibujarTabla();
+            mostrarToast("Monto aplicado a selección");
+        }
+
+        function deshacerMasivo() {
+            if(skusSeleccionados.size === 0) return;
+            skusSeleccionados.forEach(idx => { inventarioTrabajo[idx].Precio = catalogoOriginal[idx].Precio; });
+            dibujarTabla();
+            mostrarToast("Selección revertida");
+        }
+
+
+        // --- LOGS SIGO ---
+
+                async function abrirBitacoraGeneral() {
+            qs('#txtTituloModalLog').textContent = "Tráfico General de Ajustes de Precios";
+            qs('#bannerResumenHistorial').style.display = 'none';
+            qs('#inputBuscarSkuLog').value = '';
+
+            const plantaFiltro = qs('#inputPlantaLog').value || 'TODAS';
+            const body = qs('#modalLogBody');
+            body.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:15px;">Descargando bitácora...</td></tr>';
+            qs('#modalLogPrecios').classList.add('show');
+
+            try {
+                const res = await fetch(`@Url.Action("ObtenerLogGeneralPrecios", "Comercial")?planta=${plantaFiltro}`);
+                const data = await res.json();
+                pintarFilasLog(data, false);
+            } catch(e) {
+                body.innerHTML = '<tr><td colspan="7" style="text-align:center; color:red;">Error al conectar con SIGO.</td></tr>';
+            }
+        }
+
+                async function ejecutarRastreoProfundo(skuDirecto = null) {
+            const sku = skuDirecto || qs('#inputBuscarSkuLog').value.trim();
+            if(!sku) { mostrarToast("Escriba un SKU para rastrear"); return; }
+
+            const inputMes = qs('#inputMesLog').value;
+            const plantaFiltro = qs('#inputPlantaLog').value;
+            let paramMes = '', paramAnio = '', tituloExtra = '';
+
+            if (inputMes) {
+                const partes = inputMes.split('-');
+                paramAnio = partes[0]; paramMes = partes[1];
+                tituloExtra = ` - Periodo: ${paramMes}/${paramAnio}`;
+            }
+
+            qs('#inputBuscarSkuLog').value = sku;
+            qs('#txtTituloModalLog').textContent = `Línea de Tiempo Cronológica: SKU ${sku}${tituloExtra}`;
+
+            const body = qs('#modalLogBody');
+            const banner = qs('#bannerResumenHistorial');
+            banner.style.display = 'none';
+            body.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:15px;">Rastreando historial en SIGO...</td></tr>';
+            qs('#modalLogPrecios').classList.add('show');
+
+            try {
+                let url = `@Url.Action("ObtenerHistorialProfundoSku", "Comercial")?sku=${encodeURIComponent(sku)}&planta=${plantaFiltro}`;
+                if (paramMes && paramAnio) url += `&mes=${paramMes}&anio=${paramAnio}`;
+
+                const res = await fetch(url);
+                const data = await res.json();
+
+                if (Array.isArray(data) && data.length > 0) {
+                    const precioActual = data[0].PrecioNuevo;
+                    const precioMasViejo = data[data.length - 1].PrecioAnterior;
+                    const difAbsoluta = precioActual - precioMasViejo;
+                    const pctAbsoluto = precioMasViejo > 0 ? ((difAbsoluta / precioMasViejo) * 100).toFixed(1) : 0;
+                    const colorTxt = difAbsoluta >= 0 ? '#166534' : '#991b1b';
+                    const signo = difAbsoluta > 0 ? '+' : '';
+
+                    banner.innerHTML = `
+                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                            <div><b>Evolución del SKU:</b> Registra <b>${data.length}</b> cambios.</div>
+                            <div style="font-size:12px;">Variación acumulada: <b style="color:${colorTxt}; font-family:Consolas;">${signo}$${difAbsoluta.toFixed(2)} (${signo}${pctAbsoluto}%)</b></div>
+                        </div>
+                    `;
+                    banner.style.display = 'block';
+                }
+                pintarFilasLog(data, true);
+            } catch(e) { body.innerHTML = '<tr><td colspan="7" style="text-align:center; color:red;">Fallo de red al buscar historial.</td></tr>'; }
+        }
+
+        function pintarFilasLog(lista, esModoSku) {
+            const body = qs('#modalLogBody');
+            if(!lista || !lista.length) { body.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#666; padding:15px;">No hay registros de auditoría para mostrar.</td></tr>'; return; }
+
+            body.innerHTML = lista.map(log => {
+                const dif = log.PrecioNuevo - log.PrecioAnterior;
+                let txtMove = '<span style="color:#64748b;">$0.00</span>';
+                if(dif > 0) txtMove = `<b style="color:#166534;">+$${dif.toFixed(2)}</b>`;
+                if(dif < 0) txtMove = `<b style="color:#991b1b;">-$${Math.abs(dif).toFixed(2)}</b>`;
+
+                const celdaSku = esModoSku
+                    ? `<b style="color:#8b0000;">${log.Sku}</b>`
+                    : `<span class="link-sku" onclick="ejecutarRastreoProfundo('${log.Sku}')" title="Rastrear este SKU">${log.Sku}</span>`;
+
+                const fechaFormateada = new Date(log.FechaHora).toLocaleString('es-MX', {
+                    day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit'
+                });
+
+                const badgePlanta = log.Planta === 'P1' ? '<span style="background:#2563eb; color:#fff; padding:2px 4px; border-radius:2px; font-size:9px;">P1</span>' :
+                                    (log.Planta === 'TIF' ? '<span style="background:#dc2626; color:#fff; padding:2px 4px; border-radius:2px; font-size:9px;">TIF</span>' : log.Planta);
+
+                return `
+                    <tr>
+                        <td style="color:#222; font-weight:bold;">${fechaFormateada}</td>
+                        <td style="text-align:center;">${badgePlanta}</td>
+                        <td>${celdaSku}</td>
+                        <td>${log.Usuario}</td>
+                        <td style="text-align:right; color:#666; font-family:Consolas;">$${log.PrecioAnterior.toFixed(2)}</td>
+                        <td style="text-align:right; font-weight:bold; font-family:Consolas; background-color:#fef08a;">$${log.PrecioNuevo.toFixed(2)}</td>
+                        <td style="text-align:center;">${txtMove}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function siEsEnterBuscar(e) { if(e.key === 'Enter') { e.preventDefault(); ejecutarRastreoProfundo(); } }
+
+
+                async function guardarMasivoOficial() {
+            const listos = inventarioTrabajo.filter((prod, i) => prod.Precio !== catalogoOriginal[i].Precio).map(x => ({ Sku: x.Sku, Precio: x.Precio }));
+            if (!listos.length) { mostrarToast("No hay precios alterados para enviar"); return; }
+            const planta = qs('#selPlanta').value;
+            if (!confirm(`¿Impactar ${listos.length} precios en ${planta} y auditar en SIGO?`)) return;
+
+            const btn = qs('#btnGuardarMasivo');
+            if(btn) { btn.disabled = true; btn.textContent = "..."; }
+
+            try {
+                // Enviar parametro planta en la URL
+                const res = await fetch(`@Url.Action("GuardarPreciosMasivo", "Comercial")?planta=${planta}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(listos)
+                });
+                const data = await res.json();
+                if (data.ok) { mostrarToast("Cambios guardados en " + planta); skusSeleccionados.clear(); descargarPreciosCommerciaNet(); } else { alert("Error: " + data.mensaje); }
+            } catch(e) { alert("Error de red"); }
+            finally { if(btn) { btn.disabled = false; btn.textContent = "Guardar masivo"; } }
+        }
+
+        async function guardarFilaIndividual(idx) {
+            const prod = inventarioTrabajo[idx];
+            if(prod.Precio === catalogoOriginal[idx].Precio) return;
+            const planta = qs('#selPlanta').value;
+            try {
+                const res = await fetch(`@Url.Action("GuardarPreciosMasivo", "Comercial")?planta=${planta}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify([{ Sku: prod.Sku, Precio: prod.Precio }])
+                });
+                const data = await res.json();
+                if(data.ok) {
+                    mostrarToast("SKU guardado en " + planta);
+                    skusSeleccionados.delete(idx);
+                    descargarPreciosCommerciaNet();
+                } else { alert(data.mensaje); }
+            } catch(e) { mostrarToast("Error de conexión"); }
+        }
+
+                function procesarArchivoCSV(e) {
+            const archivo = e.target.files[0];
+            if (!archivo) return;
+
+            const lector = new FileReader();
+            lector.onload = function(evt) {
+                const texto = evt.target.result;
+                const lineas = texto.split(/\r\n|\n/);
+                let aplicados = 0;
+
+                for (let i = 0; i < lineas.length; i++) {
+                    const columnas = lineas[i].split(',');
+                    if (columnas.length >= 2) {
+                        const skuFila = columnas[0].trim();
+                        const precioFila = parseFloat(columnas[1].trim());
+
+                        if (skuFila && !isNaN(precioFila) && precioFila >= 0) {
+                            const idx = inventarioTrabajo.findIndex(p => p.Sku === skuFila);
+                            if (idx !== -1) {
+                                inventarioTrabajo[idx].Precio = precioFila;
+                                skusSeleccionados.add(idx);
+                                aplicados++;
+                            }
+                        }
+                    }
+                }
+
+                qs('#inputCargaMasiva').value = '';
+                dibujarTabla();
+                mostrarToast(`Precios cargados: ${aplicados}. Recuerde Guardar Masivo.`);
+            };
+
+            lector.readAsText(archivo);
+        }
+                function cambiarPlanta() {
+            skusSeleccionados.clear();
+            descargarPreciosCommerciaNet();
+            mostrarToast("Cambiando a planta: " + qs('#selPlanta').value);
+        }
+        // --- UTILIDADES ---
+
+        function cerrarModalLog(e) { if(e.target.id === 'modalLogPrecios') qs('#modalLogPrecios').classList.remove('show'); }
+        function actualizarMetricas() { qs('#kpiModificados').textContent = `${inventarioTrabajo.filter((p, i) => p.Precio !== catalogoOriginal[i].Precio).length} / ${inventarioTrabajo.length}`; }
+        function restaurarFila(idx) { inventarioTrabajo[idx].Precio = catalogoOriginal[idx].Precio; dibujarTabla(); }
+        function mostrarToast(t) { const b = qs('#toast'); b.textContent = t; b.classList.add('show'); setTimeout(()=>b.classList.remove('show'), 2200); }
+
+        qs('#filtroTexto').addEventListener('input', aplicarFiltrosTabla);
+
+        descargarPreciosCommerciaNet();
+    </script>
+}

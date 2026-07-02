@@ -1,0 +1,2179 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    @* @RenderSection("Scripts", required: false) *@
+    @RenderSection("Styles", required: false)
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SIGO | Sistema Integral De Gestión Operativa</title>
+    <link rel="icon" type="image/png" href="~/images/ico_sigo.ico" />
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.css" />
+    <link rel="stylesheet" href="~/fonts/fonts.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap-icons/fonts/bootstrap-icons.css" />
+   @*  <link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" /> *@
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+
+    <style>
+
+        @@font-face {
+            font-family: "SAP72";
+            src: url("/fonts/sap/72-Regular-full.woff2") format("woff2");
+            font-weight: 200;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        /* ========================================
+           VARIABLES CSS DEL LAYOUT
+        ======================================== */
+       :root {
+    --layout-brand: linear-gradient(90deg, #8B0000 0%, #5a0000 50%, #1a0000 100%);
+    --layout-brand-solid: #8B0000;
+    --layout-brand-hover: rgba(255,255,255,.12);
+
+    --layout-navbar-height: 64px;
+    --layout-sidebar-width: clamp(210px, 16vw, 250px);
+
+    --layout-txt: #fff;
+    --layout-bg: #f0f2f5;
+    --layout-panel: #fff;
+    --layout-line: #d8dce3;
+    --layout-radius: 8px;
+    --layout-shadow: 0 6px 16px rgba(0,0,0,.1);
+
+    --manual-brand: #8B0000;
+    --manual-brand-light: #a50000;
+    --manual-sidebar-width: clamp(220px, 17vw, 280px);
+
+    --sidebar-font-size: clamp(10.8px, 0.72vw, 12.2px);
+    --sidebar-icon-size: clamp(11.5px, 0.78vw, 13.5px);
+    --sidebar-item-padding-y: clamp(5px, 0.45vw, 7px);
+    --sidebar-item-padding-x: clamp(8px, 0.7vw, 11px);
+    --sidebar-gap: 6px;
+}
+
+        /* ========================================
+           ESTILOS GENERALES
+        ======================================== */
+        .layout-body {
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+            font-family: "SAP72", Inter, system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+        }
+
+        /* ========================================
+           NAVBAR
+        ======================================== */
+        .layout-navbar {
+            background: var(--layout-brand) !important;
+            height: var(--layout-navbar-height) !important;
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            width: 100%;
+            z-index: 1020;
+            padding: 0 !important;
+            display: flex;
+            align-items: center;
+        }
+
+        .layout-navbar-container {
+            width: 100%;
+            height: 100%;
+            padding: 0 18px !important;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        body.Operaciones.PlaneadorProduccion .layout-main-content .layout-container-fluid {
+            max-width: none !important;
+            background: transparent !important;
+            padding: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+        }
+
+        .layout-navbar-brand {
+    display: flex !important;
+    align-items: center !important;
+    height: 100%;
+    margin: 0 0 0 23px !important;
+    padding: 0 !important;
+    flex-shrink: 0;
+    text-decoration: none !important;
+    color: #fff !important;
+    font-weight: 800;
+}
+
+        .layout-logo-navbar {
+            display: block;
+            height: 40px !important;
+            width: auto !important;
+            max-width: 170px !important;
+            object-fit: contain;
+            margin: 0 !important; padding: 0 !important;
+        }
+
+        .layout-navbar-tools {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            flex-shrink: 0;
+            margin-left: auto;
+        }
+
+        .layout-vr {
+            width: 1px;
+            height: 24px;
+            opacity: .35;
+            background-color: rgba(255,255,255,.35);
+        }
+
+        .layout-clock {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.05;
+            text-align: right;
+            white-space: nowrap;
+            color: #fff;
+        }
+
+        .layout-clock #layout-clock-time { font-weight: 700; letter-spacing: .3px; }
+        .layout-clock #layout-clock-date { font-size: .8rem; opacity: .85; }
+
+        .layout-btn-about {
+            --bs-btn-color: #fff;
+            --bs-btn-border-color: rgba(255,255,255,.45);
+            --bs-btn-hover-color: #fff;
+            --bs-btn-hover-bg: rgba(255,255,255,.12);
+            --bs-btn-hover-border-color: rgba(255,255,255,.6);
+            --bs-btn-active-bg: rgba(255,255,255,.2);
+        }
+
+        /* ========================================
+           SIDEBAR MEJORADO
+        ======================================== */
+        .layout-sidebar {
+            width: var(--layout-sidebar-width);
+            background: linear-gradient(180deg, #1a0000 0%, #0e0000 100%);
+            color: var(--layout-txt);
+            position: fixed;
+            top: var(--layout-navbar-height);
+            left: 0;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: transform .25s ease;
+            z-index: 999;
+            border-right: 1px solid rgba(255,255,255,0.06);
+            font-size: var(--sidebar-font-size);
+        }
+
+        .layout-sidebar.layout-hidden { transform: translateX(-100%); }
+
+        .layout-sidebar-hover-zone {
+            position: fixed;
+            top: var(--layout-navbar-height);
+            left: 0;
+            width: 10px;
+            height: calc(100vh - var(--layout-navbar-height));
+            z-index: 998;
+        }
+
+        /* --- Cabecera usuario mejorada --- */
+        .sb-user-section {
+            flex-shrink: 0;
+            padding: 14px 12px 10px;
+            background: linear-gradient(180deg, rgba(139,0,0,0.40), rgba(139,0,0,0.12));
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            position: relative;
+        }
+
+        .sb-user-card {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 12px;
+            padding: 10px 12px;
+        }
+
+        .sb-avatar {
+            width: clamp(36px, 2.8vw, 44px);
+            height: clamp(36px, 2.8vw, 44px);
+            border-radius: 50%;
+            flex-shrink: 0;
+            object-fit: contain;
+            border: 2px solid rgba(255,140,120,0.28);
+            background: rgba(139,0,0,0.5);
+        }
+
+        .sb-user-info { flex: 1; min-width: 0; }
+
+        .sb-user-name {
+    font-size: 11.5px !important;
+    font-weight: 700;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: unset !important;
+    line-height: 1.1;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+        .sb-user-greeting {
+            font-size: 9.5px !important;
+            color: rgba(255,255,255,0.55);
+            line-height: 1.1;
+            margin-top: 1px;
+            display: block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .sb-user-status {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #5dcaa5;
+            flex-shrink: 0;
+            box-shadow: 0 0 5px rgba(93,202,165,0.55);
+        }
+
+        /* --- Botón PIN --- */
+        #layout-pin-btn {
+            position: absolute;
+            top: 8px; right: 8px;
+            background: transparent;
+            border: none;
+            color: rgba(255,255,255,0.45);
+            cursor: pointer;
+            font-size: 12px;
+            padding: 5px 6px;
+            border-radius: 6px;
+            transition: color .2s, background .2s, transform .25s;
+            z-index: 10;
+            line-height: 1;
+        }
+
+        #layout-pin-btn:hover { color: #fff; background: rgba(255,255,255,.12); }
+        #layout-pin-btn.pinned { color: #ffd2c7 !important; transform: rotate(45deg); }
+
+        /* --- Búsqueda --- */
+        .sb-search {
+            flex-shrink: 0;
+            margin: 8px 10px 0;
+            background: rgba(255,255,255,0.055);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 6px 10px;
+        }
+
+        .sb-search-icon { color: rgba(255,255,255,0.30); font-size: 11px; flex-shrink: 0; }
+
+       .sb-search-input {
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    appearance: none;
+    -webkit-appearance: none;
+    font-size: clamp(11px, 0.85vw, 12.5px);
+    color: rgba(255,255,255,0.7);
+    width: 100%;
+    font-family: inherit;
+}
+
+        .sb-search-input::placeholder { color: rgba(255,255,255,0.28); }
+
+        /* --- Etiqueta de sección --- */
+        .sb-section-label {
+            font-size: clamp(9px, 0.68vw, 10px);
+            font-weight: 800;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.28);
+            padding: 10px 10px 4px;
+            flex-shrink: 0;
+        }
+
+        /* --- Nav scrolleable --- */
+        .layout-sidebar-nav {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 6px 8px;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.10) transparent;
+        }
+
+        .layout-sidebar-nav::-webkit-scrollbar { width: 4px; }
+        .layout-sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+        .layout-sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
+
+        /* --- Items del menú --- */
+        .layout-menu-item {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 2px;
+        }
+
+        .layout-sidebar a,
+        .layout-sidebar .layout-dropdown-btn {
+            color: rgba(255,255,255,0.78) !important;
+            text-decoration: none !important;
+            padding: var(--sidebar-item-padding-y) var(--sidebar-item-padding-x) !important;
+            border-radius: 9px !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: var(--sidebar-gap) !important;
+            transition: background .18s ease, border-color .18s ease !important;
+            cursor: pointer !important;
+            font-size: var(--sidebar-font-size) !important;
+            font-weight: 700 !important;
+            line-height: 1.3 !important;
+            min-height: clamp(38px, 3vw, 46px);
+            width: 100%;
+            white-space: normal;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+            border: 1px solid transparent !important;
+        }
+
+        .layout-sidebar a:hover,
+        .layout-sidebar .layout-dropdown-btn:hover {
+            background: rgba(255,255,255,0.07) !important;
+            border-color: rgba(255,255,255,0.08) !important;
+            color: #fff !important;
+        }
+
+        .layout-sidebar a.layout-active,
+        .layout-menu-item.layout-open > .layout-dropdown-btn {
+            background: rgba(139,0,0,0.50) !important;
+            border-color: rgba(255,100,80,0.18) !important;
+            color: #fff !important;
+        }
+
+        /* Icono con fondo */
+        .sb-icon-wrap {
+            width: clamp(26px, 1.8vw, 30px);
+            height: clamp(26px, 1.8vw, 30px);
+            border-radius: 7px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.08);
+            flex-shrink: 0;
+            transition: background .18s, border-color .18s;
+        }
+
+        .layout-sidebar a:hover .sb-icon-wrap,
+        .layout-sidebar .layout-dropdown-btn:hover .sb-icon-wrap {
+            background: rgba(255,255,255,0.11);
+            border-color: rgba(255,255,255,0.13);
+        }
+
+        .layout-menu-item.layout-open > .layout-dropdown-btn .sb-icon-wrap,
+        .layout-sidebar a.layout-active .sb-icon-wrap {
+            background: rgba(139,0,0,0.65);
+            border-color: rgba(255,120,100,0.25);
+        }
+
+        .layout-sidebar a i,
+        .layout-sidebar .layout-dropdown-btn i {
+            font-size: var(--sidebar-icon-size) !important;
+            color: rgba(255,255,255,0.65);
+            transition: color .18s;
+            width: auto !important;
+            min-width: auto !important;
+            text-align: center;
+        }
+
+        .layout-sidebar a:hover i,
+        .layout-sidebar .layout-dropdown-btn:hover i,
+        .layout-menu-item.layout-open > .layout-dropdown-btn i,
+        .layout-sidebar a.layout-active i {
+            color: #ffd2c7 !important;
+        }
+
+        .sb-item-label {
+            flex: 1;
+            min-width: 0;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        /* Badge */
+        .sb-badge {
+            background: rgba(139,0,0,0.85);
+            border: 1px solid rgba(255,120,100,0.22);
+            border-radius: 999px;
+            padding: 1px 7px;
+            font-size: clamp(9px, 0.65vw, 10px);
+            font-weight: 800;
+            color: #ffd2c7;
+            flex-shrink: 0;
+            line-height: 1.6;
+        }
+
+        .sb-badge.sb-badge-new {
+            background: rgba(93,202,165,0.18);
+            color: #5dcaa5;
+            border-color: rgba(93,202,165,0.25);
+        }
+
+        /* Flecha */
+        .layout-sidebar .layout-menu-item > .layout-dropdown-btn .layout-arrow {
+            transition: transform .2s ease;
+            margin-left: auto;
+            font-size: clamp(9px, 0.7vw, 10px) !important;
+            width: auto !important;
+            min-width: auto !important;
+            color: rgba(255,255,255,0.35) !important;
+            flex-shrink: 0;
+        }
+
+        .layout-sidebar .layout-menu-item.layout-open > .layout-dropdown-btn .layout-arrow {
+            transform: rotate(180deg);
+            color: rgba(255,255,255,0.65) !important;
+        }
+
+        /* Submenú */
+        .layout-dropdown-container {
+            max-height: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: max-height .3s ease;
+            margin: 2px 0 4px 10px;
+            border-left: 2px solid rgba(255,255,255,0.10);
+            border-radius: 0 0 0 6px;
+        }
+
+        .layout-sidebar .layout-menu-item.layout-open > .layout-dropdown-container {
+            max-height: 900px;
+        }
+
+        .layout-sidebar .layout-dropdown-container a {
+            padding: clamp(7px, 0.6vw, 9px) clamp(10px, 0.9vw, 14px) clamp(7px, 0.6vw, 9px) clamp(14px, 1.1vw, 18px) !important;
+            font-size: clamp(11px, 0.85vw, 13px) !important;
+            font-weight: 600 !important;
+            line-height: 1.3 !important;
+            min-height: clamp(34px, 2.6vw, 40px);
+            border-radius: 7px !important;
+            color: rgba(255,255,255,0.60) !important;
+            border: 1px solid transparent !important;
+        }
+
+        .layout-sidebar .layout-dropdown-container a:hover {
+            background: rgba(255,255,255,0.07) !important;
+            color: rgba(255,255,255,0.92) !important;
+        }
+
+        .layout-sidebar .layout-dropdown-container a i {
+            color: rgba(255,255,255,0.35) !important;
+        }
+
+        .layout-sidebar .layout-dropdown-container a:hover i {
+            color: #ffd2c7 !important;
+        }
+
+        /* Divisor */
+        .sb-divider {
+            height: 1px;
+            background: rgba(255,255,255,0.06);
+            margin: 4px 8px;
+        }
+
+        /* Footer logout */
+        .sb-footer {
+            flex-shrink: 0;
+            padding: 8px 8px 10px;
+            border-top: 1px solid rgba(255,255,255,0.07);
+        }
+
+        .sb-footer a {
+            color: rgba(255,130,120,0.75) !important;
+            background: rgba(255,50,50,0.07) !important;
+            border: 1px solid rgba(255,50,50,0.10) !important;
+            border-radius: 9px !important;
+            padding: 9px 12px !important;
+            font-weight: 700 !important;
+            transition: background .18s, border-color .18s, color .18s !important;
+        }
+
+        .sb-footer a:hover {
+            background: rgba(255,50,50,0.14) !important;
+            border-color: rgba(255,50,50,0.20) !important;
+            color: rgba(255,160,150,0.95) !important;
+        }
+
+        .sb-footer a i { color: rgba(255,130,120,0.75) !important; }
+        .sb-footer a:hover i { color: rgba(255,160,150,0.95) !important; }
+
+        /* ========================================
+           BOTÓN FLOTANTE TOGGLE
+        ======================================== */
+        .layout-toggle-sidebar-btn {
+            position: fixed;
+            top: 50%; left: 0;
+            transform: translateY(-50%);
+            width: 28px; height: 60px;
+            border: none;
+            background: var(--layout-brand-solid);
+            color: #fff;
+            box-shadow: var(--layout-shadow);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1200;
+            transition: opacity .2s ease;
+            border-top-right-radius: 30px;
+            border-bottom-right-radius: 30px;
+            opacity: .85;
+        }
+
+        .layout-toggle-sidebar-btn:hover { opacity: 1; }
+        .layout-toggle-sidebar-btn i { pointer-events: none; transition: transform .2s ease; font-size: 14px; }
+        .layout-sidebar.layout-hidden ~ .layout-toggle-sidebar-btn { display: flex; }
+
+        /* ========================================
+           MAIN CONTENT
+        ======================================== */
+        .layout-main-content {
+            transition: margin-left .3s ease;
+            margin-left: 0;
+            padding: calc(var(--layout-navbar-height) + 20px) 20px 40px;
+            background: var(--layout-bg);
+            min-height: 100vh;
+        }
+
+        .layout-main-content.layout-sidebar-open {
+            margin-left: var(--layout-sidebar-width);
+        }
+
+        .layout-main-content .layout-container-fluid {
+            max-width: 1500px;
+            margin: 0 auto;
+            background: var(--layout-panel);
+            border-radius: var(--layout-radius);
+            padding: 1.5rem;
+            box-shadow: var(--layout-shadow);
+        }
+
+        /* ========================================
+           FOOTER
+        ======================================== */
+        .layout-footer {
+            background: #f5f5f5;
+            padding: 1rem 0;
+            text-align: center;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        /* ========================================
+           CHAT FLOTANTE INTERNO
+        ======================================== */
+        .layout-chat-fab {
+            position: fixed;
+            right: 24px; bottom: 24px;
+            width: 56px; height: 56px;
+            border-radius: 50%; border: none;
+            background: radial-gradient(circle at 30% 30%, #ffefef, #8B0000);
+            color: #fff;
+            box-shadow: 0 10px 24px rgba(0,0,0,.25);
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 1600;
+            transition: transform .15s ease, box-shadow .15s ease;
+        }
+
+        .layout-chat-fab:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(0,0,0,.3); }
+        .layout-chat-fab i { font-size: 22px; }
+
+        .layout-chat-panel {
+            position: fixed;
+            right: 24px; bottom: 90px;
+            width: 360px; max-height: 520px;
+            background: #fff;
+            border-radius: 14px;
+            box-shadow: 0 18px 40px rgba(15,23,42,.30);
+            border: 1px solid rgba(148,163,184,.6);
+            display: flex; flex-direction: column;
+            overflow: hidden; z-index: 1600;
+        }
+
+        .layout-chat-panel-header { padding: .6rem .8rem; background: linear-gradient(135deg, #8B0000, #5a0000); color: #fff; display: flex; align-items: center; gap: .5rem; }
+        .layout-chat-panel-header .layout-chat-title { font-size: .95rem; font-weight: 700; flex: 1; line-height: 1.1; }
+        .layout-chat-panel-header small { display: block; font-size: .7rem; opacity: .8; }
+        .layout-chat-panel-header button { border: none; background: transparent; color: #fff; opacity: .8; }
+        .layout-chat-panel-header button:hover { opacity: 1; }
+        .layout-chat-panel-body { padding: .6rem .7rem .3rem; display: flex; flex-direction: column; gap: .4rem; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+        .layout-chat-area-select { display: flex; flex-direction: column; gap: .25rem; }
+        .layout-chat-area-select label { font-size: .75rem; color: #64748b; font-weight: 600; text-transform: uppercase; }
+        .layout-chat-area-select select { font-size: .85rem; padding: .2rem .35rem; border-radius: 6px; border: 1px solid #cbd5e1; }
+        .layout-chat-hint { font-size: .72rem; color: #64748b; }
+        .layout-chat-messages { flex: 1; padding: .5rem .7rem; overflow-y: auto; background: #fff; font-size: .85rem; }
+        .layout-chat-msg { margin-bottom: .35rem; display: flex; }
+        .layout-chat-msg.layout-me { justify-content: flex-end; }
+        .layout-chat-msg .layout-bubble { max-width: 80%; padding: .35rem .55rem; border-radius: 12px; box-shadow: 0 2px 6px rgba(15,23,42,.12); }
+        .layout-chat-msg.layout-me .layout-bubble { background: #8B0000; color: #fff; border-bottom-right-radius: 2px; }
+        .layout-chat-msg.layout-other .layout-bubble { background: #e2e8f0; color: #111827; border-bottom-left-radius: 2px; }
+        .layout-chat-msg .layout-meta { display: block; font-size: .65rem; opacity: .7; margin-top: 2px; }
+        .layout-chat-input { padding: .4rem .5rem; display: flex; align-items: center; gap: .35rem; background: #f8fafc; }
+        .layout-chat-input textarea { resize: none; flex: 1; border-radius: 8px; border: 1px solid #cbd5e1; padding: .3rem .4rem; font-size: .85rem; max-height: 80px; min-height: 34px; }
+        .layout-chat-input button { border-radius: 999px; padding-inline: .75rem; font-size: .85rem; display: inline-flex; align-items: center; gap: .25rem; }
+
+        #font { font-family: "Orbitron", sans-serif !important; font-optical-sizing: auto; font-style: normal; }
+
+        /* ========================================
+           MODALES — ABOUT Y REPORTE
+        ======================================== */
+        #layoutAboutModal.modal, #layoutAboutModal.modal * { box-sizing: border-box !important; }
+        #reporteModal.modal, #reporteModal.modal * { box-sizing: border-box !important; }
+
+        #layoutAboutModal.modal {
+            display: none !important; position: fixed !important;
+            top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
+            z-index: 1055 !important; width: 100% !important; height: 100% !important;
+            overflow-x: hidden !important; overflow-y: auto !important;
+            background: transparent !important; transform: none !important;
+            padding: 0 !important; margin: 0 !important; border: none !important; border-radius: 0 !important; box-shadow: none !important;
+        }
+
+        #reporteModal.modal {
+            display: none !important; position: fixed !important;
+            top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
+            z-index: 1055 !important; width: 100% !important; height: 100% !important;
+            overflow-x: hidden !important; overflow-y: auto !important;
+            background: transparent !important; transform: none !important;
+            padding: 0 !important; margin: 0 !important; border: none !important; border-radius: 0 !important; box-shadow: none !important;
+        }
+
+        #layoutAboutModal.modal.show { display: block !important; }
+        #reporteModal.modal.show { display: block !important; }
+
+        #layoutAboutModal .modal-dialog { position: relative !important; width: auto !important; max-width: 500px !important; margin: 1.75rem auto !important; pointer-events: none !important; transform: none !important; top: auto !important; left: auto !important; right: auto !important; bottom: auto !important; padding: 0 !important; border: none !important; background: transparent !important; border-radius: 0 !important; box-shadow: none !important; height: auto !important; }
+        #reporteModal .modal-dialog { position: relative !important; width: auto !important; max-width: 80% !important; max-height: 80% !important; margin: 1.75rem auto !important; pointer-events: none !important; transform: none !important; top: auto !important; left: auto !important; right: auto !important; bottom: auto !important; padding: 0 !important; border: none !important; background: transparent !important; border-radius: 0 !important; box-shadow: none !important; }
+        #layoutAboutModal .modal-dialog-centered { display: flex !important; align-items: center !important; justify-content: center !important; min-height: calc(100% - 3.5rem) !important; margin-left: auto !important; margin-right: auto !important; }
+        #reporteModal .modal-dialog-centered { display: flex !important; align-items: center !important; justify-content: center !important; min-height: calc(100% - 3.5rem) !important; margin-left: auto !important; margin-right: auto !important; }
+        #layoutAboutModal .modal-content { position: relative !important; display: flex !important; flex-direction: column !important; width: 100% !important; height: auto !important; pointer-events: auto !important; background-color: #fff !important; border: 1px solid rgba(0,0,0,.2) !important; border-radius: 0.3rem !important; outline: 0 !important; transform: none !important; top: auto !important; left: auto !important; right: auto !important; bottom: auto !important; margin: 0 !important; padding: 0 !important; box-shadow: 0 0.5rem 1rem rgba(0,0,0,.15) !important; }
+        #reporteModal .modal-content { position: relative !important; display: flex !important; flex-direction: column !important; width: 100% !important; height: 90% !important; pointer-events: auto !important; background-color: #fff !important; border: 1px solid rgba(0,0,0,.2) !important; border-radius: 0.3rem !important; outline: 0 !important; transform: none !important; top: auto !important; left: auto !important; right: auto !important; bottom: auto !important; margin: 0 !important; padding: 0 !important; box-shadow: 0 0.5rem 1rem rgba(0,0,0,.15) !important; }
+        #layoutAboutModal .modal-header { display: flex !important; flex-shrink: 0 !important; align-items: center !important; justify-content: space-between !important; padding: 1rem !important; border-bottom: 1px solid #dee2e6 !important; position: relative !important; top: auto !important; left: auto !important; right: auto !important; bottom: auto !important; transform: none !important; margin: 0 !important; width: 100% !important; height: auto !important; background: var(--layout-brand) !important; border-radius: 0 !important; }
+        #reporteModal .modal-header { display: flex !important; flex-shrink: 0 !important; align-items: center !important; justify-content: space-between !important; padding: 1rem !important; border-bottom: 1px solid #dee2e6 !important; position: relative !important; top: auto !important; transform: none !important; margin: 0 !important; width: 100% !important; background: var(--layout-brand) !important; border-radius: 0 !important; }
+        #layoutAboutModal .modal-body { position: relative !important; flex: 1 1 auto !important; padding: 1rem !important; top: auto !important; transform: none !important; margin: 0 !important; width: 100% !important; height: auto !important; background: #fff !important; overflow-y: auto !important; }
+        #reporteModal .modal-body { position: relative !important; flex: 1 1 auto !important; padding: 1rem !important; top: auto !important; transform: none !important; margin: 0 !important; width: 100% !important; background: #fff !important; overflow-y: auto !important; }
+        #layoutAboutModal .modal-footer { display: flex !important; flex-wrap: wrap !important; flex-shrink: 0 !important; align-items: center !important; justify-content: flex-end !important; padding: 0.75rem !important; border-top: 1px solid #dee2e6 !important; position: relative !important; top: auto !important; transform: none !important; margin: 0 !important; width: 100% !important; height: auto !important; background: #fff !important; }
+        #reporteModal .modal-footer { display: flex !important; flex-wrap: wrap !important; flex-shrink: 0 !important; align-items: center !important; justify-content: flex-end !important; padding: 0.75rem !important; border-top: 1px solid #dee2e6 !important; position: relative !important; top: auto !important; transform: none !important; margin: 0 !important; width: 100% !important; background: #fff !important; }
+        #layoutAboutModal input, #layoutAboutModal select, #layoutAboutModal textarea { width: auto !important; height: auto !important; transform: none !important; position: relative !important; top: auto !important; left: auto !important; right: auto !important; bottom: auto !important; }
+        #reporteModal input, #reporteModal select, #reporteModal textarea { width: auto !important; height: auto !important; transform: none !important; position: relative !important; top: auto !important; left: auto !important; right: auto !important; bottom: auto !important; }
+        .modal-backdrop { position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; z-index: 1050 !important; width: 100vw !important; height: 100vh !important; background-color: #000 !important; transform: none !important; margin: 0 !important; padding: 0 !important; border: none !important; border-radius: 0 !important; }
+        .modal-backdrop.show { opacity: 0.5 !important; }
+        body.modal-open { overflow: hidden !important; }
+
+        @@media (min-width: 576px) {
+            #layoutAboutModal .modal-dialog { max-width: 500px !important; margin: 1.75rem auto !important; }
+            #reporteModal .modal-dialog { max-width: 85% !important; margin: 1.75rem auto !important; }
+        }
+
+        @@media (max-width: 575px) {
+            #layoutAboutModal .modal-dialog, #reporteModal .modal-dialog { margin: 0.5rem !important; max-width: calc(100% - 1rem) !important; }
+        }
+
+        /* ========================================
+           MODAL MANUAL — AISLAMIENTO TOTAL
+        ======================================== */
+        #layoutManualModal.modal, #layoutManualModal.modal *, #layoutManualModal.modal *::before, #layoutManualModal.modal *::after { box-sizing: border-box !important; margin: 0 !important; padding: 0 !important; }
+        #layoutManualModal.modal { display: none !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100vw !important; height: 100vh !important; max-width: none !important; max-height: none !important; z-index: 1056 !important; overflow: hidden !important; background: transparent !important; transform: none !important; border: none !important; border-radius: 0 !important; box-shadow: none !important; outline: 0 !important; }
+        #layoutManualModal.modal.show { display: block !important; }
+        #layoutManualModal .modal-dialog { position: relative !important; width: 95vw !important; max-width: 95vw !important; height: 90vh !important; max-height: 90vh !important; margin: 2.5vh auto !important; padding: 0 !important; pointer-events: none !important; transform: none !important; top: auto !important; left: auto !important; right: auto !important; bottom: auto !important; border: none !important; background: transparent !important; border-radius: 0 !important; box-shadow: none !important; }
+        #layoutManualModal .modal-dialog-centered { display: flex !important; align-items: center !important; justify-content: center !important; min-height: 90vh !important; margin: 0 auto !important; }
+        #layoutManualModal .modal-content { position: relative !important; display: flex !important; flex-direction: column !important; width: 100% !important; height: 100% !important; max-width: none !important; max-height: none !important; pointer-events: auto !important; background: #fff !important; border: 1px solid rgba(0,0,0,.2) !important; border-radius: 0.75rem !important; box-shadow: 0 1rem 3rem rgba(0,0,0,.35) !important; transform: none !important; top: auto !important; left: auto !important; right: auto !important; bottom: auto !important; margin: 0 !important; padding: 0 !important; outline: 0 !important; }
+        #layoutManualModal .modal-header { position: relative !important; display: flex !important; flex-shrink: 0 !important; align-items: center !important; justify-content: space-between !important; width: 100% !important; height: auto !important; padding: 1rem 1.5rem !important; margin: 0 !important; background: var(--layout-brand) !important; color: #fff !important; border-bottom: 1px solid rgba(255,255,255,.2) !important; border-top-left-radius: 0.75rem !important; border-top-right-radius: 0.75rem !important; transform: none !important; }
+        #layoutManualModal .modal-header .modal-title { margin: 0 !important; padding: 0 !important; font-size: 1.25rem !important; font-weight: 500 !important; line-height: 1.5 !important; color: #fff !important; }
+        #layoutManualModal .modal-header .btn-close { margin: 0 !important; padding: 0.5rem !important; background: transparent !important; border: none !important; opacity: 1 !important; }
+        #layoutManualModal .modal-body { position: relative !important; flex: 1 1 auto !important; width: 100% !important; height: auto !important; padding: 0 !important; margin: 0 !important; overflow: hidden !important; display: flex !important; background: #f8f9fa !important; transform: none !important; }
+        #layoutManualModal .modal-footer { display: none !important; }
+        #layoutManualModal .manual-container { position: relative !important; display: flex !important; width: 100% !important; height: 100% !important; background: #f8f9fa !important; margin: 0 !important; padding: 0 !important; }
+        #layoutManualModal .manual-sidebar { position: relative !important; width: var(--manual-sidebar-width) !important; height: 100% !important; background: linear-gradient(180deg, var(--manual-brand) 0%, var(--manual-brand-light) 100%) !important; color: white !important; overflow-y: auto !important; overflow-x: hidden !important; flex-shrink: 0 !important; box-shadow: 2px 0 10px rgba(0,0,0,0.1) !important; margin: 0 !important; padding: 0 !important; }
+        #layoutManualModal .manual-sidebar-header { position: relative !important; padding: 1.5rem 1rem !important; margin: 0 !important; border-bottom: 1px solid rgba(255,255,255,0.2) !important; background: rgba(0,0,0,0.1) !important; }
+        #layoutManualModal .manual-sidebar-header h6 { margin: 0 !important; padding: 0 !important; font-weight: 700 !important; font-size: 0.95rem !important; text-transform: uppercase !important; letter-spacing: 0.5px !important; color: white !important; }
+        #layoutManualModal .manual-toc { position: relative !important; padding: 1rem 0.5rem !important; margin: 0 !important; }
+        #layoutManualModal .manual-toc-item { position: relative !important; padding: 0.65rem 1rem !important; margin: 0.25rem 0 !important; border-radius: 8px !important; cursor: pointer !important; transition: all 0.2s ease !important; font-size: 0.9rem !important; display: flex !important; align-items: center !important; gap: 0.75rem !important; color: rgba(255,255,255,0.9) !important; background: transparent !important; }
+        #layoutManualModal .manual-toc-item:hover { background: rgba(255,255,255,0.15) !important; color: white !important; transform: translateX(3px) !important; }
+        #layoutManualModal .manual-toc-item.active { background: rgba(255,255,255,0.25) !important; color: white !important; font-weight: 600 !important; box-shadow: inset 3px 0 0 white !important; }
+        #layoutManualModal .manual-toc-item i { width: 20px !important; text-align: center !important; font-size: 1.1rem !important; margin: 0 !important; padding: 0 !important; }
+        #layoutManualModal .manual-content { position: relative !important; flex: 1 !important; width: auto !important; height: 100% !important; overflow-y: auto !important; overflow-x: hidden !important; background: white !important; scroll-behavior: smooth !important; margin: 0 !important; padding: 0 !important; }
+        #layoutManualModal .manual-content-inner { position: relative !important; max-width: 900px !important; width: 100% !important; margin: 0 auto !important; padding: 3rem 3rem 5rem !important; }
+        #layoutManualModal .manual-section { position: relative !important; margin: 0 0 4rem 0 !important; padding: 2rem 0 0 0 !important; border-top: 3px solid #e9ecef !important; }
+        #layoutManualModal .manual-section:first-child { border-top: none !important; padding-top: 0 !important; }
+        #layoutManualModal .manual-section-header { position: relative !important; margin: 0 0 2rem 0 !important; padding: 0 !important; display: flex !important; align-items: center !important; gap: 1rem !important; }
+        #layoutManualModal .manual-section-number { position: relative !important; width: 45px !important; height: 45px !important; background: var(--manual-brand) !important; color: white !important; border-radius: 12px !important; display: flex !important; align-items: center !important; justify-content: center !important; font-weight: 700 !important; font-size: 1.2rem !important; flex-shrink: 0 !important; margin: 0 !important; padding: 0 !important; }
+        #layoutManualModal .manual-section-title { position: relative !important; margin: 0 !important; padding: 0 !important; font-weight: 700 !important; color: #2c3e50 !important; font-size: 1.75rem !important; line-height: 1.2 !important; }
+        #layoutManualModal .manual-section-content { position: relative !important; padding: 0 !important; margin: 0 !important; }
+        #layoutManualModal .manual-step { position: relative !important; margin: 0 0 2.5rem 0 !important; padding: 1.5rem !important; background: #f8f9fa !important; border-radius: 12px !important; border-left: 4px solid var(--manual-brand) !important; }
+        #layoutManualModal .manual-step-title { position: relative !important; margin: 0 0 1rem 0 !important; padding: 0 !important; font-weight: 600 !important; color: var(--manual-brand) !important; font-size: 1.1rem !important; display: flex !important; align-items: center !important; gap: 0.5rem !important; }
+        #layoutManualModal .manual-step-title i { font-size: 1rem !important; margin: 0 !important; padding: 0 !important; }
+        #layoutManualModal .manual-step-text { position: relative !important; margin: 0 0 1rem 0 !important; padding: 0 !important; color: #495057 !important; line-height: 1.7 !important; font-size: 1rem !important; }
+        #layoutManualModal .manual-step-image { position: relative !important; width: 100% !important; height: auto !important; max-width: 100% !important; border-radius: 8px !important; box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important; margin: 1rem 0 0 0 !important; padding: 0 !important; border: 1px solid #dee2e6 !important; display: block !important; }
+        #layoutManualModal .manual-scroll-top { position: fixed !important; bottom: 2rem !important; right: 2rem !important; width: 45px !important; height: 45px !important; background: var(--manual-brand) !important; color: white !important; border: none !important; border-radius: 50% !important; display: none !important; align-items: center !important; justify-content: center !important; cursor: pointer !important; box-shadow: 0 4px 12px rgba(139,0,0,0.3) !important; z-index: 1000 !important; margin: 0 !important; padding: 0 !important; }
+        #layoutManualModal .manual-scroll-top:hover { background: var(--manual-brand-light) !important; transform: translateY(-3px) !important; }
+        #layoutManualModal .manual-scroll-top.show { display: flex !important; }
+        #layoutManualModal .manual-scroll-top i { font-size: 1.2rem !important; margin: 0 !important; padding: 0 !important; color: white !important; }
+        #layoutManualModal .manual-progress { position: sticky !important; top: 0 !important; width: 100% !important; height: 4px !important; background: #e9ecef !important; z-index: 100 !important; margin: 0 !important; padding: 0 !important; }
+        #layoutManualModal .manual-progress-bar { position: relative !important; height: 100% !important; background: linear-gradient(90deg, var(--manual-brand), var(--manual-brand-light)) !important; width: 0% !important; max-width: 100% !important; transition: width 0.1s ease !important; margin: 0 !important; padding: 0 !important; }
+        #layoutManualModal .manual-toggle-sidebar { position: fixed !important; top: 4.5rem !important; left: 1rem !important; width: 40px !important; height: 40px !important; z-index: 1070 !important; background: var(--manual-brand) !important; color: white !important; border: none !important; border-radius: 50% !important; display: none !important; align-items: center !important; justify-content: center !important; cursor: pointer !important; margin: 0 !important; padding: 0 !important; }
+        #layoutManualModal .manual-toggle-sidebar i { font-size: 1rem !important; margin: 0 !important; padding: 0 !important; color: white !important; }
+        #layoutManualModal .manual-overlay { position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100vw !important; height: 100vh !important; background: rgba(0,0,0,0.5) !important; z-index: 1060 !important; display: none !important; margin: 0 !important; padding: 0 !important; }
+        #layoutManualModal .manual-overlay.show { display: block !important; }
+        #layoutManualModal input, #layoutManualModal select, #layoutManualModal textarea, #layoutManualModal button { position: relative !important; transform: none !important; top: auto !important; left: auto !important; right: auto !important; bottom: auto !important; }
+        #layoutManualModal.modal.show ~ .modal-backdrop { position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 1055 !important; background-color: rgba(0,0,0,0.5) !important; margin: 0 !important; padding: 0 !important; border: none !important; border-radius: 0 !important; }
+
+        .manual-step-video { width: 100%; max-width: 900px; margin: 15px auto; display: block; border-radius: 8px; background: #000; }
+
+        @@media (max-width: 576px) {
+            #layoutManualModal .modal-dialog { width: 98vw !important; max-width: 98vw !important; margin: 1vh auto !important; height: 98vh !important; max-height: 98vh !important; }
+            #layoutManualModal .manual-content-inner { padding: 1.5rem 1rem 3rem !important; }
+            #layoutManualModal .manual-section-number { width: 35px !important; height: 35px !important; font-size: 1rem !important; }
+            #layoutManualModal .manual-section-title { font-size: 1.25rem !important; }
+            #layoutManualModal .manual-step { padding: 1rem !important; }
+        }
+
+        @@media (min-width: 576px) {
+            #layoutManualModal .modal-dialog-centered { min-height: 90vh !important; }
+        }
+
+        /* ========================================
+           RESPONSIVE
+        ======================================== */
+            @@media (max-width:768px) {
+                :root {
+                    --sidebar-width: min(82vw, 280px);
+                    --sidebar-font-size: 12.5px;
+                    --sidebar-icon-size: 14px;
+                }
+            }
+
+            @@media (max-width:576px) {
+                :root {
+                    --sidebar-width: min(86vw, 270px);
+                    --sidebar-font-size: 12px;
+                    --sidebar-icon-size: 13.5px;
+                }
+            }
+
+        @@media (max-height: 500px) and (orientation: landscape) {
+            :root { --layout-navbar-height: 52px; }
+            .layout-chat-panel { max-height: 300px; bottom: 60px; }
+            .layout-main-content { padding: calc(var(--layout-navbar-height) + 8px) 10px 20px; }
+        }
+
+        @@media (min-width: 1920px) {
+            :root { --layout-navbar-height: 84px; --layout-sidebar-width: 320px; --sidebar-font-size: 14px; --sidebar-icon-size: 17px; }
+            .layout-logo-navbar { height: 46px !important; max-width: 200px !important; }
+            .layout-main-content { padding-top: calc(var(--layout-navbar-height) + 20px) !important; }
+            .layout-sidebar { top: var(--layout-navbar-height) !important; width: var(--layout-sidebar-width) !important; padding: 0 !important; }
+            .layout-main-content.layout-sidebar-open { margin-left: var(--layout-sidebar-width) !important; }
+        }
+
+        @@media (min-width: 2560px) {
+            :root { --layout-navbar-height: 92px; --layout-sidebar-width: 340px; --sidebar-font-size: 15px; --sidebar-icon-size: 18px; }
+            .layout-logo-navbar { height: 50px !important; max-width: 220px !important; }
+        }
+
+            .sb-search-input:focus {
+                background: transparent !important;
+                border: none !important;
+                outline: none !important;
+                box-shadow: none !important;
+            }
+
+            .sb-search-input::placeholder {
+                color: rgba(255,255,255,0.28);
+            }
+
+/* ========================================
+   MODO OSCURO GLOBAL
+======================================== */
+:root {
+    --app-bg: #f3f6fa;
+    --app-panel: #ffffff;
+    --app-panel-soft: #f8fafc;
+    --app-text: #1f2937;
+    --app-muted: #6b7280;
+    --app-border: #dfe5ec;
+    --app-shadow: 0 6px 16px rgba(0,0,0,.10);
+}
+
+body[data-theme="dark"] {
+    --app-bg: #111827;
+    --app-panel: #1f2937;
+    --app-panel-soft: #273244;
+    --app-text: #f9fafb;
+    --app-muted: #cbd5e1;
+    --app-border: #374151;
+    --app-shadow: 0 8px 22px rgba(0,0,0,.35);
+
+    --layout-bg: #111827;
+    --layout-panel: #1f2937;
+    --layout-line: #374151;
+}
+
+body[data-theme="dark"] .layout-main-content {
+    background: var(--app-bg) !important;
+    color: var(--app-text) !important;
+}
+
+body[data-theme="dark"] .layout-main-content .layout-container-fluid {
+    background: var(--app-panel) !important;
+    color: var(--app-text) !important;
+    border: 1px solid var(--app-border);
+}
+
+body[data-theme="dark"] .layout-footer {
+    background: #0f172a !important;
+    color: var(--app-muted) !important;
+    border-top-color: var(--app-border) !important;
+}
+
+body[data-theme="dark"] .card,
+body[data-theme="dark"] .modal-content,
+body[data-theme="dark"] .dropdown-menu,
+body[data-theme="dark"] .table,
+body[data-theme="dark"] .form-control,
+body[data-theme="dark"] .form-select {
+    background-color: var(--app-panel) !important;
+    color: var(--app-text) !important;
+    border-color: var(--app-border) !important;
+}
+
+body[data-theme="dark"] .text-muted,
+body[data-theme="dark"] small,
+body[data-theme="dark"] label {
+    color: var(--app-muted) !important;
+}
+
+body[data-theme="dark"] input,
+body[data-theme="dark"] select,
+body[data-theme="dark"] textarea {
+    background-color: #0f172a !important;
+    color: var(--app-text) !important;
+    border-color: var(--app-border) !important;
+}
+
+body[data-theme="dark"] input::placeholder,
+body[data-theme="dark"] textarea::placeholder {
+    color: #94a3b8 !important;
+}
+
+/* Switch del header */
+.theme-switch-btn {
+    width: 54px;
+    height: 30px;
+    border: 1px solid rgba(255,255,255,.45);
+    border-radius: 999px;
+    background: rgba(255,255,255,.14);
+    padding: 3px;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    transition: all .25s ease;
+}
+
+.theme-switch-btn:hover {
+    background: rgba(255,255,255,.22);
+}
+
+.theme-switch-thumb {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #fff;
+    color: #8B0000;
+    display: grid;
+    place-items: center;
+    font-size: 12px;
+    transition: all .25s ease;
+    box-shadow: 0 3px 8px rgba(0,0,0,.22);
+}
+
+body[data-theme="dark"] .theme-switch-thumb {
+    transform: translateX(24px);
+    background: #111827;
+    color: #facc15;
+        }
+
+
+        body[data-theme="dark"] .bg-white,
+        body[data-theme="dark"] .bg-light,
+        body[data-theme="dark"] .alert-light,
+        body[data-theme="dark"] .list-group-item,
+        body[data-theme="dark"] .accordion-item,
+        body[data-theme="dark"] .accordion-button,
+        body[data-theme="dark"] .table-responsive,
+        body[data-theme="dark"] .table-responsive-ui,
+        body[data-theme="dark"] .card-body,
+        body[data-theme="dark"] .card-header,
+        body[data-theme="dark"] .modal-body,
+        body[data-theme="dark"] .modal-footer {
+            background-color: var(--app-panel) !important;
+            color: var(--app-text) !important;
+            border-color: var(--app-border) !important;
+        }
+
+        body[data-theme="dark"] .table th,
+        body[data-theme="dark"] .table td,
+        body[data-theme="dark"] table th,
+        body[data-theme="dark"] table td {
+            color: var(--app-text) !important;
+            border-color: var(--app-border) !important;
+        }
+
+        body[data-theme="dark"] thead,
+        body[data-theme="dark"] .table thead th {
+            background-color: #0f172a !important;
+            color: var(--app-text) !important;
+        }
+
+        body[data-theme="dark"] .btn-outline-secondary {
+            color: var(--app-text) !important;
+            border-color: var(--app-border) !important;
+        }
+
+            body[data-theme="dark"] .btn-outline-secondary:hover {
+                background-color: #374151 !important;
+                color: #fff !important;
+            }
+
+        body[data-theme="dark"] hr {
+            border-color: var(--app-border) !important;
+            opacity: 1;
+        }
+
+        /* ========================================
+           AVISO GLOBAL DE SESIÓN EXPIRADA
+        ======================================== */
+        #sigo-session-expired-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 999999;
+            background: rgba(10, 0, 0, .72);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 18px;
+        }
+
+        .sigo-session-expired-card {
+            width: min(430px, 100%);
+            background: linear-gradient(180deg, #ffffff, #f8fafc);
+            border-radius: 18px;
+            padding: 30px 26px;
+            text-align: center;
+            box-shadow: 0 24px 70px rgba(0,0,0,.35);
+            border: 1px solid rgba(139,0,0,.16);
+            animation: sigoSessionIn .22s ease-out;
+        }
+
+        .sigo-session-expired-icon {
+            width: 66px;
+            height: 66px;
+            border-radius: 50%;
+            margin: 0 auto 16px;
+            display: grid;
+            place-items: center;
+            background: rgba(139,0,0,.10);
+            color: #8B0000;
+            font-size: 28px;
+        }
+
+        .sigo-session-expired-card h3 {
+            margin: 0 0 8px;
+            color: #1f2937;
+            font-weight: 900;
+        }
+
+        .sigo-session-expired-card p {
+            margin: 0;
+            color: #6b7280;
+            font-size: .95rem;
+            line-height: 1.45;
+        }
+
+        .sigo-session-expired-loader {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            border: 4px solid rgba(139,0,0,.15);
+            border-top-color: #8B0000;
+            margin: 20px auto 0;
+            animation: sigoSessionSpin .8s linear infinite;
+        }
+
+        @@keyframes sigoSessionSpin {
+            to
+
+        {
+            transform: rotate(360deg);
+        }
+
+        }
+
+        @@keyframes sigoSessionIn {
+            from
+
+        {
+            opacity: 0;
+            transform: translateY(12px) scale(.98);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+        }
+
+        body[data-theme="dark"] .sigo-session-expired-card {
+            background: linear-gradient(180deg, #1f2937, #111827);
+            border-color: rgba(255,255,255,.12);
+        }
+
+            body[data-theme="dark"] .sigo-session-expired-card h3 {
+                color: #f9fafb;
+            }
+
+            body[data-theme="dark"] .sigo-session-expired-card p {
+                color: #cbd5e1;
+            }
+
+            .layout-sidebar a,
+            .layout-sidebar .layout-dropdown-btn {
+                font-weight: 600 !important;
+                line-height: 1.15 !important;
+                min-height: 32px !important;
+                border-radius: 7px !important;
+            }
+
+            .sb-icon-wrap {
+                width: 23px !important;
+                height: 23px !important;
+                border-radius: 6px !important;
+            }
+
+            .sb-user-section {
+                padding: 9px 9px 7px;
+            }
+
+            .sb-user-card {
+                  padding: 7px 8px !important;
+    gap: 7px !important;
+                border-radius: 9px;
+            }
+
+            .sb-avatar {
+                width: 28px !important;
+                height: 28px !important;
+            }
+
+            .sb-user-name {
+                font-size: 11.5px !important;
+            }
+
+            .sb-user-greeting {
+                font-size: 10px !important;
+            }
+
+            .sb-section-label {
+                font-size: 8px !important;
+                padding: 7px 9px 3px;
+            }
+
+            .layout-sidebar .layout-dropdown-container a {
+                font-size: 10.8px !important;
+                min-height: 28px !important;
+                padding: 5px 9px 5px 13px !important;
+            }
+
+            /* ===== SIDEBAR DINÁMICO GESTIONADO - LAYOUT GENERAL ===== */
+
+            .layout-sidebar-nav {
+                padding: 6px 8px 8px !important;
+            }
+
+            .sb-section-label {
+                font-size: 8px !important;
+                font-weight: 900 !important;
+                letter-spacing: 0.10em !important;
+                text-transform: uppercase !important;
+                color: rgba(255,255,255,0.34) !important;
+                padding: 10px 8px 4px !important;
+                margin: 2px 2px 0 !important;
+            }
+
+            .sb-divider {
+                height: 1px !important;
+                background: rgba(255,255,255,0.045) !important;
+                margin: 7px 8px 5px !important;
+            }
+
+            .layout-menu-item {
+                margin-bottom: 2px !important;
+            }
+
+            .layout-sidebar a,
+            .layout-sidebar .layout-dropdown-btn {
+                min-height: 34px !important;
+                padding: 7px 8px !important;
+                border-radius: 8px !important;
+                font-size: 12px !important;
+                font-weight: 650 !important;
+                line-height: 1.15 !important;
+            }
+
+            .sb-icon-wrap {
+                width: 24px !important;
+                height: 24px !important;
+                min-width: 24px !important;
+                border-radius: 7px !important;
+            }
+
+            .sb-item-label {
+                font-size: 12px !important;
+            }
+
+            .layout-dropdown-container {
+                margin: 2px 0 4px 20px !important;
+                border-left: 1px solid rgba(255,255,255,0.10) !important;
+            }
+
+            .layout-sidebar .layout-dropdown-container a {
+                min-height: 28px !important;
+                padding: 5px 8px 5px 10px !important;
+                font-size: 11.5px !important;
+                font-weight: 550 !important;
+            }
+
+            .sb-badge {
+                font-size: 9px !important;
+                padding: 1px 6px !important;
+            }
+
+    </style>
+</head>
+
+<body class="layout-body @(ViewContext.RouteData.Values["controller"]) @(ViewContext.RouteData.Values["action"])" data-theme="light">
+
+    <!-- HEADER -->
+    <header>
+        <nav class="layout-navbar navbar navbar-expand-lg navbar-dark">
+            <div class="layout-navbar-container">
+                <a class="layout-navbar-brand" asp-controller="Home" asp-action="Inicio">
+                    <img src="~/images/sigoL.png" alt="SIGO" class="layout-logo-navbar" />
+                </a>
+
+                <div class="layout-navbar-tools d-flex align-items-center ms-auto me-3">
+                    <div class="layout-clock text-white d-none d-sm-flex flex-column text-end">
+                        <span id="layout-clock-time"></span>
+                        <span id="layout-clock-date"></span>
+                    </div>
+                    <div class="layout-vr vr d-none d-sm-block"></div>
+
+                    <button type="button"
+                            id="theme-toggle-btn"
+                            class="theme-switch-btn"
+                            title="Cambiar tema claro/oscuro"
+                            aria-label="Cambiar tema claro/oscuro">
+                        <span class="theme-switch-thumb">
+                            <i id="theme-toggle-icon" class="fa-solid fa-sun"></i>
+                        </span>
+                    </button> 
+
+                    <button type="button" class="btn btn-sm btn-outline-light layout-btn-about"
+                            data-bs-toggle="modal" data-bs-target="#layoutAboutModal">
+                        <i class="bi bi-info-circle me-1"></i> <span>Acerca de</span>
+                    </button>
+
+                    <button class="btn btn-sm text-white border-0" data-bs-toggle="modal" data-bs-target="#reporteModal" title="Levantar Reporte">
+                        <i class="fa-solid fa-headset fa-lg"></i>
+                    </button>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Hover zone -->
+    <div class="layout-sidebar-hover-zone"></div>
+
+    <!-- ========== SIDEBAR MEJORADO ========== -->
+    <div class="layout-sidebar layout-hidden" id="layout-sidebar-dinamico">
+
+        <!-- Tarjeta usuario -->
+        <div class="sb-user-section">
+            <!-- Botón PIN -->
+            <button id="layout-pin-btn" title="Fijar sidebar">
+                <i class="fas fa-thumbtack"></i>
+            </button>
+
+            <div class="sb-user-card">
+                <img src="~/images/Usr.png" alt="Usuario" class="sb-avatar" />
+                <div class="sb-user-info">
+                    <span class="sb-user-name">@User.Identity.Name</span>
+                    <small id="dynamic-greeting" class="sb-user-greeting"></small>
+                    <small id="dynamic-message" class="sb-user-greeting" style="margin-top:1px;"></small>
+                </div>
+                <div class="sb-user-status"></div>
+            </div>
+        </div>
+
+        <!-- Búsqueda -->
+        <div class="sb-search">
+            <i class="fas fa-search sb-search-icon"></i>
+            <input type="text" class="sb-search-input" id="sb-search-input" placeholder="Buscar módulo..." autocomplete="off" />
+        </div>
+
+        <!-- Menú dinámico -->
+        <nav class="layout-sidebar-nav" id="layout-menu-contenedor"></nav>
+
+        <!-- Logout -->
+        <div class="sb-footer">
+            <a href="@Url.Action("Logout", "Acceso")" id="layout-logout-link">
+                <div class="sb-icon-wrap">
+                    <i class="fas fa-sign-out-alt"></i>
+                </div>
+                <span class="sb-item-label">Cerrar Sesión</span>
+            </a>
+        </div>
+
+    </div>
+
+    <!-- Botón flotante toggle -->
+    <button id="layout-toggle-sidebar-btn" class="layout-toggle-sidebar-btn" aria-label="Abrir menú lateral">
+        <i class="fas fa-chevron-right"></i>
+    </button>
+
+    <!-- MAIN -->
+    <main role="main" class="layout-main-content">
+        <div class="layout-container-fluid container-fluid">
+            @RenderBody()
+        </div>
+    </main>
+
+    <footer class="layout-footer">
+        <div class="container">
+            <p>&copy; 2026 - Carnes G - Todos los derechos reservados</p>
+        </div>
+    </footer>
+
+    <!-- Modal Acerca de -->
+    <div class="modal fade" id="layoutAboutModal" tabindex="-1" aria-labelledby="layoutAboutModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow">
+                <div class="modal-header" style="background: var(--layout-brand);">
+                    <h5 class="modal-title text-white" id="layoutAboutModalLabel">
+                        <i class="bi bi-info-circle me-2"></i>Acerca de SIGO
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <h6 class="mb-1">SIGO — Sistema Integral de Gestión Operativa</h6>
+                    <p>Plataforma interna para visualizar, controlar y autorizar procesos clave de la organización: mercados, área comercial, administración, operaciones y autorizaciones. Su objetivo es estandarizar la información y agilizar la toma de decisiones.</p>
+                    <hr>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <h6>Desarrollador</h6>
+                            <ul class="list-unstyled small mb-0">
+                                <li><i class="bi bi-person-badge me-1"></i><strong>Nombre:</strong> Sistemas Carnes G</li>
+                                <li><i class="bi bi-envelope me-1"></i><strong>Correo:</strong> sistemascg@carnesg.net</li>
+                                <li><i class="bi bi-gear me-1"></i><strong>Versión:</strong> 1.1.0</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Tecnologías</h6>
+                            <ul class="list-unstyled small mb-0">
+                                <li>ASP.NET Core MVC</li>
+                                <li>Bootstrap 5 · Font Awesome · Bootstrap Icons</li>
+                                <li>jQuery / JavaScript</li>
+                                <li>SQL Server</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="alert alert-light border mt-3 mb-0 small">© 2026 Carnes G — Todos los derechos reservados.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat FAB -->
+    <button id="layout-chat-fab" class="layout-chat-fab" type="button" title="Abrir chat interno">
+        <i class="fas fa-comments"></i>
+    </button>
+
+    <!-- Manual FAB -->
+    <button id="layout-manual-fab" class="layout-chat-fab" type="button" title="Manual de usuario"
+            style="bottom: 90px; background: radial-gradient(circle at 30% 30%, #eef6ff, #0d6efd);">
+        <i class="fas fa-book"></i>
+    </button>
+
+    <!-- Chat panel -->
+    <div id="layout-chat-panel" class="layout-chat-panel d-none">
+        <div class="layout-chat-panel-header">
+            <i class="fas fa-headset"></i>
+            <div class="layout-chat-title">
+                Chat interno
+                <small id="layout-chat-area-label">Selecciona un área para comenzar</small>
+            </div>
+            <button type="button" id="layout-chat-close-btn"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="layout-chat-panel-body">
+            <div class="layout-chat-area-select">
+                <label for="layout-chat-area">Área / responsable</label>
+                <select id="layout-chat-area" class="form-select form-select-sm">
+                    <option value=""> Selecciona área </option>
+                    <option value="presupuestos">Presupuestos</option>
+                    <option value="precios">Precios</option>
+                    <option value="logistica">Logística</option>
+                </select>
+            </div>
+            <div class="layout-chat-hint">Este chat enviará los mensajes sólo al área seleccionada.</div>
+        </div>
+        <div id="layout-chat-messages" class="layout-chat-messages">
+            <div class="text-muted small text-center mt-2">Selecciona un área para iniciar la conversación.</div>
+        </div>
+        <div class="layout-chat-input">
+            <textarea id="layout-chat-text" rows="1" placeholder="Escribe un mensaje..." disabled></textarea>
+            <button id="layout-chat-send" class="btn btn-primary btn-sm" disabled>
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal Manual -->
+    <div class="modal fade" id="layoutManualModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-white">
+                        <i class="fas fa-book me-2"></i>
+                        <span id="layoutManualTitle">Manual de Usuario - SIGO</span>
+                    </h5>
+                    <button type="button" class="btn btn-close-white" data-bs-dismiss="modal">X</button>
+                </div>
+                <div class="modal-body">
+                    <button class="manual-toggle-sidebar" onclick="toggleManualSidebar()"><i class="fas fa-bars"></i></button>
+                    <div class="manual-overlay" onclick="toggleManualSidebar()"></div>
+                    <div class="manual-container">
+                        <aside class="manual-sidebar" id="manualSidebar">
+                            <div class="manual-sidebar-header">
+                                <h6><i class="fas fa-list me-2"></i>Índice de Contenidos</h6>
+                            </div>
+                            <nav class="manual-toc" id="manualToc"></nav>
+                        </aside>
+                        <div class="manual-content" id="manualContent">
+                            <div class="manual-progress">
+                                <div class="manual-progress-bar" id="manualProgressBar"></div>
+                            </div>
+                            <div class="manual-content-inner" id="manualSections"></div>
+                        </div>
+                    </div>
+                    <button class="manual-scroll-top" id="manualScrollTopBtn" onclick="scrollManualToTop()">
+                        <i class="fas fa-arrow-up"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Reporte -->
+    <div class="modal fade" id="reporteModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow" style="overflow:hidden;">
+                <div class="modal-header" style="background:var(--layout-brand);">
+                    <h5 class="modal-title text-white"><i class="fa-solid fa-headset me-2"></i> Solicitud Sistemas</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body p-0" style="height: 85vh;">
+                    <iframe src="https://forms.monday.com/forms/embed/7e2f46f5a3bb77bd42b6b28ee3a8317b?r=use1"
+                            style="width: 100%; height: 100%; border: 0;" title="Formulario de Solicitud"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="~/fonts/fonts.js"></script>
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+
+    <script>
+
+        // ========================================
+        // SIDEBAR — PIN + HOVER + TOGGLE
+        // ========================================
+        const layoutSidebar   = document.querySelector('.layout-sidebar');
+        const layoutMain      = document.querySelector('.layout-main-content');
+        const layoutHover     = document.querySelector('.layout-sidebar-hover-zone');
+        const layoutToggleBtn = document.getElementById('layout-toggle-sidebar-btn');
+        const layoutToggleIcon = layoutToggleBtn.querySelector('i');
+        const layoutPinBtn    = document.getElementById('layout-pin-btn');
+
+        let sidebarPinned = localStorage.getItem('sidebarPinned') === 'true';
+
+        function applyPinState() {
+            if (sidebarPinned) {
+                layoutSidebar.classList.remove('layout-hidden');
+                layoutMain.classList.add('layout-sidebar-open');
+                layoutToggleIcon.classList.replace('fa-chevron-right', 'fa-chevron-left');
+                layoutPinBtn.classList.add('pinned');
+                layoutPinBtn.title = 'Desfijar sidebar';
+            } else {
+                layoutPinBtn.classList.remove('pinned');
+                layoutPinBtn.title = 'Fijar sidebar';
+            }
+        }
+
+        applyPinState();
+
+        layoutPinBtn.addEventListener('click', () => {
+            sidebarPinned = !sidebarPinned;
+            localStorage.setItem('sidebarPinned', sidebarPinned);
+            applyPinState();
+        });
+
+        // layoutHover.addEventListener('mouseenter', () => {
+        //     if (sidebarPinned) return;
+        //     layoutSidebar.classList.remove('layout-hidden');
+        //     layoutMain.classList.add('layout-sidebar-open');
+        //     layoutToggleIcon.classList.replace('fa-chevron-right', 'fa-chevron-left');
+        // });
+
+        layoutSidebar.addEventListener('mouseleave', () => {
+            if (sidebarPinned) return;
+            layoutSidebar.classList.add('layout-hidden');
+            layoutMain.classList.remove('layout-sidebar-open');
+            layoutToggleIcon.classList.replace('fa-chevron-left', 'fa-chevron-right');
+        });
+
+        layoutToggleBtn.addEventListener('click', () => {
+            if (sidebarPinned) return;
+            layoutSidebar.classList.remove('layout-hidden');
+            layoutMain.classList.add('layout-sidebar-open');
+            layoutToggleIcon.classList.replace('fa-chevron-right', 'fa-chevron-left');
+        });
+
+        // ========================================
+        // RELOJ
+        // ========================================
+        (function initLayoutLiveClock() {
+            const elTime = document.getElementById('layout-clock-time');
+            const elDate = document.getElementById('layout-clock-date');
+            if (!elTime || !elDate) return;
+            function tick() {
+                const now = new Date();
+                elTime.textContent = new Intl.DateTimeFormat('es-MX', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true, timeZone:'America/Mexico_City' }).format(now);
+                elDate.textContent = new Intl.DateTimeFormat('es-MX', { weekday:'short', year:'numeric', month:'short', day:'2-digit', timeZone:'America/Mexico_City' }).format(now);
+            }
+            tick();
+            setInterval(tick, 1000);
+        })();
+
+        // ========================================
+        // SALUDO DINÁMICO
+        // ========================================
+        (function initDynamicGreeting() {
+            const greetingEl = document.getElementById('dynamic-greeting');
+            const messageEl  = document.getElementById('dynamic-message');
+            if (!greetingEl || !messageEl) return;
+            const hora = new Date().getHours();
+            const saludo = hora >= 5 && hora < 12 ? 'Buenos días' : hora >= 12 && hora < 19 ? 'Buenas tardes' : 'Buenas noches';
+            const msgs = hora >= 5 && hora < 12
+                ? ['¡Que tengas un excelente día!','¡Mucho éxito hoy!','¡Listo para conquistar el día!','¡A darle con todo!']
+                : hora >= 12 && hora < 19
+                ? ['¡Sigue así!','¡Vas muy bien!','¡Ánimo con la tarde!','¡A terminar fuerte!']
+                : ['¡Buen trabajo hoy!','¡A descansar!','¡Casi terminas!','¡Gran esfuerzo!'];
+            greetingEl.textContent = saludo;
+            messageEl.textContent  = msgs[Math.floor(Math.random() * msgs.length)];
+        })();
+
+        // ========================================
+        // MÓDULOS DINÁMICOS CON SIDEBAR MEJORADO
+        // ========================================
+ const SECTION_ORDER = [
+    "Principal",
+    "Operaciones",
+    "Almacén",
+    "Gestión",
+    "Calidad",
+    "Auditoria y Procesos",
+    "Sistema"
+];
+
+const SECTION_ALIAS = {
+    "mercados": "Principal",
+    "area comercial": "Principal",
+    "área comercial": "Principal",
+    "comercial": "Principal",
+    "autorizaciones": "Principal",
+
+    "operaciones": "Operaciones",
+    "logistica": "Operaciones",
+    "logística": "Operaciones",
+    "procesos cg": "Operaciones",
+    "integraciones": "Operaciones",
+
+        "almacen": "Almacén",
+        "almacén": "Almacén",
+        "almacenes": "Almacén",
+        "inventario": "Almacén",
+        "inventarios": "Almacén",
+
+    "administracion": "Gestión",
+    "administración": "Gestión",
+    "reporteadores": "Gestión",
+    "reportes": "Gestión",
+    "kpi": "Gestión",
+    "kpi's": "Gestión",
+
+    "calidad": "Calidad",
+    "auditoria Y procesos": "Auditoria Y procesos",
+
+    "configuracion": "Sistema",
+    "configuración": "Sistema",
+    "chat": "Sistema",
+    "sigo chat": "Sistema",
+    "sistema": "Sistema",
+    "sistemas": "Sistema",
+    "gestion de sistemas": "Sistema",
+    "gestión de sistemas": "Sistema"
+};
+
+        const ICON_MAP = {
+    'Mercados':        'fas fa-chart-line',
+    'Comercial':       'fas fa-handshake',
+    'Autorizaciones':  'fas fa-lock',
+    'Operaciones':     'fas fa-cogs',
+    'Logística':       'fas fa-truck-fast',
+    'Logistica':       'fas fa-truck-fast',
+    'Carnes G':        'fas fa-drumstick-bite',
+    'Administración':  'fas fa-folder-open',
+    'Reportes':        'fas fa-chart-bar',
+    'KPI':             'fas fa-chart-pie',
+    'Configuración':   'fas fa-sliders',
+    'SIGO Chat':       'fas fa-comments',
+    'SIGO Core':       'fas fa-layer-group'
+};
+
+        const BADGE_MAP = {
+            'Autorizaciones': { text: '!', cls: '' },
+            'SIGO Chat':      { text: 'Chat', cls: '' },
+            'Carnes G':       { text: 'Nuevo', cls: 'sb-badge-new' },
+        };
+
+        function normalizeText(text) {
+        return (text || "")
+        .toString()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+        }
+
+        function getIconForMod(nombre) {
+        const cleanNombre = normalizeText(nombre);
+
+        for (const [key, val] of Object.entries(ICON_MAP)) {
+        if (cleanNombre.includes(normalizeText(key))) {
+        return val;
+        }
+        }
+
+        return 'fas fa-folder';
+        }
+
+        function getSectionForMod(mod) {
+        const raw = mod.categoriaNombre || mod.categoria || "Principal";
+        const normalized = normalizeText(raw);
+
+        return SECTION_ALIAS[normalized] || raw.trim();
+        }
+
+        document.addEventListener("DOMContentLoaded", async () => {
+            try {
+                const res = await fetch("/Sidebar/CargarModulos", {
+    method: "GET",
+    headers: {
+        "X-Requested-With": "XMLHttpRequest",
+        "Accept": "application/json"
+    },
+    cache: "no-store"
+});
+                if (!res.ok) throw new Error("Error al cargar módulos");
+
+                if (res.redirected) {
+    window.location.href = "/Home/Inicio";
+    return;
+}
+
+if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+        window.location.href = "/Home/Inicio";
+    }
+    return;
+}
+
+const ct = (res.headers.get("content-type") || "").toLowerCase();
+
+if (!ct.includes("application/json")) {
+    window.location.href = "/Home/Inicio";
+    return;
+}
+
+                const modulos = await res.json();
+                const contenedor = document.getElementById("layout-menu-contenedor");
+                if (!contenedor) return;
+                contenedor.innerHTML = "";
+
+               function crearLayoutItemModulo(mod) {
+    const modItem = document.createElement("div");
+    modItem.classList.add("layout-menu-item");
+
+    const iconClass = mod.icono || getIconForMod(mod.nombre || "");
+    const badgeInfo = BADGE_MAP[mod.nombre] || null;
+
+    const modLink = document.createElement("a");
+    modLink.classList.add("layout-dropdown-btn");
+    modLink.href = mod.url || "#";
+
+    const iconWrap = document.createElement("div");
+    iconWrap.className = "sb-icon-wrap";
+    iconWrap.innerHTML = `<i class="${iconClass}"></i>`;
+    modLink.appendChild(iconWrap);
+
+    const labelSpan = document.createElement("span");
+    labelSpan.className = "sb-item-label";
+    labelSpan.textContent = mod.nombre || "";
+    modLink.appendChild(labelSpan);
+
+    if (badgeInfo) {
+        const badge = document.createElement("span");
+        badge.className = "sb-badge " + (badgeInfo.cls || "");
+        badge.textContent = badgeInfo.text;
+        modLink.appendChild(badge);
+    }
+
+    const subModulos = mod.subModulos || mod.submodulos || [];
+
+    if (Array.isArray(subModulos) && subModulos.length > 0) {
+        modLink.href = "#";
+
+        const arrow = document.createElement("i");
+        arrow.classList.add("fas", "fa-chevron-down", "layout-arrow");
+        modLink.appendChild(arrow);
+
+        const subContainer = document.createElement("div");
+        subContainer.classList.add("layout-dropdown-container");
+
+        subModulos.forEach(sub => {
+            const subLink = document.createElement("a");
+            subLink.href = sub.url || "#";
+
+            const subIcon = sub.icono || "fas fa-caret-right";
+            subLink.innerHTML = `<i class="${subIcon} me-1"></i>${sub.nombre || ""}`;
+
+            subContainer.appendChild(subLink);
+        });
+
+        modItem.appendChild(modLink);
+        modItem.appendChild(subContainer);
+    } else {
+        modItem.appendChild(modLink);
+    }
+
+    return modItem;
+}
+
+const grouped = {};
+
+modulos.forEach(mod => {
+    const section = getSectionForMod(mod);
+
+    if (!grouped[section]) {
+        grouped[section] = [];
+    }
+
+    grouped[section].push(mod);
+});
+
+const sectionNames = [
+    ...SECTION_ORDER.filter(section => grouped[section]?.length),
+    ...Object.keys(grouped)
+        .filter(section => !SECTION_ORDER.includes(section))
+        .sort((a, b) => a.localeCompare(b))
+];
+
+sectionNames.forEach((section, index) => {
+    const items = grouped[section];
+
+    if (index > 0) {
+        const div = document.createElement("div");
+        div.className = "sb-divider";
+        contenedor.appendChild(div);
+    }
+
+    const lbl = document.createElement("div");
+    lbl.className = "sb-section-label";
+    lbl.textContent = section.toUpperCase();
+    contenedor.appendChild(lbl);
+
+    items.forEach(mod => {
+        contenedor.appendChild(crearLayoutItemModulo(mod));
+    });
+});
+
+                // Activar dropdowns
+                document.querySelectorAll('.layout-dropdown-btn').forEach(btn => {
+                    btn.addEventListener('click', e => {
+                        const item = btn.parentElement;
+                        const hasSub = item.querySelector('.layout-dropdown-container');
+                        if (hasSub) {
+                            e.preventDefault();
+                            document.querySelectorAll('.layout-menu-item').forEach(it => {
+                                if (it !== item) it.classList.remove('layout-open');
+                            });
+                            item.classList.toggle('layout-open');
+                        }
+                    });
+                });
+
+                // Búsqueda en tiempo real
+                const searchInput = document.getElementById("sb-search-input");
+                if (searchInput) {
+                    searchInput.addEventListener("input", function () {
+                        const q = this.value.trim().toLowerCase();
+                        document.querySelectorAll(".layout-menu-item").forEach(item => {
+                            const label = item.querySelector(".sb-item-label");
+                            const text = label ? label.textContent.toLowerCase() : "";
+                            const subTexts = Array.from(item.querySelectorAll(".layout-dropdown-container a"))
+                                .map(a => a.textContent.toLowerCase()).join(" ");
+                            const match = !q || text.includes(q) || subTexts.includes(q);
+                            item.style.display = match ? "" : "none";
+                            if (q && subTexts.includes(q)) item.classList.add("layout-open");
+                            else if (!q) item.classList.remove("layout-open");
+                        });
+                        document.querySelectorAll(".sb-section-label").forEach(lbl => {
+                            let next = lbl.nextElementSibling;
+                            let hasVisible = false;
+                            while (next && !next.classList.contains("sb-section-label") && !next.classList.contains("sb-divider")) {
+                                if (next.classList.contains("layout-menu-item") && next.style.display !== "none") hasVisible = true;
+                                next = next.nextElementSibling;
+                            }
+                            lbl.style.display = hasVisible ? "" : "none";
+                        });
+                    });
+                }
+
+            } catch (e) {
+                console.error("Error cargando el sidebar dinámico:", e);
+            }
+        });
+
+        // ========================================
+        // CHAT FLOTANTE INTERNO
+        // ========================================
+        (function initLayoutInternalChat() {
+            const fab = document.getElementById("layout-chat-fab");
+            const panel = document.getElementById("layout-chat-panel");
+            const closeBtn = document.getElementById("layout-chat-close-btn");
+            const areaSelect = document.getElementById("layout-chat-area");
+            const areaLabel = document.getElementById("layout-chat-area-label");
+            const messages = document.getElementById("layout-chat-messages");
+            const txt = document.getElementById("layout-chat-text");
+            const btnSend = document.getElementById("layout-chat-send");
+            if (!fab || !panel) return;
+            let currentConversationId = null, pollTimer = null, currentAreaName = "";
+
+            function togglePanel(show) { show ? panel.classList.remove("d-none") : panel.classList.add("d-none"); }
+            fab.addEventListener("click", () => togglePanel(panel.classList.contains("d-none")));
+            closeBtn.addEventListener("click", () => togglePanel(false));
+
+            async function cargarAreas() {
+                try {
+                    const res = await fetch("/Chat/Areas");
+                    if (!res.ok) throw new Error();
+                    const data = await res.json();
+                    areaSelect.innerHTML = `<option value="">-- Selecciona área --</option>`;
+                    data.forEach(a => { const opt = document.createElement("option"); opt.value = a.idArea; opt.textContent = a.nombre; areaSelect.appendChild(opt); });
+                } catch { areaSelect.innerHTML = `<option value="">(Error al cargar áreas)</option>`; }
+            }
+            cargarAreas();
+
+            areaSelect.addEventListener("change", async () => {
+                if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+                currentConversationId = null; messages.innerHTML = "";
+                const val = areaSelect.value;
+                if (!val) { areaLabel.textContent = "Selecciona un área para comenzar"; txt.value = ""; txt.disabled = true; btnSend.disabled = true; messages.innerHTML = `<div class="text-muted small text-center mt-2">Selecciona un área para iniciar.</div>`; return; }
+                currentAreaName = areaSelect.options[areaSelect.selectedIndex].text;
+                try {
+                    const res = await fetch("/Chat/NuevaConversacion", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ idArea: parseInt(val,10) }) });
+                    const data = await res.json();
+                    if (!res.ok || !data.ok) throw new Error(data.mensaje || "Error");
+                    currentConversationId = data.idConversacion; areaLabel.textContent = `Conversando con: ${currentAreaName}`; txt.disabled = false; btnSend.disabled = false;
+                    await cargarMensajes(); pollTimer = setInterval(cargarMensajes, 5000);
+                } catch (e) { alert(e.message || "Error"); areaSelect.value = ""; areaLabel.textContent = "Selecciona un área"; txt.disabled = true; btnSend.disabled = true; }
+            });
+
+            function renderMensajes(lista) {
+                messages.innerHTML = "";
+                if (!lista || !lista.length) { messages.innerHTML = `<div class="text-muted small text-center mt-2">No hay mensajes aún 👋</div>`; return; }
+                lista.forEach(m => {
+                    const w = document.createElement("div"); w.classList.add("layout-chat-msg", m.esMio ? "layout-me" : "layout-other");
+                    const b = document.createElement("div"); b.classList.add("layout-bubble");
+                    const h = new Date(m.fecha).toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"});
+                    b.innerHTML = `<div>${m.texto}</div><span class="layout-meta">${m.esMio?"Tú":"Área "+currentAreaName} · ${h}</span>`;
+                    w.appendChild(b); messages.appendChild(w);
+                });
+                messages.scrollTop = messages.scrollHeight;
+            }
+
+            async function cargarMensajes() {
+                if (!currentConversationId) return;
+                try { const res = await fetch(`/Chat/Mensajes/${currentConversationId}`); if (!res.ok) throw new Error(); const data = await res.json(); if (!data.ok) throw new Error(); renderMensajes(data.mensajes); } catch {}
+            }
+
+            btnSend.addEventListener("click", async () => {
+                if (!currentConversationId) return; const raw = txt.value.trim(); if (!raw) return;
+                try { const res = await fetch("/Chat/Enviar",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({idConversacion:currentConversationId,texto:raw})}); const data = await res.json(); if (!res.ok || !data.ok) throw new Error(data.mensaje||"Error"); txt.value=""; txt.focus(); await cargarMensajes(); } catch(e) { alert(e.message||"No se pudo enviar."); }
+            });
+            txt.addEventListener("keydown", e => { if (e.key==="Enter" && !e.shiftKey) { e.preventDefault(); btnSend.click(); } });
+        })();
+
+        // ========================================
+        // MANUAL DE USUARIO
+        // ========================================
+        (function initLayoutUserManual() {
+            const btn = document.getElementById("layout-manual-fab");
+            const modalEl = document.getElementById("layoutManualModal");
+            if (!btn || !modalEl) return;
+            const modal = new bootstrap.Modal(modalEl);
+            const titleEl = document.getElementById("layoutManualTitle");
+            btn.addEventListener("click", () => {
+                if (!window.manualConfig) {
+                    titleEl.textContent = "Manual no disponible";
+                    document.getElementById("manualSections").innerHTML = `<div class="alert alert-warning m-4">Por el momento este módulo aún no cuenta con manual de usuario disponible.</div>`;
+                    modal.show(); return;
+                }
+                titleEl.textContent = window.manualConfig.title || "Manual de Usuario - SIGO";
+                generarManualLibro();
+                modal.show();
+                setTimeout(() => { initManualListeners(); }, 300);
+            });
+        })();
+
+        function generarManualLibro() {
+            const tocNav = document.getElementById('manualToc');
+            const sectionsContainer = document.getElementById('manualSections');
+            if (!window.manualConfig || !window.manualConfig.sections) return;
+            tocNav.innerHTML = ''; sectionsContainer.innerHTML = '';
+            window.manualConfig.sections.forEach((section, index) => {
+                const tocItem = document.createElement('div');
+                tocItem.className = 'manual-toc-item';
+                tocItem.setAttribute('data-section', section.id);
+                tocItem.innerHTML = `<i class="fas ${section.icon}"></i><span>${section.title}</span>`;
+                tocItem.onclick = () => scrollToManualSection(section.id);
+                tocNav.appendChild(tocItem);
+                const sectionDiv = document.createElement('section');
+                sectionDiv.className = 'manual-section'; sectionDiv.id = section.id;
+                let stepsHTML = '';
+                section.steps.forEach(step => {
+                    stepsHTML += `<div class="manual-step"><h4 class="manual-step-title"><i class="fas fa-chevron-right"></i>${step.title}</h4><p class="manual-step-text">${step.text}</p>${renderManualMedia(step)}</div>`;
+                });
+                sectionDiv.innerHTML = `<div class="manual-section-header"><div class="manual-section-number">${index+1}</div><h2 class="manual-section-title">${section.title}</h2></div><div class="manual-section-content">${stepsHTML}</div>`;
+                sectionsContainer.appendChild(sectionDiv);
+            });
+        }
+
+        function initManualListeners() {
+            const contentArea = document.getElementById('manualContent');
+            const scrollTopBtn = document.getElementById('manualScrollTopBtn');
+            const progressBar = document.getElementById('manualProgressBar');
+            if (!contentArea) return;
+            contentArea.addEventListener('scroll', () => {
+                updateActiveManualTocItem();
+                scrollTopBtn.classList.toggle('show', contentArea.scrollTop > 300);
+                progressBar.style.width = ((contentArea.scrollTop / (contentArea.scrollHeight - contentArea.clientHeight)) * 100) + '%';
+            });
+        }
+
+        function updateActiveManualTocItem() {
+            const sections = document.querySelectorAll('.manual-section');
+            const tocItems = document.querySelectorAll('.manual-toc-item');
+            let currentSection = null;
+            sections.forEach(s => { if (s.getBoundingClientRect().top <= 150) currentSection = s.id; });
+            tocItems.forEach(i => i.classList.toggle('active', i.getAttribute('data-section') === currentSection));
+        }
+
+        function scrollToManualSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            const contentArea = document.getElementById('manualContent');
+            if (section && contentArea) {
+                contentArea.scrollTo({ top: section.offsetTop - 20, behavior: 'smooth' });
+                if (window.innerWidth < 992) toggleManualSidebar();
+            }
+        }
+
+        function scrollManualToTop() { document.getElementById('manualContent').scrollTo({ top: 0, behavior: 'smooth' }); }
+
+        function toggleManualSidebar() {
+            const sidebar = document.getElementById('manualSidebar');
+            const overlay = document.querySelector('.manual-overlay');
+            if (sidebar && overlay) { sidebar.classList.toggle('show'); overlay.classList.toggle('show'); }
+        }
+
+        function renderManualMedia(step) {
+            if (step.video) return `<video class="manual-step-video" controls preload="metadata"><source src="${step.video}" type="video/mp4">Tu navegador no soporta video HTML5.</video>`;
+            if (step.image) return `<img src="${step.image}" alt="${step.title||''}" class="manual-step-image">`;
+            return "";
+        }
+
+         // ========================================
+            // MODO OSCURO GLOBAL - PRUEBA
+            // ========================================
+            (function initGlobalThemeSwitch() {
+                const body = document.body;
+                const btn = document.getElementById('theme-toggle-btn');
+                const icon = document.getElementById('theme-toggle-icon');
+
+                if (!body || !btn || !icon) return;
+
+                function setSwitchIcon(theme) {
+                    icon.classList.remove('fa-sun', 'fa-moon');
+
+                    if (theme === 'dark') {
+                        icon.classList.add('fa-moon');
+                        btn.title = 'Cambiar a modo claro';
+                        btn.setAttribute('aria-label', 'Cambiar a modo claro');
+                    } else {
+                        icon.classList.add('fa-sun');
+                        btn.title = 'Cambiar a modo oscuro';
+                        btn.setAttribute('aria-label', 'Cambiar a modo oscuro');
+                    }
+                }
+
+                function applyTheme(theme) {
+                    body.setAttribute('data-theme', theme);
+                    localStorage.setItem('sigoTheme', theme);
+                    setSwitchIcon(theme);
+                }
+
+                const savedTheme = localStorage.getItem('sigoTheme') || 'light';
+                applyTheme(savedTheme);
+
+                btn.addEventListener('click', function () {
+                    const currentTheme = body.getAttribute('data-theme') || 'light';
+                    const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+
+                    applyTheme(nextTheme);
+                });
+            })();
+
+            window.SIGO_SESSION = {
+                loginUrl: '@Url.Action("Index", "Home")',
+                estadoSesionUrl: '@Url.Action("EstadoSesion", "Acceso")'
+            };
+
+            function getVistaActualUrl() {
+                return window.location.pathname + window.location.search + window.location.hash;
+            }
+
+                (function () {
+                    if (window.__sigoSessionWatcherInstalled) {
+                        return;
+                    }
+
+                    window.__sigoSessionWatcherInstalled = true;
+
+                    const loginUrl = window.SIGO_SESSION.loginUrl;
+                    const estadoSesionUrl = window.SIGO_SESSION.estadoSesionUrl;
+
+                    let redirigiendo = false;
+
+                    function construirLoginUrl(redirectUrl) {
+                        const vistaActual = getVistaActualUrl();
+
+                        // Aunque el servidor mande redirectUrl, preferimos reconstruirlo desde la vista visible.
+                        // Así evitamos regresar a endpoints tipo /api, /Chat/Mensajes, /Tif/Listar, etc.
+                        return loginUrl
+                            + '?expirada=1&returnUrl='
+                            + encodeURIComponent(vistaActual);
+                    }
+
+                    function mostrarAvisoYRedirigir(redirectUrl) {
+                        if (redirigiendo) return;
+                        redirigiendo = true;
+
+                        const destino = construirLoginUrl(redirectUrl);
+
+                        let aviso = document.getElementById('sigo-session-expired-overlay');
+
+                        if (!aviso) {
+                            aviso = document.createElement('div');
+                            aviso.id = 'sigo-session-expired-overlay';
+                            aviso.innerHTML = `
+                                <div class="sigo-session-expired-card">
+                                    <div class="sigo-session-expired-icon">
+                                        <i class="fas fa-clock"></i>
+                                    </div>
+                                    <h3>Sesión expirada</h3>
+                                    <p>Tu sesión terminó por inactividad. Te enviaremos al inicio de sesión para continuar trabajando.</p>
+                                    <div class="sigo-session-expired-loader"></div>
+                                </div>
+                            `;
+                            document.body.appendChild(aviso);
+                        }
+
+                        setTimeout(function () {
+                            window.location.href = destino;
+                        }, 900);
+                    }
+
+                    function revisarRespuesta(response) {
+                        if (!response) return response;
+
+                        if (response.status === 401) {
+                            response.clone().json()
+                                .then(function (data) {
+                                    if (data && data.sessionExpired) {
+                                        mostrarAvisoYRedirigir(data.redirectUrl);
+                                    } else {
+                                        mostrarAvisoYRedirigir(null);
+                                    }
+                                })
+                                .catch(function () {
+                                    mostrarAvisoYRedirigir(null);
+                                });
+                        }
+
+                        return response;
+                    }
+
+                    // Intercepta fetch global
+                    if (window.fetch) {
+                        const fetchOriginal = window.fetch;
+
+                        window.fetch = function (input, init) {
+                            init = init || {};
+                            init.headers = init.headers || {};
+                        if (init.headers instanceof Headers) {
+                            if (!init.headers.has('X-Requested-With')) {
+                                init.headers.set('X-Requested-With', 'XMLHttpRequest');
+                            }
+
+                            if (!init.headers.has('Accept')) {
+                                init.headers.set('Accept', 'application/json');
+                            }
+
+                            init.headers.set('X-SIGO-Current-Url', getVistaActualUrl());
+                        } else if (Array.isArray(init.headers)) {
+                            init.headers.push(['X-Requested-With', 'XMLHttpRequest']);
+                            init.headers.push(['Accept', 'application/json']);
+                            init.headers.push(['X-SIGO-Current-Url', getVistaActualUrl()]);
+                        } else {
+                            init.headers['X-Requested-With'] = init.headers['X-Requested-With'] || 'XMLHttpRequest';
+                            init.headers['Accept'] = init.headers['Accept'] || 'application/json';
+                            init.headers['X-SIGO-Current-Url'] = getVistaActualUrl();
+                        }
+
+                            return fetchOriginal(input, init)
+                                .then(function (response) {
+                                    return revisarRespuesta(response);
+                                });
+                        };
+                    }
+
+                    // Intercepta jQuery AJAX
+                    if (window.jQuery) {
+                        $(document).ajaxSend(function (event, jqxhr) {
+                            jqxhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+                            jqxhr.setRequestHeader('Accept', 'application/json');
+                            jqxhr.setRequestHeader('X-SIGO-Current-Url', getVistaActualUrl());
+                        });
+
+                        $(document).ajaxError(function (event, jqxhr) {
+                            if (jqxhr.status === 401) {
+                                let redirectUrl = null;
+
+                                try {
+                                    const data = JSON.parse(jqxhr.responseText);
+                                    if (data && data.sessionExpired) {
+                                        redirectUrl = data.redirectUrl;
+                                    }
+                                } catch (e) {
+                                    redirectUrl = null;
+                                }
+
+                                mostrarAvisoYRedirigir(redirectUrl);
+                            }
+                        });
+                    }
+
+                    // Revisión silenciosa cada minuto
+                    async function revisarSesionActual() {
+                        if (redirigiendo) return;
+
+                        try {
+                            const response = await fetch(estadoSesionUrl, {
+                                method: 'GET',
+                                cache: 'no-store',
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'X-SIGO-Current-Url': getVistaActualUrl()
+                                }
+                            });
+
+                            if (response.status === 401) {
+                                let redirectUrl = null;
+
+                                try {
+                                    const data = await response.json();
+                                    if (data && data.sessionExpired) {
+                                        redirectUrl = data.redirectUrl;
+                                    }
+                                } catch (e) {
+                                    redirectUrl = null;
+                                }
+
+                                mostrarAvisoYRedirigir(redirectUrl);
+                            }
+                        } catch (e) {
+                            // Si se cae la red o el servidor tarda, no redirigimos.
+                            // Solo redirigimos cuando el servidor confirma 401.
+                        }
+                    }
+
+                    setInterval(revisarSesionActual, 30000);
+                })();
+
+    </script>
+
+    @RenderSection("Scripts", required: false)
+
+</body>
+</html>

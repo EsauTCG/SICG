@@ -1,0 +1,97 @@
+﻿
+
+<div class="sidebar hidden" id="sidebar-dinamico">
+    <!-- Usuario actual -->
+    <a asp-controller="Home" asp-action="Inicio" class="active fw-bold text-uppercase small mb-2 ps-2">
+        <i class="bi bi-person-circle"></i> @User.Identity.Name
+    </a>
+
+    <hr class="border-light opacity-25 mb-3 mt-2" />
+
+    <!-- 🔹 ESTE contenedor es donde se generará el menú dinámico -->
+    <div id="menu-contenedor"></div>
+
+    <!-- Logout -->
+    <a href="@Url.Action("Logout", "Acceso")" id="logout-link" style="margin-top:auto;">
+        <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+    </a>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener("DOMContentLoaded", async () => {
+            try {
+                const res = await fetch("/Sidebar/CargarModulos");
+                if (!res.ok) throw new Error("Error al cargar módulos");
+                const categorias = await res.json();
+
+                const contenedor = document.getElementById("menu-contenedor");
+                if (!contenedor) {
+                    console.error("⚠️ No se encontró el contenedor #menu-contenedor");
+                    return;
+                }
+                contenedor.innerHTML = "";
+
+                categorias.forEach(cat => {
+                    const catItem = document.createElement("div");
+                    catItem.classList.add("menu-item");
+
+                    const catHeader = document.createElement("div");
+                    catHeader.classList.add("menu-header", "fw-bold", "mt-2", "mb-1");
+                    catHeader.innerHTML = `<i class="${cat.icono || 'fas fa-folder'} me-2"></i> ${cat.nombre}`;
+                    catItem.appendChild(catHeader);
+
+                    cat.modulos.forEach(mod => {
+                        const modItem = document.createElement("div");
+                        modItem.classList.add("menu-item");
+
+                        const modLink = document.createElement("a");
+                        modLink.classList.add("dropdown-btn");
+                        modLink.innerHTML = `<i class="${mod.icono || 'fas fa-circle'} me-2"></i> ${mod.nombre}`;
+
+                        if (mod.subModulos && mod.subModulos.length > 0) {
+                            const arrow = document.createElement("i");
+                            arrow.classList.add("fas", "fa-chevron-down", "arrow");
+                            modLink.appendChild(arrow);
+
+                            const subContainer = document.createElement("div");
+                            subContainer.classList.add("dropdown-container");
+
+                            mod.subModulos.forEach(sub => {
+                                const subLink = document.createElement("a");
+                                subLink.href = sub.url;
+                                subLink.innerHTML = `<i class="${sub.icono || 'fas fa-caret-right'} me-2"></i> ${sub.nombre}`;
+                                subContainer.appendChild(subLink);
+                            });
+
+                            modItem.appendChild(modLink);
+                            modItem.appendChild(subContainer);
+                        } else {
+                            modLink.href = mod.url || "#";
+                            modItem.appendChild(modLink);
+                        }
+
+                        catItem.appendChild(modItem);
+                    });
+
+                    contenedor.appendChild(catItem);
+                });
+
+                // Acordeón
+                document.querySelectorAll('.dropdown-btn').forEach(btn => {
+                    btn.addEventListener('click', e => {
+                        e.preventDefault();
+                        const mi = btn.parentElement;
+                        document.querySelectorAll('.menu-item').forEach(it => {
+                            if (it !== mi) it.classList.remove('open');
+                        });
+                        mi.classList.toggle('open');
+                    });
+                });
+
+            } catch (e) {
+                console.error("Error cargando el sidebar dinámico:", e);
+            }
+        });
+    </script>
+}

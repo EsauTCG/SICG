@@ -1,0 +1,1532 @@
+﻿@model IEnumerable<Plataforma_CG.Models.Embarque>
+
+@{
+    ViewData["Title"] = "Caseta - Control de Acceso";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<style>
+    :root {
+        --caseta-brand: #8B0000;
+        --caseta-brand-dark: #5a0000;
+        --caseta-brand-soft: rgba(139, 0, 0, .08);
+        --caseta-bg: #f4f6f9;
+        --caseta-card: #ffffff;
+        --caseta-border: #dde2ea;
+        --caseta-text: #202938;
+        --caseta-muted: #6b7280;
+        --caseta-success: #198754;
+        --caseta-danger: #dc3545;
+        --caseta-warning: #f59e0b;
+        --caseta-info: #0d6efd;
+        --caseta-radius: 18px;
+        --caseta-shadow: 0 14px 34px rgba(15, 23, 42, .08);
+        --caseta-shadow-soft: 0 8px 22px rgba(15, 23, 42, .06);
+    }
+
+    body {
+        background: radial-gradient(circle at top left, rgba(139,0,0,.08), transparent 28rem), var(--caseta-bg);
+        font-family: "Segoe UI", sans-serif;
+    }
+
+    .caseta-page {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 18px 12px 32px;
+    }
+
+    .caseta-hero {
+        position: relative;
+        overflow: hidden;
+        background: linear-gradient(135deg, #8B0000 0%, #5a0000 55%, #260000 100%);
+        color: #fff;
+        border-radius: 24px;
+        padding: 22px;
+        box-shadow: 0 18px 36px rgba(90, 0, 0, .22);
+        margin-bottom: 18px;
+    }
+
+        .caseta-hero::after {
+            content: "";
+            position: absolute;
+            width: 210px;
+            height: 210px;
+            border-radius: 50%;
+            background: rgba(255,255,255,.08);
+            right: -60px;
+            top: -80px;
+        }
+
+    .caseta-hero-content {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: center;
+    }
+
+    .caseta-title-wrap {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+
+    .caseta-hero-icon {
+        width: 54px;
+        height: 54px;
+        border-radius: 18px;
+        background: rgba(255,255,255,.14);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.7rem;
+        flex: 0 0 auto;
+    }
+
+    .caseta-hero h2 {
+        margin: 0;
+        font-size: clamp(1.2rem, 3vw, 1.75rem);
+        font-weight: 900;
+        letter-spacing: -.02em;
+    }
+
+    .caseta-hero p {
+        margin: 4px 0 0;
+        opacity: .9;
+        font-size: clamp(.88rem, 2vw, 1rem);
+    }
+
+    .caseta-live-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.13);
+        border: 1px solid rgba(255,255,255,.18);
+        font-weight: 700;
+        white-space: nowrap;
+        font-size: .88rem;
+    }
+
+    .caseta-live-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 999px;
+        background: #22c55e;
+        box-shadow: 0 0 0 5px rgba(34,197,94,.18);
+    }
+
+    .caseta-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 18px;
+    }
+
+    .caseta-card {
+        background: var(--caseta-card);
+        border: 1px solid var(--caseta-border);
+        border-radius: var(--caseta-radius);
+        box-shadow: var(--caseta-shadow-soft);
+        overflow: hidden;
+    }
+
+    .caseta-card-header {
+        padding: 16px 18px;
+        border-bottom: 1px solid var(--caseta-border);
+        background: linear-gradient(180deg, #fff, #fafbfc);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .caseta-card-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0;
+        color: var(--caseta-text);
+        font-size: clamp(1rem, 2.4vw, 1.18rem);
+        font-weight: 900;
+    }
+
+        .caseta-card-title i {
+            color: var(--caseta-brand);
+            font-size: 1.25rem;
+        }
+
+    .caseta-card-body {
+        padding: 18px;
+    }
+
+    .caseta-hint {
+        color: var(--caseta-muted);
+        font-size: .92rem;
+        margin: 0;
+    }
+
+    .qr-shell {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: stretch;
+        margin-top: 14px;
+    }
+
+    .qr-input-box {
+        position: relative;
+    }
+
+        .qr-input-box i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--caseta-muted);
+            font-size: 1.1rem;
+            pointer-events: none;
+        }
+
+    #qrToken {
+        width: 100%;
+        min-height: 54px;
+        border-radius: 16px;
+        border: 2px solid var(--caseta-border);
+        padding: 12px 14px 12px 42px;
+        font-size: 1rem;
+        font-weight: 650;
+        background: #fff;
+        transition: .18s ease;
+    }
+
+        #qrToken:focus {
+            border-color: var(--caseta-brand);
+            box-shadow: 0 0 0 4px rgba(139,0,0,.12);
+            outline: none;
+        }
+
+    .btn-caseta-primary {
+        min-height: 54px;
+        border: none;
+        border-radius: 16px;
+        background: linear-gradient(135deg, var(--caseta-brand), var(--caseta-brand-dark));
+        color: #fff;
+        font-weight: 900;
+        padding: 0 22px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        box-shadow: 0 10px 20px rgba(139,0,0,.20);
+        transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+        white-space: nowrap;
+    }
+
+        .btn-caseta-primary:hover {
+            color: #fff;
+            filter: brightness(.98);
+            transform: translateY(-1px);
+            box-shadow: 0 14px 26px rgba(139,0,0,.25);
+        }
+
+        .btn-caseta-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-caseta-primary[disabled] {
+            opacity: .75;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+    .qr-result {
+        display: none;
+        margin-top: 16px;
+        border-radius: 20px;
+        border: 1px solid var(--caseta-border);
+        overflow: hidden;
+        animation: casetaFade .22s ease-out;
+    }
+
+    .qr-result-ok {
+        background: linear-gradient(180deg, #f0fdf4, #ffffff);
+        border-color: rgba(25,135,84,.25);
+    }
+
+    .qr-result-error {
+        background: linear-gradient(180deg, #fff1f2, #ffffff);
+        border-color: rgba(220,53,69,.25);
+    }
+
+    @@keyframes casetaFade {
+        from {
+            opacity: 0;
+            transform: translateY(6px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .qr-summary {
+        padding: 16px;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 14px;
+        align-items: center;
+        border-bottom: 1px solid rgba(25,135,84,.18);
+    }
+
+    .qr-summary-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 16px;
+        background: rgba(25,135,84,.12);
+        color: var(--caseta-success);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.55rem;
+    }
+
+    .qr-summary h5 {
+        margin: 0;
+        color: #0f5132;
+        font-weight: 950;
+        font-size: 1.08rem;
+    }
+
+    .qr-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 8px;
+    }
+
+    .qr-meta-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 10px;
+        border-radius: 999px;
+        background: #fff;
+        border: 1px solid rgba(25,135,84,.18);
+        color: #244033;
+        font-size: .88rem;
+        font-weight: 700;
+    }
+
+    .qr-result-body {
+        padding: 16px;
+    }
+
+    .section-mini-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+
+        .section-mini-title h5 {
+            margin: 0;
+            color: var(--caseta-text);
+            font-size: 1rem;
+            font-weight: 950;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+    .count-pill {
+        padding: 5px 9px;
+        border-radius: 999px;
+        background: var(--caseta-brand-soft);
+        color: var(--caseta-brand);
+        font-size: .78rem;
+        font-weight: 900;
+    }
+
+    .table-wrap {
+        width: 100%;
+        overflow-x: auto;
+        border: 1px solid var(--caseta-border);
+        border-radius: 16px;
+        -webkit-overflow-scrolling: touch;
+        background: #fff;
+    }
+
+    .caseta-table {
+        width: 100%;
+        margin: 0;
+        font-size: .9rem;
+        vertical-align: middle;
+    }
+
+        .caseta-table thead th {
+            background: #f7f8fa !important;
+            color: #374151;
+            font-weight: 900;
+            text-transform: uppercase;
+            font-size: .76rem;
+            letter-spacing: .04em;
+            border-bottom: 1px solid var(--caseta-border);
+            white-space: nowrap;
+        }
+
+        .caseta-table td {
+            color: var(--caseta-text);
+            font-weight: 600;
+            border-color: #edf0f4;
+        }
+
+        .caseta-table tbody tr:hover {
+            background: #fafafa;
+        }
+
+    .doc-type-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 42px;
+        padding: 5px 9px;
+        border-radius: 999px;
+        color: #fff;
+        font-weight: 900;
+        font-size: .75rem;
+    }
+
+    .doc-type-ov {
+        background: var(--caseta-info);
+    }
+
+    .doc-type-tr {
+        background: var(--caseta-success);
+    }
+
+    .acciones-salida {
+        margin-top: 16px;
+    }
+
+    .btn-salida {
+        width: 100%;
+        min-height: 58px;
+        border-radius: 18px;
+        border: none;
+        background: linear-gradient(135deg, #dc3545, #9f1239);
+        color: #fff;
+        font-weight: 950;
+        font-size: 1.02rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        text-decoration: none;
+        box-shadow: 0 12px 24px rgba(220, 53, 69, .22);
+        transition: .15s ease;
+    }
+
+        .btn-salida:hover {
+            color: #fff;
+            transform: translateY(-1px);
+            box-shadow: 0 16px 28px rgba(220, 53, 69, .28);
+        }
+
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 7px 10px;
+        border-radius: 999px;
+        font-weight: 900;
+        font-size: .82rem;
+        white-space: nowrap;
+    }
+
+        .status-badge::before {
+            content: "";
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: currentColor;
+        }
+
+    .status-pendiente {
+        color: #b45309;
+        background: #fff7ed;
+    }
+
+    .status-liberado {
+        color: #15803d;
+        background: #f0fdf4;
+    }
+
+    .status-ruta {
+        color: #1d4ed8;
+        background: #eff6ff;
+    }
+
+    .status-destino {
+        color: #6d28d9;
+        background: #f5f3ff;
+    }
+
+    .status-retrasado {
+        color: #b91c1c;
+        background: #fef2f2;
+    }
+
+    .status-entregado {
+        color: #047857;
+        background: #ecfdf5;
+    }
+
+    .status-devuelto {
+        color: #4b5563;
+        background: #f3f4f6;
+    }
+
+    .status-desconocido {
+        color: #6b7280;
+        background: #f3f4f6;
+    }
+
+    .empty-state {
+        padding: 22px;
+        text-align: center;
+        color: var(--caseta-muted);
+        border: 1px dashed var(--caseta-border);
+        border-radius: 16px;
+        background: #fafafa;
+    }
+
+        .empty-state i {
+            display: block;
+            font-size: 2rem;
+            color: var(--caseta-brand);
+            margin-bottom: 8px;
+        }
+
+    .caseta-alert-floating {
+        position: fixed;
+        top: 82px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 1080;
+        width: min(92vw, 520px);
+        border-radius: 16px;
+        box-shadow: var(--caseta-shadow);
+    }
+
+    /* Móvil: todo más cómodo para dedo */
+    @@media (max-width: 768px) {
+        .caseta-page {
+            padding: 12px 8px 26px;
+        }
+
+        .caseta-hero {
+            border-radius: 20px;
+            padding: 18px;
+        }
+
+        .caseta-hero-content {
+            align-items: flex-start;
+        }
+
+        .caseta-live-pill {
+            display: none;
+        }
+
+        .caseta-hero-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 16px;
+        }
+
+        .caseta-card-header {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .caseta-card-body {
+            padding: 14px;
+        }
+
+        .qr-shell {
+            grid-template-columns: 1fr;
+        }
+
+        .btn-caseta-primary {
+            width: 100%;
+            min-height: 58px;
+            font-size: 1rem;
+        }
+
+        #qrToken {
+            min-height: 58px;
+            font-size: 1rem;
+        }
+
+        .qr-summary {
+            grid-template-columns: 1fr;
+            text-align: center;
+        }
+
+        .qr-summary-icon {
+            margin: 0 auto;
+        }
+
+        .qr-meta {
+            justify-content: center;
+        }
+    }
+
+    /* Tablas convertidas a cards en móvil */
+    @@media (max-width: 700px) {
+        .table-wrap {
+            border: none;
+            overflow: visible;
+            background: transparent;
+        }
+
+        .caseta-table {
+            border-collapse: separate;
+            border-spacing: 0 10px;
+        }
+
+            .caseta-table thead {
+                display: none;
+            }
+
+            .caseta-table tbody tr {
+                display: block;
+                background: #fff;
+                border: 1px solid var(--caseta-border);
+                border-radius: 16px;
+                box-shadow: 0 8px 18px rgba(15, 23, 42, .06);
+                padding: 10px 12px;
+            }
+
+            .caseta-table tbody td {
+                display: grid;
+                grid-template-columns: 42% minmax(0, 1fr);
+                gap: 10px;
+                align-items: start;
+                border-bottom: 1px solid #eef1f5;
+                padding: 9px 0 !important;
+                white-space: normal;
+                word-break: break-word;
+            }
+
+                .caseta-table tbody td:last-child {
+                    border-bottom: none;
+                }
+
+                .caseta-table tbody td::before {
+                    content: attr(data-label);
+                    color: var(--caseta-muted);
+                    font-weight: 900;
+                    font-size: .78rem;
+                    text-transform: uppercase;
+                    letter-spacing: .03em;
+                }
+
+                .caseta-table tbody td[data-label="Cliente / Sucursal"],
+                .caseta-table tbody td[data-label="Estatus"] {
+                    grid-template-columns: 1fr;
+                    gap: 4px;
+                }
+
+                    .caseta-table tbody td[data-label="Cliente / Sucursal"]::before,
+                    .caseta-table tbody td[data-label="Estatus"]::before {
+                        display: block;
+                    }
+
+        .status-badge {
+            white-space: normal;
+            align-items: flex-start;
+            width: fit-content;
+        }
+    }
+
+    @@media (max-width: 430px) {
+        .caseta-title-wrap {
+            gap: 10px;
+        }
+
+        .caseta-hero h2 {
+            font-size: 1.12rem;
+        }
+
+        .caseta-hero p {
+            font-size: .84rem;
+        }
+
+        .caseta-card-title {
+            font-size: 1rem;
+        }
+
+        .qr-meta-item {
+            width: 100%;
+            justify-content: center;
+        }
+    }
+
+    /* ============================================================
+       DARK MODE - CASETA / CONTROL DE ACCESO
+============================================================ */
+
+body[data-theme="dark"] {
+    --caseta-brand: #ef4444;
+    --caseta-brand-dark: #991b1b;
+    --caseta-brand-soft: rgba(127,29,29,.24);
+    --caseta-bg: #0f172a;
+    --caseta-card: #111827;
+    --caseta-border: rgba(255,255,255,.12);
+    --caseta-text: #f9fafb;
+    --caseta-muted: #cbd5e1;
+    --caseta-success: #22c55e;
+    --caseta-danger: #f87171;
+    --caseta-warning: #f59e0b;
+    --caseta-info: #60a5fa;
+    --caseta-shadow: 0 18px 42px rgba(0,0,0,.46);
+    --caseta-shadow-soft: 0 10px 26px rgba(0,0,0,.34);
+}
+
+/* Fondo general */
+body[data-theme="dark"] {
+    background: radial-gradient(circle at top left, rgba(248,113,113,.10), transparent 28rem), #0f172a !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .layout-main-content {
+    background: #0f172a !important;
+}
+
+body[data-theme="dark"] .layout-main-content .layout-container-fluid {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+body[data-theme="dark"] .caseta-page {
+    color: #e5e7eb !important;
+}
+
+/* Hero */
+body[data-theme="dark"] .caseta-hero {
+    background: linear-gradient(135deg, #7f1d1d 0%, #450a0a 55%, #111827 100%) !important;
+    box-shadow: var(--caseta-shadow) !important;
+    border: 1px solid rgba(248,113,113,.22) !important;
+}
+
+body[data-theme="dark"] .caseta-hero::after {
+    background: rgba(255,255,255,.04) !important;
+}
+
+body[data-theme="dark"] .caseta-hero-icon {
+    background: rgba(255,255,255,.10) !important;
+    border: 1px solid rgba(255,255,255,.14) !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .caseta-hero h2 {
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .caseta-hero p {
+    color: #fecaca !important;
+    opacity: 1 !important;
+}
+
+body[data-theme="dark"] .caseta-live-pill {
+    background: rgba(255,255,255,.10) !important;
+    border-color: rgba(255,255,255,.16) !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .caseta-live-dot {
+    background: #22c55e !important;
+    box-shadow: 0 0 0 5px rgba(34,197,94,.18) !important;
+}
+
+/* Cards */
+body[data-theme="dark"] .caseta-card {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,.12) !important;
+    box-shadow: var(--caseta-shadow-soft) !important;
+}
+
+body[data-theme="dark"] .caseta-card-header {
+    background: linear-gradient(180deg, #1f2937 0%, #172033 100%) !important;
+    border-bottom-color: rgba(255,255,255,.12) !important;
+}
+
+body[data-theme="dark"] .caseta-card-title {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .caseta-card-title i {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .caseta-card-body {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .caseta-hint {
+    color: #cbd5e1 !important;
+}
+
+/* Input QR */
+body[data-theme="dark"] .qr-input-box i {
+    color: #94a3b8 !important;
+}
+
+body[data-theme="dark"] #qrToken,
+body[data-theme="dark"] .form-control {
+    background: #0b1220 !important;
+    color: #f9fafb !important;
+    border-color: rgba(203,213,225,.28) !important;
+    box-shadow: none !important;
+}
+
+body[data-theme="dark"] #qrToken:focus,
+body[data-theme="dark"] .form-control:focus {
+    background: #0f172a !important;
+    color: #ffffff !important;
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 4px rgba(239,68,68,.22) !important;
+    outline: none !important;
+}
+
+body[data-theme="dark"] #qrToken::placeholder,
+body[data-theme="dark"] .form-control::placeholder {
+    color: #94a3b8 !important;
+    opacity: 1 !important;
+}
+
+/* Botón validar */
+body[data-theme="dark"] .btn-caseta-primary {
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 60%, #7f1d1d 100%) !important;
+    color: #ffffff !important;
+    box-shadow: 0 12px 24px rgba(0,0,0,.30) !important;
+}
+
+body[data-theme="dark"] .btn-caseta-primary:hover {
+    color: #ffffff !important;
+    filter: brightness(1.08) !important;
+    box-shadow: 0 16px 30px rgba(0,0,0,.36) !important;
+}
+
+body[data-theme="dark"] .btn-caseta-primary[disabled] {
+    opacity: .75 !important;
+}
+
+/* Resultado QR */
+body[data-theme="dark"] .qr-result {
+    border-color: rgba(255,255,255,.12) !important;
+    box-shadow: var(--caseta-shadow-soft) !important;
+}
+
+body[data-theme="dark"] .qr-result-ok {
+    background: linear-gradient(180deg, rgba(22,101,52,.22), #111827) !important;
+    border-color: rgba(74,222,128,.35) !important;
+}
+
+body[data-theme="dark"] .qr-result-error {
+    background: linear-gradient(180deg, rgba(153,27,27,.24), #111827) !important;
+    border-color: rgba(248,113,113,.45) !important;
+}
+
+body[data-theme="dark"] .qr-summary {
+    border-bottom-color: rgba(74,222,128,.24) !important;
+}
+
+body[data-theme="dark"] .qr-summary-icon {
+    background: rgba(22,101,52,.26) !important;
+    color: #bbf7d0 !important;
+}
+
+body[data-theme="dark"] .qr-summary h5 {
+    color: #bbf7d0 !important;
+}
+
+body[data-theme="dark"] .qr-meta-item {
+    background: #0b1220 !important;
+    border-color: rgba(74,222,128,.28) !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .qr-result-body {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+}
+
+/* Mini títulos y contador */
+body[data-theme="dark"] .section-mini-title h5 {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .section-mini-title h5 i {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .count-pill {
+    background: rgba(127,29,29,.24) !important;
+    color: #fca5a5 !important;
+    border: 1px solid rgba(248,113,113,.35) !important;
+}
+
+/* Tablas */
+body[data-theme="dark"] .table-wrap {
+    background: #111827 !important;
+    border-color: rgba(255,255,255,.12) !important;
+    scrollbar-color: rgba(248,113,113,.42) #0f172a;
+}
+
+body[data-theme="dark"] .caseta-table {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    --bs-table-bg: #111827;
+    --bs-table-color: #e5e7eb;
+    --bs-table-border-color: rgba(255,255,255,.12);
+    --bs-table-striped-bg: #172033;
+    --bs-table-striped-color: #e5e7eb;
+    --bs-table-hover-bg: rgba(248,113,113,.12);
+    --bs-table-hover-color: #ffffff;
+}
+
+body[data-theme="dark"] .caseta-table thead th {
+    background: linear-gradient(180deg, #1f2937 0%, #172033 100%) !important;
+    color: #f9fafb !important;
+    border-bottom-color: rgba(255,255,255,.12) !important;
+}
+
+body[data-theme="dark"] .caseta-table td {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,.12) !important;
+}
+
+body[data-theme="dark"] .caseta-table tbody tr:hover td {
+    background: rgba(248,113,113,.10) !important;
+    color: #ffffff !important;
+}
+
+/* Badges tipo documento */
+body[data-theme="dark"] .doc-type-ov {
+    background: #2563eb !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .doc-type-tr {
+    background: #16a34a !important;
+    color: #ffffff !important;
+}
+
+/* Botón salida */
+body[data-theme="dark"] .btn-salida {
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 60%, #7f1d1d 100%) !important;
+    color: #ffffff !important;
+    box-shadow: 0 14px 28px rgba(0,0,0,.36) !important;
+}
+
+body[data-theme="dark"] .btn-salida:hover {
+    color: #ffffff !important;
+    box-shadow: 0 18px 34px rgba(0,0,0,.44) !important;
+}
+
+/* Status badges */
+body[data-theme="dark"] .status-badge {
+    border: 1px solid transparent !important;
+    box-shadow: 0 6px 14px rgba(0,0,0,.22) !important;
+}
+
+body[data-theme="dark"] .status-pendiente {
+    color: #fde68a !important;
+    background: rgba(180,83,9,.22) !important;
+    border-color: rgba(245,158,11,.45) !important;
+}
+
+body[data-theme="dark"] .status-liberado,
+body[data-theme="dark"] .status-entregado {
+    color: #bbf7d0 !important;
+    background: rgba(22,101,52,.26) !important;
+    border-color: rgba(74,222,128,.40) !important;
+}
+
+body[data-theme="dark"] .status-ruta {
+    color: #bfdbfe !important;
+    background: rgba(30,64,175,.24) !important;
+    border-color: rgba(96,165,250,.45) !important;
+}
+
+body[data-theme="dark"] .status-destino {
+    color: #ddd6fe !important;
+    background: rgba(109,40,217,.24) !important;
+    border-color: rgba(167,139,250,.42) !important;
+}
+
+body[data-theme="dark"] .status-retrasado {
+    color: #fecaca !important;
+    background: rgba(153,27,27,.30) !important;
+    border-color: rgba(248,113,113,.48) !important;
+}
+
+body[data-theme="dark"] .status-devuelto,
+body[data-theme="dark"] .status-desconocido {
+    color: #e5e7eb !important;
+    background: rgba(71,85,105,.34) !important;
+    border-color: rgba(203,213,225,.28) !important;
+}
+
+/* Empty state */
+body[data-theme="dark"] .empty-state {
+    background: #172033 !important;
+    color: #cbd5e1 !important;
+    border-color: rgba(203,213,225,.28) !important;
+}
+
+body[data-theme="dark"] .empty-state i {
+    color: #fca5a5 !important;
+}
+
+/* Alertas */
+body[data-theme="dark"] .alert-danger {
+    background: rgba(153,27,27,.30) !important;
+    color: #fecaca !important;
+    border-color: rgba(248,113,113,.48) !important;
+}
+
+body[data-theme="dark"] .alert-success {
+    background: rgba(22,101,52,.26) !important;
+    color: #bbf7d0 !important;
+    border-color: rgba(74,222,128,.40) !important;
+}
+
+body[data-theme="dark"] .alert-warning {
+    background: rgba(180,83,9,.22) !important;
+    color: #fde68a !important;
+    border-color: rgba(245,158,11,.45) !important;
+}
+
+body[data-theme="dark"] .caseta-alert-floating {
+    box-shadow: var(--caseta-shadow) !important;
+}
+
+/* Scrollbars */
+body[data-theme="dark"] .table-wrap::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+}
+
+body[data-theme="dark"] .table-wrap::-webkit-scrollbar-track {
+    background: #0f172a;
+}
+
+body[data-theme="dark"] .table-wrap::-webkit-scrollbar-thumb {
+    background: rgba(248,113,113,.42);
+    border-radius: 999px;
+}
+
+/* Mobile cards */
+@@media (max-width: 700px) {
+    body[data-theme="dark"] .table-wrap {
+        background: transparent !important;
+        border-color: transparent !important;
+    }
+
+    body[data-theme="dark"] .caseta-table tbody tr {
+        background: #111827 !important;
+        border-color: rgba(255,255,255,.12) !important;
+        box-shadow: 0 8px 22px rgba(0,0,0,.32) !important;
+    }
+
+    body[data-theme="dark"] .caseta-table tbody td {
+        background: transparent !important;
+        color: #e5e7eb !important;
+        border-bottom-color: rgba(255,255,255,.12) !important;
+    }
+
+    body[data-theme="dark"] .caseta-table tbody td::before {
+        color: #94a3b8 !important;
+    }
+
+    body[data-theme="dark"] .caseta-table tbody tr:hover td {
+        background: transparent !important;
+    }
+}
+
+</style>
+
+<div class="caseta-page">
+
+    <section class="caseta-hero">
+        <div class="caseta-hero-content">
+            <div class="caseta-title-wrap">
+                <div class="caseta-hero-icon">
+                    <i class="bi bi-shield-check"></i>
+                </div>
+
+                <div>
+                    <h2>Control de Acceso - Caseta</h2>
+                    <p>Escanea el QR, revisa documentos y registra la salida del embarque.</p>
+                </div>
+            </div>
+
+            <div class="caseta-live-pill">
+                <span class="caseta-live-dot"></span>
+                Operación en tiempo real
+            </div>
+        </div>
+    </section>
+
+    <div class="caseta-grid">
+
+        <!-- Panel QR -->
+        <section class="caseta-card">
+            <div class="caseta-card-header">
+                <div>
+                    <h3 class="caseta-card-title">
+                        <i class="bi bi-qr-code-scan"></i>
+                        Validación de QR
+                    </h3>
+                    <p class="caseta-hint">
+                        Escanea el código o pega el token para validar el embarque.
+                    </p>
+                </div>
+            </div>
+
+            <div class="caseta-card-body">
+
+                <div class="qr-shell">
+                    <div class="qr-input-box">
+                        <i class="bi bi-upc-scan"></i>
+                        <input id="qrToken"
+                               type="text"
+                               class="form-control"
+                               value="@ViewBag.Token"
+                               autocomplete="off"
+                               placeholder="Escanea o ingresa el token aquí..." />
+                    </div>
+
+                    <button id="btnValidarQR" class="btn-caseta-primary" type="button" onclick="validarQR()">
+                        <i class="bi bi-check2-circle"></i>
+                        Validar
+                    </button>
+                </div>
+
+                <div id="qrErrorBox" class="alert alert-danger mt-3 mb-0" style="display:none;"></div>
+
+                <!-- Resultado QR -->
+                <div id="resultadoQR" class="qr-result qr-result-ok">
+
+                    <div class="qr-summary">
+                        <div class="qr-summary-icon">
+                            <i class="bi bi-check2-circle"></i>
+                        </div>
+
+                        <div>
+                            <h5>Embarque validado correctamente</h5>
+
+                            <div class="qr-meta">
+                                <span class="qr-meta-item">
+                                    <i class="bi bi-truck"></i>
+                                    Embarque: <span id="r-id">-</span>
+                                </span>
+
+                                <span class="qr-meta-item">
+                                    <i class="bi bi-calendar-check"></i>
+                                    QR: <span id="r-fecha">-</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="qr-result-body">
+                        <div class="section-mini-title">
+                            <h5>
+                                <i class="bi bi-list-check"></i>
+                                Documentos incluidos
+                            </h5>
+
+                            <span id="ordenesCount" class="count-pill">0 registros</span>
+                        </div>
+
+                        <div class="table-wrap">
+                            <table class="table caseta-table" id="tabla-ordenes">
+                                <thead>
+                                    <tr>
+                                        <th>Tipo</th>
+                                        <th>ID</th>
+                                        <th>Cliente / Sucursal</th>
+                                        <th>Consecutivo</th>
+                                        <th>Ruta</th>
+                                        <th>Presentación</th>
+                                        <th>Entrega</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody></tbody>
+                            </table>
+                        </div>
+
+                        <div id="acciones" class="acciones-salida"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Panel de embarques -->
+        <section class="caseta-card">
+            <div class="caseta-card-header">
+                <div>
+                    <h3 class="caseta-card-title">
+                        <i class="bi bi-truck-front"></i>
+                        Embarques activos
+                    </h3>
+                    <p class="caseta-hint">
+                        Lista de embarques disponibles para seguimiento desde caseta.
+                    </p>
+                </div>
+
+                <span class="count-pill">
+                    @Model.Count() registro(s)
+                </span>
+            </div>
+
+            <div class="caseta-card-body">
+                @if (Model != null && Model.Any())
+                {
+                    <div class="table-wrap">
+                        <table class="table caseta-table">
+                            <thead>
+                                <tr>
+                                    <th>Embarque</th>
+                                    <th>Fecha</th>
+                                    <th>Estatus</th>
+                                    <th>Salida</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                @foreach (var e in Model)
+                                {
+                                    var validacionesCompletas =
+                                    e.CalidadAprobada == true &&
+                                    e.DocumentacionAprobada == true &&
+                                    e.DocumentacionCalidadAprobada == true;
+
+                                    var estatusTexto =
+                                    e.Estatus == 7 && !validacionesCompletas ? "Pendiente de validaciones" :
+                                    e.Estatus == 1 ? "Pendiente de validaciones" :
+                                    e.Estatus == 7 ? "Liberado para QR" :
+                                    e.Estatus == 2 ? "En Ruta" :
+                                    e.Estatus == 3 ? "En Destino" :
+                                    e.Estatus == 4 ? "Retrasado" :
+                                    e.Estatus == 5 ? "Entregado" :
+                                    e.Estatus == 6 ? "Devuelto" :
+                                    "Desconocido";
+
+                                    var estatusClase =
+                                    e.Estatus == 7 && !validacionesCompletas ? "status-pendiente" :
+                                    e.Estatus == 1 ? "status-pendiente" :
+                                    e.Estatus == 7 ? "status-liberado" :
+                                    e.Estatus == 2 ? "status-ruta" :
+                                    e.Estatus == 3 ? "status-destino" :
+                                    e.Estatus == 4 ? "status-retrasado" :
+                                    e.Estatus == 5 ? "status-entregado" :
+                                    e.Estatus == 6 ? "status-devuelto" :
+                                    "status-desconocido";
+
+                                    <tr>
+                                        <td data-label="Embarque">
+                                            @(string.IsNullOrWhiteSpace(e.Consecutivo) ? $"EMB-{e.Id}" : e.Consecutivo)
+                                        </td>
+
+                                        <td data-label="Fecha">
+                                            @e.FechaCreacion.ToString("yyyy-MM-dd HH:mm")
+                                        </td>
+
+                                        <td data-label="Estatus">
+                                            <span class="status-badge @estatusClase">@estatusTexto</span>
+                                        </td>
+
+                                        <td data-label="Salida">
+                                            @(e.FechaSalida?.ToString("yyyy-MM-dd HH:mm") ?? "-")
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="empty-state">
+                        <i class="bi bi-inbox"></i>
+                        No hay embarques activos para mostrar.
+                    </div>
+                }
+            </div>
+        </section>
+
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(Context.Request.Query["alert"]))
+{
+    <div id="alertBox" class="alert text-center fw-bold caseta-alert-floating" style="display:none;"></div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const type = "@Context.Request.Query["alert"]";
+            const box = document.getElementById("alertBox");
+
+            const mensajes = {
+                "salida-ok": { msg: "Salida registrada correctamente.", clase: "alert-success" },
+                "ya-salida": { msg: "Este embarque ya tenía registrada la salida.", clase: "alert-warning" },
+                "notfound": { msg: "El embarque no existe.", clase: "alert-danger" },
+               "no-calidad": { msg: "El embarque aún no cuenta con todas las validaciones requeridas.", clase: "alert-warning" }
+            };
+
+            if (mensajes[type]) {
+                box.innerText = mensajes[type].msg;
+                box.classList.add(mensajes[type].clase);
+                box.style.display = "block";
+
+                setTimeout(() => box.style.display = "none", 3500);
+            }
+        });
+    </script>
+}
+
+@section Scripts {
+    @* Si Bootstrap Icons ya lo tienes cargado en _Layout2.cshtml, elimina esta línea para no duplicarlo. *@
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const input = document.getElementById("qrToken");
+
+            if (input) {
+                input.focus();
+
+                input.addEventListener("keydown", function (e) {
+                    if (e.key === "Enter") {
+                        e.preventDefault();
+                        validarQR();
+                    }
+                });
+
+                const token = input.value.trim();
+
+                if (token.length > 0) {
+                    validarQR();
+                }
+            }
+        });
+
+        function setLoadingQR(isLoading) {
+            const btn = document.getElementById("btnValidarQR");
+
+            if (!btn) return;
+
+            if (isLoading) {
+                btn.disabled = true;
+                btn.innerHTML = `
+                    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                    Validando...
+                `;
+            } else {
+                btn.disabled = false;
+                btn.innerHTML = `
+                    <i class="bi bi-check2-circle"></i>
+                    Validar
+                `;
+            }
+        }
+
+        function validarQR() {
+            const input = document.getElementById("qrToken");
+            const token = input.value.trim();
+
+            if (token.length === 0) {
+                errorFeedback("Escanea o ingresa un token para validar.");
+                input.focus();
+                return;
+            }
+
+            setLoadingQR(true);
+
+            fetch(`/Embarques/ValidarQR?token=${encodeURIComponent(token)}`)
+                .then(async r => {
+                    if (!r.ok) {
+                        let msg = "El token no existe o no es válido.";
+
+                        try {
+                            const serverMsg = await r.text();
+                            if (serverMsg && serverMsg.trim().length > 0) {
+                                msg = serverMsg;
+                            }
+                        } catch { }
+
+                        throw new Error(msg);
+                    }
+
+                    return r.json();
+                })
+                .then(data => {
+                    successFeedback();
+                    mostrarResultado(data);
+                })
+                .catch(err => {
+                    errorFeedback(err.message || "No se pudo validar el QR.");
+                })
+                .finally(() => {
+                    setLoadingQR(false);
+                });
+        }
+
+        function escapeHtml(value) {
+            if (value === null || value === undefined) return "-";
+
+            return String(value)
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+
+        function agregarFilaDocumento(tbody, item) {
+            const tr = document.createElement("tr");
+
+            tr.innerHTML = `
+                <td data-label="Tipo">
+                    <span class="doc-type-badge ${item.tipoClase}">${item.tipo}</span>
+                </td>
+                <td data-label="ID">${escapeHtml(item.id)}</td>
+                <td data-label="Cliente / Sucursal">${escapeHtml(item.clienteSucursal)}</td>
+                <td data-label="Consecutivo">${escapeHtml(item.consecutivo)}</td>
+                <td data-label="Ruta">${escapeHtml(item.ruta)}</td>
+                <td data-label="Presentación">${escapeHtml(item.presentacion)}</td>
+                <td data-label="Entrega">${escapeHtml(item.entrega)}</td>
+            `;
+
+            tbody.appendChild(tr);
+        }
+
+        function mostrarResultado(data) {
+            const card = document.getElementById("resultadoQR");
+            const tbody = document.querySelector("#tabla-ordenes tbody");
+            const acciones = document.getElementById("acciones");
+            const count = document.getElementById("ordenesCount");
+
+            card.style.display = "block";
+            card.classList.remove("qr-result-error");
+            card.classList.add("qr-result-ok");
+
+            document.getElementById("r-id").innerText = data.embarqueConsecutivo ?? "-";
+            document.getElementById("r-fecha").innerText = data.qrGenerado ?? "-";
+
+            tbody.innerHTML = "";
+
+            let total = 0;
+
+            if (data.ordenes && data.ordenes.length > 0) {
+                data.ordenes.forEach(o => {
+                    total++;
+
+                    agregarFilaDocumento(tbody, {
+                        tipo: "OV",
+                        tipoClase: "doc-type-ov",
+                        id: o.id,
+                        clienteSucursal: o.cliente,
+                        consecutivo: o.consecutivo,
+                        ruta: o.ruta ?? "-",
+                        presentacion: o.presentacion ?? "-",
+                        entrega: o.fechaEntrega ?? "-"
+                    });
+                });
+            }
+
+            if (data.transferencias && data.transferencias.length > 0) {
+                data.transferencias.forEach(t => {
+                    total++;
+
+                    agregarFilaDocumento(tbody, {
+                        tipo: "TR",
+                        tipoClase: "doc-type-tr",
+                        id: t.id,
+                        clienteSucursal: t.sucursal ?? "-",
+                        consecutivo: t.consecutivo ?? "-",
+                        ruta: "-",
+                        presentacion: "-",
+                        entrega: t.fechaSolicitud ?? "-"
+                    });
+                });
+            }
+
+            count.innerText = total === 1 ? "1 registro" : `${total} registros`;
+
+            if (total === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td data-label="Aviso" colspan="7">
+                            No se encontraron órdenes ni transferencias relacionadas.
+                        </td>
+                    </tr>
+                `;
+            }
+
+            acciones.innerHTML = `
+                <a href="/Embarques/RegistrarSalida/${encodeURIComponent(data.embarqueId)}" class="btn-salida">
+                    <i class="bi bi-box-arrow-right"></i>
+                    Registrar salida del embarque
+                </a>
+            `;
+
+            setTimeout(() => {
+                card.scrollIntoView({ behavior: "smooth", block: "start" });
+            }, 100);
+        }
+
+        function successFeedback() {
+            const box = document.getElementById("qrErrorBox");
+
+            if (box) {
+                box.style.display = "none";
+                box.innerText = "";
+            }
+        }
+
+        function errorFeedback(msg) {
+            const box = document.getElementById("qrErrorBox");
+            const card = document.getElementById("resultadoQR");
+
+            if (box) {
+                box.innerText = msg;
+                box.style.display = "block";
+            }
+
+            if (card) {
+                card.style.display = "none";
+                card.classList.remove("qr-result-ok");
+                card.classList.add("qr-result-error");
+            }
+
+            setTimeout(() => {
+                if (box) {
+                    box.style.display = "none";
+                }
+            }, 3500);
+        }
+    </script>
+}

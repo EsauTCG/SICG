@@ -1,0 +1,676 @@
+﻿@using System.Text.Json
+@{
+    Layout = null;
+    ViewBag.Title = "Mapa Industrial de Canales";
+
+    // ====== DEMO BASE ======
+    // Puedes sustituir este bloque por Model o por datos desde API/controlador.
+    var data = new[] {
+        new { Zona="CÁMARA 1 · PREMIUM", Camara="CÁMARA 1", Almacen="ALM-01", Clasif="PREMIUM", Riel="R1", Pos=1, Ocup=true,  Canal="C1-R1-01", Peso=286m, Fecha="10/01 05:20", Dest="DESHUESE", Lote="L-2401", Origen="Rastro A", Notas="OK" },
+        new { Zona="CÁMARA 1 · PREMIUM", Camara="CÁMARA 1", Almacen="ALM-01", Clasif="PREMIUM", Riel="R1", Pos=2, Ocup=true,  Canal="C1-R1-02", Peso=279m, Fecha="10/01 05:27", Dest="DESHUESE", Lote="L-2401", Origen="Rastro A", Notas="OK" },
+        new { Zona="CÁMARA 1 · PREMIUM", Camara="CÁMARA 1", Almacen="ALM-01", Clasif="PREMIUM", Riel="R1", Pos=3, Ocup=true,  Canal="C1-R1-03", Peso=292m, Fecha="10/01 05:31", Dest="VENTA",    Lote="L-2401", Origen="Rastro A", Notas="Prioridad" },
+        new { Zona="CÁMARA 1 · PREMIUM", Camara="CÁMARA 1", Almacen="ALM-01", Clasif="PREMIUM", Riel="R1", Pos=4, Ocup=false, Canal="",         Peso=0m,   Fecha="",           Dest="",         Lote="",       Origen="",         Notas="" },
+        new { Zona="CÁMARA 1 · PREMIUM", Camara="CÁMARA 1", Almacen="ALM-01", Clasif="PREMIUM", Riel="R1", Pos=5, Ocup=true,  Canal="C1-R1-05", Peso=271m, Fecha="10/01 05:49", Dest="DESHUESE", Lote="L-2401", Origen="Rastro A", Notas="OK" },
+        new { Zona="CÁMARA 1 · PREMIUM", Camara="CÁMARA 1", Almacen="ALM-01", Clasif="PREMIUM", Riel="R1", Pos=6, Ocup=true,  Canal="C1-R1-06", Peso=265m, Fecha="10/01 06:02", Dest="DESHUESE", Lote="L-2401", Origen="Rastro A", Notas="OK" },
+
+        new { Zona="CÁMARA 1 · SELECT", Camara="CÁMARA 1", Almacen="ALM-02", Clasif="SELECT", Riel="R2", Pos=1, Ocup=true,  Canal="C1-R2-01", Peso=258m, Fecha="11/01 07:12", Dest="DESHUESE", Lote="L-2402", Origen="Rastro B", Notas="OK" },
+        new { Zona="CÁMARA 1 · SELECT", Camara="CÁMARA 1", Almacen="ALM-02", Clasif="SELECT", Riel="R2", Pos=2, Ocup=true,  Canal="C1-R2-02", Peso=244m, Fecha="11/01 07:18", Dest="VENTA",    Lote="L-2402", Origen="Rastro B", Notas="Cliente Y" },
+        new { Zona="CÁMARA 1 · SELECT", Camara="CÁMARA 1", Almacen="ALM-02", Clasif="SELECT", Riel="R2", Pos=3, Ocup=true,  Canal="C1-R2-03", Peso=251m, Fecha="11/01 07:25", Dest="DESHUESE", Lote="L-2402", Origen="Rastro B", Notas="OK" },
+        new { Zona="CÁMARA 1 · SELECT", Camara="CÁMARA 1", Almacen="ALM-02", Clasif="SELECT", Riel="R2", Pos=4, Ocup=false, Canal="",         Peso=0m,   Fecha="",           Dest="",         Lote="",       Origen="",         Notas="" },
+
+        new { Zona="CÁMARA 2 · COMERCIAL", Camara="CÁMARA 2", Almacen="ALM-03", Clasif="COMERCIAL", Riel="R3", Pos=1, Ocup=true,  Canal="C2-R3-01", Peso=233m, Fecha="12/01 08:02", Dest="DESHUESE", Lote="L-2403", Origen="Rastro C", Notas="OK" },
+        new { Zona="CÁMARA 2 · COMERCIAL", Camara="CÁMARA 2", Almacen="ALM-03", Clasif="COMERCIAL", Riel="R3", Pos=2, Ocup=true,  Canal="C2-R3-02", Peso=229m, Fecha="12/01 08:10", Dest="DESHUESE", Lote="L-2403", Origen="Rastro C", Notas="OK" },
+        new { Zona="CÁMARA 2 · COMERCIAL", Camara="CÁMARA 2", Almacen="ALM-03", Clasif="COMERCIAL", Riel="R3", Pos=3, Ocup=true,  Canal="C2-R3-03", Peso=241m, Fecha="12/01 08:15", Dest="VENTA",    Lote="L-2403", Origen="Rastro C", Notas="OK" },
+        new { Zona="CÁMARA 2 · COMERCIAL", Camara="CÁMARA 2", Almacen="ALM-03", Clasif="COMERCIAL", Riel="R3", Pos=4, Ocup=true,  Canal="C2-R3-04", Peso=238m, Fecha="12/01 08:20", Dest="DESHUESE", Lote="L-2403", Origen="Rastro C", Notas="OK" },
+
+        new { Zona="CÁMARA 2 · VACA/TORO", Camara="CÁMARA 2", Almacen="ALM-04", Clasif="VACA/TORO", Riel="R4", Pos=1, Ocup=true,  Canal="C2-R4-01", Peso=310m, Fecha="12/01 08:30", Dest="RETENCIÓN", Lote="L-2403", Origen="Rastro C", Notas="Revisión" },
+        new { Zona="CÁMARA 2 · VACA/TORO", Camara="CÁMARA 2", Almacen="ALM-04", Clasif="VACA/TORO", Riel="R4", Pos=2, Ocup=true,  Canal="C2-R4-02", Peso=328m, Fecha="12/01 08:41", Dest="DESHUESE",  Lote="L-2403", Origen="Rastro C", Notas="Vaca" },
+
+        new { Zona="CÁMARA 3 · RETENCIÓN", Camara="CÁMARA 3", Almacen="ALM-05", Clasif="RETENCIÓN", Riel="R5", Pos=1, Ocup=true,  Canal="C3-R5-01", Peso=270m, Fecha="12/01 09:02", Dest="RETENCIÓN", Lote="L-2403", Origen="Rastro C", Notas="Inspección" },
+        new { Zona="CÁMARA 3 · RETENCIÓN", Camara="CÁMARA 3", Almacen="ALM-05", Clasif="RETENCIÓN", Riel="R5", Pos=2, Ocup=false, Canal="",         Peso=0m,   Fecha="",           Dest="",          Lote="",       Origen="",         Notas="" },
+    };
+
+    var colors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase){
+        {"PREMIUM", "#f2c94c"},
+        {"SELECT", "#27ae60"},
+        {"COMERCIAL", "#2d9cdb"},
+        {"VACA/TORO", "#eb5757"},
+        {"RETENCIÓN", "#9b51e0"},
+        {"RETENCION", "#9b51e0"}
+    };
+
+    string ColorFor(string c) => colors.TryGetValue(c ?? "", out var v) ? v : "#7f8fa6";
+
+    var totalPos = data.Length;
+    var totalOcup = data.Count(x => x.Ocup);
+    var totalLibres = totalPos - totalOcup;
+    var totalKg = data.Where(x => x.Ocup).Sum(x => x.Peso);
+    var promedioKg = totalOcup > 0 ? Math.Round(totalKg / totalOcup, 1) : 0;
+    var listosDeshuese = data.Count(x => x.Ocup && (x.Dest ?? "").ToUpper().Contains("DESHUESE"));
+    var retencion = data.Count(x => x.Ocup && (x.Dest ?? "").ToUpper().Contains("RETEN"));
+
+    var zones = data.GroupBy(x => x.Zona).OrderBy(g => g.Key).ToList();
+    var camaras = data.Select(x => x.Camara).Distinct().OrderBy(x => x).ToList();
+}
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewBag.Title</title>
+    <style>
+        :root {
+            --bg: #0a0d12;
+            --panel: #121821;
+            --panel2: #161d27;
+            --line: rgba(255,255,255,.08);
+            --text: #eef3ff;
+            --muted: #a4afc3;
+            --danger: #eb5757;
+            --ok: #27ae60;
+            --warn: #f2c94c;
+            --blue: #2d9cdb;
+            --shadow: 0 18px 40px rgba(0,0,0,.35);
+            --radius: 18px;
+            --radius-sm: 12px;
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background:
+                radial-gradient(1200px 700px at 10% 0%, rgba(45,156,219,.10), transparent 50%),
+                radial-gradient(900px 600px at 100% 0%, rgba(39,174,96,.08), transparent 45%),
+                linear-gradient(180deg, #090d12 0%, #0f141c 100%);
+            color: var(--text);
+            font-family: Inter, Segoe UI, Arial, sans-serif;
+        }
+
+        .page { padding: 18px; }
+        .shell { display: grid; grid-template-columns: 1fr 360px; gap: 18px; align-items: start; }
+
+        .hero {
+            display: grid;
+            grid-template-columns: 1.2fr .8fr;
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+
+        .hero-card, .kpi, .toolbar, .stage-wrap, .side-panel, .modal, .status-card {
+            background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015));
+            border: 1px solid var(--line);
+            box-shadow: var(--shadow);
+            border-radius: var(--radius);
+        }
+
+        .hero-card {
+            padding: 18px 20px;
+            min-height: 132px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-card:before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(120deg, rgba(255,255,255,.06), transparent 35%);
+            pointer-events: none;
+        }
+
+        .title h1 {
+            margin: 0;
+            font-size: 26px;
+            letter-spacing: .4px;
+            font-weight: 900;
+        }
+
+        .title p {
+            margin: 8px 0 0;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .hero-meta {
+            margin-top: 14px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(255,255,255,.06);
+            border: 1px solid rgba(255,255,255,.08);
+            font-size: 12px;
+            font-weight: 700;
+            color: #dfe7f7;
+        }
+
+        .pulse {
+            width: 10px; height: 10px; border-radius: 50%; background: #2de38c;
+            box-shadow: 0 0 0 0 rgba(45,227,140,.65); animation: pulse 1.8s infinite;
+        }
+        @@keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(45,227,140,.65); }
+            70% { box-shadow: 0 0 0 14px rgba(45,227,140,0); }
+            100% { box-shadow: 0 0 0 0 rgba(45,227,140,0); }
+        }
+
+        .hero-right {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .kpi {
+            padding: 14px 14px 12px;
+            position: relative;
+            overflow: hidden;
+            min-height: 102px;
+        }
+        .kpi:after {
+            content: "";
+            position: absolute;
+            right: -25px; bottom: -25px;
+            width: 100px; height: 100px; border-radius: 50%;
+            background: rgba(255,255,255,.08);
+        }
+        .kpi .label {
+            font-size: 12px; text-transform: uppercase; letter-spacing: .8px; font-weight: 800; opacity: .95;
+        }
+        .kpi .value {
+            margin-top: 16px;
+            font-size: 36px;
+            font-weight: 900;
+            line-height: 1;
+        }
+        .kpi .sub {
+            margin-top: 10px;
+            font-size: 12px;
+            opacity: .95;
+        }
+
+        .kpi.wine { background: linear-gradient(135deg, #6a0000, #8b0000 55%, #4a0000); }
+        .kpi.green { background: linear-gradient(135deg, #0f7c42, #1eaa59 55%, #0b5b31); }
+        .kpi.amber { background: linear-gradient(135deg, #a96500, #e29c1c 55%, #7f4d00); }
+        .kpi.blue { background: linear-gradient(135deg, #0d5b8b, #2d9cdb 55%, #08344e); }
+        .kpi.purple { background: linear-gradient(135deg, #5d2a9c, #8c52d9 55%, #3d1a6e); }
+        .kpi.red { background: linear-gradient(135deg, #7d2020, #cf3c3c 55%, #5d1717); }
+
+        .toolbar {
+            padding: 12px 16px;
+            display: grid;
+            grid-template-columns: 1fr auto auto auto;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+
+        .toolbar .caption {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .filters {
+            display: flex; flex-wrap: wrap; gap: 8px;
+        }
+
+        .filter-chip, .btn {
+            border: 1px solid rgba(255,255,255,.10);
+            background: rgba(255,255,255,.05);
+            color: var(--text);
+            border-radius: 999px;
+            padding: 9px 12px;
+            font-size: 12px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .filter-chip.active { background: rgba(45,156,219,.18); border-color: rgba(45,156,219,.45); }
+        .btn { border-radius: 12px; }
+        .btn:hover, .filter-chip:hover { background: rgba(255,255,255,.08); }
+
+        .stage-wrap {
+            padding: 16px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .stage-wrap:before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background:
+                linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px) 0 0 / 40px 40px,
+                linear-gradient(180deg, rgba(255,255,255,.03) 1px, transparent 1px) 0 0 / 40px 40px;
+            opacity: .2;
+            pointer-events: none;
+        }
+
+        .scene { position: relative; min-height: 760px; perspective: 1200px; }
+        .lane { position: absolute; right: 30px; top: 58px; bottom: 28px; width: 10px; border-radius: 999px; background: repeating-linear-gradient(180deg, rgba(242,201,76,.92) 0 14px, transparent 14px 28px); transform: rotateX(68deg); transform-origin: top right; opacity: .9; }
+        .outflow {
+            position: absolute; right: 24px; top: 10px; z-index: 5;
+            display: inline-flex; align-items: center; gap: 12px;
+            padding: 12px 14px; border-radius: 14px;
+            background: rgba(39,174,96,.18); border: 1px solid rgba(39,174,96,.40); color: #cff8dd; font-weight: 900;
+        }
+        .arrow { width: 0; height: 0; border-top: 10px solid transparent; border-bottom: 10px solid transparent; border-left: 18px solid #cff8dd; }
+
+        .zone { margin-bottom: 16px; transform: rotateX(7deg); transform-origin: top left; }
+        .zone-head {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 14px; border-radius: 14px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08);
+            font-weight: 900;
+        }
+        .zone-head small { color: var(--muted); font-weight: 700; }
+        .zone-dot { width: 14px; height: 14px; border-radius: 4px; border: 1px solid rgba(255,255,255,.25); }
+
+        .rail { margin-top: 10px; padding: 10px; border-radius: 16px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); }
+        .rail-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+        .rail-head b { color: var(--text); font-size: 13px; }
+        .progress {
+            width: 180px; height: 8px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden;
+        }
+        .progress > span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #27ae60, #f2c94c, #eb5757); }
+
+        .rail-track {
+            height: 14px; border-radius: 999px; margin-bottom: 12px;
+            background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.04)); border: 1px solid rgba(255,255,255,.08); position: relative; overflow: hidden;
+        }
+        .rail-track:after {
+            content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,.16), transparent); transform: translateX(-40%); animation: sheen 6s linear infinite;
+        }
+        @@keyframes sheen { to { transform: translateX(130%); } }
+
+        .positions { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+        .positions::-webkit-scrollbar { height: 10px; }
+        .positions::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 999px; }
+
+        .slot {
+            min-width: 106px; border-radius: 16px; padding: 8px 8px 10px; background: rgba(7,10,14,.75); border: 1px solid rgba(255,255,255,.10);
+            box-shadow: 0 10px 26px rgba(0,0,0,.28); cursor: pointer; transition: .16s ease; position: relative;
+        }
+        .slot:hover { transform: translateY(-3px); box-shadow: 0 18px 40px rgba(0,0,0,.35); }
+        .slot.empty { opacity: .55; }
+        .slot.selected { outline: 2px solid rgba(45,156,219,.9); box-shadow: 0 0 0 5px rgba(45,156,219,.15); }
+        .slot.hide { display: none; }
+
+        .slot-top { display: flex; justify-content: space-between; gap: 10px; align-items: center; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+        .slot-badge { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 3px rgba(255,255,255,.08) inset; }
+
+        .carcass {
+            height: 64px; border-radius: 14px; display: flex; align-items: center; justify-content: center; text-align: center;
+            background: radial-gradient(60px 40px at 40% 30%, rgba(255,255,255,.12), transparent 65%), linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.02));
+            border: 1px solid rgba(255,255,255,.10); position: relative; overflow: hidden;
+        }
+        .carcass:before {
+            content: ""; position: absolute; left: 50%; top: -10px; width: 22px; height: 22px; transform: translateX(-50%) rotate(45deg); background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); border-radius: 6px;
+        }
+        .carcass-id { font-size: 12px; font-weight: 900; letter-spacing: .35px; padding: 0 4px; }
+        .meta { margin-top: 8px; display: grid; gap: 4px; font-size: 11px; }
+        .meta-line { display: flex; justify-content: space-between; gap: 10px; color: var(--muted); }
+        .meta-line b { color: var(--text); }
+
+        .side-panel { padding: 16px; position: sticky; top: 18px; }
+        .side-panel h3 { margin: 0 0 12px; font-size: 16px; }
+        .side-grid { display: grid; gap: 12px; }
+        .status-card { padding: 14px; border-radius: 14px; }
+        .status-card h4 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
+        .status-card .big { font-size: 28px; font-weight: 900; margin: 4px 0; }
+        .list { display: grid; gap: 10px; }
+        .row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+        .row .k { color: var(--muted); }
+        .row .v { font-weight: 800; text-align: right; }
+
+        .detail-box {
+            margin-top: 14px; padding: 14px; border-radius: 16px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+        }
+        .detail-empty { color: var(--muted); font-size: 13px; line-height: 1.55; }
+        .detail-title { font-weight: 900; font-size: 18px; margin-bottom: 4px; }
+        .detail-sub { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+        .kv { display: grid; grid-template-columns: 120px 1fr; gap: 8px 12px; font-size: 13px; }
+        .kv .k { color: var(--muted); }
+        .kv .v { font-weight: 800; }
+        .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
+        .modal-backdrop {
+            position: fixed; inset: 0; background: rgba(0,0,0,.58); display: none; align-items: center; justify-content: center; padding: 18px; z-index: 9999;
+        }
+        .modal { width: min(780px, 100%); overflow: hidden; }
+        .modal header { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 16px; background: rgba(255,255,255,.05); border-bottom: 1px solid rgba(255,255,255,.08); }
+        .modal header h3 { margin: 0; }
+        .modal header button { appearance: none; border: 0; background: rgba(255,255,255,.10); color: var(--text); padding: 8px 11px; border-radius: 10px; cursor: pointer; }
+        .modal .content { padding: 16px; }
+
+        @@media (max-width: 1280px) {
+            .shell { grid-template-columns: 1fr; }
+            .side-panel { position: static; }
+        }
+        @@media (max-width: 920px) {
+            .hero { grid-template-columns: 1fr; }
+            .hero-right { grid-template-columns: repeat(2, 1fr); }
+            .toolbar { grid-template-columns: 1fr; }
+        }
+        @@media (max-width: 640px) {
+            .hero-right { grid-template-columns: 1fr; }
+            .title h1 { font-size: 22px; }
+            .scene { min-height: 620px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="hero">
+            <div class="hero-card title">
+                <h1>Mapa Industrial de Canales · Tiempo Real</h1>
+                <p>
+                    Visual industrial para Dirección General y Coordinadores. Muestra ocupación por cámara, almacén, riel y posición,
+                    con enfoque operativo de flujo a deshuese, retención y disponibilidad.
+                </p>
+                <div class="hero-meta">
+                    <div class="pill"><span class="pulse"></span><span>MONITOREO EN LÍNEA</span></div>
+                    <div class="pill">Actualización: <b id="clockLabel"></b></div>
+                    <div class="pill">Cámaras activas: <b>@camaras.Count</b></div>
+                    <div class="pill">Modo: <b>Operativo Industrial</b></div>
+                </div>
+            </div>
+
+            <div class="hero-right">
+                <div class="kpi wine"><div class="label">Canales ocupadas</div><div class="value">@totalOcup</div><div class="sub">Posiciones con inventario activo</div></div>
+                <div class="kpi green"><div class="label">Kg en cámara</div><div class="value">@totalKg.ToString("N0")</div><div class="sub">Peso total alojado</div></div>
+                <div class="kpi amber"><div class="label">Libres</div><div class="value">@totalLibres</div><div class="sub">Espacios disponibles</div></div>
+                <div class="kpi blue"><div class="label">Listas a deshuese</div><div class="value">@listosDeshuese</div><div class="sub">Flujo inmediato</div></div>
+                <div class="kpi purple"><div class="label">En retención</div><div class="value">@retencion</div><div class="sub">Revisión / inspección</div></div>
+                <div class="kpi red"><div class="label">Promedio kg</div><div class="value">@promedioKg.ToString("N1")</div><div class="sub">Peso medio por canal</div></div>
+            </div>
+        </div>
+
+        <div class="shell">
+            <div>
+                <div class="toolbar">
+                    <div>
+                        <div style="font-size:15px;font-weight:900;">Control visual de cámaras y ubicaciones</div>
+                        <div class="caption">Filtra por cámara y da clic a una canal para ver ubicación detallada, lote, origen y destino.</div>
+                    </div>
+                    <div class="filters" id="cameraFilters">
+                        <button class="filter-chip active" data-camera="ALL" onclick="applyCameraFilter(this)">Todas</button>
+                        @foreach (var cam in camaras)
+                        {
+                            <button class="filter-chip" data-camera="@cam" onclick="applyCameraFilter(this)">@cam</button>
+                        }
+                    </div>
+                    <button class="btn" type="button" onclick="expandAll()">Expandir todo</button>
+                    <button class="btn" type="button" onclick="collapseEmpty()">Ocultar vacíos</button>
+                </div>
+
+                <div class="stage-wrap">
+                    <div class="scene">
+                        <div class="outflow"><span>A DESHUESE</span><span class="arrow"></span></div>
+                        <div class="lane"></div>
+
+                        @foreach (var zone in zones)
+                        {
+                            var zoneItems = zone.ToList();
+                            var zoneClasif = zoneItems.Select(x => x.Clasif).FirstOrDefault() ?? "";
+                            var zoneColor = ColorFor(zoneClasif);
+                            var zoneCam = zoneItems.Select(x => x.Camara).FirstOrDefault() ?? "";
+                            <section class="zone" data-camera="@zoneCam">
+                                <div class="zone-head">
+                                    <span class="zone-dot" style="background:@zoneColor"></span>
+                                    <span>@zone.Key</span>
+                                    <small>· @zoneCam</small>
+                                </div>
+
+                                @foreach (var rail in zoneItems.GroupBy(x => x.Riel).OrderBy(g => g.Key))
+                                {
+                                    var occ = rail.Count(x => x.Ocup);
+                                    var tot = rail.Count();
+                                    var pct = tot == 0 ? 0 : (int)Math.Round((decimal)occ * 100m / tot, 0);
+                                    <div class="rail">
+                                        <div class="rail-head">
+                                            <div><b>Riel @rail.Key</b> · Ocupación: @occ / @tot · Almacén: @rail.First().Almacen</div>
+                                            <div style="display:flex;align-items:center;gap:10px;">
+                                                <div class="progress"><span style="width:@pct%"></span></div>
+                                                <span>@pct%</span>
+                                            </div>
+                                        </div>
+                                        <div class="rail-track"></div>
+                                        <div class="positions">
+                                            @foreach (var s in rail.OrderBy(x => x.Pos))
+                                            {
+                                                var c = ColorFor(s.Clasif);
+                                                var isEmpty = !s.Ocup;
+                                                var json = JsonSerializer.Serialize(new {
+                                                    zona = s.Zona,
+                                                    camara = s.Camara,
+                                                    almacen = s.Almacen,
+                                                    riel = s.Riel,
+                                                    posicion = s.Pos,
+                                                    clasificacion = s.Clasif,
+                                                    canalId = s.Canal,
+                                                    pesoKg = s.Peso,
+                                                    fechaEntrada = s.Fecha,
+                                                    destino = s.Dest,
+                                                    lote = s.Lote,
+                                                    origen = s.Origen,
+                                                    notas = s.Notas,
+                                                    ocupado = s.Ocup
+                                                });
+
+                                                <div class="slot @(isEmpty ? "empty" : "")"
+                                                     data-camera="@s.Camara"
+                                                     data-empty="@(isEmpty ? "1" : "0")"
+                                                     data-json='@Html.Raw(json)'
+                                                     onclick="selectSlot(this)">
+                                                    <div class="slot-top">
+                                                        <span>POS @s.Pos.ToString("D2")</span>
+                                                        <span class="slot-badge" style="background:@c"></span>
+                                                    </div>
+                                                    <div class="carcass">
+                                                        <div class="carcass-id">@(isEmpty ? "VACÍO" : s.Canal)</div>
+                                                    </div>
+                                                    <div class="meta">
+                                                        <div class="meta-line"><span>Peso</span><b>@(isEmpty ? "-" : $"{s.Peso:N0} kg")</b></div>
+                                                        <div class="meta-line"><span>Almacén</span><b>@(isEmpty ? "-" : s.Almacen)</b></div>
+                                                        <div class="meta-line"><span>Destino</span><b>@(isEmpty ? "-" : s.Dest)</b></div>
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </section>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <aside class="side-panel">
+                <h3>Centro de control</h3>
+                <div class="side-grid">
+                    <div class="status-card">
+                        <h4>Estado operativo</h4>
+                        <div class="big" style="color:#7ef0b5;">EN LÍNEA</div>
+                        <div class="list">
+                            <div class="row"><span class="k">Último refresco</span><span class="v" id="lastRefresh">--:--:--</span></div>
+                            <div class="row"><span class="k">Vista</span><span class="v">Industrial / 3D</span></div>
+                            <div class="row"><span class="k">Destino principal</span><span class="v">Deshuese</span></div>
+                        </div>
+                    </div>
+
+                    <div class="status-card">
+                        <h4>Resumen por cámara</h4>
+                        <div class="list">
+                            @foreach (var cam in camaras)
+                            {
+                                var camItems = data.Where(x => x.Camara == cam).ToList();
+                                var camOcc = camItems.Count(x => x.Ocup);
+                                var camKg = camItems.Where(x => x.Ocup).Sum(x => x.Peso);
+                                <div class="row"><span class="k">@cam</span><span class="v">@camOcc canales · @camKg.ToString("N0") kg</span></div>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="detail-box" id="detailBox">
+                        <div class="detail-empty">
+                            Selecciona una canal o posición para visualizar el detalle de ubicación, cámara, almacén, lote, origen, fecha de entrada y destino.
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <div id="modalBackdrop" class="modal-backdrop" onclick="closeModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <header>
+                <h3 id="mTitle">Detalle de canal</h3>
+                <button type="button" onclick="forceClose()">Cerrar</button>
+            </header>
+            <div class="content">
+                <div class="kv">
+                    <div class="k">Cámara</div><div class="v" id="mCamara"></div>
+                    <div class="k">Almacén</div><div class="v" id="mAlmacen"></div>
+                    <div class="k">Ubicación</div><div class="v" id="mUbic"></div>
+                    <div class="k">Clasificación</div><div class="v" id="mClasif"></div>
+                    <div class="k">Canal ID</div><div class="v" id="mCanal"></div>
+                    <div class="k">Peso</div><div class="v" id="mPeso"></div>
+                    <div class="k">Fecha entrada</div><div class="v" id="mFecha"></div>
+                    <div class="k">Lote</div><div class="v" id="mLote"></div>
+                    <div class="k">Origen</div><div class="v" id="mOrigen"></div>
+                    <div class="k">Destino</div><div class="v" id="mDestino"></div>
+                    <div class="k">Notas</div><div class="v" id="mNotas"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let hideEmpty = false;
+
+        function nowLabel() {
+            const d = new Date();
+            return d.toLocaleDateString('es-MX', { day:'2-digit', month:'2-digit', year:'numeric' }) + ' ' +
+                   d.toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+        }
+
+        function tickClock() {
+            document.getElementById('clockLabel').textContent = nowLabel();
+            document.getElementById('lastRefresh').textContent = new Date().toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+        }
+        setInterval(tickClock, 1000);
+        tickClock();
+
+        function applyCameraFilter(btn) {
+            document.querySelectorAll('#cameraFilters .filter-chip').forEach(x => x.classList.remove('active'));
+            btn.classList.add('active');
+            const selected = btn.dataset.camera || 'ALL';
+
+            document.querySelectorAll('.zone').forEach(zone => {
+                const zCam = zone.getAttribute('data-camera');
+                zone.style.display = (selected === 'ALL' || selected === zCam) ? '' : 'none';
+            });
+
+            document.querySelectorAll('.slot').forEach(slot => {
+                const sCam = slot.getAttribute('data-camera');
+                const isEmpty = slot.getAttribute('data-empty') === '1';
+                const byCam = selected === 'ALL' || selected === sCam;
+                const byEmpty = hideEmpty ? !isEmpty : true;
+                slot.classList.toggle('hide', !(byCam && byEmpty));
+            });
+        }
+
+        function collapseEmpty() {
+            hideEmpty = !hideEmpty;
+            const active = document.querySelector('#cameraFilters .filter-chip.active');
+            applyCameraFilter(active || document.querySelector('#cameraFilters .filter-chip[data-camera="ALL"]'));
+        }
+
+        function expandAll() {
+            hideEmpty = false;
+            document.querySelectorAll('.slot').forEach(slot => slot.classList.remove('hide'));
+            const all = document.querySelector('#cameraFilters .filter-chip[data-camera="ALL"]');
+            if (all) applyCameraFilter(all);
+        }
+
+        function setDetail(d) {
+            const box = document.getElementById('detailBox');
+            const ubic = `${d.camara} / ${d.almacen} / ${d.riel} / POS ${String(d.posicion).padStart(2,'0')}`;
+
+            box.innerHTML = `
+                <div class="detail-title">${d.ocupado ? (d.canalId || 'Canal sin ID') : 'Posición vacía'}</div>
+                <div class="detail-sub">${ubic}</div>
+                <div class="kv">
+                    <div class="k">Clasificación</div><div class="v">${d.clasificacion || '-'}</div>
+                    <div class="k">Cámara</div><div class="v">${d.camara || '-'}</div>
+                    <div class="k">Almacén</div><div class="v">${d.almacen || '-'}</div>
+                    <div class="k">Peso</div><div class="v">${d.pesoKg ? Number(d.pesoKg).toLocaleString('es-MX') + ' kg' : '-'}</div>
+                    <div class="k">Lote</div><div class="v">${d.lote || '-'}</div>
+                    <div class="k">Origen</div><div class="v">${d.origen || '-'}</div>
+                    <div class="k">Destino</div><div class="v">${d.destino || '-'}</div>
+                    <div class="k">Fecha entrada</div><div class="v">${d.fechaEntrada || '-'}</div>
+                    <div class="k">Notas</div><div class="v">${d.notas || '-'}</div>
+                </div>
+                <div class="actions">
+                    <button class="btn" type="button" onclick="openModalFromData()">Ver modal</button>
+                </div>`;
+
+            window.__lastDetail = d;
+        }
+
+        function selectSlot(el) {
+            document.querySelectorAll('.slot.selected').forEach(x => x.classList.remove('selected'));
+            el.classList.add('selected');
+            const raw = el.getAttribute('data-json');
+            if (!raw) return;
+            const d = JSON.parse(raw);
+            setDetail(d);
+        }
+
+        function fillModal(d) {
+            const ubic = `${d.camara} / ${d.almacen} / ${d.riel} / POS ${String(d.posicion).padStart(2,'0')}`;
+            document.getElementById('mTitle').textContent = d.ocupado ? 'Detalle de canal' : 'Posición vacía';
+            document.getElementById('mCamara').textContent = d.camara || '-';
+            document.getElementById('mAlmacen').textContent = d.almacen || '-';
+            document.getElementById('mUbic').textContent = ubic;
+            document.getElementById('mClasif').textContent = d.clasificacion || '-';
+            document.getElementById('mCanal').textContent = d.canalId || '-';
+            document.getElementById('mPeso').textContent = d.pesoKg ? Number(d.pesoKg).toLocaleString('es-MX') + ' kg' : '-';
+            document.getElementById('mFecha').textContent = d.fechaEntrada || '-';
+            document.getElementById('mLote').textContent = d.lote || '-';
+            document.getElementById('mOrigen').textContent = d.origen || '-';
+            document.getElementById('mDestino').textContent = d.destino || '-';
+            document.getElementById('mNotas').textContent = d.notas || '-';
+        }
+
+        function openModalFromData() {
+            if (!window.__lastDetail) return;
+            fillModal(window.__lastDetail);
+            document.getElementById('modalBackdrop').style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal(evt) {
+            if (evt && evt.target && evt.target.id === 'modalBackdrop') forceClose();
+        }
+        function forceClose() {
+            document.getElementById('modalBackdrop').style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+        document.addEventListener('keydown', function(e){ if (e.key === 'Escape') forceClose(); });
+
+        // Selección automática de primera canal ocupada
+        window.addEventListener('load', function() {
+            const first = document.querySelector('.slot[data-empty="0"]');
+            if (first) selectSlot(first);
+        });
+    </script>
+</body>
+</html>

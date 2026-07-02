@@ -1,0 +1,7 @@
+CREATE TABLE CarouselPerfil (
+    Id INT IDENTITY PRIMARY KEY,
+    PerfilId INT NOT NULL,
+    ImagenUrl NVARCHAR(300) NOT NULL,
+    Orden INT NOT NULL,
+    Activo BIT NOT NULL DEFAULT 1
+);

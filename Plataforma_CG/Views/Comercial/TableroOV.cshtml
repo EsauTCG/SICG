@@ -1,0 +1,666 @@
+﻿@using System.Linq
+@model Plataforma_CG.Models.OrdenesOVFiltro
+
+@{
+    Layout = null;  // Pantalla completa sin menú
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Tablero logística / distribución</title>
+
+     <!-- Favicon -->
+    <link rel="icon" type="image/png" href="~/images/ico_sigo.ico" />
+
+    <!-- Fuentes tipo “tablero de aeropuerto” -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
+    <!-- (Opcional) FontAwesome si quieres iconos en el título -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+    <style>
+        :root {
+            --bg: #111111;
+            --board-bg: #111111;
+            --board-border: #222;
+            --header-red: #c00;
+            --row-alt: #1b1b1b;
+            --row-bg: #151515;
+            --text: #f5f5f5;
+            --muted: #cccccc;
+            --line: #333333;
+            --green: #009944;
+            --yellow: #f4b000;
+            --red: #d62929;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            font-family: "Roboto Condensed", system-ui, sans-serif;
+            background: radial-gradient(circle at top, #222 0, #000 50%, #000 100%);
+            color: var(--text);
+            overflow: hidden;
+        }
+
+        .board-shell {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            padding: 16px 28px;
+        }
+
+        /* Título tipo aeropuerto */
+        .board-title {
+            text-align: center;
+            font-size: 2.8rem;
+            font-weight: 700;
+            color: red;
+            letter-spacing: .15em;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+            text-shadow: 0 3px 6px rgba(0,0,0,.7);
+        }
+
+            .board-title i {
+                margin-right: .5rem;
+            }
+
+        .board-sub {
+            text-align: center;
+            font-size: .9rem;
+            color: var(--muted);
+            margin-bottom: 8px;
+        }
+
+        .board-wrapper {
+            flex: 1;
+            border-radius: 10px;
+            border: 4px solid #555;
+            background: #111;
+            box-shadow: 0 18px 40px rgba(0,0,0,.9);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .board-header {
+            padding: 6px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: .9rem;
+            border-bottom: 2px solid #444;
+            background: #000;
+        }
+
+        .board-header-left {
+            text-transform: uppercase;
+            letter-spacing: .18em;
+            font-weight: 700;
+            color: red;
+        }
+
+        .board-clock {
+            font-variant-numeric: tabular-nums;
+            font-weight: 600;
+            color: #f5f5f5;
+        }
+
+        .board-table-wrapper {
+            flex: 1;
+            overflow-y: hidden;
+            overflow-x: auto; /* permite ver todo si se hace muy ancho */
+            position: relative;
+        }
+
+        .board-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: auto !important; /* asegura que no se corten datos */
+            font-size: .9rem;
+        }
+
+            .board-table thead {
+                background: #000;
+                border-bottom: 2px solid #444;
+            }
+
+            .board-table th,
+            .board-table td {
+                padding: 6px 10px; /* más espacio = datos completos visibles */
+                border-bottom: 1px solid var(--line);
+                white-space: nowrap;
+                overflow: visible !important; /* evita cortar información */
+                text-overflow: clip !important; /* quita puntos suspensivos */
+                text-align: left;
+            }
+
+            .board-table th {
+                font-family: "Roboto Condensed", sans-serif;
+                font-weight: 700;
+                text-transform: uppercase;
+                font-size: .75rem;
+                letter-spacing: .16em;
+                color: red;
+            }
+
+            .board-table td {
+                font-family: "Share Tech Mono", monospace;
+                font-size: .88rem;
+                letter-spacing: .08em;
+                color: #f5f5f5;
+            }
+
+            .board-table tbody tr:nth-child(odd) {
+                background: var(--row-bg);
+            }
+
+            .board-table tbody tr:nth-child(even) {
+                background: var(--row-alt);
+            }
+
+            .board-table tbody tr.highlight {
+                animation: rowPulse 1.8s ease-out;
+            }
+
+        @@keyframes rowPulse {
+            0% {
+                background-color: #333;
+            }
+
+            100% {
+                background-color: inherit;
+            }
+        }
+
+        /* Badges */
+        .badge-status {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: .7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #fff;
+        }
+
+        .st-ok {
+            background: var(--green);
+        }
+
+        .st-warn {
+            background: var(--yellow);
+            color: #111;
+        }
+
+        .st-bad {
+            background: var(--red);
+        }
+
+        .cell-cump {
+            font-family: "Share Tech Mono", monospace;
+            font-weight: 700;
+            color: #fff;
+            border-radius: 999px;
+            padding: 2px 6px;
+            display: inline-block;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .cump-good {
+            background: var(--green);
+        }
+
+        .cump-warn {
+            background: var(--yellow);
+            color: #111;
+        }
+
+        .cump-bad {
+            background: var(--red);
+        }
+
+        /* Auto scroll */
+        .scroll-container {
+            height: 100%;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .scroll-inner {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            will-change: transform;
+        }
+    </style>
+
+
+</head>
+
+<body>
+    <div class="board-shell">
+        <div class="board-title">
+            <i class="fa-solid fa-truck-fast"></i>
+            TABLERO LOGÍSTICA / DISTRIBUCIÓN
+        </div>
+        <div class="board-sub">Información fija de ejemplo para presentación</div>
+
+        <div class="board-wrapper">
+            <div class="board-header">
+                <div class="board-header-left">Logística · centros de distribución</div>
+                <div class="board-clock" id="boardClock"></div>
+            </div>
+
+            <div class="board-table-wrapper">
+                <div class="scroll-container">
+                    <div class="scroll-inner" id="scrollInner">
+                        <table class="board-table">
+                            <thead>
+                                <tr>
+                                    <th class="col-fecha">Fecha car.</th>
+                                    <th class="col-ruta">Ruta / destino</th>
+                                    <th class="col-cliente">Cliente</th>
+                                    <th class="col-kilos">Kilos orig.</th>
+                                    <th class="col-temp">Temp.</th>
+                                    <th class="col-transp">Transp.</th>
+                                    <th class="col-pedido">Pedido</th>
+                                    <th class="col-unidad">Unidad</th>
+                                    <th class="col-hora">Liberación</th>
+                                    <th class="col-hora">Validación</th>
+                                    <th class="col-doc">Documento</th>
+                                    <th class="col-salida">Salida</th>
+                                    <th class="col-cita">Cita</th>
+                                    <th class="col-llegada">Llegada</th>
+                                    <th class="col-status">Status</th>
+                                    <th class="col-kilos-sal">Kilos sal.</th>
+                                    <th class="col-cump">% Cump.</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyTablero">
+                                <!-- JS inyecta filas -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== Datos FIJOS + ficticios =====
+        const datos = [
+            {
+                fecha: "29.11.25-1",
+                ruta: "Tijuana",
+                cliente: "Soriana",
+                kilosOrig: 10080,
+                temp: "Congelado",
+                transp: "Robles",
+                pedido: "T-1634",
+                unidad: "T-1634",
+                liberacion: "10:00 a. m.",
+                validacion: "11:30 a. m.",
+                documento: "05:20 p. m.",
+                salida: "05:35 p. m.",
+                cita: "03 dic 25 · 8:00 hrs",
+                llegada: "03 dic 25 · 11:00 hrs",
+                status: "Entregado",
+                statusTipo: "ok",
+                kilosSal: 9877,
+                cumplimiento: "98.0"
+            },
+            {
+                fecha: "29.11.25-1",
+                ruta: "Tijuana",
+                cliente: "Cedis Tjn",
+                kilosOrig: 9334,
+                temp: "Congelado",
+                transp: "Robles",
+                pedido: "P-18811",
+                unidad: "P-18811",
+                liberacion: "",
+                validacion: "04:20 p. m.",
+                documento: "",
+                salida: "",
+                cita: "02 dic 25 · 14:00 hrs",
+                llegada: "02 dic 25 · 11:00 hrs",
+                status: "Entregado",
+                statusTipo: "ok",
+                kilosSal: 9165,
+                cumplimiento: "98.2"
+            },
+            {
+                fecha: "29.11.25-2",
+                ruta: "Monterrey",
+                cliente: "Cardenas",
+                kilosOrig: 6000,
+                temp: "Congelado",
+                transp: "Aluma",
+                pedido: "P-19146",
+                unidad: "P-19146",
+                liberacion: "",
+                validacion: "03:10 p. m.",
+                documento: "",
+                salida: "",
+                cita: "01 dic 25 · 11:00 hrs",
+                llegada: "01 dic 25 · 3:00 hrs",
+                status: "Demorado",
+                statusTipo: "bad",
+                kilosSal: 6125,
+                cumplimiento: "102.1"
+            },
+            {
+                fecha: "29.11.25-2",
+                ruta: "Monterrey",
+                cliente: "Cedis Mty",
+                kilosOrig: 15000,
+                temp: "Congelado",
+                transp: "Aluma",
+                pedido: "T-1636",
+                unidad: "T-1636",
+                liberacion: "12:00 a. m.",
+                validacion: "12:30 a. m.",
+                documento: "04:15 p. m.",
+                salida: "04:50 p. m.",
+                cita: "01 dic 25 · 9:00 hrs",
+                llegada: "01 dic 25 · 9:00 hrs",
+                status: "Entregado",
+                statusTipo: "ok",
+                kilosSal: 15125,
+                cumplimiento: "100.8"
+            },
+            {
+                fecha: "29.11.25-2",
+                ruta: "Monterrey",
+                cliente: "Nacimiento",
+                kilosOrig: 4000,
+                temp: "Congelado",
+                transp: "Aluma",
+                pedido: "P-19103",
+                unidad: "P-19103",
+                liberacion: "",
+                validacion: "02:10 p. m.",
+                documento: "",
+                salida: "",
+                cita: "01 dic 25 · 8:00 hrs",
+                llegada: "01 dic 25 · 8:00 hrs",
+                status: "Entregado",
+                statusTipo: "warn",
+                kilosSal: 3000,
+                cumplimiento: "75.0"
+            },
+            // Ficticias
+            {
+                fecha: "30.11.25-1",
+                ruta: "Guadalajara",
+                cliente: "Cedis Gdl",
+                kilosOrig: 8200,
+                temp: "Refrigerado",
+                transp: "TransNorte",
+                pedido: "G-2201",
+                unidad: "G-2201",
+                liberacion: "06:40 a. m.",
+                validacion: "07:15 a. m.",
+                documento: "07:30 a. m.",
+                salida: "07:45 a. m.",
+                cita: "30 nov 25 · 13:00 hrs",
+                llegada: "30 nov 25 · 12:40 hrs",
+                status: "En ruta",
+                statusTipo: "warn",
+                kilosSal: 7500,
+                cumplimiento: "91.5"
+            },
+            {
+                fecha: "30.11.25-1",
+                ruta: "Querétaro",
+                cliente: "Mayorista Qro",
+                kilosOrig: 5400,
+                temp: "Refrigerado",
+                transp: "Rápidos Q",
+                pedido: "Q-5580",
+                unidad: "Q-5580",
+                liberacion: "05:20 a. m.",
+                validacion: "05:45 a. m.",
+                documento: "06:00 a. m.",
+                salida: "06:10 a. m.",
+                cita: "30 nov 25 · 10:00 hrs",
+                llegada: "30 nov 25 · 09:55 hrs",
+                status: "Entregado",
+                statusTipo: "ok",
+                kilosSal: 5350,
+                cumplimiento: "99.1"
+            },
+            {
+                fecha: "30.11.25-1",
+                ruta: "León",
+                cliente: "Cedis León",
+                kilosOrig: 7200,
+                temp: "Congelado",
+                transp: "Del Bajío",
+                pedido: "L-7781",
+                unidad: "L-7781",
+                liberacion: "04:55 a. m.",
+                validacion: "05:10 a. m.",
+                documento: "05:25 a. m.",
+                salida: "05:35 a. m.",
+                cita: "30 nov 25 · 11:00 hrs",
+                llegada: "30 nov 25 · 11:20 hrs",
+                status: "En ruta",
+                statusTipo: "warn",
+                kilosSal: 6900,
+                cumplimiento: "95.8"
+            },
+            {
+                fecha: "30.11.25-1",
+                ruta: "CDMX",
+                cliente: "Autoservicio MX",
+                kilosOrig: 12500,
+                temp: "Refrigerado",
+                transp: "Metropolitana",
+                pedido: "M-9033",
+                unidad: "M-9033",
+                liberacion: "03:10 a. m.",
+                validacion: "03:40 a. m.",
+                documento: "04:00 a. m.",
+                salida: "04:20 a. m.",
+                cita: "30 nov 25 · 09:00 hrs",
+                llegada: "30 nov 25 · 08:50 hrs",
+                status: "Entregado",
+                statusTipo: "ok",
+                kilosSal: 12420,
+                cumplimiento: "99.4"
+            },
+            {
+                fecha: "30.11.25-2",
+                ruta: "Puebla",
+                cliente: "Mayorista Pue",
+                kilosOrig: 6100,
+                temp: "Congelado",
+                transp: "Del Centro",
+                pedido: "P-4420",
+                unidad: "P-4420",
+                liberacion: "08:20 a. m.",
+                validacion: "08:50 a. m.",
+                documento: "09:10 a. m.",
+                salida: "09:25 a. m.",
+                cita: "30 nov 25 · 14:00 hrs",
+                llegada: "30 nov 25 · 14:30 hrs",
+                status: "Demorado",
+                statusTipo: "bad",
+                kilosSal: 5800,
+                cumplimiento: "95.1"
+            }
+        ];
+
+        function formatNumber(n) {
+            if (n == null || n === "") return "";
+            const num = typeof n === "number"
+                ? n
+                : parseFloat(String(n).replace(/,/g, ""));
+            if (isNaN(num)) return n;
+            return num.toLocaleString("es-MX", { minimumFractionDigits: 0 });
+        }
+
+        function renderTabla() {
+            const tbody = document.getElementById("tbodyTablero");
+            tbody.innerHTML = "";
+
+            datos.forEach((r) => {
+                const tr = document.createElement("tr");
+
+                let cumpClass = "cump-good";
+                const c = parseFloat(r.cumplimiento);
+                if (!isNaN(c)) {
+                    if (c < 80) cumpClass = "cump-bad";
+                    else if (c < 95) cumpClass = "cump-warn";
+                }
+
+                let stClass = "st-ok";
+                if (r.statusTipo === "bad") stClass = "st-bad";
+                else if (r.statusTipo === "warn") stClass = "st-warn";
+
+                tr.innerHTML = `
+            <td class="col-fecha">${r.fecha || ""}</td>
+            <td class="col-ruta">${r.ruta || ""}</td>
+            <td class="col-cliente">${r.cliente || ""}</td>
+            <td class="col-kilos">${formatNumber(r.kilosOrig)}</td>
+            <td class="col-temp">${r.temp || ""}</td>
+            <td class="col-transp">${r.transp || ""}</td>
+            <td class="col-pedido">${r.pedido || ""}</td>
+            <td class="col-unidad">${r.unidad || ""}</td>
+            <td class="col-hora">${r.liberacion || ""}</td>
+            <td class="col-hora">${r.validacion || ""}</td>
+            <td class="col-doc">${r.documento || ""}</td>
+            <td class="col-salida">${r.salida || ""}</td>
+            <td class="col-cita">${r.cita || ""}</td>
+            <td class="col-llegada">${r.llegada || ""}</td>
+            <td class="col-status">
+                <span class="badge-status ${stClass}">${r.status || ""}</span>
+            </td>
+            <td class="col-kilos-sal">${formatNumber(r.kilosSal)}</td>
+            <td class="col-cump">
+                <span class="cell-cump ${cumpClass}">
+                    ${r.cumplimiento ? r.cumplimiento + "%" : ""}
+                </span>
+            </td>
+        `;
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Reloj arriba a la derecha
+        function updateClock() {
+            const el = document.getElementById("boardClock");
+            const now = new Date();
+            const opts = { hour: "2-digit", minute: "2-digit", second: "2-digit" };
+            el.textContent =
+                now.toLocaleDateString("es-MX") +
+                " · " +
+                now.toLocaleTimeString("es-MX", opts);
+        }
+
+        // Auto-scroll suave
+        function startAutoScroll() {
+            const inner = document.getElementById("scrollInner");
+            const container = document.querySelector(".scroll-container");
+            const step = 0.25;
+            let offset = 0;
+
+            function loop() {
+                offset -= step;
+                const maxScroll = inner.offsetHeight - container.offsetHeight;
+                if (maxScroll > 0) {
+                    if (-offset > maxScroll + 40) offset = 0;
+                    inner.style.transform = `translateY(${offset}px)`;
+                }
+                requestAnimationFrame(loop);
+            }
+            requestAnimationFrame(loop);
+        }
+
+        // ===== SIMULACIÓN EN "TIEMPO REAL" =====
+        function randInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        function sample(arr) {
+            return arr[randInt(0, arr.length - 1)];
+        }
+
+        function actualizarFilaAleatoria() {
+            if (!datos.length) return;
+
+            const idx = randInt(0, datos.length - 1);
+            const r = datos[idx];
+
+            const nuevoCump = randInt(70, 105);
+            r.cumplimiento = nuevoCump.toFixed(1);
+
+            const base = r.kilosOrig || 0;
+            r.kilosSal = Math.round(base * (nuevoCump / 100));
+
+            if (nuevoCump >= 98) {
+                r.status = "Entregado";
+                r.statusTipo = "ok";
+            } else if (nuevoCump >= 85) {
+                r.status = sample(["En ruta", "Entregado", "En descarga"]);
+                r.statusTipo = "warn";
+            } else {
+                r.status = sample(["Demorado", "Detenido", "Reprogramado"]);
+                r.statusTipo = "bad";
+            }
+
+            if (Math.random() < 0.35) {
+                const moved = datos.splice(idx, 1)[0];
+                datos.push(moved);
+            }
+
+            renderTabla();
+            const rows = document.querySelectorAll("#tbodyTablero tr");
+            const highlightIndex = Math.min(idx, rows.length - 1);
+            if (rows[highlightIndex]) {
+                rows[highlightIndex].classList.add("highlight");
+                setTimeout(() => {
+                    rows[highlightIndex].classList.remove("highlight");
+                }, 1800);
+            }
+        }
+
+        function startRandomUpdates() {
+            function scheduleNext() {
+                const delay = randInt(4000, 7000);
+                setTimeout(() => {
+                    actualizarFilaAleatoria();
+                    scheduleNext();
+                }, delay);
+            }
+            scheduleNext();
+        }
+
+        // ===== INIT =====
+        renderTabla();
+        updateClock();
+        setInterval(updateClock, 1000);
+        startAutoScroll();
+        startRandomUpdates();
+    </script>
+</body>
+</html>

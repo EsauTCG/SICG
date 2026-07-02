@@ -1,0 +1,711 @@
+﻿@model IEnumerable<Plataforma_CG.Models.ArticuloSap>
+
+@{
+    ViewData["Title"] = "Catalogo de Articulos SAP";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<style>
+    :root {
+        --sap-bg: #f0dede;
+        --sap-panel: #f8eeee;
+        --sap-panel-2: #f1dede;
+        --sap-surface: #fffafa;
+        --sap-soft: #fff7f7;
+        --sap-soft-2: #f4dddd;
+        --sap-line: #c79d9d;
+        --sap-line-dark: #8f4c4c;
+        --sap-text: #3b1717;
+        --sap-muted: #6a3a3a;
+        --sap-brand: #8B0000;
+        --sap-header: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        --sap-toolbar: linear-gradient(#fff6f6, #ecd8d8);
+        --sap-status: linear-gradient(#f6e9e9, #ead5d5);
+        --sap-shadow: 0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70,12,12,.14);
+    }
+
+    body[data-theme="dark"] {
+        --sap-bg: #0b1120;
+        --sap-panel: #111827;
+        --sap-panel-2: #182235;
+        --sap-surface: #111827;
+        --sap-soft: #1f2937;
+        --sap-soft-2: #243044;
+        --sap-line: #374151;
+        --sap-line-dark: #4b5563;
+        --sap-text: #f9fafb;
+        --sap-muted: #9ca3af;
+        --sap-header: linear-gradient(180deg, #7f1d1d 0%, #5f1212 55%, #2b0505 100%);
+        --sap-toolbar: linear-gradient(180deg, #1f2937 0%, #111827 100%);
+        --sap-status: linear-gradient(180deg, #1f2937 0%, #111827 100%);
+        --sap-shadow: 0 10px 24px rgba(0,0,0,.35);
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        background: transparent !important;
+        color: var(--sap-text);
+    }
+
+    .container,
+    .container-fluid {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .window {
+        width: 100%;
+        max-width: 100%;
+        margin: 0 !important;
+        border: 1px solid var(--sap-line-dark);
+        background: var(--sap-panel);
+        box-shadow: var(--sap-shadow);
+        overflow: hidden;
+        padding: 0 !important;
+        color: var(--sap-text);
+    }
+
+    .titlebar {
+        display: none !important;
+    }
+
+    .toolbar {
+        display: flex;
+        align-items: flex-end;
+        gap: 6px;
+        padding: 6px 8px;
+        background: var(--sap-toolbar);
+        border-bottom: 1px solid var(--sap-line);
+        font-size: 12px;
+        flex-wrap: wrap;
+    }
+
+        .toolbar .group {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            min-width: 260px;
+            flex: 1 1 320px;
+        }
+
+        .toolbar label {
+            display: block;
+            color: var(--sap-text);
+            font-size: 12px;
+            margin-bottom: 2px !important;
+            font-weight: bold;
+        }
+
+        .toolbar input,
+        .toolbar .form-control,
+        .rotacion-input {
+            height: 28px !important;
+            padding: 3px 6px !important;
+            border: 1px solid var(--sap-line-dark) !important;
+            background: var(--sap-surface) !important;
+            font-family: inherit !important;
+            font-size: 12px !important;
+            width: 100%;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            color: var(--sap-text) !important;
+        }
+
+            .toolbar input::placeholder {
+                color: var(--sap-muted) !important;
+            }
+
+            .toolbar input:focus,
+            .toolbar .form-control:focus,
+            .rotacion-input:focus {
+                border-color: var(--sap-brand) !important;
+                outline: none !important;
+                box-shadow: 0 0 0 1px rgba(139,0,0,.25) !important;
+            }
+
+    .tool-btn {
+        min-width: 72px;
+        text-align: center;
+        background: linear-gradient(#fffefe, #ecd7d7);
+        border: 1px solid var(--sap-line-dark);
+        box-shadow: 0 1px 0 rgba(255,255,255,.55) inset;
+        cursor: pointer;
+        color: #4a1111;
+        height: 28px;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 0 10px;
+        text-decoration: none;
+        border-radius: 0;
+        white-space: nowrap;
+    }
+
+    body[data-theme="dark"] .tool-btn {
+        background: linear-gradient(180deg, #374151 0%, #1f2937 100%);
+        color: #f9fafb;
+        border-color: #4b5563;
+        box-shadow: none;
+    }
+
+    .tool-btn-primary {
+        color: #fff;
+        border-color: #7f0a0a;
+        background: linear-gradient(180deg, #b40000 0%, #8f0000 55%, #6e0000 100%);
+    }
+
+    .tool-btn-success {
+        color: #fff;
+        border-color: #157347;
+        background: linear-gradient(180deg, #27ae60 0%, #1f9a54 55%, #198754 100%);
+    }
+
+    .content {
+        padding: 8px;
+        background: var(--sap-bg);
+    }
+
+    .workspace {
+        border: 1px solid var(--sap-line);
+        background: var(--sap-panel);
+        padding: 8px;
+    }
+
+    .section {
+        border: 1px solid var(--sap-line);
+        background: var(--sap-surface);
+        margin-bottom: 10px;
+    }
+
+    .section-title {
+        padding: 6px 8px;
+        font-size: 12px;
+        font-weight: bold;
+        color: #fff;
+        background: var(--sap-header);
+        border-bottom: 1px solid #6b1f1f;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .status-chip,
+    #pageInfo {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 8px;
+        font-size: 11px;
+        font-weight: 700;
+        border: 1px solid var(--sap-line);
+        border-radius: 2px;
+        background: var(--sap-soft);
+        color: var(--sap-text);
+    }
+
+    .table-wrap {
+        padding: 0;
+        overflow: auto;
+        max-height: 70vh;
+        background: var(--sap-surface);
+        width: 100%;
+        position: relative;
+        border-top: 1px solid var(--sap-line);
+    }
+
+        .table-wrap table {
+            width: 100%;
+            table-layout: fixed;
+            border-collapse: separate !important;
+            border-spacing: 0 !important;
+            font-size: 12px;
+            background: var(--sap-surface) !important;
+            color: var(--sap-text) !important;
+        }
+
+        .table-wrap thead,
+        .table-wrap thead tr,
+        .table-wrap thead th {
+            background: var(--sap-header) !important;
+            color: #fff !important;
+        }
+
+            .table-wrap thead th {
+                position: sticky;
+                top: -1px;
+                z-index: 20;
+                border-top: 1px solid rgba(255,255,255,.2);
+                border-right: 1px solid rgba(0,0,0,.35);
+                border-bottom: 1px solid rgba(0,0,0,.45);
+                padding: 6px 5px;
+                text-align: left;
+                white-space: nowrap;
+                font-size: 12px;
+                line-height: 1.2;
+                box-shadow: 0 2px 0 rgba(0,0,0,.25);
+                font-weight: 700;
+            }
+
+        .table-wrap tbody td {
+            background: var(--sap-surface) !important;
+            border-right: 1px solid var(--sap-line) !important;
+            border-bottom: 1px solid var(--sap-line) !important;
+            padding: 6px 5px;
+            white-space: nowrap;
+            vertical-align: middle;
+            font-size: 12px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.2;
+            color: var(--sap-text) !important;
+            font-weight: 400;
+        }
+
+            .table-wrap tbody td:first-child {
+                border-left: 1px solid var(--sap-line) !important;
+            }
+
+        .table-wrap tbody tr:nth-child(even) td {
+            background: var(--sap-panel-2) !important;
+        }
+
+        .table-wrap tbody tr:hover td {
+            background: var(--sap-soft-2) !important;
+        }
+
+    .num {
+        text-align: right !important;
+        font-variant-numeric: tabular-nums;
+    }
+
+    #tablaPrecios th:nth-child(1), #tablaPrecios td:nth-child(1) {
+        width: 130px;
+    }
+
+    #tablaPrecios th:nth-child(2), #tablaPrecios td:nth-child(2) {
+        width: 420px;
+    }
+
+    #tablaPrecios th:nth-child(3), #tablaPrecios td:nth-child(3) {
+        width: 140px;
+    }
+
+    #tablaPrecios th:nth-child(4), #tablaPrecios td:nth-child(4) {
+        width: 120px;
+    }
+
+    #tablaPrecios th:nth-child(5), #tablaPrecios td:nth-child(5) {
+        width: 110px;
+    }
+
+    #tablaPrecios th:nth-child(6), #tablaPrecios td:nth-child(6) {
+        width: 130px;
+    }
+
+    #tablaPrecios th:nth-child(7), #tablaPrecios td:nth-child(7) {
+        width: 180px;
+    }
+
+    .pager {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        flex-wrap: wrap;
+        padding: 10px;
+        border-top: 1px solid var(--sap-line);
+        background: var(--sap-surface);
+    }
+
+        .pager .btn {
+            min-width: 110px;
+            border-radius: 0;
+            font-size: 12px;
+        }
+
+            .pager .btn:focus {
+                box-shadow: none;
+            }
+
+    body[data-theme="dark"] .pager .btn-outline-secondary {
+        color: #e5e7eb;
+        border-color: #4b5563;
+        background: #1f2937;
+    }
+
+        body[data-theme="dark"] .pager .btn-outline-secondary:hover:not(:disabled) {
+            background: #374151;
+            color: #ffffff;
+        }
+
+        body[data-theme="dark"] .pager .btn-outline-secondary:disabled {
+            color: #6b7280;
+            border-color: #374151;
+            background: #111827;
+        }
+
+    #loader {
+        font-weight: 700;
+        color: var(--sap-brand);
+        font-size: 12px;
+    }
+
+    body[data-theme="dark"] #loader {
+        color: #fca5a5;
+    }
+
+    .statusbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 6px 10px;
+        font-size: 11px;
+        color: var(--sap-text);
+        border-top: 1px solid var(--sap-line-dark);
+        background: var(--sap-status);
+        flex-wrap: wrap;
+    }
+
+    body[data-theme="dark"] .text-warning {
+        color: #facc15 !important;
+    }
+
+    body[data-theme="dark"] .text-danger {
+        color: #fca5a5 !important;
+    }
+
+    @@media (max-width: 992px) {
+        .toolbar {
+            align-items: stretch;
+        }
+
+            .toolbar .group {
+                min-width: 100%;
+                flex: 1 1 100%;
+            }
+    }
+
+    @@media (max-width: 768px) {
+        .table-wrap table {
+            min-width: 1200px;
+        }
+    }
+</style>
+
+<div class="window">
+    <div class="titlebar">
+        <div>Catálogo de Artículos SAP</div>
+        <div class="actions">
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+        </div>
+    </div>
+
+    <div class="toolbar">
+        <div class="group">
+            <label for="searchInput"></label>
+            <input type="text" id="searchInput" class="form-control" placeholder="Buscar por código o nombre…" />
+        </div>
+
+        <button id="btnDescargarExcel" class="tool-btn tool-btn-success">
+            <i class="bi bi-file-earmark-excel"></i> Descargar Excel
+        </button>
+
+        <button id="btnSincronizar" class="tool-btn tool-btn-primary">
+            <i class="bi bi-arrow-repeat"></i> Sincronizar
+        </button>
+
+        <span id="loader" style="display:none;">⏳ Sincronizando…</span>
+    </div>
+
+    <div class="content">
+      
+
+        <div class="workspace">
+            <div class="section">
+              @*   <div class="section-title">            Resultados
+                    <span class="status-chip">Fuente: SAP</span>
+                </div> *@
+
+                <div class="table-wrap">
+                    <table id="tablaPrecios" class="table table-bordered table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Sku</th>
+                                <th>Producto</th>
+                                <th>Master</th>
+                                <th>Tipo SKU</th>
+                                <th>Rotación</th>
+                                <th>Kg Promedio</th>
+                                <th>Última Modificación</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <div class="pager">
+                    <button id="prevPage" class="btn btn-outline-secondary">
+                        <i class="bi bi-chevron-left"></i> Anterior
+                    </button>
+                    <div class="d-flex align-items-center gap-2">
+                        <span id="pageInfo"><i class="bi bi-info-circle"></i> — </span>
+                    </div>
+                    <button id="nextPage" class="btn btn-outline-secondary">
+                        Siguiente <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="statusbar">
+        <div>Registro listo</div>
+        <div>Usuario: @User.Identity.Name</div>
+        <div>Empresa: Carnes G SA de CV</div>
+        <div>Módulo: Catálogo SAP</div>
+    </div>
+</div>
+@section Scripts {
+  
+
+    <script>
+        let currentPage = 1;
+        let pageSize = 50;
+        let currentSearch = "";
+        let totalItems = 0;
+        let totalPages = 0;
+
+        function debounce(fn, ms=300){
+        let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); };
+        }
+
+        async function cargarArticulos(page = 1, search = "") {
+        const tbody = document.querySelector("#tablaPrecios tbody");
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center">⏳ Cargando...</td></tr>`;
+        document.getElementById("loader").style.display = "inline";
+
+        document.getElementById("prevPage").disabled = true;
+        document.getElementById("nextPage").disabled = true;
+
+        try {
+        const res = await fetch(`/Comercial/GetArticulosJsonPaged?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`);
+        if (!res.ok) throw new Error("Error al cargar artículos");
+
+        const data = await res.json();
+        tbody.innerHTML = "";
+
+        const rows = Array.isArray(data.articulos) ? data.articulos : [];
+        totalItems = Number(data.total || 0);
+        totalPages = Math.max(1, Math.ceil((data.total || 0) / (data.pageSize || pageSize)));
+
+        if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-warning py-4">No hay artículos para mostrar.</td></tr>`;
+        document.getElementById("pageInfo").innerHTML = `<i class="bi bi-info-circle"></i> Sin resultados`;
+        return;
+        }
+
+        rows.forEach((art) => {
+        const kilosVal = (typeof art.u_KilosCaja === "number") ? art.u_KilosCaja : null;
+        const kilosTxt = (kilosVal !== null)
+        ? kilosVal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : "—";
+
+        const tr = document.createElement("tr");
+        tr.dataset.codigo = art.productoCodigo;
+        tr.innerHTML = `
+        <td>${art.productoCodigo ?? "—"}</td>
+        <td>${(art.productoNombre ?? "—")}</td>
+        <td>${art.u_MASTER ?? "—"}</td>
+        <td>${art.u_TipoporSKU ?? "—"}</td>
+        <td>
+        <span class="rotacion-text">${art.rotacion ?? 0}</span>
+        <input class="rotacion-input form-control form-control-sm" type="number"
+        style="display:none; width:90px;" value="${art.rotacion ?? 0}">
+        </td>
+        <td>${kilosTxt}</td>
+        <td>${art.fechaModificacion ? new Date(art.fechaModificacion).toLocaleString('es-MX') : "—"}</td>
+        `;
+        tbody.appendChild(tr);
+        });
+
+        currentPage = Number(data.page || page);
+        pageSize = Number(data.pageSize || pageSize);
+        document.getElementById("pageInfo").innerHTML =
+        `<i class="bi bi-collection"></i> Página <strong>${currentPage}</strong> de <strong>${totalPages}</strong> · Registros: <strong>${totalItems.toLocaleString('es-MX')}</strong>`;
+
+        document.getElementById("prevPage").disabled = (currentPage <= 1);
+        document.getElementById("nextPage").disabled = (currentPage >= totalPages);
+
+        agregarEventosFila();
+        } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">Error: ${err.message}</td></tr>`;
+        document.getElementById("pageInfo").innerHTML = `<i class="bi bi-exclamation-triangle"></i> Error`;
+        } finally {
+        document.getElementById("loader").style.display = "none";
+        }
+        }
+
+        function agregarEventosFila() {
+        document.querySelectorAll('.btn-editar')?.forEach(btn => {
+        btn.onclick = function () {
+        const tr = this.closest('tr');
+        tr.querySelector('.rotacion-text').style.display = 'none';
+        tr.querySelector('.rotacion-input').style.display = 'inline-block';
+        tr.querySelector('.btn-editar').style.display = 'none';
+        tr.querySelector('.btn-guardar').style.display = 'inline-block';
+        tr.querySelector('.btn-cancelar').style.display = 'inline-block';
+        }
+        });
+
+        document.querySelectorAll('.btn-cancelar')?.forEach(btn => {
+        btn.onclick = function () {
+        const tr = this.closest('tr');
+        const span = tr.querySelector('.rotacion-text');
+        const input = tr.querySelector('.rotacion-input');
+        input.value = span.textContent;
+        span.style.display = 'inline';
+        input.style.display = 'none';
+        tr.querySelector('.btn-editar').style.display = 'inline-block';
+        tr.querySelector('.btn-guardar').style.display = 'none';
+        tr.querySelector('.btn-cancelar').style.display = 'none';
+        }
+        });
+
+        document.querySelectorAll('.btn-guardar')?.forEach(btn => {
+        btn.onclick = async function () {
+        const tr = this.closest('tr');
+        const codigo = tr.dataset.codigo;
+        const nuevaRotacion = tr.querySelector('.rotacion-input').value;
+
+        try {
+        const res = await fetch(`/Comercial/ActualizarRotacion?codigo=${encodeURIComponent(codigo)}&rotacion=${encodeURIComponent(nuevaRotacion)}`, { method: 'POST' });
+        if (!res.ok) throw new Error("No se pudo actualizar la rotación");
+
+        tr.querySelector('.rotacion-text').textContent = nuevaRotacion;
+        tr.querySelector('.rotacion-text').style.display = 'inline';
+        tr.querySelector('.rotacion-input').style.display = 'none';
+        tr.querySelector('.btn-editar').style.display = 'inline-block';
+        tr.querySelector('.btn-guardar').style.display = 'none';
+        tr.querySelector('.btn-cancelar').style.display = 'none';
+        } catch (err) {
+        alert("Error al guardar rotación: " + err.message);
+        }
+        }
+        });
+        }
+
+        function descargarTablaExcel() {
+        const tabla = document.getElementById("tablaPrecios");
+        const filas = tabla.querySelectorAll("tbody tr");
+
+        if (!filas.length || (filas.length === 1 && filas[0].innerText.includes("No hay artículos"))) {
+        alert("No hay datos para exportar.");
+        return;
+        }
+
+        const data = [];
+
+        data.push([
+        "Sku",
+        "Producto",
+        "Master",
+        "Tipo SKU",
+        "Rotación",
+        "Kg Promedio",
+        "Última Modificación"
+        ]);
+
+        filas.forEach(fila => {
+        const celdas = fila.querySelectorAll("td");
+        if (celdas.length >= 7) {
+        data.push([
+        celdas[0].innerText.trim(),
+        celdas[1].innerText.trim(),
+        celdas[2].innerText.trim(),
+        celdas[3].innerText.trim(),
+        celdas[4].querySelector(".rotacion-text")
+        ? celdas[4].querySelector(".rotacion-text").innerText.trim()
+        : celdas[4].innerText.trim(),
+        celdas[5].innerText.trim(),
+        celdas[6].innerText.trim()
+        ]);
+        }
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "ArticulosSAP");
+
+        const fecha = new Date();
+        const yyyy = fecha.getFullYear();
+        const mm = String(fecha.getMonth() + 1).padStart(2, '0');
+        const dd = String(fecha.getDate()).padStart(2, '0');
+
+        XLSX.writeFile(wb, `Catalogo_Articulos_SAP_${yyyy}-${mm}-${dd}.xlsx`);
+        }
+
+        document.getElementById("btnDescargarExcel").addEventListener("click", function () {
+        const search = document.getElementById("searchInput").value || "";
+        const url = `/Comercial/DescargarArticulosExcel?search=${encodeURIComponent(search)}`;
+        window.location.href = url;
+        });
+
+        document.getElementById("btnSincronizar").addEventListener("click", async function () {
+        const loader = document.getElementById("loader");
+        loader.style.display = "inline";
+        this.disabled = true;
+
+        try {
+        const res = await fetch('/Comercial/SincronizarItems');
+        if (!res.ok) throw new Error('Error al sincronizar');
+
+        const data = await res.text();
+        alert(data);
+        await cargarArticulos(currentPage, currentSearch);
+        } catch (err) {
+        alert(err.message);
+        } finally {
+        loader.style.display = "none";
+        this.disabled = false;
+        }
+        });
+
+        const buscar = debounce(() => {
+        currentSearch = document.getElementById("searchInput").value || "";
+        currentPage = 1;
+        cargarArticulos(currentPage, currentSearch);
+        }, 350);
+
+        document.getElementById("searchInput").addEventListener("input", buscar);
+
+        document.getElementById("prevPage").addEventListener("click", function () {
+        if (currentPage > 1) {
+        currentPage--;
+        cargarArticulos(currentPage, currentSearch);
+        }
+        });
+
+        document.getElementById("nextPage").addEventListener("click", function () {
+        if (currentPage < totalPages) {
+        currentPage++;
+        cargarArticulos(currentPage, currentSearch);
+        }
+        });
+
+        document.addEventListener("DOMContentLoaded", () => cargarArticulos(currentPage, currentSearch));
+    </script>
+}

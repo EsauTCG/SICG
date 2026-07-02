@@ -1,0 +1,202 @@
+﻿@{
+    Layout = null;
+
+    // Datos ficticios simulados (dummy)
+    var Codigo = "OV-99231";
+    var EstatusActual = "EN RUTA";
+    var Destino = "Cedis León";
+    var Cliente = "Soriana";
+
+    var Eventos = new List<dynamic>
+    {
+        new { Hora = "09:31 a.m.", Estatus = "Validación completada", Origen = "Sistema", Comentario = "" },
+        new { Hora = "08:50 a.m.", Estatus = "Liberación del pedido", Origen = "Sistema", Comentario = "" },
+        new { Hora = "08:15 a.m.", Estatus = "Salida de planta", Origen = "Chofer", Comentario = "Unidad cargada" },
+        new { Hora = "07:55 a.m.", Estatus = "Viaje creado", Origen = "Sistema", Comentario = "" }
+    };
+}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Seguimiento del Viaje @Codigo</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="~/images/ico_sigo.ico" />
+
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+    <style>
+        /* ----- VARIABLES DE COLOR ----- */
+        :root {
+            --rojo: #8B0000;
+            --rojo-dark: #5f0000;
+        }
+
+        body {
+            background: #f7f7f7;
+            color: #222;
+        }
+
+        /* Barra superior con logo */
+        .top-bar {
+            background: var(--rojo);
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            color: white;
+            border-radius: 0 0 12px 12px;
+            margin-bottom: 20px;
+        }
+
+            .top-bar img {
+                height: 36px;
+                margin-right: 12px;
+            }
+
+        /* Estilo del botón corporativo */
+        .btn-rojo {
+            background: var(--rojo);
+            color: white;
+            border: none;
+        }
+
+            .btn-rojo:disabled {
+                opacity: 0.85;
+            }
+
+            .btn-rojo:hover {
+                background: var(--rojo-dark);
+            }
+
+        /* Línea de tiempo estilo iPhone */
+        .timeline-item {
+            position: relative;
+            padding-left: 32px;
+        }
+
+            .timeline-item:not(:last-child)::before {
+                content: "";
+                position: absolute;
+                left: 14px;
+                top: 14px;
+                bottom: -14px;
+                width: 2px;
+                background: var(--rojo);
+            }
+
+        .timeline-dot {
+            position: absolute;
+            left: 9px;
+            top: 6px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--rojo);
+        }
+
+        .badge-rojo {
+            background: var(--rojo);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container py-3" style="max-width: 600px;">
+
+
+        <!-- BARRA SUPERIOR CON LOGO -->
+        <div class="top-bar">
+            <!-- Reemplaza la ruta del logo -->
+            <img src="/images/logoPDF.png" alt="Logo" />
+            <span class="fw-semibold h5 mb-0">Seguimiento del Viaje</span>
+        </div>
+
+        <!-- Estado del viaje -->
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <span class="text-muted small">Estado del Viaje</span>
+                <span class="badge badge-rojo text-uppercase">@EstatusActual</span>
+            </div>
+        </div>
+
+        <!-- Botón principal -->
+        <button type="button"
+                class="btn btn-rojo w-100 py-2 mb-3"
+                disabled>
+            ENTREGADO ✔
+        </button>
+
+        <!-- Detalles del viaje -->
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body">
+                <h2 class="h6 fw-semibold mb-3" style="color: var(--rojo);">Detalles del Viaje</h2>
+
+                <div class="row mb-2">
+                    <div class="col-5 small fw-semibold">Destino</div>
+                    <div class="col-7 small text-end">@Destino</div>
+                </div>
+
+                <div class="row mb-2">
+                    <div class="col-5 small fw-semibold">Cliente</div>
+                    <div class="col-7 small text-end">@Cliente</div>
+                </div>
+
+                <div class="row mb-2">
+                    <div class="col-5 small fw-semibold">Salida</div>
+                    <div class="col-7 small text-end">02 dic 2025 – 09:25 a.m.</div>
+                </div>
+
+                <div class="row mb-2">
+                    <div class="col-5 small fw-semibold">Entrega Programada</div>
+                    <div class="col-7 small text-end">02 dic 2025 – 11:20 a.m.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Eventos del viaje -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h2 class="h6 fw-semibold mb-3" style="color: var(--rojo);">Eventos del Viaje</h2>
+
+                <ul class="list-unstyled mb-0">
+
+                    @foreach (var e in Eventos)
+                    {
+                        <li class="timeline-item mb-3">
+
+                            <span class="timeline-dot"></span>
+
+                            <div class="d-flex">
+                                <div class="me-3 small text-muted" style="width:85px;">
+                                    @e.Hora
+                                </div>
+
+                                <div>
+                                    <div class="small">@e.Estatus</div>
+                                    <div class="text-muted small">
+                                        @e.Origen
+                                        @if (!string.IsNullOrWhiteSpace(e.Comentario))
+                                        {
+                                            <span> · "@e.Comentario"</span>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+
+                        </li>
+                    }
+
+                </ul>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>

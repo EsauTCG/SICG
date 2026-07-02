@@ -1,0 +1,181 @@
+﻿ @using Plataforma_CG.Models.Operaciones.Planeacion.Diaria;
+@using Plataforma_CG.Models.Operaciones.Planeacion.Semanal;
+@using Plataforma_CG.Models.Operaciones.Planeacion;
+@model TotalSemanalModel
+
+<style>
+    #buscadorWrapper {
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+        background: white;
+        padding: 10px;
+        border-bottom: 1px solid #ddd;
+    }
+
+    .fila-derivado {
+        background-color: #d6ecff !important;
+    }
+
+        .fila-derivado td.td-codigo {
+            padding-left: 35px !important;
+            position: relative;
+        }
+
+            .fila-derivado td.td-codigo::before {
+                content: "↳";
+                position: absolute;
+                left: 10px;
+                color: #2e86c1;
+                font-weight: bold;
+            }
+
+    .td-0 {
+        background-color: #f8b26a !important;
+    }
+
+    .td-parcial {
+        background-color: #5dade2 !important;
+        color: #fff;
+    }
+
+    .td-1 {
+        background-color: #58d68d !important;
+    }
+
+    .td-codigo {
+        background-color: #fdf2d0 !important;
+    }
+</style>
+
+
+
+<h3 class="mb-3">
+    Plan Semanal: @Model.FechaIn - @Model.FechaFin
+</h3>
+
+<div class="d-flex gap-2 mb-3">
+
+    <select id="comboTipoPlan" class="form-select form-select-sm" style="width:180px">
+        <option value="VG" selected="@(Model.TipoPlan == "VG")">Vaca Gorda</option>
+        <option value="NOV" selected="@(Model.TipoPlan == "NOV")">NOVILLO</option>
+    </select>
+
+    <button class="btn btn-primary btn-sm"
+            onclick="actualizarPlaneacionSemanal(this)">
+        Actualizar
+    </button>
+
+</div>
+<div class="mb-2 text-end">
+    <button class="btn btn-success btn-sm" onclick="exportarExcelSemanal()">
+        Exportar a Excel
+    </button>
+</div>
+<div class="mb-2 text-end">
+    <button class="btn btn-success btn-sm" onclick="guardarPlanSemanal()">
+        Guardar
+    </button>
+</div>
+
+@{
+    var clasificaciones = Model.Canales?
+        .FirstOrDefault()?
+        .Clasificaciones ?? new List<DetalleClasificacionSemana>();
+}
+<div id="buscadorWrapper">
+    <input id="buscadorProductos"
+           class="form-control form-control-sm"
+           placeholder="Buscar código o producto... (Enter / F3 / ↑ ↓)">
+</div>
+<div class="table-responsive">
+    <table class="table table-bordered table-sm text-center tabla-plan" id="tablaPlanSemanal">
+
+        <thead>
+            <tr>
+                <th>Código</th>
+                <th>Producto</th>
+
+                @foreach (var clas in clasificaciones)
+                {
+                    <th>
+                        @clas.Clasificacion
+                        <br />
+                        <small>
+                            @clas.TotalCanales | @clas.PesoPromedio kg
+                        </small>
+                    </th>
+                }
+
+                <th>%</th>
+                <th>Total Calculado</th>
+                <th>Total Semanal</th>
+            </tr>
+        </thead>
+
+        <tbody>
+
+            @{
+                var productos = (Model.Participaciones ?? new List<ParticipacionModel>())
+                .GroupBy(p => p.ProductoCodigo)
+                .Select(g => new
+                {
+                    ProductoCodigo = g.Key,
+                    Nombre = g.First().Nombre,
+                    LineaCodigo = g.First().LineaCodigo
+                })
+                .OrderBy(p => string.IsNullOrEmpty(p.LineaCodigo) ? p.ProductoCodigo : p.LineaCodigo)
+                .ThenBy(p => p.LineaCodigo)
+                .ToList();
+            }
+
+            @foreach (var prod in productos)
+            {
+                var participacionesProducto = Model.Participaciones
+                .Where(p => p.ProductoCodigo == prod.ProductoCodigo)
+                .ToList();
+
+                double porcentaje = participacionesProducto.FirstOrDefault()?.Porcentaje ?? 0;
+
+                <tr class="fila-producto @(string.IsNullOrEmpty(prod.LineaCodigo) ? "" : "fila-derivado")"
+                    data-sku="@prod.ProductoCodigo"
+                    data-linea="@prod.LineaCodigo"
+                    data-fecha-inicio="@Model.FechaIn"
+                    data-fecha-fin="@Model.FechaFin"
+                    data-porcentaje="@porcentaje">
+
+                    <td class="td-codigo">@prod.ProductoCodigo</td>
+                    <td>@prod.Nombre</td>
+
+                    @foreach (var clas in clasificaciones)
+                    {
+                        var dato = participacionesProducto
+                        .FirstOrDefault(p => p.fk_SubClas == clas.fk_SubClas);
+
+                        double partSub = dato?.PartSub ?? 0;
+
+                        <td>
+                            <input type="number"
+                                   class="form-control form-control-sm input-participacion-semanal"
+                                   value="@partSub"
+                                   step="0.01"
+                                   min="0"
+                                   max="1"
+                                   data-clasificacion="@clas.Clasificacion"
+                                   data-subclas="@clas.fk_SubClas"
+                                   data-total="@clas.TotalCanales" 
+                                   data-peso="@clas.PesoPromedio"
+                                   data-porcentaje="@porcentaje" />
+                        </td>
+                    }
+
+                    <td>@porcentaje.ToString("0.##")</td>
+                    <td class="total-calculado">0</td>
+                    <td class="total-semanal">0</td>
+                </tr>
+            }
+
+        </tbody>
+
+    </table>
+</div>

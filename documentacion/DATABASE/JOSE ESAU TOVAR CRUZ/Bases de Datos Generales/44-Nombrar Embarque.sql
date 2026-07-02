@@ -1,0 +1,4 @@
+USE SIGO;
+
+ALTER TABLE Embarque
+ADD NombreEmbarque NVARCHAR(150) NULL;

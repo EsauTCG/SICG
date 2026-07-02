@@ -1,0 +1,562 @@
+﻿@model TodoPlanModel
+@{
+    ViewData["Title"] = "Planeacion";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<style>
+    html, body {
+        height: 100%;
+        overflow: hidden; /* evita que toda la página scrollee */
+    }
+
+    #main-container {
+        height: calc(100vh - 120px); /* ajusta restando header/nav */
+        max-height: 80vh;
+        overflow-y: auto; /* solo este div tiene scroll */
+        padding: 1rem;
+        background: #f8f9fa;
+    }
+
+    /* Botones rojos */
+    .btn-red {
+        background-color: #b30000; /* rojo oscuro */
+        color: #fff;
+        border: none;
+    }
+
+        /* Hover (brillante) */
+        .btn-red:hover {
+            background-color: #800000; /* rojo vino */
+            color: #fff;
+        }
+
+        /* Activo (más intenso fijo) */
+        .btn-red.active {
+            background-color: #ff1a1a; /* rojo brillante */
+            color: #fff !important;
+        }
+
+    #overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        display: none;
+    }
+</style>
+
+<!-- Toolbar -->
+<div class="toolbar bg-light border-bottom px-3 py-2 d-flex gap-2" role="group" aria-label="Toolbar">
+    <button class="btn btn-danger" data-url="/Planeacion/Index" onclick="loadPartial('/Planeacion/Index', this)">Planeacion:</button>
+
+</div>
+
+<!-- Contenedor donde se cargan las vistas parciales -->
+<div id="main-container" class="border rounded p-3">
+    <p></p>
+</div>
+
+<div id="overlay"></div>
+
+@section Scripts {
+    <script>
+        let autoRefreshInterval;
+
+        async function loadPartial(url, btn) {
+            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+
+            try {
+                const response = await fetch(url);
+                const html = await response.text();
+                document.getElementById("main-container").innerHTML = html;
+
+                // Resetear botones activos
+                document.querySelectorAll('.toolbar button').forEach(b => b.classList.remove('active'));
+                if (btn) btn.classList.add('active');
+
+                // Inicializar Planeación (crear, detalle o modificar)
+                setTimeout(() => {
+                    if (
+                        url.toLowerCase().includes("/planeacion/planeacion") ||
+                        url.toLowerCase().includes("/planeacion/detalle") ||
+                        url.toLowerCase().includes("/planeacion/modificar")
+                    ) {
+                        if (typeof inicializarPlaneacion === "function") {
+                            if(url.toLowerCase().includes("/planeacion/planeacion"))
+                            {
+                                inicializarPlaneacionRead();
+                            }
+
+                            else
+                            {
+                                inicializarPlaneacion();
+                            }
+                        }
+                    }
+                                                else if(url.toLowerCase().includes("/plansemanal/"))
+                            {
+                                inicializarPlanSemanal();
+                            }
+                }, 150);
+
+                // Recarga automática opcional
+                autoRefreshInterval = setInterval(async () => {
+                    const r = await fetch(url);
+                    const h = await r.text();
+                }, 30000);
+
+            } catch (err) {
+                document.getElementById("main-container").innerHTML =
+                    "<p class='text-danger'>Error cargando datos</p>";
+                console.error(err);
+            }
+        }
+
+        function inicializarPlaneacion() {
+            const canalesInput = document.getElementById("canalesInput");
+            const kgPromedioInput = document.getElementById("kgPromedioInput");
+            const kgEstimadosInput = document.getElementById("kgEstimadosInput");
+            const clasificacionSelect = document.getElementById("clasificacionSelect");
+            const masterBody = document.getElementById("masterBody");
+
+            if (!canalesInput || !kgPromedioInput || !kgEstimadosInput || !masterBody) {
+                console.warn("⏳ La vista parcial aún no está completamente cargada.");
+                return;
+            }
+
+            console.log("✅ inicializarPlaneacion ejecutada");
+
+            function calcularKgEstimados() {
+                const canales = parseFloat(canalesInput.value) || 0;
+                const kgProm = parseFloat(kgPromedioInput.value) || 0;
+                const total = canales * kgProm;
+                kgEstimadosInput.value = total.toFixed(2);
+                return total;
+            }
+
+            function actualizarFilas() {
+                const totalEstimados = calcularKgEstimados();
+                masterBody.querySelectorAll("tr").forEach(row => {
+                    const porcentajeInput = row.querySelector(".porcentajeInput");
+                    const kilosInput = row.querySelector(".kilosInput");
+                    const porcentaje = parseFloat(porcentajeInput.value) || 0;
+                    kilosInput.value = ((porcentaje / 100) * totalEstimados).toFixed(2);
+                });
+            }
+
+            // Escuchar cambios en canales y peso promedio
+            canalesInput.addEventListener("input", actualizarFilas);
+            kgPromedioInput.addEventListener("input", actualizarFilas);
+
+            // Solo si existe el select de clasificación
+            if (clasificacionSelect) {
+                clasificacionSelect.addEventListener("change", async function () {
+                    const clasificacionId = this.options[this.selectedIndex].dataset.itemid;
+                    if (!clasificacionId) return;
+
+                    masterBody.innerHTML = "";
+
+                    try {
+                        const response = await fetch(`/Planeacion/Participacion?clasi=${clasificacionId}`);
+                        if (!response.ok) throw new Error("Error al obtener SKUs");
+
+                        const data = await response.json();
+                        const totalEstimados = calcularKgEstimados();
+
+                        data.forEach((item, index) => {
+                            const kilos = totalEstimados * (item.porcentaje / 100);
+                            const row = document.createElement("tr");
+
+                                row.innerHTML = `
+                                <td>${index + 1}</td>
+                                <td><input name="_ListaPlanDetalle[${index}].ProductoCodigo" class="form-control productoCodigo" value="${item.productoCodigo}" readonly /></td>
+                                <td><input name="_ListaPlanDetalle[${index}].Porcentaje" type="number" step="0.01" class="form-control porcentajeInput" value="${item.porcentaje}" /></td>
+                                <td><input name="_ListaPlanDetalle[${index}].Peso" type="number" step="0.01" class="form-control kilosInput" value="${kilos.toFixed(2)}" /></td>
+                            `;
+                            masterBody.appendChild(row);
+                        });
+
+                        activarEventosBidireccionales();
+
+                    } catch (err) {
+                        console.error(err);
+                        alert("❌ No se pudieron cargar los SKUs vinculados.");
+                    }
+                });
+            }
+
+            function activarEventosBidireccionales() {
+                masterBody.querySelectorAll("tr").forEach(row => {
+                    const porcentajeInput = row.querySelector(".porcentajeInput");
+                    const kilosInput = row.querySelector(".kilosInput");
+
+                    porcentajeInput.addEventListener("input", function () {
+                        const totalEstimados = calcularKgEstimados();
+                        const pct = parseFloat(this.value) || 0;
+                        kilosInput.value = (pct / 100 * totalEstimados).toFixed(2);
+                    });
+
+                    kilosInput.addEventListener("input", function () {
+                        const totalEstimados = calcularKgEstimados();
+                        const kilos = parseFloat(this.value) || 0;
+                        porcentajeInput.value = totalEstimados > 0 ? (kilos / totalEstimados * 100).toFixed(2) : 0;
+                    });
+                });
+            }
+
+            // Activar al cargar vista de detalle
+            activarEventosBidireccionales();
+        }
+        function inicializarPlaneacionRead() {
+            const canalesInput = document.getElementById("canalesInput");
+            const kgPromedioInput = document.getElementById("kgPromedioInput");
+            const kgEstimadosInput = document.getElementById("kgEstimadosInput");
+            const clasificacionSelect = document.getElementById("clasificacionSelect");
+            const masterBody = document.getElementById("masterBody");
+
+            if (!canalesInput || !kgPromedioInput || !kgEstimadosInput || !masterBody) {
+                console.warn("⏳ La vista parcial aún no está completamente cargada.");
+                return;
+            }
+
+            console.log("✅ inicializarPlaneacionRead ejecutada");
+
+            function calcularKgEstimados() {
+                const canales = parseFloat(canalesInput.value) || 0;
+                const kgProm = parseFloat(kgPromedioInput.value) || 0;
+                const total = canales * kgProm;
+                kgEstimadosInput.value = total.toFixed(2);
+                return total;
+            }
+
+            function actualizarFilas() {
+                const totalEstimados = calcularKgEstimados();
+                masterBody.querySelectorAll("tr").forEach(row => {
+                    const porcentajeInput = row.querySelector(".porcentajeInput");
+                    const kilosInput = row.querySelector(".kilosInput");
+                    const porcentaje = parseFloat(porcentajeInput.value) || 0;
+                    kilosInput.value = ((porcentaje / 100) * totalEstimados).toFixed(2);
+                });
+            }
+
+            // Escuchar cambios en canales y peso promedio
+            canalesInput.addEventListener("input", actualizarFilas);
+            kgPromedioInput.addEventListener("input", actualizarFilas);
+
+            // Solo si existe el select de clasificación
+            if (clasificacionSelect) {
+                clasificacionSelect.addEventListener("change", async function () {
+                    const selectedOption = this.options[this.selectedIndex];
+                    const clasificacionId = selectedOption.dataset.itemid;
+                    const pesoPromedio = parseFloat(selectedOption.dataset.peso) || 0;
+
+                    // Asignar peso promedio al textbox
+                    kgPromedioInput.value = pesoPromedio.toFixed(2);
+
+                    if (!clasificacionId) return;
+
+                    masterBody.innerHTML = "";
+
+                    try {
+                        const response = await fetch(`/Planeacion/Participacion?clasi=${clasificacionId}`);
+                        if (!response.ok) throw new Error("Error al obtener SKUs");
+
+                        const data = await response.json();
+                        const totalEstimados = parseFloat(canalesInput.value || 0) * pesoPromedio;
+
+                        data.forEach((item, index) => {
+                            const kilos = totalEstimados * (item.porcentaje / 100);
+                            const row = document.createElement("tr");
+
+                            row.innerHTML = `
+                                <td>${index + 1}</td>
+                                <td><input name="_ListaPlanDetalle[${index}].ProductoCodigo" class="form-control productoCodigo" value="${item.productoCodigo}" readonly /></td>
+                                <td><input readonly name="_ListaPlanDetalle[${index}].Porcentaje" type="number" step="0.01" class="form-control porcentajeInput" value="${item.porcentaje}" /></td>
+                                <td><input readonly name="_ListaPlanDetalle[${index}].Peso" type="number" step="0.01" class="form-control kilosInput" value="${kilos.toFixed(2)}" /></td>
+                            `;
+                            masterBody.appendChild(row);
+                        });
+
+                        activarEventosBidireccionales();
+
+                    } catch (err) {
+                        console.error(err);
+                        alert("❌ No se pudieron cargar los SKUs vinculados.");
+                    }
+                });
+            }
+
+            function activarEventosBidireccionales() {
+                masterBody.querySelectorAll("tr").forEach(row => {
+                    const porcentajeInput = row.querySelector(".porcentajeInput");
+                    const kilosInput = row.querySelector(".kilosInput");
+
+                    porcentajeInput.addEventListener("input", function () {
+                        const totalEstimados = calcularKgEstimados();
+                        const pct = parseFloat(this.value) || 0;
+                        kilosInput.value = (pct / 100 * totalEstimados).toFixed(2);
+                    });
+
+                    kilosInput.addEventListener("input", function () {
+                        const totalEstimados = calcularKgEstimados();
+                        const kilos = parseFloat(this.value) || 0;
+                        porcentajeInput.value = totalEstimados > 0 ? (kilos / totalEstimados * 100).toFixed(2) : 0;
+                    });
+                });
+            }
+
+            // Activar al cargar vista de detalle
+            activarEventosBidireccionales();
+        }
+
+        // === Interceptar submit dinámico de Planeación ===
+        $(document).on('submit', '#main-container form', function (e) {
+            const $form = $(this);
+            if (!$form.attr('action')?.toLowerCase().includes("planeacion")) return;
+
+            e.preventDefault();
+
+            const formData = new FormData($form[0]);
+            const masterBody = document.getElementById("masterBody");
+
+            masterBody.querySelectorAll("tr").forEach((fila, i) => {
+                const productoCodigo = fila.querySelector(".productoCodigo")?.value || "";
+                const porcentaje = fila.querySelector(".porcentajeInput")?.value || 0;
+                const peso = fila.querySelector(".kilosInput")?.value || 0;
+
+                formData.append(`_ListaPlanDetalle[${i}].ProductoCodigo`, productoCodigo);
+                formData.append(`_ListaPlanDetalle[${i}].Porcentaje`, porcentaje);
+                formData.append(`_ListaPlanDetalle[${i}].Peso`, peso);
+            });
+
+            $.ajax({
+                url: $form.attr('action'),
+                type: $form.attr('method') || 'POST',
+                data: formData,
+                contentType: false,
+                processData: false,
+                dataType: 'json',
+                success: function (result) {
+                    if (result.success) {
+                        alert("✅ Plan guardado correctamente.");
+                                const fecha = encodeURIComponent($form.data('fecha') || "");
+                        //loadPartial("/Planeacion/Index", document.querySelector('.toolbar button[data-url="/Planeacion/Index"]'));
+                                loadPartial(`/Planeacion/Planes?fecha=${fecha}`,document.querySelector('.toolbar button[data-url="/Planeacion/Index"]'));
+                    } else {
+                        alert("❌ Error al guardar: " + (result.message || "Error desconocido"));
+                    }
+                },
+                error: function (xhr) {
+                    console.error(xhr.responseText);
+                    alert("❌ Ocurrió un error al enviar los datos.");
+                }
+            });
+        });
+
+        // Inicializar automáticamente el contenedor principal
+        document.addEventListener("DOMContentLoaded", function () {
+            const btnPlan = document.querySelector('.toolbar button[data-url="/Planeacion/Index"]');
+            if (btnPlan) loadPartial("/Planeacion/Index", btnPlan);
+        });
+    </script>
+
+
+
+
+
+
+
+
+    <script>
+        function inicializarPlanSemanal() {
+            const form = document.getElementById("formSemanal");
+            if (!form) return;
+
+            const canalesInput = form.querySelector("#canalesInput");
+            const kgPromedioInput = form.querySelector("#kgPromedioInput");
+            const kgEstimadosInput = form.querySelector("#kgEstimadosInput");
+            const masterBody = form.querySelector("#masterBody");
+
+            if (!canalesInput || !kgPromedioInput || !kgEstimadosInput || !masterBody) return;
+
+            console.log("✅ Script Plan Semanal inicializado");
+
+            function calcularKgEstimados() {
+                const canales = parseFloat(canalesInput.value) || 0;
+                const kgProm = parseFloat(kgPromedioInput.value) || 0;
+                const total = canales * kgProm;
+                kgEstimadosInput.value = total.toFixed(2);
+                return total;
+            }
+
+            function actualizarFilasDesdePorcentaje() {
+                const total = calcularKgEstimados();
+                masterBody.querySelectorAll("tr").forEach(row => {
+                    const porcentajeInput = row.querySelector(".porcentajeInput");
+                    const kilosInput = row.querySelector(".kilosInput");
+                    if (!porcentajeInput || !kilosInput) return;
+                    const pct = parseFloat(porcentajeInput.value) || 0;
+                    kilosInput.value = ((pct / 100) * total).toFixed(2);
+                });
+            }
+
+            function activarEventosBidireccionales() {
+                masterBody.querySelectorAll("tr").forEach(row => {
+                    const porcentajeInput = row.querySelector(".porcentajeInput");
+                    const kilosInput = row.querySelector(".kilosInput");
+                    if (!porcentajeInput || !kilosInput) return;
+
+                    porcentajeInput.addEventListener("input", () => {
+                        const total = calcularKgEstimados();
+                        const pct = parseFloat(porcentajeInput.value) || 0;
+                        kilosInput.value = ((pct / 100) * total).toFixed(2);
+                    });
+
+                    kilosInput.addEventListener("input", () => {
+                        const total = calcularKgEstimados();
+                        const kilos = parseFloat(kilosInput.value) || 0;
+                        porcentajeInput.value = total > 0 ? (kilos / total * 100).toFixed(2) : 0;
+                    });
+                });
+            }
+
+            canalesInput.addEventListener("input", actualizarFilasDesdePorcentaje);
+            kgPromedioInput.addEventListener("input", actualizarFilasDesdePorcentaje);
+
+            activarEventosBidireccionales();
+            actualizarFilasDesdePorcentaje();
+
+            // 🚀 Captura el envío del formulario con AJAX y carga la vista parcial
+            $(form).on("submit", function (e) {
+                e.preventDefault();
+
+                const $form = $(this);
+                const formData = new FormData($form[0]);
+                const masterBody = document.getElementById("masterBody");
+
+                masterBody.querySelectorAll("tr").forEach((fila, i) => {
+                    const productoCodigo = fila.querySelector(".productoCodigo")?.value || "";
+                    const porcentaje = fila.querySelector(".porcentajeInput")?.value || 0;
+                    const peso = fila.querySelector(".kilosInput")?.value || 0;
+
+                    formData.append(`_ListaPlanDetalle[${i}].ProductoCodigo`, productoCodigo);
+                    formData.append(`_ListaPlanDetalle[${i}].Porcentaje`, porcentaje);
+                    formData.append(`_ListaPlanDetalle[${i}].Peso`, peso);
+                });
+
+                $.ajax({
+                    url: $form.attr('action'),
+                    type: $form.attr('method') || 'POST',
+                    data: formData,
+                    contentType: false,
+                    processData: false,
+                    dataType: 'json',
+                    success: function (result) {
+                        if (result.success) {
+                            alert("✅ Plan guardado correctamente.");
+                            const fecha = encodeURIComponent($form.data('fecha') || "");
+                            const id = encodeURIComponent($form.data('id') || "");
+                            // 🔁 Recarga el contenido en el contenedor principal
+                            loadPartial(`/PlanSemanal/Index?id=${id}&fecha=${fecha}`, document.querySelector('.toolbar button[data-url="/Planeacion/Index"]'));
+                        } else {
+                            alert("❌ Error al guardar: " + (result.message || "Error desconocido"));
+                        }
+                    },
+                    error: function (xhr) {
+                        console.error(xhr.responseText);
+                        alert("❌ Ocurrió un error al enviar los datos.");
+                    }
+                });
+            });
+        }
+
+        // 📌 Re-inicializa después de cargar una vista parcial
+        document.addEventListener("partialLoaded", () => {
+            console.log("🔁 Re-inicializando script después de loadPartial...");
+            inicializarPlanSemanal();
+        });
+
+        // Si la vista fue cargada directamente (no por AJAX)
+        document.addEventListener("DOMContentLoaded", inicializarPlanSemanal);
+    </script>
+
+    @* <script>
+        function inicializarPlanSemanal() {
+            const form = document.getElementById("formSemanal");
+            if (!form) return;
+
+            const canalesInput = form.querySelector("#canalesInput");
+            const kgPromedioInput = form.querySelector("#kgPromedioInput");
+            const kgEstimadosInput = form.querySelector("#kgEstimadosInput");
+            const masterBody = form.querySelector("#masterBody");
+
+            if (!canalesInput || !kgPromedioInput || !kgEstimadosInput || !masterBody) return;
+
+            console.log("✅ Script Plan Semanal inicializado");
+
+            function calcularKgEstimados() {
+                const canales = parseFloat(canalesInput.value) || 0;
+                const kgProm = parseFloat(kgPromedioInput.value) || 0;
+                const total = canales * kgProm;
+                kgEstimadosInput.value = total.toFixed(2);
+                return total;
+            }
+
+            function actualizarFilasDesdePorcentaje() {
+                const total = calcularKgEstimados();
+                masterBody.querySelectorAll("tr").forEach(row => {
+                    const porcentajeInput = row.querySelector(".porcentajeInput");
+                    const kilosInput = row.querySelector(".kilosInput");
+                    if (!porcentajeInput || !kilosInput) return;
+                    const pct = parseFloat(porcentajeInput.value) || 0;
+                    kilosInput.value = ((pct / 100) * total).toFixed(2);
+                });
+            }
+
+            function activarEventosBidireccionales() {
+                masterBody.querySelectorAll("tr").forEach(row => {
+                    const porcentajeInput = row.querySelector(".porcentajeInput");
+                    const kilosInput = row.querySelector(".kilosInput");
+                    if (!porcentajeInput || !kilosInput) return;
+
+                    porcentajeInput.addEventListener("input", () => {
+                        const total = calcularKgEstimados();
+                        const pct = parseFloat(porcentajeInput.value) || 0;
+                        kilosInput.value = ((pct / 100) * total).toFixed(2);
+                    });
+
+                    kilosInput.addEventListener("input", () => {
+                        const total = calcularKgEstimados();
+                        const kilos = parseFloat(kilosInput.value) || 0;
+                        porcentajeInput.value = total > 0 ? (kilos / total * 100).toFixed(2) : 0;
+                    });
+                });
+            }
+
+            canalesInput.addEventListener("input", actualizarFilasDesdePorcentaje);
+            kgPromedioInput.addEventListener("input", actualizarFilasDesdePorcentaje);
+
+            activarEventosBidireccionales();
+            actualizarFilasDesdePorcentaje();
+        }
+
+        // 📌 Esto es CLAVE: vuelve a inicializar cuando se carga un partial dinámicamente
+        document.addEventListener("partialLoaded", () => {
+            console.log("🔁 Re-inicializando script después de loadPartial...");
+            inicializarPlanSemanal();
+        });
+
+        // Si la vista fue cargada directamente (no por AJAX)
+        document.addEventListener("DOMContentLoaded", inicializarPlanSemanal);
+    </script> *@
+
+
+}
+
+
+
+

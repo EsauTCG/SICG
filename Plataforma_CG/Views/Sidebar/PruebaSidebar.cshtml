@@ -1,0 +1,54 @@
+﻿@{
+    ViewBag.Title = "Prueba Sidebar Dinámico";
+    Layout = null;  // 🔹 Sin layout para ver solo los datos puros
+}
+
+<h2>Prueba Sidebar Dinámico</h2>
+<p>Si todo está correcto, aquí debería cargarse el menú generado desde la base de datos.</p>
+
+<div id="menu-contenedor" style="border:1px solid #ccc; padding:10px; border-radius:8px;"></div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", async () => {
+        try {
+            const res = await fetch("/Sidebar/CargarModulos");
+            const categorias = await res.json();
+
+            console.log("✅ Datos recibidos:", categorias);
+            const contenedor = document.getElementById("menu-contenedor");
+
+            if (!categorias || categorias.length === 0) {
+                contenedor.innerHTML = "<b>No se recibieron categorías o permisos.</b>";
+                return;
+            }
+
+            categorias.forEach(cat => {
+                const catDiv = document.createElement("div");
+                catDiv.innerHTML = `<h3>${cat.nombre}</h3>`;
+
+                cat.modulos.forEach(mod => {
+                    const modDiv = document.createElement("div");
+                    modDiv.innerHTML = `<b>${mod.nombre}</b> (${mod.url || 'sin URL'})`;
+
+                    if (mod.subModulos?.length) {
+                        const ul = document.createElement("ul");
+                        mod.subModulos.forEach(sub => {
+                            const li = document.createElement("li");
+                            li.textContent = sub.nombre + " → " + (sub.url || "sin URL");
+                            ul.appendChild(li);
+                        });
+                        modDiv.appendChild(ul);
+                    }
+
+                    catDiv.appendChild(modDiv);
+                });
+
+                contenedor.appendChild(catDiv);
+            });
+
+        } catch (err) {
+            console.error("❌ Error al cargar:", err);
+            document.getElementById("menu-contenedor").textContent = "Error al cargar módulos.";
+        }
+    });
+</script>

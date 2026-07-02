@@ -1,0 +1,69 @@
+﻿@model TodoPlanModel
+@{
+    ViewData["Title"] = "Planeaciones";
+}
+<style>
+    .card-img-container {
+        height: 200px; /* altura mínima fija */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: #f8f9fa; /* gris claro de fondo para imágenes pequeñas */
+        overflow: hidden;
+    }
+
+        .card-img-container img {
+            max-height: 100%;
+            max-width: 100%;
+            object-fit: contain; /* mantiene proporción, no recorta */
+        }
+</style>
+<div class="container-fluid mt-4">
+
+
+    <!-- Encabezado -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="fw-bold text-dark">📋 Planeaciones</h4>
+
+    </div>
+
+
+
+    <div class="table-responsive mt-3 p-3 border border-danger rounded shadow-sm" style="background-color:#fff3f3;">
+        <div class="card-header bg-light fw-bold text-danger" style="border-radius: 12px;">
+            Meses restantes del año
+        </div>
+        <div class="card-body">
+            <div class="row g-4">
+                @{
+                    var meses = new string[] {
+                                "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                                "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+                                };
+
+                    var mesActual = DateTime.Now.Month;
+                    var añoActual = DateTime.Now.Year;
+                }
+
+                @for (int i = mesActual - 1; i < meses.Length; i++)
+                {
+                    var mesNombre = meses[i];
+                    var mesNumero = i + 1;
+                    var fechaInicio = new DateTime(añoActual, mesNumero, 1).ToString("yyyy-MM-dd");
+                    <div class="col-md-4 col-sm-6 contenido">
+                        <div class="card h-100 shadow-sm border-0"
+                             style="cursor:pointer"
+                             onclick="loadPartial('@Url.Action("Planes", "Planeacion", new { fecha = fechaInicio })', document.querySelector('.toolbar button[data-url=\'/Planeacion/Index\']'));  inicializarPlaneacion();return false;">
+                            <div class="card-body text-center">
+                                <h5 class="card-title fw-bold text-dark">@mesNombre @añoActual</h5>
+                                <p class="card-text text-muted">Haz clic para ver información del mes</p>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+
+</div>

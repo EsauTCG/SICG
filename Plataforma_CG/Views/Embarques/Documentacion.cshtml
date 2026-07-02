@@ -1,0 +1,1805 @@
+﻿@model IEnumerable<Plataforma_CG.Models.Embarque>
+
+@{
+    ViewData["Title"] = "Documentación de Embarques";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+
+    var totalEmbarques = Model?.Count() ?? 0;
+
+    var conCartaPorte = Model?.Count(x =>
+        x.Archivos != null &&
+        x.Archivos.Any(a => a.Tipo == "CARTA_PORTE")) ?? 0;
+
+    var pendientes = Model?.ToList()
+    ?? new List<Plataforma_CG.Models.Embarque>();
+
+    var historialDocumentacion =
+        ViewBag.HistorialDocumentacion as List<Plataforma_CG.Models.Embarque>
+        ?? new List<Plataforma_CG.Models.Embarque>();
+
+    bool buscoHistorialDocumentacion =
+        Convert.ToBoolean(ViewBag.BuscoHistorialDocumentacion ?? false);
+
+    var busquedaHistorial = Context.Request.Query["busquedaHistorial"].ToString();
+    var fechaInicioHistorial = Context.Request.Query["fechaInicioHistorial"].ToString();
+    var fechaFinHistorial = Context.Request.Query["fechaFinHistorial"].ToString();
+
+    var tiposLogistica = new[]
+    {
+    new { Tipo = "CARTA_PORTE", Label = "Carta Porte", Icon = "bi-truck", Sub = "Documento Carta Porte del embarque" },
+    //new { Tipo = "FICHA_TECNICA", Label = "Ficha Técnica", Icon = "bi-file-earmark-text", Sub = "Ficha técnica relacionada al embarque" },
+    //new { Tipo = "CARTA_GARANTIA", Label = "Carta Garantía", Icon = "bi-patch-check", Sub = "Carta garantía relacionada al embarque" }
+};
+
+    var cartaPorteNoAplica = Model?.Count(x => x.RequiereCartaPorte == false) ?? 0;
+    var sinDefinirCartaPorte = Model?.Count(x => x.RequiereCartaPorte == null) ?? 0;
+
+    var busqueda = Context.Request.Query["busqueda"].ToString();
+    var fechaInicio = Context.Request.Query["fechaInicio"].ToString();
+    var fechaFin = Context.Request.Query["fechaFin"].ToString();
+}
+
+<style>
+    :root {
+        --primary: #8B0000;
+        --primary-dark: #5a0000;
+        --primary-soft: #f8eaea;
+        --accent: #c82333;
+        --bg-main: #f4f6f9;
+        --bg-card: #ffffff;
+        --bg-muted: #f8f9fb;
+        --text: #1f2937;
+        --text-soft: #6b7280;
+        --border: #e5e7eb;
+        --border-strong: #d1d5db;
+        --success: #198754;
+        --warning: #f59e0b;
+        --info: #0d6efd;
+        --radius-xl: 18px;
+        --radius-lg: 14px;
+        --radius-md: 10px;
+        --shadow-sm: 0 4px 10px rgba(0,0,0,.05);
+        --shadow-md: 0 10px 30px rgba(0,0,0,.08);
+        --transition: all .22s ease;
+    }
+
+    body {
+        background: linear-gradient(180deg, #f8f9fb 0%, #eef2f7 100%);
+        color: var(--text);
+        font-family: "Segoe UI", sans-serif;
+    }
+
+    .docs-page {
+        max-width: 1280px;
+        margin: 2rem auto;
+        padding: 0 1rem 2rem;
+    }
+
+    .page-header {
+        background: linear-gradient(135deg, var(--primary) 0%, #6d0000 55%, #2c0000 100%);
+        color: #fff;
+        border-radius: var(--radius-xl);
+        padding: 1.4rem 1.5rem;
+        box-shadow: var(--shadow-md);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+        .page-header::after {
+            content: "";
+            position: absolute;
+            right: -45px;
+            top: -45px;
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            background: rgba(255,255,255,.06);
+        }
+
+    .page-header-left,
+    .page-header-right {
+        position: relative;
+        z-index: 1;
+    }
+
+    .page-header-left {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .header-icon {
+        width: 58px;
+        height: 58px;
+        border-radius: 16px;
+        display: grid;
+        place-items: center;
+        background: rgba(255,255,255,.14);
+        border: 1px solid rgba(255,255,255,.18);
+        font-size: 1.5rem;
+        flex-shrink: 0;
+    }
+
+    .page-title {
+        margin: 0;
+        font-size: 1.6rem;
+        font-weight: 800;
+        line-height: 1.1;
+    }
+
+    .page-subtitle {
+        margin: .3rem 0 0;
+        color: rgba(255,255,255,.85);
+        font-size: .95rem;
+        max-width: 760px;
+    }
+
+    .page-header-right {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        flex-wrap: wrap;
+    }
+
+    .header-chip {
+        background: rgba(255,255,255,.12);
+        border: 1px solid rgba(255,255,255,.18);
+        border-radius: 999px;
+        padding: .55rem .9rem;
+        font-size: .92rem;
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        color: inherit;
+    }
+
+    .btn-top {
+        border: none;
+        border-radius: 999px;
+        padding: .72rem 1rem;
+        font-weight: 700;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        transition: var(--transition);
+    }
+
+    .btn-top-light {
+        background: #fff;
+        color: var(--primary);
+    }
+
+        .btn-top-light:hover {
+            transform: translateY(-1px);
+            color: var(--primary-dark);
+        }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0,1fr));
+        gap: 1rem;
+        margin: 1.1rem 0 1.3rem;
+    }
+
+    .summary-card {
+        background: rgba(255,255,255,.78);
+        backdrop-filter: blur(6px);
+        border: 1px solid rgba(255,255,255,.9);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-sm);
+        padding: 1rem 1.1rem;
+        display: flex;
+        align-items: center;
+        gap: .9rem;
+    }
+
+    .summary-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        background: var(--primary-soft);
+        color: var(--primary);
+        display: grid;
+        place-items: center;
+        font-size: 1.15rem;
+        flex-shrink: 0;
+    }
+
+    .summary-label {
+        font-size: .78rem;
+        text-transform: uppercase;
+        letter-spacing: .6px;
+        color: var(--text-soft);
+        margin-bottom: .2rem;
+        font-weight: 800;
+    }
+
+    .summary-value {
+        font-size: 1.4rem;
+        font-weight: 900;
+        line-height: 1;
+        color: var(--text);
+    }
+
+    .docs-filter-panel {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-sm);
+        padding: 1rem 1.1rem;
+        margin: 1rem 0 1.2rem;
+    }
+
+    .docs-filter-title {
+        font-weight: 900;
+        font-size: 1rem;
+        margin-bottom: .85rem;
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+        color: var(--text);
+    }
+
+        .docs-filter-title i {
+            color: var(--primary);
+        }
+
+    .docs-filter-grid {
+        display: grid;
+        grid-template-columns: minmax(240px, 1.4fr) repeat(2, minmax(180px, .8fr)) auto auto;
+        gap: .8rem;
+        align-items: end;
+    }
+
+    .form-label-ui {
+        font-weight: 800;
+        margin-bottom: .55rem;
+        display: block;
+        color: var(--text);
+        font-size: .9rem;
+    }
+
+    .input-text-ui,
+    .input-date-ui,
+    .input-file-ui {
+        width: 100%;
+        border: 1.5px solid var(--border);
+        border-radius: 12px;
+        padding: .75rem .9rem;
+        background: #fff;
+        transition: var(--transition);
+        outline: none;
+    }
+
+    .input-file-ui {
+        padding: .9rem 1rem;
+    }
+
+        .input-text-ui:focus,
+        .input-date-ui:focus,
+        .input-file-ui:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(139,0,0,.08);
+        }
+
+    .btn-ui {
+        border: none;
+        border-radius: 12px;
+        padding: .8rem 1rem;
+        font-weight: 800;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .55rem;
+        transition: var(--transition);
+        cursor: pointer;
+        text-decoration: none;
+        white-space: nowrap;
+    }
+
+    .btn-primary-ui {
+        background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+        color: #fff;
+        box-shadow: 0 8px 18px rgba(139,0,0,.18);
+    }
+
+        .btn-primary-ui:hover {
+            transform: translateY(-1px);
+            color: #fff;
+        }
+
+    .btn-secondary-ui {
+        background: #fff;
+        color: var(--primary);
+        border: 1px solid var(--border);
+    }
+
+        .btn-secondary-ui:hover {
+            border-color: var(--primary);
+            color: var(--primary-dark);
+        }
+
+    .alert {
+        border-radius: 14px;
+        box-shadow: var(--shadow-sm);
+        border: none;
+    }
+
+    .section-block {
+        margin-top: 1.5rem;
+    }
+
+    .section-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+        padding: 1rem 1.1rem;
+        border-radius: 16px;
+        background: #fff;
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-sm);
+    }
+
+        .section-head.collapsible {
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+            .section-head.collapsible:hover {
+                border-color: #d8caca;
+                box-shadow: var(--shadow-md);
+            }
+
+    .section-title {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 900;
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        color: var(--text);
+    }
+
+        .section-title i {
+            color: var(--primary);
+        }
+
+    .section-subtitle {
+        margin: .2rem 0 0;
+        color: var(--text-soft);
+        font-size: .9rem;
+    }
+
+    .section-toggle-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: #fff;
+        color: var(--primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        transition: var(--transition);
+        box-shadow: 0 4px 10px rgba(0,0,0,.04);
+        flex-shrink: 0;
+    }
+
+    .section-block.collapsed .section-toggle-icon {
+        transform: rotate(-90deg);
+    }
+
+    .section-content {
+        display: block;
+    }
+
+    .section-block.collapsed .section-content {
+        display: none;
+    }
+
+    .filter-form {
+        display: flex;
+        align-items: end;
+        gap: .8rem;
+        flex-wrap: wrap;
+    }
+
+    .filter-group {
+        min-width: 180px;
+    }
+
+    .docs-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1.1rem;
+    }
+
+    .embarque-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-sm);
+        overflow: hidden;
+        transition: var(--transition);
+    }
+
+        .embarque-card:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+    .embarque-head {
+        padding: 1rem 1.2rem;
+        background: linear-gradient(180deg, #fff 0%, #fafafb 100%);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .9rem;
+        flex-wrap: wrap;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .embarque-title {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 900;
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        color: var(--text);
+    }
+
+        .embarque-title i {
+            color: var(--primary);
+        }
+
+    .embarque-sub {
+        margin-top: .35rem;
+        color: var(--text-soft);
+        font-size: .9rem;
+    }
+
+    .head-badges {
+        display: flex;
+        gap: .5rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .badge-soft {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        border-radius: 999px;
+        padding: .48rem .8rem;
+        font-size: .84rem;
+        font-weight: 800;
+        border: 1px solid var(--border);
+        background: #fff;
+        color: var(--text);
+    }
+
+        .badge-soft.ok {
+            background: #eef9f1;
+            border-color: #cfead7;
+            color: #157347;
+        }
+
+        .badge-soft.pending {
+            background: #fff8e6;
+            border-color: #f5dfaa;
+            color: #9a6700;
+        }
+
+    .toggle-btn {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: #fff;
+        color: var(--primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        transition: var(--transition);
+        box-shadow: 0 4px 10px rgba(0,0,0,.04);
+        flex-shrink: 0;
+    }
+
+    .embarque-card.active .toggle-btn {
+        background: var(--primary);
+        color: #fff;
+        border-color: var(--primary);
+        transform: rotate(180deg);
+    }
+
+    .embarque-body {
+        display: none;
+        padding: 1.2rem;
+        border-top: 1px solid var(--border);
+        background: #f8fafc;
+    }
+
+    .embarque-card.active .embarque-body {
+        display: block;
+        animation: fadeIn .2s ease;
+    }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(6px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .doc-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        background: var(--primary-soft);
+        color: var(--primary);
+        display: grid;
+        place-items: center;
+        font-size: 1rem;
+        flex-shrink: 0;
+    }
+
+    .doc-title {
+        margin: 0;
+        font-size: .98rem;
+        font-weight: 900;
+        color: var(--text);
+    }
+
+    .doc-sub {
+        color: var(--text-soft);
+        font-size: .82rem;
+        margin-top: .15rem;
+    }
+
+    .hint-text {
+        font-size: .85rem;
+        color: var(--text-soft);
+        margin-top: .55rem;
+    }
+
+    .selected-file-preview {
+        display: none;
+        margin-top: .85rem;
+        border-radius: 12px;
+        padding: .75rem .85rem;
+        border: 1px solid #cfead7;
+        background: #eef9f1;
+        color: #157347;
+    }
+
+        .selected-file-preview.active {
+            display: block;
+        }
+
+    .selected-file-label {
+        font-size: .76rem;
+        text-transform: uppercase;
+        letter-spacing: .35px;
+        font-weight: 900;
+        margin-bottom: .2rem;
+    }
+
+    .selected-file-name {
+        font-size: .9rem;
+        font-weight: 800;
+        word-break: break-word;
+    }
+
+    .empty-state,
+    .mini-empty {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-sm);
+        padding: 3rem 1.25rem;
+        text-align: center;
+        color: var(--text-soft);
+    }
+
+    .mini-empty {
+        padding: 1.2rem;
+        border-style: dashed;
+    }
+
+    .empty-state i {
+        font-size: 2.8rem;
+        color: var(--primary);
+        margin-bottom: .8rem;
+        display: block;
+    }
+
+    /* ============================================================
+           CARTA PORTE - NUEVO DISEÑO
+        ============================================================ */
+
+    .docs-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .porte-workflow {
+        display: grid;
+        grid-template-columns: minmax(280px, .9fr) minmax(0, 1.1fr);
+        gap: 1rem;
+        align-items: stretch;
+    }
+
+    .porte-panel,
+    .porte-upload-card {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+        overflow: hidden;
+    }
+
+    .porte-panel-head {
+        padding: 1rem 1.1rem;
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(180deg, #fff 0%, #fafbfd 100%);
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+    }
+
+    .porte-panel-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 14px;
+        background: var(--primary-soft);
+        color: var(--primary);
+        display: grid;
+        place-items: center;
+        font-size: 1.15rem;
+        flex-shrink: 0;
+    }
+
+    .porte-panel-title {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 900;
+        color: var(--text);
+    }
+
+    .porte-panel-sub {
+        margin-top: .15rem;
+        color: var(--text-soft);
+        font-size: .86rem;
+    }
+
+    .porte-panel-body {
+        padding: 1rem 1.1rem;
+    }
+
+    .porte-options {
+        display: flex;
+        flex-direction: column;
+        gap: .8rem;
+    }
+
+    .porte-option {
+        border: 1.5px solid var(--border);
+        border-radius: 16px;
+        padding: .95rem;
+        background: #fff;
+        cursor: pointer;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: .75rem;
+        transition: var(--transition);
+    }
+
+        .porte-option:hover {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(139,0,0,.06);
+            transform: translateY(-1px);
+        }
+
+        .porte-option input {
+            margin-top: .25rem;
+            accent-color: var(--primary);
+        }
+
+        .porte-option strong {
+            display: block;
+            color: var(--text);
+            font-weight: 900;
+        }
+
+        .porte-option span {
+            display: block;
+            color: var(--text-soft);
+            font-size: .84rem;
+            margin-top: .18rem;
+            line-height: 1.35;
+        }
+
+    .porte-upload-area {
+        border: 2px dashed #d7dce3;
+        border-radius: 18px;
+        background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
+        padding: 1.1rem;
+        transition: var(--transition);
+    }
+
+        .porte-upload-area:hover {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(139,0,0,.05);
+        }
+
+        .porte-upload-area.has-selected-file {
+            border-color: var(--success);
+            background: linear-gradient(180deg, #eef9f1 0%, #f8fdf9 100%);
+            box-shadow: 0 0 0 4px rgba(25,135,84,.08);
+        }
+
+    .porte-current-files {
+        margin-top: 1rem;
+        border-top: 1px solid var(--border);
+        padding-top: .9rem;
+    }
+
+    .porte-file-list {
+        display: flex;
+        flex-direction: column;
+        gap: .55rem;
+    }
+
+    .porte-file-link {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        padding: .7rem .85rem;
+        border-radius: 13px;
+        background: #f8fafc;
+        border: 1px solid var(--border);
+        color: var(--primary);
+        text-decoration: none;
+        font-weight: 800;
+    }
+
+        .porte-file-link:hover {
+            color: var(--primary-dark);
+            border-color: var(--primary);
+        }
+
+    .porte-status {
+        margin-top: 1rem;
+        border-radius: 14px;
+        padding: .85rem .95rem;
+        font-size: .9rem;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+    }
+
+        .porte-status.ok {
+            background: #eef9f1;
+            border: 1px solid #cfead7;
+            color: #157347;
+        }
+
+        .porte-status.pending {
+            background: #fff8e6;
+            border: 1px solid #f5dfaa;
+            color: #9a6700;
+        }
+
+        .porte-status.info {
+            background: #edf4ff;
+            border: 1px solid #cfe0ff;
+            color: #0d6efd;
+        }
+
+    .porte-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border);
+    }
+
+    /* ============================================================
+           RESPONSIVE
+        ============================================================ */
+
+    @@media (max-width: 1100px) {
+        .summary-grid {
+            grid-template-columns: repeat(2, minmax(0,1fr));
+        }
+    }
+
+    @@media (max-width: 992px) {
+        .docs-filter-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .porte-workflow {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .docs-page {
+            padding: 0 .7rem 1.5rem;
+        }
+
+        .page-header {
+            padding: 1.1rem;
+        }
+
+        .page-title {
+            font-size: 1.3rem;
+        }
+
+        .summary-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .embarque-head,
+        .porte-actions {
+            align-items: stretch;
+        }
+
+        .head-badges {
+            width: 100%;
+        }
+
+        .porte-panel-head {
+            align-items: flex-start;
+        }
+
+        .porte-actions .btn-ui {
+            width: 100%;
+        }
+    }
+
+    @@media (max-width: 650px) {
+        .docs-filter-grid {
+            grid-template-columns: 1fr;
+        }
+
+            .docs-filter-grid .btn-ui {
+                justify-content: center;
+                width: 100%;
+            }
+
+        .filter-group {
+            width: 100%;
+        }
+    }
+
+    /* ============================================================
+           DARK MODE - DOCUMENTACIÓN DE EMBARQUES
+        ============================================================ */
+
+    body[data-theme="dark"] {
+        --primary: #ef4444;
+        --primary-dark: #991b1b;
+        --primary-soft: rgba(127,29,29,0.24);
+        --accent: #f87171;
+        --bg-main: #0f172a;
+        --bg-card: #111827;
+        --bg-muted: #172033;
+        --text: #f9fafb;
+        --text-soft: #cbd5e1;
+        --border: rgba(255,255,255,0.12);
+        --border-strong: rgba(203,213,225,0.28);
+        --success: #22c55e;
+        --warning: #f59e0b;
+        --info: #60a5fa;
+        --shadow-sm: 0 10px 26px rgba(0,0,0,.34);
+        --shadow-md: 0 18px 42px rgba(0,0,0,.46);
+    }
+
+    body[data-theme="dark"] {
+        background: #0f172a !important;
+        color: #e5e7eb !important;
+    }
+
+        body[data-theme="dark"] .layout-main-content {
+            background: #0f172a !important;
+        }
+
+            body[data-theme="dark"] .layout-main-content .layout-container-fluid {
+                background: transparent !important;
+                box-shadow: none !important;
+            }
+
+        body[data-theme="dark"] .docs-page {
+            color: #e5e7eb !important;
+        }
+
+        body[data-theme="dark"] .page-header {
+            background: linear-gradient(135deg, #7f1d1d 0%, #450a0a 55%, #111827 100%) !important;
+            border: 1px solid rgba(248,113,113,0.22) !important;
+            box-shadow: var(--shadow-md) !important;
+        }
+
+        body[data-theme="dark"] .header-icon {
+            background: rgba(255,255,255,.10) !important;
+            border-color: rgba(255,255,255,.14) !important;
+            color: #ffffff !important;
+        }
+
+        body[data-theme="dark"] .page-title {
+            color: #ffffff !important;
+        }
+
+        body[data-theme="dark"] .page-subtitle {
+            color: #fecaca !important;
+        }
+
+        body[data-theme="dark"] .header-chip {
+            background: rgba(255,255,255,.10) !important;
+            border-color: rgba(255,255,255,.16) !important;
+            color: #ffffff !important;
+        }
+
+        body[data-theme="dark"] .btn-top-light {
+            background: #0b1220 !important;
+            color: #fca5a5 !important;
+            border: 1px solid rgba(248,113,113,0.35) !important;
+        }
+
+            body[data-theme="dark"] .btn-top-light:hover {
+                background: rgba(248,113,113,0.14) !important;
+                color: #ffffff !important;
+            }
+
+        body[data-theme="dark"] .summary-card,
+        body[data-theme="dark"] .docs-filter-panel,
+        body[data-theme="dark"] .section-head,
+        body[data-theme="dark"] .embarque-card,
+        body[data-theme="dark"] .empty-state,
+        body[data-theme="dark"] .mini-empty,
+        body[data-theme="dark"] .porte-panel,
+        body[data-theme="dark"] .porte-upload-card {
+            background: #111827 !important;
+            color: #e5e7eb !important;
+            border-color: rgba(255,255,255,0.12) !important;
+            box-shadow: var(--shadow-sm) !important;
+        }
+
+        body[data-theme="dark"] .summary-icon,
+        body[data-theme="dark"] .doc-icon,
+        body[data-theme="dark"] .porte-panel-icon {
+            background: rgba(127,29,29,0.24) !important;
+            color: #fca5a5 !important;
+        }
+
+        body[data-theme="dark"] .summary-label,
+        body[data-theme="dark"] .section-subtitle,
+        body[data-theme="dark"] .embarque-sub,
+        body[data-theme="dark"] .doc-sub,
+        body[data-theme="dark"] .porte-panel-sub,
+        body[data-theme="dark"] .porte-option span,
+        body[data-theme="dark"] .hint-text {
+            color: #cbd5e1 !important;
+        }
+
+        body[data-theme="dark"] .summary-value,
+        body[data-theme="dark"] .docs-filter-title,
+        body[data-theme="dark"] .section-title,
+        body[data-theme="dark"] .embarque-title,
+        body[data-theme="dark"] .doc-title,
+        body[data-theme="dark"] .porte-panel-title,
+        body[data-theme="dark"] .porte-option strong,
+        body[data-theme="dark"] .form-label-ui {
+            color: #f9fafb !important;
+        }
+
+            body[data-theme="dark"] .docs-filter-title i,
+            body[data-theme="dark"] .section-title i,
+            body[data-theme="dark"] .embarque-title i {
+                color: #fca5a5 !important;
+            }
+
+        body[data-theme="dark"] .input-text-ui,
+        body[data-theme="dark"] .input-date-ui,
+        body[data-theme="dark"] .input-file-ui,
+        body[data-theme="dark"] input,
+        body[data-theme="dark"] select,
+        body[data-theme="dark"] textarea {
+            background: #0b1220 !important;
+            color: #f9fafb !important;
+            border-color: rgba(203,213,225,0.28) !important;
+            box-shadow: none !important;
+        }
+
+            body[data-theme="dark"] .input-text-ui:focus,
+            body[data-theme="dark"] .input-date-ui:focus,
+            body[data-theme="dark"] .input-file-ui:focus,
+            body[data-theme="dark"] input:focus,
+            body[data-theme="dark"] select:focus,
+            body[data-theme="dark"] textarea:focus {
+                background: #0f172a !important;
+                color: #ffffff !important;
+                border-color: #ef4444 !important;
+                box-shadow: 0 0 0 4px rgba(239,68,68,.22) !important;
+                outline: none !important;
+            }
+
+            body[data-theme="dark"] .input-text-ui::placeholder,
+            body[data-theme="dark"] input::placeholder,
+            body[data-theme="dark"] textarea::placeholder {
+                color: #94a3b8 !important;
+                opacity: 1 !important;
+            }
+
+        body[data-theme="dark"] .alert-danger {
+            background: rgba(153,27,27,0.30) !important;
+            color: #fecaca !important;
+            border-color: rgba(248,113,113,0.48) !important;
+        }
+
+        body[data-theme="dark"] .alert-success {
+            background: rgba(22,101,52,0.26) !important;
+            color: #bbf7d0 !important;
+            border-color: rgba(74,222,128,0.40) !important;
+        }
+
+        body[data-theme="dark"] .embarque-head,
+        body[data-theme="dark"] .porte-panel-head {
+            background: linear-gradient(180deg, #1f2937 0%, #172033 100%) !important;
+            color: #e5e7eb !important;
+            border-bottom-color: rgba(255,255,255,0.12) !important;
+        }
+
+        body[data-theme="dark"] .embarque-body {
+            background: #0f172a !important;
+            border-top-color: rgba(255,255,255,0.12) !important;
+        }
+
+        body[data-theme="dark"] .badge-soft {
+            background: #0b1220 !important;
+            color: #e5e7eb !important;
+            border-color: rgba(203,213,225,0.28) !important;
+        }
+
+            body[data-theme="dark"] .badge-soft.ok {
+                background: rgba(22,101,52,0.26) !important;
+                color: #bbf7d0 !important;
+                border-color: rgba(74,222,128,0.40) !important;
+            }
+
+            body[data-theme="dark"] .badge-soft.pending {
+                background: rgba(180,83,9,0.22) !important;
+                color: #fde68a !important;
+                border-color: rgba(245,158,11,0.45) !important;
+            }
+
+        body[data-theme="dark"] .toggle-btn,
+        body[data-theme="dark"] .section-toggle-icon {
+            background: #0b1220 !important;
+            color: #fca5a5 !important;
+            border-color: rgba(248,113,113,0.35) !important;
+        }
+
+        body[data-theme="dark"] .embarque-card.active .toggle-btn {
+            background: #dc2626 !important;
+            color: #ffffff !important;
+            border-color: rgba(248,113,113,0.55) !important;
+        }
+
+        body[data-theme="dark"] .porte-option {
+            background: #0b1220 !important;
+            border-color: rgba(203,213,225,0.28) !important;
+        }
+
+            body[data-theme="dark"] .porte-option:hover {
+                border-color: rgba(248,113,113,0.55) !important;
+                box-shadow: 0 0 0 4px rgba(248,113,113,.12) !important;
+            }
+
+        body[data-theme="dark"] .porte-upload-area {
+            background: linear-gradient(180deg, #172033 0%, #111827 100%) !important;
+            border-color: rgba(203,213,225,0.28) !important;
+        }
+
+            body[data-theme="dark"] .porte-upload-area:hover {
+                border-color: rgba(248,113,113,0.55) !important;
+                box-shadow: 0 0 0 4px rgba(248,113,113,.12) !important;
+            }
+
+            body[data-theme="dark"] .porte-upload-area.has-selected-file {
+                background: rgba(22,101,52,0.16) !important;
+                border-color: rgba(74,222,128,0.40) !important;
+                box-shadow: 0 0 0 4px rgba(74,222,128,.12) !important;
+            }
+
+        body[data-theme="dark"] .selected-file-preview {
+            background: rgba(22,101,52,0.20) !important;
+            color: #bbf7d0 !important;
+            border-color: rgba(74,222,128,0.40) !important;
+        }
+
+        body[data-theme="dark"] .porte-current-files,
+        body[data-theme="dark"] .porte-actions {
+            border-top-color: rgba(255,255,255,0.12) !important;
+        }
+
+        body[data-theme="dark"] .porte-file-link {
+            background: #0b1220 !important;
+            border-color: rgba(203,213,225,0.28) !important;
+            color: #fca5a5 !important;
+        }
+
+            body[data-theme="dark"] .porte-file-link:hover {
+                color: #fecaca !important;
+                border-color: rgba(248,113,113,0.55) !important;
+            }
+
+        body[data-theme="dark"] .porte-status.ok {
+            background: rgba(22,101,52,0.26) !important;
+            color: #bbf7d0 !important;
+            border-color: rgba(74,222,128,0.40) !important;
+        }
+
+        body[data-theme="dark"] .porte-status.pending {
+            background: rgba(180,83,9,0.22) !important;
+            color: #fde68a !important;
+            border-color: rgba(245,158,11,0.45) !important;
+        }
+
+        body[data-theme="dark"] .porte-status.info {
+            background: rgba(37,99,235,0.22) !important;
+            color: #bfdbfe !important;
+            border-color: rgba(96,165,250,0.40) !important;
+        }
+
+        body[data-theme="dark"] .btn-primary-ui {
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 60%, #7f1d1d 100%) !important;
+            color: #ffffff !important;
+            box-shadow: 0 10px 22px rgba(0,0,0,.28) !important;
+        }
+
+        body[data-theme="dark"] .btn-secondary-ui {
+            background: #0b1220 !important;
+            color: #fca5a5 !important;
+            border-color: rgba(248,113,113,0.35) !important;
+        }
+
+            body[data-theme="dark"] .btn-secondary-ui:hover {
+                background: rgba(248,113,113,0.14) !important;
+                color: #ffffff !important;
+                border-color: rgba(248,113,113,0.55) !important;
+            }
+
+        body[data-theme="dark"] input[type="file"]::file-selector-button {
+            background: #1f2937 !important;
+            color: #f9fafb !important;
+            border: 0 !important;
+            border-right: 1px solid rgba(255,255,255,0.12) !important;
+            margin-right: .75rem;
+        }
+
+            body[data-theme="dark"] input[type="file"]::file-selector-button:hover {
+                background: rgba(248,113,113,0.18) !important;
+            }
+</style>
+
+<div class="docs-page">
+
+    <div class="page-header">
+        <div class="page-header-left">
+            <div class="header-icon">
+                <i class="bi bi-folder2-open"></i>
+            </div>
+            <div>
+                <h1 class="page-title">Documentación de Embarques</h1>
+                <div class="page-subtitle">
+                    Configura si el embarque requiere Carta Porte y carga el documento correspondiente cuando aplique.
+                </div>
+            </div>
+        </div>
+
+        <div class="page-header-right">
+            <span class="header-chip">
+                <i class="bi bi-calendar3"></i>
+                @DateTime.Now.ToShortDateString()
+            </span>
+
+            <a class="btn-top btn-top-light" href="@Url.Action("Embarque", "Embarques")">
+                <i class="bi bi-arrow-left-circle"></i> Volver
+            </a>
+        </div>
+    </div>
+
+    <div class="summary-grid">
+        <div class="summary-card">
+            <div class="summary-icon">
+                <i class="bi bi-truck"></i>
+            </div>
+            <div>
+                <div class="summary-label">Embarques</div>
+                <div class="summary-value">@totalEmbarques</div>
+            </div>
+        </div>
+
+        <div class="summary-card">
+            <div class="summary-icon">
+                <i class="bi bi-hourglass-split"></i>
+            </div>
+            <div>
+                <div class="summary-label">Pendientes</div>
+                <div class="summary-value">@pendientes.Count</div>
+            </div>
+        </div>
+
+        <div class="summary-card">
+            <div class="summary-icon">
+                <i class="bi bi-file-earmark-check"></i>
+            </div>
+            <div>
+                <div class="summary-label">Con Carta Porte</div>
+                <div class="summary-value">@conCartaPorte</div>
+            </div>
+        </div>
+
+        <div class="summary-card">
+            <div class="summary-icon">
+                <i class="bi bi-dash-circle"></i>
+            </div>
+            <div>
+                <div class="summary-label">No aplica</div>
+                <div class="summary-value">@cartaPorteNoAplica</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="docs-filter-panel">
+        <div class="docs-filter-title">
+            <i class="bi bi-funnel"></i>
+            Filtros de búsqueda
+        </div>
+
+        <form method="get" asp-action="Documentacion" class="docs-filter-grid">
+            <div>
+                <label class="form-label-ui">Buscar embarque</label>
+                <input type="text"
+                       name="busqueda"
+                       value="@busqueda"
+                       class="input-text-ui"
+                       placeholder="Ej. EMB-0001, 125, consecutivo..." />
+            </div>
+
+            <div>
+                <label class="form-label-ui">Fecha inicio</label>
+                <input type="date"
+                       name="fechaInicio"
+                       value="@fechaInicio"
+                       class="input-date-ui" />
+            </div>
+
+            <div>
+                <label class="form-label-ui">Fecha fin</label>
+                <input type="date"
+                       name="fechaFin"
+                       value="@fechaFin"
+                       class="input-date-ui" />
+            </div>
+
+            <button type="submit" class="btn-ui btn-primary-ui">
+                <i class="bi bi-search"></i>
+                Buscar
+            </button>
+
+            <a asp-action="Documentacion" class="btn-ui btn-secondary-ui">
+                <i class="bi bi-arrow-clockwise"></i>
+                Limpiar
+            </a>
+        </form>
+    </div>
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>@TempData["Error"]
+        </div>
+    }
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success">
+            <i class="bi bi-check-circle-fill me-2"></i>@TempData["Success"]
+        </div>
+    }
+
+    @if (Model == null)
+    {
+        <div class="empty-state">
+            <i class="bi bi-inbox"></i>
+            <h4 class="mb-2">No hay información para mostrar</h4>
+            <p class="mb-0">Intenta actualizar la página o revisar los filtros.</p>
+        </div>
+    }
+    else
+    {
+        <div class="section-block">
+            <div class="section-head">
+                <div>
+                    <h2 class="section-title">
+                        <i class="bi bi-hourglass-split"></i>
+                        Embarques pendientes
+                    </h2>
+                    <div class="section-subtitle">
+                        Aquí se muestran los embarques que aún requieren validación logística.
+                    </div>
+                </div>
+
+                <span class="header-chip">
+                    <i class="bi bi-truck"></i>
+                    @pendientes.Count pendiente(s)
+                </span>
+            </div>
+
+            @if (!pendientes.Any())
+            {
+                <div class="mini-empty">
+                    <i class="bi bi-check-circle me-2"></i>
+                    No hay embarques pendientes por validar.
+                </div>
+            }
+            else
+            {
+                <div class="docs-list">
+                    @foreach (var e in pendientes)
+                    {
+                        var archivos = e.Archivos ?? new List<Plataforma_CG.Models.EmbarqueArchivo>();
+                        var cartasPorte = archivos.Where(a => a.Tipo == "CARTA_PORTE").ToList();
+                        var tieneCartaPorte = cartasPorte.Any();
+
+                        var documentacionAprobada = e.DocumentacionAprobada == true;
+                        var cardId = $"pendiente_{e.Id}";
+
+                        var cartaPorteSinDefinir = e.RequiereCartaPorte == null;
+                        var cartaPorteRequerida = e.RequiereCartaPorte == true;
+                        var cartaPorteNoAplicaLocal = e.RequiereCartaPorte == false;
+
+                        var cartaPorteOk = cartaPorteNoAplicaLocal || (cartaPorteRequerida && tieneCartaPorte);
+
+                        var textoCartaPorte =
+                        cartaPorteSinDefinir ? "Carta Porte sin definir" :
+                        cartaPorteNoAplicaLocal ? "Carta Porte no aplica" :
+                        tieneCartaPorte ? "Carta Porte cargada" :
+                        "Carta Porte requerida";
+
+                        <div class="embarque-card" id="@cardId">
+                            <div class="embarque-head" onclick="toggleCard('@cardId')">
+                                <div>
+                                    <h3 class="embarque-title">
+                                        <i class="bi bi-truck-front"></i>
+                                        Embarque #@e.Consecutivo
+                                    </h3>
+                                    <div class="embarque-sub">
+                                        ID: @e.Id · Fecha de creación: @e.FechaCreacion.ToString("yyyy-MM-dd HH:mm")
+                                    </div>
+                                </div>
+
+                                <div class="head-badges">
+                                    <span class="badge-soft @(cartaPorteOk ? "ok" : "pending")">
+                                        <i class="bi bi-file-earmark-text"></i>
+                                        @textoCartaPorte
+                                    </span>
+
+                                    <span class="badge-soft @(documentacionAprobada ? "ok" : "pending")">
+                                        <i class="bi bi-folder-check"></i>
+                                        Documentación @(documentacionAprobada ? "validada" : "pendiente")
+                                    </span>
+
+                                    <button type="button" class="toggle-btn" onclick="event.stopPropagation(); toggleCard('@cardId')">
+                                        <i class="bi bi-chevron-down"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="embarque-body">
+                                <form asp-action="CargarDocumentos" method="post" enctype="multipart/form-data">
+                                    <input type="hidden" name="id" value="@e.Id" />
+
+                                    <div class="porte-workflow">
+
+                                        <div class="porte-panel">
+                                            <div class="porte-panel-head">
+                                                <div class="porte-panel-icon">
+                                                    <i class="bi bi-ui-checks-grid"></i>
+                                                </div>
+                                                <div>
+                                                    <h5 class="porte-panel-title">Decisión logística</h5>
+                                                    <div class="porte-panel-sub">
+                                                        Define si este embarque requiere Carta Porte.
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="porte-panel-body">
+                                                <div class="porte-options">
+                                                    <label class="porte-option">
+                                                        <input type="radio"
+                                                               name="requiereCartaPorte"
+                                                               value="true"
+                                                               required
+                                                               @(e.RequiereCartaPorte == true ? "checked" : "") />
+
+                                                        <div>
+                                                            <strong>Sí requiere Carta Porte</strong>
+                                                            <span>Usar cuando la unidad sea de planta o logística deba generar Carta Porte.</span>
+                                                        </div>
+                                                    </label>
+
+                                                    <label class="porte-option">
+                                                        <input type="radio"
+                                                               name="requiereCartaPorte"
+                                                               value="false"
+                                                               required
+                                                               @(e.RequiereCartaPorte == false ? "checked" : "") />
+
+                                                        <div>
+                                                            <strong>No aplica Carta Porte</strong>
+                                                            <span>Usar cuando la unidad sea externa o no corresponda Carta Porte.</span>
+                                                        </div>
+                                                    </label>
+                                                </div>
+
+                                                @if (cartaPorteSinDefinir)
+                                                {
+                                                    <div class="porte-status pending">
+                                                        <i class="bi bi-exclamation-triangle"></i>
+                                                        Pendiente: selecciona si Carta Porte aplica o no aplica.
+                                                    </div>
+                                                }
+                                                else if (cartaPorteRequerida && !tieneCartaPorte)
+                                                {
+                                                    <div class="porte-status pending">
+                                                        <i class="bi bi-exclamation-triangle"></i>
+                                                        Requiere Carta Porte. Debes cargar el archivo para validar.
+                                                    </div>
+                                                }
+                                                else if (cartaPorteNoAplicaLocal)
+                                                {
+                                                    <div class="porte-status info">
+                                                        <i class="bi bi-info-circle"></i>
+                                                        Carta Porte marcada como No aplica.
+                                                    </div>
+                                                }
+                                                else if (cartaPorteRequerida && tieneCartaPorte)
+                                                {
+                                                    <div class="porte-status ok">
+                                                        <i class="bi bi-check-circle"></i>
+                                                        Carta Porte requerida y cargada correctamente.
+                                                    </div>
+                                                }
+                                        </div>
+                                    </div>
+
+                                    <div class="porte-upload-card">
+                                        <div class="porte-panel-head">
+                                            <div class="porte-panel-icon">
+                                                <i class="bi bi-file-earmark-arrow-up"></i>
+                                            </div>
+                                            <div>
+                                                <h5 class="porte-panel-title">Archivo Carta Porte</h5>
+                                                <div class="porte-panel-sub">
+                                                    Carga el PDF, XML o documento correspondiente si aplica.
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="porte-panel-body">
+                                            <div class="porte-upload-area" id="uploadBox_cartaPorte_@e.Id">
+                                                <label class="form-label-ui">Selecciona archivo</label>
+
+                                                <input type="file"
+                                                       name="cartaPorteArchivos"
+                                                       multiple
+                                                       class="input-file-ui"
+                                                       accept=".pdf,.xml,.jpg,.jpeg,.png,.doc,.docx"
+                                                       onchange="mostrarArchivoSeleccionado(this, 'uploadBox_cartaPorte_@e.Id', 'preview_cartaPorte_@e.Id', 'name_cartaPorte_@e.Id')" />
+
+                                                <div class="hint-text">
+                                                    Formatos permitidos: PDF, XML, JPG, PNG, DOC y DOCX.
+                                                </div>
+
+                                                <div class="selected-file-preview" id="preview_cartaPorte_@e.Id">
+                                                    <div class="selected-file-label">Archivo seleccionado</div>
+                                                    <div class="selected-file-name" id="name_cartaPorte_@e.Id"></div>
+                                                </div>
+                                            </div>
+
+                                            <div class="porte-status @(cartaPorteOk ? "ok" : "pending")">
+                                                <i class="bi @(cartaPorteOk ? "bi-check-circle" : "bi-exclamation-triangle")"></i>
+                                                @(
+                                                                                        cartaPorteNoAplicaLocal
+                                                                                        ? "Carta Porte marcada como No aplica."
+                                                                                        : tieneCartaPorte
+                                                                                        ? "Ya existe al menos una Carta Porte cargada."
+                                                                                        : cartaPorteRequerida
+                                                                                        ? "Carta Porte requerida. Debes cargar el archivo."
+                                                                                        : "Primero indica si Carta Porte aplica o no aplica."
+                                                                                        )
+                                            </div>
+
+                                    @if (tieneCartaPorte)
+                                                {
+                                                    <div class="porte-current-files">
+                                                        <div class="form-label-ui mb-2">Archivos cargados</div>
+
+                                                        <div class="porte-file-list">
+                                                            @foreach (var archivo in cartasPorte)
+                                                            {
+                                                                <a href="@archivo.RutaArchivo" target="_blank" class="porte-file-link">
+                                                                    <span>
+                                                                        <i class="bi bi-file-earmark-text me-1"></i>
+                                                                        Carta Porte #@archivo.Id
+                                                                    </span>
+                                                                    <i class="bi bi-box-arrow-up-right"></i>
+                                                                </a>
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="porte-actions">
+                                        <button type="submit" class="btn-ui btn-primary-ui">
+                                            <i class="bi bi-check2-circle"></i>
+                                            Guardar validación logística
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="section-block">
+            <div class="section-head">
+                <div>
+                    <h2 class="section-title">
+                        <i class="bi bi-clock-history"></i>
+                        Histórico de documentación logística
+                    </h2>
+                    <div class="section-subtitle">
+                        Consulta embarques ya validados por documentación logística. No carga registros hasta seleccionar un rango de fechas.
+                    </div>
+                </div>
+
+                <span class="header-chip" style="background:#fff;color:var(--primary);border-color:var(--border);">
+                    <i class="bi bi-folder-check"></i>
+                    @historialDocumentacion.Count registro(s)
+                </span>
+            </div>
+
+            <div class="docs-filter-panel">
+                <div class="docs-filter-title">
+                    <i class="bi bi-funnel"></i>
+                    Filtros de historial
+                </div>
+
+                <form method="get" asp-action="Documentacion" class="docs-filter-grid">
+                    <input type="hidden" name="busqueda" value="@busqueda" />
+                    <input type="hidden" name="fechaInicio" value="@fechaInicio" />
+                    <input type="hidden" name="fechaFin" value="@fechaFin" />
+
+                    <div>
+                        <label class="form-label-ui">Buscar embarque</label>
+                        <input type="text"
+                               name="busquedaHistorial"
+                               value="@busquedaHistorial"
+                               class="input-text-ui"
+                               placeholder="Ej. EMB-0001, 125, nombre..." />
+                    </div>
+
+                    <div>
+                        <label class="form-label-ui">Fecha validación inicio</label>
+                        <input type="date"
+                               name="fechaInicioHistorial"
+                               value="@fechaInicioHistorial"
+                               class="input-date-ui" />
+                    </div>
+
+                    <div>
+                        <label class="form-label-ui">Fecha validación fin</label>
+                        <input type="date"
+                               name="fechaFinHistorial"
+                               value="@fechaFinHistorial"
+                               class="input-date-ui" />
+                    </div>
+
+                    <button type="submit" class="btn-ui btn-primary-ui">
+                        <i class="bi bi-search"></i>
+                        Buscar historial
+                    </button>
+
+                    <a asp-action="Documentacion"
+                       asp-route-busqueda="@busqueda"
+                       asp-route-fechaInicio="@fechaInicio"
+                       asp-route-fechaFin="@fechaFin"
+                       class="btn-ui btn-secondary-ui">
+                        <i class="bi bi-arrow-clockwise"></i>
+                        Limpiar historial
+                    </a>
+                </form>
+            </div>
+
+            @if (!buscoHistorialDocumentacion)
+            {
+                <div class="empty-state">
+                    <i class="bi bi-calendar-range"></i>
+                    <h4 class="mb-2">Selecciona un rango de fechas</h4>
+                    <p class="mb-0">
+                        El historial de documentación logística no carga información hasta que indiques fecha inicio y fecha fin.
+                    </p>
+                </div>
+            }
+            else if (!historialDocumentacion.Any())
+            {
+                <div class="empty-state">
+                    <i class="bi bi-search"></i>
+                    <h4 class="mb-2">No se encontraron registros</h4>
+                    <p class="mb-0">
+                        No existen embarques validados por documentación logística dentro del rango seleccionado.
+                    </p>
+                </div>
+            }
+            else
+            {
+                <div class="docs-list">
+                    @foreach (var e in historialDocumentacion)
+                    {
+                        var cardId = $"hist_doc_logistica_{e.Id}";
+                        var tieneCualquierDocumento = tiposLogistica.Any(t => e.Archivos.Any(a => a.Tipo == t.Tipo));
+
+                        <div class="embarque-card" id="@cardId">
+                            <div class="embarque-head" onclick="toggleCard('@cardId')">
+                                <div>
+                                    <h3 class="embarque-title">
+                                        <i class="bi bi-folder-check"></i>
+                                        Embarque #@e.Consecutivo
+                                    </h3>
+                                    <div class="embarque-sub">
+                                        ID: @e.Id · Validado:
+                                        @(e.FechaValidacionDocumentacion?.ToString("yyyy-MM-dd HH:mm") ?? "Sin fecha")
+                                        · Usuario:
+                                        @(e.UsuarioValidaDocumentacion ?? "Sistema")
+                                    </div>
+                                </div>
+
+                                <div class="head-badges">
+                                    <span class="badge-soft @(tieneCualquierDocumento ? "ok" : "pending")">
+                                        <i class="bi bi-file-earmark-check"></i>
+                                        @(tieneCualquierDocumento ? "Con documentos" : "Sin documentos")
+                                    </span>
+
+                                    <span class="badge-soft @(e.RequiereCartaPorte == false ? "ok" : "pending")">
+                                        <i class="bi bi-truck"></i>
+                                        Carta Porte @(e.RequiereCartaPorte == false ? "No aplica" : "Aplica")
+                                    </span>
+
+                                    <span class="badge-soft ok">
+                                        <i class="bi bi-check-circle"></i>
+                                        Validado
+                                    </span>
+
+                                    <button type="button" class="toggle-btn" onclick="event.stopPropagation(); toggleCard('@cardId')">
+                                        <i class="bi bi-chevron-down"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="embarque-body">
+                                <div class="docs-grid">
+                                    @foreach (var tipo in tiposLogistica)
+                                    {
+                                        var archivos = e.Archivos.Where(a => a.Tipo == tipo.Tipo).ToList();
+                                        var tieneArchivo = archivos.Any();
+
+                                        <div class="doc-box @(tieneArchivo ? "doc-box-ok" : "")">
+                                            <div class="doc-box-head">
+                                                <div class="doc-icon">
+                                                    <i class="bi @tipo.Icon"></i>
+                                                </div>
+                                                <div>
+                                                    <h5 class="doc-title">@tipo.Label</h5>
+                                                    <div class="doc-sub">@tipo.Sub</div>
+                                                </div>
+                                            </div>
+
+                                            <div class="file-status @(tieneArchivo ? "ok" : "pending")">
+                                                @(tieneArchivo ? $"{archivos.Count} archivo(s) cargado(s)." : "No se cargó este documento.")
+                                            </div>
+
+                                            @if (tieneArchivo)
+                                            {
+                                                <div class="mt-2">
+                                                    @foreach (var archivo in archivos)
+                                                    {
+                                                        <a href="@archivo.RutaArchivo" target="_blank" class="file-link d-flex">
+                                                            <i class="bi bi-box-arrow-up-right"></i>
+                                                            Ver @tipo.Label #@archivo.Id
+                                                        </a>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<script>
+    function toggleCard(cardId) {
+        const card = document.getElementById(cardId);
+        if (card) {
+            card.classList.toggle("active");
+        }
+    }
+
+    function toggleSection(sectionId) {
+        const section = document.getElementById(sectionId);
+        if (section) {
+            section.classList.toggle("collapsed");
+        }
+    }
+
+    function mostrarArchivoSeleccionado(input, uploadBoxId, previewId, nameId) {
+        const uploadBox = document.getElementById(uploadBoxId);
+        const preview = document.getElementById(previewId);
+        const name = document.getElementById(nameId);
+
+        if (!uploadBox || !preview || !name) return;
+
+        if (input.files && input.files.length > 0) {
+            uploadBox.classList.add("has-selected-file");
+            preview.classList.add("active");
+
+            if (input.files.length === 1) {
+                name.textContent = input.files[0].name;
+            } else {
+                name.textContent = input.files.length + " archivos seleccionados";
+            }
+        } else {
+            uploadBox.classList.remove("has-selected-file");
+            preview.classList.remove("active");
+            name.textContent = "";
+        }
+    }
+</script>

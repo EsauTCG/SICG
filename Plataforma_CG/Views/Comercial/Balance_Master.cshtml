@@ -1,0 +1,4258 @@
+﻿@model TodoVentasModel
+@Html.AntiForgeryToken()
+@{
+    ViewData["Title"] = "Balance Master";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+
+    var mes = (string)(ViewData["Mes"] ?? DateTime.Now.ToString("yyyy-MM"));
+
+    string mesCorto;
+
+    if (!string.IsNullOrEmpty(mes) && mes.Length >= 7)
+    {
+        int año = int.Parse(mes.Substring(0, 4));
+        int mesNum = int.Parse(mes.Substring(5, 2));
+        var fecha = new DateTime(año, mesNum, 1);
+        mesCorto = fecha.ToString("MMM", new System.Globalization.CultureInfo("es-ES")).ToUpper();
+    }
+    else
+    {
+        mesCorto = DateTime.Now.ToString("MMM", new System.Globalization.CultureInfo("es-ES")).ToUpper();
+    }
+}
+
+<style>
+    :root {
+        --bg: #f0dede;
+        --panel: #f8eeee;
+        --panel-2: #f1dede;
+        --line: #c79d9d;
+        --line-dark: #8f4c4c;
+        --text: #3b1717;
+        --muted: #6a3a3a;
+        --title: #ffffff;
+        --white: #ffffff;
+        --danger: #c00000;
+        --warning: #f3b6b6;
+        --ok: #f7e3e3;
+        --shadow: 0 1px 0 rgba(255,255,255,.55) inset;
+        --brand: #8B0000;
+        --vino-1: #5c0000;
+        --vino-2: #7a0000;
+        --vino-3: #980000;
+        --vino-4: #b30000;
+        --vino-5: #d10000;
+        --vino-soft: #f8e7e7;
+        --vino-soft-2: #f2d9d9;
+        --vino-border: #9a5a5a;
+        --vino-text: #ffffff;
+        --vino-text-dark: #4a1111;
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        background: transparent !important;
+        color: var(--text);
+    }
+
+    .container, .container-fluid {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .shell {
+        width: 100%;
+        max-width: 100%;
+        margin: 0 !important;
+        border: 1px solid #7e4a4a;
+        background: var(--panel);
+        box-shadow: 0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70,12,12,.14);
+        overflow: hidden;
+        padding: 0 !important;
+    }
+
+    .module-titlebar {
+        height: 34px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 10px;
+        background: linear-gradient(180deg, #c00000 0%, #8b0000 60%, #5c0000 100%);
+        border-bottom: 1px solid #5c0000;
+        color: #fff;
+        font-size: 13px;
+        font-weight: bold;
+    }
+
+        .module-titlebar > div:first-child {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 0;
+            min-width: 0;
+        }
+
+    .module-title {
+        margin: 0;
+        color: #fff;
+        font-size: 13px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        line-height: 1;
+    }
+
+    .module-subtitle {
+        display: none;
+    }
+
+    .toolbar {
+        display: flex;
+        align-items: flex-end;
+        gap: 6px;
+        padding: 6px 8px;
+        background: linear-gradient(#fff6f6, #ecd8d8);
+        border-bottom: 1px solid var(--line);
+        font-size: 12px;
+        flex-wrap: wrap;
+    }
+
+        .toolbar .col-auto {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+    .sep {
+        width: 1px;
+        height: 24px;
+        background: #cfa8a8;
+        align-self: center;
+        margin: 0 .2rem;
+    }
+
+    .content {
+        padding: 8px;
+        background: var(--bg);
+    }
+
+    .panel {
+        border: 1px solid var(--line);
+        background: var(--white);
+        margin-bottom: 10px;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    .panel-head,
+    .kpi-card .card-header {
+        padding: 6px 8px;
+        font-size: 12px;
+        font-weight: bold;
+        color: #fff;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-bottom: 1px solid #6b1f1f;
+        border-radius: 0 !important;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .panel-body {
+        padding: 10px;
+    }
+
+    .kpi-card {
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+        .kpi-card .panel-body,
+        .kpi-card .card-body {
+            background: #fffafa;
+            padding: 10px;
+        }
+
+        .kpi-card .fs-5 {
+            font-size: 1.4rem !important;
+            color: #4a1111;
+        }
+
+    .fw-bold.text-secondary.small {
+        color: #6a3a3a !important;
+        font-size: 11px !important;
+        text-transform: uppercase;
+    }
+
+    .form-control,
+    .form-select,
+    input,
+    select {
+        height: 28px !important;
+        padding: 3px 6px !important;
+        border: 1px solid #b48787 !important;
+        background: #fffdfd !important;
+        font-family: inherit !important;
+        font-size: 12px !important;
+        width: 100%;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        color: #421414 !important;
+    }
+
+        .form-control:focus,
+        .form-select:focus,
+        input:focus,
+        select:focus {
+            border-color: #8f4c4c !important;
+            outline: none !important;
+            box-shadow: none !important;
+        }
+
+    .form-label {
+        display: block;
+        color: #5c1a1a;
+        font-size: 12px;
+        margin-bottom: 2px !important;
+        font-weight: bold;
+    }
+
+    .tbtn {
+        min-width: 72px;
+        text-align: center;
+        background: linear-gradient(#fffefe, #ecd7d7);
+        border: 1px solid var(--vino-border);
+        box-shadow: var(--shadow);
+        cursor: pointer;
+        color: var(--vino-text-dark);
+        min-height: 28px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 0 10px;
+        text-decoration: none;
+        border-radius: 0;
+        font-size: 12px;
+        white-space: nowrap;
+    }
+
+        .tbtn:hover {
+            filter: brightness(0.98);
+            background: linear-gradient(#fffefe, #ecd7d7);
+            border-color: var(--vino-border);
+            color: var(--vino-text-dark);
+        }
+
+        .tbtn.primary {
+            color: #fff;
+            border-color: #7f0a0a;
+            background: linear-gradient(180deg, #b40000 0%, #8f0000 55%, #6e0000 100%);
+        }
+
+            .tbtn.primary:hover {
+                filter: brightness(0.97);
+                color: #fff;
+            }
+
+    .dropdown-menu {
+        font-size: 12px !important;
+        border-radius: 0 !important;
+        border: 1px solid #b48787 !important;
+        background: #fffafa !important;
+    }    
+            
+           
+
+    .btn.btn-danger.btn-sm,
+    .btn.btn-outline-secondary.btn-sm,
+    .btn.btn-outline-danger.btn-sm,
+    .btn.btn-outline-primary.btn-sm {
+        border-radius: 0;
+        font-size: 11px;
+        min-height: 28px;
+    }
+
+    .tabla-scroll,
+    .table-wrap {
+        padding: 0;
+        overflow: auto;
+        max-height: 70vh;
+        background: #fffafa;
+        width: 100%;
+        position: relative;
+        border-top: 1px solid #d9b8b8;
+    }
+
+        .tabla-scroll table,
+        .table-wrap table,
+        #tablaMaster {
+            width: 100%;
+            table-layout: fixed;
+            border-collapse: separate !important;
+            border-spacing: 0 !important;
+            font-size: 12px;
+            background: #fffafa;
+        }
+
+            .tabla-scroll thead,
+            .tabla-scroll thead tr,
+            .tabla-scroll thead th,
+            .table-wrap thead,
+            .table-wrap thead tr,
+            .table-wrap thead th,
+            #tablaMaster thead,
+            #tablaMaster thead tr,
+            #tablaMaster thead th {
+                background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+                color: #fff !important;
+            }
+
+                .tabla-scroll thead th,
+                .table-wrap thead th,
+                #tablaMaster thead th {
+                    position: sticky;
+                    top: -1px;
+                    z-index: 20;
+                    border-top: 1px solid #c46a6a !important;
+                    border-right: 1px solid #8e3b3b !important;
+                    border-bottom: 1px solid #5c0000 !important;
+                    padding: 6px 5px !important;
+                    text-align: left;
+                    white-space: nowrap;
+                    font-size: 12px !important;
+                    line-height: 1.2 !important;
+                    box-shadow: 0 2px 0 #6f1d1d;
+                    text-transform: none !important;
+                    letter-spacing: 0 !important;
+                    font-weight: 700 !important;
+                }
+
+                    .tabla-scroll thead th:first-child,
+                    .table-wrap thead th:first-child,
+                    #tablaMaster thead th:first-child {
+                        border-left: 1px solid #8e3b3b !important;
+                    }
+
+            .tabla-scroll tbody td,
+            .table-wrap tbody td,
+            #tablaMaster tbody td {
+                background: #fffafa !important;
+                border-right: 1px solid #d8bcbc !important;
+                border-bottom: 1px solid #d8bcbc !important;
+                padding: 6px 5px !important;
+                white-space: nowrap;
+                vertical-align: middle;
+                font-size: 12px !important;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                line-height: 1.2 !important;
+                color: #111111 !important;
+                font-weight: 400;
+            }
+
+                .tabla-scroll tbody td:first-child,
+                .table-wrap tbody td:first-child,
+                #tablaMaster tbody td:first-child {
+                    border-left: 1px solid #d8bcbc !important;
+                }
+
+            .tabla-scroll tbody tr:nth-child(even) td,
+            .table-wrap tbody tr:nth-child(even) td,
+            #tablaMaster tbody tr:nth-child(even) td {
+                background: #f9eded !important;
+            }
+
+            .tabla-scroll tbody tr:hover td,
+            .table-wrap tbody tr:hover td,
+            #tablaMaster tbody tr:hover td {
+                background: #f4dddd !important;
+            }
+
+    .number,
+    .text-end {
+        text-align: right !important;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .text-center {
+        text-align: center !important;
+    }
+
+    .badge-pos {
+        display: inline-block;
+        min-width: 70px;
+        text-align: center;
+        background: #dff3e2;
+        border: 1px solid #6aa84f;
+        color: #2f6b1f;
+        padding: 4px 8px;
+        font-size: 11px;
+        font-weight: 700;
+        border-radius: 2px;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+
+    .badge-neg {
+        display: inline-block;
+        min-width: 70px;
+        text-align: center;
+        background: #fde2e2;
+        border: 1px solid #d9534f;
+        color: #b00000;
+        padding: 4px 8px;
+        font-size: 11px;
+        font-weight: 700;
+        border-radius: 2px;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+
+    .modal-content {
+        border: 1px solid #7d4949;
+        border-radius: 0;
+    }
+
+    .modal-header,
+    .modal-header.bg-danger {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        border-bottom: 1px solid #5c0000 !important;
+        color: #fff !important;
+        padding: 8px 12px;
+    }
+
+    .modal-title {
+        font-size: 13px;
+        font-weight: bold;
+        color: #fff !important;
+    }
+
+    .btn-close,
+    .btn-close-white {
+        filter: invert(1) grayscale(100%) !important;
+        opacity: .95 !important;
+    }
+
+    .modal-body {
+        background: #f4e4e4;
+        padding: 10px;
+    }
+
+    .modal-footer {
+        background: #f7eaea;
+        border-top: 1px solid #d3b0b0;
+    }
+
+    .detail-compact .detail-table {
+        font-size: .80rem;
+        table-layout: auto;
+    }
+
+        .detail-compact .detail-table th,
+        .detail-compact .detail-table td {
+            padding: .22rem .30rem;
+            white-space: nowrap !important;
+            vertical-align: middle;
+        }
+
+            .detail-compact .detail-table td:nth-child(2) {
+                max-width: 260px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+        .detail-compact .detail-table .btn {
+            white-space: nowrap !important;
+            padding: .18rem .40rem;
+            font-size: .78rem;
+            line-height: 1.1;
+            border-radius: 0;
+        }
+
+        .detail-compact .detail-table td:last-child .d-flex {
+            flex-wrap: nowrap !important;
+            gap: .35rem !important;
+        }
+
+    #fSku, #fMaster {
+        text-transform: uppercase;
+    }
+
+    .statusbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 6px 10px;
+        font-size: 11px;
+        color: #4a1a1a;
+        border-top: 1px solid #b88c8c;
+        background: linear-gradient(#f6e9e9, #ead5d5);
+        flex-wrap: wrap;
+    }
+
+    @@media (max-width: 1200px) {
+        .toolbar {
+            align-items: stretch;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .tabla-scroll table,
+        #tablaMaster {
+            min-width: 1200px;
+        }
+    }
+
+    /* ===== Resaltar columnas: PROD REAL, INVENTARIO, VENTA REAL ===== */
+    /* ===== Resaltar columnas SOLO en la tabla principal ===== */
+ /*    #tablaMaster > thead > tr > th:nth-child(4),
+    #tablaMaster > thead > tr > th:nth-child(6),
+    #tablaMaster > thead > tr > th:nth-child(8) {
+        background: linear-gradient(180deg, #d4aa00 0%, #b68f00 55%, #8f6f00 100%) !important;
+        color: #fff !important;
+    } */
+
+    #tablaMaster > tbody > tr.master-row > td:nth-child(4),
+    #tablaMaster > tbody > tr.master-row > td:nth-child(6),
+    #tablaMaster > tbody > tr.master-row > td:nth-child(8) {
+        background: #efe2a4 !important;
+    }
+
+    #tablaMaster > tbody > tr.master-row:hover > td:nth-child(4),
+    #tablaMaster > tbody > tr.master-row:hover > td:nth-child(6),
+    #tablaMaster > tbody > tr.master-row:hover > td:nth-child(8) {
+        background: #e6d68c !important;
+    }
+
+    /* =========================
+       MULTISELECT ESTILO SIGO
+    ========================= */
+    .dropdown-menu.multi-sigo-menu {
+        width: 320px !important;
+        padding: 0 !important;
+        border: 1px solid #b48787 !important;
+        background: #f7f3f3 !important;
+        border-radius: 0 !important;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,.12);
+    }
+
+    .multi-sigo-search-wrap {
+        padding: 8px;
+        border-bottom: 1px solid #d7bcbc;
+        background: #f6eeee;
+    }
+
+        .multi-sigo-search-wrap input {
+            height: 28px !important;
+            font-size: 12px !important;
+        }
+
+    .multi-sigo-list {
+        max-height: 260px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        background: #f7f3f3;
+        padding: 4px 0;
+    }
+
+    .multi-sigo-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        font-size: 12px;
+        color: #2d2d2d;
+        cursor: pointer;
+        border-bottom: 1px solid #ebe1e1;
+        user-select: none;
+    }
+
+        .multi-sigo-item:hover {
+            background: #ece3c0;
+        }
+
+        .multi-sigo-item.selected {
+            background: #e8ddb3;
+            font-weight: 700;
+        }
+
+        .multi-sigo-item.select-all {
+            border-bottom: 1px solid #d3c6c6;
+            background: #f3eded;
+            font-weight: 700;
+        }
+
+        .multi-sigo-item input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 13px;
+            height: 13px;
+            border: 1px solid #b58a8a;
+            background: #ffffff;
+            margin: 0;
+            cursor: pointer;
+            position: relative;
+            flex: 0 0 13px;
+            box-shadow: none;
+        }
+
+            .multi-sigo-item input[type="checkbox"]:checked {
+                background: #000000;
+                border-color: #000000;
+            }
+
+                .multi-sigo-item input[type="checkbox"]:checked::after {
+                    content: "";
+                    position: absolute;
+                    inset: 2px;
+                    background: #000000;
+                }
+
+    .multi-sigo-actions {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 8px;
+        border-top: 1px solid #d7bcbc;
+        background: #f6eeee;
+    }
+
+        .multi-sigo-actions .btn {
+            min-width: 90px;
+            border-radius: 0 !important;
+            font-size: 12px;
+        }
+
+    /* botón del filtro */
+    .multi-sigo-btn,
+    button.form-control.dropdown-toggle.multi-sigo-btn {
+        background: #fffdfd !important;
+        border: 1px solid #b48787 !important;
+        color: #421414 !important;
+        font-weight: 600;
+    }
+        .multi-sigo-btn::after {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            margin-top: 0 !important;
+        }
+
+        .multi-sigo-btn:focus,
+        .multi-sigo-btn:active {
+            box-shadow: none !important;
+            outline: none !important;
+        }
+
+    /* scroll */
+    .multi-sigo-list::-webkit-scrollbar {
+        width: 10px;
+    }
+
+    .multi-sigo-list::-webkit-scrollbar-thumb {
+        background: #9e9e9e;
+        border-radius: 0;
+    }
+
+    .multi-sigo-list::-webkit-scrollbar-track {
+        background: #ece7e7;
+    }
+
+    .multi-sigo-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        font-size: 12px;
+        color: #2d2d2d;
+        cursor: pointer;
+        border-bottom: 1px solid #d8c7c7;
+        user-select: none;
+        background: #f7f3f3;
+    }
+
+        .multi-sigo-item:hover {
+            background: #f3ecec;
+        }
+
+        .multi-sigo-item.selected {
+            background: #f3ecec;
+            font-weight: 700;
+        }
+
+        .multi-sigo-item.select-all {
+            background: #f7f3f3;
+            font-weight: 700;
+        }
+
+        .multi-sigo-item span {
+            flex: 1;
+        }
+
+    .multi-sigo-list {
+        max-height: 190px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        background: #f7f3f3;
+        padding: 0;
+        border-top: 1px solid #c8a9a9;
+        border-bottom: 1px solid #c8a9a9;
+    }
+    #btnExportExcel {
+        color: #fff !important;
+        border-color: #1f7a1f !important;
+        background: linear-gradient(180deg, #28a745 0%, #218838 55%, #1e7e34 100%) !important;
+    }
+
+        #btnExportExcel:hover {
+            filter: brightness(0.97);
+            color: #fff !important;
+            border-color: #1a6e2b !important;
+            background: linear-gradient(180deg, #2ebf4f 0%, #24963d 55%, #1e7e34 100%) !important;
+        }
+
+
+    /* =========================================================
+       KPIS A COLOR - BALANCE MASTER
+       ========================================================= */
+
+    .balance-kpi-panel {
+        border: 1px solid rgba(123, 17, 19, .20) !important;
+        background: linear-gradient(180deg, #fffafa 0%, #f1dddd 100%) !important;
+        overflow: hidden;
+    }
+
+    .balance-kpi-panel .card-header {
+        min-height: 36px;
+        justify-content: center;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+    }
+
+    .balance-kpi-panel .panel-body {
+        background: linear-gradient(180deg, #fffafa 0%, #f5e6e6 100%) !important;
+        padding: 10px !important;
+    }
+
+    .balance-kpis-row {
+        align-items: stretch;
+    }
+
+    .balance-kpis-row .bm-kpi {
+        position: relative;
+        min-height: 92px;
+        border: 1px solid rgba(255,255,255,.32);
+        padding: 12px 10px !important;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        overflow: hidden;
+        box-shadow: inset 5px 0 0 rgba(255,255,255,.20), 0 12px 24px rgba(54, 9, 9, .14);
+    }
+
+    .balance-kpis-row .bm-kpi::after {
+        content: "";
+        position: absolute;
+        right: -32px;
+        bottom: -46px;
+        width: 128px;
+        height: 128px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.14);
+        pointer-events: none;
+    }
+
+    .balance-kpis-row .bm-kpi .small,
+    .balance-kpis-row .bm-kpi .fs-5 {
+        position: relative;
+        z-index: 1;
+    }
+
+    .balance-kpis-row .bm-kpi .small {
+        color: rgba(255,255,255,.88) !important;
+        font-size: 11px !important;
+        letter-spacing: .055em;
+        margin-bottom: 5px;
+    }
+
+    .balance-kpis-row .bm-kpi .fs-5 {
+        color: #fff !important;
+        font-size: clamp(19px, 1.55vw, 27px) !important;
+        line-height: 1.08;
+        font-weight: 900 !important;
+        text-shadow: 0 2px 8px rgba(0,0,0,.22);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .bm-kpi-plan {
+        background: linear-gradient(135deg, #7b1113 0%, #a3161a 55%, #5c090b 100%) !important;
+    }
+
+    .bm-kpi-prod-real {
+        background: linear-gradient(135deg, #0f766e 0%, #14a399 55%, #134e4a 100%) !important;
+    }
+
+    .bm-kpi-inv {
+        background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 55%, #1e3a8a 100%) !important;
+    }
+
+    .bm-kpi-presup {
+        background: linear-gradient(135deg, #b7791f 0%, #d99a28 55%, #8a4f05 100%) !important;
+    }
+
+    .bm-kpi-venta-real {
+        background: linear-gradient(135deg, #157f49 0%, #22a65a 55%, #0f5132 100%) !important;
+    }
+
+    .bm-kpi-gap,
+    .bm-kpi-gap-neutral {
+        background: linear-gradient(135deg, #2b1515 0%, #4b1113 55%, #140506 100%) !important;
+    }
+
+    .bm-kpi-gap.bm-kpi-gap-ok {
+        background: linear-gradient(135deg, #157f49 0%, #22a65a 55%, #0f5132 100%) !important;
+    }
+
+    .bm-kpi-gap.bm-kpi-gap-bad {
+        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 55%, #7f1d1d 100%) !important;
+    }
+
+    @@media (min-width: 1600px) {
+        .balance-kpis-row .bm-kpi {
+            min-height: 104px;
+            padding: 15px 12px !important;
+        }
+
+        .balance-kpis-row .bm-kpi .fs-5 {
+            font-size: clamp(22px, 1.65vw, 31px) !important;
+        }
+    }
+
+    @@media (max-width: 991px) {
+        .balance-kpis-row .bm-kpi {
+            min-height: 82px;
+        }
+
+        .balance-kpis-row .bm-kpi .fs-5 {
+            font-size: clamp(18px, 4.5vw, 25px) !important;
+        }
+    }
+
+</style>
+
+<div class="shell">
+    <div class="module-titlebar">
+        <div>
+            <h5 class="module-title"><i class="bi bi-graph-up"></i> Balance Master</h5>
+            <p class="module-subtitle"></p>
+        </div>
+    </div>
+
+    <div class="toolbar" role="toolbar">
+        <div class="col-auto">
+            <label for="mesSelector" class="form-label fw-semibold mb-0 small">Mes</label>
+            <input type="month" id="mesSelector" class="form-control form-control-sm" value="@mes.Substring(0, 7)" />
+        </div>
+
+        <span class="sep"></span>
+
+        <div class="col-auto" style="min-width:220px;">
+            <label for="btnClienteMulti" class="form-label fw-semibold mb-0 small">Cliente</label>
+            <div class="dropdown w-100" id="clienteMultiWrap">
+                <button class="form-control form-control-sm dropdown-toggle text-start multi-sigo-btn"
+                        type="button" id="btnClienteMulti" aria-expanded="false">
+                    CLIENTE
+                </button>
+                <div class="dropdown-menu multi-sigo-menu shadow" style="width: 360px;">
+                    <div class="multi-sigo-search-wrap">
+                        <input type="text" class="form-control form-control-sm"
+                               id="clienteMultiSearch" placeholder="Buscar cliente" autocomplete="off" />
+                    </div>
+                    <div id="clienteMultiList" class="multi-sigo-list"></div>
+                    <div class="multi-sigo-actions">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="clienteMultiClear">Limpiar</button>
+                        <button type="button" class="btn btn-danger btn-sm" id="clienteMultiApply">Aplicar</button>
+                    </div>
+                    <input type="hidden" id="fCliente" value="" />
+                </div>
+            </div>
+        </div>
+
+        <div class="col-auto" style="min-width:220px;">
+            <label for="btnVendedorMulti" class="form-label fw-semibold mb-0 small">Vendedor</label>
+            <div class="dropdown w-100" id="vendedorMultiWrap">
+                <button class="form-control form-control-sm dropdown-toggle text-start multi-sigo-btn"
+                        type="button" id="btnVendedorMulti" aria-expanded="false">
+                    VENDEDOR
+                </button>
+                <div class="dropdown-menu multi-sigo-menu shadow" style="width: 360px;">
+                    <div class="multi-sigo-search-wrap">
+                        <input type="text" class="form-control form-control-sm"
+                               id="vendedorMultiSearch" placeholder="Buscar vendedor" autocomplete="off" />
+                    </div>
+                    <div id="vendedorMultiList" class="multi-sigo-list"></div>
+                    <div class="multi-sigo-actions">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="vendedorMultiClear">Limpiar</button>
+                        <button type="button" class="btn btn-danger btn-sm" id="vendedorMultiApply">Aplicar</button>
+                    </div>
+                    <input type="hidden" id="fVendedor" value="" />
+                </div>
+            </div>
+        </div>
+
+        <div class="col-auto" style="min-width:180px;">
+            <label for="btnCedisMulti" class="form-label fw-semibold mb-0 small">CEDIS</label>
+            <div class="dropdown w-100" id="cedisMultiWrap">
+                <button class="form-control form-control-sm dropdown-toggle text-start multi-sigo-btn"
+                        type="button" id="btnCedisMulti" aria-expanded="false">
+                    CEDIS
+                </button>
+                <div class="dropdown-menu multi-sigo-menu shadow" style="width: 320px;">
+                    <div class="multi-sigo-search-wrap">
+                        <input type="text" class="form-control form-control-sm"
+                               id="cedisMultiSearch" placeholder="Buscar CEDIS" autocomplete="off" />
+                    </div>
+                    <div id="cedisMultiList" class="multi-sigo-list"></div>
+                    <div class="multi-sigo-actions">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="cedisMultiClear">Limpiar</button>
+                        <button type="button" class="btn btn-danger btn-sm" id="cedisMultiApply">Aplicar</button>
+                    </div>
+                    <input type="hidden" id="fCedis" value="" />
+                </div>
+            </div>
+        </div>
+
+        <div class="col-auto" style="min-width:180px;">
+            <label for="btnMasterMulti" class="form-label fw-semibold mb-0 small">Master</label>
+            <div class="dropdown w-100" id="masterMultiWrap">
+                <button class="form-control form-control-sm dropdown-toggle text-start multi-sigo-btn"
+                        type="button"
+                        id="btnMasterMulti"
+                        data-bs-toggle="dropdown"
+                        data-bs-auto-close="outside"
+                        aria-expanded="false">
+                    MASTER
+                </button>
+                <div class="dropdown-menu multi-sigo-menu shadow" aria-labelledby="btnMasterMulti" style="width: 320px;">
+                    <div class="multi-sigo-search-wrap">
+                        <input type="text"
+                               class="form-control form-control-sm"
+                               id="masterMultiSearch"
+                               placeholder="Buscar master"
+                               autocomplete="off" />
+                    </div>
+                    <div id="masterMultiList" class="multi-sigo-list"></div>
+                    <div class="multi-sigo-actions">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="masterMultiClear">Limpiar</button>
+                        <button type="button" class="btn btn-danger btn-sm" id="masterMultiApply">Aplicar</button>
+                    </div>
+                    <input type="hidden" id="fMaster" value="" />
+                </div>
+            </div>
+        </div>
+
+        <div class="col-auto" style="min-width:220px;">
+            <label for="btnClasificacionMulti" class="form-label fw-semibold mb-0 small">Clasificación</label>
+            <div class="dropdown w-100" id="clasificacionMultiWrap">
+                <button class="form-control form-control-sm dropdown-toggle text-start multi-sigo-btn"
+                        type="button" id="btnClasificacionMulti" aria-expanded="false">
+                    CLASIFICACIÓN
+                </button>
+                <div class="dropdown-menu multi-sigo-menu shadow" style="width: 320px;">
+                    <div class="multi-sigo-search-wrap">
+                        <input type="text" class="form-control form-control-sm"
+                               id="clasificacionMultiSearch" placeholder="Buscar clasificación" autocomplete="off" />
+                    </div>
+                    <div id="clasificacionMultiList" class="multi-sigo-list"></div>
+                    <div class="multi-sigo-actions">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="clasificacionMultiClear">Limpiar</button>
+                        <button type="button" class="btn btn-danger btn-sm" id="clasificacionMultiApply">Aplicar</button>
+                    </div>
+                    <input type="hidden" id="fClasificacion" value="" />
+                </div>
+            </div>
+        </div>
+
+        <div class="col-auto" style="min-width:180px;">
+            <label for="btnSkuMulti" class="form-label fw-semibold mb-0 small">SKU</label>
+            <div class="dropdown w-100" id="skuMultiWrap">
+                <button class="form-control form-control-sm dropdown-toggle text-start multi-sigo-btn"
+                        type="button" id="btnSkuMulti" aria-expanded="false">
+                    SKU...
+                </button>
+                <div class="dropdown-menu multi-sigo-menu shadow" style="width: 260px;">
+                    <div class="multi-sigo-search-wrap">
+                        <input type="text" class="form-control form-control-sm"
+                               id="skuMultiSearch" placeholder="Buscar SKU..." autocomplete="off" />
+                    </div>
+                    <div id="skuMultiList" class="multi-sigo-list"></div>
+                    <div class="multi-sigo-actions">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="skuMultiClear">Limpiar</button>
+                        <button type="button" class="btn btn-danger btn-sm" id="skuMultiApply">Aplicar</button>
+                    </div>
+                    <input type="hidden" id="fSku" value="" />
+                </div>
+            </div>
+        </div>
+
+        <button id="btnClearPresFilters" class="tbtn" title="Limpiar filtros de presupuesto">
+            <i class="bi bi-x-circle"></i><span>Limpiar</span>
+        </button>
+
+        <span class="sep"></span>
+
+        <button id="btnExportExcel" class="tbtn primary" title="Exportar a Excel">
+            <i class="bi bi-file-earmark-excel"></i><span>Exportar</span>
+        </button>
+    </div>
+
+    <div class="content">
+        <div class="panel kpi-card balance-kpi-panel mb-3">
+            <div class="card-header text-center">Totales del Mes</div>
+            <div class="panel-body">
+                <div class="row text-center g-2 g-lg-3 balance-kpis-row">
+                    <div class="col-md-2 col-6 bm-kpi bm-kpi-plan">
+                        <div class="fw-bold text-secondary small">PLAN</div>
+                        <div class="fs-5 fw-bold" id="tProd">0</div>
+                    </div>
+                    <div class="col-md-2 col-6 bm-kpi bm-kpi-prod-real">
+                        <div class="fw-bold text-secondary small">PROD REAL</div>
+                        <div class="fs-5 fw-bold" id="tProdReal">0</div>
+                    </div>
+                    <div class="col-md-2 col-6 bm-kpi bm-kpi-inv">
+                        <div class="fw-bold text-secondary small">INV</div>
+                        <div class="fs-5 fw-bold" id="tInv">0</div>
+                    </div>
+                    <div class="col-md-2 col-6 bm-kpi bm-kpi-presup">
+                        <div class="fw-bold text-secondary small">PRESUP</div>
+                        <div class="fs-5 fw-bold" id="tVenta">0</div>
+                    </div>
+                    <div class="col-md-2 col-6 bm-kpi bm-kpi-venta-real">
+                        <div class="fw-bold text-secondary small">VENTA REAL</div>
+                        <div class="fs-5 fw-bold" id="tVentaReal">0</div>
+                    </div>
+                    <div class="col-md-2 col-6 bm-kpi bm-kpi-gap bm-kpi-gap-neutral">
+                        <div class="fw-bold text-secondary small">GAP</div>
+                        <div class="fs-5 fw-bold" id="tGap">0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-head"><i class="bi bi-table"></i> Balance por Master</div>
+            <div class="panel-body p-0">
+                <div class="tabla-scroll table-responsive">
+                    <table id="tablaMaster" class="table table-bordered table-hover table-striped tabla-balance mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width:40px;"></th>
+                                <th>Master</th>
+                                <th>PLAN <span id="thProdMes">@mesCorto</span></th>
+                                <th>PROD REAL <span id="thProdRealMes">@mesCorto</span></th>
+                                <th>TEND PROD</th>
+                                <th>INVENTARIO</th>
+                                <th>PRESUP <span id="thVentaMes">@mesCorto</span></th>
+                                <th>VENTA REAL <span id="thVentaRealMes">@mesCorto</span></th>
+                                <th>TEND VENTA</th>
+                                <th>GAP</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyExcedidos">
+                            <tr><td colspan="10" class="text-center">Cargando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="statusbar">
+        <div>Registro listo</div>
+        <div>Usuario: @User.Identity.Name</div>
+        <div>Empresa: Carnes G SA de CV</div>
+        <div>Módulo: Balance Master</div>
+    </div>
+</div>
+
+<!-- ===== Modales ===== -->
+<div class="modal fade" id="presupuestoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title fw-bold">📊 <span id="pdtPres"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body">
+                <table class="table table-bordered table-hover" id="tablaPresupuesto">
+                    <thead style="background: var(--brand); color: #fff;">
+                        <tr>
+                            <th>Canal</th>
+                            <th>Razon Social</th>
+                            <th>Sku</th>
+                            <th>Producto</th>
+                            <th>Presupuesto</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="5" class="text-center">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="planProduccionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title fw-bold">🏭 <span id="pdtPlan"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <table class="table table-bordered table-hover" id="tablaPlanProduccion">
+                    <thead style="background: var(--brand); color: #fff;">
+                        <tr>
+                            <th>Sku</th>
+                            <th>Producto</th>
+                            <th>Plan Producción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="3" class="text-center">Seleccione un master para ver plan de producción</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+
+<script>
+    /* ============================================================
+    BALANCE MASTER - SCRIPT AJUSTADO (COMPLETO)
+    - Corrige filtro por clasificación
+    - Corrige inflación de datos
+    - Corrige ceros en venta real / prod real
+    - Corrige detalle por SKU usando unión de fuentes
+    ============================================================ */
+
+    // =======================
+    // Base / utilidades
+    // =======================
+    const MES_SELECTOR = document.getElementById('mesSelector');
+    let MES = (MES_SELECTOR && MES_SELECTOR.value) ? MES_SELECTOR.value : new Date().toISOString().slice(0, 7); // "YYYY-MM"
+    const fmt = n => Number(n || 0).toLocaleString('es-MX');
+
+    const noCacheFetchOpts = {
+    method: 'GET',
+    credentials: 'same-origin',
+    cache: 'no-store',
+    headers: { 'Accept': 'application/json', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
+    };
+
+    let permisosBalance = {
+    presupuesto: {
+    puedeLeer: false,
+    puedeEscribir: false,
+    puedeEliminar: false
+    },
+    produccion: {
+    puedeLeer: false,
+    puedeEscribir: false,
+    puedeEliminar: false
+    }
+    };
+
+    async function cargarPermisosBalanceMaster() {
+    try {
+    const r = await fetch('/Comercial/ObtenerPermisosBalanceMaster', {
+    credentials: 'same-origin'
+    });
+
+    permisosBalance = r.ok
+    ? await r.json()
+    : {
+    presupuesto: { puedeLeer: false, puedeEscribir: false, puedeEliminar: false },
+    produccion: { puedeLeer: false, puedeEscribir: false, puedeEliminar: false }
+    };
+
+    console.log('Permisos Balance Master =>', permisosBalance);
+    } catch (e) {
+    console.error('Error cargando permisos:', e);
+    permisosBalance = {
+    presupuesto: { puedeLeer: false, puedeEscribir: false, puedeEliminar: false },
+    produccion: { puedeLeer: false, puedeEscribir: false, puedeEliminar: false }
+    };
+    }
+    }
+
+    function obtenerMesCorto(numMes) {
+    const meses = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
+    return meses[parseInt(numMes, 10) - 1] || "";
+    }
+    let MES_CORTO = obtenerMesCorto((MES.split('-')[1] || "01"));
+
+    function normalizeArrayResult(data, label) {
+    if (data && typeof data === 'object' && !Array.isArray(data) && data.error) {
+    console.warn(`[${label}] Backend devolvió error:`, data.error, data);
+    return [];
+    }
+    if (!Array.isArray(data)) return [];
+    return data;
+    }
+
+    // =======================
+    // Tendencias
+    // =======================
+    function getWorkedDaysInMonthExcludingWeekends(year, month1to12) {
+    const daysInMonth = new Date(year, month1to12, 0).getDate();
+    let worked = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+    const dow = new Date(year, month1to12 - 1, d).getDay();
+    if (dow !== 0 && dow !== 6) worked++;
+    }
+    return worked;
+    }
+
+    function getElapsedWorkedDaysExcludingWeekends(year, month1to12, today = new Date()) {
+    const isSameMonth =
+    today.getFullYear() === year &&
+    (today.getMonth() + 1) === month1to12;
+
+    const lastDay = isSameMonth
+    ? today.getDate()
+    : new Date(year, month1to12, 0).getDate();
+
+    let elapsed = 0;
+    for (let d = 1; d <= lastDay; d++) {
+    const dow = new Date(year, month1to12 - 1, d).getDay();
+    if (dow !== 0 && dow !== 6) elapsed++;
+    }
+    return elapsed;
+    }
+
+    function getPaceContext() {
+    const [yy, mm] = (MES || '').split('-').map(Number);
+    const totalWD = getWorkedDaysInMonthExcludingWeekends(yy, mm);
+    const elapsedWD = getElapsedWorkedDaysExcludingWeekends(yy, mm);
+    return { yy, mm, totalWD, elapsedWD };
+    }
+
+    function projectedMonthValue(actualTotal) {
+    const a = Number(actualTotal ?? 0);
+    const { totalWD, elapsedWD } = getPaceContext();
+    if (elapsedWD <= 0 || totalWD <= 0) return 0;
+    return (a / elapsedWD) * totalWD;
+    }
+
+    function renderTrendCellProjectedOnly(actualTotal) {
+    if (actualTotal == null) return '—';
+
+    const a = Number(actualTotal ?? 0);
+    const proj = projectedMonthValue(a);
+    const deltaKg = proj - a;
+
+    const icon = deltaKg > 0 ? 'bi-arrow-up-right'
+    : (deltaKg < 0 ? 'bi-arrow-down-right' : 'bi-dash');
+
+    const cls  = deltaKg > 0 ? 'text-success'
+    : (deltaKg < 0 ? 'text-danger' : 'text-muted');
+
+    return `
+    <span class="${cls} fw-semibold">
+    <i class="bi ${icon}"></i>
+    ${fmt(proj)}
+    </span>`;
+    }
+
+    function parseCellNumber(td) {
+    if (!td) return 0;
+    const s = String(td.textContent || '').replace(/,/g, '').trim();
+    const n = parseFloat(s);
+    return Number.isFinite(n) ? n : 0;
+    }
+
+    function calcGapProjected(prodReal, disponible, ventaReal) {
+    const tp = projectedMonthValue(Number(prodReal ?? 0));
+    const tv = projectedMonthValue(Number(ventaReal ?? 0));
+    return tp + Number(disponible ?? 0) - tv;
+    }
+
+    function calcGapProjectedByInv(prodReal, inventario, ventaReal) {
+    const tp = projectedMonthValue(Number(prodReal ?? 0));
+    const tv = projectedMonthValue(Number(ventaReal ?? 0));
+    return tp + Number(inventario ?? 0) - tv;
+    }
+
+    // =======================
+    // Estado UI / datos
+    // =======================
+    let LAST_OPEN_MASTER = null;
+    let CURRENT_MODAL_MASTER = null;
+    let CURRENT_MODAL_SKU = null;
+
+    const CACHE_PRES = new Map();
+    const CACHE_PROD = new Map();
+    const CACHE_PROD_REAL = new Map();
+    const CACHE_VENTA_REAL = new Map();
+    const CACHE_INV_SKU = new Map();
+
+    let MASTER_DATA = [];
+    const BASE_MASTER_VIEW = new Map();
+
+    function snapshotBaseMasterView() {
+    BASE_MASTER_VIEW.clear();
+    (MASTER_DATA || []).forEach(m => {
+    // const master = String(m.u_MASTER ?? '').trim();
+    // if (!master) return; bloqueo sin master
+
+    const master = String(m.u_MASTER ?? '').trim() || 'SIN MASTER';
+    BASE_MASTER_VIEW.set(master, {
+    planProduccion: Number(m.planProduccion || 0),
+    produccionReal: Number(m.produccionReal ?? m.realTotalMaster ?? 0),
+    ventaReal: Number(m.ventaReal ?? m.ventaRealTotalMaster ?? 0),
+    presupuesto: Number(m.presupuesto || 0),
+    gap: Number(m.gap || 0),
+    porcentaje: Number(m.porcentaje || 0)
+    });
+    });
+    }
+
+    function updateMasterRowCells(master, { plan, real, venta, ventaReal, gap, porcentaje }) {
+    const tr = document.querySelector(`tr.master-row[data-master="${master}"]`);
+    if (!tr) return;
+
+    const tds = tr.querySelectorAll('td');
+
+    if (tds[2] && plan != null) tds[2].textContent = fmt(plan);
+    if (tds[3] && real != null) tds[3].textContent = fmt(real);
+    if (tds[6] && venta != null) tds[6].textContent = fmt(venta);
+    if (tds[7] && ventaReal != null) tds[7].textContent = fmt(ventaReal);
+
+    if (tds[4]) {
+    const realNow = (real != null) ? Number(real) : parseCellNumber(tds[3]);
+    tds[4].innerHTML = renderTrendCellProjectedOnly(realNow);
+    }
+
+    if (tds[8]) {
+    const ventaRealNow = (ventaReal != null) ? Number(ventaReal) : parseCellNumber(tds[7]);
+    tds[8].innerHTML = renderTrendCellProjectedOnly(ventaRealNow);
+    }
+
+    if (tds[9]) {
+    const invNow = Number(tr.getAttribute('data-inventario') ?? 0);
+    const realNow = (real != null) ? Number(real) : parseCellNumber(tds[3]);
+    const ventaRealNow = (ventaReal != null) ? Number(ventaReal) : parseCellNumber(tds[7]);
+    const gapNow = calcGapProjectedByInv(realNow, invNow, ventaRealNow);
+    tds[9].innerHTML = `<span class="${gapNow < 0 ? 'badge-neg' : 'badge-pos'}">${fmt(gapNow)}</span>`;
+    }
+
+    if (tds[10] && porcentaje != null) {
+    tds[10].textContent = `${Number(porcentaje || 0).toFixed(0)}%`;
+    }
+    }
+
+    function restoreAllMasterRowsToBase() {
+    for (const [master, b] of BASE_MASTER_VIEW.entries()) {
+    updateMasterRowCells(master, {
+    plan: b.planProduccion,
+    real: b.produccionReal,
+    venta: b.presupuesto,
+    ventaReal: b.ventaReal,
+    gap: b.gap,
+    porcentaje: b.porcentaje
+    });
+    }
+    }
+
+    let PRES_MODAL_RAW = [];
+
+    const safeId = s => String(s ?? '').replace(/[^\w\-:.]/g, '_');
+    const up = s => String(s ?? '').trim().toUpperCase();
+    const getEl = (...ids) => ids.map(id => document.getElementById(id)).find(Boolean) || null;
+
+    const closeAllDetails = () => {
+    document.querySelectorAll('.detail-row').forEach(dr => dr.remove());
+    document.querySelectorAll('.expander-btn[aria-expanded="true"]').forEach(b => b.setAttribute('aria-expanded', 'false'));
+    };
+
+    async function refreshMainAndDetail() {
+    await cargarTabla();
+    if (LAST_OPEN_MASTER) {
+    const row = document.querySelector(`tr.master-row[data-master="${LAST_OPEN_MASTER}"]`);
+    if (row) await toggleDetalle(row);
+    }
+    }
+
+    // =======================
+    // Helpers de filtros
+    // =======================
+    function presupuestoFiltersActiveFromState(state) {
+    return (
+    (state.fuente && state.fuente !== 'TODOS') ||
+    (state.clientes && state.clientes.length) ||
+    (state.vendedores && state.vendedores.length) ||
+    (state.cedisList && state.cedisList.length)
+    );
+    }
+
+    function skuSetFromPresupuesto(presF) {
+    const set = new Set();
+    (presF || []).forEach(x => {
+    const sku = up(String(x.productoCodigo ?? '').trim());
+    if (sku) set.add(sku);
+    });
+    return set;
+    }
+
+    function skuSetFromSources(presF, prodF, realF, ventaRealF) {
+    const set = new Set();
+
+    (presF || []).forEach(x => {
+    const sku = up(String(x.productoCodigo ?? '').trim());
+    if (sku) set.add(sku);
+    });
+
+    (prodF || []).forEach(x => {
+    const sku = up(String(x.productoCodigo ?? '').trim());
+    if (sku) set.add(sku);
+    });
+
+    (realF || []).forEach(x => {
+    const sku = up(realSku(x));
+    if (sku) set.add(sku);
+    });
+
+    (ventaRealF || []).forEach(x => {
+    const sku = up(ventaSku(x));
+    if (sku) set.add(sku);
+    });
+
+    return set;
+    }
+
+    function filtrarRealPorSkuSet(list, skuSet, skuGetter) {
+    if (!skuSet || !skuSet.size) return [];
+    return (list || []).filter(x => skuSet.has(up(skuGetter(x))));
+    }
+
+    // =======================
+    // Master MultiSelect
+    // =======================
+    let MASTER_SELECTED = new Set();
+
+    const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
+    );
+
+    function getMasterSelectedFromHidden() {
+    const v = String(document.getElementById('fMaster')?.value || '').trim();
+    if (!v) return [];
+    return v.split(',').map(x => up(x)).filter(Boolean);
+    }
+
+    function updateMasterButtonLabel() {
+    const btn = document.getElementById('btnMasterMulti');
+    if (!btn) return;
+
+    const n = MASTER_SELECTED.size;
+    if (!n) btn.textContent = 'MASTER';
+    else if (n === 1) btn.textContent = '1 seleccionado';
+    else btn.textContent = `${n} seleccionados`;
+    }
+
+    function syncMasterHidden(fireEvents = true) {
+    const hidden = document.getElementById('fMaster');
+    if (!hidden) return;
+
+    hidden.value = Array.from(MASTER_SELECTED).join(',');
+
+    if (fireEvents) {
+    hidden.dispatchEvent(new Event('input', { bubbles: true }));
+    hidden.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    updateMasterButtonLabel();
+    }
+
+    function getUniqueMastersFromData() {
+    const set = new Set();
+    (MASTER_DATA || []).forEach(x => {
+    const m = String(x.u_MASTER ?? '').trim() || 'SIN MASTER';
+    set.add(up(m));
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+    }
+
+    function renderMasterMultiList(queryText = '') {
+    const listEl = document.getElementById('masterMultiList');
+    if (!listEl) return;
+
+    const q = up(queryText);
+    const masters = getUniqueMastersFromData();
+    const filtered = masters.filter(m => !q || m.includes(q));
+
+    if (!masters.length && !q) {
+    listEl.innerHTML = `<div class="text-muted small px-2 py-2">Cargando masters…</div>`;
+    return;
+    }
+
+    if (!filtered.length) {
+    listEl.innerHTML = `<div class="text-muted small px-2 py-2">Sin resultados</div>`;
+    return;
+    }
+
+    const allSelected = filtered.length > 0 && filtered.every(m => MASTER_SELECTED.has(m));
+    const selectAllId = `master-select-all`;
+
+    let html = `
+    <label class="multi-sigo-item select-all ${allSelected ? 'selected' : ''}" for="${selectAllId}">
+    <input class="master-opt-select-all" type="checkbox" id="${selectAllId}" ${allSelected ? 'checked' : ''}>
+    <span>Seleccionar todo</span>
+    </label>
+    `;
+
+    html += filtered.map(m => {
+    const id = `mopt-${safeId(m)}`;
+    const isSelected = MASTER_SELECTED.has(m);
+
+    return `
+    <label class="multi-sigo-item ${isSelected ? 'selected' : ''}" for="${id}">
+    <input class="master-opt" type="checkbox" value="${escHtml(m)}" id="${id}" ${isSelected ? 'checked' : ''}>
+    <span>${escHtml(m)}</span>
+    </label>`;
+    }).join('');
+
+    listEl.innerHTML = html;
+    }
+
+    function clearMasterMulti(fireEvents = true) {
+    MASTER_SELECTED.clear();
+    const search = document.getElementById('masterMultiSearch');
+    if (search) search.value = '';
+    renderMasterMultiList('');
+    syncMasterHidden(fireEvents);
+    }
+
+    function refreshMasterMultiAfterDataLoad() {
+    const availableArr = getUniqueMastersFromData();
+    const available = new Set(availableArr);
+
+    const fromHidden = getMasterSelectedFromHidden();
+    MASTER_SELECTED = new Set(fromHidden.filter(m => available.has(m)));
+
+    syncMasterHidden(false);
+
+    const search = document.getElementById('masterMultiSearch');
+    renderMasterMultiList(search?.value || '');
+    updateMasterButtonLabel();
+    }
+
+    function initMasterMultiSelectOnce() {
+    const wrap = document.getElementById('masterMultiWrap');
+    const btn = document.getElementById('btnMasterMulti');
+    const search = document.getElementById('masterMultiSearch');
+    const list = document.getElementById('masterMultiList');
+    const clearBtn = document.getElementById('masterMultiClear');
+    const applyBtn = document.getElementById('masterMultiApply');
+    const hidden = document.getElementById('fMaster');
+    if (!wrap || !btn || !search || !list || !clearBtn || !applyBtn || !hidden) return;
+
+    MASTER_SELECTED = new Set(getMasterSelectedFromHidden());
+    renderMasterMultiList('');
+    updateMasterButtonLabel();
+
+    search.addEventListener('input', () => {
+    const start = search.selectionStart, end = search.selectionEnd;
+    search.value = up(search.value);
+    if (start != null && end != null) search.setSelectionRange(start, end);
+    renderMasterMultiList(search.value);
+    });
+
+    list.addEventListener('change', (e) => {
+    const selectAll = e.target.closest('input.master-opt-select-all');
+    if (selectAll) {
+    const filtered = Array.from(list.querySelectorAll('input.master-opt'));
+    filtered.forEach(cb => {
+    cb.checked = selectAll.checked;
+    const v = up(cb.value);
+    if (selectAll.checked) MASTER_SELECTED.add(v);
+    else MASTER_SELECTED.delete(v);
+
+    const item = cb.closest('.multi-sigo-item');
+    if (item) item.classList.toggle('selected', cb.checked);
+    });
+
+    const rowAll = selectAll.closest('.multi-sigo-item');
+    if (rowAll) rowAll.classList.toggle('selected', selectAll.checked);
+
+    updateMasterButtonLabel();
+    return;
+    }
+
+    const cb = e.target.closest('input.master-opt');
+    if (!cb) return;
+
+    const v = up(cb.value);
+    if (cb.checked) MASTER_SELECTED.add(v);
+    else MASTER_SELECTED.delete(v);
+
+    const item = cb.closest('.multi-sigo-item');
+    if (item) item.classList.toggle('selected', cb.checked);
+
+    const allChecks = Array.from(list.querySelectorAll('input.master-opt'));
+    const allChecked = allChecks.length > 0 && allChecks.every(x => x.checked);
+    const selectAllBox = list.querySelector('input.master-opt-select-all');
+    if (selectAllBox) {
+    selectAllBox.checked = allChecked;
+    const rowAll = selectAllBox.closest('.multi-sigo-item');
+    if (rowAll) rowAll.classList.toggle('selected', allChecked);
+    }
+
+    updateMasterButtonLabel();
+    });
+
+    applyBtn.addEventListener('click', () => {
+    syncMasterHidden(true);
+    try { bootstrap.Dropdown.getOrCreateInstance(btn).hide(); } catch {}
+    });
+
+    clearBtn.addEventListener('click', () => clearMasterMulti(true));
+
+    const onOpen = () => {
+    renderMasterMultiList(search.value);
+    updateMasterButtonLabel();
+    search.focus();
+    };
+
+    btn.addEventListener('shown.bs.dropdown', onOpen);
+    wrap.addEventListener('shown.bs.dropdown', onOpen);
+    btn.addEventListener('click', () => setTimeout(() => renderMasterMultiList(search.value), 0));
+    }
+
+    // =======================
+    // MultiSelect genérico
+    // =======================
+    function parseCsvHidden(id) {
+    const v = String(document.getElementById(id)?.value || '').trim();
+    return v ? v.split(',').map(x => up(x.trim())).filter(Boolean) : [];
+    }
+
+    function writeCsvHidden(id, set, fireEvents = true) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = Array.from(set).join(',');
+    if (fireEvents) {
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    }
+
+    function updateBtnLabel(btnId, selectedSet, emptyLabel, manyFmt) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+
+    const n = selectedSet.size;
+    if (!n) btn.textContent = emptyLabel;
+    else if (n === 1) btn.textContent = '1 seleccionado';
+    else btn.textContent = `${n} seleccionados`;
+    }
+
+    function renderCheckboxList(listId, options, selectedSet, query, idPrefix, optFns) {
+    const listEl = document.getElementById(listId);
+    if (!listEl) return;
+
+    const fns = optFns || {};
+    const getValue = fns.getValue || (x => x);
+    const getLabel = fns.getLabel || (x => x);
+    const getSearch = fns.getSearch || (x => x);
+
+    const q = up(query || '');
+    const opts = Array.isArray(options) ? options : [];
+
+    if (!opts.length) {
+    listEl.innerHTML = `<div class="text-muted small px-2 py-2">Sin opciones disponibles</div>`;
+    return;
+    }
+
+    const filtered = opts.filter(opt => {
+    const s = up(getSearch(opt) || '');
+    return !q || s.includes(q);
+    });
+
+    if (!filtered.length) {
+    listEl.innerHTML = `<div class="text-muted small px-2 py-2">Sin resultados</div>`;
+    return;
+    }
+
+    const allSelected = filtered.length > 0 && filtered.every(opt => {
+    const val = up(String(getValue(opt) ?? '').trim());
+    return selectedSet.has(val);
+    });
+
+    const selectAllId = `${idPrefix}-select-all`;
+
+    let html = `
+    <label class="multi-sigo-item select-all ${allSelected ? 'selected' : ''}" for="${selectAllId}">
+    <input class="multi-opt-select-all" type="checkbox" id="${selectAllId}" ${allSelected ? 'checked' : ''}>
+    <span>Seleccionar todo</span>
+    </label>
+    `;
+
+    html += filtered.map(opt => {
+    const val = up(String(getValue(opt) ?? '').trim());
+    const label = String(getLabel(opt) ?? '').trim() || val;
+    const id = `${idPrefix}-${safeId(val)}`;
+    const isSelected = selectedSet.has(val);
+
+    return `
+    <label class="multi-sigo-item ${isSelected ? 'selected' : ''}" for="${id}">
+    <input class="multi-opt" type="checkbox" value="${escHtml(val)}" id="${id}" ${isSelected ? 'checked' : ''}>
+    <span>${escHtml(label)}</span>
+    </label>`;
+    }).join('');
+
+    listEl.innerHTML = html;
+    }
+
+    function initAsyncMultiSelect(cfg) {
+    const {
+    wrapId, btnId, searchId, listId, clearId, applyId, hiddenId,
+    emptyLabel, manyLabel,
+    loadOptions,
+    upperSearch = false
+    } = cfg;
+
+    const wrap = document.getElementById(wrapId);
+    const btn = document.getElementById(btnId);
+    const search = document.getElementById(searchId);
+    const list = document.getElementById(listId);
+    const clearBtn = document.getElementById(clearId);
+    const applyBtn = document.getElementById(applyId);
+    const hidden = document.getElementById(hiddenId);
+    if (!wrap || !btn || !search || !list || !clearBtn || !applyBtn || !hidden) return;
+
+    let OPTIONS = [];
+    let LOADED = false;
+    let SELECTED = new Set(parseCsvHidden(hiddenId));
+
+    updateBtnLabel(btnId, SELECTED, emptyLabel, manyLabel);
+
+    list.addEventListener('change', (e) => {
+    const selectAll = e.target.closest('input.multi-opt-select-all');
+    if (selectAll) {
+    const filtered = Array.from(list.querySelectorAll('input.multi-opt'));
+    filtered.forEach(cb => {
+    cb.checked = selectAll.checked;
+    const v = up(cb.value);
+    if (selectAll.checked) SELECTED.add(v);
+    else SELECTED.delete(v);
+
+    const item = cb.closest('.multi-sigo-item');
+    if (item) item.classList.toggle('selected', cb.checked);
+    });
+
+    const rowAll = selectAll.closest('.multi-sigo-item');
+    if (rowAll) rowAll.classList.toggle('selected', selectAll.checked);
+
+    updateBtnLabel(btnId, SELECTED, emptyLabel, manyLabel);
+    return;
+    }
+
+    const cb = e.target.closest('input.multi-opt');
+    if (!cb) return;
+
+    const v = up(cb.value);
+    if (cb.checked) SELECTED.add(v);
+    else SELECTED.delete(v);
+
+    const item = cb.closest('.multi-sigo-item');
+    if (item) item.classList.toggle('selected', cb.checked);
+
+    const allChecks = Array.from(list.querySelectorAll('input.multi-opt'));
+    const allChecked = allChecks.length > 0 && allChecks.every(x => x.checked);
+    const selectAllBox = list.querySelector('input.multi-opt-select-all');
+
+    if (selectAllBox) {
+    selectAllBox.checked = allChecked;
+    const rowAll = selectAllBox.closest('.multi-sigo-item');
+    if (rowAll) rowAll.classList.toggle('selected', allChecked);
+    }
+
+    updateBtnLabel(btnId, SELECTED, emptyLabel, manyLabel);
+    });
+
+    search.addEventListener('input', () => {
+    if (upperSearch) {
+    const s = search.selectionStart, e = search.selectionEnd;
+    search.value = up(search.value);
+    if (s != null && e != null) search.setSelectionRange(s, e);
+    }
+    renderCheckboxList(listId, OPTIONS, SELECTED, search.value, wrapId, cfg.optionFns);
+    });
+
+    clearBtn.addEventListener('click', () => {
+    SELECTED.clear();
+    search.value = '';
+    renderCheckboxList(listId, OPTIONS, SELECTED, search.value, wrapId, cfg.optionFns);
+    writeCsvHidden(hiddenId, SELECTED, true);
+    updateBtnLabel(btnId, SELECTED, emptyLabel, manyLabel);
+    try { bootstrap.Dropdown.getOrCreateInstance(btn).hide(); } catch {}
+    });
+
+    applyBtn.addEventListener('click', () => {
+    writeCsvHidden(hiddenId, SELECTED, true);
+    try { bootstrap.Dropdown.getOrCreateInstance(btn).hide(); } catch {}
+    });
+
+    const dd = bootstrap?.Dropdown ? bootstrap.Dropdown.getOrCreateInstance(btn, { autoClose: 'outside' }) : null;
+    wrap.addEventListener('click', (e) => e.stopPropagation());
+
+    btn.addEventListener('click', async (e) => {
+    e.preventDefault();
+    if (dd) dd.toggle();
+
+    SELECTED = new Set(parseCsvHidden(hiddenId));
+    updateBtnLabel(btnId, SELECTED, emptyLabel, manyLabel);
+
+    if (!LOADED) {
+    list.innerHTML = `<div class="text-muted small px-1">Cargando…</div>`;
+    try { OPTIONS = await loadOptions(); } catch { OPTIONS = []; }
+    LOADED = true;
+    }
+
+    renderCheckboxList(listId, OPTIONS, SELECTED, search.value, wrapId, cfg.optionFns);
+    search.focus();
+    });
+
+    btn.dataset.emptyLabel = emptyLabel;
+    }
+
+    // =======================
+    // CSRF
+    // =======================
+    function getCsrfToken() {
+    const tokenInput = document.querySelector('input[name="__RequestVerificationToken"]');
+    return tokenInput ? tokenInput.value : '';
+    }
+    function getRequestVerificationToken() { return getCsrfToken(); }
+
+    (function setupAjaxCsrf() {
+    const t = getCsrfToken();
+    if (t && window.$ && $.ajaxSetup) {
+    $.ajaxSetup({ headers: { 'RequestVerificationToken': t } });
+    }
+    })();
+
+    // =======================
+    // Endpoints
+    // =======================
+    function cargarPresupuestosPorMaster(master) {
+    const [anio, mes] = MES.split('-');
+    return $.ajax({
+    url: "/Comercial/ObtenerPresupuestosPorMaster",
+    type: "GET",
+    cache: false,
+    data: { U_MASTER: master, mes: parseInt(mes, 10), anio: parseInt(anio, 10) }
+    });
+    }
+
+    function cargarProduccionPorMaster(master) {
+    const [anio, mes] = MES.split('-');
+    return $.ajax({
+    url: "/Comercial/ObtenerPlanProduccionPorMaster",
+    type: "GET",
+    cache: false,
+    data: { U_MASTER: master, mes: parseInt(mes, 10), anio: parseInt(anio, 10) }
+    });
+    }
+
+    function cargarProduccionRealPorMaster(master) {
+    const [anio, mes] = MES.split('-');
+    return $.ajax({
+    url: "/Comercial/ObtenerPlanProduccionRealPorMaster",
+    type: "GET",
+    cache: false,
+    data: { U_MASTER: master, mes: parseInt(mes, 10), anio: parseInt(anio, 10) }
+    });
+    }
+
+    function cargarVentaRealPorMaster(master) {
+    const [anio, mes] = MES.split('-');
+    return $.ajax({
+    url: "/Comercial/ObtenerVentaRealPorMaster",
+    type: "GET",
+    cache: false,
+    data: { U_MASTER: master, mes: parseInt(mes, 10), anio: parseInt(anio, 10) }
+    });
+    }
+
+    function cargarInventarioPorMaster(master) {
+    return $.ajax({
+    url: "/Comercial/InventarioActual",
+    type: "GET",
+    cache: false
+    });
+    }
+
+    // =======================
+    // Normalizadores
+    // =======================
+    const realSku  = (x) => String(x?.articuloCodigo ?? x?.ArticuloCodigo ?? x?.productoCodigo ?? x?.ProductoCodigo ?? '').trim();
+    const realName = (x) => String(x?.producto ?? x?.Producto ?? x?.productoNombre ?? x?.ProductoNombre ?? '').trim();
+    const realKg   = (x) => Number(x?.kgProducidos ?? x?.KgProducidos ?? x?.KGPRODUCIDOS ?? 0) || 0;
+
+    function sumKgReal(list) {
+    return (list || []).reduce((a, x) => a + realKg(x), 0);
+    }
+
+    const ventaSku  = (x) => String(x?.articulo ?? x?.Articulo ?? x?.sku ?? x?.Sku ?? x?.articuloCodigo ?? x?.ArticuloCodigo ?? '').trim();
+    const ventaName = (x) => String(x?.productoNombre ?? x?.ProductoNombre ?? x?.producto ?? x?.Producto ?? '').trim();
+    const ventaKg   = (x) => Number(x?.kgVendidos ?? x?.KgVendidos ?? x?.kgSurtido ?? x?.KgSurtido ?? x?.kg ?? x?.Kg ?? 0) || 0;
+
+    function sumKgVentaReal(list) {
+    return (list || []).reduce((a, x) => a + ventaKg(x), 0);
+    }
+
+    const invSku  = (x) => String(x?.sku ?? x?.SKU ?? x?.productoCodigo ?? x?.ProductoCodigo ?? x?.articuloCodigo ?? x?.ArticuloCodigo ?? '').trim();
+    const invName = (x) => String(x?.productoNombre ?? x?.ProductoNombre ?? x?.producto ?? x?.Producto ?? '').trim();
+    const invQty  = (x) => Number(x?.invActual ?? x?.InvActual ?? x?.inventario ?? x?.Inventario ?? x?.existencia ?? x?.Existencia ?? x?.stock ?? x?.Stock ?? 0) || 0;
+
+    function groupSumInventarioBySku(list) {
+    const map = new Map();
+    (list || []).forEach(x => {
+    const sku = invSku(x);
+    if (!sku) return;
+    const name = invName(x);
+    const val = invQty(x);
+
+    const obj = map.get(sku) || { sku, name, sum: 0 };
+    obj.sum += val;
+    if (!obj.name && name) obj.name = name;
+
+    map.set(sku, obj);
+    });
+    return Array.from(map.values());
+    }
+
+    // =======================
+    // Sumas por SKU
+    // =======================
+    function groupSumBySku(list, skuField, nameField, valueField) {
+    const map = new Map();
+    (list || []).forEach(x => {
+    const sku = String(x[skuField] ?? '').trim();
+    if (!sku) return;
+    const name = x[nameField] ?? '';
+    const val = Number(x[valueField] ?? 0);
+    const obj = map.get(sku) || { sku, name, sum: 0 };
+    obj.sum += val;
+    if (!obj.name && name) obj.name = name;
+    map.set(sku, obj);
+    });
+    return Array.from(map.values());
+    }
+
+    function groupSumRealBySku(list) {
+    const map = new Map();
+    (list || []).forEach(x => {
+    const sku = realSku(x);
+    if (!sku) return;
+    const name = realName(x);
+    const val = realKg(x);
+    const obj = map.get(sku) || { sku, name, sum: 0 };
+    obj.sum += val;
+    if (!obj.name && name) obj.name = name;
+    map.set(sku, obj);
+    });
+    return Array.from(map.values());
+    }
+
+    function groupSumVentaRealBySku(list) {
+    const map = new Map();
+    (list || []).forEach(x => {
+    const sku = ventaSku(x);
+    if (!sku) return;
+    const name = ventaName(x);
+    const val = ventaKg(x);
+    const obj = map.get(sku) || { sku, name, sum: 0 };
+    obj.sum += val;
+    if (!obj.name && name) obj.name = name;
+    map.set(sku, obj);
+    });
+    return Array.from(map.values());
+    }
+
+
+
+    // =======================
+    // Loaders opciones
+    // =======================
+    async function loadClasificacionOptions() {
+    const masters = mastersScopeForLookups();
+
+    await prefetchPresOnly(masters);
+    await prefetchForMasters(masters);
+    await prefetchRealOnly(masters);
+    await prefetchVentaRealOnly(masters);
+
+    const map = new Map();
+
+    const addClas = (item) => {
+    const id = String(item?.clasificacionId ?? item?.ClasificacionId ?? '').trim();
+    const nombre = String(item?.clasificacionNombre ?? item?.ClasificacionNombre ?? '').trim();
+
+    if (!id && !nombre) return;
+
+    const value = up(id || nombre);
+    const label = id && nombre ? `${id} - ${nombre}` : (nombre || id);
+
+    if (!map.has(value)) {
+    map.set(value, { value, label });
+    }
+    };
+
+    for (const m of masters) {
+    (CACHE_PRES.get(m) || []).forEach(addClas);
+    (CACHE_PROD.get(m) || []).forEach(addClas);
+    (CACHE_PROD_REAL.get(m) || []).forEach(addClas);
+    (CACHE_VENTA_REAL.get(m) || []).forEach(addClas);
+    }
+
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+    }
+
+    function mastersScopeForLookups() {
+    const mastersAll = (MASTER_DATA || []).map(x => x.u_MASTER).filter(Boolean);
+    const state = getFilterState?.() || {};
+    const sel = state.masters || [];
+    return sel.length ? mastersAll.filter(m => sel.includes(up(m))) : mastersAll;
+    }
+
+    async function prefetchPresOnly(masters) {
+    const list = (masters || []).filter(Boolean);
+    const toFetch = list.filter(m => !CACHE_PRES.has(m));
+    if (!toFetch.length) return;
+
+    const CONC = 6;
+    let idx = 0;
+
+    async function worker() {
+    while (idx < toFetch.length) {
+    const master = toFetch[idx++];
+    try {
+    const d = normalizeArrayResult(await cargarPresupuestosPorMaster(master), `Pres ${master}`);
+    CACHE_PRES.set(master, d);
+    } catch {
+    CACHE_PRES.set(master, []);
+    }
+    }
+    }
+
+    await Promise.all(Array.from({ length: CONC }, worker));
+    }
+
+    async function prefetchRealOnly(masters) {
+    const list = (masters || []).filter(Boolean);
+    const toFetch = list.filter(m => !CACHE_PROD_REAL.has(m));
+    if (!toFetch.length) return;
+
+    const CONC = 6;
+    let idx = 0;
+
+    async function worker() {
+    while (idx < toFetch.length) {
+    const master = toFetch[idx++];
+    try {
+    const d = normalizeArrayResult(await cargarProduccionRealPorMaster(master), `Real ${master}`);
+    CACHE_PROD_REAL.set(master, d);
+    } catch {
+    CACHE_PROD_REAL.set(master, []);
+    }
+    }
+    }
+
+    await Promise.all(Array.from({ length: CONC }, worker));
+    }
+
+    async function prefetchVentaRealOnly(masters) {
+    const list = (masters || []).filter(Boolean);
+    const toFetch = list.filter(m => !CACHE_VENTA_REAL.has(m));
+    if (!toFetch.length) return;
+
+    const CONC = 6;
+    let idx = 0;
+
+    async function worker() {
+    while (idx < toFetch.length) {
+    const master = toFetch[idx++];
+    try {
+    const d = normalizeArrayResult(await cargarVentaRealPorMaster(master), `VentaReal ${master}`);
+    CACHE_VENTA_REAL.set(master, d);
+    } catch {
+    CACHE_VENTA_REAL.set(master, []);
+    }
+    }
+    }
+
+    await Promise.all(Array.from({ length: CONC }, worker));
+    }
+
+    async function loadClientesOptions() {
+    const masters = mastersScopeForLookups();
+    await prefetchPresOnly(masters);
+
+    const set = new Set();
+    for (const m of masters) {
+    for (const p of (CACHE_PRES.get(m) || [])) {
+    if (up(p.fuente) === 'GENERAL') {
+    const name = String(p.razonSocial || '').trim();
+    if (name) set.add(name);
+    }
+    }
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+    }
+
+    async function loadVendedoresOptions() {
+    const masters = mastersScopeForLookups();
+    await prefetchPresOnly(masters);
+
+    const set = new Set();
+    for (const m of masters) {
+    for (const p of (CACHE_PRES.get(m) || [])) {
+    if (up(p.fuente) === 'VENDEDOR') {
+    const name = String(p.razonSocial || '').trim();
+    if (name) set.add(name);
+    }
+    }
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+    }
+
+    async function loadCedisOptions() {
+    const masters = mastersScopeForLookups();
+    await prefetchPresOnly(masters);
+
+    const set = new Set();
+    for (const m of masters) {
+    for (const p of (CACHE_PRES.get(m) || [])) {
+    if (up(p.fuente) === 'CEDIS') {
+    const c = String(p.canalVta || '').trim();
+    const rs = String(p.razonSocial || '').trim();
+    if (c) set.add(c);
+    else if (rs) set.add(rs);
+    }
+    }
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+    }
+
+    async function prefetchForMasters(masters) {
+    const list = (masters || []).filter(Boolean);
+    const toFetch = list.filter(m => !(CACHE_PRES.has(m) && CACHE_PROD.has(m)));
+    if (!toFetch.length) return;
+
+    const CONC = 6;
+    let idx = 0;
+
+    async function worker() {
+    while (idx < toFetch.length) {
+    const master = toFetch[idx++];
+    const tasks = [];
+
+    if (!CACHE_PRES.has(master)) {
+    tasks.push(
+    Promise.resolve()
+    .then(() => cargarPresupuestosPorMaster(master))
+    .then(d => CACHE_PRES.set(master, normalizeArrayResult(d, `Pres ${master}`)))
+    .catch(() => CACHE_PRES.set(master, []))
+    );
+    }
+
+    if (!CACHE_PROD.has(master)) {
+    tasks.push(
+    Promise.resolve()
+    .then(() => cargarProduccionPorMaster(master))
+    .then(d => CACHE_PROD.set(master, normalizeArrayResult(d, `Plan ${master}`)))
+    .catch(() => CACHE_PROD.set(master, []))
+    );
+    }
+
+    await Promise.allSettled(tasks);
+    }
+    }
+
+    await Promise.all(Array.from({ length: CONC }, worker));
+    }
+
+    async function loadSkuOptions() {
+    const masters = mastersScopeForLookups();
+    await prefetchForMasters(masters);
+    await prefetchRealOnly(masters);
+
+    const map = new Map();
+
+    const add = (sku, name) => {
+    const s = up(String(sku || '').trim());
+    if (!s) return;
+    const n = String(name || '').trim();
+    const prev = map.get(s) || '';
+    if (!prev && n) map.set(s, n);
+    else if (!prev) map.set(s, '');
+    };
+
+    for (const m of masters) {
+    for (const p of (CACHE_PRES.get(m) || [])) add(p.productoCodigo, p.productoNombre);
+    for (const pr of (CACHE_PROD.get(m) || [])) add(pr.productoCodigo, pr.productoNombre);
+    for (const rr of (CACHE_PROD_REAL.get(m) || [])) add(realSku(rr), realName(rr));
+    }
+
+    return Array.from(map.entries())
+    .map(([sku, name]) => ({ sku, name }))
+    .sort((a, b) => a.sku.localeCompare(b.sku));
+    }
+
+    // =======================
+    // Filtros globales
+    // =======================
+    function getFilterState() {
+    const elFuente = getEl('fFuente');
+    const elCliente = getEl('fCliente');
+    const elVendedor = getEl('fVendedor');
+    const elCedis = getEl('fCedis');
+    const elMaster = getEl('fMaster');
+    const elSku = getEl('fSku');
+    const elClasificacion = getEl('fClasificacion');
+
+    const fuente = up(elFuente?.value || 'TODOS');
+
+    const clienteRaw = String(elCliente?.value || '').trim();
+    const vendedorRaw = String(elVendedor?.value || '').trim();
+    const cedisRaw = String(elCedis?.value || '').trim();
+
+    const masterRaw = String(elMaster?.value || '').trim();
+    const masters = masterRaw ? masterRaw.split(',').map(x => up(x.trim())).filter(Boolean) : [];
+
+    const skuRaw = String(elSku?.value || '').trim();
+    const clasificacionRaw = String(elClasificacion?.value || '').trim();
+    const clasificaciones = clasificacionRaw ? clasificacionRaw.split(',').map(x => up(x.trim())).filter(Boolean) : [];
+
+    const clientes = clienteRaw ? clienteRaw.split(',').map(x => x.trim()).filter(Boolean) : [];
+    const vendedores = vendedorRaw ? vendedorRaw.split(',').map(x => x.trim()).filter(Boolean) : [];
+    const cedisList = cedisRaw ? cedisRaw.split(',').map(x => x.trim()).filter(Boolean) : [];
+    const skus = skuRaw ? skuRaw.split(',').map(x => up(x.trim())).filter(Boolean) : [];
+
+    return { fuente, clientes, vendedores, cedisList, masterRaw, masters, skuRaw, skus, clasificacionRaw, clasificaciones };
+    }
+
+    function isAnyFilterActive(state) {
+    if (!state) return false;
+    return (
+    (state.fuente && state.fuente !== 'TODOS') ||
+    (state.clientes && state.clientes.length) ||
+    (state.vendedores && state.vendedores.length) ||
+    (state.cedisList && state.cedisList.length) ||
+    (state.masters && state.masters.length) ||
+    (state.skus && state.skus.length) ||
+    (state.clasificaciones && state.clasificaciones.length)
+    );
+    }
+
+    function filtrarPresupuesto(list, state) {
+    let data = [...(list || [])];
+
+    const hasClas = list.some(x =>
+    x.clasificacionId != null || x.ClasificacionId != null ||
+    x.clasificacionNombre != null || x.ClasificacionNombre != null
+    );
+
+    if (state.clasificaciones && state.clasificaciones.length && hasClas) {
+    const setClas = new Set(state.clasificaciones.map(up));
+    data = data.filter(x => {
+    const id = up(String(x.clasificacionId ?? x.ClasificacionId ?? '').trim());
+    const nombre = up(String(x.clasificacionNombre ?? x.ClasificacionNombre ?? '').trim());
+    return setClas.has(id) || setClas.has(nombre);
+    });
+    }
+
+    if (state.skus && state.skus.length) {
+    const setSku = new Set(state.skus.map(up));
+    data = data.filter(x => setSku.has(up(String(x.productoCodigo ?? '').trim())));
+    }
+
+    if (state.fuente && state.fuente !== 'TODOS') {
+    data = data.filter(x => up(x.fuente) === state.fuente);
+    } else {
+    if (state.clientes?.length) data = data.filter(x => up(x.fuente) === 'GENERAL');
+    if (state.vendedores?.length) data = data.filter(x => up(x.fuente) === 'VENDEDOR');
+    if (state.cedisList?.length) data = data.filter(x => up(x.fuente) === 'CEDIS');
+    }
+
+    if (state.clientes && state.clientes.length) {
+    const setCli = new Set(state.clientes.map(up));
+    data = data.filter(x => setCli.has(up(String(x.razonSocial ?? '').trim())));
+    }
+
+    if (state.vendedores && state.vendedores.length) {
+    const setVen = new Set(state.vendedores.map(up));
+    data = data.filter(x => setVen.has(up(String(x.razonSocial ?? '').trim())));
+    }
+
+    if (state.cedisList && state.cedisList.length) {
+    const setC = new Set(state.cedisList.map(up));
+    data = data.filter(x => {
+    const c = up(String(x.canalVta ?? '').trim());
+    const rs = up(String(x.razonSocial ?? '').trim());
+    return setC.has(c) || setC.has(rs);
+    });
+    }
+
+    return data;
+    }
+
+    function filtrarProduccion(list, state) {
+    let data = [...(list || [])];
+
+    if (state.clasificaciones && state.clasificaciones.length) {
+    const setClas = new Set(state.clasificaciones.map(up));
+    data = data.filter(x => {
+    const id = up(String(x.clasificacionId ?? x.ClasificacionId ?? '').trim());
+    const nombre = up(String(x.clasificacionNombre ?? x.ClasificacionNombre ?? '').trim());
+    return setClas.has(id) || setClas.has(nombre);
+    });
+    }
+
+    if (state.skus && state.skus.length) {
+    const setSku = new Set(state.skus.map(up));
+    data = data.filter(x => setSku.has(up(String(x.productoCodigo ?? '').trim())));
+    }
+
+    return data;
+    }
+
+    function filtrarProduccionReal(list, state) {
+    let data = [...(list || [])];
+
+    if (state.clasificaciones && state.clasificaciones.length) {
+    const setClas = new Set(state.clasificaciones.map(up));
+    data = data.filter(x => {
+    const id = up(String(x.clasificacionId ?? x.ClasificacionId ?? '').trim());
+    const nombre = up(String(x.clasificacionNombre ?? x.ClasificacionNombre ?? '').trim());
+    return setClas.has(id) || setClas.has(nombre);
+    });
+    }
+
+    if (state.skus && state.skus.length) {
+    const setSku = new Set(state.skus.map(up));
+    data = data.filter(x => setSku.has(up(realSku(x))));
+    }
+
+    return data;
+    }
+
+    function filtrarVentaReal(list, state) {
+    let data = [...(list || [])];
+
+    if (state.clasificaciones && state.clasificaciones.length) {
+    const setClas = new Set(state.clasificaciones.map(up));
+    data = data.filter(x => {
+    const id = up(String(x.clasificacionId ?? x.ClasificacionId ?? '').trim());
+    const nombre = up(String(x.clasificacionNombre ?? x.ClasificacionNombre ?? '').trim());
+    return setClas.has(id) || setClas.has(nombre);
+    });
+    }
+
+    if (state.skus && state.skus.length) {
+    const setSku = new Set(state.skus.map(up));
+    data = data.filter(x => setSku.has(up(ventaSku(x))));
+    }
+
+    const pick = (obj, names) => {
+    for (const n of names) {
+    const v = obj?.[n];
+    if (v != null) {
+    const s = String(v).trim();
+    if (s) return s;
+    }
+    }
+    return '';
+    };
+
+    const fCliente  = ['razonSocial','RazonSocial','cliente','Cliente','cardName','CardName','nombreCliente','NombreCliente'];
+    const fVendedor = ['vendedor','Vendedor','nombreVendedor','NombreVendedor','asesor','Asesor','slpName','SlpName','salesPerson','SalesPerson'];
+    const fCedis    = ['cedis','Cedis','canalVta','CanalVta','almacen','Almacen','warehouse','Warehouse','sucursal','Sucursal'];
+
+    const sample = data.slice(0, 30);
+    const hasCliente  = sample.some(x => pick(x, fCliente));
+    const hasVendedor = sample.some(x => pick(x, fVendedor));
+    const hasCedis    = sample.some(x => pick(x, fCedis));
+
+    if (state.clientes && state.clientes.length) {
+    if (!hasCliente) console.warn('[VentaReal] No hay campos de CLIENTE en la data. Se omite filtro por cliente.');
+    else {
+    const setCli = new Set(state.clientes.map(up));
+    data = data.filter(x => setCli.has(up(pick(x, fCliente))));
+    }
+    }
+
+    if (state.vendedores && state.vendedores.length) {
+    if (!hasVendedor) console.warn('[VentaReal] No hay campos de VENDEDOR en la data. Se omite filtro por vendedor.');
+    else {
+    const setVen = new Set(state.vendedores.map(up));
+    data = data.filter(x => setVen.has(up(pick(x, fVendedor))));
+    }
+    }
+
+    if (state.cedisList && state.cedisList.length) {
+    if (!hasCedis && !hasCliente) console.warn('[VentaReal] No hay campos de CEDIS/CLIENTE en la data. Se omite filtro por cedis.');
+    else {
+    const setC = new Set(state.cedisList.map(up));
+    data = data.filter(x => {
+    const c = up(pick(x, fCedis));
+    const rs = up(pick(x, fCliente));
+    return setC.has(c) || setC.has(rs);
+    });
+    }
+    }
+
+    return data;
+    }
+
+    // =======================
+    // KPIs
+    // =======================
+
+    function updateBalanceGapKpiClass(totalGap) {
+    const card = document.querySelector('.bm-kpi-gap');
+    if (!card) return;
+
+    const value = Number(totalGap || 0);
+    card.classList.remove('bm-kpi-gap-ok', 'bm-kpi-gap-bad', 'bm-kpi-gap-neutral');
+
+    if (value < 0) {
+    card.classList.add('bm-kpi-gap-bad');
+    } else if (value > 0) {
+    card.classList.add('bm-kpi-gap-ok');
+    } else {
+    card.classList.add('bm-kpi-gap-neutral');
+    }
+    }
+
+    function setKpis({ TotalProd, TotalProdReal, TotalInv, TotalInvIdeal, TotalDisp, TotalVenta, TotalVentaReal, TotalGap, TotalPorcentaje }) {
+    const el = (id) => document.getElementById(id);
+
+    if (el('tProd')) el('tProd').textContent = fmt(TotalProd);
+    if (el('tProdReal')) el('tProdReal').textContent = fmt(TotalProdReal);
+
+    if (el('tInv')) el('tInv').textContent = fmt(TotalInv);
+    if (el('tInvIdeal')) el('tInvIdeal').textContent = fmt(TotalInvIdeal);
+    if (el('tDisp')) el('tDisp').textContent = fmt(TotalDisp);
+
+    if (el('tVenta')) el('tVenta').textContent = fmt(TotalVenta);
+    if (el('tVentaReal')) el('tVentaReal').textContent = fmt(TotalVentaReal);
+
+    if (el('tGap')) el('tGap').textContent = fmt(TotalGap);
+    updateBalanceGapKpiClass(TotalGap);
+    if (el('tPorcentaje')) el('tPorcentaje').textContent = String(TotalPorcentaje ?? 0);
+    }
+
+    function computeTotalsFromMasterRows(rows) {
+    const data = rows || [];
+    return {
+    TotalProd: data.reduce((a, b) => a + Number(b.planProduccion || 0), 0),
+    TotalProdReal: data.reduce((a, b) => a + Number(b.produccionReal || b.realTotalMaster || 0), 0),
+    TotalInv: data.reduce((a, b) => a + Number(b.inventario || 0), 0),
+    TotalInvIdeal: data.reduce((a, b) => a + Number(b.invIdeal || 0), 0),
+    TotalDisp: data.reduce((a, b) => a + Number(b.disponible || 0), 0),
+    TotalVenta: data.reduce((a, b) => a + Number(b.presupuesto || 0), 0),
+    TotalVentaReal: data.reduce((a, b) => a + Number(b.ventaReal || b.ventaRealTotalMaster || 0), 0),
+    TotalGap: data.reduce((a, b) => {
+    const pr = Number(b.produccionReal ?? b.realTotalMaster ?? 0);
+    const disp = Number(b.disponible ?? 0);
+    const vr = Number(b.ventaReal ?? b.ventaRealTotalMaster ?? 0);
+    return a + calcGapProjected(pr, disp, vr);
+    }, 0),
+    TotalPorcentaje: (data.length ? (data.reduce((a, b) => a + Number(b.porcentaje || 0), 0) / data.length) : 0).toFixed(0)
+    };
+    }
+
+    function applyMasterRowVisibility(matchSet) {
+    const rows = Array.from(document.querySelectorAll('tr.master-row[data-master]'));
+    rows.forEach(tr => {
+    const m = tr.getAttribute('data-master');
+    const show = !matchSet || (m && matchSet.has(m));
+    tr.style.display = show ? '' : 'none';
+
+    const nxt = tr.nextElementSibling;
+    if (!show && nxt && nxt.classList.contains('detail-row')) nxt.remove();
+    });
+    }
+
+    let KPI_REAL_TIMER = null;
+    function scheduleKpiRecalcFromCurrentState() {
+    if (KPI_REAL_TIMER) clearTimeout(KPI_REAL_TIMER);
+    KPI_REAL_TIMER = setTimeout(() => {
+    try {
+    const state = getFilterState();
+    if (!isAnyFilterActive(state)) {
+    setKpis(computeTotalsFromMasterRows(MASTER_DATA));
+    } else {
+    applyGlobalFiltersAndKpis().catch(console.error);
+    }
+    } catch (e) {
+    console.error(e);
+    }
+    }, 200);
+    }
+
+    // =======================
+    // Aplicar filtros globales
+    // =======================
+    let FILTER_TIMER = null;
+    let FILTER_RUN_ID = 0;
+
+    function updateOpenDetailAndModalFast() {
+    if (LAST_OPEN_MASTER) {
+    const row = document.querySelector(`tr.master-row[data-master="${LAST_OPEN_MASTER}"]`);
+    const btn = row?.querySelector('.expander-btn');
+    const expanded = btn?.getAttribute('aria-expanded') === 'true';
+    if (expanded) {
+    const idSuffix = safeId(LAST_OPEN_MASTER);
+    const pres = CACHE_PRES.get(LAST_OPEN_MASTER) || [];
+    const prod = CACHE_PROD.get(LAST_OPEN_MASTER) || [];
+    const real = CACHE_PROD_REAL.get(LAST_OPEN_MASTER) || [];
+    const venta = CACHE_VENTA_REAL.get(LAST_OPEN_MASTER) || [];
+    const inv = CACHE_INV_SKU.get(LAST_OPEN_MASTER) || [];
+    renderDetalleConData(LAST_OPEN_MASTER, idSuffix, pres, prod, real, venta, inv);
+    }
+    }
+
+    const presModal = document.getElementById('presupuestoModal');
+    if (presModal && presModal.classList.contains('show')) {
+    const state = getFilterState();
+    const filtered = filtrarPresupuesto(PRES_MODAL_RAW, state);
+    renderPresupuestoTable(filtered);
+    }
+    }
+
+    function scheduleApplyFilters() {
+    updateOpenDetailAndModalFast();
+
+    if (FILTER_TIMER) clearTimeout(FILTER_TIMER);
+    FILTER_TIMER = setTimeout(() => {
+    applyGlobalFiltersAndKpis().catch(console.error);
+    }, 250);
+    }
+
+    async function applyGlobalFiltersAndKpis() {
+    const runId = ++FILTER_RUN_ID;
+
+    const state = getFilterState();
+    const active = isAnyFilterActive(state);
+
+    if (!MASTER_DATA.length) return;
+
+    if (!active) {
+    applyMasterRowVisibility(null);
+    restoreAllMasterRowsToBase();
+    setKpis(computeTotalsFromMasterRows(MASTER_DATA));
+    return;
+    }
+
+    const presupuestoFiltersActive = presupuestoFiltersActiveFromState(state);
+    const skuActive = (state.skus && state.skus.length > 0);
+    const masterActive = (state.masters && state.masters.length > 0);
+    const clasificacionActive = (state.clasificaciones && state.clasificaciones.length > 0);
+
+    const mastersAll = MASTER_DATA.map(x => String(x.u_MASTER ?? '').trim() || 'SIN MASTER');
+    const masters = masterActive
+    ? mastersAll.filter(m => state.masters.includes(up(m)))
+    : mastersAll;
+
+    if (masterActive && !presupuestoFiltersActive && !skuActive && !clasificacionActive) {
+    const matchSetOnlyMaster = new Set(masters);
+    applyMasterRowVisibility(matchSetOnlyMaster);
+
+    const visibleRows = MASTER_DATA.filter(x => matchSetOnlyMaster.has(x.u_MASTER));
+    setKpis(computeTotalsFromMasterRows(visibleRows));
+
+    if (LAST_OPEN_MASTER && !matchSetOnlyMaster.has(LAST_OPEN_MASTER)) {
+    closeAllDetails();
+    LAST_OPEN_MASTER = null;
+    }
+    return;
+    }
+
+    await prefetchForMasters(masters);
+
+    if (skuActive || presupuestoFiltersActive || clasificacionActive) {
+    await prefetchRealOnly(masters);
+    await prefetchVentaRealOnly(masters);
+    }
+
+    if (runId !== FILTER_RUN_ID) return;
+
+    const matchSet = new Set();
+
+    let totalVenta = 0;
+    let totalVentaReal = 0;
+    let totalProdSku = 0;
+    let totalProdRealSku = 0;
+    let totalProdReal = 0;
+    let totalInv = 0;
+    let totalInvIdeal = 0;
+    let totalDisp = 0;
+    let sumPor = 0;
+    let countPor = 0;
+    let totalGap = 0;
+
+    for (const m of MASTER_DATA) {
+    // const master = m.u_MASTER;
+    // if (!master) continue; bloqueo de sin master
+
+    const master = String(m.u_MASTER ?? '').trim() || 'SIN MASTER';
+
+
+    if (masterActive && !state.masters.includes(up(master))) continue;
+
+    const presAll = CACHE_PRES.get(master) || [];
+    const prodAll = CACHE_PROD.get(master) || [];
+    const realAll = CACHE_PROD_REAL.get(master) || [];
+    const ventaRealAll = CACHE_VENTA_REAL.get(master) || [];
+
+    const presF = filtrarPresupuesto(presAll, state);
+    const prodF = filtrarProduccion(prodAll, state);
+    let realF = filtrarProduccionReal(realAll, state);
+    let ventaRealF = filtrarVentaReal(ventaRealAll, state);
+
+    if (!skuActive) {
+    let skuSet = null;
+
+    if (clasificacionActive) {
+    skuSet = skuSetFromSources(presF, prodF, realF, ventaRealF);
+    } else if (presupuestoFiltersActive) {
+    skuSet = skuSetFromPresupuesto(presF);
+    }
+
+    if (skuSet && skuSet.size) {
+    realF = filtrarRealPorSkuSet(realF, skuSet, realSku);
+    // ventaRealF = filtrarRealPorSkuSet(ventaRealF, skuSet, ventaSku);
+    }
+    }
+
+    let match = false;
+    if (clasificacionActive || skuActive || presupuestoFiltersActive) {
+    match =
+    presF.length > 0 ||
+    prodF.length > 0 ||
+    realF.length > 0;
+    } else {
+    match = true;
+    }
+
+    if (!match) continue;
+
+    matchSet.add(master);
+
+    totalInv += Number(m.inventario || 0);
+    totalInvIdeal += Number(m.invIdeal || 0);
+    totalDisp += Number(m.disponible || 0);
+
+    const ventaMaster = presF.reduce((a, x) => a + Number(x.presupuesto || 0), 0);
+    totalVenta += ventaMaster;
+
+    const ventaRealMaster = sumKgVentaReal(ventaRealF);
+    totalVentaReal += ventaRealMaster;
+
+    const porMaster = (ventaMaster > 0)
+    ? (Number(m.disponible || 0) / ventaMaster) * 100
+    : 0;
+
+    let planMaster = Number(m.planProduccion || 0);
+    let realMaster = Number(m.realTotalMaster ?? m.produccionReal ?? 0);
+
+    if (skuActive || clasificacionActive) {
+    planMaster = prodF.reduce((a, x) => a + Number(x.plan || 0), 0);
+    realMaster = sumKgReal(realF);
+
+    totalProdSku += planMaster;
+    totalProdRealSku += realMaster;
+    } else {
+    totalProdReal += realMaster;
+    }
+
+    const gapMaster = calcGapProjected(realMaster, Number(m.disponible || 0), ventaRealMaster);
+    totalGap += gapMaster;
+
+    updateMasterRowCells(master, {
+    plan: (skuActive || clasificacionActive) ? planMaster : null,
+    real: realMaster,
+    venta: ventaMaster,
+    ventaReal: ventaRealMaster,
+    gap: gapMaster,
+    porcentaje: porMaster
+    });
+
+    sumPor += porMaster;
+    countPor += 1;
+    }
+
+    const totalProd = (skuActive || clasificacionActive)
+    ? totalProdSku
+    : MASTER_DATA.reduce((a, x) => a + (matchSet.has(x.u_MASTER) ? Number(x.planProduccion || 0) : 0), 0);
+
+    const totalPorcentaje = countPor ? (sumPor / countPor).toFixed(0) : 0;
+
+    applyMasterRowVisibility(matchSet);
+
+    if (LAST_OPEN_MASTER && !matchSet.has(LAST_OPEN_MASTER)) {
+    closeAllDetails();
+    LAST_OPEN_MASTER = null;
+    }
+
+    setKpis({
+    TotalProd: totalProd,
+    TotalProdReal: (skuActive || clasificacionActive) ? totalProdRealSku : totalProdReal,
+    TotalInv: totalInv,
+    TotalInvIdeal: totalInvIdeal,
+    TotalDisp: totalDisp,
+    TotalVenta: totalVenta,
+    TotalVentaReal: totalVentaReal,
+    TotalGap: totalGap,
+    TotalPorcentaje: totalPorcentaje
+    });
+    }
+
+    // =======================
+    // Render tabla master
+    // =======================
+    function renderMasterRow(r) {
+    const gapVal = calcGapProjected(r.produccionReal ?? 0, r.disponible ?? 0, r.ventaReal ?? 0);
+    const gapHtml = `<span class="${gapVal < 0 ? 'badge-neg' : 'badge-pos'}">${fmt(gapVal)}</span>`;
+    const realCell = (r.produccionReal == null) ? '—' : fmt(r.produccionReal);
+    const ventaRealCell = (r.ventaReal == null) ? '—' : fmt(r.ventaReal);
+
+    const tendProdHtml = (r.produccionReal == null) ? '—' : renderTrendCellProjectedOnly(r.produccionReal);
+    const tendVentaHtml = (r.ventaReal == null) ? '—' : renderTrendCellProjectedOnly(r.ventaReal);
+
+    return `
+    <tr class="master-row" data-master="${r.u_MASTER}" data-inventario="${Number(r.inventario ?? 0)}" data-disponible="${Number(r.disponible ?? 0)}">
+    <td class="text-center" style="width:40px;">
+    <button class="expander-btn btn btn-sm btn-outline-secondary" aria-expanded="false" title="Ver detalle">
+    <i class="bi bi-chevron-right"></i>
+    </button>
+    </td>
+
+    <td>${r.u_MASTER}</td>
+    <td class="number">${fmt(r.planProduccion)}</td>
+    <td class="number">${realCell}</td>
+    <td class="number">${tendProdHtml}</td>
+    <td class="number">${fmt(r.inventario)}</td>
+    <td class="number">${fmt(r.presupuesto)}</td>
+    <td class="number">${ventaRealCell}</td>
+    <td class="number">${tendVentaHtml}</td>
+    <td class="number">${gapHtml}</td>
+    </tr>`;
+    }
+
+    function renderDetailSkeleton(master, idSuffix) {
+    return `
+    <tr class="detail-row" data-master="${master}">
+    <td colspan="10" class="p-2">
+    <div class="border rounded p-2 detail-compact">
+    <div class="fw-semibold mb-2">Detalle</div>
+
+    <div class="table-responsive">
+    <table class="table table-sm table-bordered align-middle mb-0 detail-table">
+    <thead class="table-light">
+    <tr>
+    <th style="min-width:120px;">SKU</th>
+    <th>Producto</th>
+    <th class="text-end" style="min-width:120px;">Inventario</th>
+    <th class="text-end" style="min-width:120px;">Presupuesto</th>
+    <th class="text-end" style="min-width:120px;">Planeación</th>
+    <th class="text-end" style="min-width:140px;">Producción Real</th>
+    <th class="text-end" style="min-width:140px;">Venta Real</th>
+    <th class="text-end" style="min-width:120px;">Dif (Prod - Pres)</th>
+    <th style="min-width:210px;">Acciones</th>
+    </tr>
+    </thead>
+
+    <tbody id="tbody-sum-${idSuffix}">
+    <tr><td colspan="9" class="text-center text-muted">Cargando…</td></tr>
+    </tbody>
+
+    <tfoot class="table-light">
+    <tr>
+    <th colspan="2" class="text-end">Totales</th>
+    <th class="text-end" id="tot-inv-${idSuffix}">0</th>
+    <th class="text-end" id="tot-pres-${idSuffix}">0</th>
+    <th class="text-end" id="tot-prod-${idSuffix}">0</th>
+    <th class="text-end" id="tot-real-${idSuffix}">0</th>
+    <th class="text-end" id="tot-venta-${idSuffix}">0</th>
+    <th class="text-end" id="tot-dif-${idSuffix}">0</th>
+    <th></th>
+    </tr>
+    </tfoot>
+    </table>
+    </div>
+
+    <div class="small text-muted mt-2">* Sumatorias calculadas para el mes seleccionado.</div>
+    </div>
+    </td>
+    </tr>`;
+    }
+
+    function pintarTabla(rows) {
+    const tb = document.getElementById('tbodyExcedidos');
+    if (!tb) return;
+    tb.innerHTML = (rows || []).map(renderMasterRow).join('');
+    }
+
+    // =======================
+    // Detalle por SKU
+    // =======================
+    function renderDetalleConData(master, idSuffix, presList, prodList, realList, ventaList, invList = []) {
+    const state = getFilterState();
+
+    const pres = filtrarPresupuesto(presList, state);
+    const prod = filtrarProduccion(prodList, state);
+    let real = filtrarProduccionReal(realList, state);
+    let ventaReal = filtrarVentaReal(ventaList || [], state);
+
+    const presActive = presupuestoFiltersActiveFromState(state);
+    const skuActive = (state.skus && state.skus.length > 0);
+    const clasificacionActive = (state.clasificaciones && state.clasificaciones.length > 0);
+
+    if (!skuActive) {
+    let skuSet = null;
+
+    if (clasificacionActive) {
+    skuSet = skuSetFromSources(pres, prod, real, ventaReal);
+    } else if (presActive) {
+    skuSet = skuSetFromPresupuesto(pres);
+    }
+
+    if (skuSet && skuSet.size) {
+    real = filtrarRealPorSkuSet(real, skuSet, realSku);
+    ventaReal = filtrarRealPorSkuSet(ventaReal, skuSet, ventaSku);
+    }
+    }
+
+    const presBySku = groupSumBySku(pres, 'productoCodigo', 'productoNombre', 'presupuesto');
+    const prodBySku = groupSumBySku(prod, 'productoCodigo', 'productoNombre', 'plan');
+    const realBySku = groupSumRealBySku(real);
+    const ventaBySku = groupSumVentaRealBySku(ventaReal);
+    const invBySku = groupSumInventarioBySku(invList);
+
+    const presMap = new Map(presBySku.map(x => [x.sku, x]));
+    const prodMap = new Map(prodBySku.map(x => [x.sku, x]));
+    const realMap = new Map(realBySku.map(x => [x.sku, x]));
+    const ventaMap = new Map(ventaBySku.map(x => [x.sku, x]));
+    const invMap = new Map(invBySku.map(x => [x.sku, x]));
+
+    const allSkus = new Set([
+    ...presBySku.map(x => x.sku),
+    ...prodBySku.map(x => x.sku),
+    ...realBySku.map(x => x.sku),
+    ...ventaBySku.map(x => x.sku)
+    ]);
+
+    const invMapFiltrado = new Map(
+    Array.from(invMap.entries()).filter(([sku]) => allSkus.has(sku))
+    );
+
+    const rows = Array.from(allSkus).sort().map(sku => {
+    const p = presMap.get(sku)?.sum || 0;
+    const pl = prodMap.get(sku)?.sum || 0;
+    const r = realMap.get(sku)?.sum || 0;
+    const v = ventaMap.get(sku)?.sum || 0;
+    const inv = invMapFiltrado.get(sku)?.sum || 0;
+
+    const nombre =
+    presMap.get(sku)?.name ||
+    prodMap.get(sku)?.name ||
+    realMap.get(sku)?.name ||
+    ventaMap.get(sku)?.name ||
+    invMap.get(sku)?.name ||
+    '';
+
+    const gap = calcGapProjectedByInv(r, inv, v);
+
+    const btnPres = permisosBalance.presupuesto.puedeLeer
+    ? `<button type="button"
+    class="btn btn-sm btn-outline-danger btn-pres-sku"
+    data-master="${escHtml(master)}"
+    data-sku="${escHtml(sku)}">
+    Presupuesto
+    </button>`
+    : '';
+
+    const btnPlan = permisosBalance.produccion.puedeLeer
+    ? `<button type="button"
+    class="btn btn-sm btn-outline-primary btn-plan-sku"
+    data-master="${escHtml(master)}"
+    data-sku="${escHtml(sku)}">
+    Producción
+    </button>`
+    : '';
+
+    return `
+    <tr>
+    <td>${escHtml(sku)}</td>
+    <td>${escHtml(nombre)}</td>
+    <td class="text-end">${fmt(inv)}</td>
+    <td class="text-end">${fmt(p)}</td>
+    <td class="text-end">${fmt(pl)}</td>
+    <td class="text-end">${fmt(r)}</td>
+    <td class="text-end">${fmt(v)}</td>
+    <td class="text-end">
+    <span class="${gap < 0 ? 'badge-neg' : 'badge-pos'}">${fmt(gap)}</span>
+    </td>
+    <td>
+    <div class="d-flex gap-1 flex-wrap">
+    ${btnPres}
+    ${btnPlan}
+    </div>
+    </td>
+    </tr>`;
+    }).join('');
+
+    const tbody = document.getElementById(`tbody-sum-${idSuffix}`);
+    if (tbody) {
+    tbody.innerHTML = rows || `<tr><td colspan="9" class="text-center text-muted">Sin datos</td></tr>`;
+    }
+
+    const totInv = Array.from(allSkus).reduce((a, sku) => a + (invMapFiltrado.get(sku)?.sum || 0), 0);
+    const totPres = Array.from(allSkus).reduce((a, sku) => a + (presMap.get(sku)?.sum || 0), 0);
+    const totProd = Array.from(allSkus).reduce((a, sku) => a + (prodMap.get(sku)?.sum || 0), 0);
+    const totReal = Array.from(allSkus).reduce((a, sku) => a + (realMap.get(sku)?.sum || 0), 0);
+    const totVenta = Array.from(allSkus).reduce((a, sku) => a + (ventaMap.get(sku)?.sum || 0), 0);
+
+    const totDif = Array.from(allSkus).reduce((a, sku) => {
+    const inv = invMapFiltrado.get(sku)?.sum || 0;
+    const r = realMap.get(sku)?.sum || 0;
+    const v = ventaMap.get(sku)?.sum || 0;
+    return a + calcGapProjectedByInv(r, inv, v);
+    }, 0);
+
+    document.getElementById(`tot-inv-${idSuffix}`)?.replaceChildren(document.createTextNode(fmt(totInv)));
+    document.getElementById(`tot-pres-${idSuffix}`)?.replaceChildren(document.createTextNode(fmt(totPres)));
+    document.getElementById(`tot-prod-${idSuffix}`)?.replaceChildren(document.createTextNode(fmt(totProd)));
+    document.getElementById(`tot-real-${idSuffix}`)?.replaceChildren(document.createTextNode(fmt(totReal)));
+    document.getElementById(`tot-venta-${idSuffix}`)?.replaceChildren(document.createTextNode(fmt(totVenta)));
+    document.getElementById(`tot-dif-${idSuffix}`)?.replaceChildren(document.createTextNode(fmt(totDif)));
+    }
+
+    // =======================
+    // Expandir detalle
+    // =======================
+    async function toggleDetalle(row) {
+    const btn = row.querySelector('.expander-btn');
+    const master = row.getAttribute('data-master');
+    const idSuffix = safeId(master);
+    const expanded = btn.getAttribute('aria-expanded') === 'true';
+
+    const existing = row.nextElementSibling;
+    if (expanded && existing && existing.classList.contains('detail-row')) {
+    existing.remove();
+    btn.setAttribute('aria-expanded', 'false');
+    return;
+    }
+
+    closeAllDetails();
+    row.insertAdjacentHTML('afterend', renderDetailSkeleton(master, idSuffix));
+    btn.setAttribute('aria-expanded', 'true');
+    LAST_OPEN_MASTER = master;
+
+    try {
+    const r = await Promise.allSettled([
+    CACHE_PRES.has(master) ? CACHE_PRES.get(master) : cargarPresupuestosPorMaster(master),
+    CACHE_PROD.has(master) ? CACHE_PROD.get(master) : cargarProduccionPorMaster(master),
+    CACHE_PROD_REAL.has(master) ? CACHE_PROD_REAL.get(master) : cargarProduccionRealPorMaster(master),
+    CACHE_VENTA_REAL.has(master) ? CACHE_VENTA_REAL.get(master) : cargarVentaRealPorMaster(master),
+    CACHE_INV_SKU.has(master) ? CACHE_INV_SKU.get(master) : cargarInventarioPorMaster(master)
+    ]);
+
+    const pres  = normalizeArrayResult((r[0].status === 'fulfilled' ? r[0].value : []), `Pres(det) ${master}`);
+    const prod  = normalizeArrayResult((r[1].status === 'fulfilled' ? r[1].value : []), `Plan(det) ${master}`);
+    const real  = normalizeArrayResult((r[2].status === 'fulfilled' ? r[2].value : []), `Real(det) ${master}`);
+    const venta = normalizeArrayResult((r[3].status === 'fulfilled' ? r[3].value : []), `Venta(det) ${master}`);
+    const inv   = normalizeArrayResult((r[4].status === 'fulfilled' ? r[4].value : []), `Inv(det) ${master}`);
+
+    CACHE_PRES.set(master, pres);
+    CACHE_PROD.set(master, prod);
+    CACHE_PROD_REAL.set(master, real);
+    CACHE_VENTA_REAL.set(master, venta);
+    CACHE_INV_SKU.set(master, inv);
+
+    renderDetalleConData(master, idSuffix, pres, prod, real, venta, inv);
+
+    if (r.some(x => x.status === 'rejected')) {
+    const tb = document.getElementById(`tbody-sum-${idSuffix}`);
+    if (tb) {
+    tb.insertAdjacentHTML('afterbegin', `
+    <tr>
+    <td colspan="9" class="text-center text-warning small">
+    Advertencia: una de las fuentes no respondió. Revisa Network/Console.
+    </td>
+    </tr>`);
+    }
+    }
+    } catch (err) {
+    console.error(err);
+    const tb = document.getElementById(`tbody-sum-${idSuffix}`);
+    if (tb) tb.innerHTML = `<tr><td colspan="9" class="text-danger text-center">Error al cargar el detalle.</td></tr>`;
+    }
+    }
+
+    // =======================
+    // Producción real principal
+    // =======================
+    async function fillProduccionRealForMasters(masters) {
+    const list = (masters || []).filter(Boolean);
+    if (!list.length) return;
+
+    const CONC = 6;
+    let idx = 0;
+
+    const updateRowCell = (master, totalReal) => {
+    const rowObj = MASTER_DATA.find(x => String(x.u_MASTER ?? '').trim() === String(master ?? '').trim());
+    if (rowObj) {
+    rowObj.produccionReal = Number(totalReal || 0);
+    rowObj.realTotalMaster = Number(totalReal || 0);
+    }
+
+    if (BASE_MASTER_VIEW.has(master)) {
+    const b = BASE_MASTER_VIEW.get(master);
+    b.produccionReal = Number(totalReal || 0);
+    BASE_MASTER_VIEW.set(master, b);
+    }
+
+    const tr = document.querySelector(`tr.master-row[data-master="${master}"]`);
+    if (tr) {
+    const tds = tr.querySelectorAll('td');
+
+    if (tds[3]) tds[3].textContent = fmt(totalReal || 0);
+    if (tds[4]) tds[4].innerHTML = renderTrendCellProjectedOnly(Number(totalReal || 0));
+
+    if (tds[9]) {
+    const disp = Number(tr.getAttribute('data-disponible') ?? rowObj?.disponible ?? 0);
+    const vr = Number(rowObj?.ventaReal ?? 0);
+    const gapNow = calcGapProjected(Number(totalReal ?? 0), disp, vr);
+    tds[9].innerHTML = `<span class="${gapNow < 0 ? 'badge-neg' : 'badge-pos'}">${fmt(gapNow)}</span>`;
+    }
+    }
+
+    if (LAST_OPEN_MASTER && LAST_OPEN_MASTER === master) {
+    const row = document.querySelector(`tr.master-row[data-master="${master}"]`);
+    const btn = row?.querySelector('.expander-btn');
+    const expanded = btn?.getAttribute('aria-expanded') === 'true';
+    if (expanded) {
+    const idSuffix = safeId(master);
+    renderDetalleConData(
+    master,
+    idSuffix,
+    CACHE_PRES.get(master) || [],
+    CACHE_PROD.get(master) || [],
+    CACHE_PROD_REAL.get(master) || [],
+    CACHE_VENTA_REAL.get(master) || [],
+    CACHE_INV_SKU.get(master) || []
+    );
+    }
+    }
+
+    scheduleKpiRecalcFromCurrentState();
+    };
+
+    async function worker() {
+    while (idx < list.length) {
+    const master = list[idx++];
+    try {
+    const data = CACHE_PROD_REAL.has(master) ? CACHE_PROD_REAL.get(master) : await cargarProduccionRealPorMaster(master);
+    const arr = normalizeArrayResult(data, `Real ${master}`);
+    CACHE_PROD_REAL.set(master, arr);
+    updateRowCell(master, sumKgReal(arr));
+    } catch (e) {
+    console.warn(`Real ${master} fallo:`, e);
+    CACHE_PROD_REAL.set(master, []);
+    updateRowCell(master, 0);
+    }
+    }
+    }
+
+    await Promise.all(Array.from({ length: CONC }, worker));
+    scheduleKpiRecalcFromCurrentState();
+    }
+
+    // =======================
+    // Venta real en tabla principal
+    // =======================
+    async function fillVentaRealForMasters(masters) {
+      const list = (masters || []).filter(Boolean);
+      if (!list.length) return;
+
+      const CONC = 6;
+      let idx = 0;
+
+      const updateRowCell = (master, totalVentaReal) => {
+        const rowObj = MASTER_DATA.find(x => String(x.u_MASTER ?? '').trim() === String(master ?? '').trim());
+        if (rowObj) {
+          rowObj.ventaReal = Number(totalVentaReal || 0);
+          rowObj.ventaRealTotalMaster = Number(totalVentaReal || 0);
+        }
+
+        if (BASE_MASTER_VIEW.has(master)) {
+          const b = BASE_MASTER_VIEW.get(master);
+          b.ventaReal = Number(totalVentaReal || 0);
+          BASE_MASTER_VIEW.set(master, b);
+        }
+
+           const tr = document.querySelector(`tr.master-row[data-master="${master}"]`);
+    if (tr) {
+      const tds = tr.querySelectorAll('td');
+
+      if (tds[7]) tds[7].textContent = fmt(totalVentaReal || 0);
+      if (tds[8]) tds[8].innerHTML = renderTrendCellProjectedOnly(Number(totalVentaReal || 0));
+
+      // ✅ GAP dentro del if(tr)
+      if (tds[9]) {
+        const disp = Number(tr.getAttribute('data-disponible') ?? rowObj?.disponible ?? 0);
+        const pr = Number(rowObj?.produccionReal ?? 0);
+        const gapNow = calcGapProjected(pr, disp, Number(totalVentaReal ?? 0));
+        tds[9].innerHTML = `<span class="${gapNow < 0 ? 'badge-neg' : 'badge-pos'}">${fmt(gapNow)}</span>`;
+      }
+    }
+
+
+        // refrescar detalle si abierto
+        if (LAST_OPEN_MASTER && LAST_OPEN_MASTER === master) {
+          const row = document.querySelector(`tr.master-row[data-master="${master}"]`);
+          const btn = row?.querySelector('.expander-btn');
+          const expanded = btn?.getAttribute('aria-expanded') === 'true';
+          if (expanded) {
+            const idSuffix = safeId(master);
+            renderDetalleConData(
+              master,
+              idSuffix,
+              CACHE_PRES.get(master) || [],
+              CACHE_PROD.get(master) || [],
+              CACHE_PROD_REAL.get(master) || [],
+              CACHE_VENTA_REAL.get(master) || [],
+    CACHE_INV_SKU.get(master) || []
+            );
+          }
+        }
+
+        scheduleKpiRecalcFromCurrentState();
+      };
+
+      async function worker() {
+        while (idx < list.length) {
+          const master = list[idx++];
+          try {
+            const data = CACHE_VENTA_REAL.has(master) ? CACHE_VENTA_REAL.get(master) : await cargarVentaRealPorMaster(master);
+            const arr = normalizeArrayResult(data, `VentaReal ${master}`);
+            CACHE_VENTA_REAL.set(master, arr);
+            updateRowCell(master, sumKgVentaReal(arr));
+          } catch (e) {
+            console.warn(`VentaReal ${master} fallo:`, e);
+            CACHE_VENTA_REAL.set(master, []);
+            updateRowCell(master, 0);
+          }
+        }
+      }
+
+      await Promise.all(Array.from({ length: CONC }, worker));
+      scheduleKpiRecalcFromCurrentState();
+    }
+
+    // =======================
+    // Presupuesto Modal
+    // =======================
+    function ensurePresupuestoFooter() {
+      const table = document.getElementById('tablaPresupuesto');
+      if (!table) return;
+      if (!table.querySelector('tfoot')) {
+        const tfoot = document.createElement('tfoot');
+        tfoot.innerHTML = `
+          <tr class="table-light">
+            <th colspan="4" class="text-end">Total:</th>
+            <th class="text-end" id="presuTotalCell">0</th>
+          </tr>`;
+        table.appendChild(tfoot);
+      }
+    }
+
+    function recalcPresupuestoModalTotal() {
+      const tbody = document.querySelector('#tablaPresupuesto tbody');
+      let total = 0;
+      tbody?.querySelectorAll('tr').forEach(tr => {
+        const lastTd = tr.lastElementChild;
+        if (!lastTd) return;
+        const v = parseFloat(String(lastTd.textContent || '0').replace(/,/g, ''));
+        if (!isNaN(v)) total += v;
+      });
+      const cell = document.getElementById('presuTotalCell');
+      if (cell) cell.textContent = Number(total).toLocaleString('es-MX');
+    }
+
+    function patchPresupuestoInList(list, id, fuente, nuevo) {
+      if (!Array.isArray(list)) return false;
+      const f = up(fuente || 'GENERAL');
+      let touched = false;
+
+      for (const it of list) {
+        const itId = Number(it?.id ?? it?.Id ?? 0);
+        const itFuente = up(it?.fuente ?? it?.Fuente ?? 'GENERAL');
+        if (itId === Number(id) && itFuente === f) {
+          it.presupuesto = Number(nuevo);
+          touched = true;
+        }
+      }
+      return touched;
+    }
+
+    function patchPresupuestoCaches({ master, id, fuente, nuevo }) {
+      patchPresupuestoInList(PRES_MODAL_RAW, id, fuente, nuevo);
+      if (master && CACHE_PRES.has(master)) {
+        patchPresupuestoInList(CACHE_PRES.get(master), id, fuente, nuevo);
+      }
+    }
+
+
+    function patchMasterRowFromCache(master) {
+      if (!master) return;
+
+      const presAll = CACHE_PRES.get(master);
+      if (!Array.isArray(presAll)) return;
+
+      const totalPres = presAll.reduce((a, x) => a + Number(x?.presupuesto || 0), 0);
+
+      const mRow = MASTER_DATA.find(x =>
+        String(x.u_MASTER ?? '').trim() === String(master ?? '').trim()
+      );
+      if (!mRow) return;
+
+      const inv = Number(mRow.inventario ?? 0);
+      const prodReal = Number(mRow.produccionReal ?? mRow.realTotalMaster ?? 0);
+      const ventaReal = Number(mRow.ventaReal ?? mRow.ventaRealTotalMaster ?? 0);
+      const disp = Number(mRow.disponible ?? 0); // ✅ FIX
+
+      const gapNew = calcGapProjected(prodReal, disp, ventaReal);
+
+      mRow.presupuesto = totalPres;
+      mRow.gap = gapNew;
+
+      const tr = document.querySelector(`tr.master-row[data-master="${master}"]`);
+      if (!tr) return;
+
+      const tds = tr.querySelectorAll('td');
+
+      if (tds[6]) tds[6].textContent = fmt(totalPres);
+      if (tds[9]) {
+        tds[9].innerHTML =
+          `<span class="${gapNew < 0 ? 'badge-neg' : 'badge-pos'}">${fmt(gapNew)}</span>`;
+      }
+    }
+
+
+    function calcGapProjectedByInv(prodReal, inventario, ventaReal) {
+      const tp = projectedMonthValue(Number(prodReal ?? 0));     // TEND PROD
+      const tv = projectedMonthValue(Number(ventaReal ?? 0));    // TEND VENTA
+      return tp + Number(inventario ?? 0) - tv;
+    }
+
+
+    function renderPlanTable(rows) {
+    const tbody = $("#tablaPlanProduccion tbody");
+    tbody.empty();
+
+    const puedeEditar = !!permisosBalance?.produccion?.puedeEscribir;
+
+    if (rows && rows.length) {
+    rows.forEach(item => {
+    const tdPlan = puedeEditar
+    ? `<td class="number editable-plan" contenteditable="true">${formatMx(item.plan || 0)}</td>`
+    : `<td class="number">${formatMx(item.plan || 0)}</td>`;
+
+    tbody.append(`
+    <tr data-id="${item.id}">
+    <td>${item.productoCodigo ?? ''}</td>
+    <td>${item.productoNombre ?? ''}</td>
+    ${tdPlan}
+    </tr>`);
+    });
+
+    if (!puedeEditar) {
+    recalcPlanModalTotal();
+    return;
+    }
+
+    tbody.find(".editable-plan").off("input").on("input", function () {
+    sanitizeEditableNumberCell(this, true);
+    });
+
+    tbody.find(".editable-plan").off("keydown").on("keydown", function (e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.key;
+
+    const allowed = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Tab', 'Enter'];
+    if (allowed.includes(k)) return;
+    if (/^\d$/.test(k)) return;
+
+    if (k === '.') {
+    const txt = String(this.textContent || '');
+    if (txt.includes('.')) e.preventDefault();
+    return;
+    }
+
+    if (k === ',') { e.preventDefault(); return; }
+
+    e.preventDefault();
+    });
+
+    tbody.find(".editable-plan").off("blur").on("blur", async function () {
+    if (!permisosBalance?.produccion?.puedeEscribir) {
+    alert('No tienes permiso para editar producción.');
+    return;
+    }
+
+    const td = $(this);
+    const tr = td.closest('tr');
+    const id = Number(tr.data('id'));
+
+    sanitizeEditableNumberCell(td.get(0), true);
+
+    const nuevo = parseMxFloat(td.text());
+    if (isNaN(nuevo)) { alert('Ingrese un número'); td.focus(); return; }
+    if (nuevo < 0) { alert('No se permiten negativos'); td.focus(); return; }
+
+    try {
+    const token = getCsrfToken();
+
+    const resp = await $.ajax({
+    url: "/Comercial/ActualizarPlanProduccion",
+    type: "POST",
+    cache: false,
+    contentType: "application/json",
+    headers: { 'RequestVerificationToken': token },
+    data: JSON.stringify({ id, plan: nuevo })
+    });
+
+    if (resp?.success === false) {
+    throw new Error(resp?.mensaje || 'No se pudo actualizar');
+    }
+
+    td.text(formatMx(nuevo));
+    td.css("background", "#d4edda");
+    setTimeout(() => td.css("background", ""), 600);
+
+    recalcPlanModalTotal();
+    await refreshMainAndDetail();
+    } catch (err) {
+    td.css("background", "#f8d7da");
+    setTimeout(() => td.css("background", ""), 600);
+    alert("Error al actualizar el plan");
+    }
+    });
+    } else {
+    tbody.append('<tr><td colspan="3" class="text-center">No hay datos</td></tr>');
+    }
+
+    recalcPlanModalTotal();
+    }
+
+    async function openPresupuestoModal(master, sku) {
+    CURRENT_MODAL_MASTER = master;
+    CURRENT_MODAL_SKU = sku || null;
+    $("#pdtPres").text(sku ? `${master}: ${sku}` : master);
+
+    try {
+    const data = CACHE_PRES.has(master)
+    ? CACHE_PRES.get(master)
+    : await cargarPresupuestosPorMaster(master);
+
+    const arr = normalizeArrayResult(data, `PresModal ${master}`);
+    CACHE_PRES.set(master, arr);
+
+    PRES_MODAL_RAW = sku
+    ? (arr || []).filter(x => String(x?.productoCodigo ?? '').trim() === String(sku ?? '').trim())
+    : (arr || []);
+
+    const state = getFilterState();
+    const filtered = filtrarPresupuesto(PRES_MODAL_RAW, state);
+
+    renderPresupuestoTable(Array.isArray(filtered) ? filtered : []);
+
+    const modalEl = document.getElementById('presupuestoModal');
+    if (!modalEl) throw new Error("No existe #presupuestoModal");
+
+    new bootstrap.Modal(modalEl).show();
+    } catch (e) {
+    console.error("Error real openPresupuestoModal:", e);
+    alert("Error al obtener presupuesto: " + (e?.message || e));
+    }
+    }
+
+    function renderPresupuestoTable(rows) {
+    const tbody = $("#tablaPresupuesto tbody");
+    tbody.empty();
+
+    const puedeEditar = !!permisosBalance?.presupuesto?.puedeEscribir;
+
+    if (rows && rows.length) {
+    rows.forEach(item => {
+    const fuente = String(item.fuente || 'GENERAL').trim().toUpperCase();
+    const canal = String(item.canalVta || '').trim();
+    const estatus = String(item.estatus || '').trim().toUpperCase();
+    const razonRaw = String(item.razonSocial || '').trim();
+
+    const isCedis = (fuente === 'CEDIS') || (estatus === 'CEDIS') || up(canal).startsWith('CEDIS');
+
+    let razonShow = razonRaw.replace(/\s+/g, ' ').trim();
+    if (isCedis) {
+    razonShow = razonShow.replace(/^CEDIS\s+/i, '').trim();
+    if (!razonShow) razonShow = canal || '(CEDIS)';
+    }
+
+    const tdPres = puedeEditar
+    ? `<td class="number editable-pres" contenteditable="true">
+    ${Number(item.presupuesto || 0).toLocaleString('es-MX')}
+    </td>`
+    : `<td class="number">
+    ${Number(item.presupuesto || 0).toLocaleString('es-MX')}
+    </td>`;
+
+    tbody.append(`
+    <tr data-id="${item.id}" data-fuente="${fuente}">
+    <td>${canal}</td>
+    <td>${razonShow}</td>
+    <td>${item.productoCodigo ?? ''}</td>
+    <td>${item.productoNombre ?? ''}</td>
+    ${tdPres}
+    </tr>`);
+    });
+
+    if (!puedeEditar) {
+    if (typeof recalcPresupuestoModalTotal === "function") {
+    recalcPresupuestoModalTotal();
+    }
+    return;
+    }
+
+    tbody.find(".editable-pres").off("blur").on("blur", async function () {
+    if (!permisosBalance?.presupuesto?.puedeEscribir) {
+    alert('No tienes permiso para editar presupuesto.');
+    return;
+    }
+
+    const td = $(this);
+    const tr = td.closest('tr');
+    const id = Number(tr.data('id'));
+    const fuente = String(tr.data('fuente') || 'GENERAL').toUpperCase();
+
+    const nuevo = parseFloat(td.text().replace(/,/g, '').trim());
+    if (isNaN(nuevo)) { alert('Ingrese un número'); td.focus(); return; }
+
+    try {
+    const resp = await $.ajax({
+    url: "/Comercial/ActualizarPresupuesto",
+    type: "POST",
+    cache: false,
+    contentType: "application/json",
+    dataType: "json",
+    headers: { 'RequestVerificationToken': getRequestVerificationToken() },
+    data: JSON.stringify({ Id: id, Presupuesto: nuevo, Fuente: fuente })
+    });
+
+    if (!resp || resp.success !== true) {
+    throw new Error(resp?.mensaje || 'Respuesta inválida');
+    }
+
+    td.text(nuevo.toLocaleString('es-MX'));
+    td.css("background", "#d4edda");
+    setTimeout(() => td.css("background", ""), 600);
+
+    patchPresupuestoCaches({ master: CURRENT_MODAL_MASTER, id, fuente, nuevo });
+
+    if (typeof recalcPresupuestoModalTotal === "function") {
+    recalcPresupuestoModalTotal();
+    }
+
+    if (typeof patchMasterRowFromCache === "function") {
+    patchMasterRowFromCache(CURRENT_MODAL_MASTER);
+    }
+
+    if (LAST_OPEN_MASTER && CURRENT_MODAL_MASTER && LAST_OPEN_MASTER === CURRENT_MODAL_MASTER) {
+    const idSuffix = safeId(LAST_OPEN_MASTER);
+    renderDetalleConData(
+    LAST_OPEN_MASTER,
+    idSuffix,
+    CACHE_PRES.get(LAST_OPEN_MASTER) || [],
+    CACHE_PROD.get(LAST_OPEN_MASTER) || [],
+    CACHE_PROD_REAL.get(LAST_OPEN_MASTER) || [],
+    CACHE_VENTA_REAL.get(LAST_OPEN_MASTER) || [],
+    CACHE_INV_SKU.get(LAST_OPEN_MASTER) || []
+    );
+    }
+
+    if (typeof applyGlobalFiltersAndKpis === "function") {
+    await applyGlobalFiltersAndKpis();
+    }
+    } catch {
+    td.css("background", "#f8d7da");
+    setTimeout(() => td.css("background", ""), 600);
+    alert("Error al actualizar presupuesto");
+    }
+    });
+    } else {
+    tbody.append('<tr><td colspan="5" class="text-center">No hay datos</td></tr>');
+    }
+
+    if (typeof recalcPresupuestoModalTotal === "function") {
+    recalcPresupuestoModalTotal();
+    }
+    }
+
+    // =======================
+    // Plan Producción modal
+    // =======================
+    let CURRENT_PLAN_MASTER = null;
+    let CURRENT_PLAN_SKU = null;
+    let PLAN_MODAL_RAW = [];
+
+    const parseMxFloat = (val) => {
+      const s = String(val ?? '').replace(/\s+/g, '').replace(/,/g, '');
+      const n = parseFloat(s);
+      return Number.isFinite(n) ? n : NaN;
+    };
+
+    const formatMx = (n) => Number(n || 0).toLocaleString('es-MX');
+
+    function ensurePlanFooter() {
+      const table = document.getElementById('tablaPlanProduccion');
+      if (!table) return;
+      if (!table.querySelector('tfoot')) {
+        const tfoot = document.createElement('tfoot');
+        tfoot.innerHTML = `
+          <tr class="table-light">
+            <th colspan="2" class="text-end">Total:</th>
+            <th class="text-end" id="planTotalCell">0</th>
+          </tr>`;
+        table.appendChild(tfoot);
+      }
+    }
+
+    function recalcPlanModalTotal() {
+      const tbody = document.querySelector('#tablaPlanProduccion tbody');
+      let total = 0;
+      tbody?.querySelectorAll('tr').forEach(tr => {
+        const lastTd = tr.lastElementChild;
+        if (!lastTd) return;
+        const v = parseMxFloat(lastTd.textContent || '0');
+        if (!isNaN(v)) total += v;
+      });
+      const cell = document.getElementById('planTotalCell');
+      if (cell) cell.textContent = formatMx(total);
+    }
+
+    function sanitizeEditableNumberCell(el, allowDecimal = true) {
+      if (!el) return;
+      let t = String(el.textContent ?? '');
+      t = t.replace(/[^\d.,]/g, '');
+      t = t.replace(/,/g, '');
+      if (allowDecimal) {
+        const parts = t.split('.');
+        if (parts.length > 2) t = parts[0] + '.' + parts.slice(1).join('');
+      } else {
+        t = t.replace(/\./g, '');
+      }
+      el.textContent = t;
+    }
+
+    function renderPlanTable(data) {
+      ensurePlanFooter();
+      const tbody = $("#tablaPlanProduccion tbody");
+      tbody.empty();
+
+      if (data && data.length) {
+        data.forEach(item => {
+          tbody.append(`
+            <tr data-id="${item.id}">
+              <td>${item.productoCodigo ?? ''}</td>
+              <td>${item.productoNombre ?? ''}</td>
+              <td class="number editable-plan" contenteditable="true">${formatMx(item.plan || 0)}</td>
+            </tr>`);
+        });
+
+        tbody.find(".editable-plan").off("input").on("input", function () {
+          sanitizeEditableNumberCell(this, true);
+        });
+
+        tbody.find(".editable-plan").off("keydown").on("keydown", function (e) {
+          if (e.ctrlKey || e.metaKey || e.altKey) return;
+          const k = e.key;
+
+          const allowed = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Tab', 'Enter'];
+          if (allowed.includes(k)) return;
+
+          if (/^\d$/.test(k)) return;
+
+          if (k === '.') {
+            const txt = String(this.textContent || '');
+            if (txt.includes('.')) e.preventDefault();
+            return;
+          }
+          if (k === ',') { e.preventDefault(); return; }
+
+          e.preventDefault();
+        });
+
+        tbody.find(".editable-plan").off("blur").on("blur", async function () {
+          const td = $(this);
+          const tr = td.closest('tr');
+          const id = Number(tr.data('id'));
+
+          sanitizeEditableNumberCell(td.get(0), true);
+
+          const nuevo = parseMxFloat(td.text());
+          if (isNaN(nuevo)) { alert('Ingrese un número'); td.focus(); return; }
+          if (nuevo < 0) { alert('No se permiten negativos'); td.focus(); return; }
+
+          try {
+            const token = getCsrfToken();
+
+            await $.ajax({
+              url: "/Comercial/ActualizarPlanProduccion",
+              type: "POST",
+              cache: false,
+              contentType: "application/json",
+              headers: { 'RequestVerificationToken': token },
+              data: JSON.stringify({ id, plan: nuevo })
+            });
+
+            td.text(formatMx(nuevo));
+            td.css("background", "#d4edda"); setTimeout(() => td.css("background", ""), 600);
+            recalcPlanModalTotal();
+            await refreshMainAndDetail();
+          } catch (err) {
+            td.css("background", "#f8d7da"); setTimeout(() => td.css("background", ""), 600);
+            alert("Error al actualizar el plan");
+          }
+        });
+
+      } else {
+        tbody.append('<tr><td colspan="3" class="text-center">No hay datos</td></tr>');
+      }
+
+      recalcPlanModalTotal();
+    }
+
+    function filterPlanByGlobalSku(list) {
+      const state = (typeof getFilterState === 'function') ? getFilterState() : {};
+      const skus = state?.skus || [];
+      if (!skus.length) return list || [];
+      const setSku = new Set(skus.map(up));
+      return (list || []).filter(x => setSku.has(up(String(x.productoCodigo ?? '').trim())));
+    }
+
+    function refreshPlanModalIfOpen() {
+      const modal = document.getElementById('planProduccionModal');
+      if (!modal || !modal.classList.contains('show')) return;
+      const filtered = filterPlanByGlobalSku(PLAN_MODAL_RAW);
+      renderPlanTable(filtered);
+    }
+
+    async function openPlanModal(master, sku) {
+      CURRENT_PLAN_MASTER = master;
+      CURRENT_PLAN_SKU = sku || null;
+
+      $("#pdtPlan").text(sku ? `${master} — SKU ${sku}` : master);
+
+      try {
+        const data = CACHE_PROD.has(master) ? CACHE_PROD.get(master) : await cargarProduccionPorMaster(master);
+        CACHE_PROD.set(master, Array.isArray(data) ? data : []);
+
+        PLAN_MODAL_RAW = sku
+          ? (data || []).filter(x => String(x.productoCodigo).trim() === String(sku).trim())
+          : (data || []);
+
+        const filtered = filterPlanByGlobalSku(PLAN_MODAL_RAW);
+        renderPlanTable(filtered);
+
+        new bootstrap.Modal(document.getElementById('planProduccionModal')).show();
+      } catch (e) {
+        alert("Error al obtener plan de producción");
+      }
+    }
+
+    // =======================
+    // Cargar tabla principal + PROD REAL + VENTA REAL
+    // =======================
+    async function cargarTabla() {
+      const anio = MES.split('-')[0];
+      const numMes = MES.split('-')[1];
+      MES_CORTO = obtenerMesCorto(numMes);
+
+      const thProd = document.getElementById('thProdMes');
+      const thProdReal = document.getElementById('thProdRealMes');
+      const thVenta = document.getElementById('thVentaMes');
+      const thVentaReal = document.getElementById('thVentaRealMes');
+
+      if (thProd) thProd.textContent = MES_CORTO;
+      if (thProdReal) thProdReal.textContent = MES_CORTO;
+      if (thVenta) thVenta.textContent = MES_CORTO;
+      if (thVentaReal) thVentaReal.textContent = MES_CORTO;
+
+      try {
+        closeAllDetails();
+
+        const url = `/Comercial/ObtenerInventarioAgrupado?mes=${numMes}&anio=${anio}&año=${anio}&t=${Date.now()}`;
+        const response = await fetch(url, noCacheFetchOpts);
+        const data = await response.json();
+
+    MASTER_DATA = (data || [])
+    .map(x => ({
+    u_MASTER: String(x?.u_MASTER ?? '').trim() || 'SIN MASTER',
+    rotacion: Number(x.rotacion),
+    planProduccion: Number(x.planProduccion),
+    produccionReal: null,
+    realTotalMaster: null,
+    ventaReal: null,
+    ventaRealTotalMaster: null,
+    inventario: Number(x.inventario),
+    invIdeal: Number(x.invIdeal),
+    disponible: Number(x.disponible),
+    presupuesto: Number(x.presupuesto),
+    gap: Number(x.gap),
+    porcentaje: Number(x.porcentaje)
+    }));
+
+        refreshMasterMultiAfterDataLoad();
+        pintarTabla(MASTER_DATA);
+
+        setKpis(computeTotalsFromMasterRows(MASTER_DATA));
+        snapshotBaseMasterView();
+
+        scheduleApplyFilters();
+        refreshPlanModalIfOpen();
+
+        // Cargar PRODUCCIÓN REAL + VENTA REAL en paralelo
+        const masters = MASTER_DATA.map(x => x.u_MASTER).filter(Boolean);
+        fillProduccionRealForMasters(masters).catch(console.warn);
+        fillVentaRealForMasters(masters).catch(console.warn);
+
+      } catch (err) {
+        console.error(err);
+        const tb = document.getElementById('tbodyExcedidos');
+        if (tb) tb.innerHTML = '<tr><td colspan="12" class="text-center text-danger">Error al cargar datos.</td></tr>';
+        MASTER_DATA = [];
+        refreshMasterMultiAfterDataLoad();
+      }
+    }
+
+    // =======================
+    // Excel (export completo)
+    // =======================
+    function normalizaNumero(n) { const v = Number(n ?? 0); return isNaN(v) ? 0 : v; }
+
+    function combinarSumsPorSku3(presBySku, prodBySku, realBySku) {
+      const idx = new Map();
+      (presBySku || []).forEach(x => idx.set(x.sku, { sku: x.sku, name: x.name, pres: x.sum || 0, prod: 0, real: 0 }));
+      (prodBySku || []).forEach(x => {
+        const o = idx.get(x.sku) || { sku: x.sku, name: x.name, pres: 0, prod: 0, real: 0 };
+        o.prod += (x.sum || 0);
+        if (!o.name) o.name = x.name;
+        idx.set(x.sku, o);
+      });
+      (realBySku || []).forEach(x => {
+        const o = idx.get(x.sku) || { sku: x.sku, name: x.name, pres: 0, prod: 0, real: 0 };
+        o.real += (x.sum || 0);
+        if (!o.name) o.name = x.name;
+        idx.set(x.sku, o);
+      });
+      return Array.from(idx.values()).sort((a, b) => String(a.sku).localeCompare(String(b.sku)));
+    }
+
+    async function obtenerInventarioAgrupadoSeguro() {
+      const [anio, mes] = MES.split('-');
+      const url = `/Comercial/ObtenerInventarioAgrupado?mes=${mes}&anio=${anio}&año=${anio}&t=${Date.now()}`;
+      try {
+        const res = await fetch(url, noCacheFetchOpts);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const ct = res.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) throw new Error('Respuesta no es JSON');
+        const json = await res.json();
+        if (!Array.isArray(json)) throw new Error('JSON no es un arreglo');
+        return json;
+      } catch (err) {
+        console.warn('Fallo obtenerInventarioAgrupado, fallback DOM:', err);
+        const rows = Array.from(document.querySelectorAll('tr.master-row[data-master]'));
+        const mastersDOM = rows.map(r => r.getAttribute('data-master')).filter(Boolean);
+        return mastersDOM.map(m => ({
+          u_MASTER: m, rotacion: 0, planProduccion: 0, inventario: 0,
+          invIdeal: 0, disponible: 0, presupuesto: 0, gap: 0, porcentaje: 0
+        }));
+      }
+    }
+
+    async function exportExcelCompletoRobusto() {
+      const mastersData = await obtenerInventarioAgrupadoSeguro();
+      const masters = [...new Set((mastersData || []).map(x => x.u_MASTER).filter(Boolean))];
+      if (!masters.length) { alert('No hay masters para exportar.'); return; }
+
+      const detalleSku = [];
+      const presupuestoRaw = [];
+      const planRaw = [];
+      const realRaw = [];
+
+      for (const master of masters) {
+        let pres = [], prod = [], real = [];
+        try {
+          const r = await Promise.allSettled([
+            cargarPresupuestosPorMaster(master),
+            cargarProduccionPorMaster(master),
+            cargarProduccionRealPorMaster(master)
+          ]);
+          if (r[0].status === 'fulfilled' && Array.isArray(r[0].value)) pres = r[0].value;
+          if (r[1].status === 'fulfilled' && Array.isArray(r[1].value)) prod = r[1].value;
+          if (r[2].status === 'fulfilled' && Array.isArray(r[2].value)) real = r[2].value;
+        } catch (e) { console.warn(`Fallo datos ${master}:`, e); }
+
+        (pres || []).forEach(p => presupuestoRaw.push({
+          master,
+          canalVta: p.canalVta ?? '',
+          estatus: p.estatus ?? '',
+          razonSocial: p.razonSocial ?? '',
+          productoCodigo: p.productoCodigo ?? '',
+          productoNombre: p.productoNombre ?? '',
+          presupuesto: normalizaNumero(p.presupuesto),
+          fuente: (p.fuente || 'GENERAL')
+        }));
+
+        (prod || []).forEach(p => planRaw.push({
+          master,
+          productoCodigo: p.productoCodigo ?? '',
+          productoNombre: p.productoNombre ?? '',
+          plan: normalizaNumero(p.plan)
+        }));
+
+        (real || []).forEach(rr => realRaw.push({
+          master,
+          articuloCodigo: realSku(rr),
+          producto: realName(rr),
+          kgProducidos: normalizaNumero(realKg(rr)),
+          dia: rr?.dia ?? rr?.Dia ?? '',
+          mes: rr?.mes ?? rr?.Mes ?? '',
+          anio: rr?.anio ?? rr?.Anio ?? ''
+        }));
+
+        const presBySku = groupSumBySku(pres, 'productoCodigo', 'productoNombre', 'presupuesto');
+        const prodBySku = groupSumBySku(prod, 'productoCodigo', 'productoNombre', 'plan');
+        const realBySku = groupSumRealBySku(real);
+
+        combinarSumsPorSku3(presBySku, prodBySku, realBySku).forEach(r => {
+          detalleSku.push({
+            master,
+            sku: r.sku,
+            producto: r.name ?? '',
+            presupuesto: normalizaNumero(r.pres),
+            produccionPlan: normalizaNumero(r.prod),
+            produccionReal: normalizaNumero(r.real),
+            difPlanVsPres: normalizaNumero(r.prod) - normalizaNumero(r.pres),
+            difRealVsPlan: normalizaNumero(r.real) - normalizaNumero(r.prod)
+          });
+        });
+      }
+
+      const realTotByMaster = new Map();
+      (realRaw || []).forEach(x => {
+        const m = String(x.master || '').trim();
+        if (!m) return;
+        const prev = realTotByMaster.get(m) || 0;
+        realTotByMaster.set(m, prev + normalizaNumero(x.kgProducidos));
+      });
+
+      const hojaMaster = XLSX.utils.json_to_sheet((mastersData || []).map(x => {
+        const m = String(x.u_MASTER || '').trim();
+        return {
+          MASTER: x.u_MASTER,
+          Rotación: normalizaNumero(x.rotacion),
+          Producción: normalizaNumero(x.planProduccion),
+          'Producción Real': normalizaNumero(realTotByMaster.get(m) || 0),
+          Inventario: normalizaNumero(x.inventario),
+          'Inventario ideal': normalizaNumero(x.invIdeal),
+          Disponible: normalizaNumero(x.disponible),
+          Presupuesto: normalizaNumero(x.presupuesto),
+          Gap: normalizaNumero(x.gap),
+          '%': normalizaNumero(x.porcentaje)
+        };
+      }));
+
+      const hojaDetalle = XLSX.utils.json_to_sheet(detalleSku);
+      const hojaPres = XLSX.utils.json_to_sheet(presupuestoRaw);
+      const hojaPlan = XLSX.utils.json_to_sheet(planRaw);
+      const hojaReal = XLSX.utils.json_to_sheet(realRaw);
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, hojaMaster, 'Master');
+      XLSX.utils.book_append_sheet(wb, hojaDetalle, 'Detalle SKU (sumas)');
+      XLSX.utils.book_append_sheet(wb, hojaPres, 'Presupuesto (raw)');
+      XLSX.utils.book_append_sheet(wb, hojaPlan, 'Plan (raw)');
+      XLSX.utils.book_append_sheet(wb, hojaReal, 'Producción Real (raw)');
+
+      XLSX.writeFile(wb, `BalanceMaster_${MES}.xlsx`);
+    }
+
+    // =======================
+    // Listeners / eventos
+    // =======================
+    document.addEventListener('DOMContentLoaded', () => {
+      initMasterMultiSelectOnce();
+
+      // FIX: abrir/cerrar dropdown master sin depender del Data API
+      (() => {
+        const btn = document.getElementById('btnMasterMulti');
+        const wrap = document.getElementById('masterMultiWrap');
+        if (!btn || !wrap || !window.bootstrap?.Dropdown) return;
+
+        const dd = bootstrap.Dropdown.getOrCreateInstance(btn, { autoClose: 'outside' });
+        wrap.addEventListener('click', (e) => e.stopPropagation());
+
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          dd.toggle();
+
+          const search = document.getElementById('masterMultiSearch');
+          refreshMasterMultiAfterDataLoad();
+          renderMasterMultiList(search?.value || '');
+        });
+      })();
+
+      // MultiSelects
+      initAsyncMultiSelect({
+        wrapId: 'clienteMultiWrap',
+        btnId: 'btnClienteMulti',
+        searchId: 'clienteMultiSearch',
+        listId: 'clienteMultiList',
+        clearId: 'clienteMultiClear',
+        applyId: 'clienteMultiApply',
+        hiddenId: 'fCliente',
+        emptyLabel: 'CLIENTE',
+        manyLabel: '{n} clientes',
+        loadOptions: loadClientesOptions
+      });
+
+      initAsyncMultiSelect({
+        wrapId: 'vendedorMultiWrap',
+        btnId: 'btnVendedorMulti',
+        searchId: 'vendedorMultiSearch',
+        listId: 'vendedorMultiList',
+        clearId: 'vendedorMultiClear',
+        applyId: 'vendedorMultiApply',
+        hiddenId: 'fVendedor',
+        emptyLabel: 'VENDEDOR',
+        manyLabel: '{n} vendedores',
+        loadOptions: loadVendedoresOptions
+      });
+
+      initAsyncMultiSelect({
+        wrapId: 'cedisMultiWrap',
+        btnId: 'btnCedisMulti',
+        searchId: 'cedisMultiSearch',
+        listId: 'cedisMultiList',
+        clearId: 'cedisMultiClear',
+        applyId: 'cedisMultiApply',
+        hiddenId: 'fCedis',
+        emptyLabel: 'CEDIS',
+        manyLabel: '{n} cedis',
+        loadOptions: loadCedisOptions
+      });
+
+      initAsyncMultiSelect({
+        wrapId: 'skuMultiWrap',
+        btnId: 'btnSkuMulti',
+        searchId: 'skuMultiSearch',
+        listId: 'skuMultiList',
+        clearId: 'skuMultiClear',
+        applyId: 'skuMultiApply',
+        hiddenId: 'fSku',
+        emptyLabel: 'SKU',
+        manyLabel: '{n} skus',
+        loadOptions: loadSkuOptions,
+        upperSearch: true,
+        optionFns: {
+          getValue: o => o.sku,
+          getLabel: o => o.name ? `${o.sku} ${o.name}` : o.sku,
+          getSearch: o => `${o.sku} ${o.name || ''}`
+        }
+      });
+
+    initAsyncMultiSelect({
+    wrapId: 'clasificacionMultiWrap',
+    btnId: 'btnClasificacionMulti',
+    searchId: 'clasificacionMultiSearch',
+    listId: 'clasificacionMultiList',
+    clearId: 'clasificacionMultiClear',
+    applyId: 'clasificacionMultiApply',
+    hiddenId: 'fClasificacion',
+    emptyLabel: 'CLASIFICACIÓN',
+    manyLabel: '{n} clasificaciones',
+    loadOptions: loadClasificacionOptions,
+    optionFns: {
+    getValue: o => o.value,
+    getLabel: o => o.label,
+    getSearch: o => o.label
+    }
+    });
+
+      // Export
+      const btnExport = document.getElementById('btnExportExcel');
+      if (btnExport) {
+        btnExport.addEventListener('click', async () => {
+          try {
+            if (typeof XLSX === 'undefined' || !XLSX.utils) {
+              alert('Biblioteca XLSX no disponible. Revisa el <script> de xlsx.full.min.js');
+              return;
+            }
+            await exportExcelCompletoRobusto();
+          } catch (e) {
+            console.error('Export error:', e);
+            alert('Ocurrió un error al generar el Excel.');
+          }
+        });
+      }
+
+      // MASTER hidden: no selectionStart
+      (function () {
+        const masterInput = document.getElementById('fMaster');
+        if (!masterInput) return;
+        if ((masterInput.getAttribute('type') || '').toLowerCase() === 'hidden') return;
+        const toUpperKeepCursor = () => {
+          const start = masterInput.selectionStart;
+          const end = masterInput.selectionEnd;
+          masterInput.value = (masterInput.value || '').toUpperCase();
+          if (start != null && end != null) masterInput.setSelectionRange(start, end);
+        };
+        masterInput.addEventListener('input', toUpperKeepCursor);
+        masterInput.addEventListener('blur', toUpperKeepCursor);
+      })();
+
+      // filtros
+    ['fFuente', 'fCliente', 'fVendedor', 'fCedis', 'fMaster', 'fSku', 'fClasificacion']
+        .map(id => document.getElementById(id))
+        .filter(Boolean)
+        .forEach(el => {
+          el.addEventListener('input', () => { scheduleApplyFilters(); refreshPlanModalIfOpen(); });
+          el.addEventListener('change', () => { scheduleApplyFilters(); refreshPlanModalIfOpen(); });
+        });
+
+      // limpiar
+      const btnClearOut = getEl('btnClearPresFilters');
+      if (btnClearOut) {
+        btnClearOut.addEventListener('click', () => {
+          const a = getEl('fFuente'); if (a) a.value = 'TODOS';
+          const b = getEl('fCliente'); if (b) b.value = '';
+          const c = getEl('fVendedor'); if (c) c.value = '';
+          const d = getEl('fCedis'); if (d) d.value = '';
+          const m = getEl('fMaster'); if (m) m.value = '';
+          const e = getEl('fSku'); if (e) e.value = '';
+    const f = getEl('fClasificacion'); if (f) f.value = '';
+
+          clearMasterMulti(false);
+
+          const bc = getEl('btnClienteMulti'); if (bc) bc.textContent = bc.dataset.emptyLabel || 'CLIENTE';
+          const bv = getEl('btnVendedorMulti'); if (bv) bv.textContent = bv.dataset.emptyLabel || 'VENDEDOR';
+          const bd = getEl('btnCedisMulti'); if (bd) bd.textContent = bd.dataset.emptyLabel || 'CEDIS';
+          const bs = getEl('btnSkuMulti'); if (bs) bs.textContent = bs.dataset.emptyLabel || 'SKU';
+    const bc2 = getEl('btnClasificacionMulti'); if (bc2) bc2.textContent = bc2.dataset.emptyLabel || 'CLASIFICACIÓN';
+
+          scheduleApplyFilters();
+          refreshPlanModalIfOpen();
+        });
+      }
+
+      // Factor (carga y actualización con Enter)
+      (async () => {
+        try {
+          const res = await fetch('/Comercial/ObtenerFactor', noCacheFetchOpts);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.valor != null) {
+              const inp = document.getElementById("entidad");
+              if (inp) inp.value = data.valor;
+            }
+          }
+        } catch { }
+
+        const input = document.getElementById("entidad");
+        if (!input) return;
+
+        input.addEventListener("keydown", async e => {
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          const valor = parseFloat(input.value);
+          if (isNaN(valor)) { alert("Ingrese un valor numérico válido."); return; }
+          try {
+            const token = getCsrfToken();
+            const res = await fetch('/Comercial/ActualizarFactor', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+              body: JSON.stringify({ valor })
+            });
+            if (!res.ok) throw 0;
+            const result = await res.json();
+            alert(result.mensaje || "Factor actualizado correctamente");
+            location.reload();
+          } catch {
+            alert("Ocurrió un error al actualizar el factor.");
+          }
+        });
+      })();
+
+      // Init tabla
+    (async () => {
+    await cargarPermisosBalanceMaster();
+    await cargarTabla();
+    })();
+    });
+
+    // Expandir detalle
+    document.getElementById('tbodyExcedidos')?.addEventListener('click', async (e) => {
+      const btn = e.target.closest('.expander-btn');
+      if (!btn) return;
+      const row = btn.closest('.master-row');
+      await toggleDetalle(row);
+    });
+
+    // Acciones detalle (modales)
+    document.addEventListener('click', (e) => {
+      const p = e.target.closest('.btn-pres-sku');
+      const q = e.target.closest('.btn-plan-sku');
+      if (p) openPresupuestoModal(p.getAttribute('data-master'), p.getAttribute('data-sku'));
+      if (q) openPlanModal(q.getAttribute('data-master'), q.getAttribute('data-sku'));
+    });
+
+    // Cambio de mes/año: limpia cache + detalle + estado modales
+    MES_SELECTOR?.addEventListener('change', async e => {
+      MES = e.target.value;
+      MES_CORTO = obtenerMesCorto(MES.split('-')[1] || "01");
+      LAST_OPEN_MASTER = null;
+
+      CURRENT_PLAN_MASTER = null;
+      CURRENT_PLAN_SKU = null;
+      PLAN_MODAL_RAW = [];
+
+      CACHE_PRES.clear();
+      CACHE_PROD.clear();
+      CACHE_PROD_REAL.clear();
+      CACHE_VENTA_REAL.clear();
+    CACHE_INV_SKU.clear();
+
+      await cargarTabla();
+    });
+
+    // Guardar ROT inline (si lo usas en otra parte)
+    document.getElementById('tbodyExcedidos')?.addEventListener('focusout', async function (e) {
+      const td = e.target.closest('.editable-rot');
+      if (!td) return;
+      const nuevoValor = parseInt(td.textContent.replace(/,/g, ''), 10);
+      if (isNaN(nuevoValor)) { alert("Ingrese un valor numérico válido"); td.focus(); return; }
+      const uMaster = td.getAttribute('data-master'); if (!uMaster) return;
+
+      try {
+        const token = getCsrfToken();
+        const res = await fetch('/Comercial/ActualizarRotacion', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+          body: JSON.stringify({ U_MASTER: uMaster, Rotacion: nuevoValor })
+        });
+        if (!res.ok) throw 0;
+        td.style.backgroundColor = "#d4edda"; setTimeout(() => td.style.backgroundColor = "", 800);
+        await refreshMainAndDetail();
+      } catch {
+        alert("Error al actualizar ROT");
+        td.style.backgroundColor = "#f8d7da"; setTimeout(() => td.style.backgroundColor = "", 800);
+      }
+    });
+    // ====== PINTAR EN NEGRO OPCIONES SELECCIONADAS EN LOS MULTISELECT ======
+    document.addEventListener('change', function (e) {
+    if (e.target.matches(
+    '#clienteMultiList input[type="checkbox"], ' +
+    '#vendedorMultiList input[type="checkbox"], ' +
+    '#cedisMultiList input[type="checkbox"], ' +
+    '#masterMultiList input[type="checkbox"], ' +
+    '#clasificacionMultiList input[type="checkbox"], ' +
+    '#skuMultiList input[type="checkbox"]'
+    )) {
+    const item = e.target.closest('.form-check');
+    if (item) {
+    item.classList.toggle('selected', e.target.checked);
+    }
+    }
+    });
+
+    // ====== AL CARGAR O RENDERIZAR OPCIONES, SI YA VIENEN MARCADAS TAMBIÉN LAS PINTA ======
+    function aplicarEstiloSeleccionados(contenedorId) {
+    const contenedor = document.getElementById(contenedorId);
+    if (!contenedor) return;
+
+    contenedor.querySelectorAll('.form-check').forEach(item => {
+    const chk = item.querySelector('input[type="checkbox"]');
+    if (chk) {
+    item.classList.toggle('selected', chk.checked);
+    }
+    });
+    }
+
+    // Ejecuta al iniciar
+    document.addEventListener('DOMContentLoaded', function () {
+    aplicarEstiloSeleccionados('clienteMultiList');
+    aplicarEstiloSeleccionados('vendedorMultiList');
+    aplicarEstiloSeleccionados('cedisMultiList');
+    aplicarEstiloSeleccionados('masterMultiList');
+    aplicarEstiloSeleccionados('clasificacionMultiList');
+    aplicarEstiloSeleccionados('skuMultiList');
+    });
+
+    // ====== SI LLENAS LOS LISTADOS DINÁMICAMENTE, USA ESTA FUNCIÓN PARA CREAR CADA OPCIÓN ======
+    function crearItemMulti(texto, valor, checked) {
+    return `
+    <div class="form-check ${checked ? 'selected' : ''}">
+    <input class="form-check-input" type="checkbox" value="${valor}" id="chk_${valor}" ${checked ? 'checked' : ''}>
+    <label class="form-check-label" for="chk_${valor}">${texto}</label>
+    </div>
+    `;
+    }
+</script>

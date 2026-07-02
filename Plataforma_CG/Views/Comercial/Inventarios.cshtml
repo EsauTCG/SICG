@@ -1,0 +1,1039 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Inventario Carnes G";
+}
+
+@section Styles {
+    <style>
+        :root {
+            --brand1: #8B0000;
+            --brand2: #5a0000;
+            --brand3: #1a0000;
+            --muted: #6c757d;
+            --ok: #198754;
+            --bad: #dc3545;
+            --warn: #ffc107;
+            --card: #fff;
+            --line: #ececec;
+            --bg: #f4f6f8;
+        }
+
+        /* ✅ Evita scroll horizontal en pantalla */
+        html, body {
+            overflow-x: hidden;
+        }
+
+        body {
+            background: var(--bg);
+        }
+
+        .m-wrap {
+            max-width: 620px;
+            margin: 0 auto;
+            padding: 10px;
+            width: 100%;
+        }
+
+        .m-top {
+            background: linear-gradient(90deg,var(--brand1),var(--brand2) 60%,var(--brand3));
+            color: #fff;
+            border-radius: 16px;
+            padding: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 10px 22px rgba(0,0,0,.10);
+            margin-bottom: 12px;
+            /* ✅ para que no se rompa en móviles */
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+            .m-top > div:first-child {
+                min-width: 0;
+            }
+
+            .m-top h4 {
+                margin: 0;
+                font-weight: 900;
+            }
+
+        .m-sub {
+            font-size: .85rem;
+            opacity: .9;
+            margin-top: 2px;
+        }
+
+        .m-chip {
+            background: rgba(255,255,255,.15);
+            border: 1px solid rgba(255,255,255,.25);
+            border-radius: 999px;
+            padding: .25rem .6rem;
+            font-weight: 900;
+            white-space: nowrap;
+        }
+
+        .m-card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            box-shadow: 0 8px 16px rgba(0,0,0,.06);
+            padding: 12px;
+            margin-bottom: 12px;
+            overflow: hidden; /* ✅ */
+        }
+
+        .scan-input {
+            border-radius: 14px;
+            font-size: 1.15rem;
+            padding: .85rem .9rem;
+            font-weight: 900;
+            letter-spacing: .4px;
+        }
+
+        .kpis {
+            display: grid;
+            grid-template-columns: repeat(3,1fr);
+            gap: 10px;
+        }
+
+        .kpi {
+            background: #fafafa;
+            border: 1px solid #f0f0f0;
+            border-radius: 14px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+        }
+
+            .kpi .lbl {
+                color: var(--muted);
+                font-weight: 800;
+                font-size: .78rem;
+                text-transform: uppercase;
+            }
+
+            .kpi .val {
+                font-weight: 900;
+                font-size: 1.25rem;
+            }
+
+        .pill {
+            display: inline-block;
+            border-radius: 999px;
+            padding: .18rem .55rem;
+            font-weight: 900;
+            font-size: .78rem;
+            border: 1px solid transparent;
+        }
+
+        .pill-ok {
+            background: rgba(25,135,84,.12);
+            color: var(--ok);
+            border-color: rgba(25,135,84,.20);
+        }
+
+        .pill-warn {
+            background: rgba(255,193,7,.18);
+            color: #664d03;
+            border-color: rgba(255,193,7,.35);
+        }
+
+        .pill-bad {
+            background: rgba(220,53,69,.12);
+            color: var(--bad);
+            border-color: rgba(220,53,69,.20);
+        }
+
+        .last-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .last-item {
+            border-top: 1px solid #f2f2f2;
+            padding: 8px 0;
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            font-size: .92rem;
+            min-width: 0;
+        }
+
+            .last-item:first-child {
+                border-top: none;
+            }
+
+        .code {
+            font-weight: 900;
+            word-break: break-all;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .btn {
+            border-radius: 12px;
+            font-weight: 900;
+        }
+
+        .sending {
+            position: fixed;
+            left: 12px;
+            right: 12px;
+            bottom: 12px;
+            background: rgba(0,0,0,.72);
+            color: #fff;
+            border-radius: 14px;
+            padding: 10px 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 2500;
+        }
+
+            .sending .spinner-border {
+                width: 1.2rem;
+                height: 1.2rem;
+                border-width: .2rem;
+            }
+
+        /* ===== REPORTE ===== */
+        .report-wrap {
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 18px;
+        }
+
+        .r-card {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 14px;
+            box-shadow: 0 12px 24px rgba(16,24,40,.06);
+            padding: 14px;
+            margin-bottom: 12px;
+        }
+
+        .r-hdr {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+            .r-hdr img {
+                height: 56px;
+                width: auto;
+                object-fit: contain;
+            }
+
+        .r-muted {
+            color: #6b7280;
+            font-size: .9rem;
+        }
+
+        .r-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 6px;
+        }
+
+        .r-pill {
+            display: inline-block;
+            border-radius: 999px;
+            padding: .22rem .6rem;
+            font-weight: 800;
+            font-size: .8rem;
+            background: rgba(139,0,0,.10);
+            color: var(--brand1);
+            border: 1px solid rgba(139,0,0,.18);
+        }
+
+        .r-grid {
+            display: grid;
+            grid-template-columns: 1.2fr .8fr;
+            gap: 12px;
+        }
+
+        .r-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+            .r-table th, .r-table td {
+                padding: 10px 8px;
+                border-bottom: 1px solid #e5e7eb;
+                vertical-align: top;
+            }
+
+            .r-table th {
+                text-align: left;
+                font-size: .8rem;
+                text-transform: uppercase;
+                letter-spacing: .04em;
+                color: #6b7280;
+            }
+
+        .r-num {
+            text-align: right;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .report-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,.45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 4000;
+            padding: 16px;
+        }
+
+            .report-modal.show {
+                display: flex;
+            }
+
+        .report-shell {
+            width: min(1040px,100%);
+            max-height: 92vh;
+            overflow: auto;
+            border-radius: 16px;
+            background: #f8fafc;
+            border: 1px solid rgba(255,255,255,.2);
+        }
+
+        .report-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            padding: 10px 12px;
+            background: #fff;
+            border-bottom: 1px solid #e5e7eb;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        /* ===== BOTONES PREMIUM ===== */
+        .btn-action {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: .5rem;
+            padding: .65rem 1.1rem;
+            font-weight: 800;
+            border-radius: 999px;
+            font-size: .9rem;
+            transition: all .2s ease;
+            box-shadow: 0 6px 14px rgba(0,0,0,.08);
+            border-width: 2px;
+        }
+
+        /* Inventariar */
+        .btn-inventariar {
+            background: #f8f9fa;
+            color: #343a40;
+            border-color: #dee2e6;
+        }
+
+            .btn-inventariar:hover {
+                background: #343a40;
+                color: #fff;
+                transform: translateY(-1px);
+                box-shadow: 0 10px 22px rgba(0,0,0,.18);
+            }
+
+        /* Reporte */
+        .btn-reporte {
+            background: rgba(25,135,84,.08);
+            color: #198754;
+            border-color: rgba(25,135,84,.35);
+        }
+
+            .btn-reporte:hover {
+                background: #198754;
+                color: #fff;
+                transform: translateY(-1px);
+                box-shadow: 0 10px 22px rgba(25,135,84,.35);
+            }
+
+        /* Limpiar */
+        .btn-limpiar {
+            background: rgba(220,53,69,.08);
+            color: #dc3545;
+            border-color: rgba(220,53,69,.35);
+        }
+
+            .btn-limpiar:hover {
+                background: #dc3545;
+                color: #fff;
+                transform: translateY(-1px);
+                box-shadow: 0 10px 22px rgba(220,53,69,.35);
+            }
+
+        /* Active */
+        .btn-action:active {
+            transform: translateY(0);
+            box-shadow: 0 4px 10px rgba(0,0,0,.15);
+        }
+
+        /* =================== ✅ RESPONSIVE (PANTALLA) =================== */
+        @@media (max-width:860px) {
+            .r-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @@media (min-width:521px) and (max-width:860px) {
+            .kpis {
+                grid-template-columns: repeat(2,1fr);
+            }
+
+            .actions .btn {
+                flex: 1 1 calc(50% - 10px);
+            }
+        }
+
+        @@media (max-width:520px) {
+            .kpis {
+                grid-template-columns: 1fr;
+            }
+
+            .actions {
+                justify-content: stretch;
+                gap: 8px;
+            }
+
+                .actions .btn {
+                    width: 100%;
+                }
+
+            .scan-input {
+                font-size: 1rem;
+                padding: .75rem .8rem;
+            }
+
+            .last-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            /* filtros del reporte: en columna */
+            #reportModal .r-meta > div {
+                width: 100%;
+            }
+
+            #reportModal input[type="date"] {
+                width: 100% !important;
+            }
+
+            #reportModal select {
+                width: 100% !important;
+            }
+
+            #reportModal label {
+                width: 100%;
+            }
+
+            #reportModal #btnRepFiltrar {
+                width: 100%;
+            }
+
+            .report-actions {
+                justify-content: space-between;
+            }
+        }
+
+        /* =================== PRINT =================== */
+        @@media print {
+            body * {
+                visibility: hidden !important;
+            }
+
+            #reportModal, #reportModal * {
+                visibility: visible !important;
+            }
+
+            #reportModal {
+                position: static !important;
+                inset: auto !important;
+                background: transparent !important;
+            }
+
+            .report-actions {
+                display: none !important;
+            }
+
+            .report-shell {
+                box-shadow: none !important;
+                border: none !important;
+            }
+
+            .r-card {
+                box-shadow: none !important;
+            }
+        }
+    </style>
+}
+
+<div class="m-wrap">
+    <div class="m-top">
+        <div>
+            <h4>Inventario Carnes G</h4>
+            <div class="m-sub">Escaneo en vivo · datos Meat P1/TIF</div>
+        </div>
+        <div class="m-chip">SIGO</div>
+    </div>
+
+    <div class="m-card">
+        <div class="fw-bold mb-2">Escaneo rápido</div>
+        <input id="scanInput" class="form-control scan-input"
+               placeholder="Escanea etiqueta"
+               autocomplete="off" inputmode="text" />
+
+        <div class="d-flex justify-content-between align-items-center mt-2">
+            <div id="statusMsg" class="small text-muted">Listo. Escanea sin parar.</div>
+            <span class="pill pill-ok">REAL</span>
+        </div>
+
+        <div class="small text-muted mt-2">
+            Tip: puedes <b>pegar</b> muchos códigos (uno por línea) y presionar <b>Enter</b>.
+        </div>
+    </div>
+
+    <div class="m-card">
+        <div class="fw-bold mb-2">Indicadores</div>
+        <div class="kpis">
+            <div class="kpi"><div class="lbl">En cola</div><div class="val" id="kQueue">0</div></div>
+            <div class="kpi"><div class="lbl">Guardadas</div><div class="val" id="kOk">0</div></div>
+            <div class="kpi"><div class="lbl">Duplicadas/Inválidas</div><div class="val" id="kBad">0</div></div>
+        </div>
+
+        <div class="actions mt-3">
+            <button id="btnFlush"
+                    class="btn btn-action btn-inventariar"
+                    type="button">
+                <i class="fa-solid fa-boxes-stacked"></i>
+                Inventariar
+            </button>
+
+            <button id="btnReport"
+                    class="btn btn-action btn-reporte"
+                    type="button">
+                <i class="fa-solid fa-chart-pie"></i>
+                Reporte
+            </button>
+
+            <button id="btnClear"
+                    class="btn btn-action btn-limpiar"
+                    type="button">
+                <i class="fa-solid fa-trash-can"></i>
+                Limpiar
+            </button>
+        </div>
+    </div>
+
+    <div class="m-card">
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="fw-bold">Últimos escaneos</div>
+            <div class="small text-muted">últimos 12</div>
+        </div>
+        <ul class="last-list mt-2" id="lastList"></ul>
+    </div>
+</div>
+
+<div id="sendingBar" class="sending d-none">
+    <div class="spinner-border" role="status" aria-hidden="true"></div>
+    <div class="small">Guardando… <span id="sendingInfo"></span></div>
+</div>
+
+<!-- ===== MODAL REPORTE ===== -->
+<div id="reportModal" class="report-modal" aria-hidden="true">
+    <div class="report-shell">
+        <div class="report-actions">
+            <button id="btnCloseReport" class="btn btn-outline-secondary" type="button">Cerrar</button>
+            <button id="btnPdfReport" class="btn btn-success" type="button"> <i class="fa-solid fa-file-pdf"></i> Descargar PDF  </button>
+        </div>
+
+        <div class="report-wrap" id="reportArea">
+            <div class="r-card">
+                <div class="r-hdr">
+                    <img id="rLogo" src="/images/logo_carnesg.png" alt="Logo" onerror="this.style.display='none'" />
+                    <div>
+                        <h1 style="font-size:1.2rem;margin:0;font-weight:900" id="rTitle">Reporte de Inventario</h1>
+                        <div class="r-muted" id="rSub">Carnes G · ALMACÉN</div>
+
+                        <div class="r-meta" style="align-items:center">
+                            <span class="r-pill" id="rFecha">Fecha: --</span>
+                            <span class="r-pill" id="rTotal">Total etiquetas: 0</span>
+
+                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                                <label class="small text-muted mb-0">Desde</label>
+                                <input id="repDesde" type="date" class="form-control" style="width:160px">
+
+                                <label class="small text-muted mb-0">Hasta</label>
+                                <input id="repHasta" type="date" class="form-control" style="width:160px">
+
+                                <!-- ✅ NUEVO: filtro de almacén -->
+                                @* <label class="small text-muted mb-0">Almacén</label>
+                                <select id="repAlmacen" class="form-select" style="width:160px">
+                                    <option value="ALL">Todos</option>
+                                    <option value="CEDIS">CEDIS</option>
+                                    <option value="REAL">REAL</option>
+                                </select> *@
+
+                                <button id="btnRepFiltrar" type="button" class="btn btn-outline-primary">
+                                    Filtrar
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="r-grid">
+                <div class="r-card">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                        <b>Stock por artículo</b>
+                        <span class="r-muted">Conteo por SKU</span>
+                    </div>
+
+                    <table class="r-table">
+                        <thead>
+                            <tr>
+                                <th>Artículo</th>
+                                <th class="r-num">Cantidad</th>
+                                <th class="r-num">% del total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rRows">
+                            <tr><td colspan="3" class="r-muted">No hay lecturas guardadas.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="r-card">
+                    <b>Distribución</b>
+                    <div class="r-muted" style="margin-bottom:8px;">Porcentaje por artículo</div>
+                    <canvas id="pie" height="260"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <script>
+        (() => {
+          const LOGO_URL = "/images/logo_carnesg.png";
+          const SITE_NAME = "Carnes G";
+          const REPORT_TITLE = "Reporte de Inventario";
+
+          // ✅ almacén/ubicación que se mandará como "almacen request"
+          const WAREHOUSE_ID = "CEDIS";
+          const WAREHOUSE_LABEL = "ALMACÉN " + WAREHOUSE_ID;
+
+          const input = document.getElementById("scanInput");
+          const statusMsg = document.getElementById("statusMsg");
+
+          const kQueue = document.getElementById("kQueue");
+          const kOk = document.getElementById("kOk");
+          const kBad = document.getElementById("kBad");
+          const lastList = document.getElementById("lastList");
+
+          const btnFlush = document.getElementById("btnFlush");
+          const btnReport = document.getElementById("btnReport");
+          const btnClear = document.getElementById("btnClear");
+
+          const sendingBar = document.getElementById("sendingBar");
+          const sendingInfo = document.getElementById("sendingInfo");
+
+          const reportModal = document.getElementById("reportModal");
+          const btnCloseReport = document.getElementById("btnCloseReport");
+
+          // ✅ OJO: si sigues teniendo btnPrintReport, no lo usamos para PDF
+          // const btnPrintReport = document.getElementById("btnPrintReport");
+
+          // ✅ NUEVO: botón PDF (debe existir en el HTML del modal)
+          const btnPdfReport = document.getElementById("btnPdfReport");
+
+          const rLogo = document.getElementById("rLogo");
+          const rTitle = document.getElementById("rTitle");
+          const rSub = document.getElementById("rSub");
+          const rFecha = document.getElementById("rFecha");
+          const rTotal = document.getElementById("rTotal");
+          const rRows = document.getElementById("rRows");
+
+          const repDesde = document.getElementById("repDesde");
+          const repHasta = document.getElementById("repHasta");
+          const repAlmacen = document.getElementById("repAlmacen"); // si NO existe, queda null
+          const btnRepFiltrar = document.getElementById("btnRepFiltrar");
+
+          const LAST_MAX = 12;
+          const FLUSH_MS = 650;
+          const DEDUPE_WINDOW_MS = 900;
+          const BATCH_SIZE = 25;
+
+          let queue = [];
+          let okCount = 0;
+          let badCount = 0;
+
+          let busy = false;
+          let flushTimer = null;
+          let lastCode = "";
+          let lastCodeAt = 0;
+
+          function esc(s) {
+            return (s || "").toString()
+              .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+              .replace(/'/g, "&#039;");
+          }
+
+          function setStatus(text, type = "muted") {
+            statusMsg.className = "small mt-2 " + (type === "ok" ? "text-success" : type === "bad" ? "text-danger" : "text-muted");
+            statusMsg.textContent = text;
+          }
+
+          function renderKpis() {
+            kQueue.textContent = String(queue.length);
+            kOk.textContent = String(okCount);
+            kBad.textContent = String(badCount);
+          }
+
+          function pushLast(code, label, kind) {
+            const li = document.createElement("li");
+            li.className = "last-item";
+            const pill = kind === "ok"
+              ? `<span class="pill pill-ok">OK</span>`
+              : kind === "dup"
+                ? `<span class="pill pill-warn">DUP</span>`
+                : `<span class="pill pill-bad">ERR</span>`;
+
+            li.innerHTML = `<div style="min-width:0">
+                              <div class="code">${esc(code)}</div>
+                              <div class="small text-muted">${esc(label || "")}</div>
+                            </div>
+                            <div>${pill}</div>`;
+
+            lastList.prepend(li);
+            while (lastList.children.length > LAST_MAX) lastList.removeChild(lastList.lastChild);
+          }
+
+          function showSending(on, info = "") {
+            if (on) {
+              sendingInfo.textContent = info;
+              sendingBar.classList.remove("d-none");
+            } else {
+              sendingBar.classList.add("d-none");
+            }
+          }
+
+          function normalize(code) { return (code || "").trim().toUpperCase(); }
+
+          function acceptMany(text) {
+            const lines = (text || "").split(/\r?\n/).map(x => normalize(x)).filter(Boolean);
+            if (lines.length <= 1) { acceptCode(text); return; }
+            lines.forEach(c => acceptCode(c, true));
+            input.value = "";
+            setStatus(`Pegados ${lines.length} códigos. Cola: ${queue.length}`, "muted");
+            scheduleFlush();
+          }
+
+          function acceptCode(code, fromPaste = false) {
+            const c = normalize(code);
+            if (!c) return;
+
+            const now = Date.now();
+
+            if (!fromPaste && c === lastCode && (now - lastCodeAt) <= DEDUPE_WINDOW_MS) {
+              badCount += 1;
+              pushLast(c, "Lectura repetida (ignorada)", "dup");
+              renderKpis();
+              return;
+            }
+
+            lastCode = c;
+            lastCodeAt = now;
+
+            queue.push(c);
+            renderKpis();
+
+            if (!fromPaste) input.value = "";
+            setStatus(`En cola: ${queue.length}`, "muted");
+
+            if (queue.length >= BATCH_SIZE) flush(true);
+            else scheduleFlush();
+          }
+
+          function scheduleFlush() {
+            if (flushTimer) return;
+            flushTimer = setTimeout(async () => {
+              flushTimer = null;
+              await flush(false);
+            }, FLUSH_MS);
+          }
+
+          async function postJson(url, payload) {
+            const res = await fetch(url, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload)
+            });
+            const raw = await res.text();
+            let data = null;
+            try { data = JSON.parse(raw); } catch { }
+            if (!res.ok) {
+              throw new Error(`HTTP ${res.status}: ${(data?.msg || data?.message || raw || "").substring(0, 200)}`);
+            }
+            return data;
+          }
+
+          async function flush(force) {
+            if (busy) return;
+            if (queue.length === 0) return;
+            if (!force && queue.length < BATCH_SIZE) return;
+
+            busy = true;
+
+            try {
+              while (queue.length > 0 && (force || queue.length >= BATCH_SIZE)) {
+                const take = Math.min(BATCH_SIZE, queue.length);
+                const batch = queue.splice(0, take);
+                renderKpis();
+                showSending(true, `${batch.length} etiqueta(s)`);
+
+                const data = await postJson("/Inventario/ScanBatch", {
+                  almacen: WAREHOUSE_ID,
+                  codigos: batch
+                });
+
+                const results = data?.results || [];
+                for (const r of results) {
+                  const code = (r.codigoEtiqueta || r.codigo || r.code || "").toString();
+                  const kind = (r.kind || (r.ok ? "ok" : "err")).toLowerCase();
+                  const msg = (r.msg || "").toString();
+
+                  if (kind === "ok") { okCount++; pushLast(code, msg, "ok"); }
+                  else if (kind === "dup") { badCount++; pushLast(code, msg, "dup"); }
+                  else { badCount++; pushLast(code, msg, "err"); }
+                }
+                renderKpis();
+              }
+            } catch (err) {
+              setStatus(err?.message || "Error al guardar.", "bad");
+            } finally {
+              showSending(false);
+              busy = false;
+              if (queue.length > 0) scheduleFlush();
+            }
+          }
+
+          // ===== REPORTE UI =====
+          function groupBySkuForReport(rows) {
+            const map = new Map();
+
+            for (const x of (rows || [])) {
+              const sku = (x.sku || "").toString();
+              const almacen = (x.almacen || x.warehouse || "N/D").toString();
+              const qty = Number(x.qty || 0);
+
+              const name = (x.name && String(x.name).trim()) ? String(x.name).trim() : sku;
+
+              const key = `${almacen}||${sku}`;
+              if (!map.has(key)) map.set(key, { almacen, sku, name, qty: 0 });
+              else {
+                const prev = map.get(key);
+                if (!prev.name || prev.name === prev.sku) prev.name = name;
+              }
+
+              map.get(key).qty += qty;
+            }
+
+            return Array.from(map.values()).sort((a, b) => b.qty - a.qty);
+          }
+
+          function toDateInputValue(d) {
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, "0");
+            const dd = String(d.getDate()).padStart(2, "0");
+            return `${yyyy}-${mm}-${dd}`;
+          }
+
+          let pieChart = null;
+
+          async function renderReportReal() {
+            rLogo.src = LOGO_URL;
+            rTitle.textContent = REPORT_TITLE;
+
+            const almacenSel = (repAlmacen && repAlmacen.value) ? repAlmacen.value : "ALL";
+            const almacTxt = (almacenSel === "ALL") ? "TODOS" : almacenSel;
+            rSub.textContent = `${SITE_NAME} · ALMACÉN: ${almacTxt}`;
+
+            const ahora = new Date();
+            const fechaTxt = ahora.toLocaleString("es-MX", {
+              year: "numeric", month: "2-digit", day: "2-digit",
+              hour: "2-digit", minute: "2-digit"
+            });
+            rFecha.textContent = `Generado: ${fechaTxt}`;
+
+            const hoy = new Date();
+            const hoyStr = toDateInputValue(hoy);
+
+            const desdeStr = (repDesde && repDesde.value) ? repDesde.value : hoyStr;
+            const hastaStr = (repHasta && repHasta.value) ? repHasta.value : desdeStr;
+
+            if (desdeStr > hastaStr) {
+              rTotal.textContent = "Total etiquetas: 0";
+              rRows.innerHTML = `<tr><td colspan="3" class="text-danger">Rango inválido: DESDE no puede ser mayor que HASTA.</td></tr>`;
+              if (pieChart) { pieChart.destroy(); pieChart = null; }
+              return;
+            }
+
+            let data = null;
+            try {
+              data = await postJson("/Inventario/Reporte", {
+                almacen: almacenSel,
+                desde: desdeStr,
+                hasta: hastaStr
+              });
+            } catch (err) {
+              rTotal.textContent = "Total etiquetas: 0";
+              rRows.innerHTML = `<tr><td colspan="3" class="text-danger">No se pudo cargar el reporte: ${esc(err?.message || "")}</td></tr>`;
+              if (pieChart) { pieChart.destroy(); pieChart = null; }
+              return;
+            }
+
+            const total = Number(data?.total || 0);
+            rTotal.textContent = `Total etiquetas: ${total}`;
+
+            const grouped = groupBySkuForReport(data?.rows || []);
+
+            if (grouped.length === 0) {
+              rRows.innerHTML = `<tr><td colspan="3" class="r-muted">No hay lecturas guardadas en ese rango.</td></tr>`;
+            } else {
+              rRows.innerHTML = grouped.map(x => {
+                const pct = total ? ((x.qty / total) * 100).toFixed(1) : "0.0";
+                return `<tr>
+                  <td>
+                    <b>${esc(x.sku)}</b>
+                    <div class="r-muted">${esc(x.name)}</div>
+                    <span class="r-pill" style="margin-top:6px;display:inline-block">${esc(x.almacen)}</span>
+                  </td>
+                  <td class="r-num">${x.qty}</td>
+                  <td class="r-num">${pct}%</td>
+                </tr>`;
+              }).join("");
+            }
+
+            const labels = grouped.map(x => `${x.almacen} - ${x.sku}`);
+            const values = grouped.map(x => x.qty);
+
+            const ctx = document.getElementById("pie");
+            if (pieChart) { pieChart.destroy(); pieChart = null; }
+
+            if (labels.length > 0 && ctx && window.Chart) {
+              pieChart = new Chart(ctx, {
+                type: "pie",
+                data: { labels, datasets: [{ data: values }] },
+                options: { responsive: true, plugins: { legend: { position: "bottom" } } }
+              });
+            }
+          }
+
+          function showReport() {
+            if (repDesde && repHasta) {
+              const hoy = new Date();
+              repDesde.value = toDateInputValue(hoy);
+              repHasta.value = toDateInputValue(hoy);
+            }
+            if (repAlmacen) repAlmacen.value = "ALL";
+
+            reportModal.classList.add("show");
+            reportModal.setAttribute("aria-hidden", "false");
+            setTimeout(() => { renderReportReal(); }, 60);
+          }
+
+          function hideReport() {
+            reportModal.classList.remove("show");
+            reportModal.setAttribute("aria-hidden", "true");
+          }
+
+          // ===== eventos lector =====
+          input.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              if ((input.value || "").includes("\n")) acceptMany(input.value);
+              else acceptCode(input.value);
+            }
+          });
+
+          input.addEventListener("paste", () => {
+            setTimeout(() => { if ((input.value || "").includes("\n")) acceptMany(input.value); }, 0);
+          });
+
+          function keepFocus() { if (document.activeElement !== input) input.focus(); }
+          setInterval(keepFocus, 700);
+          setTimeout(() => input.focus(), 150);
+
+          btnFlush.addEventListener("click", async () => {
+            await flush(true);
+            if (queue.length) await flush(true);
+          });
+
+          btnReport.addEventListener("click", async () => {
+            if (queue.length && confirm("Hay cola pendiente. ¿Enviar antes de generar el reporte?")) {
+              await flush(true);
+              if (queue.length) await flush(true);
+            }
+            showReport();
+          });
+
+          btnCloseReport.addEventListener("click", hideReport);
+          reportModal.addEventListener("click", (e) => { if (e.target === reportModal) hideReport(); });
+
+          btnClear.addEventListener("click", async () => {
+            if (!confirm("¿Limpiar pantalla? (Esto NO borra la BD).")) return;
+            queue = []; okCount = 0; badCount = 0;
+            lastList.innerHTML = "";
+            renderKpis();
+            setStatus(`Listo. Almacén: ${WAREHOUSE_ID}`, "muted");
+            input.value = "";
+            input.focus();
+          });
+
+          // ✅ filtros reporte
+          if (btnRepFiltrar) btnRepFiltrar.addEventListener("click", renderReportReal);
+          if (repDesde) repDesde.addEventListener("change", renderReportReal);
+          if (repHasta) repHasta.addEventListener("change", renderReportReal);
+          if (repAlmacen) repAlmacen.addEventListener("change", renderReportReal);
+
+          // ✅ BOTÓN PDF (no rompe nada si no existe)
+          if (btnPdfReport) {
+            btnPdfReport.addEventListener("click", () => {
+              const desdeStr = repDesde?.value || toDateInputValue(new Date());
+              const hastaStr = repHasta?.value || desdeStr;
+              const almacenSel = (repAlmacen && repAlmacen.value) ? repAlmacen.value : "ALL";
+
+              const url = `/Inventario/ReportePdf?almacen=${encodeURIComponent(almacenSel)}&desde=${encodeURIComponent(desdeStr)}&hasta=${encodeURIComponent(hastaStr)}`;
+              window.open(url, "_blank");
+            });
+          }
+
+          renderKpis();
+          setStatus(`Listo. Escanea sin parar. Almacén: ${WAREHOUSE_ID}`, "muted");
+        })();
+    </script>
+}

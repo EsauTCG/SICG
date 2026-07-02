@@ -1,0 +1,114 @@
+﻿@model TodoVentasModel
+@{
+    ViewData["Title"] = "Balance Master";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    var mes = (string)(ViewData["Mes"] ?? "");
+    string mesCorto = mes.Length > 5 ? mes.Substring(5) : mes;
+}
+
+<div class="container my-3">
+    <h2 class="text-center">@ViewData["Title"] (@mes)</h2>
+
+    <!-- Totales (fila superior como en Excel) -->
+    <div class="row g-2 text-center fw-bold my-3" id="totales">
+        <div class="col">PROD: <span id="tProd">0</span></div>
+        <div class="col">INV: <span id="tInv">0</span></div>
+        <div class="col">INV IDEAL: <span id="tInvIdeal">0</span></div>
+        <div class="col">DISPONIBLE: <span id="tDisp">0</span></div>
+        <div class="col">VENTA: <span id="tVenta">0</span></div>
+        <div class="col">GAP: <span id="tGap">0</span></div>
+    </div>
+
+    <table class="table table-bordered table-hover">
+        <thead style="background-color: #B22222; color: #fff;">
+            <tr>
+                <th>Etiquetas de fila</th>
+                <th>ROT</th>
+                <th>PROD @mesCorto</th>
+                <th>INVENTARIO</th>
+                <th>INV IDEAL</th>
+                <th>DISPONIBLE</th>
+                <th>VENTA @mesCorto</th>
+                <th>GAP</th>
+            </tr>
+        </thead>
+        <tbody id="tbodyExcedidos">
+            <tr><td colspan="8" class="text-center">Cargando...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- CSS directo para evitar problemas con  Styles -->
+<style>
+    .badge-pos {
+        background: #e6fff0;
+        color: #155724;
+        padding: .25rem .5rem;
+        border-radius: .25rem;
+    }
+    .badge-neg {
+        background: #ffecec;
+        color: #721c24;
+        padding: .25rem .5rem;
+        border-radius: .25rem;
+    }
+    .number {
+        text-align: right;
+    }
+</style>
+
+<!-- JS directo para precarga de datos -->
+<script>
+    function fmt(n){
+        return Number(n).toLocaleString('es-MX');
+    }
+
+    function pintar(vm){
+        const tb = document.getElementById('tbodyExcedidos');
+        tb.innerHTML = "";
+
+        vm.Rows.forEach(r => {
+            const tr = document.createElement('tr');
+            const gap = r.Disponible - r.VentaMes;
+            const gapHtml = `<span class="${gap < 0 ? 'badge-neg' : 'badge-pos'}">${fmt(gap)}</span>`;
+
+            tr.innerHTML = `
+                <td>${r.Etiqueta}</td>
+                <td class="number">${r.Rot}</td>
+                <td class="number">${fmt(r.ProdMes)}</td>
+                <td class="number">${fmt(r.Inventario)}</td>
+                <td class="number">${fmt(r.InvIdeal)}</td>
+                <td class="number">${fmt(r.Disponible)}</td>
+                <td class="number">${fmt(r.VentaMes)}</td>
+                <td class="number">${gapHtml}</td>
+            `;
+            tb.appendChild(tr);
+        });
+
+        // Totales
+        document.getElementById('tProd').textContent = fmt(vm.TotalProd);
+        document.getElementById('tInv').textContent = fmt(vm.TotalInv);
+        document.getElementById('tInvIdeal').textContent = fmt(vm.TotalInvIdeal);
+        document.getElementById('tDisp').textContent = fmt(vm.TotalDisp);
+        document.getElementById('tVenta').textContent = fmt(vm.TotalVenta);
+        document.getElementById('tGap').textContent = fmt(vm.TotalGap);
+    }
+
+    // Datos precargados para vista previa
+    const previewData = {
+        Rows: [
+            { Etiqueta: "Producto A", Rot: 10, ProdMes: 150, Inventario: 120, InvIdeal: 130, Disponible: 100, VentaMes: 140 },
+            { Etiqueta: "Producto B", Rot: 8, ProdMes: 200, Inventario: 180, InvIdeal: 190, Disponible: 160, VentaMes: 170 },
+            { Etiqueta: "Producto C", Rot: 5, ProdMes: 300, Inventario: 250, InvIdeal: 260, Disponible: 240, VentaMes: 280 }
+        ],
+        TotalProd: 650,
+        TotalInv: 550,
+        TotalInvIdeal: 580,
+        TotalDisp: 500,
+        TotalVenta: 590,
+        TotalGap: -90
+    };
+
+    // Llamar a la función para pintar los datos precargados
+    pintar(previewData);
+</script>

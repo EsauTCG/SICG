@@ -1,0 +1,2744 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Control Precios";
+}
+
+<style>
+    :root {
+        --bg: #f0dede;
+        --panel: #f8eeee;
+        --panel-2: #f1dede;
+        --line: #c79d9d;
+        --text: #3b1717;
+        --muted: #6a3a3a;
+        --white: #ffffff;
+        --shadow: 0 1px 0 rgba(255,255,255,.55) inset;
+        --brand: #8B0000;
+        --vino-border: #9a5a5a;
+        --vino-text-dark: #4a1111;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        background: transparent !important;
+        color: var(--text);
+    }
+
+    .container, .container-fluid {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .window {
+        width: 100%;
+        max-width: 100%;
+        margin: 0 !important;
+        border: 1px solid #7e4a4a;
+        background: var(--panel);
+        box-shadow: 0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70,12,12,.14);
+        overflow: hidden;
+        padding: 0 !important;
+    }
+
+    .window > *:first-child, .titlebar { margin-top: 0 !important; }
+
+    .titlebar {
+        height: 34px;
+        /* display: flex; */
+        display: none !important;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 10px;
+        background: linear-gradient(180deg, #c00000 0%, #8b0000 60%, #5c0000 100%);
+        border-bottom: 1px solid #5c0000;
+        color: #fff;
+        font-size: 13px;
+        font-weight: bold;
+    }
+
+    .titlebar .actions { display: flex; gap: 6px; }
+
+    .win-btn {
+        width: 16px;
+        height: 16px;
+        border: 1px solid #7c4848;
+        background: linear-gradient(#fff6f6, #ead0d0);
+    }
+
+    .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 6px;
+        background: linear-gradient(#fff6f6, #ecd8d8);
+        border-bottom: 1px solid var(--line);
+        font-size: 12px;
+        flex-wrap: wrap;
+    }
+
+    .tool-btn {
+        min-width: 72px;
+        text-align: center;
+        background: linear-gradient(#fffefe, #ecd7d7);
+        border: 1px solid var(--vino-border);
+        box-shadow: var(--shadow);
+        cursor: pointer;
+        color: var(--vino-text-dark);
+        height: 28px;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        padding: 0 8px;
+        text-decoration: none;
+    }
+
+    .tool-btn:hover { filter: brightness(.98); }
+
+    .content { padding: 8px; background: var(--bg); }
+
+    .tabs {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 6px;
+        flex-wrap: wrap;
+    }
+
+    .tab-btn {
+        font-size: 12px;
+        background: linear-gradient(#f7e7e7, #ead1d1);
+        border: 1px solid #caa0a0;
+        border-bottom: none;
+        padding: 7px 12px;
+        color: #5c1a1a;
+        user-select: none;
+        cursor: pointer;
+    }
+
+    .tab-btn.active {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        font-weight: bold;
+        color: #fff;
+        border-color: #7a2d2d;
+    }
+
+    .workspace {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        padding: 8px;
+    }
+
+    .section {
+        border: 1px solid var(--line);
+        background: var(--white);
+        margin-bottom: 10px;
+        position: relative;
+    }
+
+    .section-title {
+        padding: 6px 8px;
+        font-size: 12px;
+        font-weight: bold;
+        color: #fff;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-bottom: 1px solid #6b1f1f;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    .section-body {
+        padding: 10px;
+        background: #fffafa;
+    }
+
+    .pm-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        height: 26px;
+        padding: 0 10px;
+        border: 1px solid transparent;
+        border-radius: 0;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        font-size: 11px;
+        font-weight: 700;
+        cursor: pointer;
+        text-decoration: none;
+        box-shadow: var(--shadow);
+        white-space: nowrap;
+    }
+
+    .pm-btn:hover { filter: brightness(.97); }
+    .pm-btn:disabled { opacity: .6; cursor: not-allowed; }
+
+    .pm-btn-primary {
+        color: #fff;
+        border-color: #7a2d2d;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+    }
+
+    .pm-btn-secondary {
+        background: linear-gradient(#fffefe, #ecd7d7);
+        border-color: var(--vino-border);
+        color: var(--vino-text-dark);
+    }
+
+    .pm-btn-success {
+        color: #fff;
+        border-color: #157347;
+        background: linear-gradient(180deg, #27ae60 0%, #1f9a54 55%, #198754 100%);
+    }
+
+    /* DESPUÉS — agrega el bloque del botón PDF debajo */
+    .pm-btn-outline {
+        background: transparent;
+        border-color: var(--vino-border);
+        color: #5a0000;
+    }
+
+    #btnDescargarPdf {
+        background: linear-gradient(180deg, #27ae60 0%, #1f9a54 55%, #198754 100%);
+        border-color: #157347;
+        color: #fff;
+    }
+
+        #btnDescargarPdf:hover {
+            background: linear-gradient(180deg, #2ecc71 0%, #27ae60 55%, #1f9a54 100%);
+        }
+
+    .tab-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #dc3545;
+        color: #fff;
+        font-size: .7rem;
+        font-weight: 700;
+        border-radius: 999px;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 5px;
+        margin-left: 6px;
+        line-height: 1;
+    }
+
+  .filter-bar {
+    padding: .85rem 1rem;
+    border-bottom: 1px solid #d9b8b8;
+    background: #f9eded;
+    display: grid;
+    grid-template-columns: 120px 220px 220px 220px 220px 150px 1fr;
+    gap: .8rem;
+    align-items: end;
+}
+
+    .filter-field {
+        display: flex;
+        flex-direction: column;
+        gap: .28rem;
+        min-width: 0;
+    }
+
+    .filter-field label {
+        font-size: .72rem;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: .4px;
+        margin: 0;
+        font-weight: 600;
+    }
+
+    .filter-field input[type=text],
+    .filter-field select,
+    .form-select,
+    .form-control {
+        font-size: .82rem;
+        padding: 6px 8px;
+        border: 1px solid #c79d9d;
+        border-radius: 2px;
+        background: #fff;
+        min-height: 36px;
+        color: #401515;
+    }
+
+    .filter-field input[type=text]:focus,
+    .filter-field select:focus,
+    .form-select:focus,
+    .form-control:focus {
+        outline: none;
+        border-color: #8b0000;
+        box-shadow: 0 0 0 2px rgba(139,0,0,.08);
+    }
+
+    .filter-actions {
+        display: flex;
+        align-items: end;
+        justify-content: flex-end; /* ← el cambio */
+        gap: .5rem;
+        flex-wrap: nowrap;
+        grid-column: 1 / -1; /* ← ocupa todo el ancho del grid si hace falta */
+        min-width: 0;
+    }
+.filter-actions .pm-btn {
+    height: 36px;
+    padding: 0 12px;
+    min-width: auto;
+}
+
+#btnResetListFilters {
+    min-width: 100px;
+}
+
+    .multi-select {
+        position: relative;
+        min-width: 0;
+    }
+
+    .multi-select-btn {
+        width: 100%;
+        min-height: 36px;
+        border: 1px solid #c79d9d;
+        background: #fff;
+        color: #401515;
+        border-radius: 2px;
+        padding: 6px 34px 6px 10px;
+        text-align: left;
+        font-size: .82rem;
+        position: relative;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .multi-select-btn::after {
+        content: '▼';
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: .65rem;
+        color: #666;
+        pointer-events: none;
+    }
+
+    .multi-select.open .multi-select-btn {
+        border-color: #8b0000;
+        box-shadow: 0 0 0 2px rgba(139,0,0,.08);
+    }
+
+    .multi-select-menu {
+        display: none;
+        position: absolute;
+        top: calc(100% + 2px);
+        left: 0;
+        width: 100%;
+        min-width: 240px;
+        max-height: 320px;
+        background: #fff;
+        border: 1px solid #cfcfcf;
+        box-shadow: 0 10px 28px rgba(0,0,0,.12);
+        z-index: 1200;
+        border-radius: 3px;
+        overflow: hidden;
+    }
+
+    .multi-select.open .multi-select-menu { display: block; }
+
+    .multi-select-search {
+        padding: .55rem;
+        border-bottom: 1px solid #eee;
+        background: #fafafa;
+    }
+
+    .multi-select-search input {
+        width: 100%;
+        border: 1px solid #ccc;
+        border-radius: 2px;
+        padding: 5px 8px;
+        font-size: .8rem;
+    }
+
+    .multi-select-options {
+        max-height: 240px;
+        overflow: auto;
+        background: #fff;
+    }
+
+    .multi-option {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        padding: .45rem .65rem;
+        font-size: .82rem;
+        border-bottom: 1px solid #f4f4f4;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .multi-option:hover { background: #faf7f7; }
+    .multi-option input { accent-color: #8b0000; cursor: pointer; }
+
+    .multi-select-footer {
+        padding: .45rem .55rem;
+        border-top: 1px solid #eee;
+        background: #fafafa;
+        display: flex;
+        gap: .4rem;
+        justify-content: flex-end;
+    }
+
+    .loading-overlay {
+        display: none;
+        position: absolute;
+        inset: 0;
+        background: rgba(255,255,255,.75);
+        z-index: 10;
+        align-items: center;
+        justify-content: center;
+        font-size: .9rem;
+        color: #555;
+    }
+
+    .loading-overlay.show { display: flex; }
+
+    .table-responsive {
+        border-top: 1px solid #d9b8b8;
+        background: #fffafa;
+    }
+
+  .table-clean thead th:first-child {
+    border-left: none !important;
+}
+
+.table-clean thead th {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+    color: #fff !important;
+    border-top: none !important;
+    border-right: none !important;
+    border-bottom: none !important;
+    box-shadow: none !important;
+    padding: 6px 5px !important;
+    font-weight: 700 !important;
+    font-size: 12px !important;
+    white-space: nowrap;
+    line-height: 1.2 !important;
+    text-transform: none !important;
+    vertical-align: middle;
+}
+
+ .table-clean thead th:first-child {
+    border-left: none !important;
+}
+
+    .table-clean tbody td {
+        background: #fffafa !important;
+        border-right: 1px solid #e6d6d6 !important;
+        border-bottom: 1px solid #e6d6d6 !important;
+        padding: .6rem .7rem !important;
+        vertical-align: middle;
+        font-size: 12px !important;
+        color: #401515 !important;
+    }
+
+        .table-clean tbody td:first-child {
+            border-left: 1px solid #e6d6d6 !important;
+        }
+
+    .price-cell {
+        padding: .55rem .8rem !important;
+        border-right: 1px solid #e6d6d6 !important;
+        border-bottom: 1px solid #e6d6d6 !important;
+    }
+
+
+
+    .table-clean tbody tr:hover td {
+        background: #f4dddd !important;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 2.5rem 1rem;
+        color: #999;
+        font-size: .9rem;
+    }
+
+    .canal-header {
+        font-size: .75rem;
+        text-transform: uppercase;
+        letter-spacing: .5px;
+        padding: .5rem .8rem;
+        border-bottom: 1px solid #dee2e6 !important;
+    }
+
+    .canal-spot        { background: #fff9ec !important; color: #856404 !important; border-left: 2px solid #ffc107 !important; }
+    .canal-activo      { background: #e8f4fd !important; color: #0a4b8a !important; border-left: 2px solid #0d6efd !important; }
+    .canal-estrategico { background: #eaf6ee !important; color: #0a5229 !important; border-left: 2px solid #198754 !important; }
+
+  .canal-sub {
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: none !important;
+    box-shadow: none !important;
+}
+
+    .price-cell { padding: .55rem .8rem !important; }
+    .price-cell.cell-ok { background: #d1e7dd !important; color: #0f5132 !important; }
+    .price-cell.cell-neutral { background: #fff3cd !important; color: #856404 !important; }
+    .price-cell.cell-block { background: #f8d9da !important; color: #842029 !important; font-weight: 700; }
+
+        .price-cell.cell-highlight {
+            outline: none !important;
+        }
+    .row-product td { border-bottom: 2px solid #e8e8e8 !important; }
+
+    .sku-label { font-weight: 700; font-size: .85rem; display: block; }
+    .desc-label { font-size: .8rem; color: #555; }
+
+    .client-tags {
+        display: flex;
+        gap: 3px;
+        flex-wrap: wrap;
+        margin-top: 3px;
+    }
+
+    .client-tag {
+        font-size: .68rem;
+        padding: 2px 7px;
+        border-radius: 3px;
+        background: #f0f0f0;
+        color: #555;
+        border: 1px solid #ddd;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .client-tag.tag-spot        { background: #fff9ec; border-color: #ffc107; color: #856404; }
+    .client-tag.tag-activo      { background: #e8f4fd; border-color: #0d6efd; color: #0a4b8a; }
+    .client-tag.tag-estrategico { background: #eaf6ee; border-color: #198754; color: #0a5229; }
+    .client-tag .ct-canal { font-size: .6rem; opacity: .7; font-weight: 700; }
+
+    .canal-badge {
+        display: inline-block;
+        font-size: .65rem;
+        padding: 1px 6px;
+        border-radius: 2px;
+        font-weight: 700;
+        white-space: nowrap;
+        vertical-align: middle;
+        margin-left: 4px;
+    }
+
+    .cb-spot        { background: #fff9ec; border: 1px solid #ffc107; color: #856404; }
+    .cb-activo      { background: #e8f4fd; border: 1px solid #0d6efd; color: #0a4b8a; }
+    .cb-estrategico { background: #eaf6ee; border: 1px solid #198754; color: #0a5229; }
+    .cb-unknown     { background: #f5f5f5; border: 1px solid #ccc; color: #666; }
+
+    .demanda-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 3px;
+        font-size: .72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    .dem-baja  { background: #d1e7dd; color: #0f5132; }
+    .dem-media { background: #fff3cd; color: #856404; }
+    .dem-alta  { background: #f8d7da; color: #842029; }
+
+    .vend-badge {
+        font-size: .7rem;
+        padding: 1px 7px;
+        border-radius: 2px;
+        background: #f0eaff;
+        color: #5b21b6;
+        border: 1px solid #c4b5fd;
+        white-space: nowrap;
+    }
+
+    .client-context {
+        padding: .5rem 1rem;
+        background: #f0f4ff;
+        border-bottom: 1px solid #c5d3f5;
+        font-size: .82rem;
+        color: #333;
+        display: none;
+        align-items: center;
+        gap: .5rem;
+    }
+
+    .client-context.visible { display: none !important; }
+    .client-context strong { color: #0a4b8a; }
+
+    .paginacion-bar {
+        padding: .5rem 1rem;
+        border-top: 1px solid #d3b0b0;
+        background: #fafafa;
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        flex-wrap: wrap;
+        font-size: .82rem;
+        color: #555;
+    }
+
+    .paginacion-bar .info-total { margin-right: auto; }
+
+    .paginacion-bar button {
+        border: 1px solid #ccc;
+        background: #fff;
+        color: #333;
+        border-radius: 3px;
+        padding: 2px 10px;
+        font-size: .82rem;
+        cursor: pointer;
+    }
+
+    .paginacion-bar button:hover { background: #f0f0f0; }
+    .paginacion-bar button:disabled { opacity: .4; cursor: not-allowed; }
+    .paginacion-bar button.active { background: #8b0000; color: #fff; border-color: #8b0000; }
+
+    .demanda-filter-btn.active,
+    .grafica-tipo-btn.active,
+    .grafica-vista-btn.active {
+        background: #8b0000 !important;
+        color: #fff !important;
+        border-color: #8b0000 !important;
+    }
+
+    .demanda-stat-card {
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 1rem 1.5rem;
+        text-align: center;
+        background: #fff;
+    }
+
+    .demanda-stat-card .stat-valor {
+        font-size: 2rem;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    .demanda-stat-card .stat-label {
+        font-size: .75rem;
+        text-transform: uppercase;
+        letter-spacing: .4px;
+        color: #666;
+        margin-top: .25rem;
+    }
+
+    .demanda-stat-card .stat-sub {
+        font-size: .72rem;
+        color: #888;
+        margin-top: .15rem;
+    }
+
+    .progress-demanda {
+        height: 10px;
+        border-radius: 4px;
+        background: #e9ecef;
+        overflow: hidden;
+        display: flex;
+    }
+
+    .progress-demanda-bar {
+        height: 100%;
+        transition: width .5s ease;
+    }
+
+    .modal-content {
+        border: 1px solid #7d4949;
+        border-radius: 0;
+    }
+
+    .modal-header {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: #fff !important;
+        border-bottom: 1px solid #5c0000 !important;
+        padding: .65rem 1rem !important;
+        border-radius: 0;
+    }
+
+    .modal-title {
+        color: #fff !important;
+        font-weight: 700;
+        font-size: 13px;
+    }
+
+    .btn-close {
+        filter: invert(1) grayscale(100%) !important;
+        opacity: .95 !important;
+    }
+
+    .modal-body {
+        background: #f4e4e4;
+        padding: .75rem !important;
+    }
+
+    .modal-footer {
+        background: #f7eaea;
+        border-top: 1px solid #d3b0b0;
+    }
+
+    .statusbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 6px 10px;
+        font-size: 11px;
+        color: #4a1a1a;
+        border-top: 1px solid #b88c8c;
+        background: linear-gradient(#f6e9e9, #ead5d5);
+        flex-wrap: wrap;
+    }
+
+    .text-status-ok { color: #198754; font-weight: 600; }
+    .text-status-warn { color: #b38600; font-weight: 600; }
+    .text-status-error { color: #dc3545; font-weight: 600; }
+    .text-muted-dark { color: #555; }
+
+    .row-processed { background: #f0f9f4; opacity: .75; }
+    .row-processed td, .row-rejected td { color: #6c757d; }
+    .row-rejected { background: #fff5f5; opacity: .75; }
+
+    @@media (max-width: 1400px) {
+        .filter-bar {
+            grid-template-columns: repeat(3, minmax(180px,1fr));
+        }
+
+        .filter-actions {
+            grid-column: 1 / -1;
+            justify-content: flex-start;
+        }
+    }
+
+    @@media (max-width: 900px) {
+        .filter-bar {
+            grid-template-columns: 1fr;
+        }
+
+        .filter-actions {
+            grid-column: auto;
+        }
+
+        .statusbar {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+    }
+
+    .multi-option,
+    .multi-select-item {
+        padding-left: 12px; /* ← agrega esto, antes era sin padding izquierdo */
+    }
+</style>
+
+<div class="window">
+
+    <div class="titlebar">
+        <div>Control Precios</div>
+        <div class="actions">
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+        </div>
+    </div>
+
+    <div class="toolbar">
+        @* <button class="tool-btn" type="button" id="btnRefreshListaTop">
+            <i class="fas fa-sync-alt"></i> Actualizar
+        </button> *@
+    </div>
+
+    <div class="content">
+
+        <div class="tabs" role="tablist">
+            <button class="tab-btn active" data-bs-toggle="tab" data-bs-target="#tab-lista" type="button" role="tab">
+                Lista de Precios
+            </button>
+            <button class="tab-btn" data-bs-toggle="tab" data-bs-target="#tab-reglas" type="button" role="tab">
+                Reglas Comerciales
+            </button>
+            <button class="tab-btn" data-bs-toggle="tab" data-bs-target="#tab-demanda" type="button" role="tab" id="btn-tab-demanda">
+                <i class="fas fa-chart-bar me-1"></i> Demanda
+            </button>
+            <div style="margin-left:auto;font-size:11px;color:#6a3a3a;align-self:center;">
+                 <span id="lastRefresh">—</span>
+            </div>
+        </div>
+
+        <div class="workspace">
+
+            <div class="tab-content" id="preciosTabsContent">
+
+                <div class="tab-pane fade show active" id="tab-lista" role="tabpanel">
+                    <div class="section">
+                        <div class="section-title">
+                            <span>Precios por Producto y Tipo de Cliente</span>
+                        </div>
+
+                        <div class="filter-bar">
+                            <div class="filter-field">
+                                <label>SKU</label>
+                                <input type="text" id="searchSku" placeholder="SKU...">
+                            </div>
+
+                            <div class="filter-field">
+                                <label>Producto</label>
+                                <input type="text" id="searchProducto" placeholder="Descripción...">
+                            </div>
+
+                         @*    <div class="filter-field">
+                                <label>Canal</label>
+                                <div class="multi-select" id="canalMulti">
+                                    <button type="button" class="multi-select-btn" data-placeholder="(Todos)">(Todos)</button>
+                                    <div class="multi-select-menu">
+                                        <div class="multi-select-options">
+                                            <label class="multi-option">
+                                                <input type="checkbox" value="SPOT" class="canal-option">
+                                                <span>SPOT</span>
+                                            </label>
+                                            <label class="multi-option">
+                                                <input type="checkbox" value="ACTIVO" class="canal-option">
+                                                <span>ACTIVO</span>
+                                            </label>
+                                            <label class="multi-option">
+                                                <input type="checkbox" value="ESTRATEGICO" class="canal-option">
+                                                <span>ESTRATEGICO</span>
+                                            </label>
+                                        </div>
+                                        <div class="multi-select-footer">
+                                            <button type="button" class="pm-btn pm-btn-secondary btn-sm" id="btnCanalTodos">Todo</button>
+                                            <button type="button" class="pm-btn pm-btn-secondary btn-sm" id="btnCanalLimpiar">Limpiar</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div> *@
+
+                           @*  <div class="filter-field">
+                                <label>Vendedor(es)</label>
+                                <div class="multi-select" id="vendedorMulti">
+                                    <button type="button" class="multi-select-btn" data-placeholder="nombres vendedor">(Todos)</button>
+                                    <div class="multi-select-menu">
+                                        <div class="multi-select-search">
+                                            <input type="text" id="searchVendedorMulti" placeholder="Buscar vendedor...">
+                                        </div>
+                                        <div class="multi-select-options" id="vendedorMultiOptions"></div>
+                                        <div class="multi-select-footer">
+                                            <button type="button" class="pm-btn pm-btn-secondary btn-sm" id="btnVendedoresTodos">Todo</button>
+                                            <button type="button" class="pm-btn pm-btn-secondary btn-sm" id="btnVendedoresLimpiar">Limpiar</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div> *@
+
+                            <div class="filter-field">
+                                <label>Cliente(s)</label>
+                                <div class="multi-select" id="clienteMulti">
+                                    <button type="button" class="multi-select-btn" data-placeholder="(Todos)">(Todos)</button>
+                                    <div class="multi-select-menu">
+                                        <div class="multi-select-search">
+                                            <input type="text" id="searchClienteMulti" placeholder="Buscar cliente...">
+                                        </div>
+                                        <div class="multi-select-options" id="clienteMultiOptions"></div>
+                                        <div class="multi-select-footer">
+                                            <button type="button" class="pm-btn pm-btn-secondary btn-sm" id="btnClientesTodos">Todo</button>
+                                            <button type="button" class="pm-btn pm-btn-secondary btn-sm" id="btnClientesLimpiar">Limpiar</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="filter-field">
+                                <label>Demanda</label>
+                                <select id="listFilterDemanda">
+                                    <option value="">Todas</option>
+                                    <option value="BAJA">BAJA</option>
+                                    <option value="MEDIA">MEDIA</option>
+                                    <option value="ALTA">ALTA</option>
+                                </select>
+                            </div>
+
+                            <div class="filter-field">
+                             <label>Modo</label>
+                             <select id="listModoProductos">
+                                 <option value="todos" selected>Todos los SKU</option>
+                                 <option value="topCliente">Más comprados</option>
+                             </select>
+                         </div>
+                         
+                         <div class="filter-field">
+                             <label>Top</label>
+                             <select id="listTopCliente">
+                                 <option value="10">Top 10</option>
+                                 <option value="20" selected>Top 20</option>
+                                 <option value="50">Top 50</option>
+                                 <option value="100">Top 100</option>
+                             </select>
+                         </div>
+
+                           <div class="filter-actions">
+                              <button class="pm-btn pm-btn-secondary btn-sm" id="btnResetListFilters">Limpiar</button>
+                              <button class="pm-btn pm-btn-outline btn-sm" id="btnDescargarPdf">
+                                  <i class="fas fa-file-pdf me-1"></i> Descargar PDF
+                              </button>
+                              <button class="pm-btn pm-btn-primary btn-sm" id="btnRefreshLista">
+                                  <i class="fas fa-sync-alt me-1"></i> Buscar
+                              </button>
+                          </div>
+                        </div>
+
+                        <div class="client-context" id="clientContext"></div>
+
+                        <div class="loading-overlay" id="loadingLista">
+                            <span><i class="fas fa-spinner fa-spin me-2"></i>Cargando precios...</span>
+                        </div>
+
+                        <div class="table-responsive" style="max-height:480px;overflow-y:auto;">
+                            <table class="table table-clean table-hover mb-0">
+                                <thead class="sticky-top" id="preciosTableHead">
+                                    <tr>
+                                        <th rowspan="2" class="ps-4 align-middle" style="border-right:1px solid #dee2e6;">Clave / Producto</th>
+                                        <th rowspan="2" class="align-middle" style="width:140px;">Vendedor</th>
+                                        <th rowspan="2" class="align-middle text-center" style="width:80px;">Demanda</th>
+                                        <th rowspan="2" class="align-middle text-end" style="width:90px;border-right:1px solid #dee2e6;">P. Base</th>
+                                        <th colspan="2" class="text-center canal-header canal-spot">Canal SPOT</th>
+                                        <th colspan="2" class="text-center canal-header canal-activo">Canal ACTIVO</th>
+                                        <th colspan="2" class="text-center canal-header canal-estrategico pe-4">Canal ESTRATEGICO</th>
+                                    </tr>
+                                    <tr>
+                                        <th class="text-end canal-sub">Desc.</th>
+                                        <th class="text-end canal-sub" style="border-right:1px solid #dee2e6;">Final</th>
+                                        <th class="text-end canal-sub">Desc.</th>
+                                        <th class="text-end canal-sub" style="border-right:1px solid #dee2e6;">Final</th>
+                                        <th class="text-end canal-sub">Desc.</th>
+                                        <th class="text-end canal-sub pe-4">Final</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="readTableBody">
+                                    <tr><td colspan="11" class="empty-state">Usa los filtros y presiona <b>Buscar</b> para cargar precios.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="paginacion-bar" id="paginacionBar" style="display:none">
+                            <span class="info-total" id="infoTotal"></span>
+                            <button id="btnPrimeraPag" title="Primera">«</button>
+                            <button id="btnAnteriorPag">‹ Anterior</button>
+                            <span id="paginaActualLabel" style="font-weight:600;"></span>
+                            <button id="btnSiguientePag">Siguiente ›</button>
+                            <button id="btnUltimaPag" title="Ultima">»</button>
+                        </div>
+
+                        <div class="section-body" style="border-top:1px solid #d3b0b0;background:#fafafa;font-size:.75rem;color:#888;">
+                            <span class="me-3"><span style="display:inline-block;width:10px;height:10px;background:#d1e7dd;border-radius:2px;margin-right:4px;"></span>Con descuento</span>
+                            <span class="me-3"><span style="display:inline-block;width:10px;height:10px;background:#fff3cd;border-radius:2px;margin-right:4px;"></span>Sin descuento</span>
+                            <span class="me-3"><span style="display:inline-block;width:10px;height:10px;background:#f8d7da;border-radius:2px;margin-right:4px;"></span>No vender</span>
+                            <span><span style="display:inline-block;width:10px;height:10px;border:2px solid #8b0000;border-radius:2px;margin-right:4px;"></span>Canal del cliente seleccionado</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade" id="tab-reglas" role="tabpanel">
+                    <div class="section">
+                        <div class="section-title">
+                            <span>Matriz de Referencia de Descuentos</span>
+                        </div>
+                        <div class="section-body py-3">
+                            <div class="row align-items-center">
+                                <div class="col-md-4 border-end pe-4">
+                                    <p class="mb-0 text-muted" style="font-size:.85rem;line-height:1.5;">
+                                        <b>Regla comercial</b><br><br>
+                                        El descuento permitido depende de dos variables:<br>
+                                        <b>1.</b> Nivel de demanda del producto (campo Rotacion en SAP).<br>
+                                        <b>2.</b> Clasificacion del cliente (U_MT_Clasificacion).<br><br>
+                                        Si la combinacion cae en <b>NO VENDER</b>, la operacion se bloquea.<br><br>
+                                        <b>Demanda:</b> Rotacion 1=BAJA · 2=MEDIA · 3=ALTA
+                                    </p>
+                                </div>
+                                <div class="col-md-8 ps-4">
+                                    <div id="matrixContainer">
+                                        <div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>Cargando matriz...</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade" id="tab-demanda" role="tabpanel">
+
+                    <div class="section">
+                        <div class="section-title">
+                            <span><i class="fas fa-sync-alt me-2"></i>Calculo Automatico de Demanda</span>
+                            <div class="d-flex align-items-center gap-2">
+                                <select id="demandaPeriodo" class="form-select form-select-sm" style="width:170px;">
+                                    <option value="30">Ultimos 30 dias</option>
+                                    <option value="90" selected>Ultimos 90 dias</option>
+                                    <option value="180">Ultimos 180 dias</option>
+                                </select>
+                                <button class="pm-btn pm-btn-primary btn-sm" id="btnRecalcularDemanda">
+                                    <i class="fas fa-calculator me-1"></i> Recalcular ahora
+                                </button>
+                            </div>
+                        </div>
+                        <div class="section-body">
+                            <div id="demandaEstado">
+                                <div class="text-center py-3 text-muted">
+                                    <i class="fas fa-spinner fa-spin me-2"></i>Cargando estado...
+                                </div>
+                            </div>
+                            <div class="row mt-4">
+                                <div class="col-12">
+                                    <div class="alert alert-light border mb-0" style="font-size:.82rem;">
+                                        <strong><i class="fas fa-info-circle me-1 text-primary"></i>Como funciona?</strong><br>
+                                        El sistema analiza el historial de ventas (<code>OrdenVenta → PedidoVentaProducto</code>)
+                                        y suma los <strong>kg totales</strong> (KilosCaja × Cajas) vendidos por SKU en el periodo seleccionado.
+                                        Luego divide los productos en 3 grupos iguales con <strong>percentiles automaticos</strong>:<br>
+                                        tercio inferior = <span class="badge" style="background:#d1e7dd;color:#0f5132;font-size:.75rem;">BAJA</span> ·
+                                        tercio medio = <span class="badge" style="background:#fff3cd;color:#856404;font-size:.75rem;">MEDIA</span> ·
+                                        tercio superior = <span class="badge" style="background:#f8d7da;color:#842029;font-size:.75rem;">ALTA</span>.
+                                        Esta clasificacion se usa automaticamente en la Lista de Precios.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <div class="section-title">
+                            <span>Consulta de Productos por Demanda</span>
+                            <div class="d-flex gap-2 align-items-center flex-wrap">
+                                <input type="text" id="demandaSkuBuscar" class="form-control form-control-sm"
+                                       placeholder="Buscar SKU..." style="width:140px;" maxlength="30">
+
+                                <button class="pm-btn pm-btn-primary btn-sm" id="btnBuscarDemandaSku">
+                                    <i class="fas fa-search me-1"></i>Buscar SKU
+                                </button>
+
+                                <button class="pm-btn pm-btn-secondary btn-sm" id="btnLimpiarDemandaSku">
+                                    Limpiar
+                                </button>
+
+                                <div class="d-flex gap-2 ms-2">
+                                    <button class="pm-btn pm-btn-secondary btn-sm demanda-filter-btn active" data-demanda="ALTA">
+                                        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#dc3545;margin-right:4px;"></span>ALTA
+                                    </button>
+                                    <button class="pm-btn pm-btn-secondary btn-sm demanda-filter-btn" data-demanda="MEDIA">
+                                        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#b38600;margin-right:4px;"></span>MEDIA
+                                    </button>
+                                    <button class="pm-btn pm-btn-secondary btn-sm demanda-filter-btn" data-demanda="BAJA">
+                                        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#198754;margin-right:4px;"></span>BAJA
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-clean mb-0">
+                                <thead>
+                                    <tr>
+                                        <th class="ps-4" style="width:40px;">#</th>
+                                        <th>SKU</th>
+                                        <th>Producto</th>
+                                        <th class="text-end">Kg Vendidos</th>
+                                        <th class="text-end">Cajas</th>
+                                        <th class="text-center">Demanda</th>
+                                        <th class="text-center">Periodo analizado</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="demandaTopBody">
+                                    <tr><td colspan="7" class="empty-state">Presiona <b>Recalcular ahora</b> para generar los datos.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <div class="section-title">
+                            <span><i class="fas fa-chart-line me-2"></i>Comportamiento Historico de Demanda por Mes</span>
+                            <div class="d-flex align-items-center gap-2">
+                                <select id="graficaMeses" class="form-select form-select-sm" style="width:160px;">
+                                    <option value="6">Ultimos 6 meses</option>
+                                    <option value="12" selected>Ultimos 12 meses</option>
+                                    <option value="24">Ultimos 24 meses</option>
+                                    <option value="36">Ultimos 36 meses</option>
+                                </select>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="pm-btn pm-btn-secondary btn-sm grafica-tipo-btn active" data-tipo="linea">Linea</button>
+                                    <button class="pm-btn pm-btn-secondary btn-sm grafica-tipo-btn" data-tipo="barra">Barra</button>
+                                    <button class="pm-btn pm-btn-secondary btn-sm grafica-tipo-btn" data-tipo="area">Area</button>
+                                </div>
+                                <button class="pm-btn pm-btn-secondary btn-sm" id="btnRefreshGrafica" title="Actualizar">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="section-body">
+                            <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
+                                <span style="font-size:.78rem;color:#666;font-weight:600;text-transform:uppercase;">Ver:</span>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="pm-btn pm-btn-secondary btn-sm grafica-vista-btn active" data-vista="total">Kg Total</button>
+                                    <button class="pm-btn pm-btn-secondary btn-sm grafica-vista-btn" data-vista="demanda">Por Demanda</button>
+                                    <button class="pm-btn pm-btn-secondary btn-sm grafica-vista-btn" data-vista="sku">SKU Especifico</button>
+                                </div>
+                                <div id="skuInputWrap" class="d-none d-flex align-items-center gap-2">
+                                    <input type="text" id="graficaSkuInput" class="form-control form-control-sm"
+                                           placeholder="Ej: N037" style="width:110px;" maxlength="20">
+                                    <button class="pm-btn pm-btn-primary btn-sm" id="btnBuscarSku">
+                                        <i class="fas fa-search me-1"></i>Buscar
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div style="position:relative;height:340px;">
+                                <canvas id="demandaChart"></canvas>
+                                <div id="graficaLoading" style="display:none;position:absolute;inset:0;background:rgba(255,255,255,.8);align-items:center;justify-content:center;font-size:.9rem;color:#555;">
+                                    <span><i class="fas fa-spinner fa-spin me-2"></i>Cargando grafica...</span>
+                                </div>
+                                <div id="graficaEmpty" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;color:#aaa;font-size:.9rem;">
+                                    Sin datos para el periodo seleccionado.
+                                </div>
+                            </div>
+
+                            <div id="graficaResumen" class="d-flex gap-4 mt-3 justify-content-center" style="font-size:.78rem;color:#555;"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div class="statusbar">
+        <div>Registro listo</div>
+        <div>Usuario: @User.Identity.Name</div>
+        <div>Empresa: Carnes G SA de CV</div>
+        <div>Modulo: Control Precios</div>
+    </div>
+
+</div>
+
+<div class="modal fade" id="modalConfirm" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content" style="border-radius:2px;">
+            <div class="modal-header bg-light py-2">
+                <h6 class="modal-title m-0" style="font-size:.9rem;" id="confirmTitle">Confirmar</h6>
+                <button type="button" class="btn-close" style="font-size:.7rem;" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="font-size:.88rem;" id="confirmBody"></div>
+            <div class="modal-footer py-2">
+                <button type="button" class="pm-btn pm-btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="pm-btn pm-btn-primary btn-sm" id="confirmOkBtn">Confirmar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const CANALES = ['SPOT', 'ACTIVO', 'ESTRATEGICO'];
+const DEMANDAS = ['BAJA', 'MEDIA', 'ALTA'];
+const AUTH_STEP = 0.50;
+
+let reglas = [];
+let autorizaciones = [];
+let reportes = [];
+let matrixDraft = null;
+let confirmCallback = null;
+let confirmModal = null;
+
+let paginaActual = 1;
+const TAMANO_PAG = 50;
+let totalPaginas = 1;
+let totalRegistros = 0;
+
+let clientesMap = {};
+let demandaFiltroActual = 'ALTA';
+
+let vendedoresData = [];
+let clientesData = [];
+
+let demandaChart = null;
+let graficaTipo = 'linea';
+let graficaVista = 'total';
+let graficaDatosCache = null;
+
+/* ===== control de auto-recalculo ===== */
+let recalculoDemandaEnProceso = null;
+let ultimoRecalculoDemanda = 0;
+const DEMANDA_TTL_MS = 5 * 60 * 1000;
+
+/* ===== NUEVO: perfil del usuario logueado ===== */
+let perfilUsuario = { tieneVendedor: false, vendedorId: null, nombre: '' };
+
+let permisosReglas = {
+    puedeLeer: false,
+    puedeEscribir: false,
+    puedeEliminar: false
+};
+
+const COLORES = {
+    alta:  { bg: 'rgba(220,53,69,.15)',  border: '#dc3545' },
+    media: { bg: 'rgba(179,134,0,.15)',  border: '#b38600' },
+    baja:  { bg: 'rgba(25,135,84,.15)',  border: '#198754' },
+    total: { bg: 'rgba(139,0,0,.12)',    border: '#8b0000' },
+    sku:   { bg: 'rgba(13,110,253,.15)', border: '#0d6efd' }
+};
+
+const money = v => v == null ? '—' :
+    new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(v);
+
+function fmtKg(v) {
+    const num = Number(v || 0);
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M kg';
+    if (num >= 1000)    return (num / 1000).toFixed(1)    + 'k kg';
+    return num.toFixed(0) + ' kg';
+}
+
+function labelCanal(canal) {
+    if (!canal) return canal;
+    return canal === 'ESTRATEGICO' ? 'ESTRATÉGICO' : canal;
+}
+
+function getSelectedValues(selector) {
+    return [...document.querySelectorAll(selector)]
+        .filter(cb => cb.checked)
+        .map(cb => cb.value);
+}
+
+function escapeHtml(text) {
+    return (text ?? '').toString()
+        .replace(/&/g,  '&amp;')
+        .replace(/</g,  '&lt;')
+        .replace(/>/g,  '&gt;')
+        .replace(/"/g,  '&quot;')
+        .replace(/'/g,  '&#039;');
+}
+
+async function fetchJSON(url) {
+    const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+async function postJSON(url, body) {
+    const res = await fetch(url, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body:    JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+function setupMultiSelect(rootId) {
+    const root = document.getElementById(rootId);
+    if (!root) return;
+
+    const btn = root.querySelector('.multi-select-btn');
+    if (!btn) return;
+
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('.multi-select.open').forEach(x => {
+            if (x !== root) x.classList.remove('open');
+        });
+        root.classList.toggle('open');
+    });
+
+    root.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', () => updateMultiSelectButton(rootId));
+    });
+}
+
+function closeAllMultiSelects() {
+    document.querySelectorAll('.multi-select.open').forEach(x => x.classList.remove('open'));
+}
+        function updateMultiSelectButton(rootId) {
+            const root = document.getElementById(rootId);
+            if (!root) return;
+
+            const btn = root.querySelector('.multi-select-btn');
+            if (!btn) return;
+
+            const checked     = [...root.querySelectorAll('input[type="checkbox"]:checked')];
+            const placeholder = btn.dataset.placeholder || '(Todos)';
+
+            if (!checked.length) { btn.textContent = placeholder; return; }
+
+            if (checked.length === 1) {
+                // CAMBIO: para clientes, preferimos el data-nombre del label padre;
+                // para otros multiselects seguimos usando el texto del <span>
+                const label = checked[0].closest('[data-nombre]');
+                if (label && label.dataset.nombre) {
+                    btn.textContent = label.dataset.nombre;
+                } else {
+                    const txt = checked[0].closest('.multi-option, .multi-select-item')
+                                    ?.querySelector('span')?.textContent?.trim()
+                                || checked[0].value;
+                    btn.textContent = txt;
+                }
+                return;
+            }
+
+            btn.textContent = `${checked.length} seleccionados`;
+        }
+
+
+ 
+
+function renderVendedoresMulti() {
+    const wrap = document.getElementById('vendedorMultiOptions');
+    if (!wrap) return;
+
+    wrap.innerHTML = `
+        <label class="multi-option">
+            <input type="checkbox" class="vendedor-option-all">
+            <strong>Seleccionar todo</strong>
+        </label>
+        ${(vendedoresData || []).map(v => `
+            <label class="multi-option vendedor-item" data-text="${escapeHtml((v || '').toLowerCase())}">
+                <input type="checkbox" value="${escapeHtml(v)}" class="vendedor-option">
+                <span>${escapeHtml(v)}</span>
+            </label>
+        `).join('')}
+    `;
+
+    wrap.querySelector('.vendedor-option-all')?.addEventListener('change', function () {
+        wrap.querySelectorAll('.vendedor-option').forEach(cb => cb.checked = this.checked);
+        updateMultiSelectButton('vendedorMulti');
+    });
+
+    wrap.querySelectorAll('.vendedor-option').forEach(cb => {
+        cb.addEventListener('change', () => {
+            const all     = wrap.querySelectorAll('.vendedor-option');
+            const checked = wrap.querySelectorAll('.vendedor-option:checked');
+            const allCb   = wrap.querySelector('.vendedor-option-all');
+            if (allCb) {
+                allCb.checked       = all.length > 0 && checked.length === all.length;
+                allCb.indeterminate = checked.length > 0 && checked.length < all.length;
+            }
+            updateMultiSelectButton('vendedorMulti');
+            cargarProductos(1);
+        });
+    });
+
+    updateMultiSelectButton('vendedorMulti');
+}
+
+    function renderClientesMulti() {
+    const wrap    = document.getElementById('clienteMulti');
+    const options = document.getElementById('clienteMultiOptions');
+    if (!wrap || !options) return;
+
+    const items = Array.isArray(clientesData) ? clientesData : [];
+
+    if (!items.length) {
+        options.innerHTML = `
+            <div class="text-muted px-2 py-2" style="font-size:.85rem;">
+                No hay clientes disponibles.
+            </div>`;
+        updateMultiSelectButton('clienteMulti');
+        return;
+    }
+
+    options.innerHTML = `
+        <label class="multi-select-item cliente-item" data-text="todos">
+            <input type="checkbox" class="cliente-option-all">
+            <span>(Todos)</span>
+        </label>
+        ${items.map(c => {
+            const codigo = (c.cliente       || '').trim();
+            const nombre = (c.nombreCliente || c.nombre || c.cliente || '').trim();
+            const canal  = (c.canal         || '').trim();
+            // texto de búsqueda sigue incluyendo código para que el filtro funcione
+            const texto  = `${codigo} ${nombre} ${canal}`.toLowerCase();
+
+            return `
+                <label class="multi-select-item cliente-item" data-text="${texto}" data-nombre="${nombre.replace(/"/g,'&quot;')}">
+                    <input type="checkbox" class="cliente-option" value="${codigo}">
+                    <span>${nombre}</span>
+                </label>`;
+                // ↑ CAMBIO: solo mostramos nombre, sin código ni canal
+        }).join('')}
+    `;
+
+    const allCb = wrap.querySelector('.cliente-option-all');
+
+    allCb?.addEventListener('change', () => {
+        const checked = allCb.checked;
+        wrap.querySelectorAll('.cliente-option').forEach(cb => { cb.checked = checked; });
+        allCb.indeterminate = false;
+        updateMultiSelectButton('clienteMulti');
+        cargarProductos(1);
+    });
+
+    wrap.querySelectorAll('.cliente-option').forEach(cb => {
+        cb.addEventListener('change', () => {
+            const all     = wrap.querySelectorAll('.cliente-option');
+            const checked = wrap.querySelectorAll('.cliente-option:checked');
+
+            if (allCb) {
+                allCb.checked       = all.length > 0 && checked.length === all.length;
+                allCb.indeterminate = checked.length > 0 && checked.length < all.length;
+            }
+
+            updateMultiSelectButton('clienteMulti');
+            cargarProductos(1);
+        });
+    });
+
+    updateMultiSelectButton('clienteMulti');
+}
+
+
+
+function initCanalMulti() {
+    setupMultiSelect('canalMulti');
+    updateMultiSelectButton('canalMulti');
+
+    document.querySelectorAll('.canal-option').forEach(cb => {
+        cb.addEventListener('change', () => {
+            updateMultiSelectButton('canalMulti');
+            cargarProductos(1);
+        });
+    });
+
+    document.getElementById('btnCanalTodos')?.addEventListener('click', () => {
+        document.querySelectorAll('.canal-option').forEach(cb => cb.checked = true);
+        updateMultiSelectButton('canalMulti');
+        cargarProductos(1);
+    });
+
+    document.getElementById('btnCanalLimpiar')?.addEventListener('click', () => {
+        document.querySelectorAll('.canal-option').forEach(cb => cb.checked = false);
+        updateMultiSelectButton('canalMulti');
+        cargarProductos(1);
+    });
+}
+
+function initSearchMulti(inputId, itemSelector) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+
+    input.addEventListener('input', () => {
+        const q = input.value.trim().toLowerCase();
+        document.querySelectorAll(itemSelector).forEach(item => {
+            const text = item.dataset.text || '';
+            item.style.display = !q || text.includes(q) ? '' : 'none';
+        });
+    });
+}
+
+function activarTab(tabId, btnActual) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#preciosTabsContent .tab-pane').forEach(p => {
+        p.classList.remove('show', 'active');
+    });
+
+    btnActual.classList.add('active');
+
+    const tab = document.querySelector(tabId);
+    if (tab) tab.classList.add('show', 'active');
+
+    if (tabId === '#tab-demanda') {
+        cargarEstadoDemanda();
+        cargarTopDemanda(demandaFiltroActual);
+        setTimeout(() => {
+            if (graficaVista !== 'sku') cargarGrafica();
+        }, 300);
+    }
+}
+
+/* ===== NUEVO: carga el perfil del usuario desde el backend ===== */
+async function cargarPerfilUsuario() {
+    try {
+        perfilUsuario = await fetchJSON('/ControlPrecios/ObtenerPerfilUsuario');
+        console.log('Perfil usuario =>', perfilUsuario);
+    } catch (e) {
+        console.warn('No se pudo cargar perfil de usuario:', e);
+        perfilUsuario = { tieneVendedor: false, vendedorId: null, nombre: '' };
+    }
+}
+
+async function cargarPermisosReglas() {
+    try {
+        permisosReglas = await fetchJSON('/ControlPrecios/ObtenerPermisosReglas');
+        console.log('Permisos reglas =>', permisosReglas);
+
+        const tabReglasBtn = document.querySelector('[data-bs-target="#tab-reglas"]');
+        const tabReglasPane = document.getElementById('tab-reglas');
+
+        if (!permisosReglas.puedeLeer) {
+            if (tabReglasBtn) tabReglasBtn.style.display = 'none';
+            if (tabReglasPane) {
+                tabReglasPane.innerHTML = `
+                    <div class="section">
+                        <div class="section-title">
+                            <span>Reglas Comerciales</span>
+                        </div>
+                        <div class="section-body">
+                            <div class="alert alert-warning mb-0">
+                                No tienes permiso para ver este módulo.
+                            </div>
+                        </div>
+                    </div>`;
+            }
+            return;
+        }
+
+        if (tabReglasBtn) tabReglasBtn.style.display = '';
+
+    } catch (e) {
+        console.error('No se pudieron cargar permisos de reglas:', e);
+    }
+}
+
+/* ===== NUEVO: bloquea el filtro de clientes si el usuario es vendedor ===== */
+function aplicarRestriccionVendedor() {
+    const multiRoot = document.getElementById('clienteMulti');
+    const btn = multiRoot?.querySelector('.multi-select-btn');
+
+    if (!multiRoot) return;
+
+    // Reset visual por si cambió el perfil o se volvió a renderizar
+    multiRoot.querySelectorAll('.cliente-option').forEach(cb => {
+        cb.disabled = false;
+    });
+
+    if (btn) {
+        btn.disabled = false;
+        btn.style.opacity = '';
+        btn.style.cursor = '';
+        btn.title = '';
+    }
+
+    // Mostrar botones por defecto
+    ['btnClientesTodos', 'btnClientesLimpiar'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = '';
+    });
+
+    const avisoAnterior = document.getElementById('vendedorRestriccionAviso');
+    if (avisoAnterior) avisoAnterior.remove();
+
+    // Si NO es vendedor, comportamiento normal
+    if (!perfilUsuario.tieneVendedor) {
+        updateMultiSelectButton('clienteMulti');
+        return;
+    }
+
+    // Sí es vendedor:
+    // puede seleccionar libremente SOLO dentro de los clientes que el backend ya le devolvió
+    if (btn) {
+        btn.title = 'Puedes seleccionar solo tus clientes asignados';
+    }
+
+    // Opcional: no dejar "Todos", para que no se marquen todos automáticamente
+    const btnTodos = document.getElementById('btnClientesTodos');
+    if (btnTodos) btnTodos.style.display = 'none';
+
+    const btnLimpiar = document.getElementById('btnClientesLimpiar');
+    if (btnLimpiar) btnLimpiar.style.display = '';
+
+    // // Aviso visual
+    // const filterBar = document.querySelector('.filter-bar');
+    // if (filterBar && !document.getElementById('vendedorRestriccionAviso')) {
+    //     const aviso = document.createElement('div');
+    //     aviso.id = 'vendedorRestriccionAviso';
+    //     aviso.style.cssText = `
+    //         grid-column: 1 / -1;
+    //         margin-top: 4px;
+    //         padding: 8px 12px;
+    //         border-radius: 8px;
+    //         background: #fff3cd;
+    //         color: #856404;
+    //         border: 1px solid #ffe69c;
+    //         font-size: .9rem;
+    //     `;
+    //     aviso.textContent = 'Puedes elegir solo entre tus clientes asignados.';
+    //     filterBar.appendChild(aviso);
+    // }
+
+    updateMultiSelectButton('clienteMulti');
+}
+
+/* ===== MODIFICADO: init carga el perfil antes que los filtros ===== */
+async function init() {
+    setupMultiSelect('vendedorMulti');
+    setupMultiSelect('clienteMulti');
+    initCanalMulti();
+    initSearchMulti('searchVendedorMulti', '.vendedor-item');
+    initSearchMulti('searchClienteMulti', '.cliente-item');
+
+    await cargarPerfilUsuario();
+    await cargarPermisosReglas();
+    await cargarFiltros();
+
+    await Promise.all([
+        cargarReglas(),
+        cargarAutorizaciones(),
+        cargarReporte()
+    ]);
+
+    const lastRefresh = document.getElementById('lastRefresh');
+    if (lastRefresh) {
+        lastRefresh.textContent = 'Listo: ' + new Date().toLocaleTimeString('es-MX');
+    }
+}
+
+function obtenerPeriodoDemandaActual() {
+    const periodoEl = document.getElementById('demandaPeriodo');
+    return parseInt(periodoEl?.value || '90', 10);
+}
+
+function marcarDemandaComoActualizada() {
+    ultimoRecalculoDemanda = Date.now();
+}
+
+async function asegurarDemandaActualizada({ force = false } = {}) {
+    const ahora = Date.now();
+
+    if (!force && (ahora - ultimoRecalculoDemanda < DEMANDA_TTL_MS)) {
+        return true;
+    }
+
+    if (recalculoDemandaEnProceso) {
+        return await recalculoDemandaEnProceso;
+    }
+
+    recalculoDemandaEnProceso = recalcularDemanda({ silent: true });
+
+    try {
+        const ok = await recalculoDemandaEnProceso;
+        if (ok) marcarDemandaComoActualizada();
+        return ok;
+    } finally {
+        recalculoDemandaEnProceso = null;
+    }
+}
+
+async function cargarProductos(pagina = 1) {
+    paginaActual = pagina;
+
+    const loading = document.getElementById('loadingLista');
+    const pagBar  = document.getElementById('paginacionBar');
+    if (loading) loading.classList.add('show');
+    if (pagBar)  pagBar.style.display = 'none';
+
+    try {
+        await asegurarDemandaActualizada();
+    } catch (e) {
+        console.warn('No fue posible actualizar demanda antes de cargar productos:', e);
+    }
+
+    const sku      = document.getElementById('searchSku')?.value.trim()      || '';
+    const producto = document.getElementById('searchProducto')?.value.trim() || '';
+    const demanda  = document.getElementById('listFilterDemanda')?.value      || '';
+
+    const modoProductos = document.getElementById('listModoProductos')?.value || 'todos';
+    const topCliente    = parseInt(document.getElementById('listTopCliente')?.value || '20', 10);
+
+    const canales    = getSelectedValues('.canal-option');
+    const vendedores = getSelectedValues('.vendedor-option');
+    const clientes   = getSelectedValues('.cliente-option');
+
+    const tbody = document.getElementById('readTableBody');
+
+    if (modoProductos === 'topCliente' && clientes.length !== 1) {
+        renderTableHead(null);
+        if (tbody) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="11" class="empty-state text-warning">
+                        Selecciona <b>un solo cliente</b> para ver sus productos más comprados.
+                    </td>
+                </tr>`;
+        }
+        totalRegistros = 0;
+        totalPaginas   = 1;
+        renderPaginacion();
+        if (loading) loading.classList.remove('show');
+        return;
+    }
+
+    const params = new URLSearchParams({ pagina, tamano: TAMANO_PAG });
+
+    if (sku)      params.set('sku',      sku);
+    if (producto) params.set('producto', producto);
+    if (demanda)  params.set('demanda',  demanda);
+
+    params.set('modoProductos', modoProductos);
+    params.set('topCliente',    topCliente);
+
+    canales.forEach(x    => params.append('canales',    x));
+    vendedores.forEach(x => params.append('vendedores', x));
+    clientes.forEach(x   => params.append('clientes',   x));
+
+    try {
+        const data = await fetchJSON(`/ControlPrecios/ObtenerProductos?${params.toString()}`);
+
+        totalRegistros = data.total       || 0;
+        totalPaginas   = data.totalPaginas || 1;
+
+        renderReadTable(data.datos || [], clientes, canales);
+        renderPaginacion();
+
+        const lastRefresh = document.getElementById('lastRefresh');
+        if (lastRefresh) {
+            lastRefresh.textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-MX');
+        }
+    } catch (e) {
+        console.error('Error cargando productos:', e);
+        if (tbody) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="11" class="empty-state text-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Error al cargar datos (${e.message}). Intente de nuevo.
+                    </td>
+                </tr>`;
+        }
+    } finally {
+        if (loading) loading.classList.remove('show');
+    }
+}
+
+function renderPaginacion() {
+    const bar = document.getElementById('paginacionBar');
+    if (!bar) return;
+
+    if (totalRegistros === 0) { bar.style.display = 'none'; return; }
+
+    bar.style.display = 'flex';
+
+    document.getElementById('infoTotal').textContent =
+        `${totalRegistros.toLocaleString()} registros · Página ${paginaActual} de ${totalPaginas}`;
+    document.getElementById('paginaActualLabel').textContent = `Pág. ${paginaActual}`;
+
+    document.getElementById('btnPrimeraPag').disabled   = paginaActual <= 1;
+    document.getElementById('btnAnteriorPag').disabled  = paginaActual <= 1;
+    document.getElementById('btnSiguientePag').disabled = paginaActual >= totalPaginas;
+    document.getElementById('btnUltimaPag').disabled    = paginaActual >= totalPaginas;
+}
+
+function getClienteCanalSeleccionado(productos, clientesSeleccionados) {
+    if (!clientesSeleccionados || clientesSeleccionados.length !== 1) return null;
+
+    const clienteSel = clientesSeleccionados[0];
+
+    for (const p of (productos || [])) {
+        const cli = (p.clientes || []).find(c =>
+            (c.codigoCliente || c.cliente || c.codigo || '') === clienteSel
+        );
+        if (cli?.canal) return (cli.canal || '').toUpperCase();
+    }
+
+    return null;
+}
+
+function renderTableHead(canalVisible) {
+    const thead = document.getElementById('preciosTableHead');
+    if (!thead) return;
+
+    if (canalVisible) {
+        const canalLabel = labelCanal(canalVisible);
+        const canalCls   =
+            canalVisible === 'SPOT'   ? 'canal-spot' :
+            canalVisible === 'ACTIVO' ? 'canal-activo' :
+            'canal-estrategico';
+
+        thead.innerHTML = `
+            <tr>
+                <th rowspan="2" class="ps-4 align-middle" style="border-right:1px solid #dee2e6;">Clave / Producto</th>
+                <th rowspan="2" class="align-middle" style="width:140px;">Vendedor</th>
+                <th rowspan="2" class="align-middle text-center" style="width:80px;">Demanda</th>
+                <th rowspan="2" class="align-middle text-end" style="width:90px;border-right:1px solid #dee2e6;">P. Base</th>
+                <th colspan="2" class="text-center canal-header ${canalCls} pe-4">Canal ${canalLabel}</th>
+            </tr>
+            <tr>
+                <th class="text-end canal-sub">Desc.</th>
+                <th class="text-end canal-sub pe-4">P.Final</th>
+            </tr>
+        `;
+        return;
+    }
+
+    thead.innerHTML = `
+        <tr>
+            <th rowspan="2" class="ps-4 align-middle" style="border-right:1px solid #dee2e6;">Clave / Producto</th>
+            <th rowspan="2" class="align-middle" style="width:140px;">Vendedor</th>
+            <th rowspan="2" class="align-middle text-center" style="width:80px;">Demanda</th>
+            <th rowspan="2" class="align-middle text-end" style="width:90px;border-right:1px solid #dee2e6;">P. Base</th>
+            <th colspan="2" class="text-center canal-header canal-spot">Canal SPOT</th>
+            <th colspan="2" class="text-center canal-header canal-activo">Canal ACTIVO</th>
+            <th colspan="2" class="text-center canal-header canal-estrategico pe-4">Canal ESTRATEGICO</th>
+        </tr>
+        <tr>
+            <th class="text-end canal-sub">Desc.</th>
+            <th class="text-end canal-sub" style="border-right:1px solid #dee2e6;">Final</th>
+            <th class="text-end canal-sub">Desc.</th>
+            <th class="text-end canal-sub" style="border-right:1px solid #dee2e6;">Final</th>
+            <th class="text-end canal-sub">Desc.</th>
+            <th class="text-end canal-sub pe-4">Final</th>
+        </tr>
+    `;
+}
+
+function renderCanalCell(pc, highlight, addRightBorder = false) {
+    const sep = addRightBorder ? 'border-right:1px solid #dee2e6;' : '';
+    const hl  = highlight ? ' cell-highlight' : '';
+
+    if (!pc || pc.status === 'NO VENDER') {
+        return `
+            <td class="price-cell cell-block${hl} text-center">—</td>
+            <td class="price-cell cell-block${hl} text-center" style="${sep}">NO VENDER</td>
+        `;
+    }
+
+    if (pc.descPermitido === 0) {
+        return `
+            <td class="price-cell cell-neutral${hl} text-end">$0</td>
+            <td class="price-cell cell-neutral${hl} text-end" style="${sep}">${money(pc.precioFinal)}</td>
+        `;
+    }
+
+    return `
+        <td class="price-cell cell-ok${hl} text-end">-${money(pc.descPermitido)}</td>
+        <td class="price-cell cell-ok${hl} text-end fw-bold" style="${sep}">${money(pc.precioFinal)}</td>
+    `;
+}
+
+function descargarPdfListaPrecios() {
+    const sku           = document.getElementById('searchSku')?.value.trim()      || '';
+    const producto      = document.getElementById('searchProducto')?.value.trim() || '';
+    const demanda       = document.getElementById('listFilterDemanda')?.value      || '';
+    const modoProductos = document.getElementById('listModoProductos')?.value      || 'todos';
+    const topCliente    = document.getElementById('listTopCliente')?.value         || '20';
+
+    const canales    = getSelectedValues('.canal-option');
+    const vendedores = getSelectedValues('.vendedor-option');
+    const clientes   = getSelectedValues('.cliente-option');
+
+    if (modoProductos === 'topCliente' && clientes.length !== 1) {
+        alert('Selecciona un solo cliente para exportar sus productos más comprados.');
+        return;
+    }
+
+    const params = new URLSearchParams();
+
+    if (sku)      params.set('sku',      sku);
+    if (producto) params.set('producto', producto);
+    if (demanda)  params.set('demanda',  demanda);
+
+    params.set('modoProductos', modoProductos);
+    params.set('topCliente',    topCliente);
+
+    canales.forEach(x    => params.append('canales',    x));
+    vendedores.forEach(x => params.append('vendedores', x));
+    clientes.forEach(x   => params.append('clientes',   x));
+
+    window.open(`/ControlPrecios/ExportarPdfListaPrecios?${params.toString()}`, '_blank');
+}
+
+function renderReadTable(productos, clientesSeleccionados, canalesSeleccionados) {
+    const tbody = document.getElementById('readTableBody');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+
+    if (!productos || !productos.length) {
+        renderTableHead(null);
+        tbody.innerHTML = `<tr><td colspan="11" class="empty-state">Sin resultados. Ajusta los filtros y presiona <b>Buscar</b>.</td></tr>`;
+        return;
+    }
+
+    const clientesSet            = new Set(clientesSeleccionados || []);
+    const canalClienteSeleccionado = getClienteCanalSeleccionado(productos, clientesSeleccionados);
+    const canalVisible             = canalClienteSeleccionado || null;
+
+    renderTableHead(canalVisible);
+
+    productos.forEach(p => {
+        const clienteCoincidente = (p.clientes || []).find(c =>
+            clientesSet.has(c.codigoCliente || c.cliente || c.codigo || c.nombre)
+        );
+
+        const canalCliente = (clienteCoincidente?.canal || '').toUpperCase();
+
+        const clienteTags = (p.clientes || []).map(c => {
+            const cUp         = (c.canal || '').toUpperCase();
+            const cls         = cUp === 'SPOT' ? 'tag-spot' : cUp === 'ACTIVO' ? 'tag-activo' : 'tag-estrategico';
+            const seleccionado = clientesSet.has(c.codigoCliente || c.cliente || c.codigo || c.nombre);
+            const bold         = seleccionado ? ' style="font-weight:700;border-width:2px;"' : '';
+            return `<span class="client-tag ${cls}"${bold}>${escapeHtml(c.nombre)}
+                        <span class="ct-canal">${labelCanal(c.canal)}</span>
+                    </span>`;
+        }).join('');
+
+        const demCls = p.demanda === 'ALTA' ? 'dem-alta' : p.demanda === 'MEDIA' ? 'dem-media' : 'dem-baja';
+
+        let celdas = '';
+
+        if (canalVisible) {
+            const keyMap = {
+                SPOT:        p.precioSpot,
+                ACTIVO:      p.precioActivo,
+                ESTRATEGICO: p.precioEstrategico
+            };
+
+            celdas = renderCanalCell(keyMap[canalVisible], canalCliente === canalVisible, false);
+        } else {
+            const preciosCanal = [
+                { canal: 'SPOT',        data: p.precioSpot,        border: true  },
+                { canal: 'ACTIVO',      data: p.precioActivo,      border: true  },
+                { canal: 'ESTRATEGICO', data: p.precioEstrategico, border: false }
+            ];
+
+            celdas = preciosCanal.map(x =>
+                renderCanalCell(x.data, canalCliente === x.canal, x.border)
+            ).join('');
+        }
+
+        tbody.insertAdjacentHTML('beforeend', `
+            <tr class="row-product">
+                <td class="ps-4" style="border-right:1px solid #dee2e6;">
+                    <span class="sku-label">${escapeHtml(p.sku)}</span>
+                    <span class="desc-label">${escapeHtml(p.descripcion)}</span>
+                    <div class="client-tags">${clienteTags}</div>
+                </td>
+                <td><span class="vend-badge">${escapeHtml(p.vendedor || '—')}</span></td>
+                <td class="text-center"><span class="demanda-badge ${demCls}">${escapeHtml(p.demanda)}</span></td>
+                <td class="text-end fw-bold" style="border-right:1px solid #dee2e6;">${money(p.precioBase)}</td>
+                ${celdas}
+            </tr>
+        `);
+    });
+
+    const ctx = document.getElementById('clientContext');
+    if (!ctx) return;
+
+    const partes = [];
+    if (clientesSeleccionados?.length) partes.push(`Clientes seleccionados: <strong>${clientesSeleccionados.length}</strong>`);
+    if (canalesSeleccionados?.length)  partes.push(`Canales: <strong>${canalesSeleccionados.map(labelCanal).join(', ')}</strong>`);
+    if (canalVisible)                  partes.push(`Canal mostrado: <strong>${labelCanal(canalVisible)}</strong>`);
+
+    if (partes.length) {
+        ctx.innerHTML = partes.join(' &nbsp;·&nbsp; ');
+        ctx.classList.add('visible');
+    } else {
+        ctx.innerHTML = '';
+        ctx.classList.remove('visible');
+    }
+}
+
+async function cargarReglas() {
+    try {
+        reglas = await fetchJSON('/ControlPrecios/ObtenerReglas');
+        renderMatrix(false);
+    } catch (e) {
+        console.error('Error cargando reglas:', e);
+    }
+}
+
+function getCellViewClass(val) {
+    if (val === null || val === undefined) return 'mat-salmon';
+    if (val === 0)  return 'mat-salmon';
+    if (val <= 1)   return 'mat-peach';
+    if (val <= 2)   return 'mat-blue';
+    return 'mat-green';
+}
+
+function renderMatrix(editMode) {
+    const container = document.getElementById('matrixContainer');
+    if (!container) return;
+
+    const src = editMode ? matrixDraft : reglas;
+
+  let html = `<div class="matrix-edit-bar">`;
+
+if (editMode) {
+    if (permisosReglas.puedeEscribir) {
+        html += `<span class="matrix-saved-toast" id="matrixToast">✓ Guardado</span>
+                 <button class="btn btn-outline-plain btn-sm" id="btnCancelMatrix">Cancelar</button>
+                 <button class="btn btn-outline-ok btn-sm fw-bold" id="btnSaveMatrix">Guardar cambios</button>`;
+    } else {
+        editMode = false;
+        html += `<span class="text-muted" style="font-size:.85rem;">Solo lectura</span>`;
+    }
+} else {
+    if (permisosReglas.puedeEscribir) {
+        html += `<button class="btn btn-modify btn-sm" id="btnEditMatrix">Modificar Descuentos</button>`;
+    } else {
+        html += `<span class="text-muted" style="font-size:.85rem;">Solo lectura</span>`;
+    }
+}
+
+html += `</div>`;
+
+    html += `<table class="table table-sm text-center matrix-table mb-0" style="font-size:.85rem;">
+        <thead class="bg-light">
+            <tr>
+                <th class="border-0" style="width:160px;"></th>
+                <th>Canal: SPOT</th>
+                <th>Canal: ACTIVO</th>
+                <th>Canal: ESTRATÉGICO</th>
+            </tr>
+        </thead>
+        <tbody>`;
+
+    DEMANDAS.forEach(dem => {
+        html += `<tr><th class="text-end pe-3 bg-light">Demanda: ${dem}</th>`;
+        CANALES.forEach((canal, ci) => {
+            const regla = src.find(r =>
+                r.demanda?.toUpperCase() === dem &&
+                r.canal?.toUpperCase()   === canal
+            );
+            const val = regla ? regla.descuentoMonto : null;
+
+            if (editMode) {
+                const isNV  = val === null || val === undefined;
+                const tdCls = isNV ? 'mat-salmon' : 'mat-peach';
+                html += `
+                    <td class="${tdCls} matrix-cell-edit" data-dem="${dem}" data-ci="${ci}">
+                        <input type="${isNV ? 'text' : 'number'}" class="matrix-val-input"
+                               data-dem="${dem}" data-ci="${ci}"
+                               value="${isNV ? '' : val}"
+                               min="0" max="999" step="0.5"
+                               ${isNV ? 'disabled' : ''}
+                               placeholder="${isNV ? 'NO VENDER' : '0'}">
+                        <label class="matrix-nv-label">
+                            <input type="checkbox" class="matrix-nv-cb"
+                                   data-dem="${dem}" data-ci="${ci}"
+                                   ${isNV ? 'checked' : ''}> No vender
+                        </label>
+                    </td>`;
+            } else {
+                const cls = getCellViewClass(val);
+                const lbl = (val === null || val === undefined) ? 'NO VENDER'
+                    : val === 0 ? '$ 0.00'
+                    : `-$ ${Number(val).toFixed(2)}`;
+                html += `<td class="${cls}">${lbl}</td>`;
+            }
+        });
+        html += `</tr>`;
+    });
+
+    html += `</tbody></table>`;
+    container.innerHTML = html;
+
+    if (editMode) {
+        container.querySelectorAll('.matrix-nv-cb').forEach(cb => {
+            cb.addEventListener('change', function () {
+                const dem   = this.dataset.dem;
+                const ci    = parseInt(this.dataset.ci);
+                const canal = CANALES[ci];
+                const td    = container.querySelector(`td[data-dem="${dem}"][data-ci="${ci}"]`);
+                const input = td?.querySelector('.matrix-val-input');
+                const entry = matrixDraft.find(r => r.demanda === dem && r.canal === canal);
+                if (!entry || !td || !input) return;
+
+                if (this.checked) {
+                    entry.descuentoMonto = null;
+                    input.disabled       = true;
+                    input.type           = 'text';
+                    input.value          = '';
+                    input.placeholder    = 'NO VENDER';
+                    td.className         = td.className.replace(/mat-\w+/, 'mat-salmon') + ' matrix-cell-edit';
+                } else {
+                    entry.descuentoMonto = 0;
+                    input.disabled       = false;
+                    input.type           = 'number';
+                    input.value          = '0';
+                    input.placeholder    = '0';
+                    td.className         = td.className.replace(/mat-\w+/, 'mat-peach') + ' matrix-cell-edit';
+                }
+            });
+        });
+
+        container.querySelectorAll('.matrix-val-input').forEach(input => {
+            input.addEventListener('input', function () {
+                if (this.disabled) return;
+                const dem   = this.dataset.dem;
+                const canal = CANALES[parseInt(this.dataset.ci)];
+                const entry = matrixDraft.find(r => r.demanda === dem && r.canal === canal);
+                if (entry) entry.descuentoMonto = parseFloat(this.value) || 0;
+            });
+        });
+
+        document.getElementById('btnSaveMatrix')?.addEventListener('click', saveMatrix);
+        document.getElementById('btnCancelMatrix')?.addEventListener('click', () => renderMatrix(false));
+    } else {
+        document.getElementById('btnEditMatrix')?.addEventListener('click', startEditMatrix);
+    }
+}
+
+function startEditMatrix() {
+    if (!permisosReglas.puedeEscribir) {
+        alert('No tienes permiso para modificar reglas.');
+        return;
+    }
+
+    matrixDraft = JSON.parse(JSON.stringify(reglas));
+    renderMatrix(true);
+}
+
+async function saveMatrix() {
+    if (!permisosReglas.puedeEscribir) {
+        alert('No tienes permiso para guardar cambios.');
+        return;
+    }
+
+    try {
+        const result = await postJSON('/ControlPrecios/GuardarReglas', {
+            reglas: matrixDraft,
+            usuario: ''
+        });
+
+        if (result.ok) {
+            reglas = JSON.parse(JSON.stringify(matrixDraft));
+            renderMatrix(false);
+            renderMatrix(false);
+        } else {
+            alert('Error al guardar: ' + (result.mensaje || 'Intente de nuevo.'));
+        }
+    } catch (e) {
+        alert('Error de conexión al guardar reglas.');
+        console.error(e);
+    }
+}
+
+/* ===== MODIFICADO: pasa vendedorId al backend si el usuario es vendedor ===== */
+async function cargarFiltros() {
+    try {
+        const data = await fetchJSON('/ControlPrecios/ObtenerFiltros');
+
+        console.log('ObtenerFiltros =>', data);
+
+        vendedoresData = Array.isArray(data.vendedores) ? data.vendedores : [];
+        clientesData   = Array.isArray(data.clientes)   ? data.clientes   : [];
+
+        clientesMap = {};
+        clientesData.forEach(c => {
+            const codigo = (c.cliente || '').trim();
+            if (!codigo) return;
+
+            clientesMap[codigo] = {
+                nombre: c.nombreCliente || c.nombre || c.cliente,
+                canal: c.canal || ''
+            };
+        });
+
+        renderVendedoresMulti();
+        renderClientesMulti();
+        aplicarRestriccionVendedor();
+
+    } catch (e) {
+        console.error('Error cargando filtros:', e);
+
+        const options = document.getElementById('clienteMultiOptions');
+        if (options) {
+            options.innerHTML = `
+                <div class="text-danger px-2 py-2" style="font-size:.85rem;">
+                    Error al cargar clientes.
+                </div>`;
+        }
+    }
+}
+
+
+async function cargarAutorizaciones() {
+    try {
+        autorizaciones = await fetchJSON('/ControlPrecios/ObtenerAutorizaciones');
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function cargarReporte() {
+    try {
+        reportes = await fetchJSON('/ControlPrecios/ObtenerReporte');
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function cargarEstadoDemanda() {
+    const div = document.getElementById('demandaEstado');
+    if (!div) return;
+
+    try {
+        const data = await fetchJSON('/ControlPrecios/ObtenerEstadoDemanda');
+
+        if (!data.calculado) {
+            div.innerHTML = `
+                <div class="alert alert-warning border mb-0">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Calculando demanda automáticamente. Si es la primera vez, espera un momento y vuelve a entrar.
+                </div>`;
+            return;
+        }
+
+        const total    = (data.totalBaja + data.totalMedia + data.totalAlta) || 1;
+        const pctBaja  = Math.round((data.totalBaja  / total) * 100);
+        const pctMedia = Math.round((data.totalMedia / total) * 100);
+        const pctAlta  = Math.round((data.totalAlta  / total) * 100);
+        const fmtKgEstado = v => v
+            ? Number(v).toLocaleString('es-MX', { maximumFractionDigits: 0 }) + ' kg'
+            : '—';
+
+        div.innerHTML = `
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-md-3">
+                    <div class="demanda-stat-card">
+                        <div class="stat-valor text-muted">${data.totalSkus.toLocaleString()}</div>
+                        <div class="stat-label">Total SKUs</div>
+                        <div class="stat-sub">${data.temporada} · ${data.periodoDias} días</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="demanda-stat-card" style="border-top:3px solid #198754;">
+                        <div class="stat-valor" style="color:#198754;">${data.totalBaja.toLocaleString()}</div>
+                        <div class="stat-label">Demanda BAJA</div>
+                        <div class="stat-sub">≤ ${fmtKgEstado(data.umbralBaja)}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="demanda-stat-card" style="border-top:3px solid #b38600;">
+                        <div class="stat-valor" style="color:#b38600;">${data.totalMedia.toLocaleString()}</div>
+                        <div class="stat-label">Demanda MEDIA</div>
+                        <div class="stat-sub">Entre umbrales</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="demanda-stat-card" style="border-top:3px solid #dc3545;">
+                        <div class="stat-valor" style="color:#dc3545;">${data.totalAlta.toLocaleString()}</div>
+                        <div class="stat-label">Demanda ALTA</div>
+                        <div class="stat-sub">≥ ${fmtKgEstado(data.umbralAlta)}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="progress-demanda mb-2">
+                <div class="progress-demanda-bar" style="width:${pctBaja}%;background:#198754;"></div>
+                <div class="progress-demanda-bar" style="width:${pctMedia}%;background:#b38600;"></div>
+                <div class="progress-demanda-bar" style="width:${pctAlta}%;background:#dc3545;"></div>
+            </div>`;
+    } catch (e) {
+        div.innerHTML = `<div class="alert alert-danger border mb-0">Error al cargar estado: ${e.message}</div>`;
+    }
+}
+
+async function recalcularDemanda({ silent = false, force = false } = {}) {
+    const btn      = document.getElementById('btnRecalcularDemanda');
+    const periodoEl = document.getElementById('demandaPeriodo');
+    if (!periodoEl) return false;
+
+    const periodo = parseInt(periodoEl.value || '90', 10);
+    const orig    = btn ? btn.innerHTML : '';
+
+    if (btn && !silent) {
+        btn.disabled  = true;
+        btn.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i> Calculando...`;
+    }
+
+    try {
+        const data = await postJSON('/ControlPrecios/RecalcularDemanda', {
+            periodoDias: periodo,
+            usuario:     ''
+        });
+
+        if (data.ok) {
+            marcarDemandaComoActualizada();
+
+            await cargarEstadoDemanda();
+
+            const skuActual = document.getElementById('demandaSkuBuscar')?.value.trim() || '';
+            await cargarTopDemanda(demandaFiltroActual, skuActual);
+
+            if (!silent) alert(`✓ ${data.mensaje}`);
+
+            return true;
+        } else {
+            if (!silent) alert('Error: ' + (data.mensaje || 'No fue posible recalcular la demanda.'));
+            return false;
+        }
+    } catch (e) {
+        if (!silent) alert('Error de conexión: ' + e.message);
+        return false;
+    } finally {
+        if (btn && !silent) {
+            btn.disabled  = false;
+            btn.innerHTML = orig;
+        }
+    }
+}
+
+async function cargarTopDemanda(demanda, sku = '') {
+    demandaFiltroActual = demanda;
+
+    const tbody = document.getElementById('demandaTopBody');
+    if (!tbody) return;
+
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="7" class="empty-state">
+                <i class="fas fa-spinner fa-spin me-2"></i>Cargando...
+            </td>
+        </tr>`;
+
+    document.querySelectorAll('.demanda-filter-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.demanda === demanda);
+    });
+
+    try {
+        const url = (sku && sku.trim() !== '')
+            ? `/ControlPrecios/ObtenerTopDemanda?sku=${encodeURIComponent(sku.trim())}`
+            : `/ControlPrecios/ObtenerTopDemanda?demanda=${encodeURIComponent(demanda)}&top=100`;
+
+        const lista = await fetchJSON(url);
+
+        if (!lista || !lista.length) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="empty-state">
+                        No se encontraron resultados${sku ? ` para el SKU <b>${sku}</b>` : ''}.
+                    </td>
+                </tr>`;
+            return;
+        }
+
+        tbody.innerHTML = '';
+
+        lista.forEach((p, i) => {
+            const demCls =
+                p.demanda === 'ALTA'  ? 'dem-alta' :
+                p.demanda === 'MEDIA' ? 'dem-media' :
+                'dem-baja';
+
+            const desde = p.fechaDesde ? new Date(p.fechaDesde).toLocaleDateString('es-MX') : '—';
+            const hasta = p.fechaHasta ? new Date(p.fechaHasta).toLocaleDateString('es-MX') : '—';
+
+            tbody.insertAdjacentHTML('beforeend', `
+                <tr>
+                    <td class="ps-4 text-muted">${i + 1}</td>
+                    <td class="fw-bold">${p.productoCodigo || '—'}</td>
+                    <td>${p.productoNombre || '—'}</td>
+                    <td class="text-end fw-bold">${Number(p.kgTotales || 0).toLocaleString('es-MX', { maximumFractionDigits: 0 })} kg</td>
+                    <td class="text-end">${Number(p.cajasTotales || 0).toLocaleString('es-MX')}</td>
+                    <td class="text-center"><span class="demanda-badge ${demCls}">${p.demanda || '—'}</span></td>
+                    <td class="text-center" style="font-size:.75rem;color:#888;">${desde} – ${hasta}</td>
+                </tr>`);
+        });
+    } catch (e) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="empty-state text-danger">
+                    Error: ${e.message}
+                </td>
+            </tr>`;
+    }
+}
+
+function cargarChartJsSiFalta() {
+    return new Promise((resolve, reject) => {
+        if (window.Chart) return resolve();
+
+        const script   = document.createElement('script');
+        script.src     = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+        script.onload  = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+}
+
+async function cargarGrafica() {
+    const mesesEl = document.getElementById('graficaMeses');
+    const loading = document.getElementById('graficaLoading');
+    const empty   = document.getElementById('graficaEmpty');
+
+    if (!mesesEl || !loading || !empty) return;
+
+    await cargarChartJsSiFalta();
+
+    const meses = parseInt(mesesEl.value);
+    loading.style.display = 'flex';
+    empty.style.display   = 'none';
+
+    try {
+        if (graficaVista === 'sku') {
+            const sku = document.getElementById('graficaSkuInput')?.value.trim();
+
+            if (!sku) {
+                loading.style.display = 'none';
+                empty.style.display   = 'flex';
+                empty.textContent     = 'Escribe un SKU para consultar.';
+                return;
+            }
+
+            const datos = await fetchJSON(`/ControlPrecios/ObtenerHistorialSku?sku=${encodeURIComponent(sku)}&meses=${meses}`);
+            graficaDatosCache = datos;
+            renderGraficaSku(datos, sku);
+        } else {
+            const datos = await fetchJSON(`/ControlPrecios/ObtenerHistorialDemanda?meses=${meses}`);
+            graficaDatosCache = datos;
+
+            if (!datos || !datos.length) {
+                if (demandaChart) { demandaChart.destroy(); demandaChart = null; }
+                document.getElementById('graficaResumen').innerHTML = '';
+                loading.style.display = 'none';
+                empty.style.display   = 'flex';
+                empty.textContent     = 'Sin datos para el período seleccionado.';
+                return;
+            }
+
+            if (graficaVista === 'demanda') renderGraficaDemanda(datos);
+            else                            renderGraficaTotal(datos);
+        }
+    } catch (e) {
+        if (demandaChart) { demandaChart.destroy(); demandaChart = null; }
+        document.getElementById('graficaResumen').innerHTML = '';
+        empty.style.display = 'flex';
+        empty.textContent   = 'Error al cargar: ' + e.message;
+    } finally {
+        loading.style.display = 'none';
+    }
+}
+
+function getTipoChart() {
+    return graficaTipo === 'barra' ? 'bar' : 'line';
+}
+
+function buildDataset(label, datos, color, fill) {
+    return {
+        label,
+        data:            datos,
+        borderColor:     color.border,
+        backgroundColor: fill ? color.bg : 'transparent',
+        borderWidth:     graficaTipo === 'barra' ? 1 : 2,
+        fill,
+        tension:         0.35,
+        pointRadius:     graficaTipo === 'barra' ? 0 : 3,
+        pointHoverRadius: 6
+    };
+}
+
+function renderGraficaTotal(datos) {
+    const labels = datos.map(d => d.periodo);
+    const values = datos.map(d => d.kgTotal || 0);
+    const fill   = graficaTipo === 'area';
+
+    dibujarChart(labels, [buildDataset('Kg Total', values, COLORES.total, fill)]);
+
+    const total  = values.reduce((a, b) => a + b, 0);
+    const max    = values.length ? Math.max(...values) : 0;
+    const mesMax = datos[values.indexOf(max)]?.periodo || '—';
+
+    document.getElementById('graficaResumen').innerHTML = `
+        <span>📦 Total período: <strong>${fmtKg(total)}</strong></span>
+        <span>📈 Pico: <strong>${fmtKg(max)}</strong> en <strong>${mesMax}</strong></span>
+        <span>📊 Promedio mensual: <strong>${fmtKg(total / (datos.length || 1))}</strong></span>`;
+}
+
+function renderGraficaDemanda(datos) {
+    const labels = datos.map(d => d.periodo);
+    const fill   = graficaTipo === 'area';
+
+    const datasets = [
+        buildDataset('ALTA',  datos.map(d => d.kgAlta  || 0), COLORES.alta,  fill),
+        buildDataset('MEDIA', datos.map(d => d.kgMedia || 0), COLORES.media, fill),
+        buildDataset('BAJA',  datos.map(d => d.kgBaja  || 0), COLORES.baja,  fill)
+    ];
+
+    dibujarChart(labels, datasets);
+
+    const totA = datos.reduce((a, d) => a + Number(d.kgAlta  || 0), 0);
+    const totM = datos.reduce((a, d) => a + Number(d.kgMedia || 0), 0);
+    const totB = datos.reduce((a, d) => a + Number(d.kgBaja  || 0), 0);
+
+    document.getElementById('graficaResumen').innerHTML = `
+        <span style="color:#dc3545;">● ALTA: <strong>${fmtKg(totA)}</strong></span>
+        <span style="color:#b38600;">● MEDIA: <strong>${fmtKg(totM)}</strong></span>
+        <span style="color:#198754;">● BAJA: <strong>${fmtKg(totB)}</strong></span>`;
+}
+
+function renderGraficaSku(datos, sku) {
+    const empty = document.getElementById('graficaEmpty');
+
+    if (!datos || !datos.length) {
+        if (demandaChart) { demandaChart.destroy(); demandaChart = null; }
+        document.getElementById('graficaResumen').innerHTML = '';
+        empty.style.display = 'flex';
+        empty.textContent   = `Sin datos para SKU: ${sku}`;
+        return;
+    }
+
+    empty.style.display = 'none';
+
+    const labels = datos.map(d => d.periodo);
+    const values = datos.map(d => d.kgTotales || 0);
+    const fill   = graficaTipo === 'area';
+
+    dibujarChart(labels, [buildDataset(`SKU ${sku}`, values, COLORES.sku, fill)]);
+
+    const total  = values.reduce((a, b) => a + b, 0);
+    const max    = values.length ? Math.max(...values) : 0;
+    const mesMax = datos[values.indexOf(max)]?.periodo || '—';
+
+    document.getElementById('graficaResumen').innerHTML = `
+        <span>SKU: <strong>${sku}</strong></span>
+        <span>📦 Total: <strong>${fmtKg(total)}</strong></span>
+        <span>📈 Pico: <strong>${fmtKg(max)}</strong> en <strong>${mesMax}</strong></span>`;
+}
+
+function dibujarChart(labels, datasets) {
+    const canvas = document.getElementById('demandaChart');
+    if (!canvas || !window.Chart) return;
+
+    const ctx = canvas.getContext('2d');
+
+    if (demandaChart) { demandaChart.destroy(); demandaChart = null; }
+
+    demandaChart = new Chart(ctx, {
+        type: getTipoChart(),
+        data: { labels, datasets },
+        options: {
+            responsive:           true,
+            maintainAspectRatio:  false,
+            interaction:          { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: datasets.length > 1, position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ` ${ctx.dataset.label}: ${fmtKg(ctx.parsed.y)}`
+                    }
+                }
+            },
+            scales: {
+                x: { ticks: { maxRotation: 45 } },
+                y: { beginAtZero: true, ticks: { callback: v => fmtKg(v) } }
+            }
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    await init();
+
+    /* ocultar botón manual de recalculo */
+    const btnRecalcular = document.getElementById('btnRecalcularDemanda');
+    if (btnRecalcular) btnRecalcular.classList.add('d-none');
+
+    /* primer recalculo automático */
+    try {
+        await asegurarDemandaActualizada({ force: true });
+    } catch (e) {
+        console.warn('No fue posible recalcular demanda al iniciar:', e);
+    }
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const tabId = this.getAttribute('data-bs-target');
+            if (!tabId) return;
+            activarTab(tabId, this);
+        });
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.multi-select')) closeAllMultiSelects();
+    });
+
+    document.getElementById('btnRefreshLista')?.addEventListener('click',    () => cargarProductos(1));
+    document.getElementById('btnRefreshListaTop')?.addEventListener('click', () => cargarProductos(1));
+    document.getElementById('btnDescargarPdf')?.addEventListener('click',    descargarPdfListaPrecios);
+
+    ['searchSku', 'searchProducto'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('keydown', e => { if (e.key === 'Enter') cargarProductos(1); });
+        el.addEventListener('change',  () => cargarProductos(1));
+    });
+
+    document.getElementById('listFilterDemanda')?.addEventListener('change',  () => cargarProductos(1));
+    document.getElementById('listModoProductos')?.addEventListener('change',  () => cargarProductos(1));
+    document.getElementById('listTopCliente')?.addEventListener('change',     () => cargarProductos(1));
+
+    document.getElementById('btnVendedoresTodos')?.addEventListener('click', () => {
+        document.querySelectorAll('.vendedor-option').forEach(cb => cb.checked = true);
+        const allCb = document.querySelector('.vendedor-option-all');
+        if (allCb) { allCb.checked = true; allCb.indeterminate = false; }
+        updateMultiSelectButton('vendedorMulti');
+        cargarProductos(1);
+    });
+
+    document.getElementById('btnVendedoresLimpiar')?.addEventListener('click', () => {
+        document.querySelectorAll('.vendedor-option, .vendedor-option-all').forEach(cb => {
+            cb.checked = false; cb.indeterminate = false;
+        });
+        updateMultiSelectButton('vendedorMulti');
+        cargarProductos(1);
+    });
+
+    document.getElementById('btnClientesTodos')?.addEventListener('click', () => {
+        // Solo permitir si NO es vendedor restringido
+        if (perfilUsuario.tieneVendedor) return;
+        document.querySelectorAll('.cliente-option').forEach(cb => cb.checked = true);
+        const allCb = document.querySelector('.cliente-option-all');
+        if (allCb) { allCb.checked = true; allCb.indeterminate = false; }
+        updateMultiSelectButton('clienteMulti');
+        cargarProductos(1);
+    });
+
+    document.getElementById('btnClientesLimpiar')?.addEventListener('click', () => {
+        // Solo permitir si NO es vendedor restringido
+        if (perfilUsuario.tieneVendedor) return;
+        document.querySelectorAll('.cliente-option, .cliente-option-all').forEach(cb => {
+            cb.checked = false; cb.indeterminate = false;
+        });
+        updateMultiSelectButton('clienteMulti');
+        cargarProductos(1);
+    });
+
+    document.getElementById('btnResetListFilters')?.addEventListener('click', () => {
+        ['searchSku', 'searchProducto', 'listFilterDemanda',
+         'searchVendedorMulti', 'searchClienteMulti',
+         'listModoProductos', 'listTopCliente']
+            .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+
+        const modo = document.getElementById('listModoProductos');
+        if (modo) modo.value = 'todos';
+
+        const top = document.getElementById('listTopCliente');
+        if (top) top.value = '20';
+
+        // Canales y vendedores siempre se limpian
+        document.querySelectorAll('.canal-option,.vendedor-option,.vendedor-option-all')
+            .forEach(cb => { cb.checked = false; cb.indeterminate = false; });
+
+        // Clientes: solo limpiar si NO es vendedor restringido
+        if (!perfilUsuario.tieneVendedor) {
+            document.querySelectorAll('.cliente-option,.cliente-option-all')
+                .forEach(cb => { cb.checked = false; cb.indeterminate = false; });
+        }
+
+        document.querySelectorAll('.vendedor-item,.cliente-item').forEach(x => x.style.display = '');
+
+        updateMultiSelectButton('canalMulti');
+        updateMultiSelectButton('vendedorMulti');
+        updateMultiSelectButton('clienteMulti');
+
+        const tbody = document.getElementById('readTableBody');
+        if (tbody) {
+            tbody.innerHTML = `<tr><td colspan="11" class="empty-state">Usa los filtros y presiona <b>Buscar</b> para cargar precios.</td></tr>`;
+        }
+
+        const pag = document.getElementById('paginacionBar');
+        if (pag) pag.style.display = 'none';
+
+        const ctx = document.getElementById('clientContext');
+        if (ctx) ctx.classList.remove('visible');
+    });
+
+    document.getElementById('btnPrimeraPag')?.addEventListener('click',   () => cargarProductos(1));
+    document.getElementById('btnAnteriorPag')?.addEventListener('click',  () => cargarProductos(paginaActual - 1));
+    document.getElementById('btnSiguientePag')?.addEventListener('click', () => cargarProductos(paginaActual + 1));
+    document.getElementById('btnUltimaPag')?.addEventListener('click',    () => cargarProductos(totalPaginas));
+
+    document.querySelectorAll('.demanda-filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const sku = document.getElementById('demandaSkuBuscar')?.value.trim() || '';
+            cargarTopDemanda(btn.dataset.demanda, sku);
+        });
+    });
+
+    document.getElementById('btnRecalcularDemanda')?.addEventListener('click',
+        () => recalcularDemanda({ silent: false, force: true }));
+
+    document.getElementById('btnBuscarDemandaSku')?.addEventListener('click', () => {
+        const sku = document.getElementById('demandaSkuBuscar')?.value.trim();
+        if (!sku) return;
+        cargarTopDemanda(demandaFiltroActual, sku);
+    });
+
+    document.getElementById('demandaSkuBuscar')?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+            const sku = e.target.value.trim();
+            if (!sku) return;
+            cargarTopDemanda(demandaFiltroActual, sku);
+        }
+    });
+
+    document.getElementById('btnLimpiarDemandaSku')?.addEventListener('click', () => {
+        const input = document.getElementById('demandaSkuBuscar');
+        if (input) input.value = '';
+        cargarTopDemanda(demandaFiltroActual);
+    });
+
+    document.getElementById('demandaPeriodo')?.addEventListener('change', async () => {
+        ultimoRecalculoDemanda = 0;
+        await asegurarDemandaActualizada({ force: true });
+    });
+
+    document.querySelectorAll('.grafica-tipo-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            graficaTipo = btn.dataset.tipo;
+            document.querySelectorAll('.grafica-tipo-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            if (graficaDatosCache) {
+                if (graficaVista === 'total')   renderGraficaTotal(graficaDatosCache);
+                if (graficaVista === 'demanda') renderGraficaDemanda(graficaDatosCache);
+                if (graficaVista === 'sku') {
+                    const sku = document.getElementById('graficaSkuInput')?.value.trim() || '';
+                    renderGraficaSku(graficaDatosCache, sku);
+                }
+            }
+        });
+    });
+
+    document.querySelectorAll('.grafica-vista-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            graficaVista      = btn.dataset.vista;
+            graficaDatosCache = null;
+
+            document.querySelectorAll('.grafica-vista-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            const skuWrap = document.getElementById('skuInputWrap');
+            if (skuWrap) skuWrap.classList.toggle('d-none', graficaVista !== 'sku');
+
+            if (graficaVista !== 'sku') {
+                cargarGrafica();
+            } else {
+                document.getElementById('graficaResumen').innerHTML = '';
+                document.getElementById('graficaEmpty').style.display = 'flex';
+                document.getElementById('graficaEmpty').textContent   = 'Escribe un SKU para consultar.';
+            }
+        });
+    });
+
+    document.getElementById('graficaMeses')?.addEventListener('change',     cargarGrafica);
+    document.getElementById('btnRefreshGrafica')?.addEventListener('click', cargarGrafica);
+    document.getElementById('btnBuscarSku')?.addEventListener('click',      cargarGrafica);
+    document.getElementById('graficaSkuInput')?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') cargarGrafica();
+    });
+});
+</script>
+}

@@ -1,0 +1,537 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Bandeja de chat del área";
+}
+
+@section Styles {
+    <style>
+        /* ===== SAP Fiori Base ===== */
+        body {
+            background: #f4f6f8;
+            font-family: "72", "Segoe UI", Roboto, Arial, sans-serif;
+            color: #32363a;
+        }
+
+        .shell {
+            padding: 1rem;
+        }
+
+        /* ===== Titlebar SAP ===== */
+        .titlebar {
+            background: white;
+            border: 1px solid #dfe3e6;
+            border-radius: 8px;
+            padding: 1rem 1.4rem;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+
+            .titlebar h5 {
+                margin: 0;
+                font-weight: 600;
+                font-size: 1.15rem;
+                color: #8B0000;
+            }
+
+            .titlebar .sub {
+                font-size: 0.85rem;
+                margin-top: 2px;
+                color: #6a6d70;
+            }
+
+        /* ===== PANEL SAP ===== */
+        .panel {
+            background: white;
+            border: 1px solid #dfe3e6;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        }
+
+        .panel-head {
+            background: #f2f3f4;
+            color: #8B0000;
+            border-bottom: 1px solid #dfe3e6;
+            padding: 0.7rem 1rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+            .panel-head i {
+                margin-right: 5px;
+            }
+
+        /* ===== Lista conversaciones ===== */
+        #listaConversaciones .list-group-item {
+            background: white;
+            border: none;
+            border-bottom: 1px solid #eef0f2;
+            padding: 0.75rem 1rem;
+            transition: background .15s ease;
+        }
+
+            #listaConversaciones .list-group-item:hover {
+                background: #f7f9fa;
+            }
+
+            #listaConversaciones .list-group-item.active,
+            #listaConversaciones .bg-light {
+                background: #e9f3ff !important;
+                border-left: 3px solid #8B0000;
+            }
+
+        #listaConversaciones .fw-bold {
+            font-size: 0.9rem;
+            color: #32363a;
+        }
+
+        #listaConversaciones .small.text-muted {
+            color: #6a6d70 !important;
+            font-size: 0.75rem;
+        }
+
+        #listaConversaciones .badge {
+            background: #8B0000;
+            font-size: 0.7rem;
+            padding: 0.3rem 0.55rem;
+            border-radius: 8px;
+        }
+
+        /* ===== Zona de mensajes ===== */
+        .chat-messages {
+            background: #fafcfd;
+            overflow-y: auto;
+            padding: 0.8rem;
+        }
+
+        .chat-msg {
+            display: flex;
+            margin-bottom: 0.6rem;
+        }
+
+            .chat-msg .bubble {
+                max-width: 70%;
+                padding: 0.6rem 0.9rem;
+                border-radius: 10px;
+                font-size: 0.86rem;
+                border: 1px solid #e3e5e7;
+                background: white;
+                color: #32363a;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+            }
+
+            .chat-msg.me {
+                justify-content: flex-end;
+            }
+
+                .chat-msg.me .bubble {
+                    background: #e9f3ff;
+                    border-color: #bcd8f8;
+                }
+
+            .chat-msg.other {
+                justify-content: flex-start;
+            }
+
+                .chat-msg.other .bubble {
+                    background: #ffffff;
+                }
+
+            .chat-msg .meta {
+                display: block;
+                margin-top: 4px;
+                text-align: right;
+                font-size: 0.72rem;
+                color: #6a6d70;
+            }
+
+        /* Mensajes vacíos */
+        #zonaMensajes .text-muted,
+        #zonaMensajes .text-danger {
+            color: #6a6d70 !important;
+            padding: 1.2rem;
+        }
+
+        /* ===== Input tipo SAP ===== */
+        .chat-input {
+            background: #f2f3f4;
+            border-top: 1px solid #dfe3e6;
+            padding: 0.7rem;
+        }
+
+            .chat-input textarea {
+                background: white;
+                border: 1px solid #d1d5d8;
+                border-radius: 6px;
+                padding: 0.45rem 0.7rem;
+                resize: none;
+                font-size: 0.85rem;
+                color: #32363a;
+            }
+
+                .chat-input textarea:focus {
+                    border-color: #8B0000;
+                    box-shadow: 0 0 0 1px rgba(10,110,209,0.2);
+                }
+
+            .chat-input button {
+                background: #8B0000;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 0.45rem 0.8rem;
+                font-size: 0.8rem;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+
+                .chat-input button:disabled {
+                    background: #9bbcdf;
+                    cursor: default;
+                    opacity: .7;
+                }
+
+        /* ===== Botón cerrar ===== */
+        #btnCerrarConversacion {
+            border-radius: 4px;
+            font-size: 0.75rem;
+            padding: 0.25rem 0.55rem;
+            color: #d93535;
+            border: 1px solid #d93535;
+            background: white;
+        }
+
+            #btnCerrarConversacion:hover {
+                background: #d93535;
+                color: white;
+            }
+
+        #lblAreaActual {
+            font-size: 0.78rem;
+            color: #6a6d70 !important;
+        }
+    </style>
+
+}
+
+<div class="shell">
+    <div class="titlebar">
+        <div>
+            <h5><i class="bi bi-chat-dots"></i> Bandeja de chat del área</h5>
+            <p class="sub">Conversaciones donde tú eres el responsable del área.</p>
+        </div>
+    </div>
+
+    <div class="content-pad">
+        <div class="row g-3">
+            <!-- LISTA DE CONVERSACIONES -->
+            <div class="col-md-4">
+                <div class="panel">
+                    <div class="panel-head">
+                        <i class="bi bi-inbox"></i> Conversaciones
+                    </div>
+                    <div class="p-2" style="max-height:60vh; overflow:auto;">
+                        <ul id="listaConversaciones" class="list-group list-group-flush small">
+                            <li class="list-group-item text-muted text-center">
+                                Cargando conversaciones…
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DETALLE DE CONVERSACIÓN -->
+            <div class="col-md-8">
+                <div class="panel">
+                    <div class="panel-head d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="bi bi-chat-text"></i>
+                            <span id="lblTituloConversacion">Selecciona una conversación</span>
+                        </div>
+
+                        <div class="d-flex align-items-center gap-2">
+                            <small id="lblAreaActual" class="text-muted"></small>
+
+                            <!-- Botón CERRAR -->
+                            <button id="btnCerrarConversacion"
+                                    class="btn btn-sm btn-outline-danger"
+                                    style="display:none;">
+                                <i class="bi bi-x-circle"></i> Cerrar
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-column" style="height:60vh;">
+                        <div id="zonaMensajes" class="chat-messages flex-grow-1 p-2">
+                            <div class="text-muted small text-center mt-3">
+                                No hay conversación seleccionada.
+                            </div>
+                        </div>
+                        <div class="chat-input border-top d-flex align-items-center p-2 gap-2">
+                            <textarea id="txtRespuestaArea"
+                                      class="form-control form-control-sm"
+                                      rows="1"
+                                      placeholder="Escribe una respuesta al usuario…"
+                                      disabled></textarea>
+                            <button id="btnEnviarRespuesta"
+                                    class="btn btn-primary btn-sm"
+                                    disabled>
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+
+            let conversacionActualId = null;
+            let conversacionActualUsuario = null;
+
+            const ul = document.getElementById("listaConversaciones");
+            const zonaMensajes = document.getElementById("zonaMensajes");
+            const txtResp = document.getElementById("txtRespuestaArea");
+            const btnEnviar = document.getElementById("btnEnviarRespuesta");
+            const lblTitulo = document.getElementById("lblTituloConversacion");
+            const lblArea = document.getElementById("lblAreaActual");
+            const btnCerrar = document.getElementById("btnCerrarConversacion");
+
+            // ===== Cargar lista de conversaciones del área =====
+            async function cargarConversaciones(silent = false) {
+                if (!silent) {
+                    ul.innerHTML = `<li class="list-group-item text-muted text-center">
+                                        Cargando conversaciones…
+                                    </li>`;
+                }
+                try {
+                    const res = await fetch(`/Chat/MisConversacionesArea?_=${Date.now()}`, {
+                        cache: 'no-store'
+                    });
+                    if (!res.ok) throw new Error("Error al cargar conversaciones");
+                    const data = await res.json();
+
+                    if (!data.ok || !data.conversaciones?.length) {
+                        ul.innerHTML = `<li class="list-group-item text-muted text-center">
+                                            No hay conversaciones abiertas para tu área.
+                                        </li>`;
+                        return;
+                    }
+
+                    ul.innerHTML = "";
+                    data.conversaciones.forEach(c => {
+                        const li = document.createElement("li");
+                        li.className = "list-group-item list-group-item-action";
+                        li.style.cursor = "pointer";
+                        li.dataset.id = c.idConversacion;
+                        li.dataset.usuario = c.usuarioId;
+                        li.dataset.area = c.area;
+
+                        const fechaTxt = c.ultimoMensajeFecha
+                            ? new Date(c.ultimoMensajeFecha).toLocaleString("es-MX", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                day: "2-digit",
+                                month: "2-digit"
+                              })
+                            : new Date(c.fechaInicio).toLocaleDateString("es-MX");
+
+                        const unread = c.unreadCount || 0;
+
+                        li.innerHTML = `
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fw-bold">${c.usuarioId}</div>
+                                    <div class="small text-muted">${c.area} · ${fechaTxt}</div>
+                                </div>
+                                ${
+                                    unread > 0
+                                    ? `<span class="badge rounded-pill bg-danger ms-2">${unread}</span>`
+                                    : ""
+                                }
+                            </div>
+                        `;
+
+                        if (unread > 0) {
+                            li.classList.add("bg-light");
+                        }
+
+                        li.addEventListener("click", () => seleccionarConversacion(li));
+                        ul.appendChild(li);
+                    });
+
+                } catch (e) {
+                    console.error(e);
+                    if (!silent) {
+                        ul.innerHTML = `<li class="list-group-item text-danger text-center">
+                                            Error al cargar conversaciones.
+                                        </li>`;
+                    }
+                }
+            }
+
+            // ===== Seleccionar una conversación =====
+            async function seleccionarConversacion(li) {
+                conversacionActualId = Number(li.dataset.id);
+                conversacionActualUsuario = li.dataset.usuario;
+
+                lblTitulo.textContent = `Conversación con: ${conversacionActualUsuario}`;
+                lblArea.textContent = li.dataset.area;
+
+                txtResp.disabled = false;
+                btnEnviar.disabled = false;
+                btnCerrar.style.display = "inline-flex";
+
+                txtResp.value = "";
+                txtResp.focus();
+
+                await cargarMensajes(false);
+            }
+
+            // ===== Cargar mensajes de la conversación actual =====
+            async function cargarMensajes(silent = false) {
+                if (!conversacionActualId) return;
+
+                if (!silent) {
+                    zonaMensajes.innerHTML = `<div class="text-muted small text-center mt-3">
+                                                  Cargando mensajes…
+                                              </div>`;
+                }
+
+                try {
+                    const res = await fetch(`/Chat/Mensajes/${conversacionActualId}?_=${Date.now()}`, {
+                        cache: 'no-store'
+                    });
+                    if (!res.ok) throw new Error("Error al cargar mensajes");
+                    const data = await res.json();
+                    if (!data.ok) throw new Error(data.mensaje || "Respuesta inválida");
+
+                    const lista = data.mensajes || [];
+                    if (!lista.length) {
+                        zonaMensajes.innerHTML = `<div class="text-muted small text-center mt-3">
+                                                      No hay mensajes aún.
+                                                  </div>`;
+                        return;
+                    }
+
+                    const frag = document.createDocumentFragment();
+
+                    lista.forEach(m => {
+                        const div = document.createElement("div");
+                        div.classList.add("chat-msg", m.esMio ? "me" : "other");
+
+                        const f = new Date(m.fecha);
+                        const hora = f.toLocaleTimeString("es-MX", {
+                            hour: "2-digit",
+                            minute: "2-digit"
+                        });
+
+                        div.innerHTML = `
+                            <div class="bubble">
+                                <div>${m.texto}</div>
+                                <span class="meta">${m.esMio ? "Tú" : conversacionActualUsuario} · ${hora}</span>
+                            </div>
+                        `;
+
+                        frag.appendChild(div);
+                    });
+
+                    zonaMensajes.innerHTML = "";
+                    zonaMensajes.appendChild(frag);
+                    zonaMensajes.scrollTop = zonaMensajes.scrollHeight;
+
+                } catch (e) {
+                    console.error(e);
+                    if (!silent) {
+                        zonaMensajes.innerHTML = `<div class="text-danger small text-center mt-3">
+                                                      Error al cargar mensajes.
+                                                  </div>`;
+                    }
+                }
+            }
+
+            // ===== Enviar respuesta del área =====
+            btnEnviar.addEventListener("click", async () => {
+                if (!conversacionActualId) return;
+                const texto = txtResp.value.trim();
+                if (!texto) return;
+
+                try {
+                    const res = await fetch("/Chat/Enviar", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            idConversacion: conversacionActualId,
+                            texto: texto
+                        })
+                    });
+                    const data = await res.json();
+                    if (!data.ok) throw new Error(data.mensaje || "Error al enviar mensaje.");
+
+                    txtResp.value = "";
+                    await cargarMensajes(true);
+                    await cargarConversaciones(true);
+
+                } catch (e) {
+                    console.error(e);
+                    alert(e.message || "Error al enviar mensaje.");
+                }
+            });
+
+            // Enter = enviar
+            txtResp.addEventListener("keydown", e => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    btnEnviar.click();
+                }
+            });
+
+            // ===== Cerrar conversación =====
+            btnCerrar.addEventListener("click", async () => {
+                if (!conversacionActualId) return;
+
+                if (!confirm("¿Cerrar conversación definitivamente?")) return;
+
+                try {
+                    const res = await fetch("/Chat/CerrarConversacion", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ id: conversacionActualId })
+                    });
+
+                    const data = await res.json();
+                    if (!data.ok) throw new Error(data.mensaje || "Error al cerrar.");
+
+                    conversacionActualId = null;
+                    zonaMensajes.innerHTML = `
+                        <div class="text-muted small text-center mt-3">
+                            Conversación cerrada.
+                        </div>`;
+                    lblTitulo.textContent = "Selecciona una conversación";
+                    lblArea.textContent = "";
+                    txtResp.disabled = true;
+                    btnEnviar.disabled = true;
+                    btnCerrar.style.display = "none";
+
+                    await cargarConversaciones(true);
+
+                } catch (e) {
+                    console.error(e);
+                    alert(e.message || "Error al cerrar conversación.");
+                }
+            });
+
+            // ===== Inicio y refresco =====
+            cargarConversaciones(false);
+
+            // refresco suave cada 5s
+            setInterval(() => {
+                cargarConversaciones(true);
+                cargarMensajes(true);
+            }, 5000);
+
+        })();
+    </script>
+}

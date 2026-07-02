@@ -1,0 +1,233 @@
+﻿@model Plataforma_CG.ViewModels.AvisosMovilizacionPdfVM
+@{
+    Layout = null;
+    var grupos = Model.Rows
+        .GroupBy(x => new { x.SolicitudSurtidoId, x.Venta, x.Cliente, x.FechaVentaTxt })
+        .OrderBy(g => g.Key.FechaVentaTxt)
+        .ThenBy(g => g.Key.SolicitudSurtidoId)
+        .ToList();
+}
+
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <title>Avisos de movilización SENASICA</title>
+    <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            color: #222;
+            margin: 28px;
+            font-size: 12px;
+        }
+
+        .header {
+            border-bottom: 3px solid #8b0000;
+            padding-bottom: 10px;
+            margin-bottom: 16px;
+        }
+
+        .title {
+            color: #8b0000;
+            font-size: 22px;
+            font-weight: 800;
+            margin: 0;
+        }
+
+        .subtitle {
+            color: #555;
+            margin-top: 4px;
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin: 12px 0 18px;
+        }
+
+        .card {
+            border: 1px solid #d8bcbc;
+            background: #fff7f7;
+            padding: 9px;
+        }
+
+        .card .label {
+            color: #6a3a3a;
+            font-weight: 700;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        .card .value {
+            color: #8b0000;
+            font-weight: 900;
+            font-size: 17px;
+            margin-top: 3px;
+        }
+
+        .comentarios {
+            border: 1px solid #d8bcbc;
+            padding: 10px;
+            margin: 12px 0;
+            background: #fffafa;
+        }
+
+        .solicitud {
+            margin-top: 18px;
+            page-break-inside: avoid;
+        }
+
+        .solicitud-title {
+            background: #8b0000;
+            color: #fff;
+            padding: 7px 9px;
+            font-weight: 800;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 8px;
+        }
+
+        th {
+            background: #f1dede;
+            color: #3b1717;
+            border: 1px solid #c79d9d;
+            padding: 5px;
+            text-align: left;
+        }
+
+        td {
+            border: 1px solid #ddd;
+            padding: 5px;
+            vertical-align: top;
+        }
+
+        .right {
+            text-align: right;
+        }
+
+        .footer {
+            margin-top: 24px;
+            color: #666;
+            font-size: 11px;
+            border-top: 1px solid #ddd;
+            padding-top: 8px;
+        }
+
+        @@media print {
+            body {
+                margin: 12mm;
+            }
+
+            .no-print {
+                display: none;
+            }
+
+            .solicitud {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1 class="title">Avisos de movilización SENASICA</h1>
+        <div class="subtitle">
+            Planta TIF | Generado: @Model.FechaGeneracion.ToString("dd/MM/yyyy HH:mm") | Usuario: @Model.Usuario
+        </div>
+    </div>
+
+    <div class="summary">
+        <div class="card">
+            <div class="label">Solicitudes</div>
+            <div class="value">@Model.TotalSolicitudes</div>
+        </div>
+        <div class="card">
+            <div class="label">Partidas</div>
+            <div class="value">@Model.TotalPartidas</div>
+        </div>
+        <div class="card">
+            <div class="label">Cajas</div>
+            <div class="value">@Model.TotalCajas.ToString("N0")</div>
+        </div>
+        <div class="card">
+            <div class="label">Kg</div>
+            <div class="value">@Model.TotalKg.ToString("N3")</div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.Comentarios))
+    {
+        <div class="comentarios">
+            <strong>Comentarios:</strong><br />
+            @Model.Comentarios
+        </div>
+    }
+
+    @foreach (var g in grupos)
+    {
+        var totalCajas = g.Sum(x => x.CuentaDeEtiqueta);
+        var totalKg = g.Sum(x => x.SumaDeKg);
+
+        <div class="solicitud">
+            <div class="solicitud-title">
+                Solicitud: @g.Key.SolicitudSurtidoId |
+                Venta: @g.Key.Venta |
+                Cliente: @g.Key.Cliente |
+                Fecha venta: @g.Key.FechaVentaTxt
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>SKU</th>
+                        <th>Producto</th>
+                        <th>Lote</th>
+                        <th>F. sacrificio</th>
+                        <th>F. producción</th>
+                        <th>F. caducidad</th>
+                        <th class="right">Cajas</th>
+                        <th class="right">Kg</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var x in g.OrderBy(x => x.Sku).ThenBy(x => x.Lote))
+                    {
+                        <tr>
+                            <td>@x.Sku</td>
+                            <td>@x.Producto</td>
+                            <td>@x.Lote</td>
+                            <td>@x.FechaSacrificioTxt</td>
+                            <td>@x.FechaProduccionTxt</td>
+                            <td>@x.FechaCaducidadTxt</td>
+                            <td class="right">@x.CuentaDeEtiqueta.ToString("N0")</td>
+                            <td class="right">@x.SumaDeKg.ToString("N3")</td>
+                        </tr>
+                    }
+
+                    <tr>
+                        <td colspan="6" class="right"><strong>Total solicitud</strong></td>
+                        <td class="right"><strong>@totalCajas.ToString("N0")</strong></td>
+                        <td class="right"><strong>@totalKg.ToString("N3")</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <div class="footer">
+        Documento generado desde Plataforma CG. Información consultada desde CadenaMeatTIF.
+    </div>
+
+    <div class="no-print" style="margin-top:18px;">
+        <button onclick="window.print()" style="padding:8px 14px;font-weight:bold;">
+            Imprimir / Guardar PDF
+        </button>
+    </div>
+
+</body>
+</html>

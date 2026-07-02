@@ -1,0 +1,2191 @@
+﻿@using System.Linq
+@model Plataforma_CG.ViewModels.TransferenciasFiltroVM
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<style>
+    :root {
+        --bg: #f0dede;
+        --panel: #f8eeee;
+        --panel-2: #f1dede;
+        --line: #c79d9d;
+        --line-dark: #8f4c4c;
+        --text: #3b1717;
+        --muted: #6a3a3a;
+        --title: #ffffff;
+        --white: #ffffff;
+        --danger: #c00000;
+        --warning: #f3b6b6;
+        --ok: #f7e3e3;
+        --shadow: 0 1px 0 rgba(255,255,255,.55) inset;
+        --brand: #8B0000;
+        --vino-1: #5c0000;
+        --vino-2: #7a0000;
+        --vino-3: #980000;
+        --vino-4: #b30000;
+        --vino-5: #d10000;
+        --vino-soft: #f8e7e7;
+        --vino-soft-2: #f2d9d9;
+        --vino-border: #9a5a5a;
+        --vino-text: #ffffff;
+        --vino-text-dark: #4a1111;
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        background: transparent !important;
+        color: var(--text);
+    }
+
+    .container, .container-fluid {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .window {
+        width: 100%;
+        max-width: 100%;
+        margin: 0 !important;
+        border: 1px solid #7e4a4a;
+        background: var(--panel);
+        box-shadow: 0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70, 12, 12, 0.14);
+        overflow: hidden;
+        padding: 0 !important;
+    }
+
+        .window > *:first-child,
+        .titlebar {
+            margin-top: 0 !important;
+        }
+
+    .titlebar {
+        height: 34px;
+        /* display: flex; */
+        display: none !important;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 10px;
+        background: linear-gradient(180deg, #c00000 0%, #8b0000 60%, #5c0000 100%);
+        border-bottom: 1px solid #5c0000;
+        color: #fff;
+        font-size: 13px;
+        font-weight: bold;
+    }
+
+        .titlebar .actions {
+            display: flex;
+            gap: 6px;
+        }
+
+    .win-btn {
+        width: 16px;
+        height: 16px;
+        border: 1px solid #7c4848;
+        background: linear-gradient(#fff6f6, #ead0d0);
+    }
+
+    .menubar {
+        display: none !important;
+    }
+
+    .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 6px;
+        background: linear-gradient(#fff6f6, #ecd8d8);
+        border-bottom: 1px solid var(--line);
+        font-size: 12px;
+        flex-wrap: wrap;
+    }
+
+    .tool-btn, .tab {
+        border: 1px solid transparent;
+        padding: 4px 8px;
+        user-select: none;
+    }
+
+    .tool-btn {
+        min-width: 72px;
+        text-align: center;
+        background: linear-gradient(#fffefe, #ecd7d7);
+        border: 1px solid var(--vino-border);
+        box-shadow: var(--shadow);
+        cursor: pointer;
+        color: var(--vino-text-dark);
+    }
+
+        .tool-btn:hover,
+        .small-btn:hover,
+        .tab:hover,
+        .tr-btn-search:hover,
+        .tr-btn-excel:hover,
+        .tr-btn-csv:hover {
+            filter: brightness(0.98);
+        }
+
+    .content {
+        padding: 8px;
+        background: var(--bg);
+    }
+
+    .tabs {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 6px;
+        flex-wrap: wrap;
+    }
+
+    .tab {
+        font-size: 12px;
+        background: linear-gradient(#f7e7e7, #ead1d1);
+        border: 1px solid #caa0a0;
+        border-bottom: none;
+        padding: 7px 12px;
+        color: #5c1a1a;
+    }
+
+        .tab.active {
+            background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+            font-weight: bold;
+            color: #fff;
+            border-color: #7a2d2d;
+        }
+
+    .workspace {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        padding: 8px;
+    }
+
+    .section {
+        border: 1px solid var(--line);
+        background: var(--white);
+        margin-bottom: 10px;
+    }
+
+    .section-title {
+        padding: 6px 8px;
+        font-size: 12px;
+        font-weight: bold;
+        color: #fff;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-bottom: 1px solid #6b1f1f;
+    }
+
+    .text-end {
+        text-align: right !important;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .btn {
+        border-radius: 4px;
+        font-weight: 600;
+        padding: 0.45rem 1rem;
+        transition: all 0.2s ease;
+        border: 1px solid transparent;
+        box-shadow: 0 1px 3px rgba(60, 10, 10, 0.08);
+    }
+
+    .btn-primary {
+        color: #fff;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-color: #7a2d2d;
+    }
+
+        .btn-primary:hover {
+            color: #fff;
+        }
+
+    .btn-danger {
+        color: #fff;
+        background: linear-gradient(180deg, #d33b3b 0%, #b71f1f 100%);
+        border-color: #992222;
+    }
+
+        .btn-danger:hover {
+            color: #fff;
+        }
+
+    .btn-secondary {
+        background: linear-gradient(#fffefe, #ecd7d7);
+        border-color: #9a5a5a;
+        color: #4d1818;
+    }
+
+        .btn-secondary:hover {
+            background: linear-gradient(#fff, #e7cfcf);
+            color: #4d1818;
+        }
+
+    .btn-sm {
+        padding: .30rem .70rem;
+        font-size: .78rem;
+    }
+
+    input, select, .form-control, .form-select, .form-control-sm {
+        border: 1px solid #b48787 !important;
+        background: #fffdfd !important;
+        color: #421414 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        font-size: 12px !important;
+    }
+
+        .form-control:focus,
+        .form-select:focus,
+        .form-control-sm:focus {
+            border-color: #8b0000 !important;
+            box-shadow: 0 0 0 0.18rem rgba(139, 0, 0, 0.14) !important;
+        }
+
+    a.ver-tr {
+        color: #5a0000 !important;
+        text-decoration: none;
+        font-weight: 700;
+        font-size: 11px;
+        transition: all .2s ease;
+    }
+
+        a.ver-tr:hover {
+            color: #7a0000 !important;
+            text-decoration: underline;
+        }
+
+    .dropdown-menu {
+        font-size: 12px !important;
+        border-radius: 0 !important;
+        border: 1px solid #b48787 !important;
+        background: #fffafa !important;
+    }
+
+    .btn-select-like {
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+        background: #fff !important;
+        cursor: pointer;
+        height: 36px !important;
+        border: 1px solid #b48787 !important;
+        padding: 3px 8px !important;
+        color: #421414 !important;
+        border-radius: 0 !important;
+    }
+
+        .btn-select-like::after {
+            content: "▼";
+            font-size: 10px;
+            color: #7a3a3a;
+        }
+
+    /* Filtros */
+    .filters {
+        display: grid;
+        grid-template-columns: 330px 200px 200px minmax(340px, 1fr) auto;
+        gap: 8px;
+        padding: 10px;
+        background: var(--panel-2);
+        align-items: end;
+    }
+
+    .fechas-group {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+    }
+
+        .fechas-group input {
+            width: 100%;
+        }
+
+    .tr-btn-search,
+    .tr-btn-excel,
+    .tr-btn-csv,
+    .small-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .45rem;
+        height: 28px;
+        padding: 0 10px;
+        font-weight: 700;
+        border-radius: 0;
+        font-size: 12px;
+        box-shadow: var(--shadow);
+        white-space: nowrap;
+    }
+
+    .tr-btn-search {
+        color: #fff;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border: 1px solid #7a2d2d;
+    }
+
+    .tr-btn-excel {
+        color: #fff;
+        background: linear-gradient(180deg, #198754 0%, #146c43 100%);
+        border: 1px solid #146c43;
+    }
+
+    .tr-btn-csv,
+    .small-btn {
+        background: linear-gradient(#fffefe, #ecd7d7);
+        color: #4b1f1f;
+        border: 1px solid #b48787;
+    }
+
+    /* Tabla principal */
+    .table-card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 0;
+        box-shadow: 0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70, 12, 12, 0.08);
+        overflow: hidden;
+        margin-bottom: 1rem !important;
+    }
+
+    .table-responsive-sticky {
+        max-height: 82vh !important;
+        overflow-y: auto;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        border-top: 1px solid #d9b8b8;
+        background: #fffafa;
+        padding: 0;
+        position: relative;
+    }
+
+        .table-responsive-sticky::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        .table-responsive-sticky::-webkit-scrollbar-track {
+            background: #f1e4e4;
+        }
+
+        .table-responsive-sticky::-webkit-scrollbar-thumb {
+            background: #8b0000;
+        }
+
+            .table-responsive-sticky::-webkit-scrollbar-thumb:hover {
+                background: #6f0000;
+            }
+
+    .table {
+        margin-bottom: 0;
+        width: 100%;
+    }
+
+    .tr-page .table-responsive-sticky {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        vertical-align: top;
+    }
+
+        .tr-page .table-responsive-sticky,
+        .tr-page .table-responsive-sticky * {
+            text-align: left;
+        }
+
+    .table-responsive-sticky > table.table {
+        width: 100%;
+        table-layout: fixed;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        font-size: 12px !important;
+        background: #fffafa;
+    }
+
+        .table-responsive-sticky > table.table thead,
+        .table-responsive-sticky > table.table thead tr,
+        .table-responsive-sticky > table.table thead th {
+            background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+            color: #fff !important;
+        }
+
+            .table-responsive-sticky > table.table thead th {
+                position: sticky;
+                top: -1px;
+                z-index: 20;
+                border-top: 1px solid #c46a6a !important;
+                border-right: 1px solid #8e3b3b !important;
+                border-bottom: 1px solid #5c0000 !important;
+                padding: 6px 5px !important;
+                font-weight: 700 !important;
+                letter-spacing: 0 !important;
+                font-size: 12px !important;
+                white-space: nowrap;
+                line-height: 1.2 !important;
+                box-shadow: 0 2px 0 #6f1d1d;
+            }
+
+                .table-responsive-sticky > table.table thead th:first-child,
+                .table-responsive-sticky > table.table tbody td:first-child {
+                    border-left: 1px solid #d8bcbc !important;
+                }
+
+                .table-responsive-sticky > table.table thead th:first-child {
+                    border-left: 1px solid #8e3b3b !important;
+                }
+
+        .table-responsive-sticky > table.table tbody td {
+            background: #fffafa !important;
+            border-right: 1px solid #d8bcbc !important;
+            border-bottom: 1px solid #d8bcbc !important;
+            padding: 6px 5px !important;
+            line-height: 1.2 !important;
+            color: #111111 !important;
+            font-weight: 400;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 12px !important;
+            vertical-align: middle;
+        }
+
+        .table-responsive-sticky > table.table.table-striped > tbody > tr:nth-of-type(odd) > * {
+            background-color: #fffafa !important;
+        }
+
+        .table-responsive-sticky > table.table tbody > tr:nth-of-type(even) > * {
+            background-color: #f9eded !important;
+        }
+
+        .table-responsive-sticky > table.table tbody tr:hover > * {
+            background: #f4dddd !important;
+        }
+
+        /* Consecutivo */
+        .table-responsive-sticky > table.table th:nth-child(1),
+        .table-responsive-sticky > table.table td:nth-child(1) {
+            width: 130px;
+        }
+
+        /* Sucursal */
+        .table-responsive-sticky > table.table th:nth-child(2),
+        .table-responsive-sticky > table.table td:nth-child(2) {
+            width: 140px;
+        }
+
+        /* Total cajas */
+        .table-responsive-sticky > table.table th:nth-child(3),
+        .table-responsive-sticky > table.table td:nth-child(3) {
+            width: 95px;
+        }
+
+        /* Total kg */
+        .table-responsive-sticky > table.table th:nth-child(4),
+        .table-responsive-sticky > table.table td:nth-child(4) {
+            width: 95px;
+        }
+
+        /* Solicita */
+        .table-responsive-sticky > table.table th:nth-child(5),
+        .table-responsive-sticky > table.table td:nth-child(5) {
+            width: 190px;
+        }
+
+        /* Observación */
+        .table-responsive-sticky > table.table th:nth-child(6),
+        .table-responsive-sticky > table.table td:nth-child(6) {
+            width: 300px;
+        }
+
+        /* Fecha Embarcar */
+        .table-responsive-sticky > table.table th:nth-child(7),
+        .table-responsive-sticky > table.table td:nth-child(7) {
+            width: 120px;
+        }
+
+        /* Estatus */
+        .table-responsive-sticky > table.table th:nth-child(8),
+        .table-responsive-sticky > table.table td:nth-child(8) {
+            width: 160px;
+        }
+
+        .table-responsive-sticky > table.table tbody td:nth-child(6) {
+            white-space: normal !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
+            word-break: break-word;
+            line-height: 1.15 !important;
+        }
+
+        .table-responsive-sticky > table.table tbody tr {
+            min-height: 28px;
+        }
+
+    /* Badges */
+    .badge-est {
+        display: inline-block;
+        min-width: 135px;
+        text-align: center;
+        padding: 4px 8px;
+        border: 1px solid transparent;
+        font-size: 11px;
+        font-weight: 700;
+        border-radius: 2px;
+        line-height: 1.2;
+        white-space: nowrap;
+        box-shadow: none !important;
+    }
+
+        .badge-est::before {
+            display: none !important;
+        }
+
+    .tr-est-0 {
+        background: #fde2e2;
+        border-color: #d9534f;
+        color: #b00000;
+    }
+
+    .tr-est-1 {
+        background: #fff4cc;
+        border-color: #d6b656;
+        color: #7a5a00;
+    }
+
+    .tr-est-2 {
+        background: #d9ecff;
+        border-color: #6fa8dc;
+        color: #0b5394;
+    }
+
+    .tr-est-4 {
+        background: #dff3e2;
+        border-color: #6aa84f;
+        color: #2f6b1f;
+    }
+
+    .tr-est-5 {
+        background: #eadcff;
+        border-color: #8e7cc3;
+        color: #5b3fa3;
+    }
+
+    /* Modal */
+    .modal-content {
+        border: 1px solid #7d4949;
+        border-radius: 0;
+        box-shadow: 0 10px 20px rgba(60, 10, 10, 0.14);
+    }
+
+    .modal-header {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: white !important;
+        border-bottom: 1px solid #5c0000 !important;
+        padding: .65rem 1rem !important;
+        border-radius: 0;
+    }
+
+    .modal-title {
+        color: white !important;
+        font-weight: 700;
+        font-size: 1.05rem;
+        letter-spacing: 0.2px;
+    }
+
+    .modal-header .btn-close {
+        filter: invert(1) grayscale(100%) !important;
+        opacity: .95 !important;
+    }
+
+    .modal-body {
+        padding: .75rem !important;
+        background: #f4e4e4;
+    }
+
+    #trModal .modal-dialog.modal-xl {
+        max-width: 80vw !important;
+        width: 80vw !important;
+        margin: 1rem auto !important;
+    }
+
+    .tr-header {
+        background: #fffafa;
+        padding: .75rem .90rem;
+        border-radius: 0;
+        box-shadow: 0 1px 3px rgba(60, 10, 10, 0.08);
+        border-left: 4px solid #8b0000;
+        margin-bottom: .75rem;
+        border-top: 1px solid #d8bcbc;
+        border-right: 1px solid #d8bcbc;
+        border-bottom: 1px solid #d8bcbc;
+    }
+
+    .tr-label {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        color: #7a0000;
+        font-weight: 700;
+        margin-bottom: 0.20rem;
+    }
+
+    .tr-value {
+        font-size: 0.90rem;
+        color: #401515;
+    }
+
+    hr {
+        border-top: 2px solid #c79d9d;
+        opacity: 0.5;
+        margin: 1rem 0;
+    }
+
+    h6 {
+        color: #7a0000;
+        font-weight: 700;
+        font-size: .95rem;
+        margin-bottom: .75rem;
+        padding-bottom: 0.35rem;
+        border-bottom: 2px solid #d9b8b8;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+        h6::before {
+            content: '';
+            width: 4px;
+            height: 18px;
+            background: #8b0000;
+            border-radius: 0;
+        }
+
+    .modal-body .table {
+        background: #fffafa;
+        border-radius: 0;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(60, 10, 10, 0.08);
+    }
+
+        .modal-body .table thead th {
+            background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+            color: #fff;
+            border-bottom: 1px solid #5c0000;
+        }
+
+        .modal-body .table tbody td {
+            background: #fffafa;
+        }
+
+    #trModal .table-responsive {
+        border: 1px solid #d8bcbc;
+        border-radius: 0;
+        background: #fffafa;
+        overflow: auto;
+    }
+
+    #trModal table.sap-grid {
+        border-collapse: separate;
+        border-spacing: 0;
+        background: #fffafa;
+        width: 100%;
+        font-size: 12px;
+        margin: 0;
+    }
+
+        #trModal table.sap-grid thead,
+        #trModal table.sap-grid thead tr,
+        #trModal table.sap-grid thead th {
+            background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+            color: #fff !important;
+        }
+
+            #trModal table.sap-grid thead th {
+                position: sticky;
+                top: -1px;
+                z-index: 5;
+                border-top: 1px solid #c46a6a;
+                border-right: 1px solid #8e3b3b;
+                border-bottom: 1px solid #5c0000;
+                padding: 6px 5px;
+                font-weight: 700;
+                letter-spacing: 0;
+                font-size: 12px;
+                white-space: nowrap;
+                line-height: 1.2;
+                box-shadow: 0 2px 0 #6f1d1d;
+            }
+
+        #trModal table.sap-grid tbody td {
+            background: #fffafa;
+            border-bottom: 1px solid #d8bcbc;
+            border-right: 1px solid #d8bcbc;
+            padding: 6px 5px;
+            line-height: 1.2;
+            color: #111111;
+            font-weight: 400;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 12px;
+        }
+
+            #trModal table.sap-grid thead th:first-child,
+            #trModal table.sap-grid tbody td:first-child {
+                border-left: 1px solid #d8bcbc;
+            }
+
+        #trModal table.sap-grid thead th:first-child {
+            border-left: 1px solid #8e3b3b;
+        }
+
+        #trModal table.sap-grid.table-striped > tbody > tr:nth-of-type(odd) > * {
+            background-color: #fffafa;
+        }
+
+        #trModal table.sap-grid tbody > tr:nth-of-type(even) > * {
+            background-color: #f9eded;
+        }
+
+        #trModal table.sap-grid tbody tr:hover > * {
+            background: #f4dddd !important;
+        }
+
+        #trModal table.sap-grid tfoot th {
+            background: linear-gradient(#fff7f7, #edd9d9) !important;
+            border-top: 1px solid #c79d9d;
+            border-right: 1px solid #d8bcbc;
+            color: #4a1818 !important;
+            padding: 6px 5px;
+            font-weight: 700;
+            font-size: 12px;
+        }
+
+    #trm-comp-tbody td:nth-child(3) {
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        word-break: break-word;
+        line-height: 1.15 !important;
+    }
+
+    .modal-footer {
+        background: #f7eaea;
+        border-top: 1px solid #d3b0b0;
+    }
+
+    .statusbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 6px 10px;
+        font-size: 11px;
+        color: #4a1a1a;
+        border-top: 1px solid #b88c8c;
+        background: linear-gradient(#f6e9e9, #ead5d5);
+        flex-wrap: wrap;
+    }
+
+    @@media (max-width: 1200px) {
+        .filters {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .filters {
+            grid-template-columns: 1fr;
+        }
+
+        .table-responsive-sticky > table.table tbody td,
+        #trModal table.sap-grid tbody td {
+            white-space: normal !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
+            word-break: break-word !important;
+        }
+
+        .table-responsive-sticky > table.table {
+            min-width: 1000px;
+        }
+
+        #trModal .modal-dialog.modal-xl {
+            max-width: 100vw !important;
+            width: 100vw !important;
+            margin: 0 !important;
+        }
+
+        #trModal .modal-content {
+            border-radius: 0 !important;
+            min-height: 100vh;
+        }
+    }
+
+    .filters input,
+    .filters select,
+    .filters .form-control,
+    .filters .form-select,
+    .filters .btn-select-like {
+        height: 36px !important;
+        min-height: 36px !important;
+        padding: 6px 10px !important;
+        line-height: 1.2 !important;
+        box-sizing: border-box !important;
+    }
+
+    .pm-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .pm-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        height: 34px;
+        padding: 0 14px;
+        border: 1px solid transparent;
+        border-radius: 0;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1;
+        cursor: pointer;
+        text-decoration: none;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+        transition: filter 0.15s ease, transform 0.05s ease;
+    }
+
+        .pm-btn i {
+            font-size: 15px;
+            line-height: 1;
+        }
+
+        .pm-btn span {
+            line-height: 1;
+        }
+
+        .pm-btn:hover {
+            filter: brightness(0.97);
+        }
+
+        .pm-btn:active {
+            transform: translateY(1px);
+        }
+
+        .pm-btn:focus {
+            outline: none;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 0 0 2px rgba(0, 0, 0, 0.08);
+        }
+
+    /* Botón rojo */
+    .pm-btn-primary {
+        color: #fff;
+        border-color: #7f0a0a;
+        background: linear-gradient(180deg, #b40000 0%, #8f0000 55%, #6e0000 100%);
+    }
+
+    /* Botón verde Excel */
+    .pm-btn-excel {
+        color: #fff;
+        border-color: #157347;
+        background: linear-gradient(180deg, #27ae60 0%, #1f9a54 55%, #198754 100%);
+    }
+
+  
+
+    .fechas-group {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px; /* bájalo a 4px si los quieres más pegados */
+    }
+
+        .fechas-group input {
+            width: 100%;
+        }
+
+    .filter-group {
+        min-width: 0;
+    }
+
+        .filter-group label {
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .filter-group input[type="text"] {
+            display: block;
+            width: 100%;
+        }
+
+    /* ESTATUS PEDIDO VS SURTIDO */
+    .estado-completo {
+        background: #d1e7dd !important;
+        color: #0f5132 !important;
+        font-weight: 900 !important;
+        text-align: center !important;
+    }
+
+    .estado-incompleto {
+        background: #fff3cd !important;
+        color: #664d03 !important;
+        font-weight: 900 !important;
+        text-align: center !important;
+    }
+
+    .estado-sin-confirmar {
+        background: #f8d7da !important;
+        color: #842029 !important;
+        font-weight: 900 !important;
+        text-align: center !important;
+    }
+
+    .window,
+    .content,
+    .workspace,
+    .section,
+    .filters,
+    .filter-group {
+        overflow: visible !important;
+    }
+
+    .btn-select-like {
+        overflow: hidden !important;
+    }
+
+        .btn-select-like .multi-label {
+            display: block !important;
+            max-width: calc(100% - 18px) !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+            line-height: 20px !important;
+        }
+
+    .multi-picker-menu {
+        width: 100% !important;
+        min-width: 100% !important;
+        max-width: 100% !important;
+        max-height: 620px !important;
+        overflow: visible !important;
+        padding: 8px !important;
+        border-radius: 0 !important;
+        border: 1px solid #b48787 !important;
+        background: #fffdfd !important;
+        box-shadow: 0 4px 10px rgba(70, 12, 12, .18);
+        z-index: 99999 !important;
+    }
+
+    .multi-picker-search {
+        height: 28px !important;
+        margin-bottom: 8px;
+        font-size: 12px !important;
+    }
+
+    .multi-picker-list {
+        max-height: 530px;
+        overflow-y: auto;
+    }
+
+    .multi-picker-option {
+        display: flex !important;
+        align-items: flex-start !important;
+        gap: 7px !important;
+        min-height: 30px !important;
+        padding: 6px 4px !important;
+        cursor: pointer;
+        color: #421414;
+        font-size: 12px;
+        line-height: 1.25 !important;
+        margin: 0 !important;
+    }
+
+        .multi-picker-option:hover {
+            background: #f4dddd;
+        }
+
+        .multi-picker-option input[type="checkbox"] {
+            appearance: auto !important;
+            -webkit-appearance: checkbox !important;
+            flex: 0 0 14px !important;
+            width: 14px !important;
+            height: 14px !important;
+            min-width: 14px !important;
+            margin: 2px 0 0 0 !important;
+            padding: 0 !important;
+            background: revert !important;
+            border: revert !important;
+            accent-color: #8b0000;
+            cursor: pointer !important;
+        }
+
+        .multi-picker-option span {
+            display: block !important;
+            flex: 1 1 auto !important;
+            line-height: 1.25 !important;
+            white-space: normal !important;
+            word-break: normal !important;
+        }
+
+    @@media (max-width: 768px) {
+        .multi-picker-menu {
+            max-height: 420px !important;
+        }
+
+        .multi-picker-list {
+            max-height: 330px;
+        }
+    }
+    /* Compactar opciones del dropdown */
+    .filters .multi-picker-option {
+        min-height: 22px !important;
+        padding: 3px 4px !important;
+        gap: 6px !important;
+        line-height: 1.1 !important;
+        align-items: center !important;
+    }
+
+        .filters .multi-picker-option input[type="checkbox"] {
+            width: 13px !important;
+            height: 13px !important;
+            min-width: 13px !important;
+            min-height: 13px !important;
+            margin: 0 4px 0 0 !important;
+            padding: 0 !important;
+            appearance: auto !important;
+            -webkit-appearance: checkbox !important;
+            accent-color: #8b0000;
+        }
+
+        .filters .multi-picker-option span {
+            line-height: 16px !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+    .filters .multi-picker-list {
+        max-height: 430px !important;
+    }
+</style>
+
+<div class="window">
+    <div class="titlebar">
+        <div></div>
+        <div class="actions">
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+        </div>
+    </div>
+
+    <div class="toolbar">
+        @* <button class="tool-btn" type="submit" form="frmTransferencias">Buscar</button> *@
+       @*  <button class="tool-btn" type="submit" form="frmTransferencias" name="Export" value="xlsx">Exportar Excel</button>
+        <button class="tool-btn" type="submit" form="frmTransferencias" name="Export" value="csv">Exportar CSV</button>
+        <button class="tool-btn" type="button" onclick="location.reload()">Actualizar</button> *@
+    </div>
+
+    <div class="content">
+       
+
+        <div class="workspace">
+            <div class="section">
+                <div class="section-title">Filtros de búsqueda</div>
+
+                <form id="frmTransferencias" method="get">
+                    <div class="filters">
+                        @{
+                            var hoy = DateTime.Today;
+                            var desdeDef = (Model?.Desde ?? hoy.AddDays(-2)).ToString("yyyy-MM-dd");
+                            var hastaDef = (Model?.Hasta ?? hoy).ToString("yyyy-MM-dd");
+                        }
+
+                        <div class="filter-group fechas-group">
+                            <div>
+                                <label>Desde</label>
+                                <input type="date" name="Desde" value="@desdeDef" />
+                            </div>
+
+                            <div>
+                                <label>Hasta</label>
+                                <input type="date" name="Hasta" value="@hastaDef" />
+                            </div>
+                        </div>
+
+                        <div class="filter-group">
+                            <label>Sucursal</label>
+                            @{
+                                var sucSel = Model?.SucursalesSeleccionadas ?? new List<string>();
+
+                                string TextoSucursalesFiltro(IEnumerable<string> selec)
+                                {
+                                    if (selec == null || !selec.Any()) return "(Todas)";
+                                    if (Model?.Sucursales == null) return string.Join(", ", selec);
+
+                                    var nombres = Model.Sucursales
+                                        .Where(s => selec.Contains(s.Codigo))
+                                        .Select(s => $"{s.Codigo}")
+                                        .ToList();
+
+                                    if (!nombres.Any()) nombres = selec.ToList();
+                                    return string.Join(", ", nombres.Distinct());
+                                }
+                            }
+
+                            <div class="dropdown w-100" id="dd-sucursal-tr">
+                                <button class="btn-select-like w-100"
+                                        type="button"
+                                        data-bs-toggle="dropdown"
+                                        data-bs-auto-close="outside"
+                                        aria-expanded="false">
+                                    <span class="multi-label">@TextoSucursalesFiltro(sucSel)</span>
+                                </button>
+                                <div class="dropdown-menu multi-picker-menu" onclick="event.stopPropagation();">
+                                    <input type="text"
+                                           class="form-control multi-picker-search"
+                                           placeholder="Buscar sucursal..."
+                                           autocomplete="off" />
+
+                                    <div class="multi-picker-list">
+                                        @if (Model?.Sucursales != null)
+                                        {
+                                            foreach (var s in Model.Sucursales)
+                                            {
+                                                var isChecked = sucSel.Contains(s.Codigo);
+                                                var text = string.IsNullOrWhiteSpace(s.Nombre) ? s.Codigo : $"{s.Nombre}";
+
+                                                <label class="multi-picker-option">
+                                                    <input class="multi-check-sucursal-tr"
+                                                           type="checkbox"
+                                                           value="@s.Codigo"
+                                                           id="tr_suc_@s.Codigo"
+                                                           data-text="@text"
+                                                    @(isChecked ? "checked" : null) />
+                                                    <span>@text</span>
+                                                </label>
+                                            }
+                                        }
+                                    </div>
+                                </div>
+
+                                <div id="dd-sucursal-tr-hidden">
+                                    @foreach (var s in sucSel)
+                                    {
+                                        <input type="hidden" name="SucursalesSeleccionadas" value="@s" />
+                                    }
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="filter-group">
+                            <label>Estatus</label>
+                            @{
+                                var ests = Model?.EstatusSeleccionados ?? new List<int>();
+
+                                string TextoEstatusFiltro(IEnumerable<int> selec)
+                                {
+                                    if (selec == null || !selec.Any()) return "(Todos)";
+
+                                    var set = selec.ToHashSet();
+                                    var nombres = new List<string>();
+
+                                    if (set.Contains(1) || set.Contains(3)) nombres.Add("Pendiente");
+                                    if (set.Contains(2)) nombres.Add("Autorización");
+                                    if (set.Contains(4)) nombres.Add("Validado");
+                                    if (set.Contains(5)) nombres.Add("Surtido");
+                                    if (set.Contains(0)) nombres.Add("Cancelada");
+
+                                    return string.Join(", ", nombres);
+                                }
+                            }
+
+                            <div class="dropdown w-100" id="dd-estatus-tr">
+                                <button class="btn-select-like w-100"
+                                        type="button"
+                                        data-bs-toggle="dropdown"
+                                        data-bs-auto-close="outside"
+                                        aria-expanded="false">
+                                    <span class="multi-label">@TextoEstatusFiltro(ests)</span>
+                                </button>
+                                <div class="dropdown-menu multi-picker-menu" onclick="event.stopPropagation();">
+                                    <input type="text"
+                                           class="form-control multi-picker-search"
+                                           placeholder="Buscar estatus..."
+                                           autocomplete="off" />
+
+                                    <div class="multi-picker-list">
+                                        <label class="multi-picker-option">
+                                            <input class="multi-check-estatus-tr"
+                                                   type="checkbox"
+                                                   value="1"
+                                                   data-extra="3"
+                                                   id="tr_est_pend"
+                                                   data-text="Pendiente"
+                                            @(ests.Contains(1) || ests.Contains(3) ? "checked" : null) />
+                                            <span>Pendiente</span>
+                                        </label>
+
+                                        <label class="multi-picker-option">
+                                            <input class="multi-check-estatus-tr"
+                                                   type="checkbox"
+                                                   value="2"
+                                                   id="tr_est_2"
+                                                   data-text="Autorización"
+                                            @(ests.Contains(2) ? "checked" : null) />
+                                            <span>Autorización</span>
+                                        </label>
+
+                                        <label class="multi-picker-option">
+                                            <input class="multi-check-estatus-tr"
+                                                   type="checkbox"
+                                                   value="4"
+                                                   id="tr_est_4"
+                                                   data-text="Validado"
+                                            @(ests.Contains(4) ? "checked" : null) />
+                                            <span>Validado</span>
+                                        </label>
+
+                                        <label class="multi-picker-option">
+                                            <input class="multi-check-estatus-tr"
+                                                   type="checkbox"
+                                                   value="5"
+                                                   id="tr_est_5"
+                                                   data-text="Surtido"
+                                            @(ests.Contains(5) ? "checked" : null) />
+                                            <span>Surtido</span>
+                                        </label>
+
+                                        <label class="multi-picker-option">
+                                            <input class="multi-check-estatus-tr"
+                                                   type="checkbox"
+                                                   value="0"
+                                                   id="tr_est_0"
+                                                   data-text="Cancelada"
+                                            @(ests.Contains(0) ? "checked" : null) />
+                                            <span>Cancelada</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div id="dd-estatus-tr-hidden">
+                                    @foreach (var e in ests)
+                                    {
+                                        <input type="hidden" name="EstatusSeleccionados" value="@e" />
+                                    }
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="filter-group">
+                            <label>Buscar</label>
+                            <input type="text" name="Buscar"
+                                   value="@(Model?.Buscar ?? "")"
+                                   placeholder="Consecutivo / SKU / Observación" />
+                        </div>
+                        <div class="pm-actions">
+                            <button class="pm-btn pm-btn-primary" type="submit">
+                                <i class="bi bi-search"></i>
+                                <span>Aplicar</span>
+                            </button>
+
+                            <button class="pm-btn pm-btn-excel"
+                                    type="submit"
+                                    form="frmTransferencias"
+                                    name="Export"
+                                    value="xlsx">
+                                <i class="bi bi-file-earmark-excel"></i>
+                                <span>Exportar a Excel</span>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <div class="section">
+                @* <div class="section-title">Listado de transferencias</div> *@
+
+                @Html.AntiForgeryToken()
+
+                <div class="table-card table-responsive-sticky">
+                    <table class="table table-sm table-striped table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th data-sort-col="cons" data-sort-type="text">Consecutivo</th>
+                                <th data-sort-col="suc" data-sort-type="text">Sucursal</th>
+                                <th class="text-end" data-sort-col="cajas" data-sort-type="num">Total cajas</th>
+                                <th class="text-end" data-sort-col="kg" data-sort-type="num">Total kg</th>
+                                <th data-sort-col="sol" data-sort-type="text">Solicita</th>
+                                <th data-sort-col="obs" data-sort-type="text">Observación</th>
+                                <th data-sort-col="fsol" data-sort-type="date">Fecha Embarcar</th>
+                                <th data-sort-col="est" data-sort-type="text">Estatus</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{
+                                var resultadosOrdenados = Model?.Resultados?.OrderByDescending(t => t.Consecutivo);
+                            }
+
+                            @if (resultadosOrdenados != null && resultadosOrdenados.Any())
+                            {
+                                var idx = 0;
+                                foreach (var t in resultadosOrdenados)
+                                {
+                                    var estVal = t?.Estatus ?? -1;
+
+                                    var estClass =
+                                    estVal == 0 ? "tr-est-0" :
+                                    (estVal == 1 || estVal == 3) ? "tr-est-1" :
+                                    estVal == 2 ? "tr-est-2" :
+                                    estVal == 4 ? "tr-est-4" :
+                                    estVal == 5 ? "tr-est-5" : "";
+
+                                    var texto =
+                                    estVal == 0 ? "Cancelada" :
+                                    (estVal == 1 || estVal == 3) ? "Pendiente" :
+                                    estVal == 2 ? "Autorización Presupuesto" :
+                                    estVal == 4 ? "Validado" :
+                                    estVal == 5 ? "Surtido" : "Otro";
+
+                                    <tr data-index="@idx">
+                                        <td>
+                                            <a href="#" class="ver-tr"
+                                               data-id="@(t?.Id)"
+                                               data-cons="@(t?.Consecutivo ?? "")">
+                                                @(t?.Consecutivo ?? "")
+                                            </a>
+                                        </td>
+
+                                        <td>@(t?.SucursalNombre ?? "")</td>
+
+                                        <td class="text-end">
+                                            @((t?.TotalCajas ?? 0).ToString("N0"))
+                                        </td>
+
+                                        <td class="text-end">
+                                            @((t?.TotalKg ?? 0m).ToString("N2"))
+                                        </td>
+
+                                        <td>@(t?.UsuarioSolicita ?? "")</td>
+
+                                        <td>@(t?.Observacion ?? "")</td>
+
+                                        <td>@(t?.FechaSolicitud?.ToString("yyyy-MM-dd") ?? "")</td>
+
+                                        <td>
+                                            <span class="badge-est @estClass">@texto</span>
+                                        </td>
+                                    </tr>
+                                    idx++;
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted">Sin resultados.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+
+                    <div class="modal fade" id="trModal" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">
+                                        Transferencia : <span id="trm-consecutivo"></span>
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                                </div>
+
+                                <div class="modal-body">
+                                    <div class="row g-3 mb-3 tr-header">
+                                        <div class="col-md-3 col-sm-6">
+                                            <div class="tr-label">Sucursal</div>
+                                            <div class="tr-value fw-bold" id="trm-sucursal"></div>
+                                        </div>
+
+                                        <div class="col-md-3 col-sm-6">
+                                            <div class="tr-label">Embarcar</div>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <input type="date"
+                                                       class="form-control form-control-sm"
+                                                       id="trm-fecha-sol-input"
+                                                       style="max-width: 170px;" />
+
+                                                <button type="button"
+                                                        class="btn btn-primary btn-sm d-none"
+                                                        id="btn-fecha-sol-save"
+                                                        title="Guardar">
+                                                    <i class="bi bi-check-lg"></i>
+                                                </button>
+
+                                                <button type="button"
+                                                        class="btn btn-outline-secondary btn-sm d-none"
+                                                        id="btn-fecha-sol-cancel"
+                                                        title="Cancelar">
+                                                    <i class="bi bi-x-lg"></i>
+                                                </button>
+                                            </div>
+
+                                            <small class="text-muted d-block mt-1" id="trm-fecha-sol-help"></small>
+                                        </div>
+
+                                        <div class="col-md-4 col-sm-6">
+                                            <div class="tr-label">Solicitó</div>
+                                            <div class="tr-value fw-bold" id="trm-usuario"></div>
+                                        </div>
+
+                                        <div class="col-md-2 col-sm-6">
+                                            <div class="tr-label">Estatus</div>
+                                            <div class="tr-value fw-bold" id="trm-estatus"></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row g-2 mb-3 small text-muted">
+                                        <div class="col-12"><strong>Observación:</strong> <span id="trm-obs"></span></div>
+                                    </div>
+
+                                    <hr class="my-3" />
+                                    <h6 class="mb-2">Pedido vs surtido</h6>
+
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-striped align-middle sap-grid trm-sap">
+                                            <thead>
+                                                <tr>
+                                                    <th>#</th>
+                                                    <th>SKU</th>
+                                                    <th>Producto</th>
+                                                    <th class="text-end">Kg pedido</th>
+                                                    <th class="text-end">Cajas pedido</th>
+                                                    <th class="text-end col-conf">Kg confirmadas</th>      <!-- ← -->
+                                                    <th class="text-end col-conf">Cajas confirmadas</th>   <!-- ← -->
+                                                    <th class="text-end">Kg surtido</th>
+                                                    <th class="text-end">Cajas surtidas</th>
+                                                    <th class="text-end">Dif kg</th>
+                                                    <th class="text-end">Dif cajas</th>
+                                                    <th>Estatus</th>
+                                                </tr>
+                                            </thead>
+
+                                            <tbody id="trm-comp-tbody">
+                                                <tr><td colspan="12" class="text-center text-muted">—</td></tr>
+                                            </tbody>
+
+                                            <tfoot>
+                                                <tr>
+                                                    <th colspan="3" class="text-end">Totales:</th>
+                                                    <th class="text-end" id="trm-tot-kg-ped">0.00</th>
+                                                    <th class="text-end" id="trm-tot-caj-ped">0</th>
+                                                    <th class="text-end col-conf" id="trm-tot-kg-conf">0.00</th>   <!-- ← -->
+                                                    <th class="text-end col-conf" id="trm-tot-caj-conf">0</th>     <!-- ← -->
+                                                    <th class="text-end" id="trm-tot-kg-sur">0.00</th>
+                                                    <th class="text-end" id="trm-tot-caj-sur">0</th>
+                                                    <th colspan="3"></th>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <div class="modal-footer">
+                                    <small class="text-muted me-auto">Folio interno: <span id="trm-id"></span></small>
+                                    <button type="button" class="btn btn-danger btn-slim d-none" id="btn-cancelar-tr">
+                                        <i class="bi bi-x-circle"></i> Cancelar transferencia
+                                    </button>
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="statusbar">
+            <div>Registro listo</div>
+            <div>Usuario: @User.Identity.Name</div>
+            <div>Empresa: Carnes G SA de CV</div>
+            <div>Módulo: Transferencias</div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function getAntiForgeryToken() {
+            const el = document.querySelector('input[name="__RequestVerificationToken"]');
+            return el ? el.value : '';
+        }
+
+        function fmtNum(n, d = 2) {
+            if (n == null) return "";
+            return Number(n).toLocaleString('es-MX', {
+                minimumFractionDigits: d,
+                maximumFractionDigits: d
+            });
+        }
+
+        function showMsg(type, text) {
+            const id = 'tr-alert';
+            let box = document.getElementById(id);
+            if (!box) {
+                box = document.createElement('div');
+                box.id = id;
+                document.body.prepend(box);
+            }
+            box.innerHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show m-3 shadow-sm"
+                     role="alert" style="position:sticky; top:0; z-index:2000;">
+                    ${text}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>`;
+        }
+
+        // ✅ incluye estatus 5
+        function estatusTextoTr(e) {
+            const est = Number(e);
+            return est === 0 ? "Cancelada" :
+                   est === 1 ? "Pendiente" :
+                   est === 2 ? "Autorización Presupuesto" :
+                   est === 3 ? "Pendiente" :
+                   est === 4 ? "Validado" :
+                   est === 5 ? "Surtido" : "Otro";
+        }
+
+        function toDateInputValue(isoString) {
+            if (!isoString) return "";
+            const d = new Date(isoString);
+            if (isNaN(d)) return "";
+            const pad = n => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        }
+
+        let trIdActual = null;
+        let trEstatusAct = null;
+        let trFechaSolOriginal = null;
+
+
+function toggleCancelarBtnTr(estatus) {
+    const btn = document.getElementById('btn-cancelar-tr');
+    if (!btn) return;
+
+    const cancelada = Number(estatus) === 0;
+
+    btn.classList.toggle('d-none', cancelada);
+    btn.disabled = cancelada;
+    btn.title = cancelada
+        ? 'Esta transferencia ya está cancelada'
+        : 'Cancelar transferencia';
+}
+
+
+        function setFechaEditUI(show) {
+            const btnSave = document.getElementById('btn-fecha-sol-save');
+            const btnCancel = document.getElementById('btn-fecha-sol-cancel');
+            if (!btnSave || !btnCancel) return;
+            btnSave.classList.toggle('d-none', !show);
+            btnCancel.classList.toggle('d-none', !show);
+        }
+
+        function toggleEditarFechaPermitido(estatus) {
+            const inp = document.getElementById('trm-fecha-sol-input');
+            const est = Number(estatus);
+            const permitido = (est === 1 || est === 2);
+            if (inp) inp.disabled = !permitido;
+            if (!permitido) setFechaEditUI(false);
+            return permitido;
+        }
+
+        async function guardarFechaSolicitudActual() {
+            if (!trIdActual) { showMsg("warning", "No hay transferencia seleccionada."); return; }
+            const inp = document.getElementById('trm-fecha-sol-input');
+            if (!inp) return;
+
+            const nueva = inp.value;
+            if (!nueva) { showMsg("warning", "Selecciona una fecha válida."); return; }
+            if (nueva === trFechaSolOriginal) { setFechaEditUI(false); return; }
+
+            const btnSave = document.getElementById('btn-fecha-sol-save');
+            const btnCancel = document.getElementById('btn-fecha-sol-cancel');
+            if (btnSave) btnSave.disabled = true;
+            if (btnCancel) btnCancel.disabled = true;
+
+            try {
+                const res = await fetch('/Transferencias/ActualizarFechaSolicitud', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'RequestVerificationToken': getAntiForgeryToken()
+                    },
+                    body: JSON.stringify({ transferenciaId: Number(trIdActual), fechaSolicitud: nueva })
+                });
+
+                const raw = await res.text();
+                let data = null;
+                try { data = JSON.parse(raw); } catch { }
+
+                if (!res.ok || !data?.ok) {
+                    showMsg("danger", data?.msg || raw.substring(0, 160) || "No se pudo guardar la fecha.");
+                    if (btnSave) btnSave.disabled = false;
+                    if (btnCancel) btnCancel.disabled = false;
+                    return;
+                }
+
+                showMsg("success", data.msg || "Fecha actualizada.");
+                trFechaSolOriginal = nueva;
+                setFechaEditUI(false);
+                setTimeout(() => location.reload(), 400);
+
+            } catch (e) {
+                console.error(e);
+                showMsg("danger", "No se pudo conectar con el servidor.");
+                if (btnSave) btnSave.disabled = false;
+                if (btnCancel) btnCancel.disabled = false;
+            }
+        }
+
+    async function cancelarTransferenciaActual() {
+    if (!trIdActual) {
+        showMsg("warning", "No hay transferencia seleccionada.");
+        return;
+    }
+
+    if (Number(trEstatusAct) === 0) {
+        showMsg("warning", "Esta transferencia ya está cancelada.");
+        return;
+    }
+
+    const consecutivo = document.getElementById('trm-consecutivo')?.textContent || '';
+
+    const ok = confirm(
+        `¿Seguro que deseas CANCELAR la transferencia ${consecutivo}?`
+    );
+
+    if (!ok) return;
+
+    const btn = document.getElementById('btn-cancelar-tr');
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Cancelando...';
+    }
+
+    try {
+       const res = await fetch('/Transferencias/Cancelar', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'RequestVerificationToken': getAntiForgeryToken()
+    },
+    body: JSON.stringify({
+        transferenciaId: Number(trIdActual)
+    })
+});
+
+        const raw = await res.text();
+        let data = null;
+
+        try {
+            data = JSON.parse(raw);
+        } catch { }
+
+        if (!res.ok || data?.ok === false) {
+            console.error("Error cancelar transferencia:", {
+                status: res.status,
+                raw,
+                data
+            });
+
+            showMsg(
+                "danger",
+                data?.msg || raw.substring(0, 300) || `No se pudo cancelar. HTTP ${res.status}`
+            );
+
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-x-circle"></i> Cancelar transferencia';
+            }
+
+            return;
+        }
+
+        showMsg("success", data.msg || "Transferencia cancelada correctamente.");
+
+        trEstatusAct = 0;
+        toggleCancelarBtnTr(0);
+
+        const modalEl = document.getElementById('trModal');
+        const inst = bootstrap.Modal.getInstance(modalEl);
+        inst?.hide();
+
+        setTimeout(() => location.reload(), 500);
+
+    } catch (e) {
+        console.error(e);
+        showMsg("danger", "No se pudo conectar con el servidor.");
+
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-x-circle"></i> Cancelar transferencia';
+        }
+    }
+}
+
+
+
+
+        function escapeRegExp(s){
+            return (s ?? "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        }
+
+        function soloNombreProducto(productoNombre, productoCodigo){
+            const d = (productoNombre ?? "").trim();
+            const c = (productoCodigo ?? "").trim();
+            if (!d) return "";
+
+            if (c) {
+                const m = d.match(new RegExp("^" + escapeRegExp(c) + "\\s*\\((.*)\\)\\s*$", "i"));
+                if (m && m[1]) return m[1].trim();
+                return d.replace(new RegExp("^" + escapeRegExp(c) + "\\s*[-–—:]?\\s*", "i"), "").trim();
+            }
+
+            const m2 = d.match(/^\((.*)\)$/);
+            return (m2 && m2[1]) ? m2[1].trim() : d;
+        }
+
+        // ✅ TABLA ÚNICA: une lineas + surtido por SKU
+        async function cargarDetalleTr(id, consecutivo) {
+            const modalEl = document.getElementById('trModal');
+            const compTbody = document.getElementById('trm-comp-tbody');
+
+            if (!modalEl || !compTbody) {
+                console.error("Falta modal #trModal o tbody #trm-comp-tbody");
+                showMsg("danger", "No existe el modal o la tabla comparativa.");
+                return;
+            }
+
+            compTbody.innerHTML = `<tr><td colspan="12" class="text-center text-muted">Cargando...</td></tr>`;
+
+            try {
+                const resp = await fetch(`/Transferencias/DetalleApi?id=${encodeURIComponent(id)}`, { cache: 'no-store' });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+
+                const payload = await resp.json();
+                const h = payload.header || {};
+                const lineas = payload.lineas || [];
+                const surtido = payload.surtido || [];
+
+                trIdActual = h.id || id;
+                trEstatusAct = Number(h.estatus);
+
+                // header
+                const elCons = document.getElementById('trm-consecutivo');
+                const elId = document.getElementById('trm-id');
+                const elSuc = document.getElementById('trm-sucursal');
+                const elUsr = document.getElementById('trm-usuario');
+                const elEst = document.getElementById('trm-estatus');
+                const elObs = document.getElementById('trm-obs');
+
+                if (elCons) elCons.textContent = h.consecutivo || consecutivo || "";
+                if (elId) elId.textContent = trIdActual || "";
+                if (elSuc) elSuc.textContent = h.sucursalNombre || h.sucursal || "";
+                if (elUsr) elUsr.textContent = h.usuarioSolicita || "";
+                if (elEst) elEst.textContent = estatusTextoTr(h.estatus);
+                if (elObs) elObs.textContent = h.observacion || "";
+
+                // fecha input
+                const inpFecha = document.getElementById('trm-fecha-sol-input');
+                if (inpFecha) {
+                    const v = toDateInputValue(h.fechaSolicitud);
+                    inpFecha.value = v;
+                    trFechaSolOriginal = v;
+                    setFechaEditUI(false);
+                }
+
+                toggleCancelarBtnTr(trEstatusAct);
+                toggleEditarFechaPermitido(trEstatusAct);
+
+                // totales footer
+                        const totKgPedEl   = document.getElementById('trm-tot-kg-ped');
+                        const totCajPedEl  = document.getElementById('trm-tot-caj-ped');
+                        const totKgConfEl  = document.getElementById('trm-tot-kg-conf');
+                        const totCajConfEl = document.getElementById('trm-tot-caj-conf');
+                        const totKgSurEl   = document.getElementById('trm-tot-kg-sur');
+                        const totCajSurEl  = document.getElementById('trm-tot-caj-sur');
+        
+
+                const normSku = s => (s ?? "").toString().trim().toUpperCase();
+
+                const map = new Map();
+
+                // 1) Pedido (lineas)
+                (lineas || []).forEach(l => {
+                    const sku = normSku(l.productoCodigo);
+                    if (!sku) return;
+
+                    const kgPed = Number(l.cantidadKg || l.cantidad || 0);
+                    const cajPed = Number(l.cajas || 0);
+                    const kgConf = Number(l.kgConfirmadas || l.kilosConfirmados || l.cantidadKgConfirmada || 0);
+                    const cajConf = Number(l.cajasConfirmadas || l.cajasConfirmadasTotal || l.cajasConfirmada || 0);
+
+                            const ex = map.get(sku) || {
+                             sku,
+                             productoCodigo: l.productoCodigo || sku,
+                             productoNombre: l.productoNombre || "",
+                             kgPedido: 0,
+                             cajasPedido: 0,
+                             kgConfirmadas: 0,
+                             cajasConfirmadas: 0,
+                             kgSurtido: 0,
+                             cajasSurtidas: 0,
+                             etiquetas: 0,
+                             kgEscaneado: 0
+                         };
+
+                    if (!ex.productoNombre && l.productoNombre) ex.productoNombre = l.productoNombre;
+
+                   
+                   ex.kgPedido += kgPed;
+                   ex.cajasPedido += cajPed;
+                   ex.kgConfirmadas += kgConf;
+                   ex.cajasConfirmadas += cajConf;
+
+                    map.set(sku, ex);
+                });
+
+                // 2) Surtido (surtido)
+                (surtido || []).forEach(s => {
+                    const sku = normSku(s.sku);
+                    if (!sku) return;
+
+                            const ex = map.get(sku) || {
+            sku,
+            productoCodigo: sku,
+            productoNombre: "",
+            kgPedido: 0,
+            cajasPedido: 0,
+            kgConfirmadas: 0,
+            cajasConfirmadas: 0,
+            kgSurtido: 0,
+            cajasSurtidas: 0,
+            etiquetas: 0,
+            kgEscaneado: 0
+        };
+
+                    ex.kgSurtido += Number(s.kgSurtido || 0);
+                    ex.cajasSurtidas += Number(s.cajasSurtidas || 0);
+                    ex.etiquetas += Number(s.etiquetas || 0);
+                    ex.kgEscaneado += Number(s.kgEscaneado || 0);
+
+                    map.set(sku, ex);
+                });
+
+                // 3) Orden: primero como vienen en lineas y después los extras
+                const orderSkus = (lineas || []).map(x => normSku(x.productoCodigo)).filter(Boolean);
+                const seen = new Set();
+                const rows = [];
+
+                orderSkus.forEach(sku => {
+                    if (seen.has(sku)) return;
+                    seen.add(sku);
+                    if (map.has(sku)) rows.push(map.get(sku));
+                });
+
+                for (const [sku, obj] of map.entries()) {
+                    if (!seen.has(sku)) rows.push(obj);
+                }
+
+                // 4) Render
+                compTbody.innerHTML = "";
+
+                if (!rows.length) {
+                    compTbody.innerHTML = `<tr><td colspan="12" class="text-center text-muted">Sin datos.</td></tr>`;
+                } else {
+                    let tKgPed = 0, tCajPed = 0, tKgConf = 0, tCajConf = 0, tKgSur = 0, tCajSur = 0;
+        rows.forEach((r, i) => {
+            const difKg = (r.kgSurtido || 0) - (r.kgConfirmadas || 0);
+            const difCaj = (r.cajasSurtidas || 0) - (r.cajasConfirmadas || 0);
+
+            const baseCajas = (r.cajasConfirmadas || 0);
+            const baseKg = (r.kgConfirmadas || 0);
+
+            tKgPed += Number(r.kgPedido || 0);
+            tCajPed += Number(r.cajasPedido || 0);
+            tKgConf += Number(r.kgConfirmadas || 0);
+            tCajConf += Number(r.cajasConfirmadas || 0);
+            tKgSur += Number(r.kgSurtido || 0);
+            tCajSur += Number(r.cajasSurtidas || 0);
+
+            const estado = baseCajas > 0
+                ? (r.cajasSurtidas >= baseCajas
+                    ? "COMPLETO"
+                    : (r.cajasSurtidas > 0 ? "INCOMPLETO" : "NO SURTIDO"))
+                : baseKg > 0
+                    ? (r.kgSurtido >= baseKg
+                        ? "COMPLETO"
+                        : (r.kgSurtido > 0 ? "INCOMPLETO" : "NO SURTIDO"))
+                    : ((r.kgSurtido > 0 || r.cajasSurtidas > 0) ? "SURTIDO SIN CONF." : "SIN CONFIRMAR");
+
+            const prod = soloNombreProducto(r.productoNombre, r.productoCodigo);
+
+            compTbody.insertAdjacentHTML('beforeend', `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td>${r.sku}</td>
+                    <td>${prod}</td>
+                    <td class="text-end">${fmtNum(r.kgPedido, 2)}</td>
+                    <td class="text-end">${fmtNum(r.cajasPedido, 0)}</td>
+                    <td class="text-end col-conf">${fmtNum(r.kgConfirmadas, 2)}</td>
+                    <td class="text-end col-conf">${fmtNum(r.cajasConfirmadas, 0)}</td>
+                    <td class="text-end">${fmtNum(r.kgSurtido, 2)}</td>
+                    <td class="text-end">${fmtNum(r.cajasSurtidas, 0)}</td>
+                    <td class="text-end">${fmtNum(difKg, 2)}</td>
+                    <td class="text-end">${fmtNum(difCaj, 0)}</td>
+                            <td class="${estado === 'COMPLETO'
+                                ? 'estado-completo'
+                                : estado === 'INCOMPLETO'
+                                    ? 'estado-incompleto'
+                                    : 'estado-sin-confirmar'
+                            }">
+            ${estado}
+        </td>
+                </tr>
+            `);
+        });
+              
+
+                           if (totKgPedEl)   totKgPedEl.textContent   = fmtNum(tKgPed, 2);
+                           if (totCajPedEl)  totCajPedEl.textContent  = fmtNum(tCajPed, 0);
+                           if (totKgConfEl)  totKgConfEl.textContent  = fmtNum(tKgConf, 2);
+                           if (totCajConfEl) totCajConfEl.textContent = fmtNum(tCajConf, 0);
+                           if (totKgSurEl)   totKgSurEl.textContent   = fmtNum(tKgSur, 2);
+                           if (totCajSurEl)  totCajSurEl.textContent  = fmtNum(tCajSur, 0);
+                  
+                }
+
+                new bootstrap.Modal(modalEl).show();
+
+            } catch (e) {
+                console.error(e);
+                compTbody.innerHTML = `<tr><td colspan="12" class="text-danger text-center">Error al cargar el detalle.</td></tr>`;
+                new bootstrap.Modal(modalEl).show();
+            }
+        }
+
+        function wireClickConsecutivo() {
+            const table = document.querySelector('.table-responsive-sticky table.table');
+            if (!table) return;
+
+            const tbody = table.querySelector('tbody');
+            if (!tbody) return;
+
+            if (tbody.dataset.wiredClick === "1") return;
+            tbody.dataset.wiredClick = "1";
+
+            tbody.addEventListener('click', function (ev) {
+                const a = ev.target.closest('a.ver-tr');
+                if (!a) return;
+
+                ev.preventDefault();
+
+                const id = a.getAttribute('data-id');
+                const cons = a.getAttribute('data-cons') || a.textContent.trim();
+                if (id) cargarDetalleTr(id, cons);
+            });
+        }
+
+        function normMultiText(s) {
+            return (s ?? '')
+                .toString()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .trim();
+        }
+
+        function initMultiDropdownSearch(rootId) {
+            const root = document.getElementById(rootId);
+
+            if (!root) return;
+
+            const search = root.querySelector('.multi-picker-search');
+            const options = Array.from(root.querySelectorAll('.multi-picker-option'));
+
+            if (!search || !options.length) return;
+
+            search.addEventListener('input', function () {
+                const q = normMultiText(search.value);
+                const words = q.split(/\s+/).filter(Boolean);
+
+                options.forEach(opt => {
+                    const input = opt.querySelector('input');
+                    const text = normMultiText(`${opt.innerText} ${input?.value || ''}`);
+                    const visible = words.every(w => text.includes(w));
+
+                    opt.style.display = visible ? 'flex' : 'none';
+                });
+            });
+
+            root.addEventListener('shown.bs.dropdown', function () {
+                setTimeout(() => {
+                    search.focus();
+                    search.select();
+                }, 0);
+            });
+        }
+
+        function initMultiDropdown(rootId, checkClass, hiddenContainerId, hiddenName) {
+            const root = document.getElementById(rootId);
+            if (!root) return;
+
+            const labelSpan = root.querySelector('.multi-label');
+            const checks = root.querySelectorAll('.' + checkClass);
+            const hidden = document.getElementById(hiddenContainerId);
+
+            function refresh() {
+                hidden.innerHTML = "";
+                const texts = [];
+
+                checks.forEach(ch => {
+                    if (ch.checked) {
+                        texts.push(ch.getAttribute('data-text') || ch.value);
+
+                        const inp = document.createElement('input');
+                        inp.type = 'hidden';
+                        inp.name = hiddenName;
+                        inp.value = ch.value;
+                        hidden.appendChild(inp);
+                    }
+                });
+
+                if (texts.length === 0) labelSpan.textContent = '(Todos)';
+                else if (texts.length <= 3) labelSpan.textContent = texts.join(', ');
+                else labelSpan.textContent = texts.length + ' seleccionados';
+            }
+
+            checks.forEach(ch => ch.addEventListener('change', refresh));
+            refresh();
+        }
+
+        function initHeaderSortingTransferencias() {
+            const table = document.querySelector('.table-responsive-sticky table.table');
+            if (!table) return;
+
+            const thead = table.querySelector('thead');
+            const tbody = table.querySelector('tbody');
+            if (!thead || !tbody) return;
+
+            const ths = thead.querySelectorAll('th[data-sort-col]');
+            if (!ths.length) return;
+
+            const state = { index: null, dir: null };
+
+            function clearIcons() {
+                ths.forEach(th => th.textContent = th.textContent.replace(/\s*[▲▼]$/, ''));
+            }
+
+            function getCellValue(tr, index) {
+                const td = tr.children[index];
+                if (!td) return '';
+                return td.innerText.trim();
+            }
+
+            function parseValue(val, type) {
+                if (type === 'num') {
+                    const n = parseFloat(val.replace(/[^\d.-]/g, ''));
+                    return isNaN(n) ? 0 : n;
+                }
+                if (type === 'date') {
+                    const d = new Date(val);
+                    return isNaN(d.getTime()) ? 0 : d.getTime();
+                }
+                return val.toUpperCase();
+            }
+
+            function sortBody(index, dir) {
+                const rows = Array.from(tbody.querySelectorAll('tr'));
+                if (!rows.length) return;
+
+                if (index == null || dir == null) {
+                    rows.sort((a, b) => (parseInt(a.dataset.index || '0', 10) - parseInt(b.dataset.index || '0', 10)));
+                } else {
+                    const type = ths[index].dataset.sortType || 'text';
+                    rows.sort((a, b) => {
+                        const va = parseValue(getCellValue(a, index), type);
+                        const vb = parseValue(getCellValue(b, index), type);
+                        if (va < vb) return -1;
+                        if (va > vb) return 1;
+                        return 0;
+                    });
+                    if (dir === 'desc') rows.reverse();
+                }
+
+                rows.forEach(r => tbody.appendChild(r));
+            }
+
+            ths.forEach((th, index) => {
+                th.style.cursor = 'pointer';
+
+                th.addEventListener('click', () => {
+                    if (state.index === index) {
+                        state.dir = state.dir === 'asc' ? 'desc' : state.dir === 'desc' ? null : 'asc';
+                    } else {
+                        state.index = index;
+                        state.dir = 'asc';
+                    }
+
+                    clearIcons();
+
+                    if (!state.dir) {
+                        state.index = null;
+                    } else {
+                        th.textContent = th.textContent.replace(/\s*[▲▼]$/, '') + (state.dir === 'asc' ? ' ▲' : ' ▼');
+                    }
+
+                    sortBody(state.index, state.dir);
+                });
+            });
+        }
+        document.addEventListener('DOMContentLoaded', function () {
+            initMultiDropdown('dd-sucursal-tr', 'multi-check-sucursal-tr', 'dd-sucursal-tr-hidden', 'SucursalesSeleccionadas');
+            initMultiDropdown('dd-estatus-tr', 'multi-check-estatus-tr', 'dd-estatus-tr-hidden', 'EstatusSeleccionados');
+
+            initMultiDropdownSearch('dd-sucursal-tr');
+            initMultiDropdownSearch('dd-estatus-tr');
+
+            wireClickConsecutivo();
+            initHeaderSortingTransferencias();
+
+            const btn = document.getElementById('btn-cancelar-tr');
+            btn?.addEventListener('click', (ev) => { ev.preventDefault(); cancelarTransferenciaActual(); });
+
+            const inpFecha = document.getElementById('trm-fecha-sol-input');
+            const btnSave = document.getElementById('btn-fecha-sol-save');
+            const btnCancel = document.getElementById('btn-fecha-sol-cancel');
+
+            inpFecha?.addEventListener('change', () => {
+                if (inpFecha.disabled) return;
+                const changed = (inpFecha.value && inpFecha.value !== trFechaSolOriginal);
+                setFechaEditUI(changed);
+            });
+
+            btnSave?.addEventListener('click', (ev) => { ev.preventDefault(); guardarFechaSolicitudActual(); });
+
+            btnCancel?.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                if (!inpFecha) return;
+                inpFecha.value = trFechaSolOriginal || "";
+                setFechaEditUI(false);
+            });
+        });
+    </script>
+}

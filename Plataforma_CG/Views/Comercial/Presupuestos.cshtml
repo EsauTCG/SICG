@@ -1,0 +1,2116 @@
+﻿@using Plataforma_CG.ViewModels
+@model Plataforma_CG.ViewModels.PedidoViewModel
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Presupuestos";
+}
+
+<style>
+    :root {
+        --brand: linear-gradient(90deg, #8B0000 0%, #5a0000 50%, #1a0000 100%);
+        --bg: linear-gradient(135deg, #f1f3f6 0%, #e9edf2 45%, #e8dada 100%);
+        --panel: #fff;
+        --bar: #e6e9ef;
+        --bar-2: #dde2ea;
+        --line: #d8dce3;
+        --text: #20262e;
+        --muted: #636d7b;
+        --accent: #2d6cdf;
+        --radius: 8px;
+        --shadow: 0 1px 0 rgba(0,0,0,.04),0 12px 24px rgba(0,0,0,.06);
+        --shadow-sm: 0 6px 16px rgba(0,0,0,.05);
+        --focus: 0 0 0 .2rem rgba(45,108,223,.25);
+        --font: system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans","Apple Color Emoji","Segoe UI Emoji";
+    }
+
+    body {
+        background: var(--bg) !important;
+        font-family: var(--font);
+        color: var(--text);
+    }
+
+    .legacy-border {
+        border: none !important;
+        background: transparent !important;
+        padding: 0 !important;
+    }
+
+    /* MÁS ANCHO Y FLUIDO */
+    .shell {
+        width: 96%;
+        max-width: 1800px;
+        margin: 1.25rem auto;
+        background: var(--panel);
+        border-radius: var(--radius);
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+    }
+
+    .module-titlebar {
+        background: linear-gradient(#eef1f6,#e7ebf2);
+        border-bottom: 1px solid var(--bar-2);
+        padding: 1rem 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+
+    .module-title {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        margin: 0;
+        font-weight: 700;
+        letter-spacing: .2px;
+    }
+
+        .module-title i {
+            font-size: 1.1rem;
+            color: var(--brand);
+        }
+
+    .module-subtitle {
+        margin: 0;
+        color: var(--muted);
+        font-size: .9rem;
+    }
+
+    .toolbar {
+        background: var(--bar);
+        border-bottom: 1px solid var(--bar-2);
+        padding: .4rem .6rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: .4rem;
+    }
+
+    .tbtn {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        height: 34px;
+        padding: 0 .6rem;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #fff;
+        color: #1e2a35;
+        font-size: .9rem;
+        line-height: 1;
+        transition: .15s ease;
+    }
+
+        .tbtn:hover {
+            background: #f8fafc;
+            border-color: #cfd6e2;
+        }
+
+        .tbtn:active {
+            background: #edf1f7;
+            transform: translateY(.5px);
+        }
+
+        .tbtn.primary {
+            background: var(--brand);
+            color: #fff;
+            border-color: transparent;
+        }
+
+            .tbtn.primary:hover {
+                filter: brightness(1.05);
+            }
+
+        .tbtn.ghost {
+            background: #fff;
+            color: #1e2a35;
+        }
+
+    .toolbar .sep {
+        width: 1px;
+        height: 24px;
+        background: var(--line);
+        margin: 0 .25rem;
+        align-self: center;
+    }
+
+    .content {
+        padding: 1.25rem 1.25rem 1rem;
+    }
+
+    .panel {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .panel-head {
+        background: linear-gradient(#f6f8fb,#eef2f7);
+        border-bottom: 1px solid var(--line);
+        padding: .6rem .8rem;
+        font-weight: 600;
+        color: #2b3642;
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+    }
+
+        .panel-head i {
+            color: var(--brand);
+        }
+
+    .panel-body {
+        padding: .9rem;
+    }
+
+    .form-control, .form-select {
+        border-radius: 6px;
+        border-color: #cfd6e2;
+        font-size: .95rem;
+    }
+
+        .form-control:focus, .form-select:focus {
+            box-shadow: var(--focus);
+            border-color: var(--accent);
+            outline: none;
+        }
+
+    .help {
+        color: var(--muted);
+        font-size: .85rem;
+    }
+
+    .kpi {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        padding: .35rem .6rem;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: #f6f8fb;
+        color: #2b3642;
+        font-weight: 600;
+        font-size: .85rem;
+    }
+
+    .table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #f3f6fb;
+        border-bottom: 1px solid var(--line);
+        color: #2b3642;
+        font-weight: 700;
+    }
+
+    .table-sm > :not(caption) > * > * {
+        padding: .5rem .6rem;
+    }
+
+    .table-hover tbody tr:hover {
+        background: #f9fbff;
+    }
+
+    .table-striped tbody tr:nth-of-type(odd) {
+        background: #fff;
+    }
+
+    .table-striped tbody tr:nth-of-type(even) {
+        background: #fafcff;
+    }
+
+    .text-end {
+        text-align: right;
+    }
+
+    /* Altura cómoda para tablas */
+    .table-responsive.p-2 {
+        max-height: 70vh;
+        overflow: auto;
+    }
+
+    #articulosMensuales .panel .table-responsive {
+        max-height: 72vh;
+    }
+
+    .btn-reflejo {
+        background-color: var(--brand);
+        color: #fff;
+        border: 1px solid transparent;
+    }
+
+        .btn-reflejo:hover {
+            filter: brightness(1.06);
+        }
+
+    .modal-header {
+        background: linear-gradient(#e9edf4,#e1e6ef);
+        border-bottom: 1px solid var(--bar-2);
+        color: #1f2a35;
+    }
+
+        .modal-header .modal-title {
+            font-weight: 700;
+        }
+
+    .modal-footer {
+        background: #f6f8fb;
+        border-top: 1px solid var(--bar-2);
+    }
+
+    .empty {
+        text-align: center;
+        color: var(--muted);
+        padding: 1.2rem .5rem;
+    }
+
+        .empty i {
+            display: block;
+            color: var(--brand);
+            font-size: 1.6rem;
+            margin-bottom: .4rem;
+        }
+
+    #loadingSpinner {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        backdrop-filter: blur(1.5px);
+        background: rgba(255,255,255,.72);
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+    }
+
+    *:focus-visible {
+        outline: none;
+        box-shadow: var(--focus);
+        border-radius: 6px;
+    }
+
+    /* Modales grandes */
+    #modalTablaGrande .modal-dialog {
+        max-width: 98vw !important;
+    }
+
+    #modalTablaGrande .modal-body .table-responsive {
+        max-height: calc(100vh - 220px);
+    }
+
+    #presupuestosModal .modal-dialog {
+        max-width: 95vw;
+    }
+
+    @@media (max-width: 1400px) {
+        .shell
+
+    {
+        width: 98%;
+        max-width: 1600px;
+    }
+
+    }
+</style>
+
+<div class="container-fluid mt-4 legacy-border">
+    <div class="shell">
+        <div class="module-titlebar">
+            <div>
+                <h5 class="module-title"><i class="bi bi-diagram-3"></i> Presupuestos</h5>
+                <p class="module-subtitle">Consulta ventas por cliente o vendedor y guarda el presupuesto mensual.</p>
+            </div>
+
+            <!-- TOOLBAR con acciones separadas (izq) y principales (der) -->
+            <div class="toolbar w-100 d-flex align-items-center" role="toolbar" aria-label="Acciones rápidas" style="gap:.4rem">
+                <!-- IZQUIERDA -->
+                <div class="d-flex flex-wrap align-items-center" style="gap:.4rem">
+                    <button type="button" class="tbtn" id="btnConsultar" title="Consultar ventas del cliente">
+                        <i class="bi bi-search"></i><span>Consultar</span>
+                    </button>
+                    <button type="button" class="tbtn" id="btnDetalle" title="Gráfica de ventas">
+                        <i class="bi bi-graph-up"></i><span>Gráfica</span>
+                    </button>
+                    <button type="button" class="tbtn" id="btnVerPresupuestos" title="Histórico de presupuestos">
+                        <i class="bi bi-clock-history"></i><span>Histórico</span>
+                    </button>
+                </div>
+
+                <!-- separador flexible -->
+                <div class="ms-auto"></div>
+
+                <!-- DERECHA -->
+                <div class="d-flex align-items-center" style="gap:.4rem">
+                    <button type="button" id="btnAbrirModalGuardar" class="tbtn primary" title="Guardar presupuesto">
+                        <i class="bi bi-save"></i><span>Guardar</span>
+                    </button>
+                    <button type="button" class="tbtn ghost" onclick="window.location='/Home/inicio'" title="Cancelar">
+                        <i class="bi bi-x-lg"></i><span>Cancelar</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="content">
+            @* MENSAJES ARRIBA DEL FORM *@
+            @if (TempData["Ok"] is string okMsg)
+            {
+                <div class="alert alert-success shadow-sm mb-3" role="alert">
+                    <i class="bi bi-check-circle me-2"></i> @okMsg
+                </div>
+            }
+            @if (TempData["Error"] is string errMsg)
+            {
+                <div class="alert alert-warning shadow-sm mb-3" role="alert">
+                    <i class="bi bi-exclamation-triangle me-2"></i> @errMsg
+                </div>
+            }
+
+            @* Duplicados *@
+            @if (TempData["DupListText"] is string dupTxt && !string.IsNullOrWhiteSpace(dupTxt))
+            {
+                <div class="alert alert-warning shadow-sm mb-3" role="alert">
+                    <div class="d-flex justify-content-between align-items-start w-100">
+                        <div class="me-3">
+                            <i class="bi bi-exclamation-octagon me-2"></i>
+                            Se encontraron renglones ya presupuestados para el periodo seleccionado.
+                            <details class="mt-2">
+                                <summary class="fw-semibold">Ver detalle</summary>
+                                <pre class="mb-0 mt-2" style="white-space:pre-wrap;">@dupTxt</pre>
+                            </details>
+                        </div>
+                        @{
+                            var dupMes = TempData["DupMes"] as string;
+                            var dupAnio = TempData["DupAnio"] as string;
+                        }
+                        @if (!string.IsNullOrEmpty(dupMes) && !string.IsNullOrEmpty(dupAnio))
+                        {
+                            <button type="button"
+                                    class="btn btn-outline-secondary btn-sm"
+                                    onclick="(window.abrirHistoricoDeMes||function(){})(@dupMes, @dupAnio)">
+                                <i class="bi bi-clock-history me-1"></i> Ver histórico @dupMes/@dupAnio
+                            </button>
+                        }
+                    </div>
+                </div>
+            }
+
+            <form id="frmPresupuesto"
+                  asp-controller="Comercial"
+                  asp-action="GuardarPresupuesto"
+                  method="post"
+                  data-check-url="/Comercial/ObtenerPresupuestos"
+                  data-open-historico-fn="abrirHistoricoDeMes">
+                @Html.AntiForgeryToken()
+
+                <div class="row g-3">
+                    <!-- Columna: Cliente (individual) -->
+                    <div class="col-lg-4">
+                        <div class="panel h-100">
+                            <div class="panel-head"><i class="bi bi-person-badge"></i> Cliente</div>
+                            <div class="panel-body">
+                                <label class="form-label fw-semibold mb-1">Cliente (individual)</label>
+                                <input type="text" id="clienteInput" class="form-control form-control-lg" placeholder="Escribe para buscar..." />
+                                <div class="help mt-1">Escribe 2 letras o más y selecciona.</div>
+                                <input type="hidden" id="clienteId" name="Cliente" />
+
+                                <div class="mt-3">
+                                    <label class="form-label fw-semibold mb-1">Meses para cálculo de objetivo</label>
+                                    <select id="filtroMesesObjetivo" class="form-select form-select-sm">
+                                        <option value="0">Ninguno</option>
+                                        <option value="4">Últimos 4 meses</option>
+                                        <option value="8">Últimos 8 meses</option>
+                                        <option value="12" selected>Últimos 12 meses</option>
+                                    </select>
+                                    <div class="help mt-1">Promedio simple por SKU en la ventana seleccionada.</div>
+                                </div>
+
+                                <div id="customRangeDiv" class="mt-3" style="display:none;">
+                                    <label class="form-label fw-semibold">Días personalizados</label>
+                                    <input type="number" id="diasPersonalizados" name="DiasPersonalizados" class="form-control" placeholder="Número de días" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Columna: Trabajo por vendedor/canal -->
+                    <div class="col-lg-8">
+                        <div class="panel h-100">
+                            <div class="panel-head"><i class="bi bi-people"></i> vendedor / canal y clasificación</div>
+                            <div class="panel-body">
+                                <div class="kpi mb-2">
+                                    <i class="bi bi-info-circle"></i>
+                                    Usa un cliente o filtra por <strong>Canal</strong> y/o <strong>múltiples vendedores</strong>.
+                                </div>
+
+                                <div class="row g-3 mt-1">
+                                    <div class="col-md-3">
+                                        <label class="form-label fw-semibold">Canal</label>
+                                        <select id="selCanal" class="form-select">
+                                            <option value="">Todos los canales</option>
+                                        </select>
+                                        <div class="help">Filtra clientes por canal comercial.</div>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-semibold">Clasificación (cliente)</label>
+                                        <select id="selClasif" class="form-select">
+                                            <option value="">Todas</option>
+                                        </select>
+                                        <div class="form-text">Deja vacío para incluir todas.</div>
+                                    </div>
+
+                                    <div class="col-md-5">
+                                        <label class="form-label fw-semibold">Vendedor(es)</label>
+                                        <select id="selVendedor" class="form-select" multiple></select>
+                                        <div class="form-text">Puedes elegir varios. Deja vacío para traer por canal.</div>
+                                    </div>
+                                </div>
+
+                                <!-- Clientes: checklist con buscador -->
+                                <div class="mt-3">
+                                    <label class="form-label fw-semibold">Clientes</label>
+                                    <div class="d-flex flex-wrap gap-2 mb-2 align-items-center">
+                                        <div class="input-group" style="max-width: 380px;">
+                                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                            <input type="search" id="buscaCliente" class="form-control" placeholder="Buscar en la lista…">
+                                        </div>
+                                        <button type="button" id="btnCargarClientes" class="btn btn-outline-secondary btn-sm">Cargar clientes</button>
+                                        <div class="ms-auto d-flex gap-2">
+                                            <button type="button" id="btnCliTodo" class="btn btn-outline-secondary btn-sm">Seleccionar todo</button>
+                                            <button type="button" id="btnCliNada" class="btn btn-outline-secondary btn-sm">Limpiar</button>
+                                        </div>
+                                    </div>
+                                    <div id="wrapClientes" class="border rounded p-2" style="max-height: 260px; overflow: auto;">
+                                        <div id="listaClientes" class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-1"></div>
+                                        <div id="estadoClientes" class="text-muted small mt-2"></div>
+                                    </div>
+                                    <div class="small text-muted mt-1" id="cliCount"></div>
+                                </div>
+
+                                <!-- Toolbar de Presupuestos -->
+                                <div class="mt-3 d-flex flex-wrap gap-2 align-items-center">
+                                    <button type="button" id="btnConsultarVarios" class="btn btn-outline-secondary">
+                                        Presupuestar Ventas
+                                    </button>
+                                    <button type="button" id="btnGraficaVarios" class="btn btn-outline-secondary">
+                                        Ver gráfica (selección)
+                                    </button>
+
+                                    <button type="button" id="btnExportarExcel" class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-file-earmark-spreadsheet"></i> Exportar  Excel
+                                    </button>
+
+                                    <input type="file" id="fileImportPresupuesto" accept=".xlsx,.xls" class="d-none">
+
+                                    <button type="button" id="btnImportarExcel" class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-upload"></i> Importar  Excel
+                                    </button>
+
+                                    <span id="selCount2" class="text-muted small ms-1"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reporte mensual -->
+                <div id="articulosMensuales" class="mt-3" style="display:none;">
+                    <div class="d-flex justify-content-end mb-2">
+                        <button type="button" id="btnTablaGrande" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-arrows-fullscreen"></i> Vista Previa
+                        </button>
+                    </div>
+
+                    <div id="tablaMensualWrapper">
+                        <div class="panel">
+                            <div class="panel-head"><i class="bi bi-calendar3"></i> Ventas mensuales por SKU</div>
+
+                            <!-- Filtros -->
+                            <div class="p-2 border-bottom d-flex flex-wrap gap-2 align-items-center">
+                                <select id="selMaster" class="form-select" multiple style="min-width:260px"></select>
+
+                                <div class="input-group" style="max-width:260px;">
+                                    <span class="input-group-text"><i class="bi bi-filter"></i></span>
+                                    <input id="filtroSku" class="form-control" placeholder="SKU contiene…">
+                                </div>
+
+                                <div class="input-group" style="max-width:260px;">
+                                    <span class="input-group-text"><i class="bi bi-person"></i></span>
+                                    <input id="filtroCliente" class="form-control" placeholder="Cliente contiene…">
+                                </div>
+                            </div>
+
+                            <div id="emptyMensual" class="empty" style="display:none;">
+                                <i class="bi bi-inboxes"></i>
+                                <div>Aún no hay datos. Consulta un cliente o selecciona clientes de un vendedor/canal.</div>
+                            </div>
+                            <div class="panel-body p-0">
+                                <div class="table-responsive p-2" style="border-top:1px solid var(--line);">
+                                    <table class="table table-sm table-hover table-striped align-middle mb-0">
+                                        <thead id="theadMensual"></thead>
+                                        <tbody id="tbodyMensual"></tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Totales -->
+                                <div id="totalesBar" class="d-flex justify-content-end gap-4 align-items-center p-2 border-top" style="background:#f6f8fb;">
+                                    <div class="fw-semibold">Total Objetivo: <span id="totObjetivoBar" class="ms-1"></span></div>
+                                    <div class="fw-semibold">Total Presupuesto: <span id="totPresupuestoBar" class="ms-1"></span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="hiddenFieldsAnchor"></div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL Guardar Presupuesto -->
+<div class="modal fade" id="modalGuardarPresupuesto" tabindex="-1" aria-labelledby="modalGuardarPresupuestoLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title fw-bold" id="modalGuardarPresupuestoLabel">Guardar presupuesto</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="fw-semibold mb-2">Selecciona el mes y año:</p>
+                <div class="d-flex gap-2">
+                    <select id="modalMes" class="form-select">
+                        @for (int m = 1; m <= 12; m++)
+                        {
+                            <option value="@m">@System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(m)</option>
+                        }
+                    </select>
+                    <input type="number" id="modalAnio" class="form-control" min="@DateTime.Now.Year" max="2100" value="@DateTime.Now.Year" />
+                </div>
+                <div class="form-text mt-2">Solo a partir del <strong>siguiente mes</strong>.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="btnGuardarModal" class="btn btn-outline-secondary btn-sm">Guardar</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL Gráfica -->
+<div class="modal fade" id="detalleModal" tabindex="-1" aria-labelledby="detalleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width:95%;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title fw-bold" id="detalleModalLabel">Ventas por Mes y SKU</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body p-3" style="height:600px;">
+                <div class="d-flex flex-wrap gap-2 align-items-end mb-3">
+                    <div class="me-3">
+                        <label class="form-label mb-1">Rango de meses</label>
+                        <div class="d-flex gap-2">
+                            <input type="month" id="mesDesde" class="form-control form-control-sm">
+                            <input type="month" id="mesHasta" class="form-control form-control-sm">
+                            <button id="btnAplicarMeses" class="btn btn-outline-secondary btn-sm">Aplicar</button>
+                        </div>
+                    </div>
+                    <div class="ms-auto d-flex gap-2 flex-wrap">
+                        <div class="btn-group btn-group-sm" role="group" aria-label="SKUs">
+                            <button id="btnSelectAllSku" class="btn btn-outline-primary">SKUs: Todos</button>
+                            <button id="btnClearAllSku" class="btn btn-outline-secondary">SKUs: Ninguno</button>
+                        </div>
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Clientes">
+                            <button id="btnSelectAllCli" class="btn btn-outline-primary">Clientes: Todos</button>
+                            <button id="btnClearAllCli" class="btn btn-outline-secondary">Clientes: Ninguno</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-2 mb-2">
+                    <div class="col-12 col-lg-6">
+                        <div class="border rounded p-2" style="max-height:170px; overflow:auto; font-size:.92rem;">
+                            <div class="fw-semibold small mb-1">SKUs</div>
+                            <div id="skuChecklist"></div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-6">
+                        <div class="border rounded p-2" style="max-height:170px; overflow:auto; font-size:.92rem;">
+                            <div class="fw-semibold small mb-1">Clientes seleccionados</div>
+                            <div id="clienteChecklist" class="text-muted small">(solo cuando el origen es por vendedor/canal)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="width:100%; height:calc(100% - 220px);">
+                    <canvas id="graficaDetalle" style="width:100%; height:100%;"></canvas>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL Comentario -->
+<div class="modal fade" id="comentarioModal" tabindex="-1" aria-labelledby="comentarioModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-3">
+            <div class="modal-header">
+                <h6 class="modal-title fw-bold" id="comentarioModalLabel">Agregar comentario</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="fw-bold">SKU: <span id="comentarioSku"></span></p>
+                <textarea id="comentarioTexto" class="form-control" rows="4" placeholder="Escribe tu comentario..."></textarea>
+                <input type="hidden" id="comentarioIndex" />
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="guardarComentario" class="btn btn-outline-secondary">Guardar</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL Tabla grande -->
+<div class="modal fade" id="modalTablaGrande" tabindex="-1" aria-labelledby="modalTablaGrandeLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xxl modal-dialog-centered" style="max-width: 98vw;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title fw-bold" id="modalTablaGrandeLabel">Ventas mensuales por SKU — vista amplia</h6>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnRegresarTabla">
+                    <i class="bi bi-arrow-bar-left"></i> Regresar
+                </button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="tablaMensualHolderModal" class="p-2"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Overlay de carga -->
+<div id="loadingSpinner">
+    <div class="spinner-border text-danger" role="status" style="width:3.5rem; height:3.5rem;">
+        <span class="visually-hidden">Cargando...</span>
+    </div>
+    <p class="mt-2 fw-semibold" style="color:#9b1b1b;">Cargando ventas, por favor espera…</p>
+</div>
+
+<!-- Toast -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 2100">
+    <div id="appToast" class="toast align-items-center border-0" role="status" aria-live="polite" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body"></div>
+            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL HISTÓRICO -->
+<div class="modal fade" id="presupuestosModal" tabindex="-1" aria-labelledby="presupuestosModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xxl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title fw-bold" id="presupuestosModalLabel">Histórico de presupuestos</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+
+            <div class="modal-body">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <label class="fw-semibold">Año</label>
+                    <select id="anioFiltro" class="form-select" style="max-width: 140px;"></select>
+                    <div id="sinMeses" class="text-muted small ms-2" style="display:none;"></div>
+                </div>
+
+                <div class="row g-2 mb-3" id="contenedorMeses"></div>
+
+                <div id="bloqueResultados" style="display:none;">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <h6 class="mb-0" id="tituloResultados">Presupuesto — </h6>
+                        <div class="input-group" style="max-width: 320px;">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input id="filtroPresupuesto" class="form-control" placeholder="Filtrar filas…">
+                        </div>
+                    </div>
+
+                    <div class="table-responsive border rounded">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Cliente</th>
+                                    <th>Código</th>
+                                    <th>Producto</th>
+                                    <th class="text-end">Presupuesto</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyPresupuestoMes"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<!-- /MODAL HISTÓRICO -->
+@section Scripts {
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+    <link href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css" rel="stylesheet" />
+    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <!-- Select2 -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <script>
+        Chart.defaults.color = '#2b3642';
+        Chart.defaults.font.family = getComputedStyle(document.body).getPropertyValue('--font') || 'system-ui';
+        Chart.defaults.plugins.legend.labels.boxWidth = 18;
+
+        function showToast(msg, variant="light"){
+          const el = document.getElementById('appToast');
+          el.className = `toast align-items-center text-bg-${variant} border-0`;
+          el.querySelector('.toast-body').textContent = msg;
+          new bootstrap.Toast(el, { delay: 2800 }).show();
+        }
+
+        // ========= Validación de presupuestos (no 0) =========
+        function validarPresupuestos() {
+          let ok = true;
+          document.querySelectorAll('#tbodyMensual .presupuesto-input').forEach(inp => {
+            const v = Number(inp.value || 0);
+            if (v <= 0) {
+              ok = false;
+              inp.classList.add('is-invalid');
+              inp.setAttribute('title', 'Debe ser mayor a 0');
+            } else {
+              inp.classList.remove('is-invalid');
+              inp.removeAttribute('title');
+            }
+          });
+          return ok;
+        }
+        document.addEventListener('input', function (e) {
+          if (e.target && e.target.classList.contains('presupuesto-input')) {
+            const v = Number(e.target.value || 0);
+            if (v > 0) {
+              e.target.classList.remove('is-invalid');
+              e.target.removeAttribute('title');
+            }
+          }
+        });
+
+        // ========= NUEVO: helpers de validación de duplicados =========
+        function _norm(x){ return String(x ?? '').trim().toUpperCase(); }
+        function keyCliSku(cli, sku) {
+          return `${_norm(cli)}||${_norm(sku)}`;
+        }
+
+        async function obtenerPresupuestosGuardados(mes, anio) {
+          try {
+            // compat: algunos endpoints aceptan "anio" y otros "año"
+            const url = `/Comercial/ObtenerPresupuestos?mes=${encodeURIComponent(mes)}&anio=${encodeURIComponent(anio)}&año=${encodeURIComponent(anio)}`;
+            const r = await fetch(url);
+            if (!r.ok) return [];
+            const data = await r.json();
+
+            // Normaliza a { cliente, productoCodigo } y en MAYÚSCULAS/trim
+            return (Array.isArray(data) ? data : []).map(r => {
+              const cli = r.cliente ?? r.Cliente ?? r.cardCode ?? r.CardCode ?? r.clientId ?? '';
+              const sku = r.productocodigo ?? r.productoCodigo ?? r.ProductoCodigo ?? r.SKU ?? r.sku ?? '';
+              return { cliente: _norm(cli), productoCodigo: _norm(sku) };
+            });
+          } catch {
+            return [];
+          }
+        }
+
+        function leerFilasActualesTabla() {
+          const filas = [];
+          document.querySelectorAll('#tbodyMensual tr').forEach(tr => {
+            const cli = tr.querySelector('input[name$=".Cliente"]')?.value;
+            const sku = tr.querySelector('input[name$=".ProductoCodigo"]')?.value;
+            if (!cli || !sku) return;
+            filas.push({
+              cli,
+              sku,
+              key: keyCliSku(cli, sku),
+              nombreCliente: tr.getAttribute('data-cliente') || cli,
+              skuLabel: tr.getAttribute('data-sku') || sku
+            });
+          });
+          return filas;
+        }
+        // ========= Totales y reindexado =========
+        function updateTotalesBar(){
+          let totObj = 0, totPre = 0;
+          document.querySelectorAll('#tbodyMensual tr').forEach(tr=>{
+            if (tr.style.display === 'none') return;
+            const obj = tr.querySelector('input[name$=".Objetivo"]');
+            const pre = tr.querySelector('input.presupuesto-input');
+            totObj += Number(obj?.value || 0);
+            totPre += Number(pre?.value || 0);
+          });
+          const elObj = document.getElementById('totObjetivoBar');
+          const elPre = document.getElementById('totPresupuestoBar');
+          if (elObj) elObj.textContent = totObj.toLocaleString('es-MX');
+          if (elPre) elPre.textContent = totPre.toLocaleString('es-MX');
+        }
+
+        function reindexMensual(){
+          const rows = document.querySelectorAll('#tbodyMensual tr');
+          rows.forEach((tr, idx)=>{
+            const inpSku = tr.querySelector('input[name$=".ProductoCodigo"]');
+            const inpMst = tr.querySelector('input[name$=".Master"]');
+            const inpCli = tr.querySelector('input[name$=".Cliente"]');
+            const inpObj = tr.querySelector('input[name$=".Objetivo"]');
+            const inpPre = tr.querySelector('input.presupuesto-input');
+            const inpCom = tr.querySelector('input[name$=".Comentario"]');
+
+            if (inpSku) inpSku.name = `items[${idx}].ProductoCodigo`;
+            if (inpMst) inpMst.name = `items[${idx}].Master`;
+            if (inpCli) inpCli.name = `items[${idx}].Cliente`;
+            if (inpObj) inpObj.name = `items[${idx}].Objetivo`;
+            if (inpPre) inpPre.name = `items[${idx}].Presupuesto`;
+
+            if (inpCom){
+              inpCom.name = `items[${idx}].Comentario`;
+              const newId = `comentario-${idx}`;
+              if (inpCom.id !== newId){
+                inpCom.id = newId;
+                const btn = tr.querySelector('.btnComentario');
+                if (btn){ btn.setAttribute('data-index', idx); }
+              }
+            }
+          });
+        }
+
+        $(document).on('click', '.btnEliminarFila', function(){
+          const tr = this.closest('tr');
+          if (tr) tr.remove();
+          reindexMensual();
+          updateTotalesBar();
+          showToast("Renglón eliminado.","success");
+        });
+
+        // ===== Chart state =====
+        let graficaDetalle;
+        const STATE_CHART = { byClientSkuMonth:{}, selectedClients:[], ventasAggSkuMonth:{} };
+
+        // === contexto de histórico ===
+        window.__HISTORICO_MODE = false;             // bandera global
+        window.__HISTORICO_CTX  = { year:null, month:null }; // month: 1..12
+        window.__LAST_MONTHS    = [];                // meses renderizados (para pintar histórico)
+
+        function yyyymm(d){ const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'); return `${y}-${m}`; }
+        function rangeUltimosMeses(n=12){ const out=[], hoy=new Date(); for(let i=n-1;i>=0;i--){ const f=new Date(hoy.getFullYear(), hoy.getMonth()-i, 1); out.push({ key: yyyymm(f), label: f.toLocaleString('default',{month:'short',year:'numeric'}) }); } return out; }
+
+        function buildSkuChecklist(skuList){
+          const box = document.getElementById('skuChecklist');
+          box.innerHTML = '';
+          (skuList || []).sort().forEach(s => {
+            const id = `chk_${s.replace(/[^a-zA-Z0-9_-]/g,'_')}`;
+            const row = document.createElement('div');
+            row.className = "form-check form-check-sm";
+            row.innerHTML = `
+              <input class="form-check-input sku-item" type="checkbox" value="${s}" id="${id}" checked>
+              <label class="form-check-label" for="${id}">${s}</label>`;
+            box.appendChild(row);
+          });
+          box.querySelectorAll('.sku-item').forEach(chk => chk.addEventListener('change', renderChartFromState));
+          document.getElementById('btnSelectAllSku').onclick = () => { box.querySelectorAll('.sku-item').forEach(c => c.checked = true); renderChartFromState(); };
+          document.getElementById('btnClearAllSku').onclick = () => { box.querySelectorAll('.sku-item').forEach(c => c.checked = false); renderChartFromState(); };
+        }
+
+        function buildClientChecklist(clientList){
+          const box = document.getElementById('clienteChecklist');
+          box.innerHTML = '';
+          const isMulti = (clientList || []).length > 1;
+          if(!isMulti){
+            box.innerHTML = '<span class="text-muted">Vista por cliente individual</span>';
+            STATE_CHART.selectedClients = clientList && clientList.length ? [clientList[0].id] : [];
+            document.getElementById('btnSelectAllCli').style.visibility = 'hidden';
+            document.getElementById('btnClearAllCli').style.visibility = 'hidden';
+            return;
+          }
+          document.getElementById('btnSelectAllCli').style.visibility = '';
+          document.getElementById('btnClearAllCli').style.visibility = '';
+
+          clientList.sort((a,b)=> a.name.localeCompare(b.name)).forEach(c => {
+            const id = `cli_${String(c.id).replace(/[^a-zA-Z0-9_-]/g,'_')}`;
+            const row = document.createElement('div');
+            row.className = "form-check form-check-sm";
+            row.innerHTML = `
+              <input class="form-check-input cli-item" type="checkbox" value="${c.id}" id="${id}" checked>
+              <label class="form-check-label" for="${id}">${c.name}</label>`;
+            box.appendChild(row);
+          });
+
+          STATE_CHART.selectedClients = clientList.map(c => String(c.id));
+          box.querySelectorAll('.cli-item').forEach(chk => chk.addEventListener('change', ()=>{
+            STATE_CHART.selectedClients = Array.from(box.querySelectorAll('.cli-item')).filter(x=>x.checked).map(x=>x.value);
+            recomputeAggFromSelectedClients(); renderChartFromState();
+          }));
+          document.getElementById('btnSelectAllCli').onclick = () => {
+            box.querySelectorAll('.cli-item').forEach(c => c.checked = true);
+            STATE_CHART.selectedClients = clientList.map(c => String(c.id)); recomputeAggFromSelectedClients(); renderChartFromState();
+          };
+          document.getElementById('btnClearAllCli').onclick = () => {
+            box.querySelectorAll('.cli-item').forEach(c => c.checked = false);
+            STATE_CHART.selectedClients = []; recomputeAggFromSelectedClients(); renderChartFromState();
+          };
+        }
+
+        function initMonthRangeControls(defaultMonths=12){
+          const desde = document.getElementById('mesDesde');
+          const hasta = document.getElementById('mesHasta');
+          const hoy = new Date();
+          const ini = new Date(hoy.getFullYear(), hoy.getMonth()-(defaultMonths-1), 1);
+          desde.value = `${ini.getFullYear()}-${String(ini.getMonth()+1).padStart(2,'0')}`;
+          hasta.value = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}`;
+          document.getElementById('btnAplicarMeses').onclick = () => renderChartFromState();
+        }
+
+        // === respeta el mes histórico seleccionado
+        function getMonthRange(){
+          const d = document.getElementById('mesDesde').value;
+          const h = document.getElementById('mesHasta').value;
+
+          if (window.__HISTORICO_MODE && window.__HISTORICO_CTX?.year && window.__HISTORICO_CTX?.month){
+            const n = parseInt($("#filtroMesesObjetivo").val() || "12", 10);
+            const end = new Date(window.__HISTORICO_CTX.year, window.__HISTORICO_CTX.month - 1, 1);
+            const meses = [];
+            for (let i = n - 1; i >= 0; i--) {
+              const dt = new Date(end.getFullYear(), end.getMonth() - i, 1);
+              meses.push({
+                key: `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`,
+                label: dt.toLocaleString('default',{month:'short',year:'numeric'})
+              });
+            }
+            return meses;
+          }
+
+          if(!d || !h) return null;
+          const [y1,m1] = d.split('-').map(Number);
+          const [y2,m2] = h.split('-').map(Number);
+          const from = new Date(y1, m1-1, 1);
+          const to   = new Date(y2, m2-1, 1);
+          const meses = [];
+          for(let a=from.getFullYear(), m=from.getMonth(); (a<to.getFullYear()) || (a===to.getFullYear() && m<=to.getMonth()); ){
+            const dt = new Date(a, m, 1);
+            meses.push({ key: `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`, label: dt.toLocaleString('default',{month:'short',year:'numeric'}) });
+            m++; if(m>11){ m=0; a++; }
+          }
+          return meses;
+        }
+
+        function recomputeAggFromSelectedClients(){
+          const selected = new Set(STATE_CHART.selectedClients.map(String));
+          const agg = {};
+          const dict = STATE_CHART.byClientSkuMonth || {};
+          Object.keys(dict).forEach(cid => {
+            if(selected.size>0 && !selected.has(String(cid))) return;
+            const skus = dict[cid]?.skus || {};
+            Object.keys(skus).forEach(sku=>{
+              agg[sku] = agg[sku] || {};
+              const meses = skus[sku] || {};
+              Object.keys(meses).forEach(ym=>{
+                agg[sku][ym] = (agg[sku][ym]||0) + Number(meses[ym]||0);
+              });
+            });
+          });
+          STATE_CHART.ventasAggSkuMonth = agg;
+        }
+
+        function getSelectedSkus(){
+          return Array.from(document.querySelectorAll('#skuChecklist .sku-item')).filter(x => x.checked).map(x => x.value);
+        }
+
+        function renderChartFromState(){
+          const ventasPorSkuMes = STATE_CHART.ventasAggSkuMonth || {};
+          const allSkus = Object.keys(ventasPorSkuMes);
+          const meses = getMonthRange() || rangeUltimosMeses(12);
+          let skus = getSelectedSkus();
+          if(!skus.length) skus = allSkus;
+
+          const palette = ["#3366CC","#DC3912","#FF9900","#109618","#990099","#0099C6","#DD4477","#66AA00","#B82E2E","#316395","#994499","#22AA99","#AAAA11","#6633CC","#E67300","#8B0707","#329262","#5574A6","#3B3EAC"];
+          const datasets = skus.map((s,i)=>({ label: s, data: meses.map(m => ventasPorSkuMes[s]?.[m.key] || 0), borderColor: palette[i%palette.length], backgroundColor: palette[i%palette.length], fill:false, tension:.3, pointRadius:3 }));
+
+          const ctx=document.getElementById('graficaDetalle').getContext('2d');
+          if (graficaDetalle) graficaDetalle.destroy();
+          graficaDetalle=new Chart(ctx,{ type:'line', data:{ labels: meses.map(m=>m.label), datasets }, options:{ responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false}, plugins:{ legend:{position:'right'} }, scales:{ y:{ beginAtZero:true } } }});
+        }
+
+        function openChartWithState_ByClient(byClientSkuMonth, titulo){
+          STATE_CHART.byClientSkuMonth = byClientSkuMonth || {};
+          STATE_CHART.selectedClients = Object.keys(STATE_CHART.byClientSkuMonth);
+          recomputeAggFromSelectedClients();
+          const skuList = Object.keys(STATE_CHART.ventasAggSkuMonth || {});
+          buildSkuChecklist(skuList);
+          const clientList = Object.keys(byClientSkuMonth || {}).map(cid=>({ id: cid, name: byClientSkuMonth[cid]?.clientName || cid }));
+          buildClientChecklist(clientList);
+          initMonthRangeControls(12);
+          document.getElementById('detalleModalLabel').textContent = titulo || 'Ventas por Mes y SKU';
+          renderChartFromState();
+          new bootstrap.Modal(document.getElementById('detalleModal')).show();
+        }
+
+        // ================ MASTER (CATÁLOGO + MAPEO SKU→MASTER) =================
+        let MASTER_BY_SKU = {};
+        let MASTERS = [];
+
+        async function cargarMastersYMapa(){
+          try{
+            const [mastersRes, mapaRes] = await Promise.allSettled([
+              fetch('/Comercial/GetMasters'),
+              fetch('/Comercial/GetMasterSkuMap')
+            ]);
+
+            if (mastersRes.status === 'fulfilled' && mastersRes.value.ok){
+              MASTERS = await mastersRes.value.json();
+            } else { MASTERS = []; }
+
+            if (mapaRes.status === 'fulfilled' && mapaRes.value.ok){
+              const mapa = await mapaRes.value.json();
+              MASTER_BY_SKU = {};
+              (mapa||[]).forEach(x => { if(x?.sku) MASTER_BY_SKU[String(x.sku)] = x.master || 'SIN_MASTER'; });
+            } else { MASTER_BY_SKU = {}; }
+
+            const $m = $("#selMaster").empty();
+            (MASTERS||[]).forEach(m => $m.append(`<option value="${m}">${m}</option>`));
+            if (!$m.data('select2')) {
+              $("#selMaster").select2({ theme:'bootstrap-5', width:'260px', placeholder:'Master (múltiple)', closeOnSelect:false });
+            }
+          }catch(e){
+            console.error(e);
+            showToast("No se pudo cargar el catálogo/mapa de masters.","danger");
+          }
+        }
+
+        function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn.apply(this,a),ms); }; }
+
+        function aplicaFiltrosTabla(){
+          const selMasters = ($('#selMaster').val() || []).map(String);
+          const qSku = ($("#filtroSku").val() || "").trim().toLowerCase();
+          const qCli = ($("#filtroCliente").val() || "").trim().toLowerCase();
+
+          $("#tbodyMensual tr").each(function(){
+            const sku = (this.getAttribute('data-sku')||'').toLowerCase();
+            const cli = (this.getAttribute('data-cliente')||'').toLowerCase();
+            const mst = (this.getAttribute('data-master')||'');
+
+            const okM = !selMasters.length || selMasters.includes(mst);
+            const okS = !qSku || sku.includes(qSku);
+            const okC = !qCli || cli.includes(qCli);
+
+            this.style.display = (okM && okS && okC) ? '' : 'none';
+          });
+        }
+
+        // Asegurar tabla dentro del <form>
+        function asegurarTablaDentroDelForm(){
+          const wrapper      = document.getElementById('tablaMensualWrapper');
+          const holderPagina = document.getElementById('articulosMensuales');
+          const holderModal  = document.getElementById('tablaMensualHolderModal');
+          if (wrapper && holderPagina && holderModal && holderModal.contains(wrapper)) {
+            holderPagina.appendChild(wrapper);
+          }
+        }
+
+        $(function(){
+          const NOMBRES_MESES=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+
+          cargarMastersYMapa();
+
+          // Select2: Vendedores (múltiple)
+          const $selVend = $('#selVendedor').select2({ theme: 'bootstrap-5', placeholder: 'Selecciona vendedor(es)…', width: '100%', closeOnSelect: false });
+
+          // Clasificaciones
+          async function cargarClasificaciones(){
+            try{
+              const res = await fetch('/Comercial/GetClasificacionesClientes');
+              const data = await res.json();
+              const $sel = $("#selClasif").empty();
+              $sel.append(`<option value="">Todas</option>`);
+              (data||[]).forEach(c => $sel.append(`<option value="${c}">${c}</option>`));
+            }catch(e){ console.error(e); showToast("No se pudieron cargar clasificaciones.","danger"); }
+          }
+          cargarClasificaciones();
+
+          // Canales
+          async function cargarCanales(){
+            try{
+              const res = await fetch('/Comercial/GetCanales');
+              const data = res.ok ? await res.json() : [];
+              const $sel = $("#selCanal").empty();
+              $sel.append(`<option value="">Todos los canales</option>`);
+              (data || []).forEach(c => $sel.append(`<option value="${c}">${c}</option>`));
+            }catch(e){ console.error(e); showToast("No se pudieron cargar los canales (U_Canal).","danger"); }
+          }
+          cargarCanales();
+
+          // Vendedores
+          async function cargarVendedores(){
+            try{
+              const res=await fetch('/Comercial/GetVendedores');
+              const data=await res.json();
+              const $sel=$("#selVendedor").empty();
+              (data||[]).forEach(v=> $sel.append(`<option value="${v.id}">${v.nombre} — ${v.clientes} clientes</option>`));
+              $selVend.trigger('change');
+            }catch(e){ console.error(e); showToast("No se pudieron cargar vendedores.","danger"); }
+          }
+          cargarVendedores();
+
+          // Autocomplete cliente
+          $("#clienteInput").autocomplete({
+            source:(request,response)=>{ $.ajax({url:'/Comercial/BuscarClientesAutocomplete', data:{term:request.term}}).done(data=>response(data)); },
+            minLength:2,
+            select:(e,ui)=>{ $("#clienteInput").val(ui.item.label); $("#clienteId").val(ui.item.value); return false; }
+          }).on("input", function(){
+            const s=this.selectionStart,e=this.selectionEnd; this.value=this.value.toUpperCase(); this.setSelectionRange(s,e);
+          });
+
+          // ===== Checklist de clientes =====
+          function pintarClientes(items){
+            const $list = $("#listaClientes").empty();
+            if(!items?.length){
+              $("#estadoClientes").text("Sin clientes con los filtros seleccionados.");
+              $("#cliCount").text('');
+              return;
+            }
+            $("#estadoClientes").text('');
+            items.forEach(c=>{
+              const id = `cli_${String(c.id).replace(/[^a-zA-Z0-9_-]/g,'_')}`;
+              $list.append(`
+                <div class="col">
+                  <div class="form-check">
+                    <input class="form-check-input cli-item" type="checkbox" value="${c.id}" id="${id}">
+                    <label class="form-check-label" for="${id}">${c.text}</label>
+                  </div>
+                </div>
+              `);
+            });
+            actualizarCliCount();
+          }
+
+          function clientesSeleccionados(){ return Array.from(document.querySelectorAll('.cli-item:checked')).map(x=>x.value); }
+          function nombresClientesSeleccionados(){
+            const set = new Set(clientesSeleccionados());
+            return Array.from(document.querySelectorAll('.cli-item'))
+                        .filter(x=>set.has(x.value))
+                        .map(x=>x.nextElementSibling?.textContent || x.value);
+          }
+          function actualizarCliCount(){
+            const total = document.querySelectorAll('.cli-item').length;
+            const sel   = document.querySelectorAll('.cli-item:checked').length;
+            $("#cliCount").text(total ? `Seleccionados: ${sel} de ${total}` : '');
+            $("#selCount2").text(sel ? `(${sel} clientes elegidos)` : '');
+          }
+
+          $("#buscaCliente").on('input', function(){
+            const q = this.value.trim().toLowerCase();
+            document.querySelectorAll('#listaClientes .form-check').forEach(f=>{
+              const t = (f.textContent||'').toLowerCase();
+              f.parentElement.style.display = t.includes(q) ? '' : 'none';
+            });
+          });
+          $("#btnCliTodo").on('click', ()=>{ document.querySelectorAll('.cli-item:not(:checked)').forEach(x=>x.checked=true); actualizarCliCount(); });
+          $("#btnCliNada").on('click', ()=>{ document.querySelectorAll('.cli-item:checked').forEach(x=>x.checked=false); actualizarCliCount(); });
+          $(document).on('change', '.cli-item', actualizarCliCount);
+
+          // Cargar clientes por filtros
+          $("#btnCargarClientes").on('click', async function(){
+            const vendedores = ($('#selVendedor').val() || []).join(',');
+            const canal = $("#selCanal").val() || '';
+            const clasif = $('#selClasif').val() || '';
+
+            $("#listaClientes").empty();
+            $("#estadoClientes").text("Cargando clientes…");
+
+            try{
+              let data = [];
+
+              if(!canal && vendedores && vendedores.split(',').length===1){
+                const url = `/Comercial/GetClientesPorVendedor?vendedorId=${encodeURIComponent(vendedores)}&clasif=${encodeURIComponent(clasif)}`;
+                const r = await fetch(url);
+                data = r.ok ? await r.json() : [];
+              }else{
+                const url = `/Comercial/GetClientes?vendedores=${encodeURIComponent(vendedores)}&canal=${encodeURIComponent(canal)}&clasif=${encodeURIComponent(clasif)}`;
+                const r = await fetch(url);
+                data = r.ok ? await r.json() : [];
+              }
+
+              data = (data||[]).map(x => ({
+                id: x.id ?? x.value ?? x.cardCode ?? x.CardCode,
+                text: x.text ?? x.label ?? x.nombre ?? x.CardName ?? ''
+              })).filter(x => x.id && x.text);
+
+              pintarClientes(data);
+              if(!data.length){ showToast("No se encontraron clientes con esos filtros.","warning"); }
+            }catch(e){
+              console.error(e);
+              $("#estadoClientes").text("Error al cargar clientes.");
+              showToast("Error al cargar clientes.","danger");
+            }
+          });
+
+          $("#selCanal").on('change', ()=> $("#btnCargarClientes").click());
+          $("#selClasif").on('change', ()=> {
+            if(($("#selVendedor").val()||[]).length || $("#selCanal").val()) $("#btnCargarClientes").click();
+          });
+
+          // ===== Render tabla: Cliente + SKU (con MASTER) =====
+          function mostrarMensualTop(data, metaClientes = null){
+            const tbody=$("#tbodyMensual"), thead=$("#theadMensual");
+            const $wrap=$("#articulosMensuales"), $empty=$("#emptyMensual");
+            tbody.empty(); thead.empty();
+            if(!data || !data.length){ $wrap.show(); $empty.show(); return; }
+            $empty.hide();
+
+            const masterBySku = {};
+            (data||[]).forEach(d => { if(d?.sku && d?.master) masterBySku[d.sku] = d.master; });
+
+            const ventasPorCliSkuMes = {};
+            data.forEach(d=>{
+              const f = new Date(d.fecha);
+              const ym = `${f.getFullYear()}-${String(f.getMonth()+1).padStart(2,'0')}`;
+              const cid = String(d.clientId || d.cliente || d.Cliente || 'N/A');
+              const cname = d.clientName || (metaClientes && metaClientes[cid]) || d.nombreCliente || d.Nombrecliente || cid;
+
+              ventasPorCliSkuMes[cid] = ventasPorCliSkuMes[cid] || { name: cname, skus: {} };
+              const skus = ventasPorCliSkuMes[cid].skus;
+              skus[d.sku] = skus[d.sku] || {};
+              skus[d.sku][ym] = (skus[d.sku][ym] || 0) + Number(d.kilos || 0);
+            });
+
+            const mesesFiltro=parseInt($("#filtroMesesObjetivo").val());
+            const hoy=new Date(); const ultimosMeses=[];
+            for(let i=mesesFiltro-1;i>=0;i--){
+              const f=new Date(hoy.getFullYear(),hoy.getMonth()-i,1);
+              const k=`${f.getFullYear()}-${(f.getMonth()+1).toString().padStart(2,'0')}`;
+              const label=f.toLocaleString('default',{month:'short',year:'numeric'});
+              ultimosMeses.push({key:k,label});
+            }
+
+            // === guardar meses para histórico ===
+            window.__LAST_MONTHS = ultimosMeses;
+
+            let head = "<tr><th>SKU</th><th>Cliente</th>";
+            ultimosMeses.forEach(m=> head+=`<th>${m.label}</th>`);
+            head += "<th>Objetivo</th><th>Presupuesto</th><th>Participación</th><th class='text-center'>Comentario</th><th class='text-center'>Acciones</th></tr>";
+            thead.append(head);
+
+            let itemIndex=0;
+            const clientesOrden = Object.entries(ventasPorCliSkuMes)
+              .sort((a,b)=> (a[1].name||'').localeCompare(b[1].name||''));
+
+            clientesOrden.forEach(([cid, objCli])=>{
+              const skusOrden = Object.keys(objCli.skus).sort();
+              skusOrden.forEach(sku=>{
+                const masterName = masterBySku[sku] || MASTER_BY_SKU[sku] || 'SIN_MASTER';
+                const porMes=objCli.skus[sku]||{};
+                const suma=ultimosMeses.reduce((acc,m)=>acc+(porMes[m.key]||0),0);
+                const objetivo=mesesFiltro>0? suma/mesesFiltro : 0;
+                const mesRef=ultimosMeses[ultimosMeses.length-1]?.key;
+                const part=objetivo>0? ((porMes[mesRef]||0)/objetivo)*100 : 0;
+
+                // 🔒 Filtrar SOLO en modo normal (no histórico):
+                //    - Oculta objetivo < 100 (esto ya incluye objetivo <= 0)
+                if (!window.__HISTORICO_MODE && objetivo < 100) return;
+
+                let tr=`<tr data-sku="${sku}" data-cliente="${objCli.name}" data-master="${masterName}">
+                  <td>${sku}
+                    <input type="hidden" name="items[${itemIndex}].ProductoCodigo" value="${sku}" />
+                    <input type="hidden" name="items[${itemIndex}].Master" value="${masterName}" />
+                  </td>
+                  <td>${objCli.name}
+                    <input type="hidden" name="items[${itemIndex}].Cliente" value="${cid}" />
+                  </td>`;
+
+                ultimosMeses.forEach(m => {
+                  tr += `<td class="text-end">${Math.round(porMes[m.key] || 0).toLocaleString('es-MX')}</td>`;
+                });
+
+                tr += `<td class="text-end">
+                         ${Math.round(objetivo).toLocaleString('es-MX')}
+                         <input type="hidden" name="items[${itemIndex}].Objetivo" value="${Math.round(objetivo)}" />
+                       </td>`;
+
+                tr += `<td class="text-end">
+                         <input type="number" step="100" min="0"
+                                class="form-control form-control-sm text-end presupuesto-input"
+                                name="items[${itemIndex}].Presupuesto"
+                                value="${Math.round(objetivo)}" />
+                       </td>`;
+
+                tr += `<td class="text-end">${part.toLocaleString('es-MX',{minimumFractionDigits:1,maximumFractionDigits:1})}%</td>
+                       <td class="text-center">
+                          <button type="button" class="btn btn-outline-secondary btn-sm btnComentario" data-sku="${sku}" data-index="${itemIndex}" title="Agregar comentario">
+                              <i class="bi bi-chat-left-text"></i>
+                          </button>
+                          <input type="hidden" name="items[${itemIndex}].Comentario" id="comentario-${itemIndex}" />
+                       </td>
+                       <td class="text-center">
+                          <button type="button" class="btn btn-outline-danger btn-sm btnEliminarFila" title="Quitar renglón">
+                            <i class="bi bi-trash"></i>
+                          </button>
+                       </td>`;
+
+                tr += `</tr>`;
+
+                tbody.append(tr);
+                itemIndex++;
+              });
+            });
+
+            $("#articulosMensuales").show();
+
+            // Poblar selector Masters
+            const setMasters = new Set();
+            $("#tbodyMensual tr").each(function(){
+              const mst = this.getAttribute('data-master') || 'SIN_MASTER';
+              setMasters.add(mst);
+            });
+            const $sel = $("#selMaster").empty();
+            const candidates = (MASTERS && MASTERS.length) ? MASTERS : Array.from(setMasters).sort();
+            candidates.forEach(m => $sel.append(`<option value="${m}">${m}</option>`));
+            if (!$sel.data('select2')) {
+              $("#selMaster").select2({ theme:'bootstrap-5', width:'260px', placeholder:'Master (múltiple)', closeOnSelect:false });
+            }
+
+            $('#selMaster').off('change').on('change', aplicaFiltrosTabla);
+            $('#filtroSku').off('input').on('input', debounce(aplicaFiltrosTabla, 200));
+            $('#filtroCliente').off('input').on('input', debounce(aplicaFiltrosTabla, 200));
+            aplicaFiltrosTabla();
+
+            updateTotalesBar();
+            $(document).off('input.totales').on('input.totales', '#tbodyMensual .presupuesto-input', function(){
+              updateTotalesBar();
+            });
+
+            if (!aplicaFiltrosTabla._wrapped){
+              const _orig = aplicaFiltrosTabla;
+              aplicaFiltrosTabla = function(){
+                _orig();
+                updateTotalesBar();
+              };
+              aplicaFiltrosTabla._wrapped = true;
+            }
+          }
+
+          function mapearVentas(json){
+            return (json||[]).map(d=>({
+              sku: d.sku,
+              master: d.master,
+              kilos: Number(d.totalKilos ?? d.kilos ?? 0),
+              fecha: new Date(d.fecha)
+            }));
+          }
+
+          // Consultar (individual)
+          $("#btnConsultar").on("click", function(){
+            const cardCode=$("#clienteId").val();
+            if(!cardCode){ showToast("Selecciona un cliente.","warning"); return; }
+            $.ajax({
+              url:'/Comercial/ObtenerPresupuesto', data:{ cardCode },
+              beforeSend(){ $("#loadingSpinner").css("display","flex"); $("#articulosMensuales").hide(); },
+              success(data){
+                const ventas = mapearVentas(data).map(d => ({
+                  ...d,
+                  clientId: $("#clienteId").val(),
+                  clientName: ($("#clienteInput").val()||"").trim()
+                }));
+                mostrarMensualTop(ventas);
+              },
+              error(){ showToast("Error al consultar el presupuesto.","danger"); },
+              complete(){ $("#loadingSpinner").hide(); }
+            });
+          });
+
+          // Gráfica individual
+          $("#btnDetalle").on("click", function(){
+            const cardCode=$("#clienteId").val();
+            if(!cardCode){ showToast("Selecciona un cliente.","warning"); return; }
+            const nombre=($("#clienteInput").val()||"").trim();
+            $("#loadingSpinner").css("display","flex");
+            $.ajax({
+              url:'/Comercial/ObtenerPresupuesto', data:{ cardCode },
+              success(data){
+                const ventas = mapearVentas(data);
+                const byClient = {};
+                byClient[String(cardCode)] = { clientName: nombre || cardCode, skus: {} };
+                ventas.forEach(d=>{
+                  const k = `${d.fecha.getFullYear()}-${String(d.fecha.getMonth()+1).padStart(2,'0')}`;
+                  byClient[cardCode].skus[d.sku] = byClient[cardCode].skus[d.sku] || {};
+                  byClient[cardCode].skus[d.sku][k] = (byClient[cardCode].skus[d.sku][k]||0) + Number(d.kilos||0);
+                });
+                openChartWithState_ByClient(byClient, nombre ? `Ventas por Mes y SKU — ${nombre}` : 'Ventas por Mes y SKU');
+              },
+              error(){ showToast("Error al cargar datos de ventas.","danger"); },
+              complete(){ $("#loadingSpinner").hide(); }
+            });
+          });
+
+          // Consultar (múltiples)
+          $("#btnConsultarVarios").on("click", async function(){
+            const clientes = clientesSeleccionados();
+            if(!clientes.length){ showToast("Selecciona uno o varios clientes.","warning"); return; }
+            try{
+              $("#loadingSpinner").css("display","flex"); $("#articulosMensuales").hide();
+
+              const dict = {};
+              const peticiones = clientes.map(async cid => {
+                try{
+                  const r = await fetch(`/Comercial/ObtenerPresupuesto?cardCode=${encodeURIComponent(cid)}`);
+                  const j = r.ok ? await r.json() : [];
+                  dict[cid] = mapearVentas(j);
+                }catch(_){}
+              });
+              await Promise.all(peticiones);
+
+              const nombres = {};
+              document.querySelectorAll('.cli-item').forEach(chk=>{
+                nombres[chk.value] = chk.nextElementSibling?.textContent || chk.value;
+              });
+
+              const registros = [];
+              Object.keys(dict).forEach(cid=>{
+                const cname = nombres[cid] || cid;
+                (dict[cid] || []).forEach(v=>{
+                  registros.push({ sku: v.sku, master: v.master, kilos: v.kilos, fecha: v.fecha, clientId: cid, clientName: cname });
+                });
+              });
+
+              mostrarMensualTop(registros);
+            }catch(e){ console.error(e); showToast("Error al consultar ventas de clientes.","danger"); }
+            finally{ $("#loadingSpinner").hide(); }
+          });
+
+          // Gráfica (múltiples)
+          $("#btnGraficaVarios").on("click", async function(){
+            const clientes = clientesSeleccionados();
+            const nombres  = nombresClientesSeleccionados();
+            if(!clientes.length){ showToast("Selecciona uno o varios clientes.","warning"); return; }
+            try{
+              $("#loadingSpinner").css("display","flex");
+              const byClient = {};
+              const pet = clientes.map(async (c,idx)=>{
+                const r = await fetch(`/Comercial/ObtenerPresupuesto?cardCode=${encodeURIComponent(c)}`);
+                const j = r.ok ? await r.json() : [];
+                const ventas = mapearVentas(j);
+                const skus = {};
+                ventas.forEach(d=>{
+                  const ym = `${d.fecha.getFullYear()}-${String(d.fecha.getMonth()+1).padStart(2,'0')}`;
+                  skus[d.sku] = skus[d.sku] || {};
+                  skus[d.sku][ym] = (skus[d.sku][ym]||0) + Number(d.kilos||0);
+                });
+                byClient[String(c)] = { clientName: nombres[idx] || c, skus };
+              });
+              await Promise.all(pet);
+              openChartWithState_ByClient(byClient, `Ventas por Mes y SKU — (${clientes.length} clientes)`);
+            }catch(e){ console.error(e); showToast("Error al graficar ventas.","danger"); }
+            finally{ $("#loadingSpinner").hide(); }
+          });
+
+          // Comentarios
+          $(document).on("click",".btnComentario", function(){
+            const sku=$(this).data("sku"); const index=$(this).data("index"); const ex=$(`#comentario-${index}`).val();
+            $("#comentarioSku").text(sku); $("#comentarioTexto").val(ex||""); $("#comentarioIndex").val(index);
+            new bootstrap.Modal(document.getElementById('comentarioModal')).show();
+          });
+          $("#guardarComentario").on("click", function(){
+            const index=$("#comentarioIndex").val(); const c=$("#comentarioTexto").val();
+            $(`#comentario-${index}`).val(c); bootstrap.Modal.getInstance(document.getElementById('comentarioModal')).hide();
+            showToast("Comentario guardado.","success");
+          });
+
+          // Guardar presupuesto: mes siguiente por defecto
+          const f=new Date(); const mesAct=f.getMonth()+1; const anioAct=f.getFullYear();
+          const mesSig=mesAct===12?1:mesAct+1; const anioSig=mesAct===12?anioAct+1:anioAct;
+          $("#modalMes").val(mesSig); $("#modalAnio").val(anioSig).attr("min", anioAct);
+
+          // Abrir modal guardar
+          $("#btnAbrirModalGuardar").off("click").on("click",()=>{
+            asegurarTablaDentroDelForm();
+            new bootstrap.Modal(document.getElementById('modalGuardarPresupuesto')).show();
+          });
+
+          // ======== NUEVO: Handler Guardar con validación de duplicados ========
+          $("#btnGuardarModal").off("click").on("click", async function(){
+        const f = new Date();
+        const mes  = parseInt($("#modalMes").val(),10);
+        const anio = parseInt($("#modalAnio").val(),10);
+        const mesActual  = f.getMonth()+1;
+        const anioActual = f.getFullYear();
+
+        // ✅ Permitir mes actual y futuros; solo bloquear meses pasados
+        if (anio < anioActual || (anio === anioActual && mes < mesActual)) {
+          showToast("No puedes elegir un mes anterior al actual.","warning");
+          return;
+        }
+
+        if (!validarPresupuestos()) {
+          showToast("No puedes guardar: algunos presupuestos están en 0.","danger");
+          const firstInvalid = document.querySelector('#tbodyMensual .presupuesto-input.is-invalid');
+          if (firstInvalid) firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+
+            // 🔍 Verificación de duplicados contra lo ya guardado en ese mes/año
+            try{
+              const existentes = await obtenerPresupuestosGuardados(mes, anio);
+
+              const setExist = new Set(
+                (existentes || []).map(r => keyCliSku(r.cliente, r.productoCodigo))
+              );
+
+              const actuales = leerFilasActualesTabla().map(x => ({
+                ...x,
+                key: keyCliSku(x.cli, x.sku) // normaliza aquí también
+              }));
+
+              const duplicados = actuales.filter(x => setExist.has(x.key));
+
+              if (duplicados.length > 0){
+                const preview = duplicados.slice(0, 12).map(d => `• ${d.nombreCliente} — ${d.skuLabel}`).join('\n');
+                showToast("Ya se presupuestó ese producto para ese mes/año y cliente. Revísalo en el Balance Master.", "warning");
+                alert(
+                  "⚠️ Ya existe presupuesto para:\n\n" +
+                  preview +
+                  (duplicados.length > 12 ? `\n…y ${duplicados.length - 12} más.` : "") +
+                  "\n\nReví­salo en el Balance Master."
+                );
+
+                if (typeof window.abrirHistoricoDeMes === "function") {
+                  window.abrirHistoricoDeMes(mes, anio);
+                }
+                return; // 🚫 bloquea el envío
+              }
+            }catch(e){
+              console.warn("No se pudo validar duplicados de presupuesto:", e);
+              // Si prefieres, puedes bloquear también:
+              // showToast("No se pudo validar duplicados. Intenta de nuevo.", "danger");
+              // return;
+            }
+
+            // === Submit (igual que antes)
+            asegurarTablaDentroDelForm();
+            if($("#MesInput").length===0){
+              $("form").append(`<input type="hidden" id="MesInput" name="Mes" value="${mes}" />`);
+              $("form").append(`<input type="hidden" id="AnioInput" name="Anio" value="${anio}" />`);
+            } else { $("#MesInput").val(mes); $("#AnioInput").val(anio); }
+            if ($("#tbodyMensual tr").length === 0) { showToast("No hay renglones para guardar.","warning"); return; }
+            $("form")[0].submit();
+          });
+
+          // ========= HISTÓRICO =========
+          let solicitudesVivas=[]; let ejecucionActual=0;
+          function abortarTandaActual(){ solicitudesVivas.forEach(x=>{ try{x.abort();}catch(_){}}); solicitudesVivas=[]; }
+          function rangoAnios(inicio, fin){ const arr=[]; for(let a=fin; a>=inicio; a--) arr.push(a); return arr; }
+
+          $("#btnVerPresupuestos").on("click", function(){
+            asegurarTablaDentroDelForm();
+
+            const anio=new Date().getFullYear();
+            const $sel=$("#anioFiltro").empty();
+            rangoAnios(anio-5, anio+1).forEach(a=> $sel.append(`<option value="${a}">${a}</option>`));
+            $sel.val(anio);
+            $("#bloqueResultados").hide(); $("#tbodyPresupuestoMes").empty(); $("#filtroPresupuesto").val("");
+            new bootstrap.Modal(document.getElementById('presupuestosModal')).show();
+            cargarMesesConPresupuesto(parseInt($sel.val(),10));
+          });
+
+          $("#anioFiltro").on("change", function(){
+            $("#bloqueResultados").hide(); $("#tbodyPresupuestoMes").empty(); $("#filtroPresupuesto").val("");
+            cargarMesesConPresupuesto(parseInt($(this).val(),10));
+          });
+
+          document.getElementById('presupuestosModal').addEventListener('hidden.bs.modal', ()=>{
+            abortarTandaActual();
+            // devolver tabla a su lugar y salir de modo histórico
+            const wrapper      = document.getElementById('tablaMensualWrapper');
+            const holderPagina = document.getElementById('articulosMensuales');
+            if (wrapper && holderPagina) holderPagina.appendChild(wrapper);
+            window.__HISTORICO_MODE = false;
+            window.__HISTORICO_CTX  = { year:null, month:null };
+          });
+
+          function cargarMesesConPresupuesto(anio){
+            const $contenedor=$("#contenedorMeses"), $sin=$("#sinMeses");
+            abortarTandaActual(); const token=++ejecucionActual;
+            $contenedor.empty(); $sin.hide();
+            const promesas=[];
+            for(let m=1;m<=12;m++){
+              const jq=$.ajax({ url:'/Comercial/ObtenerPresupuestos', method:'GET', data:{ mes:m, año:anio, anio:anio }, timeout:15000 });
+              solicitudesVivas.push(jq);
+              promesas.push(jq.then(resp=>({mes:m, ok:true, count:(resp||[]).length})).catch(()=>({mes:m, ok:false, count:0})));
+            }
+            Promise.all(promesas)
+              .then(res=>{
+                if(token!==ejecucionActual) return;
+                const disp=res.filter(x=>x.ok && x.count>0);
+                if(!disp.length){ $sin.text("No hay presupuestos en este año.").show(); return; }
+                const NOMBRES_MESES=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+                const cards=disp.map(r=>{
+                  const n=NOMBRES_MESES[r.mes-1];
+                  return `<div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                      <div class="panel h-100"><div class="panel-body d-flex flex-column justify-content-between">
+                        <div><div class="fw-semibold mb-1">${n} ${anio}</div><div class="text-muted small">Registros: ${r.count}</div></div>
+                        <button class="btn btn-outline-secondary btn-sm w-100 btnVerMes mt-2" data-mes="${r.mes}" data-anio="${anio}"><i class="bi bi-eye me-1"></i> Ver presupuesto</button>
+                      </div></div></div>`;
+                }).join("");
+                $contenedor.html(cards);
+              })
+              .catch(()=>{ $sin.text("Error al consultar.").show(); });
+          }
+
+          // === PINTAR PRESUPUESTO EN LA TABLA DEL HISTÓRICO ===
+          function pintarValoresHistoricosEnTabla(presMap){
+            const meses = window.__LAST_MONTHS || [];
+            const ymRef = `${window.__HISTORICO_CTX.year}-${String(window.__HISTORICO_CTX.month).padStart(2,'0')}`;
+
+            // Índice de columna del mes histórico:
+            // [SKU][Cliente][Mes1...MesN][Objetivo][Presupuesto][Participación][Comentario][Acciones]
+            const idxMes = meses.findIndex(m => m.key === ymRef);
+            const offsetMeses = 2;
+            const colMesRef = idxMes >= 0 ? (offsetMeses + idxMes) : -1;
+
+            $("#tbodyMensual tr").each(function(){
+              const sku = this.getAttribute('data-sku') || '';
+              const cli = this.querySelector('input[name$=".Cliente"]')?.value || '';
+              const key = `${_norm(cli)}||${_norm(sku)}`;
+              const pres = Number(presMap[key] ?? 0);
+
+              if (pres > 0 && colMesRef >= 0){
+                const tds = this.querySelectorAll('td');
+                const tdMes = tds[colMesRef];
+                if (tdMes){
+                  tdMes.textContent = Math.round(pres).toLocaleString('es-MX');
+                  tdMes.classList.add('fw-semibold');
+                }
+              }
+
+              // Objetivo = Presupuesto (solo en histórico)
+              const inpObj = this.querySelector('input[name$=".Objetivo"]');
+              const tdObj  = this.querySelector('td:nth-last-child(5)');
+              if (inpObj && tdObj){
+                const val = Math.round(pres);
+                inpObj.value = val;
+                // Mantiene el texto fuera del input hidden
+                const textNode = Array.from(tdObj.childNodes).find(n => n.nodeType === Node.TEXT_NODE);
+                if (textNode) textNode.nodeValue = ` ${val.toLocaleString('es-MX')} `;
+                else tdObj.insertAdjacentText('afterbegin', ` ${val.toLocaleString('es-MX')} `);
+              }
+
+              // Participación “—”
+              const tdPart = this.querySelector('td:nth-last-child(3)');
+              if (tdPart){ tdPart.textContent = '—'; }
+            });
+
+            updateTotalesBar();
+          }
+
+          // === MOSTRAR EL MES EN EL MISMO MODAL, CON LA TABLA REUTILIZADA ===
+          $(document).on("click",".btnVerMes", async function(){
+            const mes  = parseInt($(this).data("mes"),10);
+            const anio = parseInt($(this).data("anio"),10);
+
+            $("#tituloResultados").text(`Presupuesto — ${["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"][mes-1]} ${anio}`);
+            $("#tbodyPresupuestoMes").empty(); $("#filtroPresupuesto").val(""); $("#bloqueResultados").hide();
+            const spinId="spinMes";
+            $("#tituloResultados").append(` <span id="${spinId}" class="align-middle"><span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span></span>`);
+
+            try{
+              const resp = await $.ajax({ url:'/Comercial/ObtenerPresupuestos', method:'GET', data:{ mes, año:anio, anio:anio }, timeout:15000 });
+              const presupuestoActual = Array.isArray(resp) ? resp : [];
+
+              // preparar holder dentro del modal histórico y mover la tabla
+              const modalBody = $("#presupuestosModal .modal-body");
+              let holder = $("#holderTablaHistorico");
+              if (!holder.length){
+                modalBody.prepend(`<div id="holderTablaHistorico" class="mb-3"></div>`);
+                holder = $("#holderTablaHistorico");
+              }
+              const wrapper = document.getElementById('tablaMensualWrapper');
+              if (wrapper && holder.length) holder[0].appendChild(wrapper);
+
+              // === fija contexto de histórico antes de renderizar
+              window.__HISTORICO_MODE = true;
+              window.__HISTORICO_CTX  = { year: anio, month: mes };
+
+              // dataset sintético para pintar filas
+              const refDate = new Date(anio, mes-1, 1);
+              const sinteticos = (presupuestoActual||[]).map(r => ({
+                sku: (r.productocodigo || r.productoCodigo || '').toString(),
+                master: MASTER_BY_SKU[(r.productocodigo || r.productoCodigo || '').toString()] || 'SIN_MASTER',
+                kilos: 0,
+                fecha: new Date(refDate.getFullYear(), refDate.getMonth()-1, 1),
+                clientId: (r.cliente || r.Cliente || r.cardCode || r.CardCode || r.clientId || '').toString() || (r.nombrecliente || r.nombreCliente || 'N/A'),
+                clientName: (r.nombrecliente || r.nombreCliente || '').toString()
+              }));
+
+              mostrarMensualTop(sinteticos);
+
+              // inyectar presupuestos guardados y bloquear edición
+              const presMap = {};
+              (presupuestoActual||[]).forEach(r=>{
+                const sku = _norm((r.productocodigo || r.productoCodigo || '').toString());
+                const cli = _norm((r.cliente || r.Cliente || r.cardCode || r.CardCode || r.clientId || '').toString() || (r.nombrecliente || r.nombreCliente || 'N/A'));
+                presMap[`${cli}||${sku}`] = Number(r.presupuesto || 0);
+              });
+
+              $("#tbodyMensual tr").each(function(){
+                const sku = this.getAttribute('data-sku') || '';
+                const cli = this.querySelector('input[name$=".Cliente"]')?.value || '';
+                const key = `${_norm(cli)}||${_norm(sku)}`;
+                const val = presMap[key] ?? 0;
+
+                const inp = this.querySelector('.presupuesto-input');
+                if (inp){
+                  inp.value = isNaN(val) ? 0 : Math.round(val);
+                  inp.setAttribute('readonly','readonly');
+                  inp.setAttribute('disabled','disabled');
+                }
+                const btnC = this.querySelector('.btnComentario');
+                const btnD = this.querySelector('.btnEliminarFila');
+                if (btnC) { btnC.setAttribute('disabled','disabled'); btnC.classList.add('disabled'); }
+                if (btnD) { btnD.setAttribute('disabled','disabled'); btnD.classList.add('disabled'); }
+              });
+
+              // === pintar presupuesto en columna del mes histórico + objetivo/participación
+              pintarValoresHistoricosEnTabla(presMap);
+
+              updateTotalesBar();
+            }
+            catch(_e){
+              $("#tbodyPresupuestoMes").html(`<tr><td colspan="4" class="text-center text-danger">Error al consultar el presupuesto.</td></tr>`);
+              showToast("Error al consultar el presupuesto del mes.","danger");
+            }
+            finally{
+              $(`#${spinId}`).remove();
+            }
+          });
+
+        }); // fin $(function)
+
+        // -------- Tabla grande (mover el mismo DOM) --------
+        (function(){
+          const modalEl = document.getElementById('modalTablaGrande');
+
+          $(document).on('click', '#btnTablaGrande', function () {
+            const wrapper      = document.getElementById('tablaMensualWrapper');
+            const holderModal  = document.getElementById('tablaMensualHolderModal');
+            const thead        = document.getElementById('theadMensual');
+            const tbody        = document.getElementById('tbodyMensual');
+
+            if (!wrapper || !holderModal || !modalEl) { console.warn('Faltan nodos necesarios para la tabla grande.'); return; }
+
+            const hayTabla = (thead && thead.children.length > 0) || (tbody && tbody.children.length > 0);
+            if (!hayTabla) { showToast("Primero consulta para ver la tabla.", "warning"); return; }
+
+            holderModal.appendChild(wrapper);
+            const m = bootstrap.Modal.getOrCreateInstance(modalEl, { backdrop: true, keyboard: true });
+            m.show();
+          });
+
+          $(document).on('click', '#btnRegresarTabla', function () {
+            if (!modalEl) return;
+            const m = bootstrap.Modal.getOrCreateInstance(modalEl);
+            m.hide();
+          });
+
+          if (modalEl) {
+            modalEl.addEventListener('hidden.bs.modal', function(){
+              const wrapper      = document.getElementById('tablaMensualWrapper');
+              const holderPagina = document.getElementById('articulosMensuales');
+              if (wrapper && holderPagina) holderPagina.appendChild(wrapper);
+            });
+          }
+        })();
+
+        // Abrir directamente el mes guardado
+        window.abrirHistoricoDeMes = function(mes, anio){
+          const modal = new bootstrap.Modal(document.getElementById('presupuestosModal'));
+          modal.show();
+          setTimeout(()=>{ // reusar el mismo handler
+            $('.btnVerMes[data-mes="'+mes+'"][data-anio="'+anio+'"]').trigger('click');
+          }, 200);
+        };
+
+                function recolectarTablaPresupuesto(){
+          const rows = [];
+          document.querySelectorAll('#tbodyMensual tr').forEach(tr=>{
+            const sku = tr.getAttribute('data-sku') || '';
+            const master = tr.getAttribute('data-master') || '';
+            const cliId = tr.querySelector('input[name$=".Cliente"]')?.value || '';
+            const cliNom = (tr.getAttribute('data-cliente') || '').trim() || cliId;
+            const objetivo = Number(tr.querySelector('input[name$=".Objetivo"]')?.value || 0);
+            const presupuesto = Number(tr.querySelector('.presupuesto-input')?.value || 0);
+            const comentario = tr.querySelector('input[name$=".Comentario"]')?.value || '';
+            rows.push({
+              ClienteId: cliId,
+              Cliente: cliNom,
+              ProductoCodigo: sku,
+              Master: master,
+              Objetivo: objetivo,
+              Presupuesto: presupuesto,
+              Comentario: comentario
+            });
+          });
+          return rows;
+        }
+
+        function exportarPresupuestoExcel(){
+          const rows = recolectarTablaPresupuesto();
+          if (!rows.length){ showToast("No hay renglones para exportar.","warning"); return; }
+          const wb = XLSX.utils.book_new();
+          const ws = XLSX.utils.json_to_sheet(rows, { header: ["ClienteId","Cliente","ProductoCodigo","Master","Objetivo","Presupuesto","Comentario"] });
+          XLSX.utils.book_append_sheet(wb, ws, 'Presupuesto');
+
+          // ancho de columnas “bonito”
+          ws['!cols'] = [
+            {wch:14},{wch:38},{wch:16},{wch:16},{wch:12},{wch:14},{wch:40}
+          ];
+
+          // etiqueta mes/año si existe en modal
+          const mes  = document.getElementById('modalMes')?.value || '';
+          const anio = document.getElementById('modalAnio')?.value || '';
+          const name = `Presupuesto_${anio || 'YYYY'}-${mes || 'MM'}.xlsx`;
+          XLSX.writeFile(wb, name);
+        }
+
+        document.getElementById('btnExportarExcel')?.addEventListener('click', exportarPresupuestoExcel);
+
+        //ABRIR PARA IMPORTAR EL EXCEL
+                document.getElementById('btnImportarExcel')?.addEventListener('click', ()=>{
+          document.getElementById('fileImportPresupuesto').click();
+        });
+
+
+                function _norm(x){ return String(x ?? '').trim().toUpperCase(); }
+        function keyCliSku(cli, sku){ return `${_norm(cli)}||${_norm(sku)}`; }
+
+        function leerExcelPresupuesto(file){
+          return new Promise((resolve, reject)=>{
+            const reader = new FileReader();
+            reader.onload = e => {
+              try{
+                const wb = XLSX.read(e.target.result, { type:'binary' });
+                const ws = wb.Sheets[wb.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+                // Normaliza columnas esperadas
+                const rows = json.map(r => ({
+                  ClienteId: r.ClienteId || r.ClienteID || r.Cliente || r.CardCode || r.cardCode || '',
+                  Cliente: r.Cliente || r.ClienteNombre || r.CardName || '',
+                  ProductoCodigo: r.ProductoCodigo || r.SKU || r.Sku || r.producto || '',
+                  Master: r.Master || r.master || '',
+                  Objetivo: Number(r.Objetivo || r.objetivo || 0),
+                  Presupuesto: Number(r.Presupuesto || r.presupuesto || 0),
+                  Comentario: r.Comentario || r.comentario || ''
+                })).filter(x => x.ClienteId && x.ProductoCodigo);
+
+                resolve(rows);
+              }catch(err){ reject(err); }
+            };
+            reader.onerror = reject;
+            reader.readAsBinaryString(file);
+          });
+        }
+
+        // Valida filas importadas
+        function validarImport(rows){
+          const errores = [];
+          const advertencias = [];
+          const setDup = new Set();
+          const duplicates = [];
+
+          rows.forEach((r, idx)=>{
+            const id = idx+1;
+            const key = keyCliSku(r.ClienteId, r.ProductoCodigo);
+
+            if (setDup.has(key)) duplicates.push({ fila:id, causa:'Duplicado en el archivo', ...r });
+            setDup.add(key);
+
+            if (!r.ClienteId) errores.push({ fila:id, causa:'ClienteId vacío' });
+            if (!r.ProductoCodigo) errores.push({ fila:id, causa:'ProductoCodigo vacío' });
+
+            if (!(Number.isFinite(r.Presupuesto) && r.Presupuesto > 0))
+              errores.push({ fila:id, causa:'Presupuesto debe ser > 0' });
+
+            if (!(Number.isFinite(r.Objetivo) && r.Objetivo >= 0))
+              advertencias.push({ fila:id, causa:'Objetivo vacío o < 0 (se permitirá 0)' });
+
+            // Puedes agregar checks extras, ej. Master desconocido:
+            // if (!r.Master) advertencias.push({ fila:id, causa:'Master vacío' });
+          });
+
+          // contra tabla actual (para prevenir duplicados existentes en UI)
+          const actuales = leerFilasActualesTabla().map(x => ({ key: keyCliSku(x.cli, x.sku), cli: x.cli, sku: x.sku }));
+          const setAct = new Set(actuales.map(x=>x.key));
+          rows.forEach((r, idx)=>{
+            const id = idx+1;
+            const key = keyCliSku(r.ClienteId, r.ProductoCodigo);
+            if (setAct.has(key)){
+              advertencias.push({ fila:id, causa:'Ya existe en la tabla, se sobreescribirá al aplicar' });
+            }
+          });
+
+          return { errores, advertencias, duplicates };
+        }
+
+        // Pinta un modal simple de previa (usa tu toast + alert)
+        async function importarDesdeExcel(file){
+          try{
+            const rows = await leerExcelPresupuesto(file);
+            if (!rows.length){ showToast('El archivo no tiene filas válidas.','warning'); return; }
+
+            const { errores, advertencias, duplicates } = validarImport(rows);
+            let msg = `Se leerán ${rows.length} renglones.\n`;
+            if (errores.length){
+              msg += `\n❌ Errores (${Math.min(errores.length,10)} mostrados):\n` +
+                     errores.slice(0,10).map(e=>`• Fila ${e.fila}: ${e.causa}`).join('\n') +
+                     (errores.length>10?`\n…y ${errores.length-10} más.`:'');
+            }
+            if (duplicates.length){
+              msg += `\n⚠️ Duplicados en el archivo (${Math.min(duplicates.length,10)} mostrados):\n` +
+                     duplicates.slice(0,10).map(e=>`• Fila ${e.fila}: ${e.ClienteId} — ${e.ProductoCodigo}`).join('\n') +
+                     (duplicates.length>10?`\n…y ${duplicates.length-10} más.`:'');
+            }
+            if (advertencias.length){
+              msg += `\nℹ️ Advertencias (${Math.min(advertencias.length,10)} mostradas):\n` +
+                     advertencias.slice(0,10).map(e=>`• Fila ${e.fila}: ${e.causa}`).join('\n') +
+                     (advertencias.length>10?`\n…y ${advertencias.length-10} más.`:'');
+            }
+
+            if (errores.length){
+              alert(msg + `\n\nCorrige los errores y vuelve a intentar.`);
+              return;
+            }
+
+            const aplicar = confirm(msg + `\n\n¿Aplicar importación?\n(Aviso: reemplazará/actualizará filas en la tabla actual)`);
+            if (!aplicar) return;
+
+            integrarImportacionEnTabla(rows); // 👈 aplica al DOM
+            showToast('Importación aplicada a la tabla. Revisa antes de Guardar.','success');
+
+          }catch(e){
+            console.error(e);
+            showToast('No se pudo leer el archivo Excel.','danger');
+          }finally{
+            document.getElementById('fileImportPresupuesto').value = '';
+          }
+        }
+
+        document.getElementById('fileImportPresupuesto')?.addEventListener('change', function(){
+          const f = this.files?.[0]; if (f) importarDesdeExcel(f);
+        });
+
+        // Integra/actualiza filas en el DOM
+               // Integra/actualiza filas en el DOM
+        function integrarImportacionEnTabla(rows){
+          const tbody = document.getElementById('tbodyMensual');
+          const thead = document.getElementById('theadMensual');
+          if (!tbody || !thead) return;
+
+          // Mostrar la sección de la tabla (por si nunca se ha consultado nada)
+          const wrap = document.getElementById('articulosMensuales');
+          if (wrap) {
+            wrap.style.display = '';
+          }
+
+          // Si NO hay cabecera (caso "solo importé Excel"), la construimos
+          if (!thead.children.length){
+            const nMeses = parseInt($("#filtroMesesObjetivo").val() || "12", 10) || 12;
+            let meses = rangeUltimosMeses(nMeses);
+            window.__LAST_MONTHS = meses;   // guardamos para usos posteriores
+
+            let head = "<tr><th>SKU</th><th>Cliente</th>";
+            meses.forEach(m => { head += `<th>${m.label}</th>`; });
+            head += "<th>Objetivo</th><th>Presupuesto</th><th>Participación</th><th class='text-center'>Comentario</th><th class='text-center'>Acciones</th></tr>";
+            thead.innerHTML = head;
+          }
+
+          // 🧹 Reemplazar TODO lo que había en la tabla por lo del Excel
+          tbody.innerHTML = "";
+
+          const meses = (window.__LAST_MONTHS && window.__LAST_MONTHS.length)
+              ? window.__LAST_MONTHS
+              : rangeUltimosMeses(parseInt($("#filtroMesesObjetivo").val() || "12", 10) || 12);
+
+          rows.forEach(r=>{
+            const idx = tbody.querySelectorAll('tr').length;
+
+            const tr = document.createElement('tr');
+            tr.setAttribute('data-sku', r.ProductoCodigo);
+            tr.setAttribute('data-cliente', r.Cliente || r.ClienteId);
+            tr.setAttribute('data-master', r.Master || 'SIN_MASTER');
+
+            const celdasMeses = meses.map(_ => `<td class="text-end">0</td>`).join('');
+
+            tr.innerHTML = `
+              <td>${r.ProductoCodigo}
+                <input type="hidden" name="items[${idx}].ProductoCodigo" value="${r.ProductoCodigo}" />
+                <input type="hidden" name="items[${idx}].Master" value="${r.Master || 'SIN_MASTER'}" />
+              </td>
+              <td>${r.Cliente || r.ClienteId}
+                <input type="hidden" name="items[${idx}].Cliente" value="${r.ClienteId}" />
+              </td>
+              ${celdasMeses}
+              <td class="text-end">
+                ${Math.round(r.Objetivo||0).toLocaleString('es-MX')}
+                <input type="hidden" name="items[${idx}].Objetivo" value="${Math.round(r.Objetivo||0)}" />
+              </td>
+              <td class="text-end">
+                <input type="number" step="100" min="0"
+                       class="form-control form-control-sm text-end presupuesto-input"
+                       name="items[${idx}].Presupuesto"
+                       value="${Math.round(r.Presupuesto||0)}" />
+              </td>
+              <td class="text-end">—</td>
+              <td class="text-center">
+                <button type="button"
+                        class="btn btn-outline-secondary btn-sm btnComentario"
+                        data-sku="${r.ProductoCodigo}"
+                        data-index="${idx}"
+                        title="Agregar comentario">
+                  <i class="bi bi-chat-left-text"></i>
+                </button>
+                <input type="hidden"
+                       name="items[${idx}].Comentario"
+                       id="comentario-${idx}"
+                       value="${(r.Comentario||'').replace(/"/g,'&quot;')}" />
+              </td>
+              <td class="text-center">
+                <button type="button"
+                        class="btn btn-outline-danger btn-sm btnEliminarFila"
+                        title="Quitar renglón">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </td>
+            `;
+
+            tbody.appendChild(tr);
+          });
+
+          // Muy importante: renombrar índices y recalcular totales
+          reindexMensual();
+          updateTotalesBar();
+        }
+
+    </script>
+}

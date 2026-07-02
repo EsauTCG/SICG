@@ -1,0 +1,2061 @@
+﻿@model Plataforma_CG.Models.Reportes.ViewModels.ReporteVisorViewModel
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Constructor de Reportes";
+
+    var operadoresFiltro = new[]
+    {
+        new { Value = "eq", Text = "Igual" },
+        new { Value = "ne", Text = "Diferente" },
+        new { Value = "contains", Text = "Contiene" },
+        new { Value = "starts", Text = "Inicia con" },
+        new { Value = "gt", Text = "Mayor que" },
+        new { Value = "gte", Text = "Mayor / igual" },
+        new { Value = "lt", Text = "Menor que" },
+        new { Value = "lte", Text = "Menor / igual" },
+        new { Value = "between", Text = "Entre" },
+        new { Value = "empty", Text = "Vacío" },
+        new { Value = "notempty", Text = "No vacío" }
+    };
+
+    int totalFiltrosDinamicos = 5;
+    int totalColumnasCalculadas = 3;
+
+    var columnasSeleccionadas = Model.ColumnasVisibles?.ToList() ?? new List<string>();
+
+    var columnasVisibles = Model.Configuracion.Columnas
+        .Where(x => columnasSeleccionadas.Any()
+            ? columnasSeleccionadas.Contains(x.Key)
+            : x.Visible)
+        .ToList();
+
+    var nombreReporte = Context.Request.Query["nombreReporte"].ToString();
+    var descripcionReporte = Context.Request.Query["descripcionReporte"].ToString();
+    var compartirReporte = Context.Request.Query["compartirReporte"].ToString();
+
+    var ordenarPorActual = Context.Request.Query["ordenarPor"].ToString();
+
+    var direccionActual = string.IsNullOrWhiteSpace(Context.Request.Query["direccion"].ToString())
+        ? "asc"
+        : Context.Request.Query["direccion"].ToString();
+
+    var visiblesQuery = string.Concat(
+        columnasSeleccionadas.Select(x => $"&visible={Uri.EscapeDataString(x)}")
+    );
+
+    var routeValues = new Dictionary<string, object?>
+    {
+        ["reportKey"] = Model.Configuracion.Datasetkey,
+        ["pageSize"] = Model.Paginacion.TamanoPagina
+    };
+
+    if (!string.IsNullOrWhiteSpace(nombreReporte))
+    {
+        routeValues["nombreReporte"] = nombreReporte;
+    }
+
+    if (!string.IsNullOrWhiteSpace(descripcionReporte))
+    {
+        routeValues["descripcionReporte"] = descripcionReporte;
+    }
+
+    if (!string.IsNullOrWhiteSpace(compartirReporte))
+    {
+        routeValues["compartirReporte"] = compartirReporte;
+    }
+
+    if (!string.IsNullOrWhiteSpace(ordenarPorActual))
+    {
+        routeValues["ordenarPor"] = ordenarPorActual;
+    }
+
+    if (!string.IsNullOrWhiteSpace(direccionActual))
+    {
+        routeValues["direccion"] = direccionActual;
+    }
+
+    for (int i = 0; i < totalFiltrosDinamicos; i++)
+    {
+        var filtroKey = Context.Request.Query[$"filtros[{i}].Key"].ToString();
+        var filtroOperador = Context.Request.Query[$"filtros[{i}].Operador"].ToString();
+        var filtroValor = Context.Request.Query[$"filtros[{i}].Valor"].ToString();
+        var filtroValor2 = Context.Request.Query[$"filtros[{i}].Valor2"].ToString();
+
+        if (!string.IsNullOrWhiteSpace(filtroKey))
+        {
+            routeValues[$"filtros[{i}].Key"] = filtroKey;
+        }
+
+        if (!string.IsNullOrWhiteSpace(filtroOperador))
+        {
+            routeValues[$"filtros[{i}].Operador"] = filtroOperador;
+        }
+
+        if (!string.IsNullOrWhiteSpace(filtroValor))
+        {
+            routeValues[$"filtros[{i}].Valor"] = filtroValor;
+        }
+
+        if (!string.IsNullOrWhiteSpace(filtroValor2))
+        {
+            routeValues[$"filtros[{i}].Valor2"] = filtroValor2;
+        }
+    }
+
+    for (int i = 0; i < totalColumnasCalculadas; i++)
+    {
+        var nombreCalculada = Context.Request.Query[$"calculadas[{i}].Nombre"].ToString();
+        var formulaCalculada = Context.Request.Query[$"calculadas[{i}].Formula"].ToString();
+        var formatoCalculada = Context.Request.Query[$"calculadas[{i}].Formato"].ToString();
+
+        if (!string.IsNullOrWhiteSpace(nombreCalculada))
+        {
+            routeValues[$"calculadas[{i}].Nombre"] = nombreCalculada;
+        }
+
+        if (!string.IsNullOrWhiteSpace(formulaCalculada))
+        {
+            routeValues[$"calculadas[{i}].Formula"] = formulaCalculada;
+        }
+
+        if (!string.IsNullOrWhiteSpace(formatoCalculada))
+        {
+            routeValues[$"calculadas[{i}].Formato"] = formatoCalculada;
+        }
+    }
+
+    var queryBase = Url.Action(
+        "Visor",
+        "Reportes",
+        routeValues
+    ) ?? "#";
+
+    int totalPaginas = Model.Paginacion.TotalPaginas;
+    int paginaActual = Model.Paginacion.PaginaActual;
+    int delta = 2;
+
+    var paginas = new List<int>();
+
+    for (int i = 1; i <= totalPaginas; i++)
+    {
+        if (i == 1 || i == totalPaginas || (i >= paginaActual - delta && i <= paginaActual + delta))
+        {
+            paginas.Add(i);
+        }
+    }
+
+    var registroInicial = Model.Paginacion.TotalRegistros == 0
+        ? 0
+        : ((Model.Paginacion.PaginaActual - 1) * Model.Paginacion.TamanoPagina) + 1;
+
+    var registroFinal = Math.Min(
+        Model.Paginacion.PaginaActual * Model.Paginacion.TamanoPagina,
+        Model.Paginacion.TotalRegistros
+    );
+}
+
+<style>
+    .report-view-page {
+        padding-top: 1.25rem;
+        padding-bottom: 2rem;
+        background: #f8f9fb;
+        min-height: calc(100vh - 60px);
+    }
+
+    .report-header {
+        background: linear-gradient(135deg, #8b0000, #c82333);
+        color: #fff;
+        border-radius: 18px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 8px 22px rgba(0, 0, 0, .12);
+    }
+
+        .report-header h2 {
+            font-weight: 800;
+            margin-bottom: .25rem;
+        }
+
+        .report-header p {
+            margin-bottom: 0;
+            opacity: .9;
+        }
+
+    .actions-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .75rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+
+    .actions-left,
+    .actions-right {
+        display: flex;
+        gap: .5rem;
+        flex-wrap: wrap;
+    }
+
+    .btn-report {
+        border-radius: 10px;
+        font-weight: 700;
+        padding: .55rem 1rem;
+    }
+
+    .report-workspace {
+        display: grid;
+        grid-template-columns: 430px minmax(0, 1fr);
+        gap: 1rem;
+        align-items: start;
+        transition: all .25s ease-in-out;
+    }
+
+        .report-workspace.sidebar-collapsed {
+            grid-template-columns: 58px minmax(0, 1fr);
+        }
+
+    .report-sidebar {
+        position: sticky;
+        top: 1rem;
+        height: calc(100vh - 90px);
+        overflow: hidden;
+        transition: all .25s ease-in-out;
+        z-index: 5;
+    }
+
+    .sidebar-panel {
+        height: 100%;
+        border-radius: 18px;
+        background: #fff;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, .08);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .sidebar-header {
+        padding: .9rem 1rem;
+        border-bottom: 1px solid #edf0f2;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #fff;
+    }
+
+    .sidebar-title {
+        font-weight: 800;
+        color: #343a40;
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        white-space: nowrap;
+    }
+
+    .sidebar-toggle {
+        border: 0;
+        background: #f1f3f5;
+        color: #343a40;
+        border-radius: 10px;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all .18s ease-in-out;
+    }
+
+        .sidebar-toggle:hover {
+            background: #c82333;
+            color: #fff;
+        }
+
+    .sidebar-body {
+        padding: 1rem;
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .report-main {
+        min-width: 0;
+    }
+
+    .sidebar-collapsed .sidebar-title span {
+        display: none;
+    }
+
+    .sidebar-collapsed .sidebar-body {
+        display: none;
+    }
+
+    .sidebar-collapsed .sidebar-panel {
+        align-items: center;
+    }
+
+    .sidebar-collapsed .sidebar-header {
+        padding: .75rem .55rem;
+        flex-direction: column;
+        gap: .75rem;
+    }
+
+    .sidebar-collapsed .sidebar-title {
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        font-size: .85rem;
+        margin-top: .5rem;
+    }
+
+    .builder-label {
+        font-size: .82rem;
+        font-weight: 700;
+        color: #495057;
+        margin-bottom: .35rem;
+    }
+
+    .builder-input,
+    .builder-select {
+        border-radius: 12px;
+        border: 1px solid #dee2e6;
+        min-height: 42px;
+        font-size: .92rem;
+    }
+
+        .builder-input:focus,
+        .builder-select:focus {
+            border-color: #c82333;
+            box-shadow: 0 0 0 .15rem rgba(200, 35, 51, .15);
+        }
+
+    .builder-section {
+        border: 1px solid #edf0f2;
+        border-radius: 14px;
+        margin-bottom: .85rem;
+        background: #fff;
+        overflow: hidden;
+    }
+
+    .builder-section-header {
+        width: 100%;
+        border: 0;
+        background: #f8f9fa;
+        padding: .8rem .9rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        font-weight: 800;
+        color: #343a40;
+        cursor: pointer;
+        text-align: left;
+        transition: all .18s ease-in-out;
+    }
+
+        .builder-section-header:hover {
+            background: #fff5f5;
+            color: #c82333;
+        }
+
+        .builder-section-header .section-left {
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+            min-width: 0;
+        }
+
+        .builder-section-header .section-title-text {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .builder-section-header i.chevron {
+            transition: transform .18s ease-in-out;
+            flex: 0 0 auto;
+        }
+
+        .builder-section-header.section-collapsed i.chevron {
+            transform: rotate(-90deg);
+        }
+
+    .builder-section-body {
+        padding: 1rem;
+        border-top: 1px solid #edf0f2;
+    }
+
+        .builder-section-body.is-collapsed {
+            display: none;
+        }
+
+    .column-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: .55rem;
+    }
+
+    .column-option {
+        border: 1px solid #e9ecef;
+        border-radius: 14px;
+        padding: .6rem .7rem;
+        background: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        cursor: pointer;
+        transition: all .18s ease-in-out;
+    }
+
+        .column-option:hover {
+            background: #fff5f5;
+            border-color: rgba(200, 35, 51, .35);
+        }
+
+    .column-option-left {
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+        min-width: 0;
+    }
+
+    .column-option input {
+        width: 16px;
+        height: 16px;
+        accent-color: #c82333;
+    }
+
+    .column-title {
+        font-weight: 700;
+        color: #343a40;
+        font-size: .9rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .column-type {
+        color: #6c757d;
+        font-size: .78rem;
+        white-space: nowrap;
+    }
+
+    .filter-row {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: .45rem;
+        margin-bottom: .9rem;
+        padding-bottom: .9rem;
+        border-bottom: 1px solid #f1f3f5;
+    }
+
+        .filter-row:last-child {
+            margin-bottom: 0;
+        }
+
+    .order-row {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: .75rem;
+        margin-top: 1rem;
+    }
+
+    .builder-actions {
+        display: flex;
+        flex-direction: column;
+        gap: .65rem;
+        margin-top: 1rem;
+    }
+
+        .builder-actions .btn {
+            width: 100%;
+        }
+
+    .report-card {
+        border: 0;
+        border-radius: 18px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, .08);
+        overflow: hidden;
+        margin-bottom: 1.25rem;
+        background: #fff;
+    }
+
+    .report-card-header {
+        background: #fff;
+        border-bottom: 1px solid #edf0f2;
+        padding: 1rem 1.25rem;
+        font-weight: 800;
+        color: #343a40;
+    }
+
+    .report-card-body {
+        padding: 1.25rem;
+    }
+
+    .table-report {
+        margin-bottom: 0;
+        font-size: .92rem;
+    }
+
+        .table-report thead th {
+            background: #343a40;
+            color: #fff;
+            border-color: #343a40;
+            white-space: nowrap;
+            vertical-align: middle;
+            font-weight: 700;
+        }
+
+        .table-report tbody td {
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+
+        .table-report tbody tr:hover {
+            background: #fff5f5;
+        }
+
+    .formula-help {
+        background: #f8f9fa;
+        border: 1px solid #edf0f2;
+        border-radius: 12px;
+        padding: .65rem .75rem;
+        font-size: .82rem;
+        color: #6c757d;
+        margin-bottom: .75rem;
+    }
+
+    .pagination .page-link {
+        color: #c82333;
+        border-radius: 8px;
+        margin: 0 2px;
+        font-weight: 600;
+    }
+
+    .pagination .page-item.active .page-link {
+        background-color: #c82333;
+        border-color: #c82333;
+        color: #fff;
+    }
+
+    .pagination .page-item.disabled .page-link {
+        color: #adb5bd;
+    }
+
+    .records-info {
+        color: #6c757d;
+        font-size: .92rem;
+        font-weight: 600;
+    }
+
+    .empty-state {
+        padding: 3rem 1rem;
+        text-align: center;
+        color: #6c757d;
+    }
+
+        .empty-state i {
+            font-size: 2.75rem;
+            color: #dee2e6;
+            margin-bottom: .75rem;
+        }
+
+    @@media (max-width: 992px) {
+        .report-workspace,
+        .report-workspace.sidebar-collapsed {
+            grid-template-columns: 1fr;
+        }
+
+        .report-sidebar {
+            position: relative;
+            top: auto;
+            height: auto;
+        }
+
+        .sidebar-collapsed .sidebar-body {
+            display: none;
+        }
+
+        .sidebar-collapsed .sidebar-title {
+            writing-mode: initial;
+            transform: none;
+        }
+
+            .sidebar-collapsed .sidebar-title span {
+                display: inline;
+            }
+
+        .sidebar-collapsed .sidebar-header {
+            flex-direction: row;
+        }
+    }
+
+
+    /* ============================================================
+       AJUSTE AMPLIO / RESPONSIVO - VISOR DE REPORTES
+       Expande la vista según pantalla, quita marco y fondo blanco/gris
+    ============================================================ */
+
+    html,
+    body,
+    main,
+    .main,
+    .body-content,
+    .content-wrapper,
+    .layout-main-content,
+    .layout-container-fluid,
+    .container,
+    .container-fluid {
+        background: #e9edf2 !important;
+    }
+
+    .layout-main-content,
+    .layout-main-content .layout-container-fluid,
+    .layout-container-fluid {
+        background: transparent !important;
+        box-shadow: none !important;
+        border: none !important;
+        border-radius: 0 !important;
+    }
+
+    .container-fluid.report-view-page,
+    .report-view-page {
+        width: 100% !important;
+        max-width: none !important;
+        min-height: calc(100vh - 60px) !important;
+        margin: 0 !important;
+        padding: clamp(.75rem, 1.1vw, 1.5rem) clamp(.75rem, 1.2vw, 1.75rem) 2rem !important;
+        box-sizing: border-box !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        border: none !important;
+        border-radius: 0 !important;
+    }
+
+    .report-header,
+    .actions-bar,
+    .report-workspace,
+    .report-main {
+        width: 100% !important;
+        max-width: none !important;
+    }
+
+    .report-workspace {
+        grid-template-columns: clamp(380px, 22vw, 460px) minmax(0, 1fr) !important;
+        gap: clamp(.75rem, 1vw, 1.25rem) !important;
+    }
+
+    .report-workspace.sidebar-collapsed {
+        grid-template-columns: 58px minmax(0, 1fr) !important;
+    }
+
+    .report-sidebar {
+        height: calc(100vh - 115px) !important;
+    }
+
+    .sidebar-panel,
+    .builder-section,
+    .column-option,
+    .report-card,
+    .empty-state,
+    .formula-help {
+        background: #fffafa !important;
+        border-color: #c79d9d !important;
+    }
+
+    .report-card,
+    .sidebar-panel {
+        border: 1px solid #c79d9d !important;
+        box-shadow: 0 6px 18px rgba(70, 12, 12, .10) !important;
+    }
+
+    .report-card-header,
+    .report-card-body,
+    .sidebar-header,
+    .builder-section-body {
+        background: #fffafa !important;
+    }
+
+    .builder-section-header {
+        background: #f1dede !important;
+        border-color: #c79d9d !important;
+    }
+
+    .builder-section-header:hover,
+    .column-option:hover {
+        background: #f7e7e7 !important;
+    }
+
+    .builder-input,
+    .builder-select,
+    .form-control,
+    .form-select {
+        background: #fffafa !important;
+        border-color: #b48787 !important;
+        color: #421414 !important;
+    }
+
+    .table-responsive {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        background: #fffafa !important;
+    }
+
+    .table-report {
+        min-width: 1200px !important;
+        width: 100% !important;
+    }
+
+    .table-report tbody td {
+        background: #fffafa !important;
+        border-color: #d8bcbc !important;
+    }
+
+    .table-striped > tbody > tr:nth-of-type(odd) > * {
+        background: #fffafa !important;
+    }
+
+    .table-striped > tbody > tr:nth-of-type(even) > * {
+        background: #f9eded !important;
+    }
+
+    .table-hover tbody tr:hover td {
+        background: #f4dddd !important;
+    }
+
+    footer,
+    .footer,
+    footer.footer,
+    .layout-footer,
+    .main-footer,
+    .app-footer,
+    .footer.bg-light,
+    footer.bg-light,
+    footer .container,
+    footer .container-fluid,
+    .footer .container,
+    .footer .container-fluid {
+        background: transparent !important;
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+    @@media (min-width: 1400px) {
+        .report-view-page {
+            padding-left: 1.25rem !important;
+            padding-right: 1.25rem !important;
+        }
+
+        .report-workspace {
+            grid-template-columns: clamp(400px, 23vw, 480px) minmax(0, 1fr) !important;
+            gap: 1.25rem !important;
+        }
+
+        .report-header {
+            padding: 1.75rem 2rem !important;
+        }
+
+        .table-report {
+            min-width: 1350px !important;
+        }
+    }
+
+    @@media (min-width: 1800px) {
+        .report-view-page {
+            padding-left: 1.5rem !important;
+            padding-right: 1.5rem !important;
+        }
+
+        .report-workspace {
+            grid-template-columns: clamp(420px, 22vw, 500px) minmax(0, 1fr) !important;
+            gap: 1.5rem !important;
+        }
+
+        .table-report {
+            min-width: 1500px !important;
+        }
+    }
+
+    @@media (min-width: 2200px) {
+        .report-view-page {
+            padding-left: 2rem !important;
+            padding-right: 2rem !important;
+        }
+
+        .report-workspace {
+            grid-template-columns: clamp(440px, 20vw, 540px) minmax(0, 1fr) !important;
+        }
+
+        .table-report {
+            min-width: 1700px !important;
+        }
+    }
+
+    @@media (max-width: 992px) {
+        .report-view-page {
+            padding: .75rem !important;
+        }
+
+        .report-workspace,
+        .report-workspace.sidebar-collapsed {
+            grid-template-columns: 1fr !important;
+        }
+
+        .report-sidebar {
+            height: auto !important;
+        }
+
+        .table-report {
+            min-width: 980px !important;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .report-view-page {
+            padding: .5rem !important;
+        }
+
+        .report-header {
+            border-radius: 12px !important;
+            padding: 1.25rem !important;
+        }
+
+        .report-card,
+        .sidebar-panel {
+            border-radius: 12px !important;
+        }
+
+        .actions-bar,
+        .actions-left,
+        .actions-right {
+            display: grid !important;
+            grid-template-columns: 1fr !important;
+            width: 100% !important;
+        }
+
+        .btn-report,
+        .actions-bar .btn {
+            width: 100% !important;
+        }
+    }
+
+    /* Dark mode */
+    body[data-theme="dark"],
+    body[data-theme="dark"] html,
+    body[data-theme="dark"] main,
+    body[data-theme="dark"] .main,
+    body[data-theme="dark"] .body-content,
+    body[data-theme="dark"] .content-wrapper,
+    body[data-theme="dark"] .layout-main-content,
+    body[data-theme="dark"] .layout-container-fluid,
+    body[data-theme="dark"] .container,
+    body[data-theme="dark"] .container-fluid {
+        background: #0f172a !important;
+        color: #e5e7eb !important;
+    }
+
+    body[data-theme="dark"] .report-view-page {
+        background: transparent !important;
+    }
+
+    body[data-theme="dark"] .sidebar-panel,
+    body[data-theme="dark"] .builder-section,
+    body[data-theme="dark"] .column-option,
+    body[data-theme="dark"] .report-card,
+    body[data-theme="dark"] .report-card-header,
+    body[data-theme="dark"] .report-card-body,
+    body[data-theme="dark"] .sidebar-header,
+    body[data-theme="dark"] .builder-section-body,
+    body[data-theme="dark"] .table-responsive {
+        background: #111827 !important;
+        color: #e5e7eb !important;
+        border-color: rgba(255, 255, 255, .12) !important;
+    }
+
+    body[data-theme="dark"] .builder-section-header,
+    body[data-theme="dark"] .formula-help {
+        background: #172033 !important;
+        color: #f9fafb !important;
+        border-color: rgba(255, 255, 255, .12) !important;
+    }
+
+    body[data-theme="dark"] .builder-input,
+    body[data-theme="dark"] .builder-select,
+    body[data-theme="dark"] .form-control,
+    body[data-theme="dark"] .form-select {
+        background: #0b1220 !important;
+        color: #f9fafb !important;
+        border-color: rgba(203, 213, 225, .28) !important;
+    }
+
+    body[data-theme="dark"] .table-report tbody td {
+        background: #111827 !important;
+        color: #e5e7eb !important;
+        border-color: rgba(255, 255, 255, .12) !important;
+    }
+
+    body[data-theme="dark"] .table-striped > tbody > tr:nth-of-type(even) > * {
+        background: #172033 !important;
+    }
+
+    body[data-theme="dark"] .table-hover tbody tr:hover td {
+        background: rgba(248, 113, 113, .13) !important;
+    }
+
+
+
+    /* ============================================================
+       MODO ANCHO REAL EN PANTALLAS GRANDES
+       Rompe el ancho máximo del contenedor padre para ver más tabla
+    ============================================================ */
+
+    @@media (min-width: 1200px) {
+        .container-fluid.report-view-page,
+        .report-view-page {
+            --rv-edge-left: 56px;
+            --rv-edge-right: 20px;
+            position: relative !important;
+            width: calc(100vw - var(--rv-edge-left) - var(--rv-edge-right)) !important;
+            max-width: calc(100vw - var(--rv-edge-left) - var(--rv-edge-right)) !important;
+            margin-left: calc(50% - 50vw + var(--rv-edge-left)) !important;
+            margin-right: calc(50% - 50vw + var(--rv-edge-right)) !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+        }
+
+        .report-workspace {
+            grid-template-columns: clamp(330px, 21vw, 390px) minmax(0, 1fr) !important;
+            gap: 1rem !important;
+        }
+
+        .report-workspace.sidebar-collapsed {
+            grid-template-columns: 58px minmax(0, 1fr) !important;
+        }
+
+        .report-main,
+        .report-card,
+        .table-responsive {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+        }
+    }
+
+    @@media (min-width: 1600px) {
+        .container-fluid.report-view-page,
+        .report-view-page {
+            --rv-edge-left: 58px;
+            --rv-edge-right: 24px;
+            padding-left: 1.15rem !important;
+            padding-right: 1.15rem !important;
+        }
+
+        .report-workspace {
+            grid-template-columns: clamp(340px, 20vw, 405px) minmax(0, 1fr) !important;
+            gap: 1.15rem !important;
+        }
+    }
+
+    @@media (min-width: 1900px) {
+        .container-fluid.report-view-page,
+        .report-view-page {
+            --rv-edge-left: 62px;
+            --rv-edge-right: 28px;
+            padding-left: 1.25rem !important;
+            padding-right: 1.25rem !important;
+        }
+
+        .report-workspace {
+            grid-template-columns: clamp(360px, 19vw, 420px) minmax(0, 1fr) !important;
+            gap: 1.25rem !important;
+        }
+    }
+
+    @@media (min-width: 2200px) {
+        .container-fluid.report-view-page,
+        .report-view-page {
+            --rv-edge-left: 70px;
+            --rv-edge-right: 34px;
+        }
+
+        .report-workspace {
+            grid-template-columns: clamp(370px, 18vw, 440px) minmax(0, 1fr) !important;
+        }
+    }
+
+
+
+    /* ============================================================
+       INPUT DE FECHA PARA FILTROS DINÁMICOS
+    ============================================================ */
+
+    .date-filter-input {
+        color-scheme: light;
+        cursor: pointer;
+    }
+
+    .date-filter-input::-webkit-calendar-picker-indicator {
+        cursor: pointer;
+        opacity: .8;
+    }
+
+    body[data-theme="dark"] .date-filter-input {
+        color-scheme: dark;
+    }
+
+
+
+    /* ============================================================
+       AYUDA VISUAL PARA COLUMNAS CALCULADAS
+    ============================================================ */
+
+    .formula-column-helper {
+        border: 1px solid #c79d9d;
+        border-radius: 14px;
+        background: #fffafa;
+        padding: .75rem;
+        margin-bottom: .9rem;
+    }
+
+    .formula-column-helper-title {
+        font-size: .82rem;
+        font-weight: 800;
+        color: #421414;
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        margin-bottom: .55rem;
+    }
+
+    .formula-column-search {
+        margin-bottom: .6rem;
+        min-height: 36px;
+        font-size: .85rem;
+        border-radius: 10px;
+        border: 1px solid #b48787 !important;
+        background: #fffafa !important;
+        color: #421414 !important;
+    }
+
+    .formula-column-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+        max-height: 165px;
+        overflow-y: auto;
+        padding-right: .25rem;
+    }
+
+    .formula-column-chip {
+        border: 1px solid #c79d9d;
+        background: #f1dede;
+        color: #421414;
+        border-radius: 999px;
+        padding: .35rem .65rem;
+        font-size: .78rem;
+        font-weight: 700;
+        line-height: 1.1;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        max-width: 100%;
+        transition: .15s ease-in-out;
+    }
+
+    .formula-column-chip:hover {
+        background: #8b0000;
+        color: #ffffff;
+        border-color: #8b0000;
+    }
+
+    .formula-column-chip small {
+        font-size: .68rem;
+        font-weight: 600;
+        opacity: .75;
+        max-width: 120px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .formula-column-chip.is-hidden {
+        display: none !important;
+    }
+
+    .formula-input.is-target {
+        border-color: #8b0000 !important;
+        box-shadow: 0 0 0 .15rem rgba(139, 0, 0, .15) !important;
+    }
+
+    body[data-theme="dark"] .formula-column-helper {
+        background: #111827 !important;
+        border-color: rgba(255, 255, 255, .12) !important;
+    }
+
+    body[data-theme="dark"] .formula-column-helper-title {
+        color: #f9fafb !important;
+    }
+
+    body[data-theme="dark"] .formula-column-search {
+        background: #0b1220 !important;
+        color: #f9fafb !important;
+        border-color: rgba(203, 213, 225, .28) !important;
+    }
+
+    body[data-theme="dark"] .formula-column-chip {
+        background: #172033 !important;
+        color: #e5e7eb !important;
+        border-color: rgba(248, 113, 113, .35) !important;
+    }
+
+    body[data-theme="dark"] .formula-column-chip:hover {
+        background: #dc2626 !important;
+        color: #ffffff !important;
+        border-color: #dc2626 !important;
+    }
+
+</style>
+
+<div class="container-fluid report-view-page">
+
+    <div class="report-header">
+        <h2>Constructor de reportes dinámicos</h2>
+        <p>Selecciona columnas visibles, aplica filtros, crea columnas calculadas, ordena resultados y exporta la información.</p>
+    </div>
+
+    <div class="actions-bar">
+        <div class="actions-left">
+            <a asp-controller="Reportes"
+               asp-action="Portal"
+               class="btn btn-outline-secondary btn-report">
+                <i class="fas fa-arrow-left me-1"></i>
+                Regresar
+            </a>
+        </div>
+
+        <div class="actions-right">
+            <a asp-controller="Reportes"
+               asp-action="Guardados"
+               class="btn btn-outline-primary btn-report">
+                <i class="fas fa-bookmark me-1"></i>
+                Reportes guardados
+            </a>
+        </div>
+    </div>
+
+    <div class="report-workspace" id="reportWorkspace">
+
+        <aside class="report-sidebar" id="reportSidebar">
+            <div class="sidebar-panel">
+
+                <div class="sidebar-header">
+                    <div class="sidebar-title">
+                        <i class="fas fa-sliders-h text-danger"></i>
+                        <span>Constructor</span>
+                    </div>
+
+                    <button type="button"
+                            class="sidebar-toggle"
+                            id="btnToggleSidebar"
+                            title="Contraer panel">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                </div>
+
+                <div class="sidebar-body">
+
+                    <form method="get">
+
+                        <input type="hidden"
+                               name="page"
+                               value="1" />
+
+                        <div class="builder-section">
+                            <button type="button"
+                                    class="builder-section-header"
+                                    data-section-toggle="true"
+                                    data-target="sectionOrigenDatos"
+                                    aria-expanded="true">
+                                <span class="section-left">
+                                    <i class="fas fa-database text-danger"></i>
+                                    <span class="section-title-text">Origen de datos</span>
+                                </span>
+
+                                <i class="fas fa-chevron-down chevron"></i>
+                            </button>
+
+                            <div id="sectionOrigenDatos" class="builder-section-body">
+                                <div class="mb-0">
+                                    <label class="builder-label">
+                                        Origen de datos
+                                    </label>
+
+                                    <select name="reportKey"
+                                            class="form-select builder-select">
+                                        <option value="@Model.Configuracion.Datasetkey" selected>
+                                            @Model.Configuracion.Datasetkey
+                                        </option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="builder-section">
+                            <button type="button"
+                                    class="builder-section-header"
+                                    data-section-toggle="true"
+                                    data-target="sectionDatosReporte"
+                                    aria-expanded="true">
+                                <span class="section-left">
+                                    <i class="fas fa-file-alt text-danger"></i>
+                                    <span class="section-title-text">1. Datos del reporte</span>
+                                </span>
+
+                                <i class="fas fa-chevron-down chevron"></i>
+                            </button>
+
+                            <div id="sectionDatosReporte" class="builder-section-body">
+                                <div class="mb-3">
+                                    <label class="builder-label">
+                                        Nombre del reporte
+                                    </label>
+
+                                    <input type="text"
+                                           name="nombreReporte"
+                                           class="form-control builder-input"
+                                           value="@nombreReporte"
+                                           placeholder="Ej. ventas del día" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="builder-label">
+                                        Límite de filas
+                                    </label>
+
+                                    <input type="number"
+                                           name="pageSize"
+                                           class="form-control builder-input"
+                                           value="@Model.Paginacion.TamanoPagina"
+                                           min="1"
+                                           max="5000" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="builder-label">
+                                        Descripción
+                                    </label>
+
+                                    <input type="text"
+                                           name="descripcionReporte"
+                                           class="form-control builder-input"
+                                           value="@descripcionReporte"
+                                           placeholder="Uso interno o criterio del reporte" />
+                                </div>
+
+                                <div class="form-check mb-0">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           name="compartirReporte"
+                                           value="true"
+                                           id="compartirReporte"
+                                    @(compartirReporte == "true" ? "checked" : "") />
+
+                                    <label class="form-check-label fw-bold"
+                                           for="compartirReporte">
+                                        Compartir reporte
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="builder-section">
+                            <button type="button"
+                                    class="builder-section-header"
+                                    data-section-toggle="true"
+                                    data-target="sectionColumnas"
+                                    aria-expanded="true">
+                                <span class="section-left">
+                                    <i class="fas fa-columns text-danger"></i>
+                                    <span class="section-title-text">2. Columnas visibles</span>
+                                </span>
+
+                                <i class="fas fa-chevron-down chevron"></i>
+                            </button>
+
+                            <div id="sectionColumnas" class="builder-section-body">
+                                <div class="column-grid">
+                                    @foreach (var columna in Model.Configuracion.Columnas)
+                                    {
+                                        var columnaKey = columna.Key;
+                                        var columnaSeleccionada = columnasSeleccionadas.Any()
+                                            ? columnasSeleccionadas.Contains(columnaKey)
+                                            : columna.Visible;
+
+                                        <label class="column-option">
+                                            <span class="column-option-left">
+                                                <input type="checkbox"
+                                                       name="visible"
+                                                       value="@columnaKey"
+                                                @(columnaSeleccionada ? "checked" : "") />
+
+                                                <span class="column-title">
+                                                    @columna.Titulo
+                                                </span>
+                                            </span>
+
+                                            <span class="column-type">
+                                                @columna.Key
+                                            </span>
+                                        </label>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="builder-section">
+                            <button type="button"
+                                    class="builder-section-header section-collapsed"
+                                    data-section-toggle="true"
+                                    data-target="sectionFiltros"
+                                    aria-expanded="false">
+                                <span class="section-left">
+                                    <i class="fas fa-filter text-danger"></i>
+                                    <span class="section-title-text">3. Filtros y orden</span>
+                                </span>
+
+                                <i class="fas fa-chevron-down chevron"></i>
+                            </button>
+
+                            <div id="sectionFiltros" class="builder-section-body is-collapsed">
+                                @for (int i = 0; i < totalFiltrosDinamicos; i++)
+                                {
+                                    var filtroKey = Context.Request.Query[$"filtros[{i}].Key"].ToString();
+                                    var filtroOperador = Context.Request.Query[$"filtros[{i}].Operador"].ToString();
+                                    var filtroValor = Context.Request.Query[$"filtros[{i}].Valor"].ToString();
+                                    var filtroValor2 = Context.Request.Query[$"filtros[{i}].Valor2"].ToString();
+
+                                    if (string.IsNullOrWhiteSpace(filtroOperador))
+                                    {
+                                        filtroOperador = "eq";
+                                    }
+
+                                    <div class="filter-row">
+                                        <select name="filtros[@i].Key"
+                                                class="form-select builder-select filter-key">
+                                            <option value="">Columna...</option>
+
+                                            @foreach (var columna in Model.Configuracion.Columnas)
+                                            {
+                                                var esColumnaFecha =
+                                                    (!string.IsNullOrWhiteSpace(columna.Key) &&
+                                                     (columna.Key.Contains("Fecha", StringComparison.OrdinalIgnoreCase) ||
+                                                      columna.Key.StartsWith("Fec", StringComparison.OrdinalIgnoreCase) ||
+                                                      columna.Key.EndsWith("Date", StringComparison.OrdinalIgnoreCase))) ||
+                                                    (!string.IsNullOrWhiteSpace(columna.Titulo) &&
+                                                     (columna.Titulo.Contains("Fecha", StringComparison.OrdinalIgnoreCase) ||
+                                                      columna.Titulo.Contains("Date", StringComparison.OrdinalIgnoreCase)));
+
+                                                <option value="@columna.Key"
+                                                        data-is-date="@(esColumnaFecha ? "true" : "false")"
+                                                        selected="@(filtroKey == columna.Key ? "selected" : null)">
+                                                    @columna.Titulo
+                                                </option>
+                                            }
+                                        </select>
+
+                                        <select name="filtros[@i].Operador"
+                                                class="form-select builder-select filter-operator">
+                                            @foreach (var operador in operadoresFiltro)
+                                            {
+                                                <option value="@operador.Value"
+                                                        selected="@(filtroOperador == operador.Value ? "selected" : null)">
+                                                    @operador.Text
+                                                </option>
+                                            }
+                                        </select>
+
+                                        <input type="text"
+                                               name="filtros[@i].Valor"
+                                               class="form-control builder-input filter-value"
+                                               value="@filtroValor"
+                                               placeholder="Valor"
+                                               data-default-placeholder="Valor" />
+
+                                        <input type="text"
+                                               name="filtros[@i].Valor2"
+                                               class="form-control builder-input filter-value2"
+                                               value="@filtroValor2"
+                                               placeholder="Valor 2"
+                                               data-default-placeholder="Valor 2" />
+                                    </div>
+                                }
+
+                                <div class="order-row">
+                                    <div>
+                                        <label class="builder-label">
+                                            Ordenar por
+                                        </label>
+
+                                        <select name="ordenarPor"
+                                                class="form-select builder-select">
+                                            <option value="">Sin orden</option>
+
+                                            @foreach (var columna in Model.Configuracion.Columnas)
+                                            {
+                                                <option value="@columna.Key"
+                                                        selected="@(ordenarPorActual == columna.Key ? "selected" : null)">
+                                                    @columna.Titulo
+                                                </option>
+                                            }
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label class="builder-label">
+                                            Dirección
+                                        </label>
+
+                                        <select name="direccion"
+                                                class="form-select builder-select">
+                                            <option value="asc"
+                                                    selected="@(direccionActual == "asc" ? "selected" : null)">
+                                                Ascendente
+                                            </option>
+
+                                            <option value="desc"
+                                                    selected="@(direccionActual == "desc" ? "selected" : null)">
+                                                Descendente
+                                            </option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="builder-section">
+                            <button type="button"
+                                    class="builder-section-header section-collapsed"
+                                    data-section-toggle="true"
+                                    data-target="sectionCalculadas"
+                                    aria-expanded="false">
+                                <span class="section-left">
+                                    <i class="fas fa-calculator text-danger"></i>
+                                    <span class="section-title-text">4. Columnas calculadas</span>
+                                </span>
+
+                                <i class="fas fa-chevron-down chevron"></i>
+                            </button>
+
+                            <div id="sectionCalculadas" class="builder-section-body is-collapsed">
+                                <div class="formula-help">
+                                    Selecciona una columna de la lista para insertarla en la fórmula.
+                                    <br />
+                                    Ejemplo: <code>TotalPedido - Costo</code>
+                                    <br />
+                                    Operadores permitidos: <strong>+ - * / ( )</strong>
+                                </div>
+
+                                <div class="formula-column-helper">
+                                    <div class="formula-column-helper-title">
+                                        <i class="fas fa-list-ul text-danger"></i>
+                                        Columnas disponibles para fórmula
+                                    </div>
+
+                                    <input type="text"
+                                           class="form-control formula-column-search"
+                                           placeholder="Buscar columna..." />
+
+                                    <div class="formula-column-list">
+                                        @foreach (var columnaFormula in Model.Configuracion.Columnas)
+                                        {
+                                            <button type="button"
+                                                    class="formula-column-chip"
+                                                    data-column-key="@columnaFormula.Key"
+                                                    data-column-title="@columnaFormula.Titulo"
+                                                    title="Insertar @columnaFormula.Titulo en la fórmula">
+                                                <i class="fas fa-plus"></i>
+                                                <span>@columnaFormula.Titulo</span>
+                                                <small>@columnaFormula.Key</small>
+                                            </button>
+                                        }
+                                    </div>
+                                </div>
+
+                                @for (int i = 0; i < totalColumnasCalculadas; i++)
+                                {
+                                    var nombreCalculada = Context.Request.Query[$"calculadas[{i}].Nombre"].ToString();
+                                    var formulaCalculada = Context.Request.Query[$"calculadas[{i}].Formula"].ToString();
+                                    var formatoCalculada = Context.Request.Query[$"calculadas[{i}].Formato"].ToString();
+
+                                    if (string.IsNullOrWhiteSpace(formatoCalculada))
+                                    {
+                                        formatoCalculada = "Numero";
+                                    }
+
+                                    <div class="filter-row">
+                                        <input type="text"
+                                               name="calculadas[@i].Nombre"
+                                               class="form-control builder-input"
+                                               value="@nombreCalculada"
+                                               placeholder="Nombre columna. Ej. Margen" />
+
+                                        <input type="text"
+                                               name="calculadas[@i].Formula"
+                                               class="form-control builder-input formula-input"
+                                               value="@formulaCalculada"
+                                               placeholder="Formula. Ej. TotalPedido - Costo" />
+
+                                        <select name="calculadas[@i].Formato"
+                                                class="form-select builder-select">
+                                            <option value="Numero"
+                                                    selected="@(formatoCalculada == "Numero" ? "selected" : null)">
+                                                Número
+                                            </option>
+
+                                            <option value="Moneda"
+                                                    selected="@(formatoCalculada == "Moneda" ? "selected" : null)">
+                                                Moneda
+                                            </option>
+
+                                            <option value="Porcentaje"
+                                                    selected="@(formatoCalculada == "Porcentaje" ? "selected" : null)">
+                                                Porcentaje
+                                            </option>
+                                        </select>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="builder-actions">
+                            <button type="submit"
+                                    class="btn btn-primary btn-report">
+                                <i class="fas fa-play me-1"></i>
+                                Ejecutar reporte
+                            </button>
+
+                            <button type="submit"
+                                    class="btn btn-outline-secondary btn-report"
+                                    formaction="@Url.Action("GuardarPlantilla", "Reportes")"
+                                    formmethod="post">
+                                <i class="fas fa-save me-1"></i>
+                                Guardar plantilla
+                            </button>
+
+                            <button type="submit"
+                                    class="btn btn-outline-success btn-report"
+                                    formaction="@Url.Action("ExportExcel", "Reportes")"
+                                    formmethod="get"
+                                    formtarget="_blank">
+                                <i class="fas fa-file-excel me-1"></i>
+                                Exportar Excel
+                            </button>
+
+                            <button type="submit"
+                                    class="btn btn-outline-danger btn-report"
+                                    formaction="@Url.Action("ExportPdf", "Reportes")"
+                                    formmethod="get"
+                                    formtarget="_blank">
+                                <i class="fas fa-file-pdf me-1"></i>
+                                Exportar PDF
+                            </button>
+                        </div>
+
+                    </form>
+
+                </div>
+            </div>
+        </aside>
+
+        <main class="report-main">
+
+            <div class="report-card">
+                <div class="report-card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div>
+                        <i class="fas fa-table text-danger me-2"></i>
+                        Resultados
+                    </div>
+
+                    <div class="records-info">
+                        Mostrando @registroInicial - @registroFinal de @Model.Paginacion.TotalRegistros registros
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover table-report">
+                        <thead>
+                            <tr>
+                                @foreach (var columna in columnasVisibles)
+                                {
+                                    <th class="@columna.CssClass"
+                                        style="width:@columna.Width">
+                                        @columna.Titulo
+                                    </th>
+                                }
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @if (Model.Resultados != null && Model.Resultados.Any())
+                            {
+                                foreach (var item in Model.Resultados)
+                                {
+                                    <tr>
+                                        @foreach (var columna in columnasVisibles)
+                                        {
+                                            <td class="@columna.CssClass">
+                                                @(columna.ValueSelector?.Invoke(item))
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="@Math.Max(columnasVisibles.Count, 1)">
+                                        <div class="empty-state">
+                                            <i class="fas fa-inbox d-block"></i>
+                                            No se encontraron registros con los filtros seleccionados.
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="report-card-body border-top">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+
+                        <form method="get" class="d-flex align-items-center gap-2">
+
+                            <input type="hidden"
+                                   name="reportKey"
+                                   value="@Model.Configuracion.Datasetkey" />
+
+                            <input type="hidden"
+                                   name="page"
+                                   value="1" />
+
+                            <input type="hidden"
+                                   name="nombreReporte"
+                                   value="@nombreReporte" />
+
+                            <input type="hidden"
+                                   name="descripcionReporte"
+                                   value="@descripcionReporte" />
+
+                            <input type="hidden"
+                                   name="compartirReporte"
+                                   value="@compartirReporte" />
+
+                            <input type="hidden"
+                                   name="ordenarPor"
+                                   value="@ordenarPorActual" />
+
+                            <input type="hidden"
+                                   name="direccion"
+                                   value="@direccionActual" />
+
+                            @for (int i = 0; i < totalFiltrosDinamicos; i++)
+                            {
+                                var filtroKey = Context.Request.Query[$"filtros[{i}].Key"].ToString();
+                                var filtroOperador = Context.Request.Query[$"filtros[{i}].Operador"].ToString();
+                                var filtroValor = Context.Request.Query[$"filtros[{i}].Valor"].ToString();
+                                var filtroValor2 = Context.Request.Query[$"filtros[{i}].Valor2"].ToString();
+
+                                <input type="hidden"
+                                       name="filtros[@i].Key"
+                                       value="@filtroKey" />
+
+                                <input type="hidden"
+                                       name="filtros[@i].Operador"
+                                       value="@filtroOperador" />
+
+                                <input type="hidden"
+                                       name="filtros[@i].Valor"
+                                       value="@filtroValor" />
+
+                                <input type="hidden"
+                                       name="filtros[@i].Valor2"
+                                       value="@filtroValor2" />
+                            }
+
+                            @for (int i = 0; i < totalColumnasCalculadas; i++)
+                            {
+                                var nombreCalculada = Context.Request.Query[$"calculadas[{i}].Nombre"].ToString();
+                                var formulaCalculada = Context.Request.Query[$"calculadas[{i}].Formula"].ToString();
+                                var formatoCalculada = Context.Request.Query[$"calculadas[{i}].Formato"].ToString();
+
+                                <input type="hidden"
+                                       name="calculadas[@i].Nombre"
+                                       value="@nombreCalculada" />
+
+                                <input type="hidden"
+                                       name="calculadas[@i].Formula"
+                                       value="@formulaCalculada" />
+
+                                <input type="hidden"
+                                       name="calculadas[@i].Formato"
+                                       value="@formatoCalculada" />
+                            }
+
+                            @foreach (var columna in columnasSeleccionadas)
+                            {
+                                <input type="hidden"
+                                       name="visible"
+                                       value="@columna" />
+                            }
+
+                            <label class="mb-0 text-muted fw-bold">
+                                Filas
+                            </label>
+
+                            <select name="pageSize"
+                                    asp-for="Paginacion.TamanoPagina"
+                                    class="form-select form-select-sm"
+                                    onchange="this.form.submit()">
+
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                                <option value="250">250</option>
+                                <option value="500">500</option>
+
+                            </select>
+
+                        </form>
+
+                        @if (totalPaginas > 1)
+                        {
+                            <nav aria-label="Paginación de resultados">
+                                <ul class="pagination mb-0">
+
+                                    <li class="page-item @(Model.Paginacion.TienePaginaAnterior ? "" : "disabled")">
+                                        <a class="page-link"
+                                           href="@queryBase&page=@Math.Max(paginaActual - 1, 1)@visiblesQuery">
+                                            Anterior
+                                        </a>
+                                    </li>
+
+                                    @for (int i = 0; i < paginas.Count; i++)
+                                    {
+                                        if (i > 0 && paginas[i] - paginas[i - 1] > 1)
+                                        {
+                                            <li class="page-item disabled">
+                                                <span class="page-link">...</span>
+                                            </li>
+                                        }
+
+                                        <li class="page-item @(paginas[i] == paginaActual ? "active" : "")">
+                                            <a class="page-link"
+                                               href="@queryBase&page=@paginas[i]@visiblesQuery">
+                                                @paginas[i]
+                                            </a>
+                                        </li>
+                                    }
+
+                                    <li class="page-item @(Model.Paginacion.TienePaginaSiguiente ? "" : "disabled")">
+                                        <a class="page-link"
+                                           href="@queryBase&page=@Math.Min(paginaActual + 1, totalPaginas)@visiblesQuery">
+                                            Siguiente
+                                        </a>
+                                    </li>
+
+                                </ul>
+                            </nav>
+                        }
+
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+    </div>
+
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const workspace = document.getElementById("reportWorkspace");
+        const sidebar = document.getElementById("reportSidebar");
+        const button = document.getElementById("btnToggleSidebar");
+
+        if (workspace && sidebar && button) {
+            const icon = button.querySelector("i");
+
+            function setCollapsed(collapsed) {
+                if (collapsed) {
+                    workspace.classList.add("sidebar-collapsed");
+                    sidebar.classList.add("sidebar-collapsed");
+
+                    if (icon) {
+                        icon.classList.remove("fa-chevron-left");
+                        icon.classList.add("fa-chevron-right");
+                    }
+
+                    button.title = "Expandir panel";
+                } else {
+                    workspace.classList.remove("sidebar-collapsed");
+                    sidebar.classList.remove("sidebar-collapsed");
+
+                    if (icon) {
+                        icon.classList.remove("fa-chevron-right");
+                        icon.classList.add("fa-chevron-left");
+                    }
+
+                    button.title = "Contraer panel";
+                }
+
+                localStorage.setItem("reportSidebarCollapsed", collapsed ? "true" : "false");
+            }
+
+            const savedState = localStorage.getItem("reportSidebarCollapsed");
+
+            if (savedState === "true") {
+                setCollapsed(true);
+            }
+
+            button.addEventListener("click", function () {
+                const collapsed = !workspace.classList.contains("sidebar-collapsed");
+                setCollapsed(collapsed);
+            });
+        }
+
+        const sectionButtons = document.querySelectorAll("[data-section-toggle='true']");
+
+        sectionButtons.forEach(function (sectionButton) {
+            const targetId = sectionButton.getAttribute("data-target");
+            const body = document.getElementById(targetId);
+
+            if (!body) {
+                return;
+            }
+
+            const storageKey = "reportBuilderSection_" + targetId;
+            const savedSectionState = localStorage.getItem(storageKey);
+
+            if (savedSectionState === "collapsed") {
+                body.classList.add("is-collapsed");
+                sectionButton.classList.add("section-collapsed");
+                sectionButton.setAttribute("aria-expanded", "false");
+            }
+
+            if (savedSectionState === "expanded") {
+                body.classList.remove("is-collapsed");
+                sectionButton.classList.remove("section-collapsed");
+                sectionButton.setAttribute("aria-expanded", "true");
+            }
+
+            sectionButton.addEventListener("click", function () {
+                const isCollapsed = body.classList.toggle("is-collapsed");
+
+                sectionButton.classList.toggle("section-collapsed", isCollapsed);
+                sectionButton.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
+                localStorage.setItem(storageKey, isCollapsed ? "collapsed" : "expanded");
+            });
+        });
+
+        const rows = document.querySelectorAll(".filter-row");
+
+        function normalizeDateValue(value) {
+            const raw = (value || "").trim();
+
+            if (!raw) {
+                return "";
+            }
+
+            // Formato correcto para input date: yyyy-MM-dd
+            if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+                return raw;
+            }
+
+            // Convierte dd/MM/yyyy o dd-MM-yyyy a yyyy-MM-dd
+            const match = raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+
+            if (match) {
+                const day = match[1].padStart(2, "0");
+                const month = match[2].padStart(2, "0");
+                const year = match[3];
+
+                return `${year}-${month}-${day}`;
+            }
+
+            return raw;
+        }
+
+        function isDateColumn(row) {
+            const keySelect = row.querySelector(".filter-key");
+
+            if (!keySelect) {
+                return false;
+            }
+
+            const selectedOption = keySelect.options[keySelect.selectedIndex];
+            const selectedText = selectedOption ? selectedOption.textContent || "" : "";
+            const selectedValue = keySelect.value || "";
+
+            if (selectedOption && selectedOption.dataset.isDate === "true") {
+                return true;
+            }
+
+            return /fecha|date|fec/i.test(selectedText) || /fecha|date|fec/i.test(selectedValue);
+        }
+
+        function configureFilterRow(row) {
+            const keySelect = row.querySelector(".filter-key");
+            const operator = row.querySelector(".filter-operator");
+            const value1 = row.querySelector(".filter-value");
+            const value2 = row.querySelector(".filter-value2");
+
+            if (!operator || !value1 || !value2) {
+                return;
+            }
+
+            const dateColumn = isDateColumn(row);
+            const noValueOperator = operator.value === "empty" || operator.value === "notempty";
+            const betweenOperator = operator.value === "between";
+
+            [value1, value2].forEach(function (input, index) {
+                if (dateColumn) {
+                    input.type = "date";
+                    input.classList.add("date-filter-input");
+                    input.placeholder = index === 0 ? "Fecha" : "Fecha final";
+
+                    const normalized = normalizeDateValue(input.value);
+                    if (normalized !== input.value) {
+                        input.value = normalized;
+                    }
+                } else {
+                    input.type = "text";
+                    input.classList.remove("date-filter-input");
+                    input.placeholder = input.dataset.defaultPlaceholder || (index === 0 ? "Valor" : "Valor 2");
+                }
+            });
+
+            if (noValueOperator) {
+                value1.value = "";
+                value2.value = "";
+                value1.style.display = "none";
+                value2.style.display = "none";
+                return;
+            }
+
+            value1.style.display = "";
+
+            if (betweenOperator) {
+                value2.style.display = "";
+            } else {
+                value2.value = "";
+                value2.style.display = "none";
+            }
+
+            if (keySelect && !keySelect.dataset.dateListenerAttached) {
+                keySelect.addEventListener("change", function () {
+                    configureFilterRow(row);
+                });
+                keySelect.dataset.dateListenerAttached = "true";
+            }
+
+            if (!operator.dataset.dateListenerAttached) {
+                operator.addEventListener("change", function () {
+                    configureFilterRow(row);
+                });
+                operator.dataset.dateListenerAttached = "true";
+            }
+        }
+
+        rows.forEach(function (row) {
+            configureFilterRow(row);
+        });
+
+
+        // ===== Ayuda para columnas calculadas =====
+        let activeFormulaInput = null;
+        const formulaInputs = document.querySelectorAll(".formula-input");
+        const formulaChips = document.querySelectorAll(".formula-column-chip");
+        const formulaSearch = document.querySelector(".formula-column-search");
+
+        function setActiveFormulaInput(input) {
+            formulaInputs.forEach(function (item) {
+                item.classList.remove("is-target");
+            });
+
+            activeFormulaInput = input;
+
+            if (activeFormulaInput) {
+                activeFormulaInput.classList.add("is-target");
+            }
+        }
+
+        function insertTextAtCursor(input, text) {
+            if (!input) {
+                return;
+            }
+
+            const start = input.selectionStart ?? input.value.length;
+            const end = input.selectionEnd ?? input.value.length;
+            const before = input.value.substring(0, start);
+            const after = input.value.substring(end);
+
+            const needsLeftSpace = before.length > 0 && !/\s$/.test(before);
+            const needsRightSpace = after.length > 0 && !/^\s/.test(after);
+            const insertValue = `${needsLeftSpace ? " " : ""}${text}${needsRightSpace ? " " : ""}`;
+
+            input.value = before + insertValue + after;
+
+            const newPosition = before.length + insertValue.length;
+            input.focus();
+            input.setSelectionRange(newPosition, newPosition);
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+
+        formulaInputs.forEach(function (input) {
+            input.addEventListener("focus", function () {
+                setActiveFormulaInput(input);
+            });
+
+            input.addEventListener("click", function () {
+                setActiveFormulaInput(input);
+            });
+        });
+
+        if (!activeFormulaInput && formulaInputs.length > 0) {
+            setActiveFormulaInput(formulaInputs[0]);
+        }
+
+        formulaChips.forEach(function (button) {
+            button.addEventListener("click", function () {
+                const key = button.dataset.columnKey || "";
+                const targetInput = activeFormulaInput || document.querySelector(".formula-input");
+
+                if (!key || !targetInput) {pero
+                    return;
+                }
+
+                setActiveFormulaInput(targetInput);
+                insertTextAtCursor(targetInput, key);
+            });
+        });
+
+        if (formulaSearch) {
+            formulaSearch.addEventListener("input", function () {
+                const term = (formulaSearch.value || "").trim().toLowerCase();
+
+                formulaChips.forEach(function (button) {
+                    const key = (button.dataset.columnKey || "").toLowerCase();
+                    const title = (button.dataset.columnTitle || "").toLowerCase();
+                    const visible = !term || key.includes(term) || title.includes(term);
+
+                    button.classList.toggle("is-hidden", !visible);
+                });
+            });
+        }
+
+    });
+</script>

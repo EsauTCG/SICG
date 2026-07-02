@@ -1,0 +1,6 @@
+CREATE TABLE Perfiles (
+    Id INT IDENTITY(1,1) PRIMARY KEY,
+    Nombre NVARCHAR(100) NOT NULL,
+    Descripcion NVARCHAR(255) NULL,
+    Activo BIT NOT NULL DEFAULT 1
+);

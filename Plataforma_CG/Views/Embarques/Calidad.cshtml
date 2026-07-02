@@ -1,0 +1,4849 @@
+﻿@model IEnumerable<Plataforma_CG.Models.Embarque>
+
+@{
+    ViewData["Title"] = "Calidad - Validación";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+
+    var pendientes = Model.Where(x => x.CalidadAprobada != true)
+        .OrderByDescending(x => x.FechaCreacion)
+        .ToList();
+
+    var busqueda = Context.Request.Query["busqueda"].ToString();
+    var fechaInicio = Context.Request.Query["fechaInicio"].ToString();
+    var fechaFin = Context.Request.Query["fechaFin"].ToString();
+
+    var historialCalidad = ViewBag.HistorialCalidad as List<Plataforma_CG.Models.Embarque>
+        ?? new List<Plataforma_CG.Models.Embarque>();
+
+    bool buscoHistorialCalidad = Convert.ToBoolean(ViewBag.BuscoHistorialCalidad ?? false);
+
+    var busquedaHistorial = Context.Request.Query["busquedaHistorial"].ToString();
+    var fechaInicioHistorial = Context.Request.Query["fechaInicioHistorial"].ToString();
+    var fechaFinHistorial = Context.Request.Query["fechaFinHistorial"].ToString();
+
+    var fotosCalidadHistorial =
+        ViewBag.FotosCalidadHistorial as Dictionary<int, List<Plataforma_CG.Models.Embarque.EmbarqueCalidadFoto>>
+        ?? new Dictionary<int, List<Plataforma_CG.Models.Embarque.EmbarqueCalidadFoto>>();
+
+    var productosTemperaturaCalidad =
+    ViewBag.ProductosTemperaturaCalidad
+        as Dictionary<int, List<Plataforma_CG.Models.EmbarqueProductoTemperaturaItemVm>>
+    ?? new Dictionary<int, List<Plataforma_CG.Models.EmbarqueProductoTemperaturaItemVm>>();
+}
+
+<style>
+    :root {
+        --primary: #8B0000;
+        --primary-dark: #5a0000;
+        --primary-soft: #fff1f1;
+        --bg: #f3f6fa;
+        --panel: #fff;
+        --border: #dfe5ec;
+        --text: #1f2937;
+        --muted: #6b7280;
+        --success: #198754;
+        --warning: #f59e0b;
+        --danger: #dc3545;
+        --shadow-sm: 0 6px 18px rgba(15, 23, 42, 0.06);
+        --shadow-md: 0 14px 34px rgba(15, 23, 42, 0.10);
+        --radius-xl: 22px;
+        --radius-lg: 18px;
+        --radius-md: 14px;
+        --transition: all .22s ease;
+    }
+
+    body {
+        background: linear-gradient(180deg, #f8fafc 0%, #eef3f8 100%);
+    }
+
+    .quality-wrap {
+        max-width: 1360px;
+        margin: 2rem auto;
+        padding: 0 1rem 2rem;
+    }
+
+    .quality-header {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 65%, #250000 100%);
+        color: #fff;
+        border-radius: var(--radius-xl);
+        padding: 1.5rem;
+        box-shadow: var(--shadow-md);
+        margin-bottom: 1.2rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+        .quality-header::after {
+            content: "";
+            position: absolute;
+            right: -45px;
+            top: -45px;
+            width: 190px;
+            height: 190px;
+            border-radius: 50%;
+            background: rgba(255,255,255,.07);
+        }
+
+    .quality-header-content {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .quality-title {
+        display: flex;
+        align-items: center;
+        gap: .8rem;
+        margin: 0;
+        font-size: 1.75rem;
+        font-weight: 900;
+    }
+
+    .quality-title-icon {
+        width: 54px;
+        height: 54px;
+        border-radius: 16px;
+        background: rgba(255,255,255,.12);
+        border: 1px solid rgba(255,255,255,.18);
+        display: grid;
+        place-items: center;
+        font-size: 1.45rem;
+    }
+
+    .quality-sub {
+        margin: .45rem 0 0;
+        color: rgba(255,255,255,.88);
+        max-width: 780px;
+    }
+
+    .quality-date {
+        padding: .6rem 1rem;
+        border-radius: 999px;
+        background: rgba(255,255,255,.13);
+        border: 1px solid rgba(255,255,255,.18);
+        font-weight: 800;
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+    }
+
+    .quality-kpis {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.2rem;
+    }
+
+    .kpi-card {
+        background: rgba(255,255,255,.85);
+        border: 1px solid rgba(255,255,255,.9);
+        box-shadow: var(--shadow-sm);
+        border-radius: var(--radius-lg);
+        padding: 1rem;
+        display: flex;
+        gap: .9rem;
+        align-items: center;
+    }
+
+    .kpi-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 15px;
+        display: grid;
+        place-items: center;
+        background: var(--primary-soft);
+        color: var(--primary);
+        font-size: 1.25rem;
+        flex-shrink: 0;
+    }
+
+    .kpi-label {
+        color: var(--muted);
+        font-size: .78rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .4px;
+    }
+
+    .kpi-value {
+        color: var(--primary);
+        font-size: 1.7rem;
+        font-weight: 900;
+        line-height: 1;
+    }
+
+    .kpi-sub {
+        color: var(--muted);
+        font-size: .84rem;
+        margin-top: .25rem;
+    }
+
+    .alert-sap {
+        border: none;
+        border-radius: 16px;
+        box-shadow: var(--shadow-sm);
+        padding: .95rem 1rem;
+    }
+
+    .empty-state {
+        background: var(--panel);
+        border: 1px dashed #cfd7e1;
+        border-radius: var(--radius-xl);
+        padding: 3rem 1.5rem;
+        text-align: center;
+        box-shadow: var(--shadow-sm);
+    }
+
+        .empty-state i {
+            font-size: 3rem;
+            color: var(--muted);
+            opacity: .55;
+            margin-bottom: .8rem;
+        }
+
+    .quality-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .embarque-card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-sm);
+        overflow: hidden;
+        transition: var(--transition);
+    }
+
+        .embarque-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+    .embarque-summary {
+        padding: 1.15rem 1.25rem;
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: center;
+        cursor: pointer;
+        background: linear-gradient(180deg, #fff 0%, #fbfcfe 100%);
+    }
+
+    .embarque-id {
+        color: var(--primary);
+        font-weight: 900;
+        font-size: 1.15rem;
+        margin: 0 0 .65rem;
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+    }
+
+    .embarque-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .5rem;
+    }
+
+    .meta-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: .42rem;
+        background: #f3f5f8;
+        color: var(--text);
+        border-radius: 999px;
+        padding: .42rem .72rem;
+        font-size: .82rem;
+        font-weight: 800;
+    }
+
+        .meta-pill.pending {
+            background: rgba(245,158,11,.15);
+            color: #8a5a00;
+        }
+
+        .meta-pill.primary {
+            background: var(--primary-soft);
+            color: var(--primary);
+        }
+
+    .summary-right {
+        display: flex;
+        align-items: center;
+        gap: .85rem;
+        flex-shrink: 0;
+    }
+
+    .summary-count {
+        text-align: right;
+    }
+
+        .summary-count small {
+            display: block;
+            color: var(--muted);
+            font-size: .75rem;
+            text-transform: uppercase;
+            font-weight: 900;
+            letter-spacing: .4px;
+        }
+
+        .summary-count strong {
+            color: var(--text);
+            font-size: .98rem;
+        }
+
+    .toggle-btn {
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        border: 1px solid var(--border);
+        background: #fff;
+        color: var(--primary);
+        display: grid;
+        place-items: center;
+        transition: var(--transition);
+        box-shadow: 0 4px 10px rgba(0,0,0,.04);
+    }
+
+    .embarque-card.active .toggle-btn {
+        background: var(--primary);
+        color: #fff;
+        transform: rotate(180deg);
+    }
+
+    .embarque-detail {
+        display: none;
+        border-top: 1px solid var(--border);
+        background: #f8fafc;
+        padding: 1.15rem;
+    }
+
+    .embarque-card.active .embarque-detail {
+        display: block;
+        animation: fadeIn .22s ease;
+    }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(6px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .validation-layout {
+        display: grid;
+        grid-template-columns: 330px minmax(0, 1fr);
+        gap: 1rem;
+        align-items: start;
+    }
+
+    .side-panel {
+        position: sticky;
+        top: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .quick-card,
+    .docs-card,
+    .form-card {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        box-shadow: 0 4px 12px rgba(0,0,0,.03);
+        overflow: hidden;
+    }
+
+    .card-head {
+        padding: .95rem 1rem;
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(180deg, #fff 0%, #fafbfd 100%);
+    }
+
+    .card-title {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 900;
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        color: var(--text);
+    }
+
+        .card-title i {
+            color: var(--primary);
+        }
+
+    .card-sub {
+        margin-top: .22rem;
+        color: var(--muted);
+        font-size: .84rem;
+    }
+
+    .card-body {
+        padding: 1rem;
+    }
+
+    .quick-row {
+        display: flex;
+        justify-content: space-between;
+        gap: .8rem;
+        padding: .75rem 0;
+        border-bottom: 1px solid #edf1f5;
+    }
+
+        .quick-row:last-child {
+            border-bottom: 0;
+        }
+
+    .quick-label {
+        color: var(--muted);
+        font-size: .8rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .quick-value {
+        font-weight: 900;
+        color: var(--text);
+        text-align: right;
+    }
+
+    .doc-buttons {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: .65rem;
+    }
+
+    .doc-mini {
+        border: 1px solid var(--border);
+        border-radius: 15px;
+        background: #f8fafc;
+        padding: .85rem;
+        text-align: center;
+    }
+
+        .doc-mini i {
+            color: var(--primary);
+            font-size: 1.25rem;
+        }
+
+        .doc-mini strong {
+            display: block;
+            font-size: 1.35rem;
+            color: var(--primary);
+            line-height: 1;
+            margin-top: .35rem;
+        }
+
+        .doc-mini span {
+            color: var(--muted);
+            font-size: .8rem;
+            font-weight: 800;
+        }
+
+    .table-wrap {
+        width: 100%;
+        overflow-x: auto;
+        border-radius: 14px;
+    }
+
+    .tabla-soft {
+        width: 100%;
+        margin: 0;
+        border-collapse: separate;
+        border-spacing: 0;
+        background: #fff;
+    }
+
+        .tabla-soft thead th {
+            background: #f3f6f9;
+            color: var(--text);
+            font-weight: 900;
+            white-space: nowrap;
+            font-size: .86rem;
+            padding: .82rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .tabla-soft td {
+            padding: .78rem;
+            border-bottom: 1px solid #edf1f5;
+            font-size: .91rem;
+            vertical-align: middle;
+        }
+
+        .tabla-soft tbody tr:hover {
+            background: #fafbfd;
+        }
+
+    .accordion-quality {
+        display: flex;
+        flex-direction: column;
+        gap: .85rem;
+    }
+
+    .quality-step {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0,0,0,.03);
+    }
+
+    .step-head {
+        width: 100%;
+        border: none;
+        background: #fff;
+        padding: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .8rem;
+        cursor: pointer;
+        text-align: left;
+    }
+
+    .step-head-left {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+    }
+
+    .step-number {
+        width: 36px;
+        height: 36px;
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        background: var(--primary-soft);
+        color: var(--primary);
+        font-weight: 900;
+        flex-shrink: 0;
+    }
+
+    .step-title {
+        display: block;
+        font-weight: 900;
+        color: var(--text);
+    }
+
+    .step-desc {
+        display: block;
+        color: var(--muted);
+        font-size: .83rem;
+        margin-top: .1rem;
+    }
+
+    .step-chevron {
+        color: var(--primary);
+        transition: var(--transition);
+    }
+
+    .quality-step.open .step-chevron {
+        transform: rotate(180deg);
+    }
+
+    .step-body {
+        display: none;
+        padding: 0 1rem 1rem;
+        border-top: 1px solid #edf1f5;
+    }
+
+    .quality-step.open .step-body {
+        display: block;
+        animation: fadeIn .18s ease;
+    }
+
+    .form-label {
+        font-weight: 800;
+        color: var(--text);
+        margin-bottom: .42rem;
+        font-size: .93rem;
+    }
+
+    .form-control,
+    .form-select {
+        border-radius: 13px;
+        border: 1.5px solid var(--border);
+        min-height: 48px;
+        transition: var(--transition);
+    }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 .22rem rgba(139,0,0,.10);
+        }
+
+    textarea.form-control {
+        min-height: 112px;
+    }
+
+    .input-hint {
+        color: var(--muted);
+        font-size: .82rem;
+        margin-top: .35rem;
+    }
+
+    .upload-box {
+        border: 2px dashed #d7dce2;
+        border-radius: 18px;
+        padding: 1rem;
+        background: linear-gradient(180deg, #fcfcfd 0%, #f9fafb 100%);
+        transition: var(--transition);
+    }
+
+        .upload-box.has-files {
+            border-color: var(--success);
+            background: #f1fff6;
+        }
+
+    .upload-help {
+        color: var(--muted);
+        font-size: .88rem;
+        margin-top: .5rem;
+    }
+
+    .file-list {
+        margin-top: .8rem;
+        display: flex;
+        flex-direction: column;
+        gap: .5rem;
+    }
+
+    .file-item {
+        background: #fff;
+        border-radius: 12px;
+        padding: .65rem .8rem;
+        font-size: .88rem;
+        color: var(--text);
+        font-weight: 700;
+        border: 1px solid #dcefe2;
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+    }
+
+        .file-item i {
+            color: var(--success);
+        }
+
+    .pending-box {
+        background: linear-gradient(180deg, #fff8e8 0%, #fffdf8 100%);
+        border: 1px solid #f5dfaa;
+        border-radius: 16px;
+        padding: 1rem;
+        color: #7a5200;
+    }
+
+    .form-actions-sticky {
+        position: sticky;
+        bottom: 0;
+        margin-top: 1rem;
+        background: rgba(248,250,252,.92);
+        backdrop-filter: blur(8px);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: .85rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .8rem;
+        flex-wrap: wrap;
+        box-shadow: 0 -8px 20px rgba(15,23,42,.06);
+    }
+
+    .action-note {
+        color: var(--muted);
+        font-size: .86rem;
+        font-weight: 700;
+    }
+
+    .btn-sap {
+        min-width: 190px;
+        height: 48px;
+        border-radius: 14px;
+        font-weight: 900;
+        border: none;
+        transition: var(--transition);
+        box-shadow: 0 8px 18px rgba(0,0,0,.06);
+    }
+
+    .btn-sap-success {
+        background: linear-gradient(to right, #198754, #157347);
+        color: #fff;
+    }
+
+        .btn-sap-success:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 22px rgba(25,135,84,.22);
+            color: #fff;
+        }
+
+    .btn-sap-outline {
+        border: 1px solid var(--border);
+        background: #fff;
+        color: var(--primary);
+    }
+
+        .btn-sap-outline:hover {
+            background: var(--primary-soft);
+            color: var(--primary);
+        }
+
+    @@media (max-width: 1100px) {
+        .validation-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .side-panel {
+            position: static;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .quality-wrap {
+            padding: 0 .6rem 1.5rem;
+        }
+
+        .quality-header {
+            padding: 1.1rem;
+            border-radius: 18px;
+        }
+
+        .quality-title {
+            font-size: 1.28rem;
+        }
+
+        .embarque-summary {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .summary-right {
+            justify-content: space-between;
+        }
+
+        .summary-count {
+            text-align: left;
+        }
+
+        .doc-buttons {
+            grid-template-columns: 1fr;
+        }
+
+        .btn-sap {
+            width: 100%;
+        }
+
+        .form-actions-sticky {
+            align-items: stretch;
+        }
+    }
+
+    .quality-filter-panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-sm);
+        padding: 1rem;
+        margin-bottom: 1.2rem;
+    }
+
+    .quality-filter-title {
+        font-size: 1rem;
+        font-weight: 900;
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+        margin-bottom: .85rem;
+        color: var(--text);
+    }
+
+    .quality-filter-grid {
+        display: grid;
+        grid-template-columns: minmax(240px, 1.4fr) repeat(2, minmax(180px, .8fr)) auto auto;
+        gap: .8rem;
+        align-items: end;
+    }
+
+    .quality-filter-group label {
+        font-size: .82rem;
+        font-weight: 900;
+        color: var(--muted);
+        text-transform: uppercase;
+        margin-bottom: .35rem;
+        display: block;
+    }
+
+    .quality-filter-input {
+        width: 100%;
+        border-radius: 13px;
+        border: 1.5px solid var(--border);
+        min-height: 48px;
+        padding: .65rem .85rem;
+        outline: none;
+        background: #fff;
+    }
+
+        .quality-filter-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 .22rem rgba(139,0,0,.10);
+        }
+
+    .quality-filter-btn {
+        height: 48px;
+        border-radius: 14px;
+        padding: 0 1rem;
+        border: none;
+        font-weight: 900;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .5rem;
+        text-decoration: none;
+        white-space: nowrap;
+    }
+
+        .quality-filter-btn.primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: #fff;
+        }
+
+        .quality-filter-btn.secondary {
+            background: #fff;
+            color: var(--primary);
+            border: 1px solid var(--border);
+        }
+
+    /* Mejoras responsive extra */
+    @@media (max-width: 992px) {
+        .quality-filter-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .validation-layout {
+            grid-template-columns: 1fr !important;
+        }
+
+        .side-panel {
+            position: static !important;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .quality-wrap {
+            margin: 1rem auto !important;
+            padding: 0 .65rem 1.5rem !important;
+        }
+
+        .quality-header-content {
+            align-items: stretch !important;
+        }
+
+        .quality-title {
+            align-items: flex-start;
+            line-height: 1.15;
+        }
+
+        .quality-title-icon {
+            width: 46px;
+            height: 46px;
+            font-size: 1.15rem;
+            flex-shrink: 0;
+        }
+
+        .quality-sub {
+            font-size: .9rem;
+        }
+
+        .quality-date {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .quality-filter-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .quality-filter-btn {
+            width: 100%;
+        }
+
+        .quality-kpis {
+            grid-template-columns: 1fr !important;
+        }
+
+        .embarque-summary {
+            padding: 1rem !important;
+        }
+
+        .embarque-id {
+            font-size: 1rem !important;
+            word-break: break-word;
+        }
+
+        .embarque-meta {
+            display: grid !important;
+            grid-template-columns: 1fr;
+            width: 100%;
+        }
+
+        .meta-pill {
+            width: 100%;
+            justify-content: flex-start;
+            white-space: normal;
+        }
+
+        .summary-right {
+            width: 100%;
+            gap: .7rem;
+        }
+
+        .toggle-btn {
+            width: 42px;
+            height: 42px;
+            flex-shrink: 0;
+        }
+
+        .embarque-detail {
+            padding: .85rem !important;
+        }
+
+        .card-body {
+            padding: .85rem !important;
+        }
+
+        .quick-row {
+            flex-direction: column;
+            gap: .25rem;
+        }
+
+        .quick-value {
+            text-align: left !important;
+            word-break: break-word;
+        }
+
+        .step-head {
+            align-items: flex-start !important;
+        }
+
+        .step-head-left {
+            align-items: flex-start !important;
+        }
+
+        .step-title {
+            font-size: .95rem;
+        }
+
+        .step-desc {
+            font-size: .78rem;
+        }
+
+        .form-actions-sticky {
+            position: static !important;
+            margin-top: 1rem;
+        }
+
+        .action-note {
+            width: 100%;
+            text-align: center;
+        }
+    }
+
+    @@media (max-width: 520px) {
+        .quality-header {
+            padding: 1rem !important;
+        }
+
+        .quality-title {
+            font-size: 1.12rem !important;
+        }
+
+        .kpi-card {
+            align-items: flex-start;
+        }
+
+        .kpi-icon {
+            width: 44px;
+            height: 44px;
+            font-size: 1rem;
+        }
+
+        .kpi-value {
+            font-size: 1.35rem;
+        }
+
+        .doc-buttons {
+            grid-template-columns: 1fr !important;
+        }
+
+        .tabla-soft {
+            min-width: 560px !important;
+        }
+    }
+
+    /* FIX MOBILE: Órdenes, transferencias y documentos */
+    @@media (max-width: 768px) {
+        .docs-card {
+            width: 100%;
+        }
+
+            .docs-card .card-body {
+                padding: .85rem !important;
+            }
+
+        .doc-buttons {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: .7rem !important;
+        }
+
+        .doc-mini {
+            padding: .8rem .55rem !important;
+            min-width: 0;
+        }
+
+            .doc-mini strong {
+                font-size: 1.15rem !important;
+            }
+
+            .doc-mini span {
+                font-size: .75rem !important;
+            }
+
+        .form-card {
+            width: 100%;
+            overflow: hidden;
+        }
+
+            .form-card .card-head {
+                padding: .85rem !important;
+            }
+
+            .form-card .card-title {
+                font-size: .95rem !important;
+                line-height: 1.25;
+                align-items: flex-start;
+            }
+
+            .form-card .card-sub {
+                font-size: .78rem !important;
+                line-height: 1.3;
+            }
+
+            .form-card .card-body {
+                padding: .75rem !important;
+            }
+
+        .table-wrap {
+            width: 100%;
+            overflow-x: auto !important;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+            border: 1px solid var(--border);
+            background: #fff;
+        }
+
+
+
+            .tabla-soft thead th,
+            .tabla-soft td {
+                padding: .65rem !important;
+                font-size: .82rem !important;
+                white-space: nowrap;
+            }
+    }
+
+    @@media (max-width: 520px) {
+        .doc-buttons {
+            grid-template-columns: 1fr !important;
+        }
+
+        .doc-mini {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            text-align: left !important;
+            gap: .75rem;
+        }
+
+            .doc-mini i {
+                font-size: 1.1rem !important;
+            }
+
+            .doc-mini strong {
+                margin-top: 0 !important;
+            }
+
+            .doc-mini span {
+                margin-left: auto;
+            }
+
+    }
+
+    /* =========================================================
+       RESPONSIVE FINAL - CALIDAD
+       Corrige secciones comidas en móvil
+       ========================================================= */
+
+    * {
+        box-sizing: border-box;
+    }
+
+    .quality-wrap,
+    .quality-header,
+    .quality-filter-panel,
+    .quality-kpis,
+    .quality-list,
+    .embarque-card,
+    .embarque-detail,
+    .validation-layout,
+    .side-panel,
+    .quick-card,
+    .docs-card,
+    .form-card,
+    .accordion-quality,
+    .quality-step,
+    .step-body,
+    form,
+    main {
+        min-width: 0;
+    }
+
+    main {
+        width: 100%;
+    }
+
+    .card-body,
+    .card-head,
+    .step-body,
+    .embarque-detail {
+        min-width: 0;
+    }
+
+    .form-control,
+    .form-select,
+    .quality-filter-input,
+    textarea {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    @@media (max-width: 768px) {
+    body{
+        overflow-x: hidden;
+    }
+
+    .quality-wrap {
+        width: 100%;
+        max-width: 100%;
+        margin: .75rem auto !important;
+        padding: 0 .55rem 1.5rem !important;
+        overflow-x: hidden;
+    }
+
+    .quality-header {
+        padding: 1rem !important;
+        border-radius: 18px !important;
+    }
+
+    .quality-header-content {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch !important;
+        gap: .8rem;
+    }
+
+    .quality-title {
+        font-size: 1.08rem !important;
+        line-height: 1.15;
+        align-items: flex-start;
+        word-break: break-word;
+    }
+
+    .quality-title-icon {
+        width: 42px !important;
+        height: 42px !important;
+        min-width: 42px;
+        font-size: 1.05rem !important;
+        border-radius: 14px;
+    }
+
+    .quality-sub {
+        font-size: .84rem !important;
+        line-height: 1.35;
+    }
+
+    .quality-date {
+        width: 100%;
+        justify-content: center;
+        font-size: .86rem;
+        padding: .55rem .8rem;
+    }
+
+    .quality-kpis {
+        grid-template-columns: 1fr !important;
+        gap: .75rem !important;
+    }
+
+    .kpi-card {
+        padding: .85rem !important;
+        align-items: flex-start;
+    }
+
+    .kpi-icon {
+        width: 44px !important;
+        height: 44px !important;
+        min-width: 44px;
+        font-size: 1rem !important;
+    }
+
+    .kpi-value {
+        font-size: 1.35rem !important;
+    }
+
+    .kpi-sub {
+        font-size: .78rem !important;
+    }
+
+    .quality-filter-panel {
+        padding: .85rem !important;
+        border-radius: 18px !important;
+    }
+
+    .quality-filter-grid {
+        grid-template-columns: 1fr !important;
+        gap: .7rem !important;
+    }
+
+    .quality-filter-btn {
+        width: 100%;
+        min-height: 48px;
+    }
+
+    .embarque-card {
+        border-radius: 18px !important;
+        overflow: hidden;
+    }
+
+        .embarque-card:hover {
+            transform: none !important;
+        }
+
+    .embarque-summary {
+        padding: .9rem !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: .8rem !important;
+    }
+
+    .embarque-id {
+        font-size: .98rem !important;
+        line-height: 1.25;
+        word-break: break-word;
+        margin-bottom: .65rem !important;
+    }
+
+    .embarque-meta {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: .45rem !important;
+        width: 100%;
+    }
+
+    .meta-pill {
+        width: 100%;
+        min-width: 0;
+        justify-content: flex-start;
+        white-space: normal;
+        word-break: break-word;
+        line-height: 1.25;
+        font-size: .78rem !important;
+        padding: .48rem .65rem !important;
+    }
+
+    .summary-right {
+        width: 100%;
+        justify-content: space-between !important;
+        gap: .7rem !important;
+    }
+
+    .summary-count {
+        text-align: left !important;
+    }
+
+        .summary-count strong {
+            font-size: .9rem !important;
+        }
+
+    .toggle-btn {
+        width: 42px !important;
+        height: 42px !important;
+        min-width: 42px;
+    }
+
+    .embarque-detail {
+        padding: .75rem !important;
+    }
+
+    .validation-layout {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: .8rem !important;
+    }
+
+    .side-panel {
+        position: static !important;
+        width: 100%;
+    }
+
+    .quick-card,
+    .docs-card,
+    .form-card,
+    .quality-step {
+        width: 100%;
+        border-radius: 16px !important;
+    }
+
+    .card-head {
+        padding: .8rem !important;
+    }
+
+    .card-title {
+        font-size: .92rem !important;
+        line-height: 1.25;
+        align-items: flex-start;
+    }
+
+    .card-sub {
+        font-size: .76rem !important;
+        line-height: 1.3;
+    }
+
+    .card-body {
+        padding: .75rem !important;
+    }
+
+    .quick-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .25rem;
+        padding: .65rem 0 !important;
+    }
+
+    .quick-label {
+        font-size: .72rem !important;
+    }
+
+    .quick-value {
+        width: 100%;
+        text-align: left !important;
+        word-break: break-word;
+        font-size: .9rem;
+    }
+
+    .doc-buttons {
+        grid-template-columns: 1fr 1fr !important;
+        gap: .6rem !important;
+    }
+
+    .doc-mini {
+        padding: .75rem .5rem !important;
+        min-width: 0;
+        border-radius: 14px;
+    }
+
+        .doc-mini strong {
+            font-size: 1.1rem !important;
+        }
+
+        .doc-mini span {
+            font-size: .72rem !important;
+        }
+
+    .step-head {
+        padding: .85rem !important;
+        align-items: flex-start !important;
+    }
+
+    .step-head-left {
+        align-items: flex-start !important;
+        min-width: 0;
+    }
+
+    .step-number {
+        width: 34px !important;
+        height: 34px !important;
+        min-width: 34px;
+        border-radius: 11px;
+    }
+
+    .step-title {
+        font-size: .9rem !important;
+        line-height: 1.2;
+    }
+
+    .step-desc {
+        font-size: .75rem !important;
+        line-height: 1.25;
+    }
+
+    .step-chevron {
+        margin-top: .35rem;
+        flex-shrink: 0;
+    }
+
+    .step-body {
+        padding: 0 .8rem .85rem !important;
+    }
+
+    .row.g-3 {
+        --bs-gutter-x: .75rem;
+        --bs-gutter-y: .75rem;
+    }
+
+    .form-label {
+        font-size: .84rem !important;
+        line-height: 1.2;
+    }
+
+    .form-control,
+    .form-select {
+        min-height: 46px !important;
+        border-radius: 12px !important;
+        font-size: .92rem;
+    }
+
+    textarea.form-control {
+        min-height: 96px !important;
+    }
+
+    .input-hint,
+    .upload-help {
+        font-size: .76rem !important;
+        line-height: 1.3;
+    }
+
+    .upload-box {
+        padding: .8rem !important;
+        border-radius: 15px !important;
+    }
+
+    .file-item {
+        font-size: .78rem !important;
+        align-items: flex-start;
+        word-break: break-word;
+    }
+
+    .pending-box {
+        font-size: .82rem !important;
+        line-height: 1.35;
+        padding: .85rem !important;
+    }
+
+    .form-actions-sticky {
+        position: static !important;
+        padding: .75rem !important;
+        border-radius: 16px !important;
+        align-items: stretch !important;
+    }
+
+    .action-note {
+        width: 100%;
+        text-align: center;
+        font-size: .78rem !important;
+        line-height: 1.3;
+    }
+
+    .btn-sap {
+        width: 100%;
+        min-width: 0 !important;
+        height: 50px !important;
+    }
+
+    }
+
+    @@media (max-width: 520px) {
+    .quality-wrap {
+        padding-left: .45rem !important;
+        padding-right: .45rem !important;
+    }
+
+    .quality-title {
+        font-size: 1rem !important;
+    }
+
+    .quality-title-icon {
+        width: 40px !important;
+        height: 40px !important;
+        min-width: 40px;
+    }
+
+    .quality-sub {
+        font-size: .8rem !important;
+    }
+
+    .doc-buttons {
+        grid-template-columns: 1fr !important;
+    }
+
+    .doc-mini {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        text-align: left !important;
+        gap: .7rem;
+    }
+
+        .doc-mini strong {
+            margin-top: 0 !important;
+        }
+
+    }
+
+    /* =========================================================
+       TABLAS COMO CARDS EN MÓVIL
+       Evita min-width que rompe la pantalla
+       ========================================================= */
+
+    @@media (max-width: 768px) {
+    .table-wrap{
+        width: 100%;
+        overflow: visible !important;
+        border: none !important;
+        background: transparent !important;
+        border-radius: 0 !important;
+    }
+
+    .tabla-soft {
+        width: 100% !important;
+        min-width: 0 !important;
+        border-collapse: separate !important;
+        border-spacing: 0 .7rem !important;
+        background: transparent !important;
+    }
+
+        .tabla-soft thead {
+            display: none !important;
+        }
+
+        .tabla-soft tbody,
+        .tabla-soft tr,
+        .tabla-soft td {
+            display: block;
+            width: 100%;
+        }
+
+            .tabla-soft tbody tr {
+                background: #fff;
+                border: 1px solid var(--border);
+                border-radius: 16px;
+                box-shadow: 0 6px 16px rgba(15, 23, 42, .06);
+                padding: .75rem;
+                margin-bottom: .7rem;
+            }
+
+        .tabla-soft td {
+            border-bottom: 1px solid #edf1f5 !important;
+            padding: .55rem 0 !important;
+            font-size: .84rem !important;
+            white-space: normal !important;
+            word-break: break-word;
+            display: grid !important;
+            grid-template-columns: 42% minmax(0, 1fr);
+            gap: .65rem;
+            align-items: start;
+        }
+
+            .tabla-soft td:last-child {
+                border-bottom: none !important;
+                padding-bottom: 0 !important;
+            }
+
+            .tabla-soft td::before {
+                content: attr(data-label);
+                color: var(--muted);
+                font-size: .72rem;
+                font-weight: 900;
+                text-transform: uppercase;
+                letter-spacing: .03em;
+                line-height: 1.2;
+            }
+
+            .tabla-soft td[data-label="Cliente"],
+            .tabla-soft td[data-label="Sucursal"] {
+                grid-template-columns: 1fr !important;
+                gap: .25rem;
+            }
+
+                .tabla-soft td[data-label="Cliente"]::before,
+                .tabla-soft td[data-label="Sucursal"]::before {
+                    display: block;
+                }
+
+    }
+
+    /* ============================================================
+       DARK MODE - CALIDAD / VALIDACIÓN
+============================================================ */
+
+body[data-theme="dark"] {
+    --primary: #ef4444;
+    --primary-dark: #991b1b;
+    --primary-soft: rgba(127,29,29,0.24);
+
+    --bg: #0f172a;
+    --panel: #111827;
+    --panel-soft: #172033;
+    --border: rgba(255,255,255,0.12);
+    --text: #f9fafb;
+    --muted: #cbd5e1;
+
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --danger: #f87171;
+
+    --shadow-sm: 0 10px 26px rgba(0,0,0,.34);
+    --shadow-md: 0 18px 42px rgba(0,0,0,.46);
+}
+
+/* Fondo general */
+body[data-theme="dark"] {
+    background: #0f172a !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .layout-main-content {
+    background: #0f172a !important;
+}
+
+body[data-theme="dark"] .layout-main-content .layout-container-fluid {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+body[data-theme="dark"] .quality-wrap {
+    color: #e5e7eb !important;
+}
+
+/* Header */
+body[data-theme="dark"] .quality-header {
+    background: linear-gradient(135deg, #7f1d1d 0%, #450a0a 65%, #111827 100%) !important;
+    border: 1px solid rgba(248,113,113,0.22) !important;
+    box-shadow: var(--shadow-md) !important;
+}
+
+body[data-theme="dark"] .quality-header::after {
+    background: rgba(255,255,255,.04) !important;
+}
+
+body[data-theme="dark"] .quality-title,
+body[data-theme="dark"] .quality-header h2 {
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .quality-title-icon {
+    background: rgba(255,255,255,.10) !important;
+    border-color: rgba(255,255,255,.14) !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .quality-sub {
+    color: #fecaca !important;
+}
+
+body[data-theme="dark"] .quality-date {
+    background: rgba(255,255,255,.10) !important;
+    border-color: rgba(255,255,255,.16) !important;
+    color: #ffffff !important;
+}
+
+/* KPIs */
+body[data-theme="dark"] .kpi-card {
+    background: rgba(17,24,39,.94) !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+body[data-theme="dark"] .kpi-icon {
+    background: rgba(127,29,29,0.24) !important;
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .kpi-label {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .kpi-value {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .kpi-sub {
+    color: #94a3b8 !important;
+}
+
+/* Filtros */
+body[data-theme="dark"] .quality-filter-panel {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+body[data-theme="dark"] .quality-filter-title {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .quality-filter-title i {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .quality-filter-group label {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .quality-filter-input {
+    background: #0b1220 !important;
+    color: #f9fafb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+    box-shadow: none !important;
+}
+
+body[data-theme="dark"] .quality-filter-input:focus {
+    background: #0f172a !important;
+    color: #ffffff !important;
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 .22rem rgba(239,68,68,.22) !important;
+    outline: none !important;
+}
+
+body[data-theme="dark"] .quality-filter-input::placeholder {
+    color: #94a3b8 !important;
+    opacity: 1 !important;
+}
+
+body[data-theme="dark"] .quality-filter-btn.primary {
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 60%, #7f1d1d 100%) !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .quality-filter-btn.secondary {
+    background: #0b1220 !important;
+    color: #fca5a5 !important;
+    border-color: rgba(248,113,113,0.35) !important;
+}
+
+body[data-theme="dark"] .quality-filter-btn.secondary:hover {
+    background: rgba(248,113,113,0.14) !important;
+    color: #ffffff !important;
+}
+
+/* Alertas */
+body[data-theme="dark"] .alert-danger {
+    background: rgba(153,27,27,0.30) !important;
+    color: #fecaca !important;
+    border-color: rgba(248,113,113,0.48) !important;
+}
+
+body[data-theme="dark"] .alert-success {
+    background: rgba(22,101,52,0.26) !important;
+    color: #bbf7d0 !important;
+    border-color: rgba(74,222,128,0.40) !important;
+}
+
+body[data-theme="dark"] .alert-sap {
+    box-shadow: var(--shadow-sm) !important;
+}
+
+/* Empty state */
+body[data-theme="dark"] .empty-state {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+body[data-theme="dark"] .empty-state i {
+    color: #fca5a5 !important;
+    opacity: .75 !important;
+}
+
+body[data-theme="dark"] .empty-state h4 {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .empty-state p,
+body[data-theme="dark"] .text-muted {
+    color: #cbd5e1 !important;
+}
+
+/* Cards de embarque */
+body[data-theme="dark"] .embarque-card {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+body[data-theme="dark"] .embarque-card:hover {
+    box-shadow: var(--shadow-md) !important;
+}
+
+body[data-theme="dark"] .embarque-summary {
+    background: linear-gradient(180deg, #1f2937 0%, #172033 100%) !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .embarque-id {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .meta-pill {
+    background: #0b1220 !important;
+    color: #e5e7eb !important;
+    border: 1px solid rgba(203,213,225,0.22) !important;
+}
+
+body[data-theme="dark"] .meta-pill.pending {
+    background: rgba(180,83,9,0.22) !important;
+    color: #fde68a !important;
+    border-color: rgba(245,158,11,0.45) !important;
+}
+
+body[data-theme="dark"] .meta-pill.primary {
+    background: rgba(127,29,29,0.24) !important;
+    color: #fca5a5 !important;
+    border-color: rgba(248,113,113,0.35) !important;
+}
+
+body[data-theme="dark"] .summary-count small {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .summary-count strong {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .toggle-btn {
+    background: #0b1220 !important;
+    color: #fca5a5 !important;
+    border-color: rgba(248,113,113,0.35) !important;
+}
+
+body[data-theme="dark"] .embarque-card.active .toggle-btn {
+    background: #dc2626 !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.55) !important;
+}
+
+body[data-theme="dark"] .embarque-detail {
+    background: #0f172a !important;
+    border-top-color: rgba(255,255,255,0.12) !important;
+}
+
+/* Cards internas */
+body[data-theme="dark"] .quick-card,
+body[data-theme="dark"] .docs-card,
+body[data-theme="dark"] .form-card,
+body[data-theme="dark"] .quality-step {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+body[data-theme="dark"] .card-head {
+    background: linear-gradient(180deg, #1f2937 0%, #172033 100%) !important;
+    border-bottom-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .card-title {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .card-title i {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .card-sub {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .card-body {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+}
+
+/* Resumen rápido */
+body[data-theme="dark"] .quick-row {
+    border-bottom-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .quick-label {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .quick-value {
+    color: #f9fafb !important;
+}
+
+/* Documento mini cards */
+body[data-theme="dark"] .doc-mini {
+    background: #172033 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .doc-mini i {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .doc-mini strong {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .doc-mini span {
+    color: #cbd5e1 !important;
+}
+
+/* Tablas */
+body[data-theme="dark"] .table-wrap {
+    background: #111827 !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    scrollbar-color: rgba(248,113,113,0.42) #0f172a;
+}
+
+body[data-theme="dark"] .tabla-soft {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .tabla-soft thead th {
+    background: linear-gradient(180deg, #1f2937 0%, #172033 100%) !important;
+    color: #f9fafb !important;
+    border-bottom-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .tabla-soft td {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-bottom-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .tabla-soft tbody tr:hover {
+    background: rgba(248,113,113,0.09) !important;
+}
+
+/* Acordeón de calidad */
+body[data-theme="dark"] .step-head {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .step-number {
+    background: rgba(127,29,29,0.24) !important;
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .step-title {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .step-desc {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .step-chevron {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .step-body {
+    background: #111827 !important;
+    border-top-color: rgba(255,255,255,0.12) !important;
+}
+
+/* Formularios */
+body[data-theme="dark"] .form-label {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .form-control,
+body[data-theme="dark"] .form-select,
+body[data-theme="dark"] input,
+body[data-theme="dark"] select,
+body[data-theme="dark"] textarea {
+    background: #0b1220 !important;
+    color: #f9fafb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+    box-shadow: none !important;
+}
+
+body[data-theme="dark"] .form-control:focus,
+body[data-theme="dark"] .form-select:focus,
+body[data-theme="dark"] input:focus,
+body[data-theme="dark"] select:focus,
+body[data-theme="dark"] textarea:focus {
+    background: #0f172a !important;
+    color: #ffffff !important;
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 .22rem rgba(239,68,68,.22) !important;
+    outline: none !important;
+}
+
+body[data-theme="dark"] .form-control::placeholder,
+body[data-theme="dark"] textarea::placeholder,
+body[data-theme="dark"] input::placeholder {
+    color: #94a3b8 !important;
+    opacity: 1 !important;
+}
+
+body[data-theme="dark"] .form-select {
+    color-scheme: dark;
+}
+
+body[data-theme="dark"] .form-select option {
+    background: #111827 !important;
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .input-hint {
+    color: #cbd5e1 !important;
+}
+
+/* Upload fotos */
+body[data-theme="dark"] .upload-box {
+    background: linear-gradient(180deg, #172033 0%, #111827 100%) !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+body[data-theme="dark"] .upload-box.has-files {
+    background: rgba(22,101,52,0.16) !important;
+    border-color: rgba(74,222,128,0.40) !important;
+}
+
+body[data-theme="dark"] .upload-help {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .file-item {
+    background: #0b1220 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(74,222,128,0.35) !important;
+}
+
+body[data-theme="dark"] .file-item i {
+    color: #86efac !important;
+}
+
+/* Pendientes */
+body[data-theme="dark"] .pending-box {
+    background: rgba(180,83,9,0.22) !important;
+    color: #fde68a !important;
+    border-color: rgba(245,158,11,0.45) !important;
+}
+
+/* Barra sticky de acciones */
+body[data-theme="dark"] .form-actions-sticky {
+    background: rgba(17,24,39,.94) !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: 0 -8px 20px rgba(0,0,0,.34) !important;
+}
+
+body[data-theme="dark"] .action-note {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .btn-sap-success {
+    background: linear-gradient(90deg, #16a34a 0%, #15803d 60%, #166534 100%) !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .btn-sap-success:hover {
+    color: #ffffff !important;
+    box-shadow: 0 10px 22px rgba(0,0,0,.32) !important;
+}
+
+body[data-theme="dark"] .btn-sap-outline {
+    background: #0b1220 !important;
+    color: #fca5a5 !important;
+    border-color: rgba(248,113,113,0.35) !important;
+}
+
+body[data-theme="dark"] .btn-sap-outline:hover {
+    background: rgba(248,113,113,0.14) !important;
+    color: #ffffff !important;
+}
+
+/* Tablas como cards en móvil */
+@@media (max-width: 768px) {
+    body[data-theme="dark"] .table-wrap {
+        background: transparent !important;
+        border-color: transparent !important;
+    }
+
+    body[data-theme="dark"] .tabla-soft {
+        background: transparent !important;
+    }
+
+    body[data-theme="dark"] .tabla-soft tbody tr {
+        background: #111827 !important;
+        border-color: rgba(255,255,255,0.12) !important;
+        box-shadow: 0 8px 22px rgba(0,0,0,.32) !important;
+    }
+
+    body[data-theme="dark"] .tabla-soft td {
+        background: transparent !important;
+        color: #e5e7eb !important;
+        border-bottom-color: rgba(255,255,255,0.12) !important;
+    }
+
+    body[data-theme="dark"] .tabla-soft td::before {
+        color: #94a3b8 !important;
+    }
+
+    body[data-theme="dark"] .quality-header,
+    body[data-theme="dark"] .quality-filter-panel,
+    body[data-theme="dark"] .kpi-card,
+    body[data-theme="dark"] .embarque-card,
+    body[data-theme="dark"] .quick-card,
+    body[data-theme="dark"] .docs-card,
+    body[data-theme="dark"] .form-card,
+    body[data-theme="dark"] .quality-step,
+    body[data-theme="dark"] .empty-state {
+        box-shadow: 0 8px 22px rgba(0,0,0,.32) !important;
+    }
+}
+
+/* Scrollbars */
+body[data-theme="dark"] .table-wrap::-webkit-scrollbar,
+body[data-theme="dark"] .pedido-list::-webkit-scrollbar,
+body[data-theme="dark"] textarea::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+}
+
+body[data-theme="dark"] .table-wrap::-webkit-scrollbar-track,
+body[data-theme="dark"] .pedido-list::-webkit-scrollbar-track,
+body[data-theme="dark"] textarea::-webkit-scrollbar-track {
+    background: #0f172a;
+}
+
+body[data-theme="dark"] .table-wrap::-webkit-scrollbar-thumb,
+body[data-theme="dark"] .pedido-list::-webkit-scrollbar-thumb,
+body[data-theme="dark"] textarea::-webkit-scrollbar-thumb {
+    background: rgba(248,113,113,0.42);
+    border-radius: 999px;
+}
+
+    /* =========================================================
+       VALIDACIÓN VISUAL - CALIDAD
+       ========================================================= */
+
+    .alert-sap {
+        white-space: pre-line;
+    }
+
+    .validation-client-box {
+        display: none;
+        border: 1px solid rgba(220, 53, 69, .35);
+        background: linear-gradient(180deg, #fff1f2 0%, #fff7f7 100%);
+        color: #842029;
+        border-radius: 16px;
+        padding: .95rem 1rem;
+        margin-bottom: 1rem;
+        box-shadow: var(--shadow-sm);
+    }
+
+        .validation-client-box.show {
+            display: block;
+            animation: fadeIn .18s ease;
+        }
+
+        .validation-client-box strong {
+            display: flex;
+            align-items: center;
+            gap: .45rem;
+            font-weight: 900;
+            margin-bottom: .5rem;
+        }
+
+        .validation-client-box ul {
+            margin: 0;
+            padding-left: 1.25rem;
+        }
+
+        .validation-client-box li {
+            margin-bottom: .25rem;
+            font-weight: 700;
+        }
+
+    .form-control.is-invalid,
+    .form-select.is-invalid {
+        border-color: var(--danger) !important;
+        box-shadow: 0 0 0 .18rem rgba(220, 53, 69, .14) !important;
+    }
+
+    .upload-box.is-invalid {
+        border-color: var(--danger) !important;
+        background: #fff1f2 !important;
+    }
+
+    .quality-step.step-error {
+        border-color: rgba(220, 53, 69, .55) !important;
+        box-shadow: 0 8px 22px rgba(220, 53, 69, .12) !important;
+    }
+
+        .quality-step.step-error .step-number {
+            background: #fff1f2 !important;
+            color: var(--danger) !important;
+        }
+
+    body[data-theme="dark"] .validation-client-box {
+        background: rgba(153,27,27,0.30) !important;
+        color: #fecaca !important;
+        border-color: rgba(248,113,113,0.48) !important;
+    }
+
+    body[data-theme="dark"] .form-control.is-invalid,
+    body[data-theme="dark"] .form-select.is-invalid {
+        border-color: #f87171 !important;
+        box-shadow: 0 0 0 .18rem rgba(248,113,113,.18) !important;
+    }
+
+    body[data-theme="dark"] .upload-box.is-invalid {
+        background: rgba(153,27,27,0.24) !important;
+        border-color: rgba(248,113,113,0.55) !important;
+    }
+
+    body[data-theme="dark"] .quality-step.step-error {
+        border-color: rgba(248,113,113,0.55) !important;
+    }
+
+        body[data-theme="dark"] .quality-step.step-error .step-number {
+            background: rgba(153,27,27,0.35) !important;
+            color: #fca5a5 !important;
+        }
+
+    /* =========================================================
+       HISTORIAL DE CALIDAD
+       ========================================================= */
+
+    .quality-history-divider {
+        margin: 1.8rem 0 1rem;
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+    }
+
+        .quality-history-divider::before,
+        .quality-history-divider::after {
+            content: "";
+            height: 1px;
+            background: var(--border);
+            flex: 1;
+        }
+
+    .quality-history-title {
+        display: inline-flex;
+        align-items: center;
+        gap: .55rem;
+        padding: .65rem 1rem;
+        border-radius: 999px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        color: var(--primary);
+        font-weight: 900;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .history-badge-ok {
+        background: rgba(25,135,84,.14);
+        color: #146c43;
+    }
+
+    .history-detail-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .75rem;
+    }
+
+    .history-detail-item {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 15px;
+        padding: .85rem;
+    }
+
+    .history-detail-label {
+        color: var(--muted);
+        font-size: .75rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .35px;
+        margin-bottom: .25rem;
+    }
+
+    .history-detail-value {
+        color: var(--text);
+        font-weight: 800;
+        word-break: break-word;
+    }
+
+    .history-photo-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .55rem;
+    }
+
+    .history-photo-link {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .55rem .75rem;
+        border-radius: 999px;
+        background: var(--primary-soft);
+        color: var(--primary);
+        text-decoration: none;
+        font-weight: 900;
+        border: 1px solid rgba(139,0,0,.14);
+    }
+
+        .history-photo-link:hover {
+            color: var(--primary);
+            background: #ffe5e5;
+        }
+
+    body[data-theme="dark"] .quality-history-title,
+    body[data-theme="dark"] .history-detail-item {
+        background: #111827 !important;
+        border-color: rgba(255,255,255,0.12) !important;
+        color: #f9fafb !important;
+    }
+
+    body[data-theme="dark"] .history-detail-label {
+        color: #94a3b8 !important;
+    }
+
+    body[data-theme="dark"] .history-detail-value {
+        color: #e5e7eb !important;
+    }
+
+    body[data-theme="dark"] .history-photo-link {
+        background: rgba(248,113,113,0.14) !important;
+        color: #fecaca !important;
+        border-color: rgba(248,113,113,0.30) !important;
+    }
+
+    @@media (max-width: 992px) {
+        .history-detail-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .quality-history-divider {
+            margin-top: 1.3rem;
+        }
+
+        .quality-history-title {
+            width: 100%;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .history-detail-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .sku-temp-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: .9rem 1rem;
+    }
+
+    .sku-temp-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--primary-soft);
+        color: var(--primary);
+        border-radius: 999px;
+        padding: .5rem .85rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .sku-temp-table {
+        min-width: 1080px;
+    }
+
+        .sku-temp-table input {
+            min-height: 42px;
+        }
+
+    .sku-captured {
+        color: var(--success);
+        font-weight: 900;
+        font-size: .84rem;
+    }
+
+    .sku-pending {
+        color: #8a5a00;
+        font-weight: 900;
+        font-size: .84rem;
+    }
+
+    .sku-save-status {
+        color: var(--muted);
+        font-size: .86rem;
+        font-weight: 800;
+    }
+
+    body[data-theme="dark"] .sku-temp-summary {
+        background: #1f2937;
+        border-color: #374151;
+    }
+
+    body[data-theme="dark"] .sku-temp-badge {
+        background: rgba(255,255,255,.08);
+        color: #fecaca;
+    }
+
+    .sku-doc-groups {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .sku-doc-card {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+        padding: 1rem;
+        overflow: hidden;
+    }
+
+        .sku-doc-card.ov {
+            border-left: 5px solid #2563eb;
+        }
+
+        .sku-doc-card.tr {
+            border-left: 5px solid #d97706;
+        }
+
+    .sku-doc-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .sku-doc-head-main {
+        flex: 1 1 20px;
+        min-width: 0;
+    }
+
+    .sku-doc-type-row {
+        display: flex;
+        align-items: center;
+        gap: .65rem;
+        flex-wrap: wrap;
+        margin-bottom: .5rem;
+    }
+
+    .sku-doc-type-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        padding: .35rem .75rem;
+        font-size: .78rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .3px;
+        background: #eef2ff;
+        color: #1d4ed8;
+    }
+
+    .sku-doc-card.tr .sku-doc-type-badge {
+        background: #fff7ed;
+        color: #c2410c;
+    }
+
+    .sku-doc-progress-chip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        padding: .35rem .75rem;
+        font-size: .78rem;
+        font-weight: 900;
+        background: #f3f4f6;
+        color: #374151;
+    }
+
+    .sku-doc-title {
+        margin: 0 0 .45rem;
+        font-size: 1.1rem;
+        font-weight: 900;
+        color: var(--text);
+    }
+
+    .sku-doc-client {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        color: var(--muted);
+        font-size: .92rem;
+        font-weight: 700;
+        flex-wrap: wrap;
+    }
+
+    .sku-doc-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(90px, 1fr));
+        gap: .7rem;
+        min-width: 280px;
+    }
+
+    .sku-doc-metric {
+        background: #f8fafc;
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        padding: .75rem;
+        text-align: center;
+    }
+
+        .sku-doc-metric small {
+            display: block;
+            color: var(--muted);
+            font-size: .72rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: .3px;
+            margin-bottom: .2rem;
+        }
+
+        .sku-doc-metric strong {
+            color: var(--text);
+            font-size: 1rem;
+            font-weight: 900;
+        }
+
+    .sku-temp-table {
+        min-width: 980px;
+    }
+
+    .sku-temp-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: .9rem 1rem;
+    }
+
+    .sku-temp-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--primary-soft);
+        color: var(--primary);
+        border-radius: 999px;
+        padding: .5rem .85rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .sku-captured {
+        color: var(--success);
+        font-weight: 900;
+        font-size: .84rem;
+    }
+
+    .sku-pending {
+        color: #8a5a00;
+        font-weight: 900;
+        font-size: .84rem;
+    }
+
+    .sku-save-status {
+        color: var(--muted);
+        font-size: .86rem;
+        font-weight: 800;
+    }
+
+    /* DARK MODE */
+    body[data-theme="dark"] .sku-doc-card,
+    body.dark-mode .sku-doc-card {
+        background: #111827;
+        border-color: #374151;
+    }
+
+    body[data-theme="dark"] .sku-doc-title,
+    body.dark-mode .sku-doc-title {
+        color: #f9fafb;
+    }
+
+    body[data-theme="dark"] .sku-doc-client,
+    body.dark-mode .sku-doc-client {
+        color: #cbd5e1;
+    }
+
+    body[data-theme="dark"] .sku-doc-progress-chip,
+    body.dark-mode .sku-doc-progress-chip {
+        background: #1f2937;
+        color: #e5e7eb;
+    }
+
+    body[data-theme="dark"] .sku-doc-metric,
+    body.dark-mode .sku-doc-metric {
+        background: #1f2937;
+        border-color: #374151;
+    }
+
+        body[data-theme="dark"] .sku-doc-metric strong,
+        body.dark-mode .sku-doc-metric strong {
+            color: #f3f4f6;
+        }
+
+    body[data-theme="dark"] .sku-temp-summary,
+    body.dark-mode .sku-temp-summary {
+        background: #111827;
+        border-color: #374151;
+    }
+
+    body[data-theme="dark"] .sku-temp-badge,
+    body.dark-mode .sku-temp-badge {
+        background: rgba(255,255,255,.08);
+        color: #fecaca;
+    }
+
+    /* RESPONSIVE */
+    @@media (max-width: 992px) {
+        .sku-doc-head
+
+    {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .sku-doc-metrics {
+        grid-template-columns: repeat(3, 1fr);
+        min-width: 100%;
+    }
+
+    }
+
+    @@media (max-width: 768px) {
+        .sku-temp-summary
+
+    {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .sku-doc-card {
+        padding: .85rem;
+        border-radius: 16px;
+    }
+
+    .sku-doc-title {
+        font-size: 1rem;
+    }
+
+    .sku-doc-metrics {
+        grid-template-columns: 1fr;
+    }
+
+    }
+
+    /* =========================================================
+       LAYOUT FINAL - RESUMEN Y DOCUMENTOS ARRIBA
+       Libera espacio lateral para Temperatura por SKU
+       ========================================================= */
+
+    /* Antes era: 330px + contenido.
+       Ahora todo queda en una sola columna. */
+    .validation-layout {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 1rem !important;
+        align-items: start !important;
+    }
+
+    /* El side-panel deja de ser lateral y se vuelve bloque superior */
+    .side-panel {
+        position: static !important;
+        display: grid !important;
+        grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr) !important;
+        gap: 1rem !important;
+        width: 100% !important;
+        align-items: stretch !important;
+    }
+
+    /* Main ocupa todo el ancho */
+    .validation-layout > main {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    /* Las dos tarjetas de arriba quedan parejas */
+    .side-panel .quick-card,
+    .side-panel .docs-card {
+        width: 100% !important;
+        height: 100% !important;
+        border-radius: 18px !important;
+    }
+
+        /* Resumen rápido más compacto cuando está arriba */
+        .side-panel .quick-card .card-body {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: .75rem;
+        }
+
+        .side-panel .quick-card .quick-row {
+            border-bottom: 0 !important;
+            padding: .75rem !important;
+            background: #f8fafc;
+            border: 1px solid #edf1f5;
+            border-radius: 15px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: .25rem;
+        }
+
+        .side-panel .quick-card .quick-label {
+            font-size: .72rem;
+            line-height: 1.15;
+        }
+
+        .side-panel .quick-card .quick-value {
+            text-align: left !important;
+            font-size: .94rem;
+            line-height: 1.25;
+            word-break: break-word;
+        }
+
+        /* Documentos más limpio al lado derecho */
+        .side-panel .docs-card .card-body {
+            height: calc(100% - 68px);
+            display: flex;
+            align-items: center;
+        }
+
+        .side-panel .docs-card .doc-buttons {
+            width: 100%;
+            grid-template-columns: 1fr 1fr !important;
+            gap: .75rem !important;
+        }
+
+        .side-panel .docs-card .doc-mini {
+            min-height: 86px;
+            display: grid;
+            place-items: center;
+            align-content: center;
+            border-radius: 16px;
+        }
+
+    /* Le damos más aire al área de contenido/formulario */
+    .form-card,
+    .quality-step {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    /* Temperatura SKU queda con scroll horizontal normal, no apretado */
+    .sku-temp-table {
+        min-width: 980px !important;
+    }
+
+    .sku-doc-card > .table-wrap,
+    .quality-step .table-wrap {
+        width: 100%;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* La página puede usar un poco más de ancho en PC */
+    .quality-wrap {
+        max-width: 1540px !important;
+    }
+
+    /* =========================================================
+       RESPONSIVE
+       ========================================================= */
+
+    @@media (max-width: 1100px) {
+        .side-panel {
+            grid-template-columns: 1fr !important;
+        }
+
+            .side-panel .quick-card .card-body {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .side-panel .docs-card .card-body {
+                height: auto;
+                display: block;
+            }
+    }
+
+    @@media (max-width: 768px) {
+        .side-panel {
+            gap: .75rem !important;
+        }
+
+            .side-panel .quick-card .card-body {
+                grid-template-columns: 1fr !important;
+                gap: .55rem !important;
+            }
+
+            .side-panel .quick-card .quick-row {
+                padding: .65rem .75rem !important;
+            }
+
+            .side-panel .docs-card .doc-buttons {
+                grid-template-columns: 1fr 1fr !important;
+            }
+
+            .side-panel .docs-card .doc-mini {
+                min-height: 76px;
+                padding: .7rem .55rem !important;
+            }
+
+        .sku-temp-table {
+            min-width: 920px !important;
+        }
+    }
+
+    @@media (max-width: 520px) {
+        .side-panel .docs-card .doc-buttons {
+            grid-template-columns: 1fr !important;
+        }
+
+        .side-panel .docs-card .doc-mini {
+            display: flex;
+            justify-content: space-between;
+            text-align: left !important;
+        }
+    }
+
+    /* =========================================================
+       DARK MODE
+       ========================================================= */
+
+    body[data-theme="dark"] .side-panel .quick-card .quick-row,
+    body.dark-mode .side-panel .quick-card .quick-row {
+        background: #172033 !important;
+        border-color: rgba(255,255,255,0.12) !important;
+    }
+
+    body[data-theme="dark"] .side-panel .quick-card .quick-label,
+    body.dark-mode .side-panel .quick-card .quick-label {
+        color: #cbd5e1 !important;
+    }
+
+    body[data-theme="dark"] .side-panel .quick-card .quick-value,
+    body.dark-mode .side-panel .quick-card .quick-value {
+        color: #f9fafb !important;
+    }
+
+    /* =========================================================
+       RESPONSIVE FINAL - TEMPERATURA POR SKU
+       Solo afecta el cuadro de Temperatura por SKU
+       ========================================================= */
+
+    /* En escritorio se mantiene como tabla normal */
+    .sku-doc-card .table-wrap {
+        width: 100%;
+        overflow-x: auto !important;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .sku-temp-table {
+        min-width: 980px !important;
+    }
+
+        .sku-temp-table .temp-sku-input,
+        .sku-temp-table .temp-sku-obs {
+            width: 100% !important;
+            min-height: 44px;
+            border-radius: 12px;
+        }
+
+        .sku-temp-table .temp-sku-input {
+            text-align: center;
+            font-weight: 900;
+        }
+
+    /* =========================================================
+       TABLET Y MÓVIL
+       La tabla se convierte en tarjetas limpias por SKU
+       ========================================================= */
+    @@media (max-width: 768px) {
+        /* Evita que la regla global de .tabla-soft rompa esta sección */
+        .sku-doc-card .table-wrap {
+            overflow: visible !important;
+            border: none !important;
+            background: transparent !important;
+            border-radius: 0 !important;
+        }
+
+        .sku-temp-table {
+            width: 100% !important;
+            min-width: 0 !important;
+            border-collapse: separate !important;
+            border-spacing: 0 .85rem !important;
+            background: transparent !important;
+        }
+
+            .sku-temp-table thead {
+                display: none !important;
+            }
+
+            .sku-temp-table tbody,
+            .sku-temp-table tr,
+            .sku-temp-table td {
+                display: block !important;
+                width: 100% !important;
+            }
+
+                .sku-temp-table tbody tr {
+                    background: #fff !important;
+                    border: 1px solid var(--border) !important;
+                    border-radius: 18px !important;
+                    box-shadow: 0 8px 20px rgba(15, 23, 42, .07) !important;
+                    padding: .9rem !important;
+                    margin-bottom: .85rem !important;
+                }
+
+            .sku-temp-table td {
+                border-bottom: 1px solid #edf1f5 !important;
+                padding: .58rem 0 !important;
+                display: grid !important;
+                grid-template-columns: 115px minmax(0, 1fr) !important;
+                gap: .75rem !important;
+                align-items: center !important;
+                white-space: normal !important;
+                word-break: break-word !important;
+                font-size: .88rem !important;
+            }
+
+                .sku-temp-table td:last-child {
+                    border-bottom: 0 !important;
+                    padding-bottom: 0 !important;
+                }
+
+                .sku-temp-table td::before {
+                    content: attr(data-label);
+                    color: var(--muted);
+                    font-size: .72rem;
+                    font-weight: 900;
+                    text-transform: uppercase;
+                    letter-spacing: .03em;
+                    line-height: 1.15;
+                }
+                /* Producto como encabezado visual de la tarjeta */
+                .sku-temp-table td[data-label="Producto"] {
+                    display: block !important;
+                    background: #f8fafc;
+                    border: 1px solid #edf1f5 !important;
+                    border-radius: 14px;
+                    padding: .75rem !important;
+                    margin-bottom: .25rem;
+                }
+
+                    .sku-temp-table td[data-label="Producto"]::before {
+                        display: block;
+                        margin-bottom: .28rem;
+                    }
+                /* SKU y almacén más compactos */
+                .sku-temp-table td[data-label="SKU"],
+                .sku-temp-table td[data-label="Almacén"],
+                .sku-temp-table td[data-label="Cajas"],
+                .sku-temp-table td[data-label="Kilos"] {
+                    grid-template-columns: 95px minmax(0, 1fr) !important;
+                }
+                /* Temperatura más grande porque es el campo importante */
+                .sku-temp-table td[data-label="Temperatura °C"] {
+                    display: block !important;
+                    padding-top: .75rem !important;
+                }
+
+                    .sku-temp-table td[data-label="Temperatura °C"]::before {
+                        display: block;
+                        margin-bottom: .4rem;
+                    }
+
+            .sku-temp-table .temp-sku-input {
+                min-height: 52px !important;
+                font-size: 1.05rem !important;
+                text-align: center;
+                font-weight: 900;
+            }
+            /* Observaciones ancho completo */
+            .sku-temp-table td[data-label="Observaciones"] {
+                display: block !important;
+            }
+
+                .sku-temp-table td[data-label="Observaciones"]::before {
+                    display: block;
+                    margin-bottom: .4rem;
+                }
+
+            .sku-temp-table .temp-sku-obs {
+                min-height: 48px !important;
+                font-size: .95rem !important;
+            }
+            /* Última captura más legible */
+            .sku-temp-table td[data-label="Última captura"] {
+                display: block !important;
+                background: #f8fafc;
+                border-radius: 13px;
+                padding: .7rem !important;
+                border-bottom: 0 !important;
+            }
+
+                .sku-temp-table td[data-label="Última captura"]::before {
+                    display: block;
+                    margin-bottom: .35rem;
+                }
+
+        .sku-captured,
+        .sku-pending {
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+            line-height: 1.25;
+        }
+        /* Encabezado de cada documento más limpio en móvil */
+        .sku-doc-card {
+            padding: .85rem !important;
+            border-radius: 18px !important;
+        }
+
+        .sku-doc-head {
+            gap: .85rem !important;
+        }
+
+        .sku-doc-type-row {
+            gap: .45rem !important;
+        }
+
+        .sku-doc-type-badge,
+        .sku-doc-progress-chip {
+            width: 100%;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .sku-doc-title {
+            font-size: .98rem !important;
+            line-height: 1.25 !important;
+        }
+
+        .sku-doc-client {
+            font-size: .84rem !important;
+            line-height: 1.3 !important;
+        }
+
+        .sku-doc-metrics {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            min-width: 0 !important;
+            gap: .5rem !important;
+        }
+
+        .sku-doc-metric {
+            padding: .65rem .45rem !important;
+            border-radius: 14px !important;
+        }
+
+            .sku-doc-metric small {
+                font-size: .64rem !important;
+                line-height: 1.1;
+            }
+
+            .sku-doc-metric strong {
+                font-size: .86rem !important;
+            }
+
+        .sku-temp-summary {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: .7rem !important;
+        }
+
+        .sku-temp-badge {
+            width: 100%;
+            justify-content: center;
+            text-align: center;
+        }
+    }
+
+    /* Pantallas muy pequeñas */
+    @@media (max-width: 430px) {
+        .sku-temp-table tbody tr {
+            padding: .75rem !important;
+            border-radius: 16px !important;
+        }
+
+        .sku-temp-table td {
+            grid-template-columns: 1fr !important;
+            gap: .3rem !important;
+            align-items: start !important;
+        }
+
+            .sku-temp-table td::before {
+                margin-bottom: .15rem;
+            }
+
+        .sku-doc-metrics {
+            grid-template-columns: 1fr !important;
+        }
+
+        .sku-doc-metric {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            text-align: left !important;
+            gap: .75rem;
+        }
+
+            .sku-doc-metric small {
+                margin-bottom: 0 !important;
+            }
+    }
+
+    /* =========================================================
+       DARK MODE - TEMPERATURA POR SKU RESPONSIVE
+       ========================================================= */
+    @@media (max-width: 768px) {
+        body[data-theme="dark"] .sku-temp-table tbody tr,
+        body.dark-mode .sku-temp-table tbody tr {
+            background: #111827 !important;
+            border-color: rgba(255,255,255,0.12) !important;
+            box-shadow: 0 8px 22px rgba(0,0,0,.32) !important;
+        }
+
+        body[data-theme="dark"] .sku-temp-table td,
+        body.dark-mode .sku-temp-table td {
+            color: #e5e7eb !important;
+            border-bottom-color: rgba(255,255,255,0.12) !important;
+        }
+
+            body[data-theme="dark"] .sku-temp-table td::before,
+            body.dark-mode .sku-temp-table td::before {
+                color: #94a3b8 !important;
+            }
+
+            body[data-theme="dark"] .sku-temp-table td[data-label="Producto"],
+            body[data-theme="dark"] .sku-temp-table td[data-label="Última captura"],
+            body.dark-mode .sku-temp-table td[data-label="Producto"],
+            body.dark-mode .sku-temp-table td[data-label="Última captura"] {
+                background: #172033 !important;
+                border-color: rgba(255,255,255,0.12) !important;
+            }
+
+        body[data-theme="dark"] .sku-temp-table .temp-sku-input,
+        body[data-theme="dark"] .sku-temp-table .temp-sku-obs,
+        body.dark-mode .sku-temp-table .temp-sku-input,
+        body.dark-mode .sku-temp-table .temp-sku-obs {
+            background: #0b1220 !important;
+            color: #f9fafb !important;
+            border-color: rgba(203,213,225,0.28) !important;
+        }
+    }
+
+</style>
+
+<div class="quality-wrap">
+
+    <div class="quality-header">
+        <div class="quality-header-content">
+            <div>
+                <h2 class="quality-title">
+                    <span class="quality-title-icon">
+                        <i class="bi bi-shield-check"></i>
+                    </span>
+                    Validación de Calidad
+                </h2>
+                <p class="quality-sub">
+                    Revisa los embarques pendientes, valida condiciones de unidad, temperaturas, producto y evidencia antes de liberar el QR para caseta.
+                </p>
+            </div>
+
+            <div class="quality-date">
+                <i class="bi bi-calendar3"></i>
+                @DateTime.Now.ToString("dd/MM/yyyy")
+            </div>
+        </div>
+    </div>
+
+    <div class="quality-kpis">
+        <div class="kpi-card">
+            <div class="kpi-icon">
+                <i class="bi bi-hourglass-split"></i>
+            </div>
+            <div>
+                <div class="kpi-label">Pendientes</div>
+                <div class="kpi-value">@pendientes.Count</div>
+                <div class="kpi-sub">Embarques listos para revisión</div>
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-icon">
+                <i class="bi bi-check2-square"></i>
+            </div>
+            <div>
+                <div class="kpi-label">Flujo</div>
+                <div class="kpi-value" style="font-size:1.05rem;">Checklist</div>
+                <div class="kpi-sub">Captura guiada por secciones</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="quality-filter-panel">
+        <div class="quality-filter-title">
+            <i class="bi bi-funnel"></i>
+            Filtros de búsqueda
+        </div>
+
+        <form method="get" asp-action="Calidad" class="quality-filter-grid">
+            <div class="quality-filter-group">
+                <label>Buscar embarque</label>
+                <input type="text"
+                       name="busqueda"
+                       value="@busqueda"
+                       class="quality-filter-input"
+                       placeholder="Ej. EMB-0001, 125, consecutivo..." />
+            </div>
+
+            <div class="quality-filter-group">
+                <label>Fecha inicio</label>
+                <input type="date"
+                       name="fechaInicio"
+                       value="@fechaInicio"
+                       class="quality-filter-input" />
+            </div>
+
+            <div class="quality-filter-group">
+                <label>Fecha fin</label>
+                <input type="date"
+                       name="fechaFin"
+                       value="@fechaFin"
+                       class="quality-filter-input" />
+            </div>
+
+            <input type="hidden" name="busquedaHistorial" value="@busquedaHistorial" />
+            <input type="hidden" name="fechaInicioHistorial" value="@fechaInicioHistorial" />
+            <input type="hidden" name="fechaFinHistorial" value="@fechaFinHistorial" />
+
+            <button type="submit" class="quality-filter-btn primary">
+                <i class="bi bi-search"></i>
+                Buscar
+            </button>
+
+            <a asp-action="Calidad" class="quality-filter-btn secondary">
+                <i class="bi bi-arrow-clockwise"></i>
+                Limpiar
+            </a>
+        </form>
+    </div>
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger alert-sap">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>@TempData["Error"]
+        </div>
+    }
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success alert-sap">
+            <i class="bi bi-check-circle-fill me-2"></i>@TempData["Success"]
+        </div>
+    }
+
+    @if (!pendientes.Any())
+    {
+        <div class="empty-state">
+            <i class="bi bi-inbox"></i>
+            <h4>No hay embarques pendientes de validar</h4>
+            <p class="text-muted mb-0">Cuando existan nuevos embarques por revisar, aparecerán aquí.</p>
+        </div>
+    }
+    else
+    {
+        <div class="quality-list">
+            @foreach (var e in pendientes)
+            {
+                var cardId = $"card_{e.Id}";
+                var filesId = $"files_{e.Id}";
+                var uploadId = $"upload_{e.Id}";
+                var formId = $"form_{e.Id}";
+
+                var docsMap = ViewBag.EmbarquesDocumentos as Dictionary<int, object>;
+                dynamic docs = docsMap != null && docsMap.ContainsKey(e.Id) ? docsMap[e.Id] : null;
+
+                IEnumerable<dynamic> ordenes = docs?.OrdenesVenta ?? Enumerable.Empty<dynamic>();
+                IEnumerable<dynamic> transferencias = docs?.Transferencias ?? Enumerable.Empty<dynamic>();
+
+                var totalOV = ordenes.Count();
+                var totalTR = transferencias.Count();
+
+                var productosTemperatura = productosTemperaturaCalidad.ContainsKey(e.Id)
+                ? productosTemperaturaCalidad[e.Id]
+                : new List<Plataforma_CG.Models.EmbarqueProductoTemperaturaItemVm>();
+
+                var totalSkuTemperatura = productosTemperatura.Count;
+                var skuTemperaturaCapturados = productosTemperatura.Count(x => x.Temperatura.HasValue);
+
+                var gruposDocumentos = productosTemperatura
+                .GroupBy(x => new
+                {
+                    x.TipoDocumento,
+                    x.DocumentoId,
+                    x.DocumentoConsecutivo,
+                    x.DocumentoCliente
+                })
+                .Select(g => new
+                {
+                    TipoDocumento = g.Key.TipoDocumento,
+                    DocumentoId = g.Key.DocumentoId,
+                    DocumentoConsecutivo = g.Key.DocumentoConsecutivo,
+                    DocumentoCliente = g.Key.DocumentoCliente,
+                    Items = g.OrderBy(x => x.ProductoCodigo).ThenBy(x => x.ProductoNombre).ToList(),
+                    TotalSku = g.Count(),
+                    Capturados = g.Count(x => x.Temperatura.HasValue),
+                    TotalCajas = g.Sum(x => x.Cajas),
+                    TotalKilos = g.Sum(x => x.Kilos)
+                })
+                .OrderBy(g => g.TipoDocumento == "OV" ? 0 : 1)
+                .ThenBy(g => g.DocumentoConsecutivo)
+                .ToList();
+
+                <div class="embarque-card" id="@cardId">
+                    <div class="embarque-summary" onclick="toggleCard('@cardId')">
+                        <div>
+                            <h4 class="embarque-id">
+                                <i class="bi bi-truck-front"></i>
+                                Embarque #@e.Consecutivo
+                            </h4>
+
+                            <div class="embarque-meta">
+                                <span class="meta-pill pending">
+                                    <i class="bi bi-hourglass-split"></i>
+                                    Pendiente de validación
+                                </span>
+
+                                <span class="meta-pill primary">
+                                    <i class="bi bi-calendar-event"></i>
+                                    @e.FechaCreacion.ToString("yyyy-MM-dd HH:mm")
+                                </span>
+
+                                <span class="meta-pill">
+                                    <i class="bi bi-hash"></i>
+                                    ID: @e.Id
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="summary-right">
+                            <div class="summary-count">
+                                <small>Documentos</small>
+                                <strong>@totalOV OV / @totalTR TR</strong>
+                            </div>
+
+                            <button type="button" class="toggle-btn" onclick="event.stopPropagation(); toggleCard('@cardId')">
+                                <i class="bi bi-chevron-down"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="embarque-detail">
+                        <div class="validation-layout">
+
+                            <aside class="side-panel">
+                                <div class="quick-card">
+                                    <div class="card-head">
+                                        <h5 class="card-title">
+                                            <i class="bi bi-info-circle"></i>
+                                            Resumen rápido
+                                        </h5>
+                                        <div class="card-sub">Datos principales del embarque seleccionado</div>
+                                    </div>
+
+                                    <div class="card-body">
+                                        <div class="quick-row">
+                                            <div class="quick-label">Consecutivo</div>
+                                            <div class="quick-value">@e.Consecutivo</div>
+                                        </div>
+
+                                        <div class="quick-row">
+                                            <div class="quick-label">Fecha</div>
+                                            <div class="quick-value">@e.FechaCreacion.ToString("yyyy-MM-dd HH:mm")</div>
+                                        </div>
+
+                                        <div class="quick-row">
+                                            <div class="quick-label">Órdenes</div>
+                                            <div class="quick-value">@totalOV</div>
+                                        </div>
+
+                                        <div class="quick-row">
+                                            <div class="quick-label">Transferencias</div>
+                                            <div class="quick-value">@totalTR</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="docs-card">
+                                    <div class="card-head">
+                                        <h5 class="card-title">
+                                            <i class="bi bi-folder2-open"></i>
+                                            Documentos
+                                        </h5>
+                                        <div class="card-sub">Resumen del contenido del embarque</div>
+                                    </div>
+
+                                    <div class="card-body">
+                                        <div class="doc-buttons">
+                                            <div class="doc-mini">
+                                                <i class="bi bi-box-seam"></i>
+                                                <strong>@totalOV</strong>
+                                                <span>OV</span>
+                                            </div>
+
+                                            <div class="doc-mini">
+                                                <i class="bi bi-arrow-left-right"></i>
+                                                <strong>@totalTR</strong>
+                                                <span>TR</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </aside>
+
+                            <main>
+                                @if (ordenes.Any())
+                                {
+                                    <div class="form-card mb-3">
+                                        <div class="card-head">
+                                            <h5 class="card-title">
+                                                <i class="bi bi-box-seam"></i>
+                                                Órdenes de Venta Incluidas
+                                            </h5>
+                                            <div class="card-sub">@totalOV registro(s) integrados a este embarque</div>
+                                        </div>
+
+                                        <div class="card-body">
+                                            <div class="table-wrap">
+                                                <table class="tabla-soft">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Consecutivo</th>
+                                                            <th>Cliente</th>
+                                                            <th>Ruta</th>
+                                                            <th>Fecha Entrega</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+
+                                                        @foreach (var ov in ordenes)
+                                                        {
+                                                            <tr>
+                                                                <td data-label="Consecutivo">@ov.Consecutivo</td>
+                                                                <td data-label="Cliente">@ov.NombreCliente</td>
+                                                                <td data-label="Ruta">@(ov.Ruta ?? "-")</td>
+                                                                <td data-label="Fecha Entrega">
+                                                                    @(ov.FechaEntrega != null
+                                                                        ? Convert.ToDateTime(ov.FechaEntrega).ToString("yyyy-MM-dd")
+                                                                        : "-")
+                                                                </td>
+                                                            </tr>
+                                                        }
+
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+
+                                @if (transferencias.Any())
+                                {
+                                    <div class="form-card mb-3">
+                                        <div class="card-head">
+                                            <h5 class="card-title">
+                                                <i class="bi bi-arrow-left-right"></i>
+                                                Transferencias Incluidas
+                                            </h5>
+                                            <div class="card-sub">@totalTR registro(s) relacionados a este embarque</div>
+                                        </div>
+
+                                        <div class="card-body">
+                                            <div class="table-wrap">
+                                                <table class="tabla-soft">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Consecutivo</th>
+                                                            <th>Sucursal</th>
+                                                            <th>Fecha Solicitud</th>
+                                                            <th>Solicitó</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @foreach (var tr in transferencias)
+                                                        {
+                                                            <tr>
+                                                                <td data-label="Consecutivo">@tr.Consecutivo</td>
+                                                                <td data-label="Sucursal">@(tr.Sucursal ?? "-")</td>
+                                                                <td data-label="Fecha Solicitud">
+                                                                    @(tr.FechaSolicitud != null
+                                                                        ? Convert.ToDateTime(tr.FechaSolicitud).ToString("yyyy-MM-dd")
+                                                                        : "-")
+                                                                </td>
+                                                                <td data-label="Solicitó">@(tr.UsuarioSolicita ?? "-")</td>
+                                                            </tr>
+                                                        }
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+
+                                <form id="@formId"
+                                      asp-action="RegistrarCalidad"
+                                      method="post"
+                                      enctype="multipart/form-data"
+                                      class="form-calidad-validacion"
+                                      data-embarque-id="@e.Id"
+                                      novalidate>
+
+                                    <input type="hidden" name="id" value="@e.Id" />
+
+                                    <div class="validation-client-box" data-validation-box>
+                                        <strong>
+                                            <i class="bi bi-exclamation-triangle-fill"></i>
+                                            No se puede validar el embarque
+                                        </strong>
+                                        <ul data-validation-list></ul>
+                                    </div>
+
+                                    <div class="accordion-quality">
+
+                                        <section class="quality-step open">
+                                            <button type="button" class="step-head" onclick="toggleStep(this)">
+                                                <span class="step-head-left">
+                                                    <span class="step-number">1</span>
+                                                    <span>
+                                                        <span class="step-title">Salida</span>
+                                                        <span class="step-desc">Tipo de salida del embarque</span>
+                                                    </span>
+                                                </span>
+                                                <i class="bi bi-chevron-down step-chevron"></i>
+                                            </button>
+
+                                            <div class="step-body">
+                                                <div class="row g-3 mt-1">
+                                                    <div class="col-md-4">
+                                                        <label class="form-label">Tipo de salida</label>
+                                                        <select name="salidaTipo"
+                                                                class="form-select"
+                                                                data-required-message="Selecciona el tipo de salida.">
+                                                            <option value="">Selecciona</option>
+                                                            <option value="TIF 776">TIF 776</option>
+                                                            <option value="TIF 805">TIF 805</option>
+                                                            <option value="NO TIF">NO TIF</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </section>
+
+                                        <section class="quality-step">
+                                            <button type="button" class="step-head" onclick="toggleStep(this)">
+                                                <span class="step-head-left">
+                                                    <span class="step-number">2</span>
+                                                    <span>
+                                                        <span class="step-title">Transporte</span>
+                                                        <span class="step-desc">Placa, temperatura programada y condiciones de unidad</span>
+                                                    </span>
+                                                </span>
+                                                <i class="bi bi-chevron-down step-chevron"></i>
+                                            </button>
+
+                                            <div class="step-body">
+                                                <div class="row g-3 mt-1">
+                                                    <div class="col-md-4">
+                                                        <label class="form-label">Placa</label>
+                                                        <input type="text"
+                                                               name="placaTransporte"
+                                                               class="form-control"
+                                                               placeholder="Ej. 45-AT-9K"
+                                                               data-required-message="Captura la placa del transporte." />
+                                                    </div>
+
+                                                    <div class="col-md-4">
+                                                        <label class="form-label">Temperatura de programación</label>
+                                                        <input type="number"
+                                                               step="0.1"
+                                                               name="temperaturaProgramacion"
+                                                               class="form-control"
+                                                               placeholder="Ej. 4.0"
+                                                               data-required-message="Captura la temperatura de programación." />
+                                                        <div class="input-hint">Captura el valor en °C</div>
+                                                    </div>
+
+                                                    <div class="col-md-4">
+                                                        <label class="form-label">Condiciones de unidad</label>
+                                                        <select name="estadoUnidad"
+                                                                class="form-select"
+                                                                data-required-message="Selecciona las condiciones de la unidad.">
+                                                            <option value="">Selecciona</option>
+                                                            <option value="BUENO">Bueno</option>
+                                                            <option value="REGULAR">Regular</option>
+                                                            <option value="MALO">Malo</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </section>
+
+                                        <section class="quality-step">
+                                            <button type="button" class="step-head" onclick="toggleStep(this)">
+                                                <span class="step-head-left">
+                                                    <span class="step-number">3</span>
+                                                    <span>
+                                                        <span class="step-title">Tiempos de embarque</span>
+                                                        <span class="step-desc">Inicio y término de carga</span>
+                                                    </span>
+                                                </span>
+                                                <i class="bi bi-chevron-down step-chevron"></i>
+                                            </button>
+
+                                            <div class="step-body">
+                                                <div class="row g-3 mt-1">
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">Hora de inicio de embarque</label>
+                                                        <input type="datetime-local"
+                                                               name="horaInicioEmbarque"
+                                                               class="form-control"
+                                                               data-required-message="Captura la hora de inicio de embarque." />
+                                                    </div>
+
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">Hora de término de embarque</label>
+                                                        <input type="datetime-local"
+                                                               name="horaTerminoEmbarque"
+                                                               class="form-control"
+                                                               data-required-message="Captura la hora de término de embarque." />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </section>
+
+                                        <section class="quality-step">
+                                            <button type="button" class="step-head" onclick="toggleStep(this)">
+                                                <span class="step-head-left">
+                                                    <span class="step-number">4</span>
+                                                    <span>
+                                                        <span class="step-title">Temperaturas</span>
+                                                        <span class="step-desc">Temperatura de unidad al inicio y término</span>
+                                                    </span>
+                                                </span>
+                                                <i class="bi bi-chevron-down step-chevron"></i>
+                                            </button>
+
+                                            <div class="step-body">
+                                                <div class="row g-3 mt-1">
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">Temperatura de unidad inicio</label>
+                                                        <input type="number"
+                                                               step="0.1"
+                                                               name="temperaturaUnidadInicio"
+                                                               class="form-control"
+                                                               placeholder="Ej. 3.8"
+                                                               data-required-message="Captura la temperatura de unidad al inicio." />
+                                                    </div>
+
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">Temperatura de unidad término</label>
+                                                        <input type="number"
+                                                               step="0.1"
+                                                               name="temperaturaUnidadTermino"
+                                                               class="form-control"
+                                                               placeholder="Ej. 4.2"
+                                                               data-required-message="Captura la temperatura de unidad al término." />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </section>
+
+                                        <section class="quality-step">
+                                            <button type="button" class="step-head" onclick="toggleStep(this)">
+                                                <span class="step-head-left">
+                                                    <span class="step-number">5</span>
+                                                    <span>
+                                                        <span class="step-title">Producto</span>
+                                                        <span class="step-desc">Condición del producto que se carga</span>
+                                                    </span>
+                                                </span>
+                                                <i class="bi bi-chevron-down step-chevron"></i>
+                                            </button>
+
+                                            <div class="step-body">
+                                                <div class="row g-3 mt-1">
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">Condiciones del producto que se carga</label>
+                                                        <select name="estadoProductos"
+                                                                class="form-select"
+                                                                data-required-message="Selecciona las condiciones del producto.">
+                                                            <option value="">Selecciona</option>
+                                                            <option value="BUENO">Bueno</option>
+                                                            <option value="REGULAR">Regular</option>
+                                                            <option value="MALO">Malo</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </section>
+
+                                        <section class="quality-step">
+                                            <button type="button" class="step-head" onclick="toggleStep(this)">
+                                                <span class="step-head-left">
+                                                    <span class="step-number">6</span>
+                                                    <span>
+                                                        <span class="step-title">Equipos de medición</span>
+                                                        <span class="step-desc">Termograficador y termómetro utilizado</span>
+                                                    </span>
+                                                </span>
+                                                <i class="bi bi-chevron-down step-chevron"></i>
+                                            </button>
+
+                                            <div class="step-body">
+                                                <div class="row g-3 mt-1">
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">Código de termograficador</label>
+                                                        <input type="text"
+                                                               name="codigoTermograficador"
+                                                               class="form-control"
+                                                               placeholder="Código"
+                                                               data-required-message="Captura el código de termograficador." />
+                                                    </div>
+
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">N° de termómetro utilizado</label>
+                                                        <input type="text"
+                                                               name="numeroTermometro"
+                                                               class="form-control"
+                                                               placeholder="Número"
+                                                               data-required-message="Captura el número de termómetro utilizado." />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </section>
+
+                                        <section class="quality-step">
+                                            <button type="button" class="step-head" onclick="toggleStep(this)">
+                                                <span class="step-head-left">
+                                                    <span class="step-number">7</span>
+                                                    <span>
+                                                        <span class="step-title">Observaciones y acciones</span>
+                                                        <span class="step-desc">Hallazgos, comentarios y acciones correctivas</span>
+                                                    </span>
+                                                </span>
+                                                <i class="bi bi-chevron-down step-chevron"></i>
+                                            </button>
+
+                                            <div class="step-body">
+                                                <div class="row g-3 mt-1">
+                                                    <div class="col-12">
+                                                        <label class="form-label">Acciones correctivas</label>
+                                                        <textarea name="accionesCorrectivasCalidad"
+                                                          class="form-control"
+                                                          rows="3"
+                                                          placeholder="Acciones correctivas aplicadas..."
+                                                          data-required-message="Captura las acciones correctivas. Si no aplica, escribe N/A."></textarea>
+                                                    </div>
+
+                                                    <div class="col-12">
+                                                        <label class="form-label">Observaciones de calidad</label>
+                                                        <textarea name="observacionesCalidad"
+                                                          class="form-control"
+                                                          rows="4"
+                                                          placeholder="Agrega comentarios de la inspección, hallazgos o detalles relevantes..."
+                                                          data-required-message="Captura las observaciones de calidad. Si no aplica, escribe N/A."></textarea>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </section>
+
+                                        <section class="quality-step">
+                                            <button type="button" class="step-head" onclick="toggleStep(this)">
+                                                <span class="step-head-left">
+                                                    <span class="step-number">8</span>
+                                                    <span>
+                                                        <span class="step-title">Evidencia fotográfica</span>
+                                                        <span class="step-desc">Fotografías del embarque o condiciones inspeccionadas</span>
+                                                    </span>
+                                                </span>
+                                                <i class="bi bi-chevron-down step-chevron"></i>
+                                            </button>
+
+                                            <div class="step-body">
+                                                <div class="row g-3 mt-1">
+                                                    <div class="col-12">
+                                                        <label class="form-label">Fotografías</label>
+
+                                                        <div class="upload-box" id="@uploadId">
+                                                            <input type="file"
+                                                                   name="fotosCalidad"
+                                                                   class="form-control"
+                                                                   accept="image/*"
+                                                                   capture="environment"
+                                                                   multiple
+                                                                   data-required-message="Agrega al menos una fotografía de evidencia."
+                                                                   onchange="mostrarArchivos(this, '@filesId', '@uploadId')" />
+
+                                                            <div class="upload-help">
+                                                                Puedes subir varias fotografías o tomarlas directamente desde el celular.
+                                                            </div>
+
+                                                            <div class="file-list" id="@filesId"></div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </section>
+
+                                        <section class="quality-step">
+                                            <button type="button" class="step-head" onclick="toggleStep(this)">
+                                                <span class="step-head-left">
+                                                    <span class="step-number">9</span>
+                                                    <span>
+                                                        <span class="step-title">Temperatura por SKU</span>
+                                                        <span class="step-desc">
+                                                            Captura individual por producto. Guardado parcial:
+                                                            @skuTemperaturaCapturados/@totalSkuTemperatura SKU(s).
+                                                        </span>
+                                                    </span>
+                                                </span>
+                                                <i class="bi bi-chevron-down step-chevron"></i>
+                                            </button>
+
+                                            <div class="step-body">
+                                                @if (productosTemperatura.Any())
+                                                {
+                                                    <div class="sku-temp-summary mt-3">
+                                                        <div>
+                                                            <strong>Avance de captura</strong>
+                                                            <div class="input-hint">
+                                                                Puedes guardar uno o varios SKU sin validar todavía el embarque.
+                                                            </div>
+                                                        </div>
+
+                                                        <span class="sku-temp-badge">
+                                                            @skuTemperaturaCapturados / @totalSkuTemperatura capturados
+                                                        </span>
+                                                    </div>
+
+                                                    <div class="sku-doc-groups mt-3">
+                                                        @foreach (var doc in gruposDocumentos)
+                                                        {
+                                                            var tipoCss = doc.TipoDocumento == "OV" ? "ov" : "tr";
+                                                            var tipoTexto = doc.TipoDocumento == "OV" ? "Orden de Venta" : "Transferencia";
+                                                            var clienteTexto = string.IsNullOrWhiteSpace(doc.DocumentoCliente)
+                                                            ? (doc.TipoDocumento == "OV" ? "Cliente no disponible" : "Sucursal no disponible")
+                                                            : doc.DocumentoCliente;
+
+                                                            <div class="sku-doc-card @tipoCss">
+                                                                <div class="sku-doc-head">
+                                                                    <div class="sku-doc-head-main">
+                                                                        <div class="sku-doc-type-row">
+                                                                            <span class="sku-doc-type-badge">@tipoTexto</span>
+                                                                            <span class="sku-doc-progress-chip">
+                                                                                @doc.Capturados / @doc.TotalSku SKU(s) capturados
+                                                                            </span>
+                                                                        </div>
+
+                                                                        <h5 class="sku-doc-title">@doc.DocumentoConsecutivo</h5>
+
+                                                                        <div class="sku-doc-client">
+                                                                            <i class="bi bi-building"></i>
+                                                                            <span>@clienteTexto</span>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div class="sku-doc-metrics">
+                                                                        <div class="sku-doc-metric">
+                                                                            <small>SKU</small>
+                                                                            <strong>@doc.TotalSku</strong>
+                                                                        </div>
+                                                                        <div class="sku-doc-metric">
+                                                                            <small>Cajas</small>
+                                                                            <strong>@doc.TotalCajas</strong>
+                                                                        </div>
+                                                                        <div class="sku-doc-metric">
+                                                                            <small>Kilos</small>
+                                                                            <strong>@doc.TotalKilos.ToString("N2")</strong>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div class="table-wrap mt-3">
+                                                                    <table class="tabla-soft sku-temp-table">
+                                                                        <thead>
+                                                                            <tr>
+                                                                                <th>SKU</th>
+                                                                                <th>Producto</th>
+                                                                                <th>Almacén</th>
+                                                                                <th>Cajas</th>
+                                                                                <th>Kilos</th>
+                                                                                <th>Temperatura °C</th>
+                                                                                <th>Observaciones</th>
+                                                                                <th>Última captura</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            @foreach (var p in doc.Items)
+                                                                            {
+                                                                                var skuKey = $"{p.TipoDocumento}|{p.DocumentoId}|{p.OrigenDetalleId}|{p.ProductoCodigo}|{p.Almacen}";
+                                                                                var tempValue = p.Temperatura.HasValue
+                                                                                ? p.Temperatura.Value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)
+                                                                                : "";
+
+                                                                                <tr data-sku-row>
+                                                                                    <td data-label="SKU">
+                                                                                        <strong>@p.ProductoCodigo</strong>
+                                                                                    </td>
+
+                                                                                    <td data-label="Producto">
+                                                                                        @(string.IsNullOrWhiteSpace(p.ProductoNombre) ? "-" : p.ProductoNombre)
+                                                                                    </td>
+
+                                                                                    <td data-label="Almacén">
+                                                                                        @(string.IsNullOrWhiteSpace(p.Almacen) ? "-" : p.Almacen)
+                                                                                    </td>
+
+                                                                                    <td data-label="Cajas">
+                                                                                        @p.Cajas
+                                                                                    </td>
+
+                                                                                    <td data-label="Kilos">
+                                                                                        @p.Kilos.ToString("N2")
+                                                                                    </td>
+
+                                                                                    <td data-label="Temperatura °C">
+                                                                                        <input type="number"
+                                                                                               step="0.1"
+                                                                                               class="form-control temp-sku-input"
+                                                                                               value="@tempValue"
+                                                                                               placeholder="Ej. 4.0"
+                                                                                               data-sku-key="@skuKey"
+                                                                                               data-tipo-documento="@p.TipoDocumento"
+                                                                                               data-documento-id="@p.DocumentoId"
+                                                                                               data-origen-detalle-id="@p.OrigenDetalleId"
+                                                                                               data-producto-codigo="@p.ProductoCodigo"
+                                                                                               data-almacen="@p.Almacen"
+                                                                                               data-required-message="Captura la temperatura del SKU @p.ProductoCodigo del documento @p.DocumentoConsecutivo." />
+                                                                                    </td>
+
+                                                                                    <td data-label="Observaciones">
+                                                                                        <input type="text"
+                                                                                               class="form-control temp-sku-obs"
+                                                                                               value="@(p.Observaciones ?? "")"
+                                                                                               placeholder="Opcional" />
+                                                                                    </td>
+
+                                                                                    <td data-label="Última captura">
+                                                                                        @if (p.FechaUltimaCaptura.HasValue)
+                                                                                        {
+                                                                                            <span class="sku-captured">
+                                                                                                <i class="bi bi-check-circle-fill"></i>
+                                                                                                @p.FechaUltimaCaptura.Value.ToString("yyyy-MM-dd HH:mm")
+                                                                                            </span>
+                                                                                            <br />
+                                                                                            <small>@(p.UsuarioUltimaCaptura ?? "Sistema")</small>
+                                                                                        }
+                                                                                        else
+                                                                                        {
+                                                                                            <span class="sku-pending">
+                                                                                                <i class="bi bi-hourglass-split"></i>
+                                                                                                Pendiente
+                                                                                            </span>
+                                                                                        }
+                                                                                    </td>
+                                                                                </tr>
+                                                                            }
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="pending-box mt-3">
+                                                        No se encontraron SKUs ligados a las órdenes o transferencias de este embarque.
+                                                    </div>
+                                                }
+                                            </div>
+                                        </section>
+
+@*                                         <section class="quality-step">
+                                            <button type="button" class="step-head" onclick="toggleStep(this)">
+                                                <span class="step-head-left">
+                                                    <span class="step-number">9</span>
+                                                    <span>
+                                                        <span class="step-title">Datos pendientes</span>
+                                                        <span class="step-desc">Información que aún falta ligar desde BD</span>
+                                                    </span>
+                                                </span>
+                                                <i class="bi bi-chevron-down step-chevron"></i>
+                                            </button>
+
+                                            <div class="step-body">
+                                                <div class="pending-box mt-3">
+                                                    <strong>Falta definir origen en BD para:</strong><br />
+                                                    Datos del producto: Hora de liberación, Temperatura °C, SKU, Lote,
+                                                    N° de cajas por tarima, Fecha de producción y Fecha de caducidad.
+                                                </div>
+                                            </div>
+                                        </section> *@
+                                    </div>
+
+                                    <div class="form-actions-sticky">
+                                        <div class="action-note">
+                                            <i class="bi bi-info-circle me-1"></i>
+                                            Revisa la información antes de liberar este embarque.
+                                            <br />
+                                            <span class="sku-save-status" data-sku-status></span>
+                                        </div>
+
+                                        <div class="d-flex gap-2 flex-wrap">
+                                            <button type="button"
+                                                    class="btn btn-sap btn-sap-outline"
+                                                    onclick="guardarTemperaturasSku(this.closest('form'), false)">
+                                                <i class="bi bi-save me-1"></i>
+                                                Guardar temperaturas
+                                            </button>
+
+                                            <button type="submit" class="btn btn-sap btn-sap-success">
+                                                <i class="bi bi-check2-circle me-1"></i>
+                                                Validar Calidad
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </main>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    <div class="quality-history-divider">
+        <div class="quality-history-title">
+            <i class="bi bi-clock-history"></i>
+            Historial de formularios validados
+        </div>
+    </div>
+
+    <div class="quality-filter-panel">
+        <div class="quality-filter-title">
+            <i class="bi bi-funnel"></i>
+            Filtros de historial
+        </div>
+
+        <form method="get" asp-action="Calidad" class="quality-filter-grid">
+            <input type="hidden" name="busqueda" value="@busqueda" />
+            <input type="hidden" name="fechaInicio" value="@fechaInicio" />
+            <input type="hidden" name="fechaFin" value="@fechaFin" />
+
+            <div class="quality-filter-group">
+                <label>Buscar formulario</label>
+                <input type="text"
+                       name="busquedaHistorial"
+                       value="@busquedaHistorial"
+                       class="quality-filter-input"
+                       placeholder="Ej. EMB-0001, 125, nombre..." />
+            </div>
+
+            <div class="quality-filter-group">
+                <label>Fecha validación inicio</label>
+                <input type="date"
+                       name="fechaInicioHistorial"
+                       value="@fechaInicioHistorial"
+                       class="quality-filter-input" />
+            </div>
+
+            <div class="quality-filter-group">
+                <label>Fecha validación fin</label>
+                <input type="date"
+                       name="fechaFinHistorial"
+                       value="@fechaFinHistorial"
+                       class="quality-filter-input" />
+            </div>
+
+            <button type="submit" class="quality-filter-btn primary">
+                <i class="bi bi-search"></i>
+                Buscar historial
+            </button>
+
+            <a asp-action="Calidad"
+               asp-route-busqueda="@busqueda"
+               asp-route-fechaInicio="@fechaInicio"
+               asp-route-fechaFin="@fechaFin"
+               class="quality-filter-btn secondary">
+                <i class="bi bi-arrow-clockwise"></i>
+                Limpiar historial
+            </a>
+        </form>
+    </div>
+
+    @if (!buscoHistorialCalidad)
+    {
+        <div class="empty-state">
+            <i class="bi bi-calendar-range"></i>
+            <h4>Selecciona un rango de fechas</h4>
+            <p class="text-muted mb-0">
+                El historial de formularios validados no carga información hasta que indiques fecha inicio y fecha fin.
+            </p>
+        </div>
+    }
+    else if (!historialCalidad.Any())
+    {
+        <div class="empty-state">
+            <i class="bi bi-search"></i>
+            <h4>No se encontraron formularios validados</h4>
+            <p class="text-muted mb-0">
+                No existen registros de calidad validados dentro del rango seleccionado.
+            </p>
+        </div>
+    }
+    else
+    {
+        <div class="quality-list">
+            @foreach (var h in historialCalidad)
+            {
+                var cardHistId = $"hist_calidad_{h.Id}";
+
+                var docsMapHist = ViewBag.EmbarquesDocumentos as Dictionary<int, object>;
+                dynamic docsHist = docsMapHist != null && docsMapHist.ContainsKey(h.Id) ? docsMapHist[h.Id] : null;
+
+                IEnumerable<dynamic> ordenesHist = docsHist?.OrdenesVenta ?? Enumerable.Empty<dynamic>();
+                IEnumerable<dynamic> transferenciasHist = docsHist?.Transferencias ?? Enumerable.Empty<dynamic>();
+
+                var totalOVHist = ordenesHist.Count();
+                var totalTRHist = transferenciasHist.Count();
+
+                var fotosHist = fotosCalidadHistorial.ContainsKey(h.Id)
+                ? fotosCalidadHistorial[h.Id]
+                : new List<Plataforma_CG.Models.Embarque.EmbarqueCalidadFoto>();
+
+                <div class="embarque-card" id="@cardHistId">
+                    <div class="embarque-summary" onclick="toggleCard('@cardHistId')">
+                        <div>
+                            <h4 class="embarque-id">
+                                <i class="bi bi-clipboard-check"></i>
+                                Formulario validado - Embarque #@h.Consecutivo
+                            </h4>
+
+                            <div class="embarque-meta">
+                                <span class="meta-pill history-badge-ok">
+                                    <i class="bi bi-check-circle-fill"></i>
+                                    Validado
+                                </span>
+
+                                <span class="meta-pill primary">
+                                    <i class="bi bi-calendar-check"></i>
+                                    Validado:
+                                    @(h.FechaValidacionCalidad != null
+                                                                ? Convert.ToDateTime(h.FechaValidacionCalidad).ToString("yyyy-MM-dd HH:mm")
+                                                                : "-")
+                                                                  </span>
+
+                                <span class="meta-pill">
+                                    <i class="bi bi-person-check"></i>
+                                    @(h.UsuarioValidaCalidad ?? "Sistema")
+                                </span>
+
+                                <span class="meta-pill">
+                                    <i class="bi bi-hash"></i>
+                                    ID: @h.Id
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="summary-right">
+                            <div class="summary-count">
+                                <small>Documentos</small>
+                                <strong>@totalOVHist OV / @totalTRHist TR</strong>
+                            </div>
+
+                            <button type="button" class="toggle-btn" onclick="event.stopPropagation(); toggleCard('@cardHistId')">
+                                <i class="bi bi-chevron-down"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="embarque-detail">
+                        <div class="validation-layout">
+
+                            <aside class="side-panel">
+                                <div class="quick-card">
+                                    <div class="card-head">
+                                        <h5 class="card-title">
+                                            <i class="bi bi-info-circle"></i>
+                                            Resumen del formulario
+                                        </h5>
+                                        <div class="card-sub">Datos generales de la validación de calidad</div>
+                                    </div>
+
+                                    <div class="card-body">
+                                        <div class="quick-row">
+                                            <div class="quick-label">Consecutivo</div>
+                                            <div class="quick-value">@h.Consecutivo</div>
+                                        </div>
+
+                                        <div class="quick-row">
+                                            <div class="quick-label">Nombre</div>
+                                            <div class="quick-value">@(h.NombreEmbarque ?? "-")</div>
+                                        </div>
+
+                                        <div class="quick-row">
+                                            <div class="quick-label">Fecha creación</div>
+                                            <div class="quick-value">@h.FechaCreacion.ToString("yyyy-MM-dd HH:mm")</div>
+                                        </div>
+
+                                        <div class="quick-row">
+                                            <div class="quick-label">Validó</div>
+                                            <div class="quick-value">@(h.UsuarioValidaCalidad ?? "Sistema")</div>
+                                        </div>
+
+                                        <div class="quick-row">
+                                            <div class="quick-label">Fotos</div>
+                                            <div class="quick-value">@fotosHist.Count</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="docs-card">
+                                    <div class="card-head">
+                                        <h5 class="card-title">
+                                            <i class="bi bi-folder2-open"></i>
+                                            Documentos
+                                        </h5>
+                                        <div class="card-sub">Resumen del embarque validado</div>
+                                    </div>
+
+                                    <div class="card-body">
+                                        <div class="doc-buttons">
+                                            <div class="doc-mini">
+                                                <i class="bi bi-box-seam"></i>
+                                                <strong>@totalOVHist</strong>
+                                                <span>OV</span>
+                                            </div>
+
+                                            <div class="doc-mini">
+                                                <i class="bi bi-arrow-left-right"></i>
+                                                <strong>@totalTRHist</strong>
+                                                <span>TR</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </aside>
+
+                            <main>
+                                <div class="form-card mb-3">
+                                    <div class="card-head">
+                                        <h5 class="card-title">
+                                            <i class="bi bi-ui-checks"></i>
+                                            Datos capturados en calidad
+                                        </h5>
+                                        <div class="card-sub">Información registrada al momento de validar el formulario</div>
+                                    </div>
+
+                                    <div class="card-body">
+                                        <div class="history-detail-grid">
+                                            <div class="history-detail-item">
+                                                <div class="history-detail-label">Tipo de salida</div>
+                                                <div class="history-detail-value">@(h.SalidaTipo ?? "-")</div>
+                                            </div>
+
+                                            <div class="history-detail-item">
+                                                <div class="history-detail-label">Placa transporte</div>
+                                                <div class="history-detail-value">@(h.PlacaTransporte ?? "-")</div>
+                                            </div>
+
+                                            <div class="history-detail-item">
+                                                <div class="history-detail-label">Temp. programación</div>
+                                                <div class="history-detail-value">
+                                                    @(h.TemperaturaProgramacion.HasValue
+                                                                                                ? h.TemperaturaProgramacion.Value.ToString("N2") + " °C"
+                                                                                                : "-")
+                                                                                                  </div>
+                                                                                              </div>
+
+                                            <div class="history-detail-item">
+                                                <div class="history-detail-label">Estado unidad</div>
+                                                <div class="history-detail-value">@(h.EstadoUnidadCalidad ?? "-")</div>
+                                            </div>
+
+                                            <div class="history-detail-item">
+                                                <div class="history-detail-label">Inicio embarque</div>
+                                                <div class="history-detail-value">
+                                                    @(h.HoraInicioEmbarque != null
+                                                                                                ? Convert.ToDateTime(h.HoraInicioEmbarque).ToString("yyyy-MM-dd HH:mm")
+                                                                                                : "-")
+                                                                                                  </div>
+                                                                                              </div>
+
+                                            <div class="history-detail-item">
+                                                <div class="history-detail-label">Término embarque</div>
+                                                <div class="history-detail-value">
+                                                    @(h.HoraTerminoEmbarque != null
+                                                                                                ? Convert.ToDateTime(h.HoraTerminoEmbarque).ToString("yyyy-MM-dd HH:mm")
+                                                                                                : "-")
+                                                                                                  </div>
+                                                                                              </div>
+
+                                            <div class="history-detail-item">
+                                                <div class="history-detail-label">Temp. unidad inicio</div>
+                                                <div class="history-detail-value">
+                                                    @(h.TemperaturaUnidadInicio.HasValue
+                                                                                                ? h.TemperaturaUnidadInicio.Value.ToString("N2") + " °C"
+                                                                                                : "-")
+                                                                                                  </div>
+                                                                                              </div>
+
+                                            <div class="history-detail-item">
+                                                <div class="history-detail-label">Temp. unidad término</div>
+                                                <div class="history-detail-value">
+                                                    @(h.TemperaturaUnidadTermino.HasValue
+                                                                                                ? h.TemperaturaUnidadTermino.Value.ToString("N2") + " °C"
+                                                                                                : "-")
+                                                                                                  </div>
+                                                                                              </div>
+
+                                            <div class="history-detail-item">
+                                                <div class="history-detail-label">Estado productos</div>
+                                                <div class="history-detail-value">@(h.EstadoProductosCalidad ?? "-")</div>
+                                            </div>
+
+                                            <div class="history-detail-item">
+                                                <div class="history-detail-label">Código termograficador</div>
+                                                <div class="history-detail-value">@(h.CodigoTermograficador ?? "-")</div>
+                                            </div>
+
+                                            <div class="history-detail-item">
+                                                <div class="history-detail-label">Número termómetro</div>
+                                                <div class="history-detail-value">@(h.NumeroTermometro ?? "-")</div>
+                                            </div>
+
+                                            <div class="history-detail-item">
+                                                <div class="history-detail-label">Fecha validación</div>
+                                                <div class="history-detail-value">
+                                                    @(h.FechaValidacionCalidad != null
+                                                                                                ? Convert.ToDateTime(h.FechaValidacionCalidad).ToString("yyyy-MM-dd HH:mm")
+                                                                                                : "-")
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                                <div class="form-card mb-3">
+                                    <div class="card-head">
+                                        <h5 class="card-title">
+                                            <i class="bi bi-chat-left-text"></i>
+                                            Observaciones y acciones correctivas
+                                        </h5>
+                                    </div>
+
+                                    <div class="card-body">
+                                        <div class="history-detail-grid">
+                                            <div class="history-detail-item">
+                                                <div class="history-detail-label">Acciones correctivas</div>
+                                                <div class="history-detail-value">@(h.AccionesCorrectivasCalidad ?? "-")</div>
+                                            </div>
+
+                                            <div class="history-detail-item">
+                                                <div class="history-detail-label">Observaciones</div>
+                                                <div class="history-detail-value">@(h.ObservacionesCalidad ?? "-")</div>
+                                            </div>
+
+                                            <div class="history-detail-item">
+                                                <div class="history-detail-label">Evidencia fotográfica</div>
+                                                <div class="history-detail-value">
+                                            @if (fotosHist.Any())
+                                                    {
+                                                        <div class="history-photo-list">
+                                                            @{
+                                                                var indexFoto = 1;
+                                                            }
+
+                                                            @foreach (var foto in fotosHist)
+                                                            {
+                                                                <a href="@foto.RutaArchivo"
+                                                                   target="_blank"
+                                                                   class="history-photo-link">
+                                                                    <i class="bi bi-image"></i>
+                                                                    Foto @indexFoto
+                                                                </a>
+
+                                                                indexFoto++;
+                                                            }
+                                                        </div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>-</span>
+                                                    }
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                @if (ordenesHist.Any())
+                                {
+                                    <div class="form-card mb-3">
+                                        <div class="card-head">
+                                            <h5 class="card-title">
+                                                <i class="bi bi-box-seam"></i>
+                                                Órdenes de Venta Incluidas
+                                            </h5>
+                                            <div class="card-sub">@totalOVHist registro(s) integrados a este embarque</div>
+                                        </div>
+
+                                        <div class="card-body">
+                                            <div class="table-wrap">
+                                                <table class="tabla-soft">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Consecutivo</th>
+                                                            <th>Cliente</th>
+                                                            <th>Ruta</th>
+                                                            <th>Fecha Entrega</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @foreach (var ov in ordenesHist)
+                                                        {
+                                                            <tr>
+                                                                <td data-label="Consecutivo">@ov.Consecutivo</td>
+                                                                <td data-label="Cliente">@ov.NombreCliente</td>
+                                                                <td data-label="Ruta">@(ov.Ruta ?? "-")</td>
+                                                                <td data-label="Fecha Entrega">
+                                                                    @(ov.FechaEntrega != null
+                                                                                                                        ? Convert.ToDateTime(ov.FechaEntrega).ToString("yyyy-MM-dd")
+                                                                                                                        : "-")
+                                                </td>
+                                            </tr>
+                                                                                        }
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+
+                                @if (transferenciasHist.Any())
+                                {
+                                    <div class="form-card mb-3">
+                                        <div class="card-head">
+                                            <h5 class="card-title">
+                                                <i class="bi bi-arrow-left-right"></i>
+                                                Transferencias Incluidas
+                                            </h5>
+                                            <div class="card-sub">@totalTRHist registro(s) relacionados a este embarque</div>
+                                        </div>
+
+                                        <div class="card-body">
+                                            <div class="table-wrap">
+                                                <table class="tabla-soft">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Consecutivo</th>
+                                                            <th>Sucursal</th>
+                                                            <th>Fecha Solicitud</th>
+                                                            <th>Solicitó</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @foreach (var tr in transferenciasHist)
+                                                        {
+                                                            <tr>
+                                                                <td data-label="Consecutivo">@tr.Consecutivo</td>
+                                                                <td data-label="Sucursal">@(tr.Sucursal ?? "-")</td>
+                                                                <td data-label="Fecha Solicitud">
+                                                                    @(tr.FechaSolicitud != null
+                                                                                                                        ? Convert.ToDateTime(tr.FechaSolicitud).ToString("yyyy-MM-dd")
+                                                                                                                        : "-")
+                                                </td>
+                                                <td data-label="Solicitó">@(tr.UsuarioSolicita ?? "-")</td>
+                                            </tr>
+                                                                                        }
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </main>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+</div>
+
+@section Scripts {
+    <script>
+        function toggleCard(cardId) {
+            const card = document.getElementById(cardId);
+
+            if (!card) return;
+
+            card.classList.toggle("active");
+        }
+
+        function toggleStep(button) {
+            const step = button.closest(".quality-step");
+
+            if (!step) return;
+
+            step.classList.toggle("open");
+        }
+
+        function mostrarArchivos(input, targetId, uploadId) {
+            const contenedor = document.getElementById(targetId);
+            const uploadBox = document.getElementById(uploadId);
+
+            if (!contenedor || !uploadBox) return;
+
+            contenedor.innerHTML = "";
+
+            if (input.files && input.files.length > 0) {
+                uploadBox.classList.add("has-files");
+                uploadBox.classList.remove("is-invalid");
+                input.classList.remove("is-invalid");
+
+                Array.from(input.files).forEach(file => {
+                    const item = document.createElement("div");
+                    item.className = "file-item";
+                    item.innerHTML = `<i class="bi bi-check-circle-fill"></i> ${file.name}`;
+                    contenedor.appendChild(item);
+                });
+            } else {
+                uploadBox.classList.remove("has-files");
+            }
+        }
+
+        function limpiarErroresFormulario(form) {
+            form.querySelectorAll(".is-invalid").forEach(el => {
+                el.classList.remove("is-invalid");
+            });
+
+            form.querySelectorAll(".quality-step.step-error").forEach(step => {
+                step.classList.remove("step-error");
+            });
+
+            const box = form.querySelector("[data-validation-box]");
+            const list = form.querySelector("[data-validation-list]");
+
+            if (box) box.classList.remove("show");
+            if (list) list.innerHTML = "";
+        }
+
+        function abrirSeccionConError(campo) {
+            const step = campo.closest(".quality-step");
+
+            if (!step) return;
+
+            step.classList.add("open");
+            step.classList.add("step-error");
+        }
+
+        function marcarCampoInvalido(campo) {
+            campo.classList.add("is-invalid");
+
+            const uploadBox = campo.closest(".upload-box");
+
+            if (uploadBox) {
+                uploadBox.classList.add("is-invalid");
+            }
+
+            abrirSeccionConError(campo);
+        }
+
+        function obtenerValorCampo(campo) {
+            if (!campo) return "";
+
+            if (campo.type === "file") {
+                return campo.files && campo.files.length > 0 ? "OK" : "";
+            }
+
+            return (campo.value || "").trim();
+        }
+
+        function validarFormularioCalidad(form) {
+            limpiarErroresFormulario(form);
+
+            const errores = [];
+            const campos = form.querySelectorAll("[data-required-message]");
+
+            campos.forEach(campo => {
+                const valor = obtenerValorCampo(campo);
+
+                if (!valor) {
+                    const mensaje = campo.getAttribute("data-required-message") || "Completa este campo.";
+                    errores.push(mensaje);
+                    marcarCampoInvalido(campo);
+                }
+            });
+
+            const horaInicio = form.querySelector("[name='horaInicioEmbarque']");
+            const horaTermino = form.querySelector("[name='horaTerminoEmbarque']");
+
+            if (horaInicio && horaTermino && horaInicio.value && horaTermino.value) {
+                const inicio = new Date(horaInicio.value);
+                const termino = new Date(horaTermino.value);
+
+                if (termino < inicio) {
+                    errores.push("La hora de término de embarque no puede ser menor que la hora de inicio.");
+                    marcarCampoInvalido(horaInicio);
+                    marcarCampoInvalido(horaTermino);
+                }
+            }
+
+            if (errores.length > 0) {
+                const box = form.querySelector("[data-validation-box]");
+                const list = form.querySelector("[data-validation-list]");
+
+                if (list) {
+                    list.innerHTML = "";
+
+                    errores.forEach(error => {
+                        const li = document.createElement("li");
+                        li.textContent = error;
+                        list.appendChild(li);
+                    });
+                }
+
+                if (box) {
+                    box.classList.add("show");
+                    box.scrollIntoView({
+                        behavior: "smooth",
+                        block: "center"
+                    });
+                }
+
+                const primerCampoInvalido = form.querySelector(".is-invalid");
+
+                if (primerCampoInvalido) {
+                    setTimeout(() => primerCampoInvalido.focus(), 250);
+                }
+
+                return false;
+            }
+
+            return true;
+        }
+
+                function parseNullableDecimal(value) {
+            value = (value || "").toString().trim().replace(",", ".");
+
+            if (!value) return null;
+
+            const number = Number(value);
+
+            return Number.isFinite(number) ? number : null;
+        }
+
+        function recolectarTemperaturasSku(form) {
+            const filas = form.querySelectorAll("[data-sku-row]");
+            const items = [];
+
+            filas.forEach(row => {
+                const inputTemp = row.querySelector(".temp-sku-input");
+                const inputObs = row.querySelector(".temp-sku-obs");
+
+                if (!inputTemp) return;
+
+                items.push({
+                    tipoDocumento: inputTemp.dataset.tipoDocumento || "",
+                    documentoId: Number(inputTemp.dataset.documentoId || 0),
+                    origenDetalleId: Number(inputTemp.dataset.origenDetalleId || 0),
+                    productoCodigo: inputTemp.dataset.productoCodigo || "",
+                    almacen: inputTemp.dataset.almacen || "",
+                    temperatura: parseNullableDecimal(inputTemp.value),
+                    observaciones: inputObs ? inputObs.value : ""
+                });
+            });
+
+            return items;
+        }
+
+        async function guardarTemperaturasSku(form, desdeSubmit) {
+            if (!form) return false;
+
+            const embarqueId = Number(form.dataset.embarqueId || 0);
+            const status = form.querySelector("[data-sku-status]");
+            const btnGuardar = form.querySelector("button[onclick*='guardarTemperaturasSku']");
+            const items = recolectarTemperaturasSku(form);
+
+            if (!embarqueId) {
+                if (status) status.textContent = "No se encontró el ID del embarque.";
+                return false;
+            }
+
+            try {
+                if (btnGuardar) {
+                    btnGuardar.disabled = true;
+                    btnGuardar.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Guardando...';
+                }
+
+                if (status) {
+                    status.textContent = "Guardando temperaturas por SKU...";
+                }
+
+                const response = await fetch("/Embarques/GuardarTemperaturasSku", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        embarqueId,
+                        items
+                    })
+                });
+
+                const result = await response.json();
+
+                if (!result.success) {
+                    if (status) status.textContent = result.message || "No se pudieron guardar las temperaturas.";
+                    alert(result.message || "No se pudieron guardar las temperaturas.");
+                    return false;
+                }
+
+                if (status) {
+                    status.textContent = result.message || "Temperaturas guardadas correctamente.";
+                }
+
+                if (!desdeSubmit) {
+                    alert(result.message || "Temperaturas guardadas correctamente.");
+                }
+
+                return true;
+            } catch (error) {
+                console.error(error);
+
+                if (status) {
+                    status.textContent = "Error al guardar temperaturas por SKU.";
+                }
+
+                alert("Error al guardar temperaturas por SKU.");
+                return false;
+            } finally {
+                if (btnGuardar) {
+                    btnGuardar.disabled = false;
+                    btnGuardar.innerHTML = '<i class="bi bi-save me-1"></i> Guardar temperaturas';
+                }
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            document.querySelectorAll(".form-calidad-validacion").forEach(form => {
+                form.addEventListener("submit", async function (event) {
+                    if (form.dataset.enviandoDespuesDeGuardar === "1") {
+                        return;
+                    }
+
+                    const esValido = validarFormularioCalidad(form);
+
+                    if (!esValido) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        return false;
+                    }
+
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    const guardadoOk = await guardarTemperaturasSku(form, true);
+
+                    if (!guardadoOk) {
+                        return false;
+                    }
+
+                    form.dataset.enviandoDespuesDeGuardar = "1";
+                    form.submit();
+                });
+
+                form.querySelectorAll("[data-required-message]").forEach(campo => {
+                    campo.addEventListener("input", function () {
+                        if (obtenerValorCampo(campo)) {
+                            campo.classList.remove("is-invalid");
+
+                            const uploadBox = campo.closest(".upload-box");
+
+                            if (uploadBox) {
+                                uploadBox.classList.remove("is-invalid");
+                            }
+                        }
+                    });
+
+                    campo.addEventListener("change", function () {
+                        if (obtenerValorCampo(campo)) {
+                            campo.classList.remove("is-invalid");
+
+                            const uploadBox = campo.closest(".upload-box");
+
+                            if (uploadBox) {
+                                uploadBox.classList.remove("is-invalid");
+                            }
+                        }
+                    });
+                });
+            });
+        });
+    </script>
+}

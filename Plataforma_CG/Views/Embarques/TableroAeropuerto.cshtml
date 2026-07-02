@@ -1,0 +1,1173 @@
+﻿@{
+    ViewData["Title"] = "Tablero";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+    <style>
+        :root {
+            --bg: #050505;
+            --panel: #111;
+            --panel-2: #181818;
+            --line: #333;
+            --red: #c40000;
+            --green: #00a651;
+            --yellow: #f4b000;
+            --blue: #0d6efd;
+            --orange: #ff7a00;
+            --gray: #6c757d;
+            --text: #f5f5f5;
+            --muted: #bdbdbd;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+    html, body {
+        margin: 0;
+        width: 100%;
+        min-height: 100%;
+        overflow-x: hidden;
+        overflow-y: auto;
+        background: radial-gradient(circle at top, #222 0, #000 55%, #000 100%);
+        font-family: "Segoe UI", system-ui, sans-serif;
+    }
+
+    .airport-shell {
+        min-height: calc(100vh - 90px);
+        display: flex;
+        flex-direction: column;
+        padding: 10px 20px 20px;
+        gap: 5px;
+    }
+
+        .airport-title {
+            text-align: center;
+            font-size: clamp(1.6rem, 3vw, 3rem);
+            font-weight: 900;
+            color: var(--red);
+            letter-spacing: .14em;
+            text-transform: uppercase;
+            text-shadow: 0 4px 12px rgba(0,0,0,.9);
+        }
+
+        .airport-sub {
+            text-align: center;
+            color: var(--muted);
+            font-size: .95rem;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 10px;
+        }
+
+        .stat-card {
+            background: linear-gradient(180deg, #181818, #0e0e0e);
+            border: 1px solid #333;
+            border-radius: 10px;
+            padding: 10px 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,.5);
+        }
+
+        .stat-label {
+            font-size: .72rem;
+            color: var(--muted);
+            letter-spacing: .12em;
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            font-size: 1.45rem;
+            font-weight: 900;
+            margin-top: 2px;
+            color: white;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .board-wrapper {
+            flex: 1;
+            min-height: 0;
+            border: 4px solid #555;
+            border-radius: 12px;
+            overflow: hidden;
+            background: var(--panel);
+            box-shadow: 0 18px 45px rgba(0,0,0,.9);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .board-header {
+            height: 42px;
+            background: #000;
+            border-bottom: 2px solid #444;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            color: var(--text);
+        }
+
+        .board-header-left {
+            color: var(--red);
+            font-weight: 900;
+            letter-spacing: .16em;
+            text-transform: uppercase;
+        }
+
+        .board-clock {
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+        }
+
+    .board-scroll {
+        flex: 1;
+        min-height: 0;
+        height: 100%;
+        overflow: auto;
+        position: relative;
+    }
+
+    .scroll-inner {
+        position: relative;
+        will-change: transform;
+    }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: auto;
+        }
+
+        thead {
+            background: #050505;
+            position: sticky;
+            top: 0;
+            z-index: 5;
+        }
+
+        th {
+            color: var(--red);
+            font-size: .72rem;
+            text-transform: uppercase;
+            letter-spacing: .14em;
+            padding: 9px 10px;
+            text-align: left;
+            border-bottom: 2px solid #444;
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 9px 10px;
+            border-bottom: 1px solid var(--line);
+            color: var(--text);
+            font-family: Consolas, "Courier New", monospace;
+            font-size: .86rem;
+            letter-spacing: .05em;
+            white-space: nowrap;
+        }
+
+        tbody tr:nth-child(odd) {
+            background: #141414;
+        }
+
+        tbody tr:nth-child(even) {
+            background: #1c1c1c;
+        }
+
+        tbody tr.updated {
+            animation: pulseRow 1.5s ease-out;
+        }
+
+        @@keyframes pulseRow {
+            0% {
+                background: #3a2a00;
+            }
+
+            100% {
+                background: inherit;
+            }
+        }
+
+        .badge-status {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 120px;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: .72rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            color: #fff;
+        }
+
+        .st-ok {
+            background: var(--green);
+        }
+
+        .st-ready {
+            background: var(--blue);
+        }
+
+        .st-route {
+            background: var(--orange);
+        }
+
+        .st-destino {
+            background: #6610f2;
+        }
+
+        .st-bad {
+            background: #dc3545;
+        }
+
+        .st-return {
+            background: var(--gray);
+        }
+
+        .st-warn {
+            background: var(--yellow);
+            color: #111;
+        }
+
+        .st-neutral {
+            background: #777;
+        }
+
+        .mini-ok {
+            color: #fff;
+            background: var(--green);
+            border-radius: 999px;
+            padding: 3px 8px;
+            font-weight: 900;
+            font-size: .7rem;
+        }
+
+        .mini-pending {
+            color: #111;
+            background: var(--yellow);
+            border-radius: 999px;
+            padding: 3px 8px;
+            font-weight: 900;
+            font-size: .7rem;
+        }
+
+        .doc-pill {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 999px;
+            padding: 3px 8px;
+            font-weight: 900;
+        }
+
+        .empty {
+            text-align: center;
+            color: var(--muted);
+            padding: 40px;
+            font-size: 1.2rem;
+        }
+
+        .flash-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: var(--green);
+            display: inline-block;
+            margin-right: 8px;
+            box-shadow: 0 0 14px var(--green);
+            animation: blink 1s infinite;
+        }
+
+        @@keyframes blink {
+            0%, 100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: .25;
+            }
+        }
+
+        @@media (max-width: 1100px) {
+            .stats-row {
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            th, td {
+                font-size: .78rem;
+                padding: 8px;
+            }
+        }
+
+    body.Embarques.TableroAeropuerto .layout-main-content {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        padding-bottom: 0 !important;
+        background: radial-gradient(circle at top, #222 0, #000 55%, #000 100%) !important;
+    }
+
+        body.Embarques.TableroAeropuerto .layout-main-content .layout-container-fluid {
+            max-width: none !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            background: transparent !important;
+        }
+
+    .airport-shell {
+        min-height: calc(100vh - var(--layout-navbar-height) - 20px);
+        width: 100%;
+        padding: 0px 10px 10px;
+    }
+
+    .board-wrapper {
+        flex: 1;
+        width: 100%;
+    }
+
+    .board-scroll {
+        max-height: none !important;
+        height: 100%;
+        overflow: auto;
+    }
+
+    .scroll-inner {
+        min-width: max-content;
+        width: 100%;
+    }
+
+    table {
+        width: 100%;
+        min-width: 1650px;
+    }
+
+    /* ================================
+       MEJORAS VISUALES TABLERO AIRPORT
+    ================================ */
+
+    .airport-shell::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background: linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+        background-size: 42px 42px;
+        opacity: .35;
+        z-index: 0;
+    }
+
+    .airport-shell > * {
+        position: relative;
+        z-index: 1;
+    }
+
+    .airport-title {
+        animation: titleGlow 3s ease-in-out infinite;
+    }
+
+    @@keyframes titleGlow {
+        0%, 100% {
+            text-shadow: 0 0 12px rgba(196,0,0,.45), 0 4px 12px rgba(0,0,0,.9);
+        }
+
+        50% {
+            text-shadow: 0 0 28px rgba(196,0,0,.95), 0 4px 18px rgba(0,0,0,1);
+        }
+    }
+
+    .stat-card {
+        position: relative;
+        overflow: hidden;
+        transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease;
+    }
+
+        .stat-card::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: -120%;
+            width: 80%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent);
+            transform: skewX(-18deg);
+        }
+
+        .stat-card.flash::after {
+            animation: statSweep .9s ease;
+        }
+
+        .stat-card.flash {
+            transform: translateY(-2px) scale(1.015);
+            border-color: rgba(255,255,255,.45);
+            box-shadow: 0 0 24px rgba(196,0,0,.35);
+        }
+
+    @@keyframes statSweep {
+        from {
+            left: -120%;
+        }
+
+        to {
+            left: 140%;
+        }
+    }
+
+    .board-wrapper {
+        position: relative;
+    }
+
+        .board-wrapper::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: 8px;
+            pointer-events: none;
+            box-shadow: inset 0 0 35px rgba(196,0,0,.18);
+            z-index: 2;
+        }
+
+    .board-header {
+        background: linear-gradient(90deg, rgba(196,0,0,.25), transparent 40%, rgba(196,0,0,.18)), #000;
+    }
+
+    .board-header-left {
+        display: flex;
+        align-items: center;
+    }
+
+    .board-clock {
+        background: #101010;
+        border: 1px solid #333;
+        border-radius: 999px;
+        padding: 5px 12px;
+        box-shadow: inset 0 0 12px rgba(255,255,255,.04);
+    }
+
+    tbody tr {
+        transition: transform .2s ease, filter .2s ease, box-shadow .2s ease;
+    }
+
+        tbody tr:hover {
+            transform: scale(1.004);
+            filter: brightness(1.18);
+            box-shadow: inset 4px 0 0 var(--red);
+        }
+
+        tbody tr.row-new {
+            animation: rowArrive 1.25s ease-out;
+        }
+
+    @@keyframes rowArrive {
+        0% {
+            opacity: 0;
+            transform: translateX(-28px) scale(.985);
+            filter: brightness(1.7);
+        }
+
+        55% {
+            opacity: 1;
+            transform: translateX(4px) scale(1.01);
+            box-shadow: inset 7px 0 0 var(--green), 0 0 24px rgba(0,166,81,.35);
+        }
+
+        100% {
+            transform: translateX(0) scale(1);
+            box-shadow: none;
+        }
+    }
+
+    tbody tr.row-changed {
+        animation: rowChanged 1.6s ease-out;
+    }
+
+    @@keyframes rowChanged {
+        0% {
+            filter: brightness(2);
+            box-shadow: inset 7px 0 0 var(--yellow), 0 0 28px rgba(244,176,0,.35);
+        }
+
+        100% {
+            filter: brightness(1);
+            box-shadow: none;
+        }
+    }
+
+    .badge-status {
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 0 14px rgba(255,255,255,.08);
+    }
+
+        .badge-status::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,.28), transparent);
+            transform: translateX(-120%);
+        }
+
+        .badge-status.badge-animate::after {
+            animation: badgeSweep 1.4s ease infinite;
+        }
+
+    @@keyframes badgeSweep {
+        to {
+            transform: translateX(120%);
+        }
+    }
+
+    .st-route,
+    .st-warn,
+    .st-bad {
+        animation: statusPulse 1.6s ease-in-out infinite;
+    }
+
+    @@keyframes statusPulse {
+        0%, 100% {
+            box-shadow: 0 0 8px rgba(255,255,255,.08);
+        }
+
+        50% {
+            box-shadow: 0 0 22px currentColor;
+        }
+    }
+
+    .doc-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        margin: 1px 2px;
+    }
+
+    .mini-ok,
+    .mini-pending {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+        .mini-ok::before {
+            content: "●";
+            font-size: .65rem;
+        }
+
+        .mini-pending::before {
+            content: "●";
+            font-size: .65rem;
+            animation: blink 1s infinite;
+        }
+
+    .airport-toast {
+        position: fixed;
+        right: 24px;
+        bottom: 24px;
+        z-index: 9999;
+        min-width: 280px;
+        max-width: 420px;
+        background: linear-gradient(180deg, #181818, #080808);
+        border: 1px solid rgba(255,255,255,.18);
+        border-left: 6px solid var(--red);
+        color: white;
+        border-radius: 14px;
+        padding: 14px 16px;
+        box-shadow: 0 18px 42px rgba(0,0,0,.75);
+        transform: translateY(30px);
+        opacity: 0;
+        pointer-events: none;
+    }
+
+        .airport-toast.show {
+            animation: toastInOut 4s ease forwards;
+        }
+
+    .airport-toast-title {
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .09em;
+        color: var(--red);
+        margin-bottom: 4px;
+    }
+
+    .airport-toast-body {
+        color: #e8e8e8;
+        font-size: .9rem;
+    }
+
+    @@keyframes toastInOut {
+        0% {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+
+        12%, 82% {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        100% {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+    }
+
+    @@media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after
+
+    {
+        animation: none !important;
+        transition: none !important;
+    }
+
+    }
+
+    /* ================================
+       EFECTO TABLERO ANTIGUO AIRPORT
+    ================================ */
+
+    .flip-text {
+        display: inline-flex;
+        align-items: center;
+        min-height: 22px;
+        padding: 2px 6px;
+        border-radius: 6px;
+        background: linear-gradient(180deg, #050505, #181818 48%, #050505 52%, #111);
+        border: 1px solid rgba(255,255,255,.09);
+        color: #f4f4f4;
+        font-family: Consolas, "Courier New", monospace;
+        font-weight: 800;
+        letter-spacing: .08em;
+        text-shadow: 0 0 8px rgba(255,255,255,.25);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.8);
+    }
+
+        .flip-text.flipping {
+            animation: flipShake .13s linear infinite;
+            color: #ffd966;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,.12), inset 0 -1px 0 rgba(0,0,0,.9), 0 0 12px rgba(244,176,0,.35);
+        }
+
+        .flip-text.finalized {
+            animation: flipSettle .35s ease-out;
+        }
+
+    @@keyframes flipShake {
+        0% {
+            transform: translateY(0);
+            filter: brightness(1);
+        }
+
+        50% {
+            transform: translateY(1px);
+            filter: brightness(1.45);
+        }
+
+        100% {
+            transform: translateY(-1px);
+            filter: brightness(1);
+        }
+    }
+
+    @@keyframes flipSettle {
+        0% {
+            transform: translateY(-4px);
+            filter: brightness(1.8);
+        }
+
+        100% {
+            transform: translateY(0);
+            filter: brightness(1);
+        }
+    }
+
+    /* ===== SEPARADORES POR ESTATUS EN TABLERO AEROPUERTO ===== */
+    .board-category-row td {
+        padding: 0 !important;
+        border-bottom: 2px solid #444 !important;
+        background: #050505 !important;
+    }
+
+    .board-category {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 10px 14px;
+        color: white;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        font-weight: 900;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        background: linear-gradient(90deg, rgba(196,0,0,.45), #111 45%, #050505);
+    }
+
+    .board-category-count {
+        background: rgba(255,255,255,.12);
+        border: 1px solid rgba(255,255,255,.25);
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: .72rem;
+    }
+
+    </style>
+
+    <div class="airport-shell">
+
+@*         <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-label">Total</div>
+                <div class="stat-value" id="stTotal">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Pendientes</div>
+                <div class="stat-value" id="stPendientes">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Liberados</div>
+                <div class="stat-value" id="stLiberados">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">En ruta</div>
+                <div class="stat-value" id="stRuta">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Retrasados</div>
+                <div class="stat-value" id="stRetrasados">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Entregados</div>
+                <div class="stat-value" id="stEntregados">0</div>
+            </div>
+        </div> *@
+
+        <div class="board-wrapper">
+            <div class="board-header">
+                <div class="board-header-left">
+                    <span class="flash-dot"></span>
+                Monitoreo logístico en tiempo real
+                </div>
+                @* <div class="board-clock" id="boardClock"></div> *@
+            </div>
+
+            <div class="board-scroll" id="boardScroll">
+                <div class="scroll-inner" id="scrollInner">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Embarque</th>
+                                <th>Ruta / destino</th>
+                                <th>Cliente</th>
+                                <th>Documento</th>
+                                <th>Pedido</th>
+@*                              <th>Placa</th>
+                                <th>Temp.</th> *@
+                                <th>Creación</th>
+                                <th>Salida</th>
+                                <th>Destino</th>
+                                <th>Entrega</th>
+                                <th>Calidad</th>
+                                <th>Docs.</th>
+                                <th>Estatus</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyTablero">
+                            <tr>
+                                <td colspan="12" class="empty">Cargando tablero...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    <div class="airport-toast" id="airportToast">
+        <div class="airport-toast-title" id="airportToastTitle">Actualización</div>
+        <div class="airport-toast-body" id="airportToastBody">El tablero fue actualizado.</div>
+    </div>
+
+    </div>
+
+<script>
+    let ultimoHash = "";
+    let ultimoMapa = new Map();
+    let scrollOffset = 0;
+    let scrollActivo = true;
+    let primeraCarga = true;
+
+    /* function updateClock() {
+        const el = document.getElementById("boardClock");
+        const now = new Date();
+
+        el.textContent =
+            now.toLocaleDateString("es-MX") +
+            " · " +
+            now.toLocaleTimeString("es-MX", {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit"
+            });
+    } */
+
+    function safe(v) {
+        return v === null || v === undefined || v === "" ? "—" : v;
+    }
+
+        function escapeHtml(value) {
+        return String(value)
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#039;");
+    }
+
+    function airportFlipValue(value) {
+        const finalValue = safe(value);
+        return `<span class="flip-text" data-final="${escapeHtml(finalValue)}">${escapeHtml(finalValue)}</span>`;
+    }
+
+    function airportFlipTemperature(value) {
+        if (value === null || value === undefined || value === "") {
+            return airportFlipValue("—");
+        }
+
+        return airportFlipValue(`${value}°C`);
+    }
+
+    function animarFlipTextos(scope) {
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-:/ .";
+        const elementos = scope.querySelectorAll(".flip-text");
+
+        elementos.forEach((el, index) => {
+            const finalText = el.dataset.final || "—";
+            const length = Math.max(finalText.length, 1);
+            let ciclos = 0;
+            const maxCiclos = 8 + Math.min(length, 12);
+
+            el.classList.remove("finalized");
+            el.classList.add("flipping");
+
+            const intervalo = setInterval(() => {
+                ciclos++;
+
+                let temporal = "";
+
+                for (let i = 0; i < length; i++) {
+                    const finalChar = finalText[i] || " ";
+
+                    if (finalChar === " " || finalChar === "—") {
+                        temporal += finalChar;
+                    } else if (ciclos > maxCiclos - Math.ceil(i / 2)) {
+                        temporal += finalChar;
+                    } else {
+                        temporal += chars[Math.floor(Math.random() * chars.length)];
+                    }
+                }
+
+                el.textContent = temporal;
+
+                if (ciclos >= maxCiclos) {
+                    clearInterval(intervalo);
+                    el.textContent = finalText;
+                    el.classList.remove("flipping");
+                    el.classList.add("finalized");
+                }
+            }, 42 + (index % 4) * 8);
+        });
+    }
+
+    function badgeMini(valor) {
+        if (valor === "OK") {
+            return `<span class="mini-ok">OK</span>`;
+        }
+
+        return `<span class="mini-pending">PEND.</span>`;
+    }
+
+    function showToast(titulo, mensaje) {
+        const toast = document.getElementById("airportToast");
+        const title = document.getElementById("airportToastTitle");
+        const body = document.getElementById("airportToastBody");
+
+        if (!toast || !title || !body) return;
+
+        title.textContent = titulo;
+        body.textContent = mensaje;
+
+        toast.classList.remove("show");
+        void toast.offsetWidth;
+        toast.classList.add("show");
+    }
+
+    function animateNumber(id, newValue) {
+        const el = document.getElementById(id);
+        if (!el) return;
+
+        const oldValue = Number(el.textContent || 0);
+
+        if (oldValue === newValue) return;
+
+        const duration = 600;
+        const start = performance.now();
+
+        const card = el.closest(".stat-card");
+        if (card) {
+            card.classList.remove("flash");
+            void card.offsetWidth;
+            card.classList.add("flash");
+
+            setTimeout(() => card.classList.remove("flash"), 900);
+        }
+
+        function tick(now) {
+            const progress = Math.min((now - start) / duration, 1);
+            const value = Math.round(oldValue + (newValue - oldValue) * progress);
+
+            el.textContent = value;
+
+            if (progress < 1) {
+                requestAnimationFrame(tick);
+            }
+        }
+
+        requestAnimationFrame(tick);
+    }
+
+    function renderStats(data) {
+        animateNumber("stTotal", data.length);
+        animateNumber("stPendientes", data.filter(x => x.estatus === 1).length);
+        animateNumber("stLiberados", data.filter(x => x.estatus === 7).length);
+        animateNumber("stRuta", data.filter(x => x.estatus === 2).length);
+        animateNumber("stRetrasados", data.filter(x => x.estatus === 4).length);
+        animateNumber("stEntregados", data.filter(x => x.estatus === 5).length);
+    }
+
+    function crearFirma(x) {
+        return JSON.stringify({
+            id: x.id,
+            consecutivo: x.consecutivo,
+            ruta: x.ruta,
+            cliente: x.cliente,
+            pedido: x.pedido,
+            placa: x.placa,
+            temperatura: x.temperatura,
+            fechaSalida: x.fechaSalida,
+            fechaDestino: x.fechaDestino,
+            fechaEntregado: x.fechaEntregado,
+            calidad: x.calidad,
+            documentacion: x.documentacion,
+            estatus: x.estatus,
+            estatusTexto: x.estatusTexto,
+            estatusTipo: x.estatusTipo
+        });
+    }
+
+    function renderTabla(data) {
+        const tbody = document.getElementById("tbodyTablero");
+
+        if (!data || data.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="14" class="empty">No hay embarques para mostrar.</td></tr>`;
+            return;
+        }
+
+        const categorias = [
+            { estatus: 5, titulo: "Entregados Recientes" },
+            { estatus: 2, titulo: "En Ruta" },
+            { estatus: 3, titulo: "Llegaron a Destino" },
+            { estatus: 4, titulo: "Retrasados / Incidencias" },
+            { estatus: 7, titulo: "Liberados para QR" },
+            { estatus: 1, titulo: "Pendientes de Validación" },
+            { estatus: 6, titulo: "Devueltos" }
+            
+        ];
+
+        let html = "";
+
+        categorias.forEach(cat => {
+            const items = data
+                .filter(x => x.estatus === cat.estatus)
+                .sort((a, b) => String(b.fechaCreacion).localeCompare(String(a.fechaCreacion)));
+
+            if (items.length === 0) return;
+
+            html += `
+                <tr class="board-category-row">
+                    <td colspan="14">
+                        <div class="board-category">
+                            <span>${cat.titulo}</span>
+                            <span class="board-category-count">${items.length} embarque(s)</span>
+                        </div>
+                    </td>
+                </tr>
+            `;
+
+            html += items.map(x => {
+                const firmaActual = crearFirma(x);
+                const firmaAnterior = ultimoMapa.get(x.id);
+
+                let claseAnimacion = "";
+
+                if (!primeraCarga) {
+                    if (!firmaAnterior) {
+                        claseAnimacion = "row-new";
+                    } else if (firmaAnterior !== firmaActual) {
+                        claseAnimacion = "row-changed";
+                    }
+                }
+
+                return `
+                    <tr data-id="${x.id}" class="${claseAnimacion}">
+                        <td><strong>${safe(x.consecutivo)}</strong></td>
+                        <td>${safe(x.ruta)}</td>
+                        <td>${safe(x.cliente)}</td>
+                        <td>
+                            <span class="doc-pill">OV:${x.totalOV ?? 0}</span>
+                            <span class="doc-pill">TR:${x.totalTR ?? 0}</span>
+                        </td>
+                        <td>${safe(x.pedido)}</td>
+
+                        <td>${airportFlipValue(x.fechaCreacion)}</td>
+                        <td>${airportFlipValue(x.fechaSalida)}</td>
+                        <td>${airportFlipValue(x.fechaDestino)}</td>
+                        <td>${airportFlipValue(x.fechaEntregado)}</td>
+                        <td>${badgeMini(x.calidad)}</td>
+                        <td>${badgeMini(x.documentacion)}</td>
+                        <td>
+                            <span class="badge-status badge-animate st-${x.estatusTipo}">
+                                ${safe(x.estatusTexto)}
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            }).join("");
+        });
+
+        tbody.innerHTML = html;
+    }
+
+    function detectarCambios(data) {
+        if (primeraCarga) return;
+
+        let nuevos = 0;
+        let modificados = 0;
+
+        data.forEach(x => {
+            const firmaActual = crearFirma(x);
+            const firmaAnterior = ultimoMapa.get(x.id);
+
+            if (!firmaAnterior) {
+                nuevos++;
+            } else if (firmaAnterior !== firmaActual) {
+                modificados++;
+            }
+        });
+
+        if (nuevos > 0 || modificados > 0) {
+            const partes = [];
+
+            if (nuevos > 0) partes.push(`${nuevos} nuevo(s)`);
+            if (modificados > 0) partes.push(`${modificados} actualizado(s)`);
+
+            showToast("Movimiento detectado", `Se detectaron ${partes.join(" y ")} en el tablero.`);
+        }
+    }
+
+    function actualizarMapa(data) {
+        ultimoMapa.clear();
+
+        data.forEach(x => {
+            ultimoMapa.set(x.id, crearFirma(x));
+        });
+    }
+
+    async function cargarDatos() {
+        try {
+            const resp = await fetch('@Url.Action("TableroAeropuertoData", "Embarques")', {
+                cache: "no-store"
+            });
+
+            if (!resp.ok) {
+                throw new Error("No se pudo cargar la información del tablero.");
+            }
+
+            const data = await resp.json();
+            const nuevoHash = JSON.stringify(data);
+
+            renderStats(data);
+
+            if (nuevoHash !== ultimoHash) {
+                detectarCambios(data);
+                renderTabla(data);
+
+                setTimeout(() => {
+                    document
+                        .querySelectorAll("#tbodyTablero tr.row-new, #tbodyTablero tr.row-changed")
+                        .forEach(row => {
+                            animarFlipTextos(row);
+                        });
+                }, 80);
+
+                actualizarMapa(data);
+
+                ultimoHash = nuevoHash;
+                primeraCarga = false;
+            }
+        } catch (err) {
+            console.error(err);
+            showToast("Error de conexión", "No se pudo actualizar el tablero en este momento.");
+        }
+    }
+
+    function iniciarAutoScroll() {
+        const inner = document.getElementById("scrollInner");
+        const container = document.getElementById("boardScroll");
+
+        if (!inner || !container) return;
+
+        container.addEventListener("mouseenter", () => {
+            scrollActivo = false;
+        });
+
+        container.addEventListener("mouseleave", () => {
+            scrollActivo = true;
+        });
+
+        function loop() {
+            if (scrollActivo) {
+                const maxScroll = inner.offsetHeight - container.offsetHeight;
+
+                if (maxScroll > 20) {
+                    scrollOffset -= 0.25;
+
+                    if (-scrollOffset > maxScroll + 60) {
+                        scrollOffset = 0;
+                    }
+
+                    inner.style.transform = `translateY(${scrollOffset}px)`;
+                } else {
+                    scrollOffset = 0;
+                    inner.style.transform = "translateY(0)";
+                }
+            }
+
+            requestAnimationFrame(loop);
+        }
+
+        requestAnimationFrame(loop);
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        //updateClock();
+        //setInterval(updateClock, 1000);
+
+        cargarDatos();
+        setInterval(cargarDatos, 8000);
+
+        iniciarAutoScroll();
+    });
+</script>

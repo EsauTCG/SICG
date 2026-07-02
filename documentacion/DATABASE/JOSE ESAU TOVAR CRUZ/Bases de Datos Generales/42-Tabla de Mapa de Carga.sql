@@ -1,0 +1,2 @@
+ALTER TABLE Embarque
+ADD MapaCargaOrdenJson NVARCHAR(MAX) NULL;

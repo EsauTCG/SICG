@@ -1,0 +1,72 @@
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Pedidos Liberados";
+}
+
+<h2>Administración de Pedidos</h2>
+
+<div class="mb-3">
+    @* Botón opcional para crear nuevo pedido *@
+    @* <a href="@Url.Action("OrdenVenta", "Comercial")" class="btn btn-success">Nuevo Pedido</a> *@
+</div>
+
+<table class="table table-striped table-bordered">
+    <thead style="background-color: #8B0000; color: white;">
+        <tr>
+            <th>Consecutivo</th>
+            <th>Cliente</th>
+            <th>Vendedor</th>
+            <th>Fecha Entrega</th>
+            <th>Fecha Creación</th>
+            <th>Presentación</th>
+            <th>Observación</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+    <tbody id="pedidosBody">
+        <tr>
+            <td colspan="8" class="text-center">Cargando pedidos...</td>
+        </tr>
+    </tbody>
+</table>
+
+@section Scripts {
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            $.getJSON('/Comercial/ObtenerPedidosLiberados')
+            .done(function(pedidos) {
+                const tbody = $('#pedidosBody');
+                tbody.empty();
+
+                if (!pedidos || pedidos.length === 0) {
+                    tbody.append('<tr><td colspan="8" class="text-center">No hay pedidos liberados.</td></tr>');
+                    return;
+                }
+
+                pedidos.forEach(p => {
+                    tbody.append(`
+                        <tr>
+
+                            <td>${p.ordenDeVenta}</td>
+                            <td>${p.cliente}</td>
+                            <td>${p.vendedor}</td>
+                            <td>${p.fechaEntrega ? new Date(p.fechaEntrega).toLocaleDateString() : ""}</td>
+                            <td>${p.fechaRegistro ? new Date(p.fechaRegistro).toLocaleString() : ""}</td>
+                            <td>${p.presentacion}</td>
+                            <td>${p.observacion ?? ""}</td>
+
+                            <td>
+                                <a class="btn btn-sm btn-primary" href="/Comercial/OrdenVenta?id=${p.Id}">Abrir</a>
+                            </td>
+                        </tr>
+                    `);
+                });
+            })
+            .fail(function(err) {
+                console.error("Error al cargar pedidos:", err);
+                $('#pedidosBody').html('<tr><td colspan="8" class="text-center text-danger">Error al cargar los pedidos.</td></tr>');
+            });
+        });
+    </script>
+}

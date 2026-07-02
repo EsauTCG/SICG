@@ -1,0 +1,950 @@
+﻿@model Dictionary<string, List<Plataforma_CG.Models.KpiCatalogo>>
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "KPIs";
+}
+
+ <style>
+	 
+	 :root {
+	--primary-color: #e50914;
+	--primary-hover: #f6121d;
+	--bg-page: #141414;
+	--bg-soft: #181818;
+	--bg-card: #202020;
+	--text-main: #ffffff;
+	--text-soft: #b3b3b3;
+	--border-soft: rgba(255, 255, 255, 0.08);
+	--hero-height: 360px;
+	--card-radius: 8px;
+}
+
+body {
+	background-color: var(--bg-page);
+	overflow-x: hidden;
+	color: var(--text-main);
+}
+
+.dashboard-container {
+	font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+	min-height: 100vh;
+	width: 100%;
+	position: relative;
+	background: linear-gradient(to bottom, rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.6)), var(--bg-page);
+}
+
+
+/* --- HEADER STICKY --- */
+
+.sticky-header {
+	position: sticky;
+	top: 50px;
+	left: 0;
+	width: 100%;
+	z-index: 100;
+	background: linear-gradient(to bottom, rgba(20, 20, 20, 0.98), rgba(20, 20, 20, 0.92));
+	padding: 18px 30px 8px 30px;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+	backdrop-filter: blur(8px);
+}
+
+.sticky-header::after {
+	content: '';
+	position: absolute;
+	bottom: -70px;
+	left: 0;
+	width: 100%;
+	height: 70px;
+	background: linear-gradient(to bottom, rgba(20, 20, 20, 0.9) 0%, rgba(20, 20, 20, 0) 100%);
+	pointer-events: none;
+}
+
+
+/* --- HERO --- */
+
+.hero-card {
+	position: relative;
+	height: var(--hero-height);
+	background: #000;
+	border-radius: 14px;
+	overflow: hidden;
+	display: flex;
+	align-items: center;
+	box-shadow: 0 25px 50px rgba(0, 0, 0, 0.45);
+	border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.hero-bg-layer {
+	position: absolute;
+	inset: 0;
+	background-size: cover;
+	background-position: center center;
+	opacity: 0.5;
+	transform: scale(1.02);
+	transition: transform 0.8s ease, opacity 0.5s ease;
+	filter: saturate(1.05);
+}
+
+.hero-gradient-layer {
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(90deg, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.82) 38%, rgba(0, 0, 0, 0.35) 68%, rgba(0, 0, 0, 0.15) 100%), linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.15) 45%, rgba(0, 0, 0, 0.35) 100%);
+	z-index: 1;
+}
+
+.hero-content {
+	position: relative;
+	z-index: 2;
+	width: 58%;
+	padding: 52px;
+	color: white;
+}
+
+.anim-text {
+	opacity: 1;
+	transform: translateY(0);
+	transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.anim-text.exiting {
+	opacity: 0;
+	transform: translateY(-18px);
+}
+
+.anim-text.entering {
+	opacity: 0;
+	transform: translateY(18px);
+}
+
+.hero-tag {
+	color: #fff;
+	font-weight: 800;
+	letter-spacing: 1.8px;
+	font-size: 0.78rem;
+	margin-bottom: 16px;
+	text-transform: uppercase;
+	display: inline-block;
+	background: rgba(229, 9, 20, 0.18);
+	border: 1px solid rgba(229, 9, 20, 0.45);
+	padding: 6px 12px;
+	border-radius: 999px;
+	box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+}
+
+.hero-title {
+	font-size: 3.2rem;
+	font-weight: 900;
+	line-height: 1;
+	margin-bottom: 16px;
+	letter-spacing: -1.4px;
+	text-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
+}
+
+.hero-desc {
+	font-size: 1.02rem;
+	color: #d1d1d1;
+	margin-bottom: 28px;
+	max-width: 92%;
+	line-height: 1.65;
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+	overflow: hidden;
+}
+
+.hero-desc.expanded {
+	-webkit-line-clamp: unset;
+	overflow: visible;
+}
+
+.btn-hero-action {
+	background: var(--primary-color);
+	color: #fff;
+	border: none;
+	padding: 13px 28px;
+	font-size: 0.96rem;
+	font-weight: 800;
+	border-radius: 6px;
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	transition: all 0.25s ease;
+	box-shadow: 0 10px 24px rgba(229, 9, 20, 0.28);
+}
+
+.btn-hero-action:hover {
+	background: var(--primary-hover);
+	transform: translateY(-2px);
+	box-shadow: 0 14px 28px rgba(229, 9, 20, 0.35);
+}
+
+.btn-hero-secondary {
+	margin-left: 10px;
+	background: rgba(255, 255, 255, 0.12);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	color: #fff;
+	padding: 13px 22px;
+	font-weight: 800;
+	border-radius: 6px;
+	cursor: pointer;
+	transition: .25s ease;
+}
+
+.btn-hero-secondary:hover {
+	background: rgba(255, 255, 255, 0.2);
+	transform: translateY(-2px);
+}
+
+
+/* --- BUSCADOR --- */
+
+.search-container {
+	position: absolute;
+	top: 22px;
+	right: 22px;
+	z-index: 10;
+}
+
+.search-pill {
+	background: rgba(0, 0, 0, 0.55);
+	backdrop-filter: blur(8px);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 999px;
+	padding: 10px 18px;
+	display: flex;
+	align-items: center;
+	width: 245px;
+	transition: all 0.3s ease;
+}
+
+.search-pill:focus-within {
+	width: 320px;
+	background: rgba(20, 20, 20, 0.96);
+	border-color: rgba(255, 255, 255, 0.2);
+	box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.search-pill input {
+	background: transparent;
+	border: none;
+	outline: none;
+	color: white;
+	width: 100%;
+	margin-left: 10px;
+	font-size: 0.95rem;
+	font-weight: 600;
+}
+
+.search-pill input::placeholder {
+	color: #b3b3b3;
+}
+
+.search-pill i {
+	color: rgba(255, 255, 255, 0.7);
+}
+
+.search-pill:focus-within i {
+	color: #fff;
+}
+
+
+/* --- BODY --- */
+
+.catalog-body {
+	position: relative;
+	z-index: 1;
+	padding: 28px 30px 70px 30px;
+}
+
+.category-row {
+	margin-bottom: 28px;
+}
+
+.cat-title {
+	font-size: 1.45rem;
+	font-weight: 800;
+	color: #fff;
+	margin-bottom: 14px;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	letter-spacing: -0.3px;
+}
+
+.cat-title::before {
+	content: '';
+	width: 5px;
+	height: 22px;
+	background: var(--primary-color);
+	border-radius: 6px;
+}
+
+
+/* Carrusel */
+
+.scroll-wrapper {
+	position: relative;
+	display: flex;
+	align-items: center;
+}
+
+.cards-track {
+	display: flex;
+	gap: 14px;
+	overflow-x: auto;
+	padding: 8px 2px 20px 2px;
+	scroll-behavior: smooth;
+	width: 100%;
+	scrollbar-width: none;
+}
+
+.cards-track::-webkit-scrollbar {
+	display: none;
+}
+
+
+/* Flechas */
+
+.nav-arrow {
+	width: 46px;
+	height: 46px;
+	background: rgba(20, 20, 20, 0.9);
+	color: #fff;
+	border-radius: 50%;
+	box-shadow: 0 12px 22px rgba(0, 0, 0, 0.35);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	position: absolute;
+	z-index: 6;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	transition: all 0.2s ease;
+	opacity: 0;
+	transform: scale(0.85);
+}
+
+.scroll-wrapper:hover .nav-arrow {
+	opacity: 1;
+	transform: scale(1);
+}
+
+.nav-arrow:hover {
+	background: var(--primary-color);
+	border-color: var(--primary-color);
+	transform: scale(1.08);
+}
+
+.nav-prev {
+	left: -12px;
+}
+
+.nav-next {
+	right: -12px;
+}
+
+
+/* --- TARJETAS ESTILO NETFLIX --- */
+
+.report-card {
+	min-width: 320px;
+	height: 180px;
+	border-radius: var(--card-radius);
+	position: relative;
+	cursor: pointer;
+	overflow: hidden;
+	flex-shrink: 0;
+	background: var(--bg-card);
+	transition: transform 0.28s ease, box-shadow 0.28s ease, border-color 0.28s ease;
+	box-shadow: 0 8px 18px rgba(0, 0, 0, 0.25);
+	border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.report-card:hover {
+	transform: scale(1.08);
+	box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+	z-index: 12;
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+.report-card.active-selection {
+	border-color: var(--primary-color);
+	box-shadow: 0 0 0 2px rgba(229, 9, 20, 0.35), 0 18px 35px rgba(0, 0, 0, 0.4);
+}
+
+.card-thumb {
+	width: 100%;
+	height: 100%;
+	background-size: cover;
+	background-position: center;
+	transition: transform 0.45s ease, filter 0.45s ease;
+	position: relative;
+}
+
+.card-thumb::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.18) 55%, rgba(0, 0, 0, 0.12) 100%);
+}
+
+.report-card:hover .card-thumb {
+	transform: scale(1.08);
+	filter: brightness(1.02);
+}
+
+.card-meta {
+	position: absolute;
+	left: 0;
+	bottom: 0;
+	width: 100%;
+	padding: 14px 14px 12px 14px;
+	color: white;
+	z-index: 2;
+}
+
+.card-name {
+	font-weight: 800;
+	font-size: 1rem;
+	line-height: 1.25;
+	text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+}
+
+.no-results {
+	text-align: center;
+	color: #a3a3a3;
+	padding: 60px 20px;
+	font-size: 1.1rem;
+	display: none;
+	background: rgba(255, 255, 255, 0.03);
+	border: 1px dashed rgba(255, 255, 255, 0.08);
+	border-radius: 12px;
+}
+
+
+/* --- VISOR --- */
+
+.viewer-panel {
+	display: none;
+	flex-direction: column;
+	background: #111;
+	height: calc(100vh - 100px);
+	border-radius: 14px;
+	overflow: hidden;
+	margin: 20px 30px;
+	box-shadow: 0 14px 45px rgba(0, 0, 0, 0.45);
+	border: 1px solid rgba(255, 255, 255, 0.06);
+	animation: slideUp 0.35s ease-out;
+}
+
+.viewer-topbar {
+	height: 64px;
+	background: #181818;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0 22px;
+}
+
+.viewer-btn {
+	padding: 10px 15px;
+	border-radius: 6px;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	background: #232323;
+	cursor: pointer;
+	font-weight: 700;
+	color: #f1f1f1;
+	transition: all 0.2s ease;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.viewer-btn:hover {
+	background: var(--primary-color);
+	border-color: var(--primary-color);
+	color: white;
+}
+
+#viewerTitle {
+	color: #fff !important;
+	letter-spacing: -0.4px;
+}
+
+#mainFrame {
+	background: #0a0a0a;
+}
+
+@@keyframes slideUp {
+	from {
+		opacity: 0;
+		transform: translateY(24px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@@media (max-width: 992px) {
+	.hero-content {
+		width: 100%;
+		padding: 30px;
+	}
+	.hero-title {
+		font-size: 2.25rem;
+	}
+	.hero-desc {
+		max-width: 100%;
+	}
+	.search-container {
+		top: 16px;
+		right: 16px;
+	}
+	.nav-arrow {
+		display: none;
+	}
+	.report-card {
+		min-width: 270px;
+		height: 160px;
+	}
+	.sticky-header {
+		padding: 20px 18px 8px 18px;
+	}
+	.catalog-body {
+		padding: 22px 18px 45px 18px;
+	}
+}
+
+	html,
+	body {
+		width: 100%;
+		min-height: 100%;
+		margin: 0 !important;
+		padding: 0 !important;
+		background: #141414 !important;
+		overflow-x: hidden;
+	}
+
+	main,
+	.container,
+	.container-fluid,
+	.body-content,
+	.content-wrapper,
+	.page-content {
+		width: 100% !important;
+		max-width: 100% !important;
+		margin: 0 !important;
+		padding: 0 !important;
+		background: #141414 !important;
+	}
+
+	.dashboard-container {
+		min-height: 100vh;
+		width: 100vw;
+		margin: 0 !important;
+		padding: 0 !important;
+		background: #141414 !important;
+	}
+
+	.viewer-panel {
+		width: 100vw !important;
+		height: calc(100vh - 50px) !important;
+		margin: 0 !important;
+		border-radius: 0 !important;
+	}
+
+	#mainFrame {
+		width: 100% !important;
+		height: 100% !important;
+	}
+
+	@@media (max-width: 768px) {
+		.sticky-header {
+			top: 0 !important;
+			padding: 10px !important;
+		}
+
+		.hero-card {
+			height: auto !important;
+			min-height: 360px;
+			border-radius: 0 !important;
+		}
+
+		.hero-content {
+			width: 100% !important;
+			padding: 90px 18px 28px 18px !important;
+		}
+
+		.hero-title {
+			font-size: 2rem !important;
+		}
+
+		.search-container {
+			position: absolute;
+			top: 14px;
+			left: 14px;
+			right: 14px;
+		}
+
+		.search-pill,
+		.search-pill:focus-within {
+			width: 100% !important;
+		}
+
+		.catalog-body {
+			padding: 18px 12px 40px 12px !important;
+		}
+
+		.report-card {
+			min-width: 240px !important;
+			height: 145px !important;
+		}
+
+		.viewer-topbar {
+			height: auto !important;
+			padding: 10px !important;
+			gap: 8px;
+			flex-direction: column;
+			align-items: flex-start;
+		}
+
+		.viewer-panel {
+			height: 100vh !important;
+		}
+	}
+
+	footer,
+	.footer {
+		background: #141414 !important;
+		color: #ffffff !important;
+		border: none !important;
+		margin: 0 !important;
+	}
+
+	body,
+	html {
+		background: #141414 !important;
+	}
+
+	main,
+	.container,
+	.container-fluid,
+	.body-content {
+		background: #141414 !important;
+		padding-bottom: 0 !important;
+		margin-bottom: 0 !important;
+	}
+
+</style> 
+<div class="dashboard-container">
+
+    <!-- VISTA CATÁLOGO -->
+    <div id="vistaCatalogo">
+
+        <div class="sticky-header">
+            <div class="hero-card">
+
+                <div class="search-container">
+                    <div class="search-pill">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="inputBusqueda" placeholder="Buscar KPI´s..." onkeyup="filtrar()">
+                    </div>
+                </div>
+
+                <div class="hero-bg-layer" id="heroBg"></div>
+                <div class="hero-gradient-layer"></div>
+
+                <div class="hero-content">
+                    <div class="anim-text" id="boxText">
+                        <div class="hero-tag" id="lblCat">KPI SELECCIONADO</div>
+                        <h1 class="hero-title" id="lblTitle">Cargando...</h1>
+                        <p class="hero-desc" id="lblDesc">Selecciona un KPI de la lista inferior para ver los detalles.</p>
+
+                        <div>
+                            <button class="btn-hero-action" type="button" onclick="abrirVisor()">
+                                <i class="fas fa-play"></i> ABRIR KPI
+                            </button>
+                            <button id="btnMoreInfo" class="btn-hero-secondary" type="button" onclick="toggleMasInfo()" style="display: none;">
+                                Más info
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="catalog-body" id="contenedorFilas">
+            <div id="msgNoResult" class="no-results"><i class="fas fa-ghost"></i> Sin resultados</div>
+        </div>
+
+    </div>
+
+    <!-- VISTA VISOR -->
+    <div id="vistaVisor" class="viewer-panel">
+        <div class="viewer-topbar">
+            <h3 id="viewerTitle" style="margin:0; font-weight:900; color:#333;">...</h3>
+            <div>
+                <button class="viewer-btn" onclick="recargarFrame()"><i class="fas fa-sync-alt"></i> Actualizar</button>
+                <button class="viewer-btn" onclick="cerrarVisor()"><i class="fas fa-arrow-left"></i> Volver al Catálogo</button>
+            </div>
+        </div>
+        <iframe id="mainFrame" style="width:100%; height:100%; border:none;" src=""></iframe>
+    </div>
+
+</div>
+
+@section Scripts {
+    <script>
+        // ==========
+        // 1) Construir DB desde el Model (Razor -> JS)
+        // ==========
+        const db = [
+        @foreach (var cat in Model.Keys.OrderBy(x => x))
+        {
+                    foreach (var k in Model[cat])
+                    {
+                                var img = string.IsNullOrWhiteSpace(k.ImagenUrl) ? "/img/kpi/kpi-default.png" : k.ImagenUrl;
+                                <text>
+                                {
+                                    id: @k.Id,
+                                    title: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(k.Titulo ?? "")),
+                                    desc: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(k.Descripcion ?? "")),
+                                    cat:  @Html.Raw(System.Text.Json.JsonSerializer.Serialize(cat ?? "")),
+                                    img:  @Html.Raw(System.Text.Json.JsonSerializer.Serialize(img)),
+                                    // url del iframe NO va aquí (para no exponer EmbedUrl).
+                                    // Usamos endpoint seguro que retorna el embed sólo si tiene permiso:
+                                    getUrl: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Url.Action("GetEmbedUrl", "Kpis", new { id = k.Id })))
+                                },
+                                </text>
+                    }
+        }
+        ];
+
+        let currentItem = null;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            renderizar(db);
+            if (db.length > 0) updateHero(db[0]);
+        });
+
+        // ==========
+        // 2) Render por categorías (misma idea de tu diseño esperado)
+        // ==========
+        function renderizar(datos) {
+            const container = document.getElementById("contenedorFilas");
+
+            // limpia filas previas
+            container.querySelectorAll(".category-row").forEach(el => el.remove());
+
+            const cats = [...new Set(datos.map(x => x.cat))];
+            const msg = document.getElementById("msgNoResult");
+
+            if (cats.length === 0) {
+                if (msg) msg.style.display = "block";
+                return;
+            }
+            if (msg) msg.style.display = "none";
+
+            cats.forEach(c => {
+                const items = datos.filter(x => x.cat === c);
+                const row = document.createElement("div");
+                row.className = "category-row";
+
+                const scrollId = `scroll-${(c || '').replace(/\s/g,'')}`;
+
+                const cardsHtml = items.map(i => `
+                    <div class="report-card" id="card-${i.id}" onclick="selectItem(${i.id})">
+                        <div class="card-thumb" style="background-image: url('${i.img}')"></div>
+                        <div class="card-meta">
+                            <div class="card-name">${escapeHtml(i.title)}</div>
+                        </div>
+                    </div>
+                `).join('');
+
+                row.innerHTML = `
+                    <div class="cat-title">${escapeHtml(c)}</div>
+                    <div class="scroll-wrapper">
+                        <div class="nav-arrow nav-prev" onclick="slide('${scrollId}', -1)">
+                            <i class="fas fa-chevron-left"></i>
+                        </div>
+                        <div class="cards-track" id="${scrollId}">
+                            ${cardsHtml}
+                        </div>
+                        <div class="nav-arrow nav-next" onclick="slide('${scrollId}', 1)">
+                            <i class="fas fa-chevron-right"></i>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        // ==========
+        // 3) Selección + hero animado
+        // ==========
+        function selectItem(id) {
+            const item = db.find(x => x.id === id);
+            if (!item) return;
+
+            document.querySelectorAll('.report-card').forEach(el => el.classList.remove('active-selection'));
+            const card = document.getElementById(`card-${id}`);
+            if (card) card.classList.add('active-selection');
+
+            updateHero(item);
+        }
+
+        function updateHero(item) {
+            currentItem = item;
+
+            const bg = document.getElementById("heroBg");
+            const boxText = document.getElementById("boxText");
+
+            // Reset estado de la descripción y botón
+            const desc = document.getElementById("lblDesc");
+            const moreBtn = document.getElementById("btnMoreInfo");
+            if (moreBtn) {
+                moreBtn.textContent = "Más info";
+                moreBtn.style.display = "none"; // Ocultar mientras hacemos la transición
+            }
+            desc.classList.remove("expanded");
+
+            bg.style.opacity = 0;
+            boxText.classList.add('exiting');
+
+            setTimeout(() => {
+                bg.style.backgroundImage = `url('${item.img}')`;
+                document.getElementById("lblTitle").innerText = item.title || "";
+                document.getElementById("lblDesc").innerText = item.desc || "";
+                document.getElementById("lblCat").innerText = (item.cat || "KPI SELECCIONADO").toUpperCase();
+
+                boxText.classList.remove('exiting');
+                boxText.classList.add('entering');
+                void boxText.offsetWidth;
+
+                bg.style.opacity = 0.6;
+                boxText.classList.remove('entering');
+
+                // Damos un milisegundo para que el navegador dibuje el texto y luego medimos
+                setTimeout(verificarBotonMasInfo, 50);
+
+            }, 350);
+        }
+
+        // ==========
+        // 4) Navegación carrusel
+        // ==========
+        function slide(id, dir) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.scrollBy({ left: dir * 360, behavior: 'smooth' });
+        }
+
+        // ==========
+        // 5) Buscador (título o categoría)
+        // ==========
+        function filtrar() {
+            const txt = (document.getElementById("inputBusqueda").value || "").toLowerCase().trim();
+            if (!txt) renderizar(db);
+            else renderizar(db.filter(x =>
+                (x.title || '').toLowerCase().includes(txt) ||
+                (x.cat || '').toLowerCase().includes(txt)
+            ));
+
+            // auto-select first visible
+            const first = document.querySelector(".report-card");
+            if (first) {
+                const id = parseInt(first.id.replace("card-", ""), 10);
+                if (!isNaN(id)) selectItem(id);
+            }
+        }
+
+        // ==========
+        // 6) Más info (clamp/unclamp)
+        // ==========
+        function toggleMasInfo(){
+            const desc = document.getElementById("lblDesc");
+            const btn = document.getElementById("btnMoreInfo");
+            const expanded = desc.classList.contains("expanded");
+
+            if(expanded){
+                desc.classList.remove("expanded");
+                if(btn) btn.textContent = "Más info";
+
+                // Si lo volvemos a contraer, verificamos si de verdad hay que ocultarlo o dejarlo
+                setTimeout(verificarBotonMasInfo, 50);
+            } else {
+                desc.classList.add("expanded");
+                if(btn) btn.textContent = "Menos";
+            }
+        }
+        //verificar si es necesario mas info
+        function verificarBotonMasInfo() {
+            const desc = document.getElementById("lblDesc");
+            const btn = document.getElementById("btnMoreInfo");
+            if (!desc || !btn) return;
+
+            if (desc.scrollHeight > desc.clientHeight) {
+                btn.style.display = "inline-block"; // Si el texto es muy largo, mostramos el botón
+            } else {
+                btn.style.display = "none"; // Si cabe perfectamente, lo ocultamos
+            }
+        }
+
+
+        // ==========
+        // 7) Abrir visor (carga embed de forma segura)
+        // ==========
+        async function abrirVisor() {
+            if (!currentItem) return;
+
+            document.getElementById("viewerTitle").innerText = currentItem.title || "";
+
+            // Pide el embedUrl al server (solo si tiene permiso)
+            const res = await fetch(currentItem.getUrl, { headers: { "X-Requested-With": "XMLHttpRequest" } });
+
+            if (!res.ok) {
+                alert("No se pudo abrir el KPI (sin permiso o error).");
+                return;
+            }
+
+            const data = await res.json();
+            if (!data || !data.url) {
+                alert("No se pudo obtener el enlace del KPI.");
+                return;
+            }
+
+            document.getElementById("mainFrame").src = data.url;
+
+            document.getElementById("vistaCatalogo").style.display = "none";
+            document.getElementById("vistaVisor").style.display = "flex";
+            window.scrollTo(0, 0);
+        }
+
+        function cerrarVisor() {
+            document.getElementById("vistaVisor").style.display = "none";
+            document.getElementById("mainFrame").src = "";
+            document.getElementById("vistaCatalogo").style.display = "block";
+        }
+
+        function recargarFrame() {
+            const f = document.getElementById("mainFrame");
+            f.src = f.src;
+        }
+
+        // ==========
+        // Utils
+        // ==========
+        function escapeHtml(str){
+            return (str || "").toString()
+                .replaceAll("&","&amp;")
+                .replaceAll("<","&lt;")
+                .replaceAll(">","&gt;")
+                .replaceAll('"',"&quot;")
+                .replaceAll("'","&#039;");
+        }
+    </script>
+}

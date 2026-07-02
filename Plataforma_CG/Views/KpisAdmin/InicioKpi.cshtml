@@ -1,0 +1,256 @@
+﻿@model IEnumerable<Plataforma_CG.Models.KpiCatalogo>
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Administrar KPIs";
+}
+
+<style>
+    :root {
+        --brand-grad: linear-gradient(90deg,#8B0000 0%,#5a0000 50%,#1a0000 100%);
+        --pane: #fff;
+        --bar: #e6e9ef;
+        --bar-2: #dde2ea;
+        --line: #d8dce3;
+        --ink: #20262e;
+        --muted: #636d7b;
+        --radius: 10px;
+        --shadow: 0 1px 0 rgba(0,0,0,.05), 0 12px 24px rgba(0,0,0,.06);
+        --shadow-sm: 0 6px 16px rgba(0,0,0,.06);
+    }
+
+    .container-sap {
+        max-width: 1200px;
+        margin: 1.25rem auto 2rem;
+    }
+
+    .sap-titlebar {
+        background: linear-gradient(#eef1f6,#e7ebf2);
+        border: 1px solid var(--bar-2);
+        border-radius: var(--radius);
+        padding: .85rem 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        flex-wrap: wrap;
+        box-shadow: var(--shadow);
+    }
+
+        .sap-titlebar .title {
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+            font-weight: 800;
+            color: #2b3642;
+        }
+
+        .sap-titlebar .sub {
+            margin: 0;
+            font-size: .92rem;
+            color: var(--muted);
+        }
+
+    .sap-toolbar {
+        background: var(--bar);
+        border: 1px solid var(--bar-2);
+        border-top: none;
+        border-radius: 0 0 var(--radius) var(--radius);
+        padding: .45rem .65rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+        box-shadow: var(--shadow);
+    }
+
+    .tbtn {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        height: 34px;
+        padding: 0 .65rem;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        color: #1e2a35;
+        font-size: .92rem;
+        transition: .15s ease;
+        text-decoration: none;
+        cursor: pointer;
+    }
+
+        .tbtn:hover {
+            background: #f8fafc;
+            border-color: #cfd6e2;
+        }
+
+        .tbtn.primary {
+            background: var(--brand-grad);
+            color: #fff;
+            border: none;
+        }
+
+            .tbtn.primary:hover {
+                filter: brightness(1.05);
+            }
+
+    .sap-card {
+        background: var(--pane);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        margin-top: 1rem;
+    }
+
+    .sap-card-head {
+        padding: .75rem 1rem;
+        border-bottom: 1px solid var(--line);
+        background: linear-gradient(#f6f8fb,#eef2f7);
+        font-weight: 800;
+        color: #2b3642;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .5rem;
+        flex-wrap: wrap;
+    }
+
+    .table-wrap {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        box-shadow: var(--shadow-sm);
+        overflow: auto;
+        max-height: 70vh;
+    }
+
+    .table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #f3f6fb !important;
+        color: #2b3642;
+        border-bottom: 1px solid var(--line) !important;
+        text-transform: uppercase;
+        font-size: .85rem;
+        font-weight: 800;
+    }
+
+    .badge-on {
+        color: #198754;
+        font-weight: 800;
+    }
+
+    .badge-off {
+        color: #dc3545;
+        font-weight: 800;
+    }
+
+    .sap-toolbar .kpis {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+    }
+
+        /* (opcional) si quieres que no se baje tan fácil en pantallas medianas */
+        .sap-toolbar .kpis .tbtn {
+            white-space: nowrap;
+        }
+</style>
+
+<div class="container-sap">
+
+    <div class="sap-titlebar">
+        <div>
+            <h4 class="title"><i class="bi bi-graph-up-arrow"></i> Administración de KPIs</h4>
+            <p class="sub">Crea y edita KPIs del catálogo (imagen, embed, categoría y estado).</p>
+        </div>
+        <div class="actions">
+            <a class="btn btn-secondary btn-sm" href="@Url.Action("Inicio", "Home")">
+                <i class="bi bi-arrow-left-circle me-1"></i> Volver al inicio
+            </a>
+        </div>
+    </div>
+
+    <div class="sap-toolbar">
+        <a class="tbtn primary" href="@Url.Action("Crear", "KpisAdmin")">
+            <i class="bi bi-plus-circle"></i><span>Crear KPI</span>
+        </a>
+        <button type="button" class="tbtn" onclick="location.reload()">
+            <i class="bi bi-arrow-clockwise"></i><span>Refrescar</span>
+        </button>
+
+        <div class="kpis">
+            <a class="tbtn" href="@Url.Action("KpisPermisosConfiguracion", "KpisPermisos")">
+                <i class="bi bi-arrow-right-square"></i><span>Autorizar Kpis</span>
+            </a>
+        </div>
+    </div>
+
+    @if (TempData["Exito"] != null)
+    {
+        <div class="alert alert-success mt-3"><i class="bi bi-check-circle me-2"></i>@TempData["Exito"]</div>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger mt-3"><i class="bi bi-exclamation-triangle me-2"></i>@TempData["Error"]</div>
+    }
+
+    <div class="sap-card mt-3">
+        <div class="sap-card-head">
+            <span><i class="bi bi-table me-1"></i> KPIs registrados</span>
+        </div>
+
+        <div class="p-2 table-wrap">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th style="width:84px;">Imagen</th>
+                        <th>Título</th>
+                        <th>Categoría</th>
+                        <th>Estado</th>
+                        <th style="width:220px;">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var k in Model)
+                    {
+                        var img = string.IsNullOrWhiteSpace(k.ImagenUrl) ? "/img/kpi/kpi-default.png" : k.ImagenUrl;
+
+                        <tr>
+                            <td>
+                                <img src="@img" style="width:72px;height:42px;object-fit:cover;border-radius:8px;border:1px solid rgba(0,0,0,.08);" />
+                            </td>
+                            <td class="fw-bold">@k.Titulo</td>
+                            <td>@k.Categoria</td>
+                            <td>
+                                @(k.Activo
+                                                            ? Html.Raw("<span class='badge-on'>✅ Activo</span>")
+                                                            : Html.Raw("<span class='badge-off'>❌ Inactivo</span>")
+                                                            )
+                        </td>
+                        <td class="text-nowrap">
+                            <a class="btn btn-sm btn-outline-primary me-1"
+                               href="@Url.Action("Editar", "KpisAdmin", new { id = k.Id })">
+                                <i class="bi bi-pencil-square"></i> Editar
+                            </a>
+
+                                <form method="post" asp-action="Eliminar" class="d-inline"
+                                      onsubmit="return confirm('¿Seguro que deseas eliminar este KPI?');">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@k.Id" />
+                                    <button class="btn btn-sm btn-outline-danger">
+                                        <i class="bi bi-trash"></i> Eliminar
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                                        }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+}

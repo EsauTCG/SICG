@@ -1,0 +1,554 @@
+﻿@using Plataforma_CG.ViewModels
+@model Plataforma_CG.ViewModels.PedidoViewModel
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Presupuestos";
+}
+
+<div class="container mt-4" style="max-width:1200px; border:2px solid #8B0000; border-radius:12px; background-color:#fff; padding:30px;">
+
+    <!-- ====== Título ====== -->
+    <h4 class="mb-4 text-center text-dark fw-bold">PRESUPUESTOS</h4>
+
+    <!-- ====== Formulario principal ====== -->
+    <form asp-controller="Comercial" asp-action="GuardarPresupuesto" method="post">
+
+        <!-- ====== Selección de cliente y botones en la misma fila ====== -->
+        <div class="row mb-4 g-3 align-items-end">
+            <!-- Cliente -->
+            <div class="col-md-4">
+                <label class="form-label fw-bold">Cliente</label>
+                <input type="text" id="clienteInput" class="form-control form-control-lg" placeholder="Escribe para buscar..." />
+                <input type="hidden" id="clienteId" name="Cliente" />
+            </div>
+
+            <!-- Botones -->
+            <div class="col-md-8 d-flex gap-3">
+                <button type="button" class="btn btn-primary btn-lg" id="btnConsultar">Consultar Ventas</button>
+                <button type="button" class="btn btn-info btn-lg" id="btnDetalle">Gráfica Ventas</button>
+            </div>
+        </div>
+
+        @* Rango de tiempo personalizado (opcional) *@
+        <div class="col-md-4" id="customRangeDiv" style="display:none;">
+            <label class="form-label fw-bold">Días personalizados</label>
+            <input type="number" id="diasPersonalizados" name="DiasPersonalizados" class="form-control form-control-lg" placeholder="Número de días" />
+        </div>
+
+        <!-- Selector de meses -->
+        <div class="col-md-4">
+            <label class="form-label fw-bold">Meses para cálculo de objetivo:</label>
+            <select id="filtroMesesObjetivo" class="form-select form-select-sm">
+                <option value="0">Ninguno</option>
+                <option value="4">Últimos 4 meses</option>
+                <option value="8">Últimos 8 meses</option>
+                <option value="12" selected>Últimos 12 meses</option>
+            </select>
+        </div>
+
+        <!-- ====== Artículos más vendidos ====== -->
+        <div id="articulosVendidos" class="mt-4" style="display:none;">
+            <div class="card shadow-lg border-0 rounded-3">
+                <div class="card-header bg-danger text-white fw-bold text-center">
+                    📊 Artículos más vendidos
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height:500px; overflow:auto;">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-danger text-white text-center sticky-top">
+                                <tr>
+                                    <th>SKU</th>
+                                    <th>Total Kilos</th>
+                                    <th>Presupuesto sugerido</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyArticulos"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ====== Ventas Mensuales por SKU ====== -->
+        <div id="articulosMensuales" class="mt-4" style="display:none;">
+            <div class="card shadow-lg border-0 rounded-3">
+                <div class="card-header bg-secondary text-white fw-bold text-center">
+                    📅 Ventas Mensuales por SKU
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height:500px; overflow:auto;">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light text-dark sticky-top" id="theadMensual"></thead>
+                            <tbody id="tbodyMensual"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ====== Botones principales ====== -->
+        <div class="d-flex gap-3 mt-4">
+            <button type="button" id="btnAbrirModalGuardar" class="btn btn-success btn-lg">Guardar Presupuesto</button>
+            <button type="button" class="btn btn-secondary btn-lg" onclick="window.location='/Home/inicio'">Cancelar</button>
+        </div>
+    </form>
+</div>
+
+<!-- ====== Modal Guardar Presupuesto ====== -->
+<div class="modal fade" id="modalGuardarPresupuesto" tabindex="-1" aria-labelledby="modalGuardarPresupuestoLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="modalGuardarPresupuestoLabel">Guardar Presupuesto</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <p>Selecciona el mes y año para guardar el presupuesto:</p>
+                <div class="d-flex gap-2">
+                    <select id="modalMes" class="form-select">
+                        @for (int m = 1; m <= 12; m++)
+                        {
+                            <option value="@m">@System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(m)</option>
+                        }
+                    </select>
+                    <input type="number" id="modalAnio" class="form-control" min="@DateTime.Now.Year" max="2100" value="@DateTime.Now.Year" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="btnGuardarModal" class="btn btn-success">Guardar</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ====== Modal Gráfica Detalle Ventas ====== -->
+<div class="modal fade" id="detalleModal" tabindex="-1" aria-labelledby="detalleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width:95%;">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="detalleModalLabel">Ventas por Mes y SKU</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body p-3" style="height:600px;">
+                <canvas id="graficaDetalle" style="width:100%; height:100%;"></canvas>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-lg" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ====== Modal Comentario ====== -->
+<div class="modal fade" id="comentarioModal" tabindex="-1" aria-labelledby="comentarioModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-3 shadow-lg">
+            <div class="modal-header bg-secondary text-white">
+                <h5 class="modal-title" id="comentarioModalLabel">Agregar Comentario</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="fw-bold">SKU: <span id="comentarioSku"></span></p>
+                <textarea id="comentarioTexto" class="form-control" rows="4" placeholder="Escribe tu comentario..."></textarea>
+                <input type="hidden" id="comentarioIndex" />
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="guardarComentario" class="btn btn-success">Guardar</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ====== Toast para seleccionar mes y año ====== -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index:1055;">
+    <div id="mesAnioToast" class="toast align-items-center text-bg-primary border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body">
+                Selecciona mes y año para guardar el presupuesto:
+                <div class="mt-2 d-flex gap-2">
+                    <select id="toastMes" class="form-select form-select-sm">
+                        @for (int m = 1; m <= 12; m++)
+                        {
+                            <option value="@m">@System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(m)</option>
+                        }
+                    </select>
+                    <input type="number" id="toastAnio" class="form-control form-control-sm" value="@DateTime.Now.Year" min="2000" max="2100" />
+                    <button id="btnGuardarToast" class="btn btn-success btn-sm">Guardar</button>
+                </div>
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
+        </div>
+    </div>
+</div>
+
+<!-- ====== Spinner de carga fullscreen ====== -->
+<div id="loadingSpinner" style="display:none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255,255,255,0.8);
+    z-index: 2000;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+">
+    <div class="spinner-border text-danger" role="status" style="width:4rem; height:4rem;">
+        <span class="visually-hidden">Cargando...</span>
+    </div>
+    <p class="mt-3 fw-bold text-danger fs-5">Cargando ventas, por favor espera...</p>
+</div>
+
+@section Scripts {
+    <link href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css" rel="stylesheet" />
+    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        $(function() {
+
+            // ===========================
+            // Índice global para items[]
+            // ===========================
+            let itemIndex = 0;
+
+            // === Autocomplete clientes ===
+            $("#clienteInput").autocomplete({
+                source: function (request, response) {
+                    $.ajax({
+                        url: '/Comercial/BuscarClientesAutocomplete',
+                        data: { term: request.term },
+                        success: function (data) {
+                            response(data);
+                        }
+                    });
+                },
+                minLength: 2,
+                select: function (event, ui) {
+                    $("#clienteInput").val(ui.item.label);
+                    $("#clienteId").val(ui.item.value);
+                    return false;
+                }
+            });
+
+            $("#clienteInput").on("input", function() {
+                const start = this.selectionStart;
+                const end = this.selectionEnd;
+                this.value = this.value.toUpperCase();
+                this.setSelectionRange(start, end);
+            });
+
+            $("#rangoTiempo").on("change", function() {
+                $("#customRangeDiv").toggle(this.value === "custom");
+            });
+
+            // ===========================
+            // Función para mostrar tabla mensual
+            // ===========================
+            function mostrarMensualTop(data) {
+                const tbody = $("#tbodyMensual");
+                const thead = $("#theadMensual");
+                tbody.empty();
+                thead.empty();
+
+                if (!data.length) return;
+
+                // 🔹 Agrupar por SKU y mes
+                const ventasPorSkuMes = {};
+                data.forEach(d => {
+                    const fecha = new Date(d.fecha);
+                    const mesKey = `${fecha.getFullYear()}-${(fecha.getMonth()+1).toString().padStart(2,"0")}`;
+                    if (!ventasPorSkuMes[d.sku]) ventasPorSkuMes[d.sku] = {};
+                    ventasPorSkuMes[d.sku][mesKey] = (ventasPorSkuMes[d.sku][mesKey] || 0) + d.kilos;
+                });
+
+                // 🔹 Generar últimos meses según filtro
+                const mesesFiltro = parseInt($("#filtroMesesObjetivo").val());
+                const hoy = new Date();
+                const ultimosMeses = [];
+                for(let i = mesesFiltro-1; i>=0; i--){
+                    const fecha = new Date(hoy.getFullYear(), hoy.getMonth()-i, 1);
+                    const key = `${fecha.getFullYear()}-${(fecha.getMonth()+1).toString().padStart(2,"0")}`;
+                    const label = fecha.toLocaleString('default',{month:'short',year:'numeric'});
+                    ultimosMeses.push({key,label});
+                }
+
+                // 🔹 SKU únicos
+                const skuUnicos = [...new Set(data.map(d=>d.sku))];
+
+                // 🔹 Encabezado
+                let encabezado = "<tr><th>SKU</th>";
+                ultimosMeses.forEach(m => encabezado += `<th>${m.label}</th>`);
+                encabezado += "<th>Objetivo</th><th>Presupuesto</th><th>Participación</th><th>Comentario</th></tr>";
+                thead.append(encabezado);
+
+                // 🔹 Filas
+                skuUnicos.forEach(sku => {
+                    const ventasPorMes = ventasPorSkuMes[sku] || {};
+                    const suma = ultimosMeses.reduce((sum, m) => sum + (ventasPorMes[m.key] || 0), 0);
+                    const objetivo = mesesFiltro > 0 ? suma / mesesFiltro : 0;
+                    const ventasUltimoMes = ventasPorMes[ultimosMeses[ultimosMeses.length - 1].key] || 0;
+                    const participacion = objetivo > 0 ? (ventasUltimoMes / objetivo) * 100 : 0;
+
+                    // 🚫 Si el objetivo es 0, no agregamos la fila
+                    if (objetivo <= 0) return;
+
+                    let fila = `<tr>
+                        <td>
+                            ${sku}
+                            <input type="hidden" name="items[${itemIndex}].ProductoCodigo" value="${sku}" />
+                        </td>`;
+
+                    ultimosMeses.forEach(m => {
+                        fila += `<td>${(ventasPorMes[m.key] || 0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>`;
+                    });
+
+                    fila += `
+                        <td>
+                            ${objetivo.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})}
+                            <input type="hidden" name="items[${itemIndex}].Objetivo" value="${objetivo.toFixed(2)}" />
+                        </td>
+                        <td>
+                            <input type="number" step="0.01" class="form-control form-control-sm presupuesto-ajustado"
+                                name="items[${itemIndex}].Presupuesto" value="${objetivo.toFixed(2)}" />
+                        </td>
+                        <td>${participacion.toLocaleString('es-MX',{minimumFractionDigits:1,maximumFractionDigits:1})}%</td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-outline-secondary btn-sm btnComentario"
+                                data-sku="${sku}" data-index="${itemIndex}">
+                                <i class="bi bi-chat-square-text"></i>
+                            </button>
+                            <input type="hidden" name="items[${itemIndex}].Comentario" id="comentario-${itemIndex}" />
+                        </td>
+                    </tr>`;
+
+                    tbody.append(fila);
+                    itemIndex++; // Incrementa índice global
+                });
+
+                $("#articulosMensuales").show();
+            }
+
+            // ===========================
+            // Consultar presupuesto + spinner
+            // ===========================
+            $("#btnConsultar").on("click", function() {
+                const cardCode = $("#clienteId").val();
+                if (!cardCode) {
+                    alert("Selecciona un cliente.");
+                    return;
+                }
+
+                itemIndex = 0; // reiniciar índice al consultar nuevo cliente
+
+                $.ajax({
+                    url: '/Comercial/ObtenerPresupuesto',
+                    data: { cardCode },
+                    beforeSend: function() {
+                        $("#loadingSpinner").css("display", "flex");
+                        $("#articulosMensuales, #articulosVendidos").hide();
+                    },
+                    success: function(data) {
+                        const ventas = data.map(d => ({
+                            sku: d.sku,
+                            kilos: parseFloat(d.totalKilos),
+                            fecha: new Date(d.fecha)
+                        }));
+                        mostrarMensualTop(ventas);
+                    },
+                    error: function(xhr) {
+                        console.error(xhr);
+                        alert("Error al consultar el presupuesto.");
+                    },
+                    complete: function() {
+                        $("#loadingSpinner").hide();
+                    }
+                });
+            });
+
+            // ===========================
+            // Comentarios (abrir modal, guardar en hidden)
+            // ===========================
+            $(document).on("click", ".btnComentario", function () {
+                const sku = $(this).data("sku");
+                const index = $(this).data("index");
+                const comentarioExistente = $(`#comentario-${index}`).val();
+
+                $("#comentarioSku").text(sku);
+                $("#comentarioTexto").val(comentarioExistente || "");
+                $("#comentarioIndex").val(index);
+
+                new bootstrap.Modal(document.getElementById('comentarioModal')).show();
+            });
+
+            $("#guardarComentario").on("click", function () {
+                const index = $("#comentarioIndex").val();
+                const comentario = $("#comentarioTexto").val();
+                $(`#comentario-${index}`).val(comentario);
+
+                bootstrap.Modal.getInstance(document.getElementById('comentarioModal')).hide();
+            });
+
+            // ===========================
+            // Gráfica detalle (no modificado)
+            // ===========================
+            let graficaDetalle;
+            function mostrarGraficaDetalle(data, mesesFiltro = 12, clienteNombre = '') {
+                const ventasPorSkuMes = {};
+                data.forEach(d => {
+                    const fecha = new Date(d.fecha);
+                    const mesKey = `${fecha.getFullYear()}-${(fecha.getMonth() + 1).toString().padStart(2, "0")}`;
+                    if (!ventasPorSkuMes[d.sku]) ventasPorSkuMes[d.sku] = {};
+                    ventasPorSkuMes[d.sku][mesKey] = (ventasPorSkuMes[d.sku][mesKey] || 0) + d.kilos;
+                });
+
+                const hoy = new Date();
+                const ultimosMeses = [];
+                for (let i = mesesFiltro - 1; i >= 0; i--) {
+                    const fecha = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+                    const key = `${fecha.getFullYear()}-${(fecha.getMonth() + 1).toString().padStart(2, "0")}`;
+                    const label = fecha.toLocaleString('default', { month: 'short', year: 'numeric' });
+                    ultimosMeses.push({ key, label });
+                }
+
+                const skuUnicos = Object.keys(ventasPorSkuMes);
+
+                const colores = [
+                    "#3366CC","#DC3912","#FF9900","#109618","#990099",
+                    "#0099C6","#DD4477","#66AA00","#B82E2E","#316395",
+                    "#994499","#22AA99","#AAAA11","#6633CC","#E67300",
+                    "#8B0707","#329262","#5574A6","#3B3EAC"
+                ];
+
+                const datasets = skuUnicos.map((sku, index) => {
+                    const color = colores[index % colores.length];
+                    const datos = ultimosMeses.map(m => ventasPorSkuMes[sku][m.key] || 0);
+                    return {
+                        label: sku,
+                        data: datos,
+                        backgroundColor: color,
+                        borderColor: color,
+                        fill: false,
+                        tension: 0.3,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    };
+                });
+
+                const ctx = document.getElementById('graficaDetalle').getContext('2d');
+
+                if (graficaDetalle) graficaDetalle.destroy();
+
+                graficaDetalle = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: ultimosMeses.map(m => m.label),
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        stacked: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: clienteNombre ? `Ventas por Mes y SKU — ${clienteNombre}` : 'Ventas por Mes y SKU',
+                                font: { size: 16 }
+                            },
+                            tooltip: { mode: 'index', intersect: false },
+                            legend: {
+                                position: 'right',
+                                labels: {
+                                    usePointStyle: true,
+                                    pointStyle: 'circle',
+                                    boxWidth: 12
+                                }
+                            }
+                        },
+                        scales: {
+                            y: { title: { display: true, text: 'Kilos Vendidos' }, beginAtZero: true },
+                            x: { title: { display: true, text: 'Mes' } }
+                        }
+                    }
+                });
+            }
+
+            $("#btnDetalle").on("click", function () {
+                const cardCode = $("#clienteId").val();
+                if (!cardCode) {
+                    alert("Selecciona un cliente.");
+                    return;
+                }
+
+                const clienteNombreVisible = ($("#clienteInput").val() || "").trim();
+
+                $("#loadingSpinner").css("display", "flex");
+
+                $.ajax({
+                    url: '/Comercial/ObtenerPresupuesto',
+                    data: { cardCode },
+                    success: function (data) {
+                        const ventas = data.map(d => ({
+                            sku: d.sku,
+                            kilos: parseFloat(d.totalKilos),
+                            fecha: new Date(d.fecha)
+                        }));
+
+                        const titulo = clienteNombreVisible ? `Ventas por Mes y SKU — ${clienteNombreVisible}` : 'Ventas por Mes y SKU';
+                        $("#detalleModalLabel").text(titulo);
+
+                        mostrarGraficaDetalle(ventas, 12, clienteNombreVisible || cardCode);
+
+                        new bootstrap.Modal(document.getElementById('detalleModal')).show();
+                    },
+                    error: function () {
+                        alert("Error al cargar datos de ventas.");
+                    },
+                    complete: function() {
+                        $("#loadingSpinner").hide();
+                    }
+                });
+            });
+
+            // ===========================
+            // Modal Guardar Mes/Año
+            // ===========================
+            const hoy=new Date();
+            const mesActual=hoy.getMonth()+1;
+            const anioActual=hoy.getFullYear();
+            let mesSiguiente=mesActual===12?1:mesActual+1;
+            let anioSiguiente=mesActual===12?anioActual+1:anioActual;
+
+            $("#modalMes").val(mesSiguiente);
+            $("#modalAnio").val(anioSiguiente);
+            $("#modalAnio").attr("min",anioActual);
+
+            $("#btnAbrirModalGuardar").on("click",function(){
+                new bootstrap.Modal(document.getElementById('modalGuardarPresupuesto')).show();
+            });
+
+            $("#btnGuardarModal").on("click",function(){
+                const mes=parseInt($("#modalMes").val());
+                const anio=parseInt($("#modalAnio").val());
+                if(anio<anioActual || (anio===anioActual && mes<=mesActual)){
+                    alert("Debes seleccionar un mes a partir del siguiente mes de la fecha actual.");
+                    return;
+                }
+                if($("#MesInput").length===0){
+                    $("form").append(`<input type="hidden" id="MesInput" name="Mes" value="${mes}" />`);
+                    $("form").append(`<input type="hidden" id="AnioInput" name="Anio" value="${anio}" />`);
+                } else {
+                    $("#MesInput").val(mes);
+                    $("#AnioInput").val(anio);
+                }
+                $("form")[0].submit();
+            });
+
+        });
+    </script>
+}

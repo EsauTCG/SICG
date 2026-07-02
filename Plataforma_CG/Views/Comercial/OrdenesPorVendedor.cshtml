@@ -1,0 +1,2417 @@
+﻿@using System.Linq
+@model Plataforma_CG.Models.OrdenesOVFiltro
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<style>
+    :root {
+        --bg: #f0dede;
+        --panel: #f8eeee;
+        --panel-2: #f1dede;
+        --line: #c79d9d;
+        --line-dark: #8f4c4c;
+        --text: #3b1717;
+        --muted: #6a3a3a;
+        --title: #ffffff;
+        --white: #ffffff;
+        --danger: #c00000;
+        --warning: #f3b6b6;
+        --ok: #f7e3e3;
+        --shadow: 0 1px 0 rgba(255,255,255,.55) inset;
+        --brand: #8B0000;
+
+        --vino-1: #5c0000;
+        --vino-2: #7a0000;
+        --vino-3: #980000;
+        --vino-4: #b30000;
+        --vino-5: #d10000;
+
+        --vino-soft: #f8e7e7;
+        --vino-soft-2: #f2d9d9;
+        --vino-border: #9a5a5a;
+        --vino-text: #ffffff;
+        --vino-text-dark: #4a1111;
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        background: transparent !important;
+        color: var(--text);
+    }
+
+    .container, .container-fluid {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .window {
+        width: 100%;
+        max-width: 100%;
+        margin: 0 !important;
+        border: 1px solid #7e4a4a;
+        background: var(--panel);
+        box-shadow: 0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70, 12, 12, 0.14);
+        overflow: hidden;
+        padding: 0 !important;
+    }
+
+    .window > *:first-child,
+    .titlebar {
+        margin-top: 0 !important;
+    }
+
+    .titlebar {
+        height: 34px;
+       /*  display: flex; */
+         display: none !important;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 10px;
+        background: linear-gradient(180deg, #c00000 0%, #8b0000 60%, #5c0000 100%);
+        border-bottom: 1px solid #5c0000;
+        color: #fff;
+        font-size: 13px;
+        font-weight: bold;
+    }
+
+    .titlebar .actions {
+        display: flex;
+        gap: 6px;
+    }
+
+    .win-btn {
+        width: 16px;
+        height: 16px;
+        border: 1px solid #7c4848;
+        background: linear-gradient(#fff6f6, #ead0d0);
+    }
+
+    .menubar {
+        display: none !important;
+    }
+
+    .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 6px;
+        background: linear-gradient(#fff6f6, #ecd8d8);
+        border-bottom: 1px solid var(--line);
+        font-size: 12px;
+        flex-wrap: wrap;
+    }
+
+    .menu-item, .tool-btn, .tab {
+        border: 1px solid transparent;
+        padding: 4px 8px;
+        user-select: none;
+    }
+
+    .tool-btn {
+        min-width: 72px;
+        text-align: center;
+        background: linear-gradient(#fffefe, #ecd7d7);
+        border: 1px solid var(--vino-border);
+        box-shadow: var(--shadow);
+        cursor: pointer;
+        color: var(--vino-text-dark);
+    }
+
+    .tool-btn:hover,
+    .small-btn:hover,
+    .tab:hover {
+        filter: brightness(0.98);
+    }
+
+    .content {
+        padding: 8px;
+        background: var(--bg);
+    }
+
+    .tabs {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 6px;
+        flex-wrap: wrap;
+    }
+
+    .tab {
+        font-size: 12px;
+        background: linear-gradient(#f7e7e7, #ead1d1);
+        border: 1px solid #caa0a0;
+        border-bottom: none;
+        padding: 7px 12px;
+        color: #5c1a1a;
+    }
+
+    .tab.active {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        font-weight: bold;
+        color: #fff;
+        border-color: #7a2d2d;
+    }
+
+    .workspace {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        padding: 8px;
+    }
+
+    .section {
+        border: 1px solid var(--line);
+        background: var(--white);
+        margin-bottom: 10px;
+    }
+
+    .section-title {
+        padding: 6px 8px;
+        font-size: 12px;
+        font-weight: bold;
+        color: #fff;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-bottom: 1px solid #6b1f1f;
+    }
+
+.filters {
+     display: grid;
+    grid-template-columns: 160px 160px 160px minmax(260px, 1fr) auto;
+    gap: 8px;
+    padding: 10px;
+    background: var(--panel-2);
+    align-items: end;
+}
+.filter-group input[type="text"] {
+    width: 100%;
+}
+
+    .filter-group label {
+        display: block;
+        color: #5c1a1a;
+        font-size: 12px;
+        margin-bottom: 4px;
+        font-weight: bold;
+    }
+
+    input, select, .form-control, .form-select {
+        height: 28px !important;
+        padding: 3px 6px !important;
+        border: 1px solid #b48787 !important;
+        background: #fffdfd !important;
+        font-family: inherit !important;
+        font-size: 12px !important;
+        width: 100%;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        color: #421414 !important;
+    }
+
+    .small-btn {
+        height: 28px;
+        padding: 0 10px;
+        border: 1px solid #9a5a5a;
+        background: linear-gradient(#fffefe, #ecd7d7);
+        font-size: 12px;
+        box-shadow: var(--shadow);
+        cursor: pointer;
+        color: #4d1818;
+        white-space: nowrap;
+    }
+
+    .table-wrap {
+        padding: 0;
+        overflow: auto;
+        max-height: 70vh;
+        background: #fffafa;
+        width: 100%;
+        position: relative;
+        border-top: 1px solid #d9b8b8;
+    }
+
+    .table-wrap table {
+        width: 100%;
+        table-layout: fixed;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        font-size: 12px;
+        background: #fffafa;
+    }
+
+    .table-wrap thead,
+    .table-wrap thead tr,
+    .table-wrap thead th {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: #fff !important;
+    }
+
+    .table-wrap thead th {
+        position: sticky;
+        top: -1px;
+        z-index: 20;
+        border-top: 1px solid #c46a6a;
+        border-right: 1px solid #8e3b3b;
+        border-bottom: 1px solid #5c0000;
+        padding: 6px 5px;
+        text-align: left;
+        white-space: nowrap;
+        font-size: 12px;
+        line-height: 1.2;
+        box-shadow: 0 2px 0 #6f1d1d;
+    }
+
+    .table-wrap thead th:first-child {
+        border-left: 1px solid #8e3b3b;
+    }
+
+    .table-wrap tbody td {
+        background: #fffafa;
+        border-right: 1px solid #d8bcbc;
+        border-bottom: 1px solid #d8bcbc;
+        padding: 6px 5px;
+        white-space: nowrap;
+        vertical-align: middle;
+        font-size: 12px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.2;
+        color: #111111;
+        font-weight: 400;
+    }
+
+    .table-wrap tbody td:first-child {
+        border-left: 1px solid #d8bcbc;
+    }
+
+    .table-wrap tbody tr:nth-child(even) td {
+        background: #f9eded;
+    }
+
+    .table-wrap tbody tr:hover td {
+        background: #f4dddd;
+    }
+
+.table-wrap th:nth-child(1), .table-wrap td:nth-child(1) { width: 130px; } /* Consecutivo */
+.table-wrap th:nth-child(2), .table-wrap td:nth-child(2) { width: 90px; }  /* Serie */
+.table-wrap th:nth-child(3), .table-wrap td:nth-child(3) { width: 90px; }  /* ClienteId */
+.table-wrap th:nth-child(4), .table-wrap td:nth-child(4) { width: 320px; } /* Nombre Cliente */
+.table-wrap th:nth-child(5), .table-wrap td:nth-child(5) { width: 260px; } /* Vendedor */
+.table-wrap th:nth-child(6), .table-wrap td:nth-child(6) { width: 120px; } /* Kg */
+.table-wrap th:nth-child(7), .table-wrap td:nth-child(7) { width: 135px; } /* Importe */
+.table-wrap th:nth-child(8), .table-wrap td:nth-child(8) { width: 130px; } /* Estatus */
+.table-wrap th:nth-child(9), .table-wrap td:nth-child(9) { width: 140px; } /* Fecha */
+
+    .num {
+        text-align: right !important;
+        font-variant-numeric: tabular-nums;
+    }
+
+    a.ver-ov {
+        color: #5a0000;
+        text-decoration: none;
+        font-weight: bold;
+    }
+
+    a.ver-ov:hover {
+        text-decoration: underline;
+        color: #7a0000;
+    }
+
+    .badge-est {
+        display: inline-block;
+        min-width: 115px;
+        text-align: center;
+        padding: 4px 8px;
+        border: 1px solid transparent;
+        font-size: 11px;
+        font-weight: 700;
+        border-radius: 2px;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+
+    .est-0 {
+        background: #fde2e2;
+        border-color: #d9534f;
+        color: #b00000;
+    }
+
+    .est-1, .est-3 {
+        background: #fff4cc;
+        border-color: #d6b656;
+        color: #7a5a00;
+    }
+
+    .est-2 {
+        background: #d9ecff;
+        border-color: #6fa8dc;
+        color: #0b5394;
+    }
+
+    .est-4 {
+        background: #dff3e2;
+        border-color: #6aa84f;
+        color: #2f6b1f;
+    }
+
+    .est-5 {
+        background: #eadcff;
+        border-color: #8e7cc3;
+        color: #5b3fa3;
+    }
+
+    .est-6 {
+        background: #ffe7cc;
+        border-color: #e69138;
+        color: #9c5700;
+    }
+
+    .statusbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 6px 10px;
+        font-size: 11px;
+        color: #4a1a1a;
+        border-top: 1px solid #b88c8c;
+        background: linear-gradient(#f6e9e9, #ead5d5);
+        flex-wrap: wrap;
+    }
+
+    .dropdown-menu {
+        font-size: 12px !important;
+        border-radius: 0 !important;
+        border: 1px solid #b48787 !important;
+        background: #fffafa !important;
+    }
+
+    .btn-select-like {
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+        background: #fff !important;
+        cursor: pointer;
+        height: 28px !important;
+        border: 1px solid #b48787 !important;
+        padding: 3px 6px !important;
+        color: #421414 !important;
+    }
+
+    .btn-select-like::after {
+        content: "▼";
+        font-size: 10px;
+        color: #7a3a3a;
+    }
+
+    /* =========================
+       MODAL OV AJUSTADO
+       ========================= */
+
+   #ovModal .modal-dialog.modal-ov-wide {
+    max-width: 84vw !important;
+    width: 84vw !important;
+    margin: .75rem auto !important;
+}
+
+#ovModal .modal-body {
+    background: #f4e4e4;
+    padding: 8px;
+    max-height: 78vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+    #ovModal .modal-content {
+        border: 1px solid #7d4949;
+        border-radius: 0;
+    }
+
+    #ovModal .modal-header {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-bottom: 1px solid #5c0000;
+        color: #fff;
+        padding: 7px 10px;
+    }
+
+    #ovModal .modal-title {
+        font-size: 13px;
+        font-weight: bold;
+    }
+
+    #ovModal .modal-body {
+        background: #f4e4e4;
+        padding: 8px;
+        max-height: 82vh;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    #ovModal .modal-footer {
+        padding: 8px 10px;
+        border-top: 1px solid #c9a3a3;
+        background: #fffafa;
+    }
+
+    #ovModal .btn-close {
+        transform: scale(.9);
+    }
+
+   #ovModal .header-row {
+    display: grid;
+    grid-template-columns: 1.6fr 1.4fr 1fr 1.3fr;
+    gap: 8px 10px;
+    padding: 8px 10px;
+    background: #fffafa;
+    border: 1px solid #d3b0b0;
+    margin-bottom: 8px;
+    align-items: start;
+}
+
+#ovModal .header-row > div {
+    min-width: 0;
+    padding: 4px 6px;
+    background: transparent;
+    border: none;
+}
+
+#ovModal .header-row strong {
+    display: block;
+    margin-bottom: 3px;
+    font-size: 11px;
+    line-height: 1.1;
+    color: #7a0000;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+#ovModal .header-row span,
+#ovModal .header-row select,
+#ovModal .header-row input {
+    font-size: 12px !important;
+    line-height: 1.2;
+}
+
+#ovModal .header-row span {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    word-break: break-word;
+}
+
+#ovModal .ov-col-4,
+#ovModal .ov-col-3,
+#ovModal .ov-col-2,
+#ovModal .ov-col-6,
+#ovModal .ov-col-12 {
+    grid-column: span 1;
+}
+
+#ovModal .ov-col-obs {
+    grid-column: 1 / -1;
+    padding-top: 2px;
+}
+
+#ovModal #ovm-serie {
+    width: 100% !important;
+    max-width: 140px;
+}
+
+#ovModal #ovm-entrega-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+#ovModal .inline-date {
+    width: 125px !important;
+}
+
+#ovModal .editable-inline {
+    display: inline-block;
+    padding-bottom: 1px;
+}
+
+#ovModal .ov-col-4,
+#ovModal .ov-col-3,
+#ovModal .ov-col-2,
+#ovModal .ov-col-6,
+#ovModal .ov-col-12 {
+    grid-column: span 1;
+}
+
+#ovModal .ov-col-12-full {
+    grid-column: 1 / -1;
+}
+
+#ovModal #ovm-serie {
+    width: 100% !important;
+}
+
+#ovModal #ovm-entrega-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+#ovModal .inline-date {
+    width: 140px !important;
+}
+
+    .modal-box {
+        border: 1px solid #c9a3a3;
+        background: #fffafa;
+        margin-bottom: 8px;
+    }
+
+    .modal-box-title {
+        padding: 5px 8px;
+        font-size: 12px;
+        font-weight: bold;
+        color: #fff;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-bottom: 1px solid #6b1f1f;
+        display: none !important;
+    }
+
+    .modal-box-body {
+        padding: 8px;
+    }
+
+    #ovModal .table-wrap {
+        max-height: 260px !important;
+        border-top: 1px solid #d9b8b8;
+        overflow-x: hidden;
+    }
+
+    #ovModal .table-wrap table {
+        width: 100%;
+        min-width: 0 !important;
+        table-layout: fixed;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        font-size: 11px;
+    }
+
+    #ovModal .table-wrap thead th {
+        padding: 5px 4px;
+        font-size: 11px;
+        line-height: 1.1;
+    }
+
+    #ovModal .table-wrap tbody td,
+    #ovModal .table-wrap tfoot th,
+    #ovModal .table-wrap tfoot td {
+        padding: 4px 4px;
+        font-size: 11px;
+        line-height: 1.1;
+    }
+
+    #ovModal .table-wrap tfoot th,
+    #ovModal .table-wrap tfoot td {
+        background: #fff5f5;
+        border-top: 1px solid #d8bcbc;
+        font-weight: 700;
+    }
+
+    #ovModal input,
+    #ovModal select,
+    #ovModal .form-control,
+    #ovModal .form-select {
+        height: 26px !important;
+        min-height: 26px !important;
+        padding: 2px 6px !important;
+        font-size: 12px !important;
+    }
+
+    #ovModal .small-btn {
+        height: 26px;
+        padding: 0 8px;
+        font-size: 11px;
+    }
+
+    #ovModal .btn {
+        padding: 4px 10px;
+        font-size: 12px;
+    }
+
+    #ovModal .inline-date {
+        width: 130px !important;
+        display: inline-block;
+        vertical-align: middle;
+    }
+
+    #ovModal .editable-inline {
+        cursor: pointer;
+        border-bottom: 1px dashed #8b0000;
+    }
+
+    /* Tabla detalle del modal */
+    #ovModal .modal-box:first-of-type .table-wrap th:nth-child(1),
+    #ovModal .modal-box:first-of-type .table-wrap td:nth-child(1) { width: 36px; }
+
+    #ovModal .modal-box:first-of-type .table-wrap th:nth-child(2),
+    #ovModal .modal-box:first-of-type .table-wrap td:nth-child(2) { width: 72px; }
+
+    #ovModal .modal-box:first-of-type .table-wrap th:nth-child(3),
+    #ovModal .modal-box:first-of-type .table-wrap td:nth-child(3) { width: auto; }
+
+    #ovModal .modal-box:first-of-type .table-wrap th:nth-child(4),
+    #ovModal .modal-box:first-of-type .table-wrap td:nth-child(4) { width: 65px; }
+
+    #ovModal .modal-box:first-of-type .table-wrap th:nth-child(5),
+    #ovModal .modal-box:first-of-type .table-wrap td:nth-child(5) { width: 95px; }
+
+    #ovModal .modal-box:first-of-type .table-wrap th:nth-child(6),
+    #ovModal .modal-box:first-of-type .table-wrap td:nth-child(6) { width: 95px; }
+
+    #ovModal .modal-box:first-of-type .table-wrap th:nth-child(7),
+    #ovModal .modal-box:first-of-type .table-wrap td:nth-child(7) { width: 105px; }
+
+    #ovModal .ovm-detalle-table th:nth-child(3),
+    #ovModal .ovm-detalle-table td:nth-child(3) {
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: unset !important;
+        word-break: break-word;
+    }
+
+    #ovModal .ovm-detalle-table th:nth-child(1),
+    #ovModal .ovm-detalle-table td:nth-child(1),
+    #ovModal .ovm-detalle-table th:nth-child(2),
+    #ovModal .ovm-detalle-table td:nth-child(2),
+    #ovModal .ovm-detalle-table th:nth-child(4),
+    #ovModal .ovm-detalle-table td:nth-child(4),
+    #ovModal .ovm-detalle-table th:nth-child(5),
+    #ovModal .ovm-detalle-table td:nth-child(5),
+    #ovModal .ovm-detalle-table th:nth-child(6),
+    #ovModal .ovm-detalle-table td:nth-child(6),
+    #ovModal .ovm-detalle-table th:nth-child(7),
+    #ovModal .ovm-detalle-table td:nth-child(7) {
+        white-space: nowrap;
+    }
+
+    /* Tabla subpedidos */
+    #ovModal .modal-box:last-of-type .table-wrap th:nth-child(1),
+    #ovModal .modal-box:last-of-type .table-wrap td:nth-child(1) { width: 36px; }
+
+    #ovModal .modal-box:last-of-type .table-wrap th:nth-child(2),
+    #ovModal .modal-box:last-of-type .table-wrap td:nth-child(2) { width: 110px; }
+
+    #ovModal .modal-box:last-of-type .table-wrap th:nth-child(3),
+    #ovModal .modal-box:last-of-type .table-wrap td:nth-child(3) { width: 120px; }
+
+    #ovModal .modal-box:last-of-type .table-wrap th:nth-child(4),
+    #ovModal .modal-box:last-of-type .table-wrap td:nth-child(4) { width: auto; }
+
+    #ovModal .modal-box:last-of-type .table-wrap th:nth-child(5),
+    #ovModal .modal-box:last-of-type .table-wrap td:nth-child(5) { width: 90px; }
+
+    .pm-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .pm-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        height: 34px;
+        padding: 0 14px;
+        border: 1px solid transparent;
+        border-radius: 0;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1;
+        cursor: pointer;
+        text-decoration: none;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+        transition: filter 0.15s ease, transform 0.05s ease;
+    }
+
+    .pm-btn i {
+        font-size: 15px;
+        line-height: 1;
+    }
+
+    .pm-btn span {
+        line-height: 1;
+    }
+
+    .pm-btn:hover {
+        filter: brightness(0.97);
+    }
+
+    .pm-btn:active {
+        transform: translateY(1px);
+    }
+
+    .pm-btn:focus {
+        outline: none;
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.18),
+            0 0 0 2px rgba(0, 0, 0, 0.08);
+    }
+
+    .pm-btn-primary {
+        color: #fff;
+        border-color: #7f0a0a;
+        background: linear-gradient(180deg, #b40000 0%, #8f0000 55%, #6e0000 100%);
+    }
+
+    .pm-btn-excel {
+        color: #fff;
+        border-color: #157347;
+        background: linear-gradient(180deg, #27ae60 0%, #1f9a54 55%, #198754 100%);
+    }
+
+  
+
+    #ovModal .doc-meat-empty {
+        background: #f8d7da !important;
+        border: 1px solid #dc3545 !important;
+        color: #842029 !important;
+        font-weight: 700;
+    }
+
+    #ovModal .doc-meat-ok {
+        background: #d1e7dd !important;
+        border: 1px solid #198754 !important;
+        color: #0f5132 !important;
+        font-weight: 700;
+    }
+
+    @@media (max-width: 1200px) {
+        .filters {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+
+        #ovModal .modal-dialog.modal-ov-wide {
+    max-width: 78vw !important;
+    width: 78vw !important;
+    margin: 1.5rem auto !important;
+}
+
+#ovModal .modal-body {
+    background: #f4e4e4;
+    padding: 8px;
+    max-height: 72vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+        .header-row {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 4px 8px;
+    padding: 6px 8px;
+    background: #fffafa;
+    border: 1px solid #d3b0b0;
+    margin-bottom: 8px;
+    font-size: 11px;
+    color: #471717;
+    align-items: center;
+}
+
+        .ov-col-4,
+        .ov-col-3,
+        .ov-col-2,
+        .ov-col-6 {
+            grid-column: span 3;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .filters {
+            grid-template-columns: 1fr;
+        }
+
+        .window {
+            width: 100%;
+            margin: 0;
+        }
+
+        .table-wrap {
+            padding: 0;
+        }
+
+        #ovModal .modal-dialog.modal-ov-wide {
+            max-width: 100vw !important;
+            width: 100vw !important;
+            margin: 0 !important;
+        }
+
+        #ovModal .modal-body {
+            padding: 6px;
+            max-height: calc(100vh - 110px);
+        }
+
+        .header-row {
+            grid-template-columns: 1fr;
+            gap: 6px;
+        }
+
+        .ov-col-4,
+        .ov-col-3,
+        .ov-col-2,
+        .ov-col-6,
+        .ov-col-12 {
+            grid-column: span 1;
+        }
+
+       #ovModal .table-wrap {
+    max-height: 220px !important;
+    border-top: 1px solid #d9b8b8;
+    overflow-x: hidden;
+}
+
+        #ovModal .table-wrap table {
+            min-width: 760px !important;
+        }
+    }
+
+    @@media (max-width: 1200px) {
+    #ovModal .header-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@@media (max-width: 768px) {
+    #ovModal .header-row {
+        grid-template-columns: 1fr;
+    }
+
+    #ovModal .ov-col-12-full {
+        grid-column: span 1;
+    }
+}
+    /* MODAL OV MÁS LIMPIO */
+    #ovModal .modal-content {
+        border: 1px solid #b7c6d6 !important;
+        border-radius: 4px !important;
+        background: #f4f6f9 !important;
+    }
+
+    #ovModal .modal-header {
+        background: linear-gradient(180deg, #8b0000, #5c0000) !important;
+        padding: 9px 12px !important;
+    }
+
+    #ovModal .modal-body {
+        background: #eef2f6 !important;
+        padding: 10px !important;
+    }
+
+    #ovModal .header-row,
+    #ovModal .modal-box {
+        background: #fff !important;
+        border: 1px solid #b7c6d6 !important;
+        margin-bottom: 10px !important;
+    }
+
+    #ovModal .modal-box-title {
+        background: linear-gradient(180deg, #f4f6f9, #e6ecf3) !important;
+        color: #4a1111 !important;
+        border-bottom: 1px solid #b7c6d6 !important;
+        font-weight: 800 !important;
+    }
+
+    #ovModal .table-wrap thead,
+    #ovModal .table-wrap thead tr,
+    #ovModal .table-wrap thead th {
+        background: linear-gradient(180deg, #f4f6f9, #e6ecf3) !important;
+        color: #4a1111 !important;
+        border-color: #b7c6d6 !important;
+    }
+
+    #ovModal .table-wrap tbody td {
+        background: #fffafa !important;
+    }
+
+    #ovModal .table-wrap tbody tr:nth-child(even) td {
+        background: #f6eeee !important;
+    }
+
+    #ovModal .modal-footer {
+        background: #f4f6f9 !important;
+        border-top: 1px solid #b7c6d6 !important;
+    }
+
+    /* Mantener título Detalle de artículos en rojo */
+    #ovModal .modal-box:first-of-type .modal-box-title {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: #fff !important;
+        border-bottom: 1px solid #5c0000 !important;
+    }
+
+    /* OV: quitar amarillos del detalle */
+    #ovModal .ovm-detalle-table tbody td,
+    #ovModal .ovm-detalle-table tbody tr:nth-child(even) td,
+    #ovModal .ovm-detalle-table tbody tr:hover td {
+        background: #fffafa !important;
+        color: #111 !important;
+    }
+
+    #ovModal .ovm-detalle-table tfoot th,
+    #ovModal .ovm-detalle-table tfoot td {
+        background: #fff5f5 !important;
+        color: #111 !important;
+    }
+
+    /* OV: título Detalle de artículos en rojo */
+    #ovModal .modal-box:first-of-type > .modal-box-title {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: #fff !important;
+        border-bottom: 1px solid #5c0000 !important;
+    }
+
+    /* FORZAR ROJO EN TITULOS DE SECCIONES DEL MODAL OV */
+    #ovModal .modal-body .modal-box > .modal-box-title,
+    #ovModal .modal-body .modal-box:first-of-type > .modal-box-title,
+    #ovModal .modal-body .modal-box:last-of-type > .modal-box-title {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: #ffffff !important;
+        border-bottom: 1px solid #5c0000 !important;
+    }
+
+    /* OV: cambiar azul/gris por rosita como Transferencias */
+    #ovModal .modal-content,
+    #ovModal .modal-body,
+    #ovModal .modal-footer {
+        background: #f4e4e4 !important;
+    }
+
+    #ovModal .header-row,
+    #ovModal .modal-box {
+        background: #fffafa !important;
+        border: 1px solid #d8bcbc !important;
+    }
+
+    #ovModal .modal-box-body,
+    #ovModal .table-wrap {
+        background: #fffafa !important;
+    }
+
+        #ovModal .table-wrap thead,
+        #ovModal .table-wrap thead tr,
+        #ovModal .table-wrap thead th {
+            background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+            color: #fff !important;
+            border-color: #8e3b3b !important;
+        }
+
+        #ovModal .table-wrap tbody td {
+            background: #fffafa !important;
+            border-color: #d8bcbc !important;
+        }
+
+        #ovModal .table-wrap tbody tr:nth-child(even) td {
+            background: #f9eded !important;
+        }
+
+    #ovModal .modal-footer {
+        border-top: 1px solid #d8bcbc !important;
+    }
+
+    .window,
+    .content,
+    .workspace,
+    .section,
+    .filters,
+    .filter-group {
+        overflow: visible !important;
+    }
+
+    .multi-picker-menu {
+        width: 100% !important;
+        min-width: 100% !important;
+        max-width: 100% !important;
+        max-height: 620px !important;
+        overflow: visible !important;
+        padding: 8px !important;
+        border-radius: 0 !important;
+        border: 1px solid #b48787 !important;
+        background: #fffdfd !important;
+        box-shadow: 0 4px 10px rgba(70, 12, 12, .18);
+        z-index: 99999 !important;
+    }
+
+    .multi-picker-search {
+        height: 28px !important;
+        margin-bottom: 8px;
+        font-size: 12px !important;
+    }
+
+    .multi-picker-list {
+        max-height: 530px;
+        overflow-y: auto;
+    }
+
+    .multi-picker-option {
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+        padding: 4px 2px;
+        cursor: pointer;
+        color: #421414;
+        font-size: 12px;
+        line-height: 1.25;
+        margin: 0;
+    }
+
+        .multi-picker-option:hover {
+            background: #f4dddd;
+        }
+
+        .multi-picker-option input[type="checkbox"] {
+            width: 13px !important;
+            height: 13px !important;
+            min-width: 13px !important;
+            margin-top: 1px;
+        }
+
+        .multi-picker-option span {
+            white-space: normal;
+            word-break: break-word;
+        }
+
+    @@media (max-width: 768px) {
+        .multi-picker-menu {
+            max-height: 420px !important;
+        }
+
+        .multi-picker-list {
+            max-height: 330px;
+        }
+    }
+
+    .btn-select-like {
+        overflow: hidden !important;
+    }
+
+        .btn-select-like .multi-label {
+            display: block !important;
+            max-width: calc(100% - 18px) !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+            line-height: 20px !important;
+        }
+
+    .multi-picker-option {
+        display: flex !important;
+        align-items: flex-start !important;
+        gap: 7px !important;
+        min-height: 30px !important;
+        padding: 6px 4px !important;
+        cursor: pointer;
+        color: #421414;
+        font-size: 12px;
+        line-height: 1.25 !important;
+        margin: 0 !important;
+    }
+
+        .multi-picker-option input[type="checkbox"] {
+            flex: 0 0 14px !important;
+            width: 14px !important;
+            height: 14px !important;
+            min-width: 14px !important;
+            margin: 2px 0 0 0 !important;
+            padding: 0 !important;
+        }
+
+        .multi-picker-option span {
+            display: block !important;
+            flex: 1 1 auto !important;
+            line-height: 1.25 !important;
+            white-space: normal !important;
+            word-break: normal !important;
+        }
+
+        .multi-picker-option input[type="checkbox"].multi-check-vendedor,
+        .multi-picker-option input[type="checkbox"].multi-check-estatus {
+            appearance: auto !important;
+            -webkit-appearance: checkbox !important;
+            width: 14px !important;
+            height: 14px !important;
+            min-width: 14px !important;
+            margin: 2px 0 0 0 !important;
+            padding: 0 !important;
+            background: revert !important;
+            border: revert !important;
+            accent-color: #8b0000;
+            cursor: pointer !important;
+        }
+
+</style>
+
+<div class="window">
+    <div class="titlebar">
+        <div></div>
+        <div class="actions">
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+        </div>
+    </div>
+@* 
+    <div class="menubar">
+        <div class="menu-item">Archivo</div>
+        <div class="menu-item">Edición</div>
+        <div class="menu-item">Consultas</div>
+        <div class="menu-item">Procesos</div>
+        <div class="menu-item">Herramientas</div>
+        <div class="menu-item">Ayuda</div>
+    </div> *@
+
+     <div class="toolbar"> 
+       @*  <button class="tool-btn" type="submit" form="frmPedidos">Buscar</button> *@
+       @*   <button class="tool-btn" type="submit" form="frmPedidos" name="Export" value="csv">Exportar CSV</button> *@
+      @*   <button class="tool-btn" type="button" onclick="location.reload()">Actualizar</button>  *@
+     </div>
+
+    <div class="content">
+        
+
+        <div class="workspace">
+            <div class="section">
+                <div class="section-title">Filtros de búsqueda</div>
+
+                <form id="frmPedidos" method="get">
+                    <div class="filters">
+                        <div class="filter-group">
+                            <label>Desde</label>
+                            <input type="date" name="Desde" value="@(Model?.Desde?.ToString("yyyy-MM-dd") ?? "")" />
+                        </div>
+
+                        <div class="filter-group">
+                            <label>Hasta</label>
+                            <input type="date" name="Hasta" value="@(Model?.Hasta?.ToString("yyyy-MM-dd") ?? "")" />
+                        </div>
+
+                       
+
+                        <div class="filter-group">
+                            <label>Estatus</label>
+                            @{
+                                var ests = Model?.EstatusSeleccionados ?? new List<int>();
+                                string TextoEstatus(IEnumerable<int> selec)
+                                {
+                                    if (selec == null || !selec.Any()) return "(Todos)";
+                                    var nombres = new List<string>();
+                                    if (selec.Contains(0)) nombres.Add("Cancelados");
+                                    if (selec.Contains(1) || selec.Contains(3)) nombres.Add("Pendiente");
+                                    if (selec.Contains(2)) nombres.Add("Autorización");
+                                    if (selec.Contains(4)) nombres.Add("Validado");
+                                    if (selec.Contains(5)) nombres.Add("Enviado a SAP");
+                                    if (selec.Contains(6)) nombres.Add("Logistica");
+                                    return string.Join(", ", nombres.Distinct());
+                                }
+                            }
+
+                            <div class="dropdown w-100" id="dd-estatus">
+                                <button class="btn-select-like w-100"
+                                        type="button"
+                                        data-bs-toggle="dropdown"
+                                        data-bs-auto-close="outside"
+                                        aria-expanded="false">
+                                    <span class="multi-label">@TextoEstatus(ests)</span>
+                                </button>
+
+                                <div class="dropdown-menu multi-picker-menu" onclick="event.stopPropagation();">
+                                    <input type="text"
+                                           class="form-control multi-picker-search"
+                                           placeholder="Buscar estatus..."
+                                           autocomplete="off" />
+
+                                    <div class="multi-picker-list">
+                                        <label class="multi-picker-option">
+                                            <input class="multi-check-estatus"
+                                                   type="checkbox"
+                                                   value="0"
+                                                   id="est_0"
+                                                   data-text="Cancelados"
+                                            @(ests.Contains(0) ? "checked" : null) />
+                                            <span>Cancelados</span>
+                                        </label>
+
+                                        <label class="multi-picker-option">
+                                            <input class="multi-check-estatus"
+                                                   type="checkbox"
+                                                   value="1"
+                                                   id="est_1"
+                                                   data-text="Pendiente"
+                                            @((ests.Contains(1) || ests.Contains(3)) ? "checked" : null) />
+                                            <span>Pendiente</span>
+                                        </label>
+
+                                        <label class="multi-picker-option">
+                                            <input class="form-check-input multi-check-estatus"
+                                                   type="checkbox"
+                                                   value="2"
+                                                   id="est_2"
+                                                   data-text="Autorización"
+                                            @(ests.Contains(2) ? "checked" : null) />
+                                            <span>Autorización</span>
+                                        </label>
+
+                                        <label class="multi-picker-option">
+                                           <input class="multi-check-estatus"
+                                                   type="checkbox"
+                                                   value="4"
+                                                   id="est_4"
+                                                   data-text="Validado"
+                                            @(ests.Contains(4) ? "checked" : null) />
+                                            <span>Validado</span>
+                                        </label>
+
+                                        <label class="multi-picker-option">
+                                            <input class="multi-check-estatus"
+                                                   type="checkbox"
+                                                   value="5"
+                                                   id="est_5"
+                                                   data-text="Enviado a SAP"
+                                            @(ests.Contains(5) ? "checked" : null) />
+                                            <span>Enviado a SAP</span>
+                                        </label>
+
+                                        <label class="multi-picker-option">
+                                            <input class="multi-check-estatus"
+                                                   type="checkbox"
+                                                   value="6"
+                                                   id="est_6"
+                                                   data-text="Logistica"
+                                            @(ests.Contains(6) ? "checked" : null) />
+                                            <span>Logistica</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div id="dd-estatus-hidden">
+                                    @foreach (var e in ests)
+                                    {
+                                        <input type="hidden" name="EstatusSeleccionados" value="@e" />
+                                    }
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="filter-group">
+                            <label>Buscar</label>
+                            <input type="text" name="Buscar" value="@(Model?.Buscar ?? "")" placeholder="Consecutivo / Cliente / Nombre" />
+                        </div>
+
+ <div class="pm-actions">
+    <button class="pm-btn pm-btn-primary" type="submit">
+        <i class="bi bi-search"></i>
+        <span>Aplicar</span>
+    </button>
+
+    <button class="pm-btn pm-btn-excel"
+            type="submit"
+            form="frmPedidos"
+            name="Export"
+            value="xlsx">
+        <i class="bi bi-file-earmark-excel"></i>
+        <span>Exportar a Excel</span>
+    </button>
+
+    <button class="pm-btn pm-btn-excel"
+            type="submit"
+            form="frmPedidos"
+            name="Export"
+            value="csv">
+        <i class="bi bi-filetype-csv"></i>
+        <span>Exportar CSV</span>
+    </button>
+</div>             </div>
+                </form>
+            </div>
+
+            <div class="section">
+                @* <div class="section-title">Listado de pedidos</div> *@
+
+                @Html.AntiForgeryToken()
+
+                <div class="table-wrap">
+                    <table class="table table-sm table-hover align-middle">
+                      <thead>
+    <tr>
+        <th data-sort-col="cons" data-sort-type="text">Consecutivo</th>
+        <th data-sort-col="serie" data-sort-type="text">Serie</th>
+        <th data-sort-col="cliente" data-sort-type="text">ClienteId</th>
+        <th data-sort-col="nombre" data-sort-type="text">Nombre Cliente</th>
+        <th data-sort-col="vendedor" data-sort-type="text">Vendedor</th>
+        <th class="num" data-sort-col="kg" data-sort-type="num">Kilogramos</th>
+        <th class="num" data-sort-col="importe" data-sort-type="num">Importe</th>
+        <th data-sort-col="estatus" data-sort-type="text">Estatus</th>
+        <th data-sort-col="fent" data-sort-type="date">Fecha Embarcar</th>
+    </tr>
+</thead>
+                        <tbody>
+                            @if (Model?.Resultados != null && Model.Resultados.Any())
+                            {
+                                var idx = 0;
+                                foreach (var r in Model.Resultados)
+                                {
+                                    <tr data-index="@idx">
+                                        <td>
+                                            <a href="#"
+                                                   class="ver-ov"
+                                                   data-id="@(r?.Id)"
+                                                   data-cons="@(r?.Consecutivo ?? "")">
+                                                @(r?.Consecutivo ?? "")
+                                            </a>
+                                        </td>
+                                       <td class="td-serie">@(r?.Serie ?? "")</td>
+<td>@(r?.Cliente ?? "")</td>
+<td>@(r?.ClienteNombre ?? "")</td>
+<td>@(r?.Vendedor ?? "")</td>
+                                        <td class="num">@string.Format("{0:N2} kg", r?.KgTotales ?? 0m)</td>
+                                        <td class="num">@((r?.Importe ?? 0m).ToString("C"))</td>
+                                        <td>
+                                            @{
+                                                var estVal = r?.Estatus ?? -1;
+                                                var estClass = estVal == 0 ? "est-0"
+                                                : (estVal == 1 || estVal == 3) ? "est-1"
+                                                : estVal == 2 ? "est-2"
+                                                : estVal == 4 ? "est-4"
+                                                : estVal == 5 ? "est-5"
+                                                : estVal == 6 ? "est-6" : "";
+
+                                                var texto =
+                                                estVal == 0 ? "Cancelado" :
+                                                (estVal == 1 || estVal == 3) ? "Pendiente" :
+                                                estVal == 2 ? "Autorización" :
+                                                estVal == 4 ? "Validado" :
+                                                estVal == 5 ? "Enviado a SAP" :
+                                                estVal == 6 ? "Logistica" : "Otro";
+
+                                                if (estVal == 2 && !string.IsNullOrWhiteSpace(r?.AutorizacionPendiente))
+                                                {
+                                                    texto += $" ({r.AutorizacionPendiente})";
+                                                }
+                                            }
+                                            <span class="badge-est @estClass">@texto</span>
+                                        </td>
+                                        <td>@(r?.FechaEntrega?.ToString("yyyy-MM-dd") ?? "")</td>
+                                    </tr>
+                                    idx++;
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted">Sin resultados.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+       @if (ViewBag.MensajeSeries != null)
+{
+    <div class="section">
+        <div class="section-title">Mensaje del sistema</div>
+        <div style="padding:10px; color:#7c5900;">
+            @ViewBag.MensajeSeries
+        </div>
+    </div>
+}
+        </div>
+    </div>
+
+    <div class="statusbar">
+        <div>Registro listo</div>
+        <div>Usuario: @User.Identity.Name</div>
+        <div>Empresa: Carnes G SA de CV</div>
+        <div>Módulo: Pedidos</div>
+    </div>
+</div>
+
+<!-- Modal de detalle -->
+<div class="modal fade" id="ovModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-ov-wide">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    Orden de Venta : <span id="ovm-consecutivo"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+
+            <div class="modal-body">
+               <div class="header-row">
+    <div class="ov-col-4">
+        <strong>Cliente</strong>
+        <span><span id="ovm-cliente"></span> - <span id="ovm-cliente-nombre"></span></span>
+    </div>
+
+    <div class="ov-col-3">
+        <strong>Vendedor</strong>
+        <span id="ovm-vendedor"></span>
+    </div>
+
+    <div class="ov-col-2">
+        <strong>Serie</strong>
+        <select id="ovm-serie" class="form-select d-inline-block"></select>
+    </div>
+
+    <div class="ov-col-3">
+        <strong>Fecha Reg</strong>
+        <span id="ovm-fecha-reg"></span>
+    </div>
+
+    <div class="ov-col-3">
+        <strong>Embarcar</strong>
+        <span id="ovm-fecha-ent" class="editable-inline" title="Click para editar la fecha"></span>
+        <span id="ovm-entrega-actions" class="d-none">
+            <input type="date" class="form-control form-control-sm inline-date" id="ovm-entrega-input" />
+            <button class="small-btn" id="ovm-entrega-guardar" title="Guardar">Guardar</button>
+            <button class="small-btn" id="ovm-entrega-cancelar" title="Cancelar">Cancelar</button>
+        </span>
+    </div>
+
+    <div class="ov-col-2">
+        <strong>Estatus</strong>
+        <span id="ovm-estatus"></span>
+    </div>
+
+    <div class="ov-col-obs">
+        <strong>Observación</strong>
+        <span id="ovm-observacion"></span>
+    </div>
+</div>
+
+                <div class="modal-box">
+                   @*  <div class="modal-box-title">Detalle de artículos</div> *@
+                    <div class="modal-box-body">
+                        <div class="table-wrap" style="max-height:220px;">
+                            <table class="table table-sm align-middle ovm-detalle-table">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Artículo</th>
+                                        <th>Descripción</th>
+                                        <th class="num">Cajas</th>
+                                        <th class="num">Peso</th>                                        
+                                        <th class="num">Precio</th>
+                                        <th class="num">Importe</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ovm-tbody">
+                                    <tr>
+                                        <td colspan="7" class="text-center text-muted">Cargando...</td>
+                                    </tr>
+                         <tfoot>
+    <tr>
+        <th colspan="3" class="num">Totales:</th>
+        <th class="num" id="ovm-total-cajas">0</th>   <!-- col 4: dorado -->
+        <th class="num" id="ovm-total-peso">0.00</th>  <!-- col 5: dorado -->
+        <th></th>
+        <th class="num" id="ovm-total-imp">$0.00</th>
+    </tr>
+</tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-box">
+                    <div class="modal-box-title">
+                        Subpedidos (<span id="ovm-sub-count">0</span>)
+                    </div>
+                    <div class="modal-box-body">
+                        <div class="table-wrap" style="max-height:190px;">
+                            <table class="table table-sm align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>SubFolio</th>
+                                        <th>Documento SAP</th>
+                                        <th>Documento Meat</th>
+                                        <th class="text-center">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ovm-sub-tbody">
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted">Sin subpedidos.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <small class="text-muted me-auto">Autorización: <span id="ovm-auto"></span></small>
+                <button type="button" class="btn btn-danger" id="btn-cancelar-ov">Cancelar pedido</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // ========= utilidades =========
+        function getAntiForgeryToken(){
+            const el = document.querySelector('input[name="__RequestVerificationToken"]');
+            return el ? el.value : '';
+        }
+        function estatusTexto(h) {
+            let base =
+                h.estatus === 0 ? "Cancelado" :
+                (h.estatus === 1 || h.estatus === 3) ? "Pendiente" :
+                h.estatus === 2 ? "Autorización" :
+                h.estatus === 4 ? "Validado" :
+                h.estatus === 5 ? "Enviado a SAP" :
+                h.estatus === 6 ? "Logistica" : "Otro";
+            if (h.estatus === 2 && h.autorizacionPendiente) base += ` (${h.autorizacionPendiente})`;
+            return base;
+        }
+        function fmtNum(n, d=2){ if(n==null) return ""; return Number(n).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d}); }
+        function fmtMoney(n){ if(n==null) return ""; return Number(n).toLocaleString(undefined,{style:'currency',currency:'MXN'}); }
+        function fmtDateTime(s){ if(!s) return ""; const dt=new Date(s); return isNaN(dt)? s : dt.toLocaleString(); }
+        function fmtDate(s){ if(!s) return ""; const dt=(s instanceof Date)?s:new Date(s); return isNaN(dt)? s : dt.toLocaleDateString(); }
+        function showMsg(type, text) {
+            const id = 'sap-alert'; let box = document.getElementById(id);
+            if (!box) { box = document.createElement('div'); box.id = id; document.body.prepend(box); }
+            box.innerHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show m-3 shadow-sm" role="alert" style="position:sticky; top:0; z-index:2000;">
+                    ${text || ''}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>`;
+        }
+
+        const REFRESH_MS = 10000;
+
+        function userIsEditing() {
+            return document.querySelector('input:focus, textarea:focus, select:focus, [contenteditable="true"]:focus');
+        }
+
+        async function softRefreshListado() {
+            try {
+                const contActual = document.getElementById('ov-list-container');
+                if (!contActual) return;
+
+                const resp = await fetch(location.href, { cache: 'no-store' });
+                if (!resp.ok) return;
+
+                const html = await resp.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+
+                const contNuevo = doc.getElementById('ov-list-container');
+                if (!contNuevo) return;
+
+                contActual.innerHTML = contNuevo.innerHTML;
+            } catch (e) {
+                console.error('Error en softRefreshListado:', e);
+            }
+        }
+
+        let reloadTimer = setInterval(async () => {
+            const modalEl = document.getElementById('ovModal');
+            const isOpen = modalEl && modalEl.classList.contains('show');
+            if (isOpen || userIsEditing()) return;
+            await softRefreshListado();
+        }, REFRESH_MS);
+
+        const ovModalEl = document.getElementById('ovModal');
+        if (ovModalEl) {
+            ovModalEl.addEventListener('show.bs.modal', () => clearInterval(reloadTimer));
+            ovModalEl.addEventListener('hidden.bs.modal', () => {
+                reloadTimer = setInterval(async () => {
+                    if (userIsEditing()) return;
+                    await softRefreshListado();
+                }, REFRESH_MS);
+            });
+        }
+
+       
+
+        let catalogoSeries = [];
+
+         async function cargarCatalogoSeries() {
+             if (catalogoSeries.length) return;
+         
+             const resp = await fetch('/Comercial/SeriesCatalogo', { cache: 'no-store' });
+             if (!resp.ok) return;
+         
+             catalogoSeries = await resp.json();
+         }
+
+          let ordenIdActual = null;
+        let estatusActual = null;
+
+        async function cargarSubpedidosOV(consecutivoOV) {
+            const tbody = document.getElementById('ovm-sub-tbody');
+            const lblCount = document.getElementById('ovm-sub-count');
+
+            if (!tbody || !lblCount) return;
+
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-muted">
+                        Cargando subpedidos...
+                    </td>
+                </tr>`;
+
+            if (!consecutivoOV) {
+                tbody.innerHTML = `
+                    <tr><td colspan="5" class="text-center text-muted">
+                        Sin consecutivo de OV.
+                    </td></tr>`;
+                lblCount.textContent = "0";
+                return;
+            }
+
+            try {
+                const resp = await fetch(`/Comercial/SubpedidosPorOV2?consecutivoOV=${encodeURIComponent(consecutivoOV)}`, {
+                    cache: 'no-store'
+                });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const lista = await resp.json();
+
+                if (!Array.isArray(lista) || lista.length === 0) {
+                    tbody.innerHTML = `
+                        <tr><td colspan="5" class="text-center text-muted">
+                            Esta OV no tiene subpedidos.
+                        </td></tr>`;
+                    lblCount.textContent = "0";
+                    return;
+                }
+
+                lblCount.textContent = lista.length.toString();
+                tbody.innerHTML = "";
+
+                lista.forEach((sp, idx) => {
+                    const tr = document.createElement('tr');
+                    tr.dataset.subid = sp.id;
+                    tr.innerHTML = `
+                        <td>${idx + 1}</td>
+                        <td>${sp.subFolio || ''}</td>
+                        <td>${sp.documentoSAP || ''}</td>
+                       <td>
+                           <input type="text"
+                                  class="form-control form-control-sm sp-docmeat ${(sp.u_DocMeat || '').toString().trim() ? 'doc-meat-ok' : 'doc-meat-empty'}"
+                                  value="${sp.u_DocMeat || ''}" />
+                       </td>
+                        <td class="text-center">
+                            <button type="button"
+                                    class="btn btn-primary btn-sm btn-sp-docmeat-guardar">
+                                Guardar
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+            } catch (e) {
+                console.error(e);
+                tbody.innerHTML = `
+                    <tr><td colspan="5" class="text-center text-danger">
+                        Error al cargar los subpedidos.
+                    </td></tr>`;
+                lblCount.textContent = "0";
+            }
+        }
+
+
+                function escapeRegExp(s){
+          return (s ?? "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        }
+
+        function soloNombreProducto(productoNombre, productoCodigo){
+          const d = (productoNombre ?? "").trim();
+          const c = (productoCodigo ?? "").trim();
+
+          if (!d) return "";
+
+          // Caso: "V044 (S-PULPA ...)"  => "S-PULPA ..."
+          if (c) {
+            const m = d.match(new RegExp("^" + escapeRegExp(c) + "\\s*\\((.*)\\)\\s*$", "i"));
+            if (m && m[1]) return m[1].trim();
+
+            // Caso: "V044 - S-PULPA ..." o "V044 S-PULPA ..." => quitar prefijo
+            return d.replace(new RegExp("^" + escapeRegExp(c) + "\\s*[-–—:]?\\s*", "i"), "").trim();
+          }
+
+          // Caso sin código: si viene "(S-PULPA ...)" quita paréntesis
+          const m2 = d.match(/^\((.*)\)$/);
+          return (m2 && m2[1]) ? m2[1].trim() : d;
+        }
+
+     
+
+
+        async function cargarDetalle(id, consecutivo){
+            const tbody = document.getElementById('ovm-tbody');
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">Cargando...</td></tr>`;
+            try{
+                const resp = await fetch(`/Comercial/OrdenDetalleApi?id=${encodeURIComponent(id)}`, { cache: 'no-store' });
+                if(!resp.ok) throw new Error('HTTP '+resp.status);
+                const payload = await resp.json();
+                const h = payload.header || {};
+
+          await cargarCatalogoSeries();
+
+const selSerie = document.getElementById('ovm-serie');
+selSerie.innerHTML = "";
+
+// Crear opciones
+catalogoSeries.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = String(s.id);
+    opt.textContent = s.nombre;
+    selSerie.appendChild(opt);
+});
+
+// 🔑 Seleccionar la serie ACTUAL por nombre
+if (h.serie) {
+    const encontrada = catalogoSeries.find(
+        s => s.nombre.trim().toUpperCase() === h.serie.trim().toUpperCase()
+    );
+
+    if (encontrada) {
+        selSerie.value = String(encontrada.id);
+    }
+}
+
+// Guardar valor actual para rollback
+selSerie.setAttribute('data-prev', selSerie.value);
+
+
+
+                        // ===== OBSERVACIÓN / COMENTARIOS =====
+        const obsEl = document.getElementById('ovm-observacion');
+        if (obsEl) {
+            obsEl.textContent = h.observacion && h.observacion.trim() !== ""
+                ? h.observacion
+                : "Sin observaciones.";
+        }
+                const lineas = payload.lineas || [];
+
+                ordenIdActual = h.id || id;
+                estatusActual = h.estatus;
+
+                document.getElementById('ovm-consecutivo').textContent = consecutivo || h.consecutivo || "";
+                document.getElementById('ovm-cliente').textContent = h.cliente || "";
+                document.getElementById('ovm-cliente-nombre').textContent = h.clienteNombre || "";
+                document.getElementById('ovm-vendedor').textContent = h.vendedor || "";
+                
+                document.getElementById('ovm-fecha-reg').textContent = fmtDateTime(h.fechaRegistro);
+                document.getElementById('ovm-fecha-ent').textContent = fmtDate(h.fechaEntrega);
+                document.getElementById('ovm-estatus').textContent = estatusTexto(h);
+                document.getElementById('ovm-auto').textContent = h.autorizacionPendiente || "";
+
+               if (lineas.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">Sin líneas.</td></tr>`;
+     document.getElementById('ovm-total-cajas').textContent = fmtNum(0, 0);
+    document.getElementById('ovm-total-peso').textContent = fmtNum(0);   
+    document.getElementById('ovm-total-imp').textContent = fmtMoney(0);
+} else {
+                    tbody.innerHTML = "";
+
+let tPeso = 0;
+let tCajas = 0;
+let tImp = 0;
+
+lineas.forEach((l, i) => {
+    const peso = Number(String(l.peso ?? 0).replace(/[^\d.-]/g, '')) || 0;
+    const cajas = Number(String(l.cajas ?? 0).replace(/[^\d.-]/g, '')) || 0;
+    const precio = Number(String(l.precio ?? 0).replace(/[^\d.-]/g, '')) || 0;
+    const imp = peso * precio;
+
+    tPeso += peso;
+    tCajas += cajas;
+    tImp += imp;
+
+    const tr = `
+        <tr>
+            <td>${i + 1}</td>
+            <td>${l.productoCodigo ?? ""}</td>
+            <td>${soloNombreProducto(l.productoNombre, l.productoCodigo)}</td>
+             <td class="text-end">${fmtNum(cajas, 0)}</td>
+            <td class="text-end">${fmtNum(peso)}</td>           
+            <td class="text-end">${fmtMoney(precio)}</td>
+            <td class="text-end">${fmtMoney(imp)}</td>
+        </tr>`;
+    tbody.insertAdjacentHTML('beforeend', tr);
+});
+
+document.getElementById('ovm-total-cajas').textContent = fmtNum(tCajas, 0);
+document.getElementById('ovm-total-peso').textContent = fmtNum(tPeso);
+document.getElementById('ovm-total-imp').textContent = fmtMoney(tImp);
+                }
+
+                toggleCancelarBtn(estatusActual);
+                await cargarSubpedidosOV(h.consecutivo || consecutivo);
+
+                new bootstrap.Modal(document.getElementById('ovModal')).show();
+
+            }catch(e){
+                console.error(e);
+                tbody.innerHTML = `<tr><td colspan="7" class="text-danger text-center">Error al cargar el detalle.</td></tr>`;
+                new bootstrap.Modal(document.getElementById('ovModal')).show();
+            }
+        }
+
+        document.addEventListener('click', function(ev){
+            const a = ev.target.closest('a.ver-ov');
+            if(!a) return;
+            ev.preventDefault();
+            const id = a.getAttribute('data-id');
+            const cons = a.getAttribute('data-cons');
+            if(id) cargarDetalle(id, cons);
+        });
+
+        const entregaLabel   = document.getElementById('ovm-fecha-ent');
+        const entregaActions = document.getElementById('ovm-entrega-actions');
+        const inputEntrega   = document.getElementById('ovm-entrega-input');
+        const btnGuardarEnt  = document.getElementById('ovm-entrega-guardar');
+        const btnCancelEnt   = document.getElementById('ovm-entrega-cancelar');
+
+        function toIsoFromLabel(label){
+          label = (label || '').trim();
+          if (/^\d{4}-\d{2}-\d{2}$/.test(label)) return label;
+          if (/^\d{2}\/\d{2}\/\d{4}$/.test(label)) { const [dd,mm,yyyy] = label.split('/'); return `${yyyy}-${mm}-${dd}`; }
+          const d = new Date(); return d.toISOString().slice(0,10);
+        }
+        function enterEditEntrega(){
+          inputEntrega.value = toIsoFromLabel(entregaLabel.textContent);
+          entregaLabel.classList.add('d-none');
+          entregaActions.classList.remove('d-none');
+          setTimeout(() => inputEntrega.focus(), 0);
+        }
+        function exitEditEntrega(){
+          entregaActions.classList.add('d-none');
+          entregaLabel.classList.remove('d-none');
+        }
+
+        if (entregaLabel && entregaActions && inputEntrega && btnGuardarEnt && btnCancelEnt) {
+          entregaLabel.addEventListener('click', () => {
+            enterEditEntrega();
+          });
+
+          btnGuardarEnt.addEventListener('click', async () => {
+            if (!ordenIdActual) return;
+            if (!inputEntrega.value) { showMsg('warning', 'Selecciona una fecha.'); return; }
+
+            try{
+              btnGuardarEnt.disabled = true;
+
+              const url = `/Comercial/ActualizarFechaEntrega?id=${encodeURIComponent(ordenIdActual)}&nuevaFechaEntrega=${encodeURIComponent(inputEntrega.value)}`;
+              const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'RequestVerificationToken': getAntiForgeryToken() }
+              });
+              const raw = await resp.text(); let json={}; try{ json=JSON.parse(raw);}catch{}
+
+              if(!resp.ok || json.ok===false){
+                showMsg('danger', (json && json.msg) ? json.msg : `Error (${resp.status})`);
+                return;
+              }
+
+              entregaLabel.textContent = fmtDate(json.fechaEntrega || inputEntrega.value);
+
+              const link = document.querySelector(`a.ver-ov[data-id="${ordenIdActual}"]`);
+              if (link) {
+                const tr = link.closest('tr');
+                const td = tr ? tr.children[1] : null;
+                if (td) td.textContent = (json.fechaEntrega || inputEntrega.value);
+              }
+
+              showMsg('success', 'Fecha de entrega actualizada.');
+              setTimeout(() => { showMsg(); }, 2500);
+              exitEditEntrega();
+
+            }catch(e){
+              console.error(e);
+              showMsg('danger', 'Error al guardar fecha.');
+              setTimeout(() => { showMsg(); }, 2500);
+            }finally{
+              btnGuardarEnt.disabled = false;
+            }
+          });
+
+          btnCancelEnt.addEventListener('click', exitEditEntrega);
+          inputEntrega.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') exitEditEntrega(); });
+        }
+
+        document.addEventListener('click', async function (ev) {
+            const btn = ev.target.closest('.btn-sp-docmeat-guardar');
+            if (!btn) return;
+
+            const tr = btn.closest('tr');
+            if (!tr) return;
+
+            const subId = parseInt(tr.dataset.subid || "0", 10);
+            const input = tr.querySelector('.sp-docmeat');
+            const nuevo = (input?.value || "").trim();
+
+            if (!subId) {
+                showMsg('danger', 'Subpedido inválido.');
+                return;
+            }
+
+            const ok = confirm("¿Seguro que deseas actualizar el U_DocMeat de este subpedido?");
+            if (!ok) return;
+
+            const token = getAntiForgeryToken();
+            btn.disabled = true;
+            const oldText = btn.textContent;
+            btn.textContent = 'Guardando...';
+
+            try {
+                const resp = await fetch('/Comercial/SubpedidoActualizarDocMeat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'RequestVerificationToken': token
+                    },
+                    body: JSON.stringify({ subpedidoId: subId, u_DocMeat: nuevo })
+                });
+
+                const raw = await resp.text();
+                let json = {};
+                try { json = JSON.parse(raw); } catch { }
+
+                if (!resp.ok || json.ok === false) {
+                    showMsg('danger', (json && json.msg) ? json.msg : `Error (${resp.status}).`);
+                    return;
+                }
+
+                if (json.u_DocMeat !== undefined && input) {
+                    input.value = json.u_DocMeat;
+                }
+
+                showMsg('success', 'U_DocMeat actualizado.');
+                setTimeout(() => { showMsg(); }, 2500);
+            } catch (e) {
+                console.error(e);
+                showMsg('danger', 'Error al guardar U_DocMeat.');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = oldText;
+            }
+        });
+
+      const btnCancelarOV = document.getElementById('btn-cancelar-ov');
+
+function toggleCancelarBtn(estatus){
+    if (!btnCancelarOV) return;
+
+    const eliminado = Number(estatus) === 0;
+
+    btnCancelarOV.classList.toggle('d-none', eliminado);
+    btnCancelarOV.disabled = eliminado;
+    btnCancelarOV.title = eliminado
+        ? 'Este pedido ya está cancelado'
+        : 'Eliminar pedido';
+}
+
+if (btnCancelarOV){
+    btnCancelarOV.addEventListener('click', async () => {
+
+        if (!ordenIdActual) {
+            showMsg('warning', 'No se encontró la orden.');
+            return;
+        }
+
+        if (Number(estatusActual) === 0) {
+            showMsg('warning', 'Este pedido ya está cancelado.');
+            return;
+        }
+
+        const consecutivoActual = document.getElementById('ovm-consecutivo')?.textContent || '';
+
+        const seguro = confirm(
+            `¿Estás seguro de eliminar el pedido ${consecutivoActual}?`
+        );
+
+        if (!seguro) return;
+
+        const url = `/Comercial/CancelarOV?id=${encodeURIComponent(ordenIdActual)}`;
+
+        try {
+            btnCancelarOV.disabled = true;
+            btnCancelarOV.textContent = 'Eliminando...';
+
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'RequestVerificationToken': getAntiForgeryToken()
+                }
+            });
+
+            const raw = await resp.text();
+            let json = {};
+            try { json = JSON.parse(raw); } catch { }
+
+            if (resp.status === 404) {
+                showMsg('danger', 'Orden no encontrada.');
+                return;
+            }
+
+            if (resp.status === 400) {
+                showMsg('danger', 'Solicitud inválida o token faltante.');
+                return;
+            }
+
+            if (resp.status === 409) {
+                showMsg('warning', json.msg || 'No se puede cancelar este pedido.');
+                return;
+            }
+
+            if (!resp.ok || json.ok === false) {
+                showMsg('danger', json.msg || `Error (${resp.status}).`);
+                return;
+            }
+
+            document.getElementById('ovm-estatus').textContent = json.estatus || 'Cancelado';
+
+            estatusActual = 0;
+            toggleCancelarBtn(estatusActual);
+
+            const link = document.querySelector(`a.ver-ov[data-id="${ordenIdActual}"]`);
+            if (link) {
+                const tr = link.closest('tr');
+
+                // columna 8 visual = índice 7 en JavaScript
+                const tdEstatus = tr ? tr.children[7] : null;
+
+                if (tdEstatus) {
+                    tdEstatus.innerHTML = `<span class="badge-est est-0">Cancelado</span>`;
+                }
+            }
+
+            showMsg('success', 'Pedido cancelado correctamente.');
+            setTimeout(() => { showMsg(); }, 2500);
+
+        } catch (err) {
+            console.error(err);
+            showMsg('danger', 'Error de red al cancelar el pedido.');
+        } finally {
+            btnCancelarOV.textContent = 'Cancelar pedido';
+            toggleCancelarBtn(estatusActual);
+        }
+    });
+}
+
+
+        window.manualConfig = {
+            title: "Manual de Pedidos por Vendedor",
+            sections: [
+                {
+                    id: "Manual de pedidos por vendedor",
+                    title: "Manual de pedidos por vendedor",
+                    icon: "fa-home",
+                    steps: [
+                        {
+                            title: "Reportes",
+                            text: "Tutorial de uso",
+                            video: "/images/Reportes/Reportes_OV.mp4"
+                        }
+                    ]
+                },
+                {
+                    id: "Seguimiento de Autorizaciones",
+                    title: "Seguimiento de Autorizaciones",
+                    icon: "fa-file-lines",
+                    steps: [
+                        {
+                            title: "Chat Interno",
+                            text: "Como contactar con las distintas areas",
+                            video: "/images/Reportes/Chat.mp4"
+                        }
+                    ]
+                },
+            ]
+        };
+
+
+            function normMultiText(s) {
+                return (s ?? '')
+                    .toString()
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .toLowerCase()
+                    .trim();
+            }
+
+            function initMultiDropdownSearch(rootId) {
+                const root = document.getElementById(rootId);
+
+                if (!root) return;
+
+                const search = root.querySelector('.multi-picker-search');
+                const options = Array.from(root.querySelectorAll('.multi-picker-option'));
+
+                if (!search || !options.length) return;
+
+                search.addEventListener('input', function () {
+                    const q = normMultiText(search.value);
+                    const words = q.split(/\s+/).filter(Boolean);
+
+                    options.forEach(opt => {
+                        const input = opt.querySelector('input');
+                        const text = normMultiText(`${opt.innerText} ${input?.value || ''}`);
+                        const visible = words.every(w => text.includes(w));
+
+                        opt.style.display = visible ? 'flex' : 'none';
+                    });
+                });
+
+                root.addEventListener('shown.bs.dropdown', function () {
+                    setTimeout(() => {
+                        search.focus();
+                        search.select();
+                    }, 0);
+                });
+            }
+
+        // ============ MULTI DROPDOWN (Vendedor / Estatus) ============
+
+       function initMultiDropdown(rootId, checkClass, hiddenContainerId, hiddenName) {
+    const root = document.getElementById(rootId);
+    if (!root) return null;
+
+    const labelSpan = root.querySelector('.multi-label');
+    const checks = root.querySelectorAll('.' + checkClass);
+    const hidden = document.getElementById(hiddenContainerId);
+
+    function refresh() {
+        if (!hidden) return;
+
+        hidden.innerHTML = "";
+
+        const texts = [];
+        checks.forEach(ch => {
+            if (ch.checked) {
+                texts.push(ch.getAttribute('data-text') || ch.value);
+
+                const inp = document.createElement('input');
+                inp.type = 'hidden';
+                inp.name = hiddenName;
+                inp.value = ch.value;
+                hidden.appendChild(inp);
+            }
+        });
+
+        if (labelSpan) {
+            if (texts.length === 0) {
+                labelSpan.textContent = '(Todos)';
+            } else if (texts.length <= 3) {
+                labelSpan.textContent = texts.join(', ');
+            } else {
+                labelSpan.textContent = texts.length + ' seleccionados';
+            }
+        }
+    }
+
+    checks.forEach(ch => {
+        ch.addEventListener('change', refresh);
+    });
+
+    refresh();
+
+    return { refresh };
+}
+
+        // ========= ORDENAMIENTO POR ENCABEZADO =========
+
+        function initHeaderSorting() {
+            const table = document.querySelector('.table-wrap table');
+            if (!table) return;
+
+            const thead = table.querySelector('thead');
+            const tbody = table.querySelector('tbody');
+            if (!thead || !tbody) return;
+
+            const ths = thead.querySelectorAll('th[data-sort-col]');
+            if (!ths.length) return;
+
+            const state = { index: null, dir: null }; // asc | desc | null
+
+            function clearIcons() {
+                ths.forEach(th => {
+                    th.textContent = th.textContent.replace(/\s*[▲▼]$/, '');
+                });
+            }
+
+            function getCellValue(tr, index) {
+                const td = tr.children[index];
+                if (!td) return '';
+                return td.innerText.trim();
+            }
+
+            function parseValue(val, type) {
+                if (type === 'num') {
+                    const n = parseFloat(val.replace(/[^\d.-]/g, ''));
+                    return isNaN(n) ? 0 : n;
+                }
+                if (type === 'date') {
+                    const d = new Date(val);
+                    return isNaN(d.getTime()) ? 0 : d.getTime();
+                }
+                return val.toUpperCase();
+            }
+
+            function sortBody(index, dir) {
+                const rows = Array.from(tbody.querySelectorAll('tr'));
+                if (!rows.length) return;
+
+                if (index == null || dir == null) {
+                    // restaurar orden original usando data-index
+                    rows.sort((a, b) => {
+                        const ia = parseInt(a.dataset.index || '0', 10);
+                        const ib = parseInt(b.dataset.index || '0', 10);
+                        return ia - ib;
+                    });
+                } else {
+                    const type = ths[index].dataset.sortType || 'text';
+                    rows.sort((a, b) => {
+                        const va = parseValue(getCellValue(a, index), type);
+                        const vb = parseValue(getCellValue(b, index), type);
+                        if (va < vb) return -1;
+                        if (va > vb) return 1;
+                        return 0;
+                    });
+                    if (dir === 'desc') rows.reverse();
+                }
+
+                rows.forEach(r => tbody.appendChild(r));
+            }
+
+            ths.forEach((th, index) => {
+                th.style.cursor = 'pointer';
+
+                th.addEventListener('click', () => {
+                    if (state.index === index) {
+                        state.dir = state.dir === 'asc' ? 'desc' :
+                                   state.dir === 'desc' ? null : 'asc';
+                    } else {
+                        state.index = index;
+                        state.dir = 'asc';
+                    }
+
+                    clearIcons();
+
+                    if (!state.dir) {
+                        state.index = null;
+                    } else {
+                        th.textContent = th.textContent.replace(/\s*[▲▼]$/, '') +
+                            (state.dir === 'asc' ? ' ▲' : ' ▼');
+                    }
+
+                    sortBody(state.index, state.dir);
+                });
+            });
+        }
+
+   document.addEventListener('DOMContentLoaded', function () {
+    const ddEstatus = initMultiDropdown(
+    'dd-estatus',
+    'multi-check-estatus',
+    'dd-estatus-hidden',
+    'EstatusSeleccionados'
+);
+
+initMultiDropdownSearch('dd-estatus');
+
+initHeaderSorting();
+
+const frm = document.getElementById('frmPedidos');
+if (frm) {
+    frm.addEventListener('submit', function () {
+        ddEstatus?.refresh();
+    });
+}
+
+});
+
+                   document.getElementById('ovm-serie').addEventListener('change', async function () {
+            if (!ordenIdActual) return;
+
+            const select = this;
+            const nuevaSerieId = select.value;
+            const serieAnterior = select.getAttribute('data-prev') ?? '';
+
+            // 🔐 Confirmación
+            const ok = confirm('¿Estás seguro de que deseas actualizar la serie de esta orden?');
+            if (!ok) {
+                // 🔄 Revertir selección
+                select.value = serieAnterior;
+                return;
+            }
+
+            const token = getAntiForgeryToken();
+
+            try {
+                const resp = await fetch('/Comercial/ActualizarSerieOV', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'RequestVerificationToken': token
+                    },
+                    body: `ordenVentaId=${ordenIdActual}&serieId=${nuevaSerieId}`
+                });
+
+                const json = await resp.json();
+
+                if (!resp.ok || json.ok === false) {
+                    showMsg('danger', json.msg || 'Error al actualizar serie');
+                    select.value = serieAnterior; // rollback
+                    return;
+                }
+
+                // ✅ Guardar nueva como previa
+                select.setAttribute('data-prev', nuevaSerieId);
+
+                // (opcional) actualizar texto visible
+                const lblSerie = document.getElementById('ovm-serie-text');
+                if (lblSerie && json.serieNombre) {
+                    lblSerie.textContent = json.serieNombre;
+                }
+
+                // (opcional) actualizar listado
+                const link = document.querySelector(`a.ver-ov[data-id="${ordenIdActual}"]`);
+                if (link) {
+                    const tr = link.closest('tr');
+                    const tdSerie = tr ? tr.querySelector('.td-serie') : null;
+                    if (tdSerie && json.serieNombre) {
+                        tdSerie.textContent = json.serieNombre;
+                    }
+                }
+
+                showMsg('success', 'Serie actualizada correctamente.');
+                setTimeout(() => showMsg(), 2000);
+
+            } catch (e) {
+                console.error(e);
+                showMsg('danger', 'Error de red al actualizar serie.');
+                select.value = serieAnterior; // rollback
+            }
+        });
+
+    </script>
+}

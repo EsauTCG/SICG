@@ -1,0 +1,1385 @@
+﻿@using System.Globalization
+@model Plataforma_CG.ViewModels.TransferenciaCargaVM
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+
+    string chip = "EMBARCAR";
+    string estadoTxt = "Registrada";
+    string badgeClass = "bg-secondary text-white";
+
+    var completo = Model.Items.All(x =>
+        (x.CajasPedido > 0)
+            ? (x.CajasSurtido >= x.CajasPedido)
+            : (x.Pedido <= 0 ? true : x.Surtido >= x.Pedido)
+    );
+
+    var hayRegistrado = Model.Items.Any(x => (x.CajasSurtido > 0) || (x.Surtido > 0));
+}
+
+<style>
+    :root {
+        --brand1: #8B0000;
+        --brand2: #5a0000;
+        --brand3: #1a0000;
+        --muted: #6c757d;
+        --soft: #F8EDEE;
+        --line: #E4CED0;
+        --ok: #198754;
+        --warn: #ffc107;
+        --danger: #dc3545;
+        --info: #495057;
+    }
+
+    .m-wrap {
+        max-width: 520px;
+        margin: 0 auto;
+        padding: 10px;
+    }
+
+    .m-top {
+        background: linear-gradient(90deg,var(--brand1),var(--brand2) 60%,var(--brand3));
+        color: #fff;
+        border-radius: 16px;
+        padding: 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 10px 22px rgba(0,0,0,.10);
+        margin-bottom: 12px;
+        gap: 10px;
+    }
+
+        .m-top h4 {
+            margin: 0;
+            font-weight: 900;
+        }
+
+    .m-sub {
+        font-size: .85rem;
+        opacity: .85;
+        margin-top: 2px;
+        word-break: break-word;
+    }
+
+    .m-chip {
+        background: rgba(255,255,255,.15);
+        border: 1px solid rgba(255,255,255,.25);
+        border-radius: 999px;
+        padding: .25rem .6rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .m-card {
+        background: #fff;
+        border: 1px solid #eee;
+        border-radius: 16px;
+        box-shadow: 0 8px 16px rgba(0,0,0,.06);
+        padding: 12px;
+        margin-bottom: 12px;
+    }
+
+    .m-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin: 7px 0;
+    }
+
+    .m-k {
+        color: var(--muted);
+        font-weight: 800;
+        flex: 0 0 auto;
+    }
+
+    .m-v {
+        font-weight: 900;
+        text-align: right;
+        min-width: 0;
+        word-break: break-word;
+    }
+
+    .m-scan input {
+        border-radius: 14px;
+        font-size: 1.1rem;
+        padding: .75rem .9rem;
+    }
+
+    .m-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .m-item {
+        border-top: 1px solid #f0f0f0;
+        padding: 10px 0;
+    }
+
+        .m-item:first-child {
+            border-top: none;
+        }
+
+    .m-sku {
+        font-weight: 900;
+    }
+
+    .m-prod {
+        color: #222;
+        font-weight: 700;
+        margin-top: 2px;
+        word-break: break-word;
+    }
+
+    .m-meta {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        margin-top: 6px;
+        flex-wrap: wrap;
+    }
+
+        .m-meta .box {
+            flex: 1 1 48%;
+            background: #fafafa;
+            border: 1px solid #f0f0f0;
+            border-radius: 12px;
+            padding: 8px 10px;
+            min-width: 0;
+        }
+
+        .m-meta .lbl {
+            color: var(--muted);
+            font-size: .82rem;
+            font-weight: 800;
+        }
+
+        .m-meta .val {
+            font-size: .95rem;
+            font-weight: 900;
+            margin-top: 2px;
+            word-break: break-word;
+        }
+
+    .m-bar {
+        height: 10px;
+        background: #f1f1f1;
+        border-radius: 999px;
+        overflow: hidden;
+        margin-top: 8px;
+    }
+
+        .m-bar > div {
+            height: 100%;
+            background: var(--ok);
+            width: 0%;
+        }
+
+    .m-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        margin-top: 12px;
+    }
+
+        .m-actions .btn {
+            border-radius: 12px;
+        }
+
+    .btn-transfer {
+        background: linear-gradient(90deg,var(--brand1),var(--brand2));
+        border: none;
+    }
+
+    .badge-mini {
+        display: inline-block;
+        border-radius: 999px;
+        padding: .15rem .55rem;
+        font-weight: 900;
+        font-size: .78rem;
+        background: rgba(25,135,84,.12);
+        color: var(--ok);
+        border: 1px solid rgba(25,135,84,.20);
+    }
+
+    .badge-warn {
+        background: rgba(255,193,7,.18);
+        color: #664d03;
+        border: 1px solid rgba(255,193,7,.35);
+    }
+
+    .mini-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        margin-top: 10px;
+    }
+
+    .scan-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(255,255,255,.78);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+    }
+
+    .scan-box {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+    }
+
+        .scan-box .spinner-border {
+            width: 3rem;
+            height: 3rem;
+            border-width: .35rem;
+            color: var(--brand1);
+        }
+
+    .scan-text {
+        font-weight: 800;
+        color: var(--brand1);
+        text-align: center;
+    }
+
+    .modal-loading {
+        position: absolute;
+        inset: 0;
+        background: rgba(255,255,255,.78);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 5;
+    }
+
+        .modal-loading .spinner-border {
+            width: 3rem;
+            height: 3rem;
+            border-width: .35rem;
+            color: var(--brand1);
+        }
+
+    .m-list-cards {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+        .m-list-cards .m-item {
+            border: 1px solid #d9d9d9;
+            border-radius: 14px;
+            padding: 12px;
+            background: #fff;
+            box-shadow: none;
+        }
+
+            .m-list-cards .m-item,
+            .m-list-cards .m-item:first-child {
+                border-top: 1px solid #d9d9d9 !important;
+            }
+
+        .m-list-cards .m-meta {
+            margin-top: 10px;
+        }
+
+        .m-list-cards .m-bar {
+            margin-top: 10px;
+        }
+
+        .m-list-cards .mini-actions {
+            margin-top: 10px;
+        }
+
+    .it-sku {
+        font-size: 1rem;
+    }
+
+    .it-name {
+        margin-top: 3px;
+    }
+
+    /* Mensaje principal responsivo */
+    .scan-msg {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 12px 14px;
+        border-radius: 14px;
+        font-size: .95rem;
+        line-height: 1.35;
+        font-weight: 700;
+        border: 1px solid transparent;
+        word-break: break-word;
+        box-shadow: 0 4px 10px rgba(0,0,0,.04);
+    }
+
+    .scan-msg-ico {
+        flex: 0 0 24px;
+        width: 24px;
+        height: 24px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .9rem;
+        font-weight: 900;
+    }
+
+    .scan-msg-text {
+        flex: 1 1 auto;
+        min-width: 0;
+        white-space: pre-line;
+    }
+
+    .scan-msg-ok {
+        background: #edf9f1;
+        border-color: #b7e4c7;
+        color: #146c43;
+    }
+
+        .scan-msg-ok .scan-msg-ico {
+            background: #198754;
+            color: #fff;
+        }
+
+    .scan-msg-error {
+        background: #fff1f2;
+        border-color: #f1b8bf;
+        color: #b42318;
+    }
+
+        .scan-msg-error .scan-msg-ico {
+            background: #dc3545;
+            color: #fff;
+        }
+
+    .scan-msg-muted {
+        background: #f8f9fa;
+        border-color: #e9ecef;
+        color: #495057;
+    }
+
+        .scan-msg-muted .scan-msg-ico {
+            background: #6c757d;
+            color: #fff;
+        }
+
+    /* Toast móvil */
+    .app-toast-wrap {
+        position: fixed;
+        left: 12px;
+        right: 12px;
+        bottom: 14px;
+        z-index: 3000;
+        display: flex;
+        justify-content: center;
+        pointer-events: none;
+    }
+
+    .app-toast {
+        width: 100%;
+        max-width: 520px;
+        pointer-events: auto;
+        display: none;
+        border-radius: 16px;
+        padding: 14px 16px;
+        color: #fff;
+        font-weight: 800;
+        line-height: 1.35;
+        box-shadow: 0 12px 28px rgba(0,0,0,.18);
+        word-break: break-word;
+        white-space: pre-line;
+    }
+
+        .app-toast.show {
+            display: block;
+        }
+
+    .app-toast-ok {
+        background: linear-gradient(90deg, #198754, #146c43);
+    }
+
+    .app-toast-error {
+        background: linear-gradient(90deg, #dc3545, #b02a37);
+    }
+
+    .app-toast-info {
+        background: linear-gradient(90deg, #6c757d, #495057);
+    }
+
+    @@media (max-width: 576px) {
+        .m-wrap {
+            padding: 8px;
+        }
+
+        .m-top {
+            border-radius: 14px;
+            padding: 12px;
+            align-items: flex-start;
+        }
+
+            .m-top h4 {
+                font-size: 1.05rem;
+            }
+
+        .m-chip {
+            font-size: .78rem;
+            padding: .22rem .55rem;
+        }
+
+        .m-row {
+            flex-direction: column;
+            gap: 2px;
+            align-items: flex-start;
+        }
+
+        .m-v {
+            text-align: left;
+            width: 100%;
+        }
+
+        .m-meta .box {
+            flex: 1 1 100%;
+        }
+
+        .mini-actions {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+            .mini-actions .btn {
+                width: 100%;
+            }
+
+        .m-actions {
+            flex-direction: column;
+        }
+
+            .m-actions .btn {
+                width: 100%;
+            }
+
+        .scan-msg {
+            font-size: .92rem;
+            padding: 11px 12px;
+            border-radius: 12px;
+        }
+
+        .scan-msg-ico {
+            width: 22px;
+            height: 22px;
+            font-size: .82rem;
+        }
+
+        .app-toast {
+            font-size: .95rem;
+            padding: 13px 14px;
+            border-radius: 14px;
+        }
+
+        .modal-footer {
+            flex-direction: column;
+        }
+
+            .modal-footer .btn {
+                width: 100%;
+            }
+    }
+</style>
+
+<div class="m-wrap">
+    <div class="m-top">
+        <div>
+            <h4>Carga Transferencia</h4>
+            <div class="m-sub">Folio: <b>@Model.Consecutivo</b></div>
+        </div>
+        <div class="m-chip">@chip</div>
+    </div>
+
+    <div class="m-card">
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="fw-bold">Estado</div>
+            <span class="badge rounded-pill @badgeClass">@estadoTxt</span>
+        </div>
+    </div>
+
+    <div class="m-card">
+        <div class="fw-bold mb-2">Detalles</div>
+        <div class="m-row"><div class="m-k">Origen</div><div class="m-v">@Model.AlmacenOrigen</div></div>
+        <div class="m-row"><div class="m-k">Destino</div><div class="m-v">@Model.AlmacenDestino</div></div>
+        <div class="m-row"><div class="m-k">Solicitó</div><div class="m-v">@Model.UsuarioSolicita</div></div>
+        <div class="m-row"><div class="m-k">Embarcar</div><div class="m-v">@Model.FechaSolicitud?.ToString("dd/MM/yyyy")</div></div>
+
+        @if (!string.IsNullOrWhiteSpace(Model.Observacion))
+        {
+            <div class="m-row"><div class="m-k">Observación</div><div class="m-v">@Model.Observacion</div></div>
+        }
+    </div>
+
+    <div class="m-card m-scan">
+        <div class="fw-bold mb-2">Escaneo</div>
+        <input id="scanEtiqueta" class="form-control" placeholder="Escanea etiqueta / Tarima..." autocomplete="off" inputmode="text" />
+        <div id="scanMsg" class="scan-msg scan-msg-muted mt-2" role="status" aria-live="polite">
+            <div class="scan-msg-ico">ℹ</div>
+            <div class="scan-msg-text">Listo para escanear…</div>
+        </div>
+    </div>
+
+    <div id="scanLoading" class="scan-overlay d-none">
+        <div class="scan-box">
+            <div class="spinner-border" role="status" aria-hidden="true"></div>
+            <div id="scanLoadingText" class="scan-text">Procesando etiqueta…</div>
+        </div>
+    </div>
+
+    <div class="m-card">
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="fw-bold">Productos</div>
+            <div class="small text-muted">@Model.Items.Count item(s)</div>
+        </div>
+
+        <ul class="m-list mt-2 m-list-cards">
+            @foreach (var it in Model.Items)
+            {
+                var sku = (it.Sku ?? "").Trim().ToUpperInvariant();
+                var usaCajas = it.CajasPedido > 0;
+                var pct = 0;
+
+                if (usaCajas)
+                    pct = it.CajasPedido <= 0 ? 0 : (int)Math.Round((double)it.CajasSurtido / it.CajasPedido * 100);
+                else
+                    pct = it.Pedido <= 0 ? 0 : (int)Math.Round((double)(it.Surtido / it.Pedido) * 100);
+
+                pct = Math.Max(0, Math.Min(100, pct));
+
+                var badge = pct >= 100 ? "Completo" : $"{pct}%";
+                var badgeCls = pct >= 100 ? "badge-mini" : "badge-mini badge-warn";
+
+                <li class="m-item"
+                    data-sku="@sku"
+                    data-nombre="@it.Producto"
+                    data-usacajas="@usaCajas.ToString().ToLower()"
+                    data-cajaspedido="@it.CajasPedido"
+                    data-pedido="@it.Pedido.ToString(CultureInfo.InvariantCulture)"
+                    data-cajassurtido="@it.CajasSurtido"
+                    data-surtido="@it.Surtido.ToString(CultureInfo.InvariantCulture)">
+
+                    <div class="d-flex justify-content-between align-items-center gap-2">
+                        <div class="m-sku"></div>
+                        <span class="@badgeCls js-badge">@badge</span>
+                    </div>
+
+                    <div class="m-prod">
+                        <span class="text-muted fw-bold">@sku</span> - @it.Producto
+                    </div>
+
+                    <div class="m-meta">
+                        <div class="box">
+                            <div class="lbl">Kg (pedido / surtido)</div>
+                            <div class="val">
+                                @it.Pedido.ToString("N2") /
+                                <span class="js-surtido">@it.Surtido.ToString("N2")</span>
+                            </div>
+                        </div>
+                        <div class="box">
+                            <div class="lbl">Cajas (pedido / surtido)</div>
+                            <div class="val">
+                                @it.CajasPedido /
+                                <span class="js-cajasSurtido">@it.CajasSurtido</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="m-bar" title="Avance">
+                        <div class="js-bar" style="width:@pct%"></div>
+                    </div>
+
+                    <div class="mini-actions">
+                        <div class="small text-muted">
+                            Escaneadas: <b class="js-cajasSurtido">@it.CajasSurtido</b>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary"
+                                onclick="window.verEtiquetas('@sku')">
+                            Ver etiquetas
+                        </button>
+                    </div>
+                </li>
+            }
+        </ul>
+
+        <div class="m-actions">
+            <button class="btn btn-outline-secondary" type="button" onclick="location.reload()">Limpiar</button>
+            <button id="btnTransferir" type="button" class="btn btn-transfer text-white">Transferir</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalEtiquetas" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down">
+        <div class="modal-content" style="border-radius:16px">
+            <div class="modal-header">
+                <h5 class="modal-title">Producto: <span id="mSku"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+
+            <div class="modal-body position-relative">
+                <div class="d-flex gap-2 flex-wrap mb-2">
+                    <span class="badge text-bg-light">Cajas: <b id="mTotCajas">0</b></span>
+                    <span class="badge text-bg-light">Kg: <b id="mTotKg">0.00</b></span>
+                </div>
+
+                <div id="mLoading" class="modal-loading d-none">
+                    <div class="d-flex flex-column align-items-center gap-2">
+                        <div class="spinner-border" role="status" aria-hidden="true"></div>
+                        <div class="scan-text">Cargando etiquetas…</div>
+                    </div>
+                </div>
+
+                <div id="mEmpty" class="text-muted small d-none">No hay etiquetas para este SKU.</div>
+                <ul class="list-group list-group-flush" id="mLista"></ul>
+            </div>
+
+            <div class="modal-footer">
+                <button id="btnEliminarTarima" type="button" class="btn btn-outline-danger">Eliminar tarima</button>
+                <button id="btnEliminarTodo" type="button" class="btn btn-outline-danger">Eliminar todo</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalConfirmacion" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+        <div class="modal-content" style="border-radius:16px;">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div id="confirmText" style="white-space:pre-line;font-weight:700;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirmOk">Aceptar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="app-toast-wrap">
+    <div id="appToast" class="app-toast app-toast-info"></div>
+</div>
+
+<script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    let transferenciaCompleta = @completo.ToString().ToLower();
+    let hayRegistrado = @hayRegistrado.ToString().ToLower();
+</script>
+
+<script>
+    (function () {
+        const input = document.getElementById('scanEtiqueta');
+        const msg = document.getElementById('scanMsg');
+        const transferenciaId = @Model.TransferenciaId;
+
+        const scanLoading = document.getElementById("scanLoading");
+        const scanLoadingText = document.getElementById("scanLoadingText");
+
+        const appToast = document.getElementById("appToast");
+        let toastTimer = null;
+
+        let busy = false;
+
+        // =========================
+        // Helpers UI
+        // =========================
+        function setMsg(text, ok, muted = false) {
+            if (!msg) return;
+
+            const icon = muted ? "ℹ" : (ok ? "✓" : "✕");
+            const cls = muted
+                ? "scan-msg scan-msg-muted mt-2"
+                : (ok ? "scan-msg scan-msg-ok mt-2" : "scan-msg scan-msg-error mt-2");
+
+            msg.className = cls;
+            msg.innerHTML = `
+                <div class="scan-msg-ico">${icon}</div>
+                <div class="scan-msg-text">${text || ""}</div>
+            `;
+        }
+
+        function showToast(text, type = "info", ms = 3200) {
+            if (!appToast) return;
+
+            appToast.className = "app-toast show " +
+                (type === "ok" ? "app-toast-ok" :
+                type === "error" ? "app-toast-error" :
+                "app-toast-info");
+
+            appToast.textContent = text || "";
+
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                appToast.className = "app-toast " +
+                    (type === "ok" ? "app-toast-ok" :
+                    type === "error" ? "app-toast-error" :
+                    "app-toast-info");
+            }, ms);
+        }
+
+        function showScanLoading(text) {
+            if (scanLoadingText) scanLoadingText.textContent = text || "Procesando…";
+            scanLoading?.classList.remove("d-none");
+        }
+
+        function hideScanLoading() {
+            scanLoading?.classList.add("d-none");
+        }
+
+        function findRowBySku(sku) {
+            sku = (sku || "").toString().trim().toUpperCase();
+            if (!sku) return null;
+
+            const esc = (window.CSS && CSS.escape)
+                ? CSS.escape(sku)
+                : sku.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+
+            return document.querySelector(`.m-item[data-sku="${esc}"]`);
+        }
+
+        function calcPct(usaCajas, cajasPedido, cajasSurtido, pedido, surtido) {
+            let pct = 0;
+            if (usaCajas) pct = (cajasPedido <= 0) ? 0 : Math.round((cajasSurtido / cajasPedido) * 100);
+            else pct = (pedido <= 0) ? 0 : Math.round((surtido / pedido) * 100);
+            return Math.max(0, Math.min(100, pct));
+        }
+
+        function fmt2(n) {
+            const v = Number(n || 0);
+            return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function getNums(li) {
+            return {
+                usaCajas: (li.dataset.usacajas === "true"),
+                cajasPedido: Number(li.dataset.cajaspedido || 0),
+                pedido: Number(li.dataset.pedido || 0),
+                cajasSurtido: Number(li.dataset.cajassurtido || 0),
+                surtido: Number(li.dataset.surtido || 0)
+            };
+        }
+
+        function updateItemUI(sku, cajasSurtido, surtido) {
+            const li = findRowBySku(sku);
+            if (!li) return;
+
+            const cajas = Math.max(0, Number(cajasSurtido || 0));
+            const kg = Math.max(0, Number(surtido || 0));
+
+            li.dataset.cajassurtido = String(cajas);
+            li.dataset.surtido = String(kg);
+
+            li.querySelectorAll(".js-cajasSurtido").forEach(el => el.textContent = String(cajas));
+
+            const surtEl = li.querySelector(".js-surtido");
+            if (surtEl) surtEl.textContent = fmt2(kg);
+
+            const n = getNums(li);
+            const pct = calcPct(n.usaCajas, n.cajasPedido, cajas, n.pedido, kg);
+
+            const badgeEl = li.querySelector(".js-badge");
+            if (badgeEl) {
+                if (pct >= 100) {
+                    badgeEl.textContent = "Completo";
+                    badgeEl.className = "badge-mini js-badge";
+                } else {
+                    badgeEl.textContent = `${pct}%`;
+                    badgeEl.className = "badge-mini badge-warn js-badge";
+                }
+            }
+
+            const bar = li.querySelector(".js-bar");
+            if (bar) bar.style.width = `${pct}%`;
+        }
+
+        function recomputeGlobalState() {
+            let any = false;
+            let allComplete = true;
+
+            document.querySelectorAll(".m-item[data-sku]").forEach(li => {
+                const n = getNums(li);
+                if (n.cajasSurtido > 0 || n.surtido > 0) any = true;
+
+                const pct = calcPct(n.usaCajas, n.cajasPedido, n.cajasSurtido, n.pedido, n.surtido);
+                if (pct < 100) allComplete = false;
+            });
+
+            hayRegistrado = any;
+            transferenciaCompleta = allComplete;
+
+            const btnTransferir = document.getElementById("btnTransferir");
+            if (btnTransferir) btnTransferir.disabled = !hayRegistrado;
+        }
+
+        async function refreshTransferenciaUI() {
+            try {
+                const res = await fetch("/Transferencias/EstadoItems", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    cache: "no-store",
+                    body: JSON.stringify({ transferenciaId })
+                });
+
+                const data = await res.json().catch(() => null);
+                if (!res.ok || !data?.ok) return;
+
+                (data.items || []).forEach(x => {
+                    const sku = (x.sku || "").toString().trim().toUpperCase();
+                    updateItemUI(sku, x.cajasSurtido, x.surtido);
+                });
+
+                recomputeGlobalState();
+            } catch { }
+        }
+
+        // =========================
+        // Modal confirmación
+        // =========================
+        const confirmModalEl = document.getElementById("modalConfirmacion");
+        const confirmModal = confirmModalEl ? new bootstrap.Modal(confirmModalEl) : null;
+        const confirmText = document.getElementById("confirmText");
+        const confirmOk = document.getElementById("confirmOk");
+
+        function askConfirm(text) {
+            return new Promise(resolve => {
+                if (!confirmModal || !confirmText || !confirmOk) {
+                    resolve(confirm(text));
+                    return;
+                }
+
+                let resolved = false;
+                confirmText.textContent = text || "";
+
+                const onOk = () => {
+                    if (resolved) return;
+                    resolved = true;
+                    cleanup();
+                    confirmModal.hide();
+                    resolve(true);
+                };
+
+                const onHide = () => {
+                    if (resolved) return;
+                    resolved = true;
+                    cleanup();
+                    resolve(false);
+                };
+
+                function cleanup() {
+                    confirmOk.removeEventListener("click", onOk);
+                    confirmModalEl.removeEventListener("hidden.bs.modal", onHide);
+                }
+
+                confirmOk.addEventListener("click", onOk);
+                confirmModalEl.addEventListener("hidden.bs.modal", onHide, { once: true });
+                confirmModal.show();
+            });
+        }
+
+        // =========================
+        // Scan
+        // =========================
+        async function enviarScan() {
+            if (busy) return;
+
+            let codigoEtiqueta = (input?.value || "").trim();
+            if (!codigoEtiqueta) return;
+
+            codigoEtiqueta = codigoEtiqueta.toUpperCase();
+
+            busy = true;
+            if (input) input.disabled = true;
+
+            setMsg("Procesando...", true, true);
+            showScanLoading("Procesando etiqueta / tarima…");
+
+            try {
+                const res = await fetch('/Transferencias/ScanEtiqueta', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transferenciaId, codigoEtiqueta, forzarAgregar: false })
+                });
+
+                const data = await res.json().catch(() => null);
+                if (!res.ok || !data) {
+                    const err = data?.msg || data?.error || data?.detail || `HTTP ${res.status}`;
+
+                    let detalle = "";
+
+                    if (data?.errores && Array.isArray(data.errores)) {
+                        detalle = "\n" + data.errores.join("\n");
+                    }
+
+                    setMsg(err + detalle, false);
+                    showToast(err, "error", 5000);
+                    console.error("SCAN ERROR:", data);
+                    return;
+                }
+
+                if (data.ok) {
+                    setMsg(data.msg || "OK", true);
+                    showToast(data.msg || "Escaneo correcto.", "ok", 2200);
+
+                    if (data.sku && data.kg != null) {
+                        const row = findRowBySku(data.sku);
+                        if (row) {
+                            const n = getNums(row);
+                            updateItemUI(data.sku, n.cajasSurtido + 1, n.surtido + Number(data.kg || 0));
+                            recomputeGlobalState();
+                        }
+                    }
+
+                    await refreshTransferenciaUI();
+    } else {
+    if (data.yaEscaneadaEnOtraTransferencia === true) {
+    hideScanLoading();
+
+    const folioOtra = data.transferencia || data.folioTransferencia || data.transferenciaId || "otra transferencia";
+    const confirmar = await askConfirm(
+    `Esta etiqueta ya fue escaneada en la transferencia ${folioOtra}.\n\n¿Deseas agregarla a esta transferencia?`
+    );
+
+    if (!confirmar) {
+    setMsg("Etiqueta no agregada.", false);
+    showToast("Etiqueta no agregada.", "info", 2500);
+    return;
+    }
+
+    showScanLoading("Agregando etiqueta autorizada…");
+
+    const res2 = await fetch('/Transferencias/ScanEtiqueta', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transferenciaId, codigoEtiqueta, forzarAgregar: true })
+    });
+
+    const data2 = await res2.json().catch(() => null);
+
+    if (!res2.ok || !data2?.ok) {
+    setMsg(data2?.msg || "No se pudo agregar la etiqueta.", false);
+    showToast(data2?.msg || "No se pudo agregar la etiqueta.", "error", 4000);
+    return;
+    }
+
+    setMsg(data2.msg || "Etiqueta agregada.", true);
+    showToast(data2.msg || "Etiqueta agregada.", "ok", 2200);
+
+    await refreshTransferenciaUI();
+    return;
+    }
+
+    setMsg(data.msg || "Etiqueta inválida.", false);
+    showToast(data.msg || "Etiqueta inválida.", "error", 3500);
+    }
+
+            } catch {
+                setMsg("No se pudo conectar con el servidor.", false);
+                showToast("No se pudo conectar con el servidor.", "error", 4000);
+            } finally {
+                hideScanLoading();
+                if (input) {
+                    input.value = "";
+                    input.disabled = false;
+                    input.focus();
+                }
+                busy = false;
+            }
+        }
+
+        setTimeout(() => input?.focus(), 150);
+
+        input?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                enviarScan();
+            }
+        });
+
+        input?.addEventListener('change', () => enviarScan());
+
+        // =========================
+        // Transferir
+        // =========================
+        const btnTransferir = document.getElementById("btnTransferir");
+        if (btnTransferir && !hayRegistrado) btnTransferir.disabled = true;
+
+        btnTransferir?.addEventListener("click", async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (btnTransferir.disabled) return;
+
+            if (!hayRegistrado) {
+                const t = "No hay nada registrado para transferir. Escanea al menos una etiqueta primero.";
+                setMsg(t, false);
+                showToast(t, "error", 4000);
+                input?.focus();
+                return;
+            }
+
+            let confirmMsg = "¿Seguro que deseas transferir y actualizar el almacén de todas las etiquetas?";
+            if (!transferenciaCompleta) {
+                confirmMsg = "⚠️ La transferencia NO está completa.\n\n¿Estás seguro que deseas VALIDAR una transferencia incompleta?";
+            }
+
+            if (!(await askConfirm(confirmMsg))) return;
+
+            btnTransferir.disabled = true;
+            setMsg("Transfiriendo...", true, true);
+
+            try {
+                const res = await fetch("/Transferencias/Transferir", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ transferenciaId })
+                });
+
+                const data = await res.json().catch(() => null);
+
+                if (!res.ok || !data?.ok) {
+                    const err = data?.msg || "Error al transferir.";
+                    console.log("TRANSFERIR ERROR:", data);
+                    setMsg(err, false);
+                    showToast(err, "error", 4500);
+                    btnTransferir.disabled = false;
+                    return;
+                }
+
+                let okMsg = data.msg || "Transferencia procesada correctamente.";
+
+                if (typeof data.enP1 === "number") {
+                    okMsg += `\nEtiquetas ya en P1: ${data.enP1}`;
+                }
+                if (typeof data.copiadasDesdeTif === "number") {
+                    okMsg += `\nCopiadas desde TIF: ${data.copiadasDesdeTif}`;
+                }
+                if (typeof data.procesadasEnP1 === "number") {
+                    okMsg += `\nProcesadas en P1: ${data.procesadasEnP1}`;
+                }
+                if (Array.isArray(data.etiquetasNoEncontradas) && data.etiquetasNoEncontradas.length) {
+                    okMsg += `\nNo encontradas: ${data.etiquetasNoEncontradas.length}`;
+                }
+
+                setMsg(okMsg, true);
+                showToast(okMsg, "ok", 4500);
+                setTimeout(() => {
+                    window.location.replace("/Transferencias/SeleccionarParaSurtir");
+                }, 900);
+
+            } catch (err) {
+                console.error("TRANSFERIR EXCEPTION:", err);
+                setMsg("No se pudo conectar con el servidor.", false);
+                showToast("No se pudo conectar con el servidor.", "error", 4000);
+                btnTransferir.disabled = false;
+            }
+        });
+
+        // =========================
+        // MODAL (tarimas múltiples)
+        // =========================
+        const modalEl = document.getElementById('modalEtiquetas');
+        const modal = modalEl ? new bootstrap.Modal(modalEl) : null;
+
+        const mSku = document.getElementById('mSku');
+        const mLista = document.getElementById('mLista');
+        const mLoading = document.getElementById('mLoading');
+        const mEmpty = document.getElementById('mEmpty');
+        const mTotCajas = document.getElementById('mTotCajas');
+        const mTotKg = document.getElementById('mTotKg');
+
+        const btnEliminarTodo = document.getElementById("btnEliminarTodo");
+        const btnEliminarTarima = document.getElementById("btnEliminarTarima");
+
+        let currentModalSku = "";
+        let currentModalTarimas = [];
+
+        function setModalTotals(etqs) {
+            const cajas = etqs.length;
+            let kg = 0;
+            for (const e of etqs) kg += Number(e.kg || 0);
+            if (mTotCajas) mTotCajas.textContent = cajas.toString();
+            if (mTotKg) mTotKg.textContent = kg.toFixed(2);
+        }
+
+        function showModalLoading() {
+            if (mLista) mLista.innerHTML = "";
+            mEmpty?.classList.add("d-none");
+            mLoading?.classList.remove("d-none");
+            if (mTotCajas) mTotCajas.textContent = "0";
+            if (mTotKg) mTotKg.textContent = "0.00";
+            if (btnEliminarTodo) btnEliminarTodo.disabled = true;
+            if (btnEliminarTarima) btnEliminarTarima.disabled = true;
+        }
+
+        function hideModalLoading() {
+            mLoading?.classList.add("d-none");
+        }
+
+        function computeTarimas(etqs) {
+            const set = new Set();
+            for (const e of etqs) {
+                const raw = e.tarimaCodigo ?? e.TarimaCodigo;
+                const t = (raw || "").toString().trim().toUpperCase();
+                if (t) set.add(t);
+            }
+            return Array.from(set).sort();
+        }
+
+        function updateTarimaButton() {
+            if (!btnEliminarTarima) return;
+
+            if (!currentModalTarimas || currentModalTarimas.length === 0) {
+                btnEliminarTarima.disabled = true;
+                btnEliminarTarima.textContent = "Eliminar tarima";
+                btnEliminarTarima.dataset.tarima = "";
+                return;
+            }
+
+            btnEliminarTarima.disabled = false;
+
+            if (currentModalTarimas.length === 1) {
+                const t = currentModalTarimas[0];
+                btnEliminarTarima.textContent = `Eliminar tarima ${t}`;
+                btnEliminarTarima.dataset.tarima = t;
+            } else {
+                btnEliminarTarima.textContent = `Eliminar tarima (${currentModalTarimas.length})`;
+                btnEliminarTarima.dataset.tarima = "";
+            }
+        }
+
+        async function cargarEtiquetasSku(sku) {
+            if (!sku) return;
+
+            currentModalSku = (sku || "").toString().trim().toUpperCase();
+
+            const row = findRowBySku(currentModalSku);
+            const nombre = (row?.dataset?.nombre || "").trim();
+            if (mSku) mSku.textContent = nombre ? `${currentModalSku} - ${nombre}` : currentModalSku;
+
+            showModalLoading();
+
+            try {
+                const res = await fetch('/Transferencias/EtiquetasPorSku', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ transferenciaId, sku: currentModalSku })
+                });
+
+                const data = await res.json().catch(() => null);
+                hideModalLoading();
+
+                if (!res.ok || !data?.ok) {
+                    if (mLista) mLista.innerHTML = `<li class="list-group-item text-danger small">Error al cargar etiquetas.</li>`;
+                    return;
+                }
+
+                const etqs = data.etiquetas || [];
+
+                currentModalTarimas = computeTarimas(etqs);
+                updateTarimaButton();
+
+                if (btnEliminarTodo) btnEliminarTodo.disabled = (etqs.length === 0);
+
+                if (etqs.length === 0) {
+                    mEmpty?.classList.remove("d-none");
+                    setModalTotals([]);
+                    return;
+                }
+
+                setModalTotals(etqs);
+
+                if (mLista) mLista.innerHTML = "";
+                etqs.forEach(e => {
+                    const li = document.createElement("li");
+                    li.className = "list-group-item";
+
+                    const fechaTxt = (e.fecha || "").toString().substring(0, 16).replace('T', ' ');
+                    const kgTxt = Number(e.kg || 0).toFixed(2);
+                    const tarimaTxt = (e.tarimaCodigo || "").toString().trim();
+
+                    li.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                            <div style="min-width:0">
+                                <div class="small text-muted" style="word-break:break-all">${e.codigoEtiqueta || ""}</div>
+                                <div class="small mt-1">
+                                    <span class="me-2"><b>${kgTxt}</b> kg</span>
+                                    <span class="text-muted">${fechaTxt}</span>
+                                </div>
+                                ${tarimaTxt ? `<div class="small text-muted">Tarima: <b>${tarimaTxt}</b></div>` : ""}
+                                ${(e.usuario ? `<div class="small text-muted">Por: <b>${e.usuario}</b></div>` : "")}
+                            </div>
+                            <button class="btn btn-sm btn-outline-danger" type="button">Eliminar</button>
+                        </div>
+                    `;
+
+                    const btnDel = li.querySelector("button");
+                    btnDel.addEventListener("click", async () => {
+                        if (!(await askConfirm("¿Eliminar esta etiqueta?"))) return;
+                        btnDel.disabled = true;
+
+                        try {
+                            const delRes = await fetch('/Transferencias/DeleteEtiqueta', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ transferenciaId, codigoEtiqueta: e.codigoEtiqueta })
+                            });
+
+                            const delData = await delRes.json().catch(() => null);
+                            if (!delRes.ok || !delData?.ok) {
+                                showToast(delData?.msg || "No se pudo eliminar.", "error", 4000);
+                                btnDel.disabled = false;
+                                return;
+                            }
+
+                            setMsg(delData.msg || "Etiqueta eliminada", true);
+                            showToast(delData.msg || "Etiqueta eliminada.", "ok");
+
+                            if (delData.sku) {
+                                const row = findRowBySku(delData.sku);
+                                if (row) {
+                                    const n = getNums(row);
+                                    updateItemUI(delData.sku, n.cajasSurtido - 1, n.surtido - Number(delData.kg || 0));
+                                    recomputeGlobalState();
+                                }
+                            }
+
+                            await cargarEtiquetasSku(currentModalSku);
+                            await refreshTransferenciaUI();
+                        } catch {
+                            showToast("No se pudo conectar con el servidor.", "error", 4000);
+                            btnDel.disabled = false;
+                        }
+                    });
+
+                    mLista?.appendChild(li);
+                });
+
+            } catch {
+                hideModalLoading();
+                if (mLista) mLista.innerHTML = `<li class="list-group-item text-danger small">No se pudo conectar con el servidor.</li>`;
+            }
+        }
+
+        btnEliminarTodo?.addEventListener("click", async () => {
+            if (!currentModalSku) return;
+
+            if (!(await askConfirm(`¿Eliminar TODAS las etiquetas del SKU ${currentModalSku}?`))) return;
+
+            btnEliminarTodo.disabled = true;
+            showModalLoading();
+
+            try {
+                const res = await fetch('/Transferencias/DeleteAllEtiquetasPorSku', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ transferenciaId, sku: currentModalSku })
+                });
+
+                const data = await res.json().catch(() => null);
+                hideModalLoading();
+
+                if (!res.ok || !data?.ok) {
+                    showToast(data?.msg || "No se pudo eliminar todo.", "error", 4000);
+                    btnEliminarTodo.disabled = false;
+                    return;
+                }
+
+                setMsg(data.msg || "Eliminadas.", true);
+                showToast(data.msg || "Etiquetas eliminadas.", "ok");
+
+                const row = findRowBySku(currentModalSku);
+                if (row) {
+                    const n = getNums(row);
+                    updateItemUI(currentModalSku, n.cajasSurtido - Number(data.total || 0), n.surtido - Number(data.kg || 0));
+                    recomputeGlobalState();
+                }
+
+                await cargarEtiquetasSku(currentModalSku);
+                await refreshTransferenciaUI();
+
+            } catch {
+                hideModalLoading();
+                showToast("No se pudo conectar con el servidor.", "error", 4000);
+            } finally {
+                btnEliminarTodo.disabled = false;
+            }
+        });
+
+        btnEliminarTarima?.addEventListener("click", async () => {
+            if (!currentModalSku) return;
+
+            let tarima = (btnEliminarTarima.dataset.tarima || "").trim().toUpperCase();
+
+            if (!tarima) {
+                const opciones = currentModalTarimas.map((t, i) => `${i + 1}) ${t}`).join("\n");
+                const seleccion = prompt(`Selecciona tarima a eliminar (escribe número):\n\n${opciones}`);
+                const idx = Number(seleccion || 0) - 1;
+                if (isNaN(idx) || idx < 0 || idx >= currentModalTarimas.length) return;
+                tarima = currentModalTarimas[idx];
+            }
+
+            if (!tarima) return;
+
+            if (!(await askConfirm(`¿Eliminar COMPLETA la tarima ${tarima} (todas sus etiquetas) de esta transferencia?`))) return;
+
+            btnEliminarTarima.disabled = true;
+            showModalLoading();
+
+            try {
+                const res = await fetch('/Transferencias/DeleteTarima', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ transferenciaId, tarima })
+                });
+
+                const data = await res.json().catch(() => null);
+                hideModalLoading();
+
+                if (!res.ok || !data?.ok) {
+                    showToast(data?.msg || "No se pudo eliminar la tarima.", "error", 4000);
+                    btnEliminarTarima.disabled = false;
+                    return;
+                }
+
+                setMsg(data.msg || `Tarima ${tarima} eliminada.`, true);
+                showToast(data.msg || `Tarima ${tarima} eliminada.`, "ok");
+
+                await cargarEtiquetasSku(currentModalSku);
+                await refreshTransferenciaUI();
+                recomputeGlobalState();
+
+            } catch {
+                hideModalLoading();
+                showToast("No se pudo conectar con el servidor.", "error", 4000);
+            } finally {
+                btnEliminarTarima.disabled = false;
+            }
+        });
+
+        window.verEtiquetas = async function (sku) {
+            if (!modal) return;
+            const s = (sku || "").toString().trim().toUpperCase();
+            modal.show();
+            await cargarEtiquetasSku(s);
+        };
+
+        recomputeGlobalState();
+    })();
+</script>

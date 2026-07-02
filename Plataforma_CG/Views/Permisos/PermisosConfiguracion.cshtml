@@ -1,0 +1,1132 @@
+﻿@model Plataforma_CG.Controllers.PermisosViewModel
+@{
+    ViewBag.Title = "Administración de Permisos";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<style>
+    /* ============================================================
+           PERMISOS CONFIGURACIÓN - LIGHT / DARK MODE
+           Esta vista respeta el cambio global del Layout2:
+           body[data-theme="light"] / body[data-theme="dark"]
+        ============================================================ */
+
+    :root {
+        --brand-main: #7a0b0b;
+        --brand-hover: #5c0808;
+        --perm-bg-page: #fdf5f4;
+        --perm-card-bg: #ffffff;
+        --perm-panel-bg: #fcf5f4;
+        --perm-panel-soft: #f8f9fa;
+        --perm-border: #ebdcdb;
+        --perm-border-strong: #e5c8c6;
+        --perm-text: #333333;
+        --perm-text-strong: #111827;
+        --perm-text-muted: #777777;
+        --perm-input-bg: #ffffff;
+        --perm-input-text: #212529;
+        --perm-input-placeholder: #9ca3af;
+        --perm-shadow: 0 4px 6px rgba(0,0,0,0.04);
+        --perm-shadow-strong: 0 12px 28px rgba(0,0,0,0.12);
+        --perm-active-bg: #fff5f5;
+        --perm-active-border: #ffcccc;
+    }
+
+    body[data-theme="dark"] {
+        --brand-main: #b91c1c;
+        --brand-hover: #dc2626;
+        --perm-bg-page: #0f172a;
+        --perm-card-bg: #111827;
+        --perm-panel-bg: #1f2937;
+        --perm-panel-soft: #172033;
+        --perm-border: rgba(255,255,255,0.12);
+        --perm-border-strong: rgba(248,113,113,0.28);
+        --perm-text: #e5e7eb;
+        --perm-text-strong: #f9fafb;
+        --perm-text-muted: #cbd5e1;
+        --perm-input-bg: #0b1220;
+        --perm-input-text: #f9fafb;
+        --perm-input-placeholder: #94a3b8;
+        --perm-shadow: 0 10px 26px rgba(0,0,0,0.32);
+        --perm-shadow-strong: 0 18px 38px rgba(0,0,0,0.48);
+        --perm-active-bg: rgba(185,28,28,0.16);
+        --perm-active-border: rgba(248,113,113,0.45);
+    }
+
+    body {
+        background-color: var(--perm-bg-page);
+        color: var(--perm-text);
+        font-family: 'Segoe UI', Tahoma, sans-serif;
+        font-size: 0.85rem;
+    }
+
+        body[data-theme="dark"] .layout-main-content {
+            background: var(--perm-bg-page) !important;
+        }
+
+            body[data-theme="dark"] .layout-main-content .layout-container-fluid {
+                background: transparent !important;
+                box-shadow: none !important;
+            }
+
+    .container-custom {
+        max-width: 1200px;
+        margin: 0 auto;
+        color: var(--perm-text);
+    }
+
+    /* ============================================================
+           BANNER SUPERIOR
+        ============================================================ */
+
+    .top-banner {
+        background: linear-gradient(135deg, #7a0b0b 0%, #5c0808 45%, #240404 100%);
+        color: #ffffff;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        box-shadow: var(--perm-shadow);
+        border: 1px solid rgba(255,255,255,0.10);
+    }
+
+    body[data-theme="dark"] .top-banner {
+        background: linear-gradient(135deg, #7f1d1d 0%, #450a0a 45%, #111827 100%);
+        border-color: rgba(248,113,113,0.20);
+        box-shadow: var(--perm-shadow-strong);
+    }
+
+    .top-banner h2,
+    .top-banner p {
+        color: #ffffff !important;
+    }
+
+    .top-banner .btn-outline-light {
+        color: #ffffff !important;
+        border-color: rgba(255,255,255,0.75) !important;
+    }
+
+        .top-banner .btn-outline-light:hover {
+            background: rgba(255,255,255,0.16) !important;
+            color: #ffffff !important;
+        }
+
+    /* ============================================================
+           GRUPOS DE ACCIONES
+        ============================================================ */
+
+    .action-group {
+        background-color: var(--perm-panel-bg);
+        border: 1px solid var(--perm-border-strong);
+        border-radius: 10px;
+        padding: 0.75rem 1.2rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex-grow: 1;
+        box-shadow: var(--perm-shadow);
+    }
+
+    body[data-theme="dark"] .action-group {
+        background: linear-gradient(180deg, rgba(31,41,55,0.98), rgba(17,24,39,0.98));
+    }
+
+    .action-label {
+        font-size: 0.75rem;
+        font-weight: 800;
+        color: var(--brand-main);
+        text-transform: uppercase;
+        border-right: 2px solid var(--perm-border-strong);
+        padding-right: 1rem;
+        white-space: nowrap;
+    }
+
+    body[data-theme="dark"] .action-label {
+        color: #fca5a5;
+    }
+
+    .btn-rojo {
+        background-color: var(--perm-card-bg);
+        color: var(--brand-main);
+        border: 1px solid var(--brand-main);
+        padding: 6px 14px;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-decoration: none;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+        .btn-rojo:hover {
+            background-color: var(--brand-main);
+            color: #ffffff;
+            border-color: var(--brand-main);
+            transform: translateY(-1px);
+        }
+
+    body[data-theme="dark"] .btn-rojo {
+        background: rgba(15,23,42,0.92);
+        color: #fca5a5;
+        border-color: rgba(248,113,113,0.55);
+    }
+
+        body[data-theme="dark"] .btn-rojo:hover {
+            background: rgba(185,28,28,0.92);
+            color: #ffffff;
+            border-color: rgba(248,113,113,0.90);
+        }
+
+    /* ============================================================
+           PESTAÑAS
+        ============================================================ */
+
+    .nav-tabs {
+        border-bottom: 2px solid var(--perm-border);
+        margin-bottom: 0;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap;
+    }
+
+        .nav-tabs .nav-link {
+            color: var(--perm-text-muted);
+            font-weight: 700;
+            border: none;
+            padding: 12px 20px;
+            transition: 0.3s;
+            background: transparent;
+            cursor: pointer;
+        }
+
+            .nav-tabs .nav-link:hover {
+                color: var(--brand-main);
+                background: rgba(122,11,11,0.05);
+            }
+
+            .nav-tabs .nav-link.active {
+                color: var(--brand-main);
+                border-bottom: 3px solid var(--brand-main);
+                background-color: transparent;
+            }
+
+    body[data-theme="dark"] .nav-tabs .nav-link {
+        color: #94a3b8;
+    }
+
+        body[data-theme="dark"] .nav-tabs .nav-link:hover {
+            color: #fca5a5;
+            background: rgba(248,113,113,0.08);
+        }
+
+        body[data-theme="dark"] .nav-tabs .nav-link.active {
+            color: #fca5a5;
+            border-bottom-color: #ef4444;
+        }
+
+    /* ============================================================
+           PANEL CENTRAL
+        ============================================================ */
+
+    .dashboard-panel {
+        background-color: var(--perm-card-bg);
+        border-radius: 0 0 12px 12px;
+        border: 1px solid var(--perm-border);
+        border-top: none;
+        margin-bottom: 1.5rem;
+        box-shadow: var(--perm-shadow);
+        color: var(--perm-text);
+    }
+
+    .tab-content {
+        display: none;
+        animation: fadeIn 0.3s ease;
+    }
+
+        .tab-content.active {
+            display: block;
+        }
+
+    /* Corrige los bg-light que vienen en el HTML */
+    .dashboard-panel .bg-light {
+        background-color: var(--perm-panel-soft) !important;
+        color: var(--perm-text) !important;
+    }
+
+    .dashboard-panel .border,
+    .dashboard-panel .border-secondary,
+    .dashboard-panel .table-responsive.border {
+        border-color: var(--perm-border) !important;
+    }
+
+    /* ============================================================
+           TEXTOS BOOTSTRAP DENTRO DE ESTA VISTA
+        ============================================================ */
+
+    .container-custom .text-dark,
+    .dashboard-panel .text-dark,
+    .modal .text-dark {
+        color: var(--perm-text-strong) !important;
+    }
+
+    .container-custom .text-muted,
+    .dashboard-panel .text-muted,
+    .modal .text-muted {
+        color: var(--perm-text-muted) !important;
+    }
+
+    body[data-theme="dark"] .container-custom .text-secondary,
+    body[data-theme="dark"] .dashboard-panel .text-secondary {
+        color: #cbd5e1 !important;
+    }
+
+    /* ============================================================
+           BOTONES
+        ============================================================ */
+
+    .btn-brand {
+        background-color: var(--brand-main);
+        color: #ffffff;
+        border: none;
+        padding: 6px 16px;
+        border-radius: 20px;
+        font-weight: 600;
+        transition: 0.3s;
+    }
+
+        .btn-brand:hover {
+            background-color: var(--brand-hover);
+            color: #ffffff;
+            transform: translateY(-1px);
+        }
+
+    body[data-theme="dark"] .btn-outline-secondary,
+    body[data-theme="dark"] .btn-outline-dark {
+        color: #e5e7eb !important;
+        border-color: rgba(203,213,225,0.45) !important;
+        background: rgba(15,23,42,0.35) !important;
+    }
+
+        body[data-theme="dark"] .btn-outline-secondary:hover,
+        body[data-theme="dark"] .btn-outline-dark:hover {
+            color: #ffffff !important;
+            background: rgba(185,28,28,0.65) !important;
+            border-color: rgba(248,113,113,0.70) !important;
+        }
+
+    /* ============================================================
+           TABLAS
+        ============================================================ */
+
+    .table-responsive {
+        background: var(--perm-card-bg);
+        border-color: var(--perm-border) !important;
+    }
+
+    .table-custom {
+        color: var(--perm-text);
+        background: var(--perm-card-bg);
+    }
+
+        .table-custom thead th {
+            background-color: var(--perm-panel-bg);
+            color: var(--perm-text-muted);
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            border-bottom: 2px solid var(--perm-border);
+            padding: 12px;
+        }
+
+        .table-custom tbody td {
+            background-color: var(--perm-card-bg);
+            color: var(--perm-text);
+            border-color: var(--perm-border);
+        }
+
+        .table-custom tbody tr {
+            border-color: var(--perm-border);
+        }
+
+    body[data-theme="dark"] .table {
+        --bs-table-bg: var(--perm-card-bg);
+        --bs-table-color: var(--perm-text);
+        --bs-table-border-color: var(--perm-border);
+        --bs-table-striped-bg: rgba(255,255,255,0.03);
+        --bs-table-hover-bg: rgba(248,113,113,0.08);
+    }
+
+    body[data-theme="dark"] #bodyModulos tr td {
+        background-color: var(--perm-card-bg) !important;
+        color: var(--perm-text) !important;
+    }
+
+    body[data-theme="dark"] #bodyModulos .form-check-input,
+    body[data-theme="dark"] #bodyModulos input[type="checkbox"] {
+        background-color: #0b1220;
+        border-color: rgba(203,213,225,0.45);
+        accent-color: var(--brand-main);
+    }
+
+    /* ============================================================
+           BUSCADOR / INPUTS / SELECTS
+        ============================================================ */
+
+    .search-input,
+    .form-control,
+    .form-select {
+        background-color: var(--perm-input-bg) !important;
+        color: var(--perm-input-text) !important;
+        border: 1.5px solid var(--perm-border) !important;
+        border-radius: 6px;
+        box-shadow: none !important;
+    }
+
+    .search-input {
+        padding: 0.4rem 1rem;
+        width: 100%;
+        max-width: 350px;
+        transition: 0.2s;
+    }
+
+        .search-input:focus,
+        .form-control:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: var(--brand-main) !important;
+            box-shadow: 0 0 0 0.18rem rgba(185,28,28,0.18) !important;
+        }
+
+        .search-input::placeholder,
+        .form-control::placeholder {
+            color: var(--perm-input-placeholder) !important;
+        }
+
+    body[data-theme="dark"] .form-select {
+        color-scheme: dark;
+    }
+
+        body[data-theme="dark"] .form-select option {
+            background: #111827;
+            color: #f9fafb;
+        }
+
+    /* ============================================================
+           ACORDEÓN DE PERFILES
+        ============================================================ */
+
+    .perfil-item {
+        border: 1px solid var(--perm-border);
+        border-radius: 8px;
+        margin-bottom: 0.75rem;
+        background: var(--perm-card-bg);
+        color: var(--perm-text);
+        overflow: hidden;
+    }
+
+    .perfil-header {
+        padding: 1rem 1.25rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        transition: background 0.2s ease, color 0.2s ease;
+    }
+
+        .perfil-header:hover {
+            background: var(--perm-panel-soft);
+        }
+
+    .perfil-item.active .icono {
+        transform: rotate(90deg);
+        color: var(--brand-main) !important;
+    }
+
+    body[data-theme="dark"] .perfil-item.active .icono {
+        color: #fca5a5 !important;
+    }
+
+    .vistas-panel {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+        background: var(--perm-panel-soft);
+        border-top: 1px solid transparent;
+    }
+
+    .perfil-item.active .vistas-panel {
+        max-height: 9999px;
+        padding: 1rem;
+        border-top-color: var(--perm-border);
+    }
+
+    .vista-item {
+        border: 1px solid var(--perm-border);
+        border-radius: 6px;
+        padding: 0.75rem 1rem;
+        margin-bottom: 0.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: var(--perm-card-bg);
+        color: var(--perm-text);
+        gap: 1rem;
+        transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+    }
+
+        .vista-item:hover {
+            border-color: var(--perm-border-strong);
+            transform: translateY(-1px);
+        }
+
+        .vista-item.active {
+            border-color: var(--perm-active-border);
+            background: var(--perm-active-bg);
+        }
+
+        .vista-item input[type="checkbox"] {
+            transform: scale(1.3);
+            margin-right: 0.75rem;
+            accent-color: var(--brand-main);
+        }
+
+    body[data-theme="dark"] .vista-item input[type="checkbox"] {
+        accent-color: #ef4444;
+    }
+
+    .vista-item label {
+        color: var(--perm-text-strong) !important;
+    }
+
+    .vista-item span {
+        color: var(--perm-text-muted) !important;
+    }
+
+    /* ============================================================
+           BADGES
+        ============================================================ */
+
+    .badge.bg-secondary {
+        background-color: #6b7280 !important;
+        color: #ffffff !important;
+    }
+
+    body[data-theme="dark"] .badge.bg-secondary {
+        background-color: rgba(248,113,113,0.20) !important;
+        color: #fecaca !important;
+        border: 1px solid rgba(248,113,113,0.35);
+    }
+
+    /* ============================================================
+           MODAL NUEVO MÓDULO
+        ============================================================ */
+
+    #modalNuevoModulo .modal-content {
+        background: var(--perm-card-bg) !important;
+        color: var(--perm-text) !important;
+        border: 1px solid var(--perm-border) !important;
+        box-shadow: var(--perm-shadow-strong) !important;
+    }
+
+    #modalNuevoModulo .modal-header {
+        background: linear-gradient(135deg, var(--brand-main), #3b0707) !important;
+        color: #ffffff !important;
+        border-bottom: 1px solid rgba(255,255,255,0.12) !important;
+    }
+
+    #modalNuevoModulo .modal-title {
+        color: #ffffff !important;
+    }
+
+    #modalNuevoModulo .modal-body {
+        background: var(--perm-card-bg) !important;
+        color: var(--perm-text) !important;
+    }
+
+    #modalNuevoModulo .modal-footer {
+        background: var(--perm-panel-soft) !important;
+        border-top: 1px solid var(--perm-border) !important;
+    }
+
+    #modalNuevoModulo .alert-success {
+        background: rgba(22,163,74,0.12) !important;
+        color: #166534 !important;
+        border-color: rgba(22,163,74,0.30) !important;
+    }
+
+    body[data-theme="dark"] #modalNuevoModulo .alert-success {
+        background: rgba(34,197,94,0.14) !important;
+        color: #bbf7d0 !important;
+        border-color: rgba(34,197,94,0.35) !important;
+    }
+
+    #resultadoNuevoModulo .bg-dark {
+        background: #111827 !important;
+        color: #f9fafb !important;
+        border: 1px solid rgba(255,255,255,0.12);
+    }
+
+    body[data-theme="dark"] #resultadoNuevoModulo .bg-dark {
+        background: #020617 !important;
+    }
+
+    body[data-theme="dark"] #modalNuevoModulo .btn-outline-secondary {
+        color: #e5e7eb !important;
+        border-color: rgba(203,213,225,0.45) !important;
+    }
+
+        body[data-theme="dark"] #modalNuevoModulo .btn-outline-secondary:hover {
+            background: rgba(203,213,225,0.12) !important;
+            color: #ffffff !important;
+        }
+
+    /* ============================================================
+           FIXES EXTRA POR UTILIDADES BOOTSTRAP / INLINE
+        ============================================================ */
+
+    body[data-theme="dark"] .shadow-sm {
+        box-shadow: 0 10px 24px rgba(0,0,0,0.26) !important;
+    }
+
+    body[data-theme="dark"] .rounded {
+        border-color: var(--perm-border) !important;
+    }
+
+    body[data-theme="dark"] small {
+        color: var(--perm-text-muted) !important;
+    }
+
+    body[data-theme="dark"] .opacity-50 {
+        opacity: 0.65 !important;
+    }
+
+    /* Este corrige los labels que traen text-muted y se veían apagados */
+    body[data-theme="dark"] label.fw-bold.text-muted {
+        color: #cbd5e1 !important;
+    }
+
+    /* ============================================================
+           RESPONSIVE
+        ============================================================ */
+
+    @@media (max-width: 992px) {
+        .action-group {
+            flex-direction: column;
+            align-items: stretch;
+            text-align: center;
+        }
+
+        .action-label {
+            border-right: none;
+            border-bottom: 2px solid var(--perm-border-strong);
+            padding-right: 0;
+            padding-bottom: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .d-flex.gap-2 {
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .vista-item {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+            .vista-item > span {
+                padding-left: 2.1rem;
+            }
+    }
+
+    @@media (max-width: 576px) {
+        .container-custom {
+            padding-left: 0.75rem !important;
+            padding-right: 0.75rem !important;
+        }
+
+        .top-banner {
+            padding: 1rem;
+        }
+
+            .top-banner h2 {
+                font-size: 1.25rem;
+            }
+
+        .dashboard-panel {
+            padding: 1rem !important;
+        }
+
+        .nav-tabs .nav-link {
+            padding: 10px 14px;
+            font-size: 0.8rem;
+        }
+
+        .perfil-header {
+            padding: 0.85rem 1rem;
+        }
+
+            .perfil-header > div {
+                min-width: 0;
+            }
+
+        .perfil-nombre {
+            display: inline-block;
+            max-width: 100%;
+            word-break: break-word;
+        }
+
+        .search-input {
+            max-width: 100%;
+        }
+    }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(5px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+</style>
+
+<div class="container-fluid py-4 px-3 px-md-4 container-custom">
+
+    <div class="top-banner d-flex justify-content-between align-items-center flex-wrap gap-3 shadow-sm">
+        <div>
+            <h2 class="fw-bold mb-1">Administración de Permisos</h2>
+            <p class="mb-0" style="font-size: 0.85rem; opacity: 0.85;">Control integral de seguridad, vistas y accesos a módulos.</p>
+        </div>
+        <div>
+            <button class="btn btn-sm btn-outline-light fw-bold px-3 border-2" onclick="location.href='/Home/Inicio'">
+                <i class="bi bi-door-closed me-1"></i> Salir al Inicio
+            </button>
+        </div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-3 mb-4">
+
+        <div class="action-group shadow-sm">
+            <div class="action-label"><i class="fas fa-users-cog me-1"></i> Perfiles</div>
+            <div class="d-flex gap-2">
+                <a asp-action="CrearPerfil" class="btn-rojo"><i class="fas fa-plus"></i> Nuevo</a>
+                <a asp-action="EliminarPerfil" class="btn-rojo"><i class="fas fa-trash"></i> Eliminar</a>
+            </div>
+        </div>
+
+        <div class="action-group shadow-sm">
+            <div class="action-label"><i class="fa-solid fa-users-viewfinder me-1"></i> Pantallas</div>
+            <div class="d-flex gap-2">
+                <a asp-action="CrearVista" class="btn-rojo"><i class="fas fa-plus"></i> Nueva</a>
+                <a asp-action="EditarVista" class="btn-rojo"><i class="fas fa-pen"></i> Editar</a>
+                <a asp-action="EliminarVista" class="btn-rojo"><i class="fas fa-trash"></i> Eliminar</a>
+            </div>
+        </div>
+
+        <div class="action-group shadow-sm">
+            <div class="action-label"><i class="bi bi-diagram-3-fill me-1"></i> Usuarios</div>
+            <div class="d-flex gap-2">
+                <a href="@Url.Action("UsuariosADConfiguracion", "UsuariosAD")" class="btn-rojo"><i class="bi bi-windows"></i> AD</a>
+                <a href="@Url.Action("UsuariosConfiguracion", "Usuarios")" class="btn-rojo"><i class="bi bi-database"></i> Locales</a>
+            </div>
+        </div>
+
+    </div>
+
+    <ul class="nav nav-tabs" id="moduloTabs">
+        <li class="nav-item">
+            <button class="nav-link active" onclick="switchTab('vistas', this)">
+                <i class="fa-solid fa-users-viewfinder me-1"></i> Acceso a Pantallas (Vistas)
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" onclick="switchTab('modulos', this)">
+                <i class="fa-solid fa-sliders me-1"></i> Permisos a Módulos (L/E/E)
+            </button>
+        </li>
+    </ul>
+
+    <div class="dashboard-panel p-3 p-md-4">
+
+        <div id="tab-vistas" class="tab-content active">
+            <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3 bg-light p-3 rounded border">
+                <div>
+                    <label class="fw-bold text-muted mb-1" style="font-size: 0.7rem;">BUSCAR PERFIL</label><br>
+                    <input type="text" id="searchInput" class="search-input" placeholder="Buscar perfil por nombre...">
+                </div>
+                <div class="d-flex gap-2 align-items-end">
+                    <button class="btn btn-outline-secondary btn-sm fw-bold px-3" onclick="expandirTodos(true)">Expandir Todos</button>
+                    <button class="btn btn-outline-secondary btn-sm fw-bold px-3" onclick="expandirTodos(false)">Colapsar Todos</button>
+                </div>
+            </div>
+
+            <div id="lista-perfiles">
+                @foreach (var perfil in Model.Perfiles)
+                {
+                    var totalVistas = Model.Vistas.Count;
+                    var vistasActivas = Model.Permisos.Count(p => p.PerfilId == perfil.Id);
+                    <div class="perfil-item">
+                        <div class="perfil-header">
+                            <div>
+                                <span class="fw-bold text-dark fs-6 perfil-nombre">@perfil.Nombre</span>
+                                <span class="badge bg-secondary ms-2 rounded-pill">@vistasActivas / @totalVistas activas</span>
+                            </div>
+                            <span class="icono fw-bold text-muted transition-all"><i class="bi bi-chevron-right"></i></span>
+                        </div>
+
+                        <div class="vistas-panel">
+                            @foreach (var vista in Model.Vistas)
+                            {
+                                var permiso = Model.Permisos.FirstOrDefault(p => p.PerfilId == perfil.Id && p.VistaId == vista.Id);
+                                <div class="vista-item @(permiso != null ? "active" : "")">
+                                    <div class="d-flex align-items-center">
+                                        <input type="checkbox"
+                                               id="chk-@perfil.Id-@vista.Id"
+                                               data-permiso-id="@(permiso?.Id ?? 0)"
+                                               @(permiso != null ? "checked" : "")
+                                               onchange="togglePermiso(@perfil.Id, @vista.Id, this)">
+                                        <label for="chk-@perfil.Id-@vista.Id" class="mb-0 fw-bold text-dark">@vista.Nombre</label>
+                                    </div>
+                                    <span class="text-muted fw-bold" style="font-size: 0.75rem;">@vista.Controlador / @vista.Accion</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div id="tab-modulos" class="tab-content">
+            <div class="row align-items-end mb-4 bg-light p-3 rounded border mx-0">
+                <div class="col-12 col-md-6 mb-3 mb-md-0">
+                    <label class="fw-bold text-muted mb-1" style="font-size: 0.75rem;">SELECCIONAR PERFIL PARA CONFIGURAR</label>
+                    <select id="selectPerfilModulos" class="form-select border-secondary fw-bold" onchange="cargarPermisosModulos()">
+                        <option value="">-- Elija un perfil de la lista --</option>
+                        @foreach (var perfil in Model.Perfiles)
+                        {
+                            <option value="@perfil.Id">@perfil.Nombre</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-12 col-md-6 d-flex justify-content-md-end gap-2">
+                    <button class="btn btn-outline-dark btn-sm fw-bold px-3" onclick="abrirModalNuevoModulo()">
+                        <i class="bi bi-plus-square-dotted me-1"></i> Nuevo Módulo
+                    </button>
+                    <button class="btn btn-brand btn-sm px-4 shadow-sm" onclick="guardarPermisosModulos()">
+                        <i class="bi bi-save me-1"></i> Guardar Reglas (L/E/E)
+                    </button>
+                </div>
+            </div>
+
+            <div class="table-responsive border rounded">
+                <table class="table table-custom align-middle mb-0" id="tablaModulos">
+                    <thead>
+                        <tr>
+                            <th>Módulo del Sistema</th>
+                            <th class="text-center" style="width: 150px;">Puede Leer</th>
+                            <th class="text-center" style="width: 150px;">Puede Escribir</th>
+                            <th class="text-center" style="width: 150px;">Puede Eliminar</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bodyModulos">
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-5">
+                                <i class="bi bi-person-lines-fill fs-2 d-block mb-3 opacity-50"></i>
+                                <span class="fw-bold fs-6">Seleccione un perfil arriba</span><br>
+                                <small>Los permisos de módulos se cargarán en esta tabla.</small>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<div class="modal fade" id="modalNuevoModulo" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header text-white" style="background-color: var(--brand-main);">
+                <h6 class="modal-title fw-bold">Registrar Módulo del Sistema</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+
+                <div id="formNuevoModulo">
+                    <div class="mb-3">
+                        <label class="form-label text-muted fw-bold small">NOMBRE DEL MÓDULO</label>
+                        <input type="text" class="form-control border-secondary" id="nmNombre" placeholder="Ej. Control de Calidad">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted fw-bold small">CLAVE INTERNA</label>
+                        <input type="text" class="form-control border-secondary text-uppercase" id="nmClave" placeholder="Ej. CONTROL_CALIDAD">
+                        <small class="text-muted">Se usarán mayúsculas y guiones bajos automáticamente.</small>
+                    </div>
+                </div>
+
+                <div id="resultadoNuevoModulo" class="d-none">
+                    <div class="alert alert-success fw-bold text-center mb-3">
+                        Módulo registrado correctamente en la base de datos
+                    </div>
+                    <p class="text-muted small fw-bold mb-2">Copia y pega estas etiquetas en el controlador:</p>
+
+                    <div class="bg-dark text-white p-3 rounded" style="font-family: monospace; font-size: 0.85rem;">
+                        <span class="text-success">// Consultar datos</span><br>
+                        [RevisarPermiso("<span id="lblGeneradaClave1" class="text-warning"></span>", "LEER")]<br><br>
+
+                        <span class="text-success">// Guardar registros</span><br>
+                        [RevisarPermiso("<span id="lblGeneradaClave2" class="text-warning"></span>", "ESCRIBIR")]<br><br>
+
+                        <span class="text-success">// Borrar registros</span><br>
+                        [RevisarPermiso("<span id="lblGeneradaClave3" class="text-warning"></span>", "ELIMINAR")]
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer bg-light border-0">
+                <button type="button" class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal" id="btnCerrarModalModulo">Cancelar</button>
+                <button type="button" class="btn btn-brand fw-bold" onclick="guardarNuevoModulo()" id="btnCrearModulo">Crear Módulo</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Utilidades UI
+        function expandirTodos(expand){
+          document.querySelectorAll(".perfil-item").forEach(i=>{
+            i.classList.toggle("active", !!expand);
+          });
+        }
+
+        // Acordeon Perfiles
+        document.querySelectorAll(".perfil-header").forEach(h => {
+          h.addEventListener("click", () => {
+            const item = h.closest(".perfil-item");
+            const isActive = item.classList.contains("active");
+            document.querySelectorAll(".perfil-item").forEach(i => i.classList.remove("active"));
+            if (!isActive) item.classList.add("active");
+          });
+        });
+
+        // Buscador Pestaña 1
+        const searchInput = document.getElementById("searchInput");
+        searchInput.addEventListener("input", () => {
+          const txt = searchInput.value.toLowerCase();
+          document.querySelectorAll(".perfil-item").forEach(item => {
+            const nombre = item.querySelector(".perfil-nombre").textContent.toLowerCase();
+            item.style.display = nombre.includes(txt) ? "block" : "none";
+          });
+        });
+
+        // Cambio de Pestañas
+        function switchTab(tabId, elemento) {
+            document.querySelectorAll('.nav-link').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            elemento.classList.add('active');
+            document.getElementById('tab-' + tabId).classList.add('active');
+        }
+
+        // Guardado AJAX Pestaña 1 (Vistas)
+        function togglePermiso(perfilId, vistaId, checkbox){
+          const asignar = checkbox.checked;
+          const permisoId = checkbox.getAttribute("data-permiso-id");
+          const form = new FormData();
+          let url='';
+
+          if (asignar){
+            url='/Permisos/Asignar';
+            form.append('perfilId', perfilId);
+            form.append('vistaId', vistaId);
+          } else {
+            if (!permisoId || permisoId === "0"){
+              checkbox.checked = true;
+              return;
+            }
+            url='/Permisos/Revocar';
+            form.append('id', permisoId);
+          }
+
+          fetch(url, { method:'POST', body: form })
+            .then(async r => {
+              if (!r.ok) throw new Error("Error");
+              const ct = r.headers.get("content-type")||"";
+              return ct.includes("application/json") ? await r.json() : {};
+            })
+            .then(data => {
+              if (asignar && data && data.id){
+                checkbox.setAttribute("data-permiso-id", data.id);
+                checkbox.closest('.vista-item')?.classList.add('active');
+              } else if (!asignar){
+                checkbox.setAttribute("data-permiso-id","0");
+                checkbox.closest('.vista-item')?.classList.remove('active');
+              }
+            })
+            .catch(err => {
+              alert("Error al actualizar permiso");
+              checkbox.checked = !asignar;
+            });
+        }
+
+        // Cargar tabla Pestaña 2 (Modulos)
+        async function cargarPermisosModulos() {
+            let perfilId = document.getElementById("selectPerfilModulos").value;
+            let tbody = document.getElementById("bodyModulos");
+
+            if (!perfilId) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-5"><i class="bi bi-person-lines-fill fs-2 d-block mb-3 opacity-50"></i><span class="fw-bold fs-6">Seleccione un perfil arriba</span></td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><div class="mt-2 fw-bold text-muted">Cargando permisos...</div></td></tr>';
+
+            try {
+                let response = await fetch(`/Permisos/ObtenerPermisosPorPerfil?perfilId=${perfilId}`);
+                let permisos = await response.json();
+
+                tbody.innerHTML = "";
+
+                if(permisos.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-4 fw-bold">No hay módulos registrados en el sistema.</td></tr>';
+                    return;
+                }
+
+                permisos.forEach(p => {
+                    let tr = document.createElement("tr");
+                    tr.dataset.moduloId = p.moduloId;
+
+                    tr.innerHTML = `
+                        <td class="align-middle fw-bold px-4 border-end">
+                            ${p.nombreModulo} <br>
+                            <small class="text-muted fw-normal">${p.claveModulo}</small>
+                        </td>
+                        <td class="text-center align-middle border-end">
+                            <input type="checkbox" class="chk-leer" style="transform: scale(1.4); accent-color: var(--brand-main);" ${p.puedeLeer ? 'checked' : ''}>
+                        </td>
+                        <td class="text-center align-middle border-end">
+                            <input type="checkbox" class="chk-escribir" style="transform: scale(1.4); accent-color: var(--brand-main);" ${p.puedeEscribir ? 'checked' : ''}>
+                        </td>
+                        <td class="text-center align-middle">
+                            <input type="checkbox" class="chk-eliminar" style="transform: scale(1.4); accent-color: var(--brand-main);" ${p.puedeEliminar ? 'checked' : ''}>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (error) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-4 fw-bold">Error de comunicación con el servidor.</td></tr>';
+            }
+        }
+
+        // Guardar Pestaña 2 (Modulos)
+        async function guardarPermisosModulos() {
+            let perfilId = document.getElementById("selectPerfilModulos").value;
+            if (!perfilId) {
+                alert("Por favor, selecciona un perfil primero.");
+                return;
+            }
+
+            let permisosArray = [];
+            let filas = document.querySelectorAll("#bodyModulos tr");
+
+            filas.forEach(tr => {
+                if(tr.dataset.moduloId) {
+                    permisosArray.push({
+                        moduloId: parseInt(tr.dataset.moduloId),
+                        puedeLeer: tr.querySelector(".chk-leer").checked,
+                        puedeEscribir: tr.querySelector(".chk-escribir").checked,
+                        puedeEliminar: tr.querySelector(".chk-eliminar").checked
+                    });
+                }
+            });
+
+            let data = {
+                perfilId: parseInt(perfilId),
+                permisos: permisosArray
+            };
+
+            try {
+                let response = await fetch('/Permisos/GuardarPermisosModulos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                let result = await response.json();
+                if (result.ok) {
+                    alert("Exito: " + result.mensaje);
+                } else {
+                    alert("Error: " + result.mensaje);
+                }
+            } catch(error) {
+                alert("Ocurrio un error al intentar guardar.");
+            }
+        }
+
+        // Modal Nuevo Modulo
+        function abrirModalNuevoModulo() {
+            document.getElementById('formNuevoModulo').classList.remove('d-none');
+            document.getElementById('resultadoNuevoModulo').classList.add('d-none');
+            document.getElementById('btnCrearModulo').classList.remove('d-none');
+            document.getElementById('btnCerrarModalModulo').textContent = "Cancelar";
+
+            document.getElementById('nmNombre').value = '';
+            document.getElementById('nmClave').value = '';
+
+            new bootstrap.Modal(document.getElementById('modalNuevoModulo')).show();
+        }
+
+        async function guardarNuevoModulo() {
+            let nombre = document.getElementById('nmNombre').value.trim();
+            let clave = document.getElementById('nmClave').value.trim();
+
+            if (!nombre || !clave) {
+                alert("Completa el nombre y la clave.");
+                return;
+            }
+
+            let data = { Nombre: nombre, Clave: clave };
+
+            try {
+                let response = await fetch('/Permisos/CrearModuloSistema', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                let result = await response.json();
+
+                if (result.ok) {
+                    mostrarEtiquetasGeneradas(result.clave);
+                    if (document.getElementById("selectPerfilModulos").value) {
+                        cargarPermisosModulos();
+                    }
+                } else {
+                    alert("Error: " + result.mensaje);
+                }
+            } catch (error) {
+                alert("Error de red.");
+            }
+        }
+
+        function mostrarEtiquetasGeneradas(clave) {
+            document.getElementById('formNuevoModulo').classList.add('d-none');
+            document.getElementById('resultadoNuevoModulo').classList.remove('d-none');
+
+            document.getElementById('btnCrearModulo').classList.add('d-none');
+            document.getElementById('btnCerrarModalModulo').textContent = "Cerrar y Continuar";
+
+            document.getElementById('lblGeneradaClave1').textContent = clave;
+            document.getElementById('lblGeneradaClave2').textContent = clave;
+            document.getElementById('lblGeneradaClave3').textContent = clave;
+        }
+    </script>
+}

@@ -1,0 +1,703 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "TrackingSIGO";
+
+    // Ver si hay datos del embarque
+    var Token = ViewBag.Token as string;
+    var EmbarqueId = ViewBag.EmbarqueId ?? 0;
+    var EmbarqueConsecutivo = ViewBag.EmbarqueConsecutivo as string ?? $"EMB-{EmbarqueId}";
+    var Estatus = ViewBag.Estatus ?? 1;
+    var FechaCreacion = ViewBag.FechaCreacion;
+    var FechaEntrada = ViewBag.FechaEntrada;
+    var FechaSalida = ViewBag.FechaSalida;
+    var FechaLlegadaDestino = ViewBag.FechaLlegadaDestino;
+    var FechaRetrasado = ViewBag.FechaRetrasado;
+    var FechaEntregado = ViewBag.FechaEntregado;
+    var FechaDevuelto = ViewBag.FechaDevuelto;
+    var Error = ViewBag.Error as string;
+
+    // Configuración según estatus
+    string estatusTexto = "EN PLANTA";
+    string estatusColor = "#6c757d";
+    string estatusIcono = "📦";
+    int progresoActual = 0;
+
+    switch (Estatus)
+    {
+        case 1:
+            estatusTexto = "EN PLANTA";
+            estatusColor = "#6c757d";
+            estatusIcono = "📦";
+            progresoActual = 25;
+            break;
+        case 2:
+            estatusTexto = "EN RUTA";
+            estatusColor = "#3b82f6";
+            estatusIcono = "🚚";
+            progresoActual = 50;
+            break;
+        case 3:
+            estatusTexto = "EN DESTINO";
+            estatusColor = "#8b5cf6";
+            estatusIcono = "📍";
+            progresoActual = 75;
+            break;
+        case 4:
+            estatusTexto = "RETRASADO";
+            estatusColor = "#f59e0b";
+            estatusIcono = "⏰";
+            progresoActual = 50;
+            break;
+        case 5:
+            estatusTexto = "ENTREGADO";
+            estatusColor = "#10b981";
+            estatusIcono = "✅";
+            progresoActual = 100;
+            break;
+        case 6:
+            estatusTexto = "DEVUELTO";
+            estatusColor = "#ef4444";
+            estatusIcono = "↩️";
+            progresoActual = 100;
+            break;
+    }
+
+    bool mostrarTracking = !string.IsNullOrEmpty(Token);
+}
+
+<style>
+    :root {
+        --rojo: #8B0000;
+        --rojo-dark: #5f0000;
+    }
+
+    body {
+        background: #f7f7f7;
+        color: #222;
+    }
+
+    .top-bar {
+        background: var(--rojo);
+        padding: 12px 16px;
+        display: flex;
+        align-items: center;
+        color: white;
+        border-radius: 0 0 12px 12px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 12px rgba(139, 0, 0, 0.2);
+    }
+
+        .top-bar img {
+            height: 36px;
+            margin-right: 12px;
+        }
+
+    .btn-rojo {
+        background: var(--rojo);
+        color: white;
+        border: none;
+        transition: all 0.3s ease;
+    }
+
+        .btn-rojo:hover {
+            background: var(--rojo-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(139, 0, 0, 0.3);
+        }
+
+        .btn-rojo:disabled {
+            opacity: 0.85;
+        }
+
+    .badge-rojo {
+        background: var(--rojo);
+    }
+
+    .timeline-item {
+        position: relative;
+        padding-left: 32px;
+        margin-bottom: 20px;
+        opacity: 0;
+        animation: fadeInUp 0.5s ease forwards;
+    }
+
+        .timeline-item:nth-child(1) {
+            animation-delay: 0.1s;
+        }
+
+        .timeline-item:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .timeline-item:nth-child(3) {
+            animation-delay: 0.3s;
+        }
+
+        .timeline-item:nth-child(4) {
+            animation-delay: 0.4s;
+        }
+
+        .timeline-item:nth-child(5) {
+            animation-delay: 0.5s;
+        }
+
+        .timeline-item:nth-child(6) {
+            animation-delay: 0.6s;
+        }
+
+        .timeline-item:not(:last-child)::before {
+            content: "";
+            position: absolute;
+            left: 14px;
+            top: 14px;
+            bottom: -14px;
+            width: 2px;
+            background: linear-gradient(180deg, var(--rojo) 0%, rgba(139, 0, 0, 0.3) 100%);
+        }
+
+    .timeline-dot {
+        position: absolute;
+        left: 9px;
+        top: 6px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--rojo);
+        box-shadow: 0 0 0 4px rgba(139, 0, 0, 0.1);
+        animation: pulse 2s infinite;
+    }
+
+    .timeline-item:not(:last-child) .timeline-dot {
+        animation: none;
+    }
+
+    @@keyframes pulse {
+        0%, 100% {
+            box-shadow: 0 0 0 4px rgba(139, 0, 0, 0.1);
+        }
+
+        50% {
+            box-shadow: 0 0 0 8px rgba(139, 0, 0, 0.2);
+        }
+    }
+
+    @@keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .search-container {
+        text-align: center;
+        padding: 40px 20px;
+    }
+
+    .search-icon {
+        font-size: 64px;
+        color: var(--rojo);
+        margin-bottom: 20px;
+        animation: bounce 2s infinite;
+    }
+
+    @@keyframes bounce {
+        0%, 100% {
+            transform: translateY(0);
+        }
+
+        50% {
+            transform: translateY(-10px);
+        }
+    }
+
+    .status-badge-large {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 24px;
+        border-radius: 50px;
+        font-size: 18px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        animation: fadeIn 0.5s ease;
+    }
+
+    .progress-tracker {
+        margin: 20px 0;
+        padding: 20px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .progress-bar-custom {
+        height: 8px;
+        background: #e5e7eb;
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 16px 0;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--rojo), #c41e3a);
+        border-radius: 10px;
+        transition: width 1s ease;
+        animation: shimmer 2s infinite;
+    }
+
+    @@keyframes shimmer {
+        0% {
+            opacity: 0.8;
+        }
+
+        50% {
+            opacity: 1;
+        }
+
+        100% {
+            opacity: 0.8;
+        }
+    }
+
+    .card {
+        transition: all 0.3s ease;
+    }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1) !important;
+        }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    .alert-status {
+        border-left: 4px solid;
+        padding: 16px;
+        border-radius: 8px;
+        margin: 16px 0;
+        animation: fadeIn 0.5s ease;
+    }
+
+        .alert-status.warning {
+            background: #fef3c7;
+            border-color: #f59e0b;
+            color: #92400e;
+        }
+
+        .alert-status.danger {
+            background: #fee2e2;
+            border-color: #ef4444;
+            color: #991b1b;
+        }
+
+        .alert-status.success {
+            background: #d1fae5;
+            border-color: #10b981;
+            color: #065f46;
+        }
+
+    .tracking-page {
+        max-width: 620px;
+    }
+
+    .tracking-detail-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        padding: 14px 0;
+        border-bottom: 1px solid #eef0f3;
+    }
+
+        .tracking-detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .tracking-detail-row.featured {
+            background: linear-gradient(135deg, rgba(139, 0, 0, .08), rgba(139, 0, 0, .02));
+            border: 1px solid rgba(139, 0, 0, .12);
+            border-radius: 16px;
+            padding: 18px;
+            margin-bottom: 14px;
+        }
+
+    .tracking-detail-label {
+        font-size: 13px;
+        font-weight: 800;
+        color: #3b3b3b;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+
+    .tracking-detail-help {
+        font-size: 12px;
+        color: #777;
+        margin-top: 2px;
+    }
+
+    .tracking-detail-value {
+        align-self: center;
+        font-size: 20px;
+        font-weight: 900;
+        color: var(--rojo);
+        text-align: right;
+        word-break: break-word;
+    }
+
+    @@media (min-width: 992px) {
+        .tracking-page {
+            max-width: 980px;
+        }
+
+        .top-bar {
+            padding: 18px 24px;
+            border-radius: 18px;
+        }
+
+            .top-bar img {
+                height: 46px;
+            }
+
+            .top-bar span {
+                font-size: 1.35rem;
+            }
+
+        .card {
+            border-radius: 20px;
+        }
+
+        .card-body {
+            padding: 28px;
+        }
+
+        .status-badge-large {
+            font-size: 22px;
+            padding: 16px 34px;
+        }
+
+        .progress-tracker {
+            padding: 28px;
+            border-radius: 20px;
+        }
+
+        .progress-bar-custom {
+            height: 12px;
+        }
+
+        .timeline-item {
+            padding-left: 42px;
+            margin-bottom: 26px;
+        }
+
+        .timeline-dot {
+            left: 12px;
+            width: 16px;
+            height: 16px;
+        }
+
+        .timeline-item:not(:last-child)::before {
+            left: 19px;
+            top: 18px;
+        }
+    }
+</style>
+
+<div class="tracking-page container py-3">
+
+    <!-- BARRA SUPERIOR -->
+    <div class="top-bar">
+        <img src="/images/logoPDF.png" alt="Logo" />
+        <span class="fw-semibold h5 mb-0">Seguimiento del Viaje</span>
+    </div>
+
+    @if (!mostrarTracking)
+    {
+        <!-- FORMULARIO DE BÚSQUEDA -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="search-container">
+                    <div class="search-icon">📦</div>
+                    <h3 class="h5 mb-3">Rastrear tu embarque</h3>
+                    <p class="text-muted small mb-4">Ingresa el código de seguimiento para ver el estado de tu envío</p>
+
+                    @if (!string.IsNullOrEmpty(Error))
+                    {
+                        <div class="alert alert-danger" role="alert">
+                            <i class="fas fa-exclamation-circle"></i> @Error
+                        </div>
+                    }
+
+                    <form method="get" action="@Url.Action("TrackingSIGO", "Embarques")">
+                        <div class="mb-3">
+                            <input type="text"
+                                   class="form-control form-control-lg"
+                                   name="token"
+                                   placeholder="Ingresa tu código de seguimiento"
+                                   required
+                                   autocomplete="off">
+                        </div>
+                        <button type="submit" class="btn btn-rojo btn-lg w-100">
+                            <i class="fas fa-search"></i> Buscar
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Información adicional -->
+        <div class="card border-0 shadow-sm mt-3">
+            <div class="card-body">
+                <h4 class="h6 fw-semibold mb-2" style="color: var(--rojo);">¿Dónde encuentro mi código?</h4>
+                <p class="small text-muted mb-0">
+                    Si perdiste tu código solicitalo de nuevo en el área de Logística.
+                </p>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- INFORMACIÓN DEL TRACKING -->
+        <!-- Botón para nueva búsqueda -->
+        <div class="mb-3">
+            <a href="@Url.Action("TrackingSIGO", "Embarques")" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left"></i> Nueva búsqueda
+            </a>
+        </div>
+
+        <!-- Estado Destacado -->
+        <div class="text-center mb-4">
+            <div class="status-badge-large" style="background: @estatusColor; color: white;">
+                <span style="font-size: 24px;">@estatusIcono</span>
+                @estatusTexto
+            </div>
+        </div>
+
+        <!-- Barra de Progreso -->
+        <div class="progress-tracker">
+            <div class="small text-muted text-center mb-2">Progreso del envío</div>
+            <div class="progress-bar-custom">
+                <div class="progress-fill" style="width: @progresoActual%"></div>
+            </div>
+            <div class="d-flex justify-content-between small text-muted">
+                <span>Inicio</span>
+                <span>@progresoActual%</span>
+                <span>Completo</span>
+            </div>
+        </div>
+
+        <!-- Alertas según estatus -->
+        @if (Estatus == 4)
+        {
+            <div class="alert-status warning">
+                <strong><i class="fas fa-exclamation-triangle"></i> Embarque retrasado</strong>
+                <p class="mb-0 small mt-1">Tu embarque presenta un retraso. El equipo de logística está trabajando para normalizar la entrega.</p>
+            </div>
+        }
+        else if (Estatus == 5)
+        {
+            <div class="alert-status success">
+                <strong><i class="fas fa-check-circle"></i> Entrega completada</strong>
+                <p class="mb-0 small mt-1">Tu embarque ha sido entregado exitosamente. ¡Gracias por tu preferencia!</p>
+            </div>
+        }
+        else if (Estatus == 6)
+        {
+            <div class="alert-status danger">
+                <strong><i class="fas fa-undo"></i> Embarque devuelto</strong>
+                <p class="mb-0 small mt-1">El embarque fue devuelto. Contacta al área de logística para más información.</p>
+            </div>
+        }
+
+        <!-- Detalles -->
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body">
+                <h2 class="h6 fw-semibold mb-3" style="color: var(--rojo);">
+                    <i class="fas fa-info-circle"></i> Detalles del Viaje
+                </h2>
+
+                <div class="tracking-detail-row featured">
+                    <div>
+                        <div class="tracking-detail-label">Embarque</div>
+                        <div class="tracking-detail-help">Consecutivo de seguimiento</div>
+                    </div>
+                    <div class="tracking-detail-value">@EmbarqueConsecutivo</div>
+                </div>
+
+                <div class="row mb-2">
+                    <div class="col-5 small fw-semibold">Estado</div>
+                    <div class="col-7 small text-end">
+                        <span class="badge" style="background: @estatusColor">@estatusTexto</span>
+                    </div>
+                </div>
+
+                @if (FechaCreacion != null)
+                {
+                    <div class="row mb-2">
+                        <div class="col-5 small fw-semibold">Fecha de creación</div>
+                        <div class="col-7 small text-end">@FechaCreacion.ToString("dd MMM yyyy, hh:mm tt")</div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Eventos -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h2 class="h6 fw-semibold mb-3" style="color: var(--rojo);">
+                    <i class="fas fa-history"></i> Historial de Eventos
+                </h2>
+
+                <ul class="list-unstyled mb-0">
+
+                    <!-- Evento 1: Creación -->
+                    @if (FechaCreacion != null)
+                    {
+                        <li class="timeline-item">
+                            <span class="timeline-dot"></span>
+                            <div class="d-flex">
+                                <div class="me-3 small text-muted" style="width:85px;">
+                                    @FechaCreacion.ToString("hh:mm tt")
+                                </div>
+                                <div>
+                                    <div class="small fw-semibold">Embarque creado</div>
+                                    <div class="text-muted small">Sistema - Preparación inicial</div>
+                                </div>
+                            </div>
+                        </li>
+                    }
+
+                    <!-- Evento 2: Entrada a caseta -->
+                    @if (FechaEntrada != null)
+                    {
+                        <li class="timeline-item">
+                            <span class="timeline-dot"></span>
+                            <div class="d-flex">
+                                <div class="me-3 small text-muted" style="width:85px;">
+                                    @((FechaEntrada is DateTime dt1) ? dt1.ToString("hh:mm tt") : "")
+                                </div>
+                                <div>
+                                    <div class="small fw-semibold">Entrada registrada</div>
+                                    <div class="text-muted small">Caseta - Control de acceso</div>
+                                </div>
+                            </div>
+                        </li>
+                    }
+
+                    <!-- Evento 3: Salida de planta -->
+                    @if (FechaSalida != null)
+                    {
+                        <li class="timeline-item">
+                            <span class="timeline-dot"></span>
+                            <div class="d-flex">
+                                <div class="me-3 small text-muted" style="width:85px;">
+                                    @((FechaSalida is DateTime dt2) ? dt2.ToString("hh:mm tt") : "")
+                                </div>
+                                <div>
+                                    <div class="small fw-semibold">Salida de planta</div>
+                                    <div class="text-muted small">Caseta - Embarque en ruta</div>
+                                </div>
+                            </div>
+                        </li>
+                    }
+
+                    <!-- Evento 4: Retrasado (si aplica) -->
+                    @if (FechaRetrasado != null)
+                    {
+                        <li class="timeline-item">
+                            <span class="timeline-dot" style="background: #f59e0b;"></span>
+                            <div class="d-flex">
+                                <div class="me-3 small text-muted" style="width:85px;">
+                                    @((FechaRetrasado is DateTime dt3) ? dt3.ToString("hh:mm tt") : "")
+                                </div>
+                                <div>
+                                    <div class="small fw-semibold" style="color: #f59e0b;">Retraso reportado</div>
+                                    <div class="text-muted small">Control Center - Actualización de estatus</div>
+                                </div>
+                            </div>
+                        </li>
+                    }
+
+                    <!-- Evento 5: Llegada a destino -->
+                    @if (FechaLlegadaDestino != null)
+                    {
+                        <li class="timeline-item">
+                            <span class="timeline-dot" style="background: #8b5cf6;"></span>
+                            <div class="d-flex">
+                                <div class="me-3 small text-muted" style="width:85px;">
+                                    @((FechaLlegadaDestino is DateTime dt4) ? dt4.ToString("hh:mm tt") : "")
+                                </div>
+                                <div>
+                                    <div class="small fw-semibold" style="color: #8b5cf6;">Llegada a destino</div>
+                                    <div class="text-muted small">Control Center - En punto de entrega</div>
+                                </div>
+                            </div>
+                        </li>
+                    }
+
+                    <!-- Evento 6: Entregado -->
+                    @if (FechaEntregado != null)
+                    {
+                        <li class="timeline-item">
+                            <span class="timeline-dot" style="background: #10b981;"></span>
+                            <div class="d-flex">
+                                <div class="me-3 small text-muted" style="width:85px;">
+                                    @((FechaEntregado is DateTime dt5) ? dt5.ToString("hh:mm tt") : "")
+                                </div>
+                                <div>
+                                    <div class="small fw-semibold" style="color: #10b981;">Entrega completada</div>
+                                    <div class="text-muted small">Cliente - Recepción confirmada</div>
+                                </div>
+                            </div>
+                        </li>
+                    }
+
+                    <!-- Evento 7: Devuelto -->
+                    @if (FechaDevuelto != null)
+                    {
+                        <li class="timeline-item">
+                            <span class="timeline-dot" style="background: #ef4444;"></span>
+                            <div class="d-flex">
+                                <div class="me-3 small text-muted" style="width:85px;">
+                                    @((FechaDevuelto is DateTime dt6) ? dt6.ToString("hh:mm tt") : "")
+                                </div>
+                                <div>
+                                    <div class="small fw-semibold" style="color: #ef4444;">Embarque devuelto</div>
+                                    <div class="text-muted small">Control Center - Devolución procesada</div>
+                                </div>
+                            </div>
+                        </li>
+                    }
+
+                </ul>
+            </div>
+        </div>
+
+        <!-- Footer informativo -->
+        <div class="card border-0 shadow-sm mt-3" style="background: #f9fafb;">
+            <div class="card-body text-center">
+                <p class="small text-muted mb-2">
+                    <i class="fas fa-phone-alt"></i> ¿Necesitas ayuda?
+                </p>
+                <p class="small mb-0">
+                    Contacta al área de Logística para cualquier consulta sobre tu embarque.
+                </p>
+            </div>
+        </div>
+    }
+
+</div>

@@ -1,0 +1,1369 @@
+﻿@model List<Plataforma_CG.Models.EmpaqueRowVM>
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Control de Empaque por SKU";
+
+    bool puedeEscribir = Context.Items["Permiso_EMPAQUES_ARTICULOS_ESCRIBIR"] as bool? ?? true;
+    bool puedeEliminar = Context.Items["Permiso_EMPAQUES_ARTICULOS_ELIMINAR"] as bool? ?? true;
+}
+
+<style>
+    /* Variables de disenio general */
+    :root {
+        --bg: #f0dede;
+        --panel: #f8eeee;
+        --panel-2: #f1dede;
+        --line: #c79d9d;
+        --text: #3b1717;
+        --white: #ffffff;
+        --vino-border: #9a5a5a;
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        font-family: Tahoma, sans-serif;
+        background: transparent !important;
+        color: var(--text);
+    }
+
+    /* Layout principal */
+    .window-empaque {
+        display: flex;
+        gap: 10px;
+        padding: 10px;
+        background: var(--bg);
+        height: calc(100vh - 50px);
+        overflow: hidden;
+    }
+
+    .workspace {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .panel-izquierdo {
+        flex: 3;
+        overflow: hidden;
+    }
+
+    .panel-derecho {
+        flex: 1.2;
+        min-width: 360px;
+        overflow: hidden;
+    }
+
+    .section {
+        border: 1px solid var(--line);
+        background: var(--white);
+        margin-bottom: 10px;
+        display: flex;
+        flex-direction: column;
+    }
+
+        .section.flex-fill {
+            flex: 1;
+            margin-bottom: 0;
+            overflow: hidden;
+        }
+
+    .section-title {
+        padding: 6px 8px;
+        font-size: 12px;
+        font-weight: bold;
+        color: #fff;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-bottom: 1px solid #6b1f1f;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    /* Filtros y UI */
+    .filters {
+        display: flex;
+        gap: 8px;
+        padding: 10px;
+        background: var(--panel-2);
+        align-items: end;
+    }
+
+    .filter-group {
+        flex: 1;
+    }
+
+        .filter-group label {
+            display: block;
+            color: #5c1a1a;
+            font-size: 11px;
+            margin-bottom: 4px;
+            font-weight: bold;
+        }
+
+    .form-control, .form-select {
+        height: 26px !important;
+        padding: 2px 6px !important;
+        border: 1px solid #b48787 !important;
+        background: #fffdfd !important;
+        font-size: 11px !important;
+        width: 100%;
+        color: #421414 !important;
+        border-radius: 0;
+    }
+
+    textarea.form-control {
+        height: auto !important;
+        resize: none;
+        font-size: 10px !important;
+        line-height: 1.3;
+    }
+
+    .pm-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        height: 26px;
+        padding: 0 12px;
+        border: 1px solid transparent;
+        font-size: 11px;
+        font-weight: 700;
+        cursor: pointer;
+        color: #fff;
+        text-decoration: none;
+        white-space: nowrap;
+    }
+
+    .pm-btn-primary {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-color: #7a2d2d;
+    }
+
+    .pm-btn-success {
+        background: linear-gradient(180deg, #27ae60 0%, #1f9a54 55%, #198754 100%);
+        border-color: #157347;
+    }
+
+    .pm-btn-danger {
+        background: linear-gradient(180deg, #dc3545 0%, #c82333 55%, #bd2130 100%);
+        border-color: #b02a37;
+    }
+
+    .pm-btn-secondary {
+        background: linear-gradient(#fffefe, #ecd7d7);
+        border-color: var(--vino-border);
+        color: #4a1111;
+    }
+
+    /* Tabla datos */
+    .table-wrap {
+        overflow: auto;
+        height: 100%;
+        background: #fffafa;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        font-size: 10px;
+    }
+
+    thead th {
+        position: sticky;
+        color: #fff;
+        padding: 5px;
+        border-right: 1px solid #8e3b3b;
+        z-index: 10;
+        white-space: nowrap;
+        text-align: center;
+    }
+
+    thead tr:nth-child(1) th {
+        top: 0;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-bottom: 1px solid #ffb3b3;
+        z-index: 11;
+    }
+
+    .th-ext-top {
+        background: linear-gradient(180deg, #8b0000 0%, #6a0000 55%, #3d0000 100%) !important;
+    }
+
+    .th-ext-sub {
+        background: linear-gradient(180deg, #7a0000 0%, #5c0000 55%, #3d0000 100%) !important;
+    }
+
+    thead th:first-child {
+        border-left: 1px solid #8e3b3b;
+    }
+
+    tbody td {
+        padding: 4px 5px;
+        border-bottom: 1px solid #d8bcbc;
+        border-right: 1px solid #d8bcbc;
+        color: #111;
+        text-align: center;
+        vertical-align: middle;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+        tbody td:first-child {
+            border-left: 1px solid #d8bcbc;
+        }
+
+        tbody td.text-left {
+            text-align: left;
+        }
+
+        tbody td.col-ext {
+            background-color: #fbf0f0;
+        }
+
+    tbody tr:nth-child(even) td {
+        background: #f9eded;
+    }
+
+        tbody tr:nth-child(even) td.col-ext {
+            background: #f4e6e6;
+        }
+
+    tbody tr:hover td {
+        background: #f4dddd !important;
+    }
+
+    .check-col {
+        width: 30px;
+        text-align: center;
+    }
+
+    input[type="checkbox"] {
+        cursor: pointer;
+        margin: 0;
+    }
+
+    .badge-dark {
+        background: #333;
+        color: #fff;
+        padding: 2px 6px;
+        border-radius: 2px;
+        font-size: 9px;
+        font-weight: bold;
+    }
+
+    /* Correccion scroll horizontal */
+    #tablaArticulos {
+        table-layout: auto !important;
+        width: 100% !important;
+    }
+
+        #tablaArticulos th, #tablaArticulos td {
+            padding: 3px 4px !important;
+            vertical-align: middle;
+        }
+
+    .col-desc {
+        white-space: normal !important;
+        word-wrap: break-word;
+        min-width: 120px;
+        max-width: 160px;
+    }
+
+    .col-emp-int, .col-emp-ext {
+        white-space: normal !important;
+        word-wrap: break-word;
+        max-width: 90px;
+    }
+
+    .col-sku, .col-pz-min, .col-pz-def, .col-pz-max, .col-peso-min, .col-peso-max, .col-bs-min, .col-bs-def, .col-bs-max, .col-peso-ext-min, .col-peso-ext-max {
+        white-space: nowrap !important;
+        text-align: center;
+    }
+
+    #tablaArticulos > thead > tr > th {
+        position: sticky;
+        color: #fff;
+        border-right: 1px solid #5c0000;
+        z-index: 10;
+        white-space: nowrap;
+    }
+
+    #tablaArticulos > thead > tr:nth-child(1) > th {
+        top: 0;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-bottom: 1px solid #5c0000;
+        z-index: 11;
+    }
+
+    #tablaArticulos > thead > tr:nth-child(2) > th {
+        top: 22px;
+        background: linear-gradient(180deg, #980000 0%, #7a0000 55%, #5c0000 100%);
+        border-bottom: 1px solid #5c0000;
+    }
+
+    /* Estilos sub-tabla */
+    .sub-tabla {
+        width: 98%;
+        margin: 0 auto;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        background: #fff;
+        border: 1px solid #8b0000;
+        border-radius: 4px;
+        overflow: hidden;
+        box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+    }
+
+        .sub-tabla thead th {
+            position: static !important;
+            color: #fff;
+            padding: 5px;
+            text-align: center;
+            font-size: 10px;
+            border-right: 1px solid #b85c5c;
+        }
+
+        .sub-tabla tbody td {
+            padding: 4px;
+            text-align: center;
+            border-bottom: 1px solid #e0e0e0;
+            border-right: 1px solid #e0e0e0;
+            font-size: 10px;
+            color: #333;
+        }
+
+    /* Paneles de edicion */
+    .editor-body {
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .editor-footer {
+        padding: 10px 12px;
+        background: #f7eaea;
+        border-top: 1px solid #d3b0b0;
+        display: flex;
+        gap: 8px;
+    }
+
+    .form-section-title {
+        font-size: 11px;
+        font-weight: bold;
+        color: #8b0000;
+        text-transform: uppercase;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 4px;
+        margin-top: 5px;
+    }
+
+    .row-inputs {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 8px;
+    }
+
+    .row-inputs-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    /* Select2 y DataTables */
+    .select2-container .select2-selection--single {
+        height: 26px !important;
+        padding: 2px 6px !important;
+        border: 1px solid #b48787 !important;
+        background: #fffdfd !important;
+        border-radius: 0 !important;
+    }
+
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 20px !important;
+        font-size: 11px !important;
+        color: #421414 !important;
+        padding-left: 0 !important;
+    }
+
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 24px !important;
+    }
+
+    .select2-dropdown {
+        font-size: 11px !important;
+        border: 1px solid #b48787 !important;
+        border-radius: 0 !important;
+    }
+
+    .select2-search__field {
+        font-size: 11px !important;
+    }
+
+    .dataTables_wrapper .bottom {
+        display: flex;
+        justify-content: center;
+        padding: 8px 10px;
+        background: var(--panel-2);
+        border-top: 1px solid var(--line);
+        font-size: 11px;
+    }
+
+    .dataTables_paginate .paginate_button {
+        padding: 3px 10px !important;
+        margin: 0 2px;
+        border: 1px solid #c79d9d !important;
+        background: #fff !important;
+        color: #4a1111 !important;
+        border-radius: 2px;
+        cursor: pointer;
+    }
+
+        .dataTables_paginate .paginate_button:hover {
+            background: #f4dddd !important;
+        }
+
+        .dataTables_paginate .paginate_button.current {
+            background: linear-gradient(180deg, #b30000 0%, #8b0000 100%) !important;
+            color: white !important;
+            border: 1px solid #7a2d2d !important;
+            font-weight: bold;
+        }
+
+    /* Pantalla de carga */
+    #loader-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.85);
+        z-index: 9999;
+        display: none;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .spinner {
+        border: 4px solid #d8bcbc;
+        border-top: 4px solid #8b0000;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+    }
+
+    @@keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    .loader-text {
+        margin-top: 10px;
+        font-weight: bold;
+        color: #8b0000;
+        font-size: 12px;
+    }
+
+    .col-seguridad {
+        display: revert;
+    }
+</style>
+
+<div class="window-empaque">
+    <div id="loader-overlay">
+        <div class="spinner"></div>
+        <div class="loader-text">Cargando información...</div>
+    </div>
+
+    <div class="workspace panel-izquierdo">
+        <div class="section">
+            <div class="section-title">Filtros y Acciones</div>
+            <div class="filters">
+                <div class="filter-group" style="max-width: 90px;">
+                    <label>Planta</label>
+                    <select id="selPlanta" class="form-select" onchange="cambiarPlanta()">
+                        @if (ViewBag.PlantaActual == "P1")
+                        {
+                            <option value="TIF">TIF</option>
+                            <option value="P1" selected>P1</option>
+                        }
+                        else
+                        {
+                            <option value="TIF" selected>TIF</option>
+                            <option value="P1">P1</option>
+                        }
+                    </select>
+                </div>
+                <div class="filter-group" style="flex: 2;">
+                    <label>Artículo o Descripción</label>
+                    <input type="text" id="filtroTexto" class="form-control" placeholder="Escriba para buscar...">
+                </div>
+                <div class="filter-group">
+                    <label>Bolsa.</label>
+                    <select id="filtroEmpInt" class="form-select">
+                        <option value="">TODOS</option>
+                        <option value="SIN">SIN ASIGNAR</option>
+                        @if (ViewBag.EmpaquesInternos != null)
+                        {
+                            foreach (var emp in ViewBag.EmpaquesInternos)
+                            {
+                                <option value="@emp.Id">@emp.Descripcion</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Caja.</label>
+                    <select id="filtroEmpExt" class="form-select">
+                        <option value="">TODOS</option>
+                        <option value="SIN">SIN ASIGNAR</option>
+                        @if (ViewBag.EmpaquesExternos != null)
+                        {
+                            foreach (var emp in ViewBag.EmpaquesExternos)
+                            {
+                                <option value="@emp.Id">@emp.Descripcion</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="filter-group" style="flex: 0 0 auto; display: flex; gap: 5px;">
+                    <label>&nbsp;</label>
+                    <button class="pm-btn pm-btn-secondary" onclick="limpiarFiltros()">Limpiar</button>
+
+                    <button class="pm-btn pm-btn-secondary col-seguridad" onclick="verHistorial()">Historial</button>
+                    <button id="btnNuevoSku" class="pm-btn pm-btn-success col-seguridad" onclick="prepararAltaIndividual()">+ Nuevo SKU</button>
+                    <button id="btnAltaMasiva" class="pm-btn pm-btn-primary col-seguridad" onclick="document.getElementById('fileExcel').click()">+ Alta Masiva</button>
+                    <input type="file" id="fileExcel" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display: none;" onchange="subirExcelMasivo(this)">
+                </div>
+            </div>
+        </div>
+
+        <div class="section flex-fill">
+            <div class="section-title">
+                <span>Catálogo de Artículos y Empaques</span>
+                <span id="contador-seleccion">0 seleccionados</span>
+            </div>
+            <div class="table-wrap">
+                <table id="tablaArticulos" class="table table-sm" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th rowspan="2" class="check-col col-seguridad"><input type="checkbox" id="chkTodos"></th>
+                            <th rowspan="2" style="width: 50px;">SKU</th>
+                            <th rowspan="2" class="text-left" style="width: 140px;">Descripción</th>
+
+                            <th colspan="6">EMPAQUE INTERNO (BOLSA)</th>
+                            <th colspan="6" class="th-ext-top">EMPAQUE EXTERNO (CAJA/CARRO)</th>
+                            <th rowspan="2" style="width: 50px;" class="col-seguridad">Acción</th>
+                        </tr>
+                        <tr>
+                            <th style="width: 100px;">Tipo Bolsa</th>
+                            <th style="width: 35px;">Pz.Min</th>
+                            <th style="width: 35px;">Pz.Def</th>
+                            <th style="width: 35px;">Pz.Max</th>
+                            <th style="width: 50px;">Kg.Min</th>
+                            <th style="width: 50px;">Kg.Max</th>
+
+                            <th style="width: 100px;" class="th-ext-sub">Tipo Contenedor</th>
+                            <th style="width: 35px;" class="th-ext-sub">Bs.Min</th>
+                            <th style="width: 35px;" class="th-ext-sub">Bs.Def</th>
+                            <th style="width: 35px;" class="th-ext-sub">Bs.Max</th>
+                            <th style="width: 50px;" class="th-ext-sub">Kg.Min</th>
+                            <th style="width: 50px;" class="th-ext-sub">Kg.Max</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model != null && Model.Count > 0)
+                        {
+                            var agrupado = Model.GroupBy(x => x.Sku).ToList();
+                            foreach (var grupo in agrupado)
+                            {
+                                var item = grupo.First();
+                                var extras = grupo.Skip(1).ToList();
+                                var hasExtras = extras.Count > 0;
+                                var extrasJson = System.Text.Json.JsonSerializer.Serialize(extras);
+
+                                // Sanitizacion rapida para evitar conflicto de comillas simples en el JS
+                                var descIntSafe = string.IsNullOrEmpty(item.EmpaqueIntDesc) || item.EmpaqueIntDesc == "-" ? "" : item.EmpaqueIntDesc.Replace("'", "\\'");
+                                var descExtSafe = string.IsNullOrEmpty(item.EmpaqueExtDesc) || item.EmpaqueExtDesc == "-" ? "" : item.EmpaqueExtDesc.Replace("'", "\\'");
+
+                                <tr class="fila-dato" data-emp-int="@item.EmpaqueInt" data-emp-ext="@item.EmpaqueExt">
+                                    <td class="check-col col-seguridad">
+                                        <input type="checkbox" class="chk-fila" value="@item.Sku" id="chk_@item.Sku">
+                                        @if (hasExtras)
+                                        {
+                                            <br>
+                                            <button class="pm-btn pm-btn-secondary btn-expandir" data-extras="@extrasJson" style="height:16px; padding:0 4px; margin-top:3px; font-size:10px;">+</button>
+                                        }
+                                    </td>
+                                    <td class="col-sku">@item.Sku</td>
+                                    <td class="text-left col-desc" title="@item.Descripcion">@item.Descripcion</td>
+
+                                    <td class="col-emp-int" data-val="@item.EmpaqueInt">
+                                        @if (string.IsNullOrEmpty(item.EmpaqueIntDesc) || item.EmpaqueIntDesc == "-")
+                                        {
+                                            <text>-</text>
+                                        }
+                                        else
+                                        {
+
+                                            <span class="badge-dark">@item.EmpaqueIntDesc</span>
+                                        }
+                                    </td>
+                                    <td class="col-pz-min">@item.PzMin</td>
+                                    <td class="col-pz-def">@item.PzDef</td>
+                                    <td class="col-pz-max">@item.PzMax</td>
+                                    <td class="col-peso-min">@item.PesoMin.ToString("0.00")</td>
+                                    <td class="col-peso-max">@item.PesoMax.ToString("0.00")</td>
+
+                                    <td class="col-emp-ext col-ext" data-val="@item.EmpaqueExt">
+                                        @if (string.IsNullOrEmpty(item.EmpaqueExtDesc) || item.EmpaqueExtDesc == "-")
+                                        {
+                                            <text>-</text>
+                                        }
+                                        else
+                                        {
+
+                                            <span class="badge-dark">@item.EmpaqueExtDesc</span>
+                                        }
+                                    </td>
+                                    <td class="col-bs-min col-ext">@(item.BolsaMin)</td>
+                                    <td class="col-bs-def col-ext">@(item.BolsaDef)</td>
+                                    <td class="col-bs-max col-ext">@(item.BolsaMax)</td>
+                                    <td class="col-peso-ext-min col-ext">@(item.PesoExtMin.ToString("0.00"))</td>
+                                    <td class="col-peso-ext-max col-ext">@(item.PesoExtMax.ToString("0.00"))</td>
+
+                                    <td class="col-seguridad" style="white-space: nowrap;">
+                                        <button class="pm-btn pm-btn-secondary" onclick="verHistorial('@item.Sku')" style="margin-left: 4px;">Historial</button>
+                                        @if (puedeEscribir)
+                                        {
+                                            <button class="pm-btn pm-btn-secondary" onclick="seleccionarFilaRapida('@item.Sku')">Editar</button>
+                                        }
+                                        @if (puedeEliminar)
+                                        {
+                                            <button class="pm-btn pm-btn-danger" style="margin-left: 4px;" onclick="abrirModalEliminar('@item.Sku', '@item.EmpaqueInt', '@item.EmpaqueExt', '@descIntSafe', '@descExtSafe')">Eliminar</button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="workspace panel-derecho">
+        <div class="section flex-fill">
+            <div class="section-title" id="titulo-editor"> Alta, Baja y Actualizaciones </div>
+            <div class="editor-body">
+
+                <div id="info-objetivo">
+                    <label style="font-size: 11px; color: #5c1a1a; font-weight: bold;">Identificador de Artículo:</label>
+                    <textarea id="txtArticulosSel" class="form-control" disabled style="background: #e9ecef !important; margin-bottom: 5px;" rows="2">Seleccione un registro</textarea>
+                    <div id="divAltaNueva" style="display: none; grid-template-columns: 1fr 2fr; gap: 8px; margin-bottom: 5px;">
+                        <input type="text" id="inpNuevoSku" class="form-control" placeholder="Escriba SKU...">
+                        <input type="text" id="inpNuevaDesc" class="form-control" placeholder="Descripción del artículo...">
+                    </div>
+                </div>
+
+                <div class="form-section-title">1. Empaque Interno (Bolsa)</div>
+                <div class="filter-group">
+                    <label>Tipo de Bolsa</label>
+                    <select id="selEmpaqueInt" class="form-select">
+                        <option value="">SELECCIONE EMPAQUE</option>
+                        @if (ViewBag.EmpaquesInternos != null)
+                        {
+                            foreach (var emp in ViewBag.EmpaquesInternos)
+                            {
+                                <option value="@emp.Id">@emp.Descripcion</option>
+                            }
+                        }
+                    </select>
+                </div>
+
+                <div class="row-inputs">
+                    <div class="filter-group"><label>Pzas Mínimas</label><input type="number" id="inpPzMin" class="form-control" placeholder="0"></div>
+                    <div class="filter-group"><label>Pzas Default</label><input type="number" id="inpPzDef" class="form-control" placeholder="0"></div>
+                    <div class="filter-group"><label>Pzas Máximas</label><input type="number" id="inpPzMax" class="form-control" placeholder="0"></div>
+                </div>
+
+                <div class="row-inputs-2">
+                    <div class="filter-group"><label>Peso Mínimo</label><input type="number" id="inpPesoMin" class="form-control" step="0.01" placeholder="0.00"></div>
+                    <div class="filter-group"><label>Peso Máximo</label><input type="number" id="inpPesoMax" class="form-control" step="0.01" placeholder="0.00"></div>
+                </div>
+
+                <div class="form-section-title">2. Empaque Externo (Caja/Carro)</div>
+                <div class="filter-group">
+                    <label>Tipo de Contenedor</label>
+                    <select id="selEmpaqueExt" class="form-select">
+                        <option value="">SELECCIONE EMPAQUE</option>
+                        @if (ViewBag.EmpaquesExternos != null)
+                        {
+                            foreach (var emp in ViewBag.EmpaquesExternos)
+                            {
+                                <option value="@emp.Id">@emp.Descripcion</option>
+                            }
+                        }
+                    </select>
+                </div>
+
+                <div class="row-inputs">
+                    <div class="filter-group"><label>Bolsas Mínimas</label><input type="number" id="inpBolsaMin" class="form-control" placeholder="0"></div>
+                    <div class="filter-group"><label>Bolsas Default</label><input type="number" id="inpBolsaDef" class="form-control" placeholder="0"></div>
+                    <div class="filter-group"><label>Bolsas Máximas</label><input type="number" id="inpBolsaMax" class="form-control" placeholder="0"></div>
+                </div>
+
+                <div class="row-inputs-2">
+                    <div class="filter-group"><label>Peso Mínimo</label><input type="number" id="inpPesoExtMin" class="form-control" step="0.01" placeholder="0.00"></div>
+                    <div class="filter-group"><label>Peso Máximo</label><input type="number" id="inpPesoExtMax" class="form-control" step="0.01" placeholder="0.00"></div>
+                </div>
+            </div>
+
+            <div class="editor-footer">
+                @if (puedeEscribir)
+                {
+                    <button class="pm-btn pm-btn-success" id="btnGuardar" style="flex: 1;" onclick="guardarEmpaque()">Guardar / Actualizar</button>
+                }
+                @if (puedeEliminar)
+                {
+                    <button class="pm-btn pm-btn-danger" id="btnEliminarLateral" style="flex: 1;" onclick="eliminarPanelDerecho()">Eliminar</button>
+                }
+                <button class="pm-btn pm-btn-secondary" style="flex: 1;" onclick="limpiarEditor()">Cancelar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalEliminarEmpaque" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content" style="border-radius: 0; border: 1px solid #8b0000;">
+            <div class="modal-header" style="background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%); color: #fff; border-bottom: 1px solid #5c0000;">
+                <h6 class="modal-title" style="font-size: 13px; font-weight: 700;">Eliminar Configuración</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="background: #f0dede; padding: 15px;">
+                <p style="font-size: 11px; color: #5c1a1a; font-weight: bold; text-align: center; margin-bottom: 10px;">SKU: <span id="lblEliminarSku"></span></p>
+                <p style="font-size: 10px; color: #3b1717; text-align: center; margin-bottom: 15px;">Seleccione qué empaque desea desvincular:</p>
+
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <label id="optEliminarBolsa" style="display: flex; align-items: center; gap: 8px; font-size: 11px; cursor: pointer; background: #fffafa; padding: 8px; border: 1px solid #c79d9d;">
+                        <input type="checkbox" id="chkEliminarBolsa">
+                        <span style="color: #3b1717;">Bolsa: <b id="lblEliminarBolsaTxt"></b></span>
+                    </label>
+
+                    <label id="optEliminarCaja" style="display: flex; align-items: center; gap: 8px; font-size: 11px; cursor: pointer; background: #fffafa; padding: 8px; border: 1px solid #c79d9d;">
+                        <input type="checkbox" id="chkEliminarCaja">
+                        <span style="color: #3b1717;">Caja: <b id="lblEliminarCajaTxt"></b></span>
+                    </label>
+                </div>
+
+                <input type="hidden" id="hidEliminarSku">
+                <input type="hidden" id="hidEliminarBolsaId">
+                <input type="hidden" id="hidEliminarCajaId">
+            </div>
+            <div class="modal-footer" style="background: #f7eaea; border-top: 1px solid #d3b0b0;">
+                <button type="button" class="pm-btn pm-btn-secondary" data-bs-dismiss="modal" style="flex: 1;">Cancelar</button>
+                <button type="button" class="pm-btn pm-btn-danger" onclick="ejecutarEliminacionSeleccionada()" style="flex: 1;">Eliminar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalHistorialEmpaque" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content" style="border-radius: 0; border: 1px solid #8b0000;">
+            <div class="modal-header" style="background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%); color: #fff; border-bottom: 1px solid #5c0000;">
+                <h6 class="modal-title" style="font-size: 13px; font-weight: 700;">Historial General de Movimientos</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="background: #f0dede; padding: 0; max-height: 400px; overflow-y: auto;">
+                <table class="table table-sm" style="margin: 0; font-size: 11px;">
+                    <thead>
+                        <tr style="background: #8b0000; color: #fff;">
+                            <th style="padding: 6px;">Fecha</th>
+                            <th style="padding: 6px;">SKU</th>
+                            <th style="padding: 6px;">Operación</th>
+                            <th style="padding: 6px;">Empaque</th>
+                            <th style="padding: 6px;">Detalle</th>
+                            <th style="padding: 6px;">Usuario</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyHistorial"></tbody>
+                </table>
+                <div id="sinHistorial" style="display: none; padding: 30px; text-align: center; color: #5c1a1a; font-size: 12px;">Sin movimientos registrados.</div>
+            </div>
+            <div class="modal-footer" style="background: #f7eaea; border-top: 1px solid #d3b0b0;">
+                <button type="button" class="pm-btn pm-btn-secondary" data-bs-dismiss="modal" style="flex: 1;">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+</div>
+
+
+@section Scripts {
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+
+    <script>
+        let modoAlta = false;
+        let tablaDt;
+
+        let JS_PuedeEscribir = @(puedeEscribir.ToString().ToLower());
+        let JS_PuedeEliminar = @(puedeEliminar.ToString().ToLower());
+
+        function mostrarLoader() { document.getElementById('loader-overlay').style.display = 'flex'; }
+        function ocultarLoader() { $('#loader-overlay').fadeOut('fast'); }
+
+  let editorSelect2Listo = false;
+let timerBusqueda = null;
+
+$(document).ready(function() {
+    aplicarPermisosVisuales();
+    $('#filtroEmpInt, #filtroEmpExt, #selEmpaqueInt, #selEmpaqueExt').select2({ width: '100%' });
+
+    if ($.fn.DataTable.isDataTable('#tablaArticulos')) {
+        $('#tablaArticulos').DataTable().clear().destroy();
+    }
+
+    tablaDt = $('#tablaArticulos').DataTable({
+        pageLength: 50,
+        lengthChange: false,
+        searching: true,
+        info: false,
+        ordering: false,
+        autoWidth: false,
+        deferRender: true,
+        processing: true,
+        dom: 't<"bottom"ip>'
+    });
+
+    $('#tablaArticulos').show();
+
+    $('#filtroTexto').on('input', function() {
+        clearTimeout(timerBusqueda);
+        const valor = this.value;
+        timerBusqueda = setTimeout(function() {
+            tablaDt.search(valor).draw();
+        }, 250);
+    });
+
+    $('#filtroEmpInt, #filtroEmpExt').on('change', function() {
+        tablaDt.draw();
+    });
+
+    ocultarLoader();
+});
+
+function inicializarSelect2Editor() {
+    if (editorSelect2Listo) return;
+
+    $('#selEmpaqueInt, #selEmpaqueExt').select2({
+        width: '100%'
+    });
+
+    editorSelect2Listo = true;
+}
+
+function setSelectEditor(selector, valor) {
+    const $select = $(selector);
+    $select.val(valor || '');
+
+    if (editorSelect2Listo) {
+        $select.trigger('change.select2');
+    }
+}
+
+        function aplicarPermisosVisuales() {
+            if (!JS_PuedeEscribir && !JS_PuedeEliminar) {
+                document.querySelectorAll(".col-seguridad").forEach(el => el.style.display = "none");
+            }
+        }
+
+        $.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData, counter) {
+            const valFiltroInt = $('#filtroEmpInt').val();
+            const valFiltroExt = $('#filtroEmpExt').val();
+            if (valFiltroInt === "" && valFiltroExt === "") return true;
+
+            const nodoFila = tablaDt.row(dataIndex).node();
+            if (!nodoFila) return true;
+
+            const evaluarConfig = (eInt, eExt) => {
+                const valInt = (eInt === null || eInt === "") ? "SIN" : eInt;
+                const valExt = (eExt === null || eExt === "") ? "SIN" : eExt;
+                const cumpleInt = (valFiltroInt === "") || (valFiltroInt === "SIN" && valInt === "SIN") || (valInt === valFiltroInt);
+                const cumpleExt = (valFiltroExt === "") || (valFiltroExt === "SIN" && valExt === "SIN") || (valExt === valFiltroExt);
+                return cumpleInt && cumpleExt;
+            };
+
+            const empIntMain = nodoFila.getAttribute('data-emp-int');
+            const empExtMain = nodoFila.getAttribute('data-emp-ext');
+
+            if (evaluarConfig(empIntMain, empExtMain)) return true;
+
+            const btnExpandir = $(nodoFila).find('.btn-expandir');
+            if (btnExpandir.length > 0) {
+                try {
+                    const extras = JSON.parse(btnExpandir.attr('data-extras'));
+                    for (let i = 0; i < extras.length; i++) {
+                        if (evaluarConfig(extras[i].EmpaqueInt, extras[i].EmpaqueExt)) {
+                            return true;
+                        }
+                    }
+                } catch (e) { console.error("Error al leer extras", e); }
+            }
+            return false;
+        });
+
+        function limpiarFiltros() {
+            $('#filtroTexto').val('');
+            $('#filtroEmpInt').val('').trigger('change');
+            $('#filtroEmpExt').val('').trigger('change');
+            tablaDt.search('').draw();
+        }
+
+        const txtArticulosSel = document.getElementById('txtArticulosSel');
+        const divAltaNueva = document.getElementById('divAltaNueva');
+        const contadorSel = document.getElementById('contador-seleccion');
+
+        $('#chkTodos').on('change', function() {
+            const isChecked = this.checked;
+            tablaDt.$('.chk-fila').each(function() {
+                if($(this).closest('tr').css('display') !== "none") { this.checked = isChecked; }
+            });
+            actualizarEstadoUI();
+        });
+
+        $('#tablaArticulos tbody').on('change', '.chk-fila', function() { actualizarEstadoUI(); });
+
+        function seleccionarFilaRapida(sku) {
+            tablaDt.$('.chk-fila').prop('checked', false);
+            const checkbox = $('#chk_' + sku);
+            if(checkbox.length) { checkbox.prop('checked', true); }
+            actualizarEstadoUI();
+        }
+
+       function prepararAltaIndividual() {
+    modoAlta = true;
+    $('#chkTodos').prop('checked', false);
+    tablaDt.$('.chk-fila').prop('checked', false);
+
+    document.getElementById('titulo-editor').textContent = "Alta de Nuevo Artículo";
+    txtArticulosSel.style.display = "none";
+    divAltaNueva.style.display = "grid";
+
+    document.getElementById('inpNuevoSku').value = "";
+    document.getElementById('inpNuevaDesc').value = "";
+
+    inicializarSelect2Editor();
+    limpiarCamposFormulario();
+
+    document.getElementById('inpNuevoSku').focus();
+}
+
+        function actualizarEstadoUI() {
+            modoAlta = false;
+            txtArticulosSel.style.display = "block";
+            divAltaNueva.style.display = "none";
+
+            const seleccionados = tablaDt.$('.chk-fila:checked').toArray();
+            const total = seleccionados.length;
+            contadorSel.textContent = `${total} seleccionados`;
+
+            if (total === 0) {
+                document.getElementById('titulo-editor').textContent = "Alta, Baja y Actualizaciones";
+                txtArticulosSel.value = "Seleccione un registro";
+                txtArticulosSel.rows = 2;
+                limpiarCamposFormulario();
+            }
+            else if (total === 1) {
+                document.getElementById('titulo-editor').textContent = "Edición Individual";
+                const fila = seleccionados[0].closest('tr');
+                const desc = fila.querySelector(".col-desc").textContent;
+                txtArticulosSel.value = `${seleccionados[0].value} - ${desc}`;
+                txtArticulosSel.rows = 2;
+
+                document.getElementById('selEmpaqueInt').value = fila.querySelector('.col-emp-int').getAttribute('data-val') || "";
+                $('#selEmpaqueInt').trigger('change');
+                document.getElementById('inpPzMin').value = fila.querySelector('.col-pz-min').textContent.trim();
+                document.getElementById('inpPzDef').value = fila.querySelector('.col-pz-def').textContent.trim();
+                document.getElementById('inpPzMax').value = fila.querySelector('.col-pz-max').textContent.trim();
+                document.getElementById('inpPesoMin').value = fila.querySelector('.col-peso-min').textContent.trim();
+                document.getElementById('inpPesoMax').value = fila.querySelector('.col-peso-max').textContent.trim();
+
+                document.getElementById('selEmpaqueExt').value = fila.querySelector('.col-emp-ext').getAttribute('data-val') || "";
+                $('#selEmpaqueExt').trigger('change');
+                document.getElementById('inpBolsaMin').value = fila.querySelector('.col-bs-min').textContent.trim();
+                document.getElementById('inpBolsaDef').value = fila.querySelector('.col-bs-def').textContent.trim();
+                document.getElementById('inpBolsaMax').value = fila.querySelector('.col-bs-max').textContent.trim();
+                document.getElementById('inpPesoExtMin').value = fila.querySelector('.col-peso-ext-min').textContent.trim();
+                document.getElementById('inpPesoExtMax').value = fila.querySelector('.col-peso-ext-max').textContent.trim();
+            }
+            else {
+                document.getElementById('titulo-editor').textContent = `Edición Masiva (${total} SKUs)`;
+                let listaNombres = seleccionados.map(chk => {
+                    const desc = chk.closest('tr').querySelector(".col-desc").textContent;
+                    return `• ${chk.value} - ${desc}`;
+                }).join('\n');
+
+                txtArticulosSel.value = listaNombres;
+                txtArticulosSel.rows = total > 4 ? 4 : (total < 2 ? 2 : total);
+                limpiarCamposFormulario();
+            }
+        }
+
+ 
+
+     function limpiarCamposFormulario() {
+    document.querySelectorAll('.panel-derecho input[type="number"]').forEach(el => el.value = '');
+
+    setSelectEditor('#selEmpaqueInt', '');
+    setSelectEditor('#selEmpaqueExt', '');
+}
+
+        function limpiarEditor() {
+            modoAlta = false;
+            $('#chkTodos').prop('checked', false);
+            tablaDt.$('.chk-fila').prop('checked', false);
+            actualizarEstadoUI();
+        }
+
+        async function subirExcelMasivo(input) {
+             if(input.files.length === 0) return;
+             const file = input.files[0];
+
+             // Validar que el usuario haya guardado su tabla como CSV
+             if (!file.name.toLowerCase().endsWith('.csv')) {
+                 alert("⚠️ Por favor, en Excel vaya a 'Guardar como' y seleccione el formato 'CSV (delimitado por comas)' y suba ese archivo.");
+                 input.value = "";
+                 return;
+             }
+
+             mostrarLoader();
+
+             // Empaquetar el archivo para mandarlo a C#
+             const formData = new FormData();
+             formData.append("archivo", file);
+
+             try {
+                 const plantaActiva = document.getElementById('selPlanta').value;
+                 const urlCarga = '@Url.Action("CargarMasivoEmpaques", "ProcesosCG")' + '?planta=' + plantaActiva;
+
+                 const response = await fetch(urlCarga, {
+                     method: 'POST',
+                     body: formData
+                 });
+
+                 const data = await response.json();
+                 if (data.ok) {
+                     alert(data.mensaje);
+                     window.location.reload();
+                 } else {
+                     alert("Error: " + data.mensaje);
+                     ocultarLoader();
+                 }
+             } catch (error) {
+                 alert("Error de conexión al procesar el archivo masivo.");
+                 ocultarLoader();
+             } finally {
+                 input.value = "";
+             }
+         }
+        async function guardarEmpaque() {
+            if(!JS_PuedeEscribir) return alert("No tiene permisos para guardar.");
+
+            let seleccionados = [];
+            let nuevoSku = "";
+            let nuevaDesc = "";
+
+            if (modoAlta) {
+                nuevoSku = document.getElementById('inpNuevoSku').value.trim();
+                nuevaDesc = document.getElementById('inpNuevaDesc').value.trim();
+                if (nuevoSku === "") { alert("Capture el SKU."); return; }
+                seleccionados.push(nuevoSku);
+            } else {
+                seleccionados = tablaDt.$('.chk-fila:checked').map(function() { return this.value; }).get();
+                if (seleccionados.length === 0) { alert("Seleccione un registro o haga clic en Nuevo SKU."); return; }
+            }
+
+            const getNum = (id) => { const val = document.getElementById(id).value; return val === "" ? null : parseFloat(val); };
+
+            const payload = {
+                ModoAlta: modoAlta, NuevoSkuDesc: nuevaDesc, Skus: seleccionados,
+                EmpaqueInterno: document.getElementById('selEmpaqueInt').value,
+                PzaMin: getNum('inpPzMin'), PzaDef: getNum('inpPzDef'), PzaMax: getNum('inpPzMax'), PesoMin: getNum('inpPesoMin'), PesoMax: getNum('inpPesoMax'),
+                EmpaqueExterno: document.getElementById('selEmpaqueExt').value,
+                BolsaMin: getNum('inpBolsaMin'), BolsaDef: getNum('inpBolsaDef'), BolsaMax: getNum('inpBolsaMax'), PesoExtMin: getNum('inpPesoExtMin'), PesoExtMax: getNum('inpPesoExtMax')
+            };
+
+            mostrarLoader();
+            try {
+                const plantaActiva = document.getElementById('selPlanta').value;
+                const urlGuardar = '@Url.Action("GuardarConfiguracionEmpaque", "ProcesosCG")' + '?planta=' + plantaActiva;
+                const response = await fetch(urlGuardar, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const data = await response.json();
+                if (data.ok) { alert(data.mensaje); window.location.reload(); }
+                else { alert("Error: " + data.mensaje); ocultarLoader(); }
+            } catch (error) { alert("Error de conexion."); ocultarLoader(); }
+        }
+
+        // Eliminacion desde el panel derecho (masivo o individual)
+        async function eliminarPanelDerecho() {
+            if(!JS_PuedeEliminar) return alert("No tiene permisos para eliminar configuraciones.");
+            let seleccionados = tablaDt.$('.chk-fila:checked').map(function() { return this.value; }).get();
+            if (seleccionados.length === 0) { alert("Seleccione al menos un SKU para eliminar su configuración."); return; }
+
+            let empaqueIntId = document.getElementById('selEmpaqueInt').value;
+            let empaqueExtId = document.getElementById('selEmpaqueExt').value;
+
+            if(empaqueIntId === "" && empaqueExtId === "") {
+                alert("Seleccione el empaque (Bolsa o Caja) en los selectores derechos que desea desvincular de los SKUs seleccionados."); return;
+            }
+
+            if(!confirm(`¿Desea desvincular los empaques seleccionados de los ${seleccionados.length} SKUs marcados?`)) return;
+
+            mostrarLoader();
+            try {
+                const payload = { Skus: seleccionados, EmpaqueInterno: empaqueIntId, EmpaqueExterno: empaqueExtId };
+                const plantaActiva = document.getElementById('selPlanta').value;
+                const urlEliminar = '@Url.Action("EliminarConfiguracionEmpaque", "ProcesosCG")' + '?planta=' + plantaActiva;
+                const response = await fetch(urlEliminar, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const data = await response.json();
+                if (data.ok) { alert(data.mensaje); window.location.reload(); }
+                else { alert("Error: " + data.mensaje); ocultarLoader(); }
+            } catch (error) { alert("Error de conexion."); ocultarLoader(); }
+        }
+
+        // --- SISTEMA DE MODAL PARA ELIMINAR (Principal y Extras) ---
+        function abrirModalEliminar(sku, empInt, empExt, descInt, descExt) {
+            if(!JS_PuedeEliminar) return alert("No tiene permisos para eliminar configuraciones.");
+
+            if(!empInt && !empExt) {
+                alert("Este artículo no tiene empaques asignados para eliminar.");
+                return;
+            }
+
+            $('#lblEliminarSku').text(sku);
+            $('#hidEliminarSku').val(sku);
+            $('#hidEliminarBolsaId').val(empInt || "");
+            $('#hidEliminarCajaId').val(empExt || "");
+
+            if(empInt) {
+                $('#optEliminarBolsa').show();
+                $('#lblEliminarBolsaTxt').text(descInt || "Bolsa Asignada");
+                $('#chkEliminarBolsa').prop('checked', false);
+            } else {
+                $('#optEliminarBolsa').hide();
+                $('#chkEliminarBolsa').prop('checked', false);
+            }
+
+            if(empExt) {
+                $('#optEliminarCaja').show();
+                $('#lblEliminarCajaTxt').text(descExt || "Caja Asignada");
+                $('#chkEliminarCaja').prop('checked', false);
+            } else {
+                $('#optEliminarCaja').hide();
+                $('#chkEliminarCaja').prop('checked', false);
+            }
+
+            var miModal = new bootstrap.Modal(document.getElementById('modalEliminarEmpaque'));
+            miModal.show();
+        }
+
+        async function ejecutarEliminacionSeleccionada() {
+            const sku = $('#hidEliminarSku').val();
+            const borrarInt = $('#chkEliminarBolsa').is(':checked');
+            const borrarExt = $('#chkEliminarCaja').is(':checked');
+            const empInt = $('#hidEliminarBolsaId').val();
+            const empExt = $('#hidEliminarCajaId').val();
+
+            if(!borrarInt && !borrarExt) {
+                alert("Debe seleccionar al menos un empaque para eliminar.");
+                return;
+            }
+
+            mostrarLoader();
+            try {
+                const payload = {
+                    Skus: [sku],
+                    EmpaqueInterno: borrarInt ? empInt : "",
+                    EmpaqueExterno: borrarExt ? empExt : ""
+                };
+
+                const plantaActiva = document.getElementById('selPlanta').value;
+                const urlEliminar = '@Url.Action("EliminarConfiguracionEmpaque", "ProcesosCG")' + '?planta=' + plantaActiva;
+
+                const response = await fetch(urlEliminar, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                if (data.ok) {
+                    alert("Se ha actualizado la configuración.");
+                    window.location.reload();
+                } else {
+                    alert("Error: " + data.mensaje);
+                    ocultarLoader();
+                }
+            } catch (error) {
+                alert("Error de conexion.");
+                ocultarLoader();
+            }
+        }
+
+        function cambiarPlanta() {
+            mostrarLoader();
+            const planta = document.getElementById('selPlanta').value;
+            window.location.href = '@Url.Action("EmpaqueArticulos", "ProcesosCG")' + '?planta=' + planta;
+        }
+
+        // Sub-tabla y Botón +
+        $('#tablaArticulos tbody').on('click', '.btn-expandir', function () {
+            var tr = $(this).closest('tr');
+            var row = tablaDt.row(tr);
+
+            if (row.child.isShown()) {
+                row.child.hide();
+                $(this).text('+');
+            } else {
+                var extras = JSON.parse($(this).attr('data-extras'));
+
+                var subHtml = '<div style="padding: 10px; background: #fdf6f6; border-bottom: 2px solid #8b0000; display:flex; justify-content:center;">';
+                subHtml += '<table class="sub-tabla">';
+                subHtml += '<thead>';
+                subHtml += '<tr style="background: linear-gradient(180deg, #980000 0%, #7a0000 55%, #5c0000 100%);">';
+                subHtml += '<th colspan="6" style="border-right: 1px solid #d88989;">EMPAQUES ADICIONALES (BOLSA)</th>';
+                subHtml += '<th colspan="6" style="border-right: 1px solid #d88989;">EMPAQUES ADICIONALES (CAJA)</th>';
+
+                if(JS_PuedeEscribir || JS_PuedeEliminar) {
+                    subHtml += '<th rowspan="2" style="vertical-align: middle;">Acción</th>';
+                }
+
+                subHtml += '</tr>';
+                subHtml += '<tr style="background: linear-gradient(180deg, #7a0000 0%, #5c0000 55%, #3d0000 100%);">';
+                subHtml += '<th>Tipo Bolsa</th><th>Pz.Min</th><th>Pz.Def</th><th>Pz.Max</th><th>Kg.Min</th><th style="border-right: 1px solid #d88989;">Kg.Max</th>';
+                subHtml += '<th>Tipo Contenedor</th><th>Bs.Min</th><th>Bs.Def</th><th>Bs.Max</th><th>Kg.Min</th><th style="border-right: 1px solid #d88989;">Kg.Max</th>';
+                subHtml += '</tr>';
+                subHtml += '</thead>';
+
+                subHtml += '<tbody>';
+                extras.forEach(function(ext, index) {
+                    let bolsa = ext.EmpaqueIntDesc && ext.EmpaqueIntDesc !== '-' ? `<span class="badge-dark">${ext.EmpaqueIntDesc}</span>` : '-';
+                    let caja = ext.EmpaqueExtDesc && ext.EmpaqueExtDesc !== '-' ? `<span class="badge-dark">${ext.EmpaqueExtDesc}</span>` : '-';
+
+                    // Evitar problemas de comillas simples en el texto al pasar parametros
+                    let descIntSafe = ext.EmpaqueIntDesc && ext.EmpaqueIntDesc !== '-' ? ext.EmpaqueIntDesc.replace(/'/g, "\\'") : '';
+                    let descExtSafe = ext.EmpaqueExtDesc && ext.EmpaqueExtDesc !== '-' ? ext.EmpaqueExtDesc.replace(/'/g, "\\'") : '';
+
+                    subHtml += '<tr>';
+                    subHtml += `<td>${bolsa}</td><td>${ext.PzMin}</td><td>${ext.PzDef}</td><td>${ext.PzMax}</td><td>${parseFloat(ext.PesoMin).toFixed(2)}</td><td style="border-right: 1px solid #e0baba;">${parseFloat(ext.PesoMax).toFixed(2)}</td>`;
+                    subHtml += `<td style="background: #fcf4f4;">${caja}</td><td style="background: #fcf4f4;">${ext.BolsaMin}</td><td style="background: #fcf4f4;">${ext.BolsaDef}</td><td style="background: #fcf4f4;">${ext.BolsaMax}</td><td style="background: #fcf4f4;">${parseFloat(ext.PesoExtMin).toFixed(2)}</td><td style="background: #fcf4f4; border-right: 1px solid #e0baba;">${parseFloat(ext.PesoExtMax).toFixed(2)}</td>`;
+
+                    if(JS_PuedeEscribir || JS_PuedeEliminar) {
+                        let btnHtml = '';
+                        if(JS_PuedeEscribir) { btnHtml += `<button class="pm-btn pm-btn-secondary" style="height:20px; font-size:9px; padding:0 6px; margin-right:4px;" onclick="editarExtra('${ext.Sku}', ${index})">Editar</button>`; }
+                        if(JS_PuedeEliminar) { btnHtml += `<button class="pm-btn pm-btn-danger" style="height:20px; font-size:9px; padding:0 6px;" onclick="abrirModalEliminar('${ext.Sku}', '${ext.EmpaqueInt}', '${ext.EmpaqueExt}', '${descIntSafe}', '${descExtSafe}')">Eliminar</button>`; }
+                        subHtml += `<td style="background: #fcf4f4; white-space:nowrap;">${btnHtml}</td>`;
+                    }
+                    subHtml += '</tr>';
+                });
+
+                subHtml += '</tbody></table></div>';
+                row.child(subHtml).show();
+                $(this).text('-');
+            }
+        });
+
+        function editarExtra(sku, index) {
+            if(!JS_PuedeEscribir) return alert("No tiene permisos para editar.");
+            seleccionarFilaRapida(sku);
+
+            var trPrincipal = $('#chk_' + sku).closest('tr');
+            var btnExpandir = trPrincipal.find('.btn-expandir');
+            var extras = JSON.parse(btnExpandir.attr('data-extras'));
+            var ext = extras[index];
+
+            $('#selEmpaqueInt').val(ext.EmpaqueInt || "").trigger('change');
+            $('#inpPzMin').val(ext.PzMin); $('#inpPzDef').val(ext.PzDef); $('#inpPzMax').val(ext.PzMax); $('#inpPesoMin').val(ext.PesoMin); $('#inpPesoMax').val(ext.PesoMax);
+            $('#selEmpaqueExt').val(ext.EmpaqueExt || "").trigger('change');
+            $('#inpBolsaMin').val(ext.BolsaMin); $('#inpBolsaDef').val(ext.BolsaDef); $('#inpBolsaMax').val(ext.BolsaMax); $('#inpPesoExtMin').val(ext.PesoExtMin); $('#inpPesoExtMax').val(ext.PesoExtMax);
+
+            $('#titulo-editor').text("Edición de Empaque Adicional");
+        }
+                // Funcion unificada para historial general e individual
+        function verHistorial(sku = null) {
+            mostrarLoader();
+            const planta = document.getElementById('selPlanta').value;
+
+            // Construir URL con o sin parametro de SKU
+            let urlPeticion = '@Url.Action("ObtenerHistorialEmpaque", "ProcesosCG")' + '?planta=' + planta;
+            if (sku) {
+                urlPeticion += '&sku=' + encodeURIComponent(sku);
+                $('.modal-title', '#modalHistorialEmpaque').text('Historial Individual - SKU: ' + sku);
+            } else {
+                $('.modal-title', '#modalHistorialEmpaque').text('Historial General de Movimientos');
+            }
+
+            fetch(urlPeticion)
+                .then(r => r.json())
+                .then(result => {
+                    const tbody = document.getElementById('tbodyHistorial');
+                    tbody.innerHTML = '';
+                    document.getElementById('sinHistorial').style.display = 'none';
+
+                    if (!result.ok || !result.data || result.data.length === 0) {
+                        document.getElementById('sinHistorial').style.display = 'block';
+                    } else {
+                        result.data.forEach(log => {
+                            const fecha = new Date(log.fechaHora).toLocaleString('es-MX');
+                            const badges = { 'INSERT': 'success', 'UPDATE': 'primary', 'DELETE': 'danger' };
+                            const badgeColor = badges[log.operacion] || 'secondary';
+                            const detalle = log.valoresNuevos || '-';
+                            const tr = document.createElement('tr');
+                            tr.innerHTML = `
+                                <td style="padding: 6px; white-space: nowrap;">${fecha}</td>
+                                <td style="padding: 6px; font-weight: bold;">${log.sku || '-'}</td>
+                                <td style="padding: 6px;"><span class="badge bg-${badgeColor}">${log.operacion}</span></td>
+                                <td style="padding: 6px;">${log.nombreEmpaque || '-'}</td>
+                                <td style="padding: 6px; font-size: 10px;">${detalle}</td>
+                                <td style="padding: 6px;">${log.usuario || '-'}</td>
+                            `;
+                            tbody.appendChild(tr);
+                        });
+                    }
+
+                    var miModal = new bootstrap.Modal(document.getElementById('modalHistorialEmpaque'));
+                    miModal.show();
+                    ocultarLoader();
+                })
+                .catch(() => {
+                    alert('Error al cargar historial.');
+                    ocultarLoader();
+                });
+        }
+
+    </script>
+}

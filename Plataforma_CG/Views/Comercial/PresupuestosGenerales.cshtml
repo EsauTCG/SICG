@@ -1,0 +1,4343 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Presupuesto (CEDIS / Vendedor / Cliente)";
+}
+
+<style>
+    :root {
+        --brand: linear-gradient(90deg,#8B0000 0%,#5a0000 50%,#1a0000 100%);
+        --bg: linear-gradient(135deg,#eef2f6 0%,#e9edf2 50%,#d7dde3 100%);
+        --panel: #fff;
+        --bar: #e6e9ef;
+        --bar-2: #dde2ea;
+        --line: #d8dce3;
+        --text: #20262e;
+        --muted: #636d7b;
+        --accent: #2d6cdf;
+        --radius: 8px;
+        --shadow: 0 1px 0 rgba(0,0,0,.04),0 12px 24px rgba(0,0,0,.06);
+        --shadow-sm: 0 6px 16px rgba(0,0,0,.05);
+        --focus: 0 0 0 .2rem rgba(45,108,223,.25);
+        --font: system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans","Apple Color Emoji","Segoe UI Emoji";
+    }
+
+    body {
+        background: var(--bg) !important;
+        font-family: var(--font);
+        color: var(--text);
+    }
+
+    .shell {
+        width: 96%;
+        max-width: 1800px;
+        margin: 1.25rem auto;
+        background: #fff;
+        border-radius: var(--radius);
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+    }
+
+    .module-titlebar {
+        background: var(--brand); /* ✅ tu gradiente rojo */
+        border-bottom: 1px solid rgba(255,255,255,.18);
+        color: #fff;
+        padding: 1rem 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+
+    }
+
+    .module-title {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        margin: 0;
+        font-weight: 700;
+    }
+
+    .module-subtitle {
+        margin: 0;
+        color: var(--muted);
+        font-size: .9rem;
+    }
+
+    .toolbar {
+        background: var(--bar);
+        border-bottom: 1px solid var(--bar-2);
+        padding: .4rem .6rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: .4rem;
+    }
+
+    .tbtn {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        height: 34px;
+        padding: 0 .6rem;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #fff;
+        color: #1e2a35;
+        font-size: .9rem;
+        transition: .15s;
+    }
+
+        .tbtn:hover {
+            background: #f8fafc;
+            border-color: #cfd6e2;
+        }
+
+        .tbtn.primary {
+            background: var(--brand);
+            color: #fff;
+            border-color: transparent;
+        }
+
+            .tbtn.primary:hover {
+                filter: brightness(1.05);
+            }
+
+    .panel {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .panel-head {
+        background: linear-gradient(#f6f8fb,#eef2f7);
+        border-bottom: 1px solid var(--line);
+        padding: .6rem .8rem;
+        font-weight: 600;
+        color: #2b3642; /* ✅ typo corregido */
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+    }
+
+    .panel-body {
+        padding: .9rem;
+    }
+
+    .form-control, .form-select {
+        border-radius: 6px;
+        border-color: #cfd6e2;
+        font-size: .95rem;
+    }
+
+        .form-control:focus, .form-select:focus {
+            box-shadow: var(--focus);
+            border-color: var(--accent);
+            outline: none;
+        }
+
+    .table-sm > :not(caption) > * > * {
+        padding: .5rem .6rem;
+    }
+
+    .table-hover tbody tr:hover {
+        background: #f9fbff;
+    }
+
+    .text-end {
+        text-align: right;
+    }
+
+    .totales-sap {
+        background: #f6f8fb;
+        border-top: 1px solid var(--line);
+        padding: .5rem .75rem;
+    }
+
+    #loadingSpinnerCedis {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        backdrop-filter: blur(1.5px);
+        background: rgba(255,255,255,.72);
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+    }
+
+    .table-responsive > .table {
+        min-width: 1200px;
+    }
+
+    .table-responsive-sticky {
+        max-height: 65vh;
+        overflow: auto;
+        position: relative;
+        border-radius: 8px;
+        border: 1px solid #eee;
+    }
+
+        .table-responsive-sticky thead th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: #f3f6fb; /* o tu var(--brand-soft) */
+            border-bottom: 1px solid var(--line);
+            box-shadow: 0 2px 0 rgba(0,0,0,.08);
+        }
+
+    /* ✅ contenedor scrolleable: aquí debe vivir el scroll */
+    .table-wrapper {
+        max-height: 65vh;
+        overflow: auto;
+        position: relative;
+    }
+
+    .nav-tabs {
+        border-bottom: 1px solid var(--bar-2);
+        background: #fff;
+        padding: 0 1rem;
+    }
+
+        .nav-tabs .nav-link {
+            border: none !important;
+            border-bottom: 3px solid transparent !important;
+            color: #334155;
+            font-weight: 600;
+            padding: .75rem 1rem;
+            border-radius: 0 !important;
+        }
+
+            .nav-tabs .nav-link.active {
+                color: #8B0000;
+                border-bottom-color: #8B0000 !important;
+                background: #fff !important;
+            }
+
+    @@media (max-width:1400px) {
+        .shell {
+            width: 98%;
+            max-width: 1600px;
+        }
+
+        .table-responsive > .table {
+            min-width: 1100px;
+        }
+    }
+
+    /* =========================================================
+         ✅ STICKY HEADER (NO TRANSPARENTE)
+    ========================================================= */
+    .table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 10; /* arriba de filas */
+        background: #f3f6fb !important; /* tu tono azulito */
+        background-clip: padding-box;
+        border-bottom: 1px solid var(--line);
+        color: #2b3642;
+        font-weight: 700;
+        box-shadow: 0 2px 0 rgba(0,0,0,.08);
+        backdrop-filter: none !important;
+    }
+
+    /* Si quieres asegurar que todo el thead tenga fondo sólido */
+    .table thead {
+        position: sticky;
+        top: 0;
+        z-index: 9;
+        background: #f3f6fb !important;
+    }
+
+    /* Sticky columnas (si usas) */
+    .table .sticky-col {
+        position: sticky;
+        left: 0;
+        z-index: 11; /* encima del header si se cruzan */
+        background: #fff !important;
+    }
+
+    /* ===========================
+       ✅ Switch Modo Presupuesto
+    =========================== */
+    .modo-pill {
+        display: flex;
+        flex-direction: column;
+        gap: .35rem;
+        padding: .45rem .6rem;
+        border-radius: 10px;
+        background: rgba(255,255,255,.14);
+        border: 1px solid rgba(255,255,255,.22);
+        backdrop-filter: blur(2px);
+        box-shadow: 0 6px 14px rgba(0,0,0,.10);
+    }
+
+    .modo-title {
+        font-size: .78rem;
+        font-weight: 700;
+        line-height: 1;
+        color: #fff;
+        letter-spacing: .2px;
+    }
+
+    #modoPresupuestoBox .btn {
+        border-color: rgba(255,255,255,.25) !important;
+    }
+
+        #modoPresupuestoBox .btn.active {
+            background: #fff !important;
+            color: #111 !important;
+            font-weight: 700;
+        }
+
+        /* VISTA ROSITA / GRIS */
+html,
+body {
+    background: #e9edf2 !important;
+    overflow-x: hidden !important;
+}
+
+body,
+main,
+.main,
+.body-content,
+.container,
+.container-fluid {
+    background: #e9edf2 !important;
+}
+
+.shell {
+    width: min(100%, calc(100vw - 48px)) !important;
+    max-width: 1900px !important;
+    margin: 8px auto !important;
+    background: #f8eeee !important;
+    border: 1px solid #7e4a4a !important;
+    border-radius: 0 !important;
+    box-shadow: 0 8px 18px rgba(70,12,12,.14) !important;
+}
+
+.module-titlebar,
+.modal-header {
+    background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+    color: #fff !important;
+    border-bottom: 1px solid #5c0000 !important;
+}
+
+.content,
+.tab-content {
+    background: #f0dede !important;
+}
+
+.toolbar,
+.nav-tabs,
+.panel-head,
+.totales-sap {
+    background: #f1dede !important;
+    border-color: #c79d9d !important;
+}
+
+.panel,
+.modal-content {
+    background: #fffafa !important;
+    border: 1px solid #c79d9d !important;
+    border-radius: 0 !important;
+}
+
+.panel-body,
+.modal-body {
+    background: #fffafa !important;
+}
+
+.form-control,
+.form-select,
+.input-group-text {
+    background: #fffafa !important;
+    border: 1px solid #b48787 !important;
+    color: #421414 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: #8b0000 !important;
+    box-shadow: 0 0 0 .15rem rgba(139,0,0,.12) !important;
+}
+
+.tbtn,
+.btn-outline-secondary {
+    background: linear-gradient(#fffefe,#ecd7d7) !important;
+    border: 1px solid #b48787 !important;
+    color: #4a1111 !important;
+    border-radius: 0 !important;
+    font-weight: 700 !important;
+}
+
+.tbtn.primary,
+.btn-danger {
+    background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+    border: 1px solid #7a2d2d !important;
+    color: #fff !important;
+}
+
+.nav-tabs .nav-link {
+    background: linear-gradient(#fffefe,#ecd7d7) !important;
+    border: 1px solid #caa0a0 !important;
+    color: #5c1a1a !important;
+    border-radius: 0 !important;
+    margin-right: 4px !important;
+}
+
+.nav-tabs .nav-link.active {
+    background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+    color: #fff !important;
+    border-color: #7a2d2d !important;
+}
+
+.table-responsive-sticky,
+.table-wrapper {
+    background: #fffafa !important;
+    border: 1px solid #d9b8b8 !important;
+}
+
+.table {
+    background: #fffafa !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+}
+
+.table thead,
+.table thead th {
+    background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+    color: #fff !important;
+    border-right: 1px solid #8e3b3b !important;
+    border-bottom: 1px solid #5c0000 !important;
+}
+
+.table tbody td {
+    background: #fffafa !important;
+    border-right: 1px solid #d8bcbc !important;
+    border-bottom: 1px solid #d8bcbc !important;
+    color: #401515 !important;
+}
+
+.table tbody tr:nth-of-type(even) > * {
+    background: #f9eded !important;
+}
+
+.table-hover tbody tr:hover > * {
+    background: #f4dddd !important;
+}
+
+
+@@media (max-width: 768px) {
+    .shell {
+        width: 100% !important;
+        margin: 0 !important;
+        border-left: none !important;
+        border-right: none !important;
+    }
+
+    .module-titlebar {
+        display: block !important;
+        padding: 10px !important;
+    }
+
+    .module-titlebar > div:last-child {
+        margin-top: 8px;
+        flex-wrap: wrap !important;
+    }
+
+    .toolbar {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 6px !important;
+    }
+
+    .tbtn,
+    .btn,
+    .form-control,
+    .form-select {
+        width: 100% !important;
+        font-size: 12px !important;
+    }
+
+    .nav-tabs {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+    }
+
+    .nav-tabs .nav-link {
+        min-width: max-content !important;
+        font-size: 11px !important;
+        padding: 7px 10px !important;
+    }
+
+    .table-responsive-sticky,
+    .table-wrapper {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        max-height: 65vh !important;
+    }
+
+    .table {
+        min-width: 900px !important;
+        font-size: 10px !important;
+    }
+
+    .table th,
+    .table td {
+        font-size: 10px !important;
+        padding: 4px 3px !important;
+    }
+}
+
+
+
+/* Que el contenido no empuje hacia la derecha */
+.tab-content {
+    padding: 8px !important;
+}
+
+#pane-cedis .row,
+#pane-ven .row,
+#pane-cli .row {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
+/* Reducir panel izquierdo de filtros */
+@@media (min-width: 992px) {
+    #pane-cedis .col-xl-3,
+    #pane-ven .col-xl-3 {
+        width: 240px !important;
+        flex: 0 0 240px !important;
+    }
+
+    #pane-cedis .col-xl-9,
+    #pane-ven .col-xl-9 {
+        width: calc(100% - 240px) !important;
+        flex: 0 0 calc(100% - 240px) !important;
+    }
+}
+
+/* Tabla con scroll interno */
+.table-responsive-sticky,
+.table-wrapper {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+}
+
+/* Responsive */
+@@media (max-width: 768px) {
+    .shell {
+        width: 100% !important;
+        margin: 0 !important;
+    }
+
+    #pane-cedis .col-xl-3,
+    #pane-cedis .col-xl-9,
+    #pane-ven .col-xl-3,
+    #pane-ven .col-xl-9 {
+        width: 100% !important;
+        flex: 0 0 100% !important;
+    }
+}
+
+/* CENTRAR Y EVITAR QUE SE VAYA A LA DERECHA */
+.shell {
+    width: 96% !important;
+    max-width: 1500px !important;
+    margin: 8px auto !important;
+}
+
+.container-fluid {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+/* Quitar regla que lo expande demasiado */
+@@media (min-width: 1400px) {
+    .shell {
+        width: 96% !important;
+        max-width: 1500px !important;
+    }
+}
+
+/* La tabla debe hacer scroll adentro, no empujar pantalla */
+.table-responsive-sticky,
+.table-wrapper {
+    overflow-x: auto !important;
+    max-width: 100% !important;
+}
+
+.table-responsive-sticky .table,
+.table-wrapper .table,
+#tablaCedis,
+#tablaVendedor,
+#tablaCliente {
+    min-width: 1200px !important;
+}
+
+/* RESPONSIVO REAL - PRESUPUESTOS */
+html,
+body {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+}
+
+.container-fluid {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+}
+
+.shell {
+    width: 100% !important;
+    max-width: 1800px !important;
+    margin: 8px auto !important;
+}
+
+/* Pantallas grandes */
+@@media (min-width: 1600px) {
+    .container-fluid {
+        padding-left: 32px !important;
+        padding-right: 32px !important;
+    }
+
+    .shell {
+        max-width: 1850px !important;
+    }
+}
+
+/* Laptop / monitor normal */
+@@media (max-width: 1400px) {
+    .shell {
+        max-width: 100% !important;
+    }
+
+    .container-fluid {
+        padding-left: 8px !important;
+        padding-right: 8px !important;
+    }
+}
+
+/* Que Bootstrap no empuje columnas */
+#pane-cedis .row,
+#pane-ven .row,
+#pane-cli .row {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
+/* Filtros más compactos en escritorio */
+@@media (min-width: 992px) {
+    #pane-cedis .col-xl-3,
+    #pane-ven .col-xl-3 {
+        flex: 0 0 250px !important;
+        width: 250px !important;
+        max-width: 250px !important;
+    }
+
+    #pane-cedis .col-xl-9,
+    #pane-ven .col-xl-9 {
+        flex: 1 1 auto !important;
+        width: calc(100% - 250px) !important;
+        max-width: calc(100% - 250px) !important;
+    }
+}
+
+/* La tabla NO debe agrandar la pantalla */
+.table-responsive-sticky,
+.table-wrapper {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+}
+
+/* La tabla conserva columnas y hace scroll dentro */
+#tablaCedis,
+#tablaVendedor,
+#tablaCliente {
+    width: max-content !important;
+    min-width: 1150px !important;
+}
+
+/* Móvil */
+@@media (max-width: 768px) {
+    .container-fluid {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+
+    .shell {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        border-left: none !important;
+        border-right: none !important;
+    }
+
+    .module-titlebar {
+        display: block !important;
+        padding: 10px !important;
+    }
+
+    .module-titlebar > div:last-child {
+        margin-top: 8px !important;
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 6px !important;
+    }
+
+    .modo-pill,
+    .module-titlebar .tbtn {
+        width: 100% !important;
+    }
+
+    .toolbar {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 6px !important;
+    }
+
+    .toolbar .ms-auto {
+        display: none !important;
+    }
+
+    .tbtn,
+    .btn,
+    .form-control,
+    .form-select {
+        width: 100% !important;
+        font-size: 12px !important;
+    }
+
+    .tab-content {
+        padding: 6px !important;
+    }
+
+    #pane-cedis .col-xl-3,
+    #pane-cedis .col-xl-9,
+    #pane-ven .col-xl-3,
+    #pane-ven .col-xl-9,
+    #pane-cli .col-xl-4,
+    #pane-cli .col-xl-8 {
+        width: 100% !important;
+        max-width: 100% !important;
+        flex: 0 0 100% !important;
+    }
+
+    .table-responsive-sticky,
+    .table-wrapper {
+        max-height: 65vh !important;
+    }
+
+    #tablaCedis,
+    #tablaVendedor,
+    #tablaCliente {
+        min-width: 1050px !important;
+        font-size: 10px !important;
+    }
+
+    .table th,
+    .table td {
+        font-size: 10px !important;
+        padding: 4px 3px !important;
+    }
+
+    .totales-sap {
+        display: block !important;
+        font-size: 11px !important;
+    }
+}
+
+    /* =========================
+       🔽 REDUCCIÓN GLOBAL DE TEXTO
+    ========================= */
+    body {
+        font-size: 13px !important;
+    }
+
+    /* Títulos */
+    .module-title {
+        font-size: 15px !important;
+    }
+
+    .module-subtitle {
+        font-size: 11px !important;
+    }
+
+    /* Toolbar */
+    .tbtn {
+        font-size: 12px !important;
+        height: 30px !important;
+        padding: 0 .5rem !important;
+    }
+
+    /* Tabs */
+    .nav-tabs .nav-link {
+        font-size: 12px !important;
+        padding: .55rem .8rem !important;
+    }
+
+    /* Panel headers */
+    .panel-head {
+        font-size: 12.5px !important;
+        padding: .5rem .7rem !important;
+    }
+
+    /* Formularios */
+    .form-control,
+    .form-select {
+        font-size: 12px !important;
+        padding: .35rem .45rem !important;
+    }
+
+    /* =========================
+       📊 TABLAS (CLAVE)
+    ========================= */
+    .table {
+        font-size: 11.5px !important;
+    }
+
+        .table th {
+            font-size: 11.5px !important;
+            padding: .35rem .4rem !important;
+        }
+
+        .table td {
+            font-size: 11.5px !important;
+            padding: .30rem .4rem !important;
+        }
+
+    /* Totales */
+    .totales-sap {
+        font-size: 12px !important;
+    }
+
+    /* Botones pequeños dentro de tabla */
+    .table .btn {
+        font-size: 11px !important;
+        padding: 2px 6px !important;
+    }
+
+
+/* ============================================================
+   UX EJECUTIVO - PRESUPUESTOS CEDIS / VENDEDOR / CLIENTE
+   IMPORTANTE:
+   - No cambia endpoints.
+   - No cambia funciones JS.
+   - No cambia IDs.
+   - No cambia nombres de inputs ni formularios.
+   Solo mejora lectura, jerarquía visual y operación.
+============================================================ */
+
+:root {
+    --pp-bg: #f3f4f6;
+    --pp-surface: #ffffff;
+    --pp-surface-soft: #f9fafb;
+    --pp-ink: #111827;
+    --pp-muted: #6b7280;
+    --pp-border: #e5e7eb;
+    --pp-brand: #8B0000;
+    --pp-brand-dark: #450a0a;
+    --pp-brand-mid: #7f1d1d;
+    --pp-brand-soft: #fff1f2;
+    --pp-blue-soft: #eff6ff;
+    --pp-blue-border: #bfdbfe;
+    --pp-blue-ink: #1e3a8a;
+    --pp-warn-soft: #fffbeb;
+    --pp-warn-border: #fde68a;
+    --pp-warn-ink: #92400e;
+    --pp-ok-soft: #ecfdf5;
+    --pp-ok-border: #bbf7d0;
+    --pp-ok-ink: #166534;
+    --pp-radius-lg: 18px;
+    --pp-radius-md: 14px;
+    --pp-radius-sm: 10px;
+    --pp-shadow: 0 18px 44px rgba(17, 24, 39, .10);
+    --pp-shadow-sm: 0 10px 24px rgba(17, 24, 39, .08);
+}
+
+html,
+body,
+main,
+.main,
+.body-content,
+.container,
+.container-fluid {
+    background: var(--pp-bg) !important;
+    color: var(--pp-ink) !important;
+}
+
+body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif !important;
+}
+
+.container-fluid {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+}
+
+.shell {
+    width: 100% !important;
+    max-width: 1850px !important;
+    margin: 10px auto 18px !important;
+    border: 0 !important;
+    border-radius: var(--pp-radius-lg) !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+}
+
+.module-titlebar {
+    position: relative;
+    overflow: hidden;
+    border: 0 !important;
+    border-radius: var(--pp-radius-lg) var(--pp-radius-lg) 0 0 !important;
+    padding: 20px 22px !important;
+    background:
+        radial-gradient(circle at top right, rgba(255,255,255,.22), transparent 30%),
+        linear-gradient(135deg, #991b1b 0%, #7f1d1d 46%, #450a0a 100%) !important;
+    box-shadow: var(--pp-shadow) !important;
+}
+
+.module-titlebar::before {
+    content: "Control comercial";
+    position: absolute;
+    left: 22px;
+    top: 10px;
+    color: #fecaca;
+    font-size: 11px;
+    font-weight: 950;
+    text-transform: uppercase;
+    letter-spacing: .14em;
+}
+
+.module-titlebar > div:first-child {
+    margin-top: 16px;
+}
+
+.module-title {
+    color: #ffffff !important;
+    font-size: clamp(1.35rem, 1.1vw + 1rem, 2rem) !important;
+    line-height: 1.05 !important;
+    font-weight: 950 !important;
+    gap: 10px !important;
+}
+
+.module-title i {
+    width: 42px;
+    height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,.14);
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: 999px;
+}
+
+.module-subtitle {
+    color: rgba(255,255,255,.84) !important;
+    font-size: 13px !important;
+    margin-top: 6px !important;
+}
+
+.module-titlebar .d-flex.align-items-center {
+    gap: 10px !important;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.modo-pill {
+    border-radius: var(--pp-radius-md) !important;
+    background: rgba(255,255,255,.14) !important;
+    border: 1px solid rgba(255,255,255,.24) !important;
+    box-shadow: none !important;
+    padding: 10px !important;
+}
+
+.modo-title {
+    color: #ffffff !important;
+    font-size: 11px !important;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin-bottom: 6px;
+}
+
+#modoPresupuestoBox .btn {
+    border-radius: 999px !important;
+    min-height: 34px;
+    font-weight: 900 !important;
+}
+
+#modoPresupuestoBox .btn.active {
+    background: #ffffff !important;
+    color: var(--pp-brand) !important;
+}
+
+.module-titlebar .tbtn {
+    min-height: 40px !important;
+    border-radius: 999px !important;
+    padding: 0 15px !important;
+    background: rgba(255,255,255,.12) !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255,255,255,.28) !important;
+    box-shadow: none !important;
+}
+
+.module-titlebar .tbtn:hover {
+    background: rgba(255,255,255,.20) !important;
+    color: #ffffff !important;
+}
+
+.pp-workflow {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    background: #ffffff;
+    border: 1px solid var(--pp-border);
+    border-top: 0;
+    padding: 12px;
+    box-shadow: var(--pp-shadow-sm);
+}
+
+.pp-step-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    background: var(--pp-surface-soft);
+    border: 1px solid var(--pp-border);
+    border-radius: var(--pp-radius-md);
+    padding: 12px;
+}
+
+.pp-step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    background: var(--pp-brand);
+    color: #ffffff;
+    font-weight: 950;
+}
+
+.pp-step-title {
+    display: block;
+    color: var(--pp-ink);
+    font-size: 13px;
+    font-weight: 950;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pp-step-help {
+    display: block;
+    color: var(--pp-muted);
+    font-size: 11px;
+    line-height: 1.15;
+}
+
+.content,
+.tab-content {
+    background: #ffffff !important;
+}
+
+.content {
+    border: 1px solid var(--pp-border);
+    border-top: 0;
+    border-radius: 0 0 var(--pp-radius-lg) var(--pp-radius-lg);
+    box-shadow: var(--pp-shadow);
+    overflow: hidden;
+}
+
+.content > .p-3:first-child {
+    background: #ffffff !important;
+    padding: 12px 16px !important;
+    border-bottom: 1px solid var(--pp-border);
+}
+
+#alertsZone .alert {
+    margin-bottom: 0 !important;
+    border-radius: var(--pp-radius-md) !important;
+}
+
+.nav-tabs {
+    display: flex;
+    gap: 8px;
+    border: 0 !important;
+    background: #ffffff !important;
+    padding: 12px 16px 0 !important;
+    overflow-x: auto;
+}
+
+.nav-tabs .nav-link {
+    min-height: 42px;
+    border: 1px solid var(--pp-border) !important;
+    border-radius: 999px !important;
+    background: var(--pp-surface-soft) !important;
+    color: #374151 !important;
+    font-weight: 950 !important;
+    padding: 0 16px !important;
+    white-space: nowrap;
+}
+
+.nav-tabs .nav-link.active {
+    background: linear-gradient(180deg, #b30000 0%, #8b0000 58%, #6e0000 100%) !important;
+    color: #ffffff !important;
+    border-color: #7f1d1d !important;
+    box-shadow: 0 10px 20px rgba(139,0,0,.16);
+}
+
+.tab-content {
+    padding: 16px !important;
+}
+
+.toolbar {
+    background: var(--pp-surface-soft) !important;
+    border: 1px solid var(--pp-border) !important;
+    border-radius: var(--pp-radius-md) !important;
+    padding: 10px !important;
+    gap: 8px !important;
+}
+
+.tbtn,
+.btn-outline-secondary {
+    min-height: 38px !important;
+    border-radius: 999px !important;
+    border: 1px solid #d1d5db !important;
+    background: #ffffff !important;
+    color: #374151 !important;
+    font-weight: 950 !important;
+    font-size: 12px !important;
+    padding: 0 14px !important;
+    box-shadow: none !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+}
+
+.tbtn:hover,
+.btn-outline-secondary:hover {
+    background: #f9fafb !important;
+    color: #111827 !important;
+}
+
+.tbtn.primary,
+.btn-danger {
+    background: linear-gradient(180deg, #b30000 0%, #8b0000 58%, #6e0000 100%) !important;
+    border-color: #7f1d1d !important;
+    color: #ffffff !important;
+}
+
+.tbtn.primary:hover,
+.btn-danger:hover {
+    filter: brightness(1.06);
+    color: #ffffff !important;
+}
+
+.panel {
+    border: 1px solid var(--pp-border) !important;
+    border-radius: var(--pp-radius-lg) !important;
+    background: var(--pp-surface) !important;
+    box-shadow: var(--pp-shadow-sm) !important;
+    overflow: hidden;
+}
+
+.panel-head {
+    min-height: 54px;
+    background: #ffffff !important;
+    color: var(--pp-ink) !important;
+    border-bottom: 1px solid var(--pp-border) !important;
+    padding: 14px 16px !important;
+    font-size: 14px !important;
+    font-weight: 950 !important;
+}
+
+.panel-head i {
+    color: var(--pp-brand) !important;
+}
+
+.panel-body {
+    background: #ffffff !important;
+    padding: 16px !important;
+}
+
+.form-label,
+.sap-field label {
+    color: #374151 !important;
+    font-size: 11px !important;
+    font-weight: 950 !important;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.form-control,
+.form-select,
+.input-group-text {
+    min-height: 38px !important;
+    height: auto !important;
+    border-radius: var(--pp-radius-sm) !important;
+    border: 1px solid #d1d5db !important;
+    background: #ffffff !important;
+    color: var(--pp-ink) !important;
+    font-size: 13px !important;
+    padding: 7px 10px !important;
+    box-shadow: none !important;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--pp-brand) !important;
+    box-shadow: 0 0 0 .2rem rgba(139,0,0,.12) !important;
+}
+
+.form-text {
+    color: var(--pp-muted) !important;
+    font-size: 12px !important;
+}
+
+hr {
+    border-color: var(--pp-border) !important;
+    opacity: 1 !important;
+}
+
+.alert-light,
+.alert {
+    border-radius: var(--pp-radius-md) !important;
+}
+
+.table-responsive-sticky,
+.table-wrapper {
+    width: 100% !important;
+    max-width: 100% !important;
+    background: #ffffff !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    overflow: auto !important;
+    max-height: 65vh !important;
+}
+
+.table {
+    background: #ffffff !important;
+    color: var(--pp-ink) !important;
+    font-size: 12px !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+}
+
+#tablaCedis,
+#tablaVendedor,
+#tablaCliente {
+    width: max-content !important;
+    min-width: 1150px !important;
+}
+
+.table thead,
+.table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: #7f1d1d !important;
+    color: #ffffff !important;
+    border-color: #7f1d1d !important;
+    padding: 10px 8px !important;
+    font-size: 11px !important;
+    font-weight: 950 !important;
+    text-transform: uppercase;
+    letter-spacing: .035em;
+}
+
+.table tbody td {
+    background: #ffffff !important;
+    border-color: var(--pp-border) !important;
+    color: #1f2937 !important;
+    padding: 8px !important;
+    vertical-align: middle !important;
+}
+
+.table tbody tr:nth-of-type(even) > * {
+    background: #fafafa !important;
+}
+
+.table-hover tbody tr:hover > * {
+    background: #fff7ed !important;
+}
+
+.table input.form-control,
+.table .form-control-sm {
+    min-height: 34px !important;
+    font-weight: 800;
+}
+
+.table .btn {
+    border-radius: 999px !important;
+    min-height: 32px !important;
+    font-weight: 900 !important;
+}
+
+.totales-sap {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 18px !important;
+    background: var(--pp-surface-soft) !important;
+    border-top: 1px solid var(--pp-border) !important;
+    color: var(--pp-ink) !important;
+    padding: 12px 14px !important;
+    font-size: 13px !important;
+}
+
+.totales-sap span {
+    color: var(--pp-brand);
+    font-weight: 950;
+}
+
+#cliListaClientes {
+    background: #ffffff !important;
+}
+
+#pane-cli .border.rounded-3 {
+    border-color: var(--pp-border) !important;
+    border-radius: var(--pp-radius-md) !important;
+    background: #ffffff !important;
+}
+
+#loadingSpinnerCedis {
+    background: rgba(255,255,255,.72) !important;
+    backdrop-filter: blur(2px);
+}
+
+/* Modales */
+.modal-content {
+    border: 0 !important;
+    border-radius: var(--pp-radius-lg) !important;
+    box-shadow: 0 24px 70px rgba(17,24,39,.24) !important;
+    overflow: hidden;
+}
+
+.modal-header {
+    background:
+        radial-gradient(circle at top right, rgba(255,255,255,.18), transparent 30%),
+        linear-gradient(135deg, #991b1b 0%, #7f1d1d 48%, #450a0a 100%) !important;
+    border: 0 !important;
+    padding: 16px 18px !important;
+}
+
+.modal-title {
+    color: #ffffff !important;
+    font-size: 15px !important;
+    font-weight: 950 !important;
+}
+
+.modal-body {
+    background: #ffffff !important;
+    color: var(--pp-ink) !important;
+}
+
+.modal-footer {
+    background: #f9fafb !important;
+    border-top: 1px solid var(--pp-border) !important;
+}
+
+/* Dark mode */
+body[data-theme="dark"],
+body[data-theme="dark"] html,
+body[data-theme="dark"] main,
+body[data-theme="dark"] .main,
+body[data-theme="dark"] .body-content,
+body[data-theme="dark"] .container,
+body[data-theme="dark"] .container-fluid {
+    background: #0f172a !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .content,
+body[data-theme="dark"] .tab-content,
+body[data-theme="dark"] .panel,
+body[data-theme="dark"] .panel-body,
+body[data-theme="dark"] .content > .p-3:first-child,
+body[data-theme="dark"] .pp-workflow,
+body[data-theme="dark"] .modal-body {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,.12) !important;
+}
+
+body[data-theme="dark"] .pp-step-card,
+body[data-theme="dark"] .toolbar,
+body[data-theme="dark"] .nav-tabs .nav-link,
+body[data-theme="dark"] .totales-sap,
+body[data-theme="dark"] .modal-footer,
+body[data-theme="dark"] #pane-cli .border.rounded-3 {
+    background: #172033 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,.12) !important;
+}
+
+body[data-theme="dark"] .pp-step-title,
+body[data-theme="dark"] .panel-head,
+body[data-theme="dark"] .form-label {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .pp-step-help,
+body[data-theme="dark"] .form-text,
+body[data-theme="dark"] .text-muted {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .panel-head {
+    background: #111827 !important;
+    border-color: rgba(255,255,255,.12) !important;
+}
+
+body[data-theme="dark"] .form-control,
+body[data-theme="dark"] .form-select,
+body[data-theme="dark"] .input-group-text {
+    background: #0b1220 !important;
+    color: #f9fafb !important;
+    border-color: rgba(203,213,225,.28) !important;
+}
+
+body[data-theme="dark"] .table-responsive-sticky,
+body[data-theme="dark"] .table-wrapper,
+body[data-theme="dark"] .table,
+body[data-theme="dark"] .table tbody td {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,.12) !important;
+}
+
+body[data-theme="dark"] .table tbody tr:nth-of-type(even) > * {
+    background: #172033 !important;
+}
+
+body[data-theme="dark"] .table-hover tbody tr:hover > * {
+    background: rgba(248,113,113,.13) !important;
+}
+
+body[data-theme="dark"] .tbtn,
+body[data-theme="dark"] .btn-outline-secondary {
+    background: #0b1220 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(203,213,225,.28) !important;
+}
+
+body[data-theme="dark"] .totales-sap span {
+    color: #fca5a5;
+}
+
+/* Responsive */
+@@media (max-width: 1200px) {
+    .pp-workflow {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .module-titlebar {
+        display: grid !important;
+        gap: 12px;
+    }
+
+    .module-titlebar .d-flex.align-items-center {
+        justify-content: flex-start !important;
+    }
+}
+
+@@media (max-width: 768px) {
+    .container-fluid {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+
+    .shell {
+        margin: 0 !important;
+        border-radius: 0 !important;
+    }
+
+    .module-titlebar {
+        border-radius: 0 !important;
+        padding: 16px !important;
+    }
+
+    .pp-workflow {
+        grid-template-columns: 1fr;
+        border-left: 0;
+        border-right: 0;
+    }
+
+    .content {
+        border-left: 0;
+        border-right: 0;
+        border-radius: 0;
+    }
+
+    .tab-content {
+        padding: 8px !important;
+    }
+
+    .toolbar {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+    }
+
+    .tbtn,
+    .btn,
+    .form-control,
+    .form-select,
+    .modo-pill {
+        width: 100% !important;
+    }
+
+    #pane-cedis .col-xl-3,
+    #pane-cedis .col-xl-9,
+    #pane-ven .col-xl-3,
+    #pane-ven .col-xl-9,
+    #pane-cli .col-xl-4,
+    #pane-cli .col-xl-8 {
+        width: 100% !important;
+        max-width: 100% !important;
+        flex: 0 0 100% !important;
+    }
+
+    .table-responsive-sticky,
+    .table-wrapper {
+        max-height: 65vh !important;
+    }
+
+    #tablaCedis,
+    #tablaVendedor,
+    #tablaCliente {
+        min-width: 1050px !important;
+        font-size: 10px !important;
+    }
+
+    .totales-sap {
+        display: grid !important;
+        justify-content: stretch !important;
+    }
+}
+
+</style>
+
+
+
+
+
+
+<div class="container-fluid">
+    <div class="shell">
+        <div class="module-titlebar">
+            <div>
+                <h5 class="module-title"><i class="bi bi-graph-up-arrow"></i> Presupuestos</h5>
+
+                <p class="module-subtitle" style="color: white;">
+                    Presupuestos Cliente, Vendedor y Cedis.
+                </p>
+
+            </div>
+
+            <div class="d-flex align-items-center" style="gap:.6rem">
+
+          
+         
+                    <div id="modoPresupuestoBox" class="modo-pill">
+                    <center><div class="modo-title">Modo Presupuesto</div></center>
+
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Modo Presupuesto">
+                            <button type="button" class="btn btn-light" data-modo="VENDEDOR">
+                                <i class="bi bi-person-badge me-1"></i>Vendedor
+                            </button>
+                            <button type="button" class="btn btn-light" data-modo="CLIENTE">
+                                <i class="bi bi-people me-1"></i>Cliente
+                            </button>
+                        </div>                   
+                    </div>
+                <button type="button" id="btnAdminPres" class="tbtn">
+                    <i class="bi bi-shield-lock"></i><span>Administrar</span>
+                </button>
+              
+
+                <button type="button" class="tbtn" onclick="window.location='/Home/inicio'">
+                    <i class="bi bi-x-lg"></i><span>Salir</span>
+                </button>
+            </div>
+        </div>
+
+
+        <div class="pp-workflow" aria-label="Guía de trabajo de presupuestos">
+            <div class="pp-step-card">
+                <span class="pp-step-num">1</span>
+                <span>
+                    <span class="pp-step-title">Elige el módulo</span>
+                    <span class="pp-step-help">Trabaja por CEDIS, vendedor o cliente.</span>
+                </span>
+            </div>
+            <div class="pp-step-card">
+                <span class="pp-step-num">2</span>
+                <span>
+                    <span class="pp-step-title">Carga ventas</span>
+                    <span class="pp-step-help">Calcula objetivo según la ventana de meses.</span>
+                </span>
+            </div>
+            <div class="pp-step-card">
+                <span class="pp-step-num">3</span>
+                <span>
+                    <span class="pp-step-title">Ajusta presupuesto</span>
+                    <span class="pp-step-help">Modifica SKU, participación y comentarios.</span>
+                </span>
+            </div>
+            <div class="pp-step-card">
+                <span class="pp-step-num">4</span>
+                <span>
+                    <span class="pp-step-title">Guarda / exporta</span>
+                    <span class="pp-step-help">Valida totales y genera Excel o plantilla.</span>
+                </span>
+            </div>
+        </div>
+
+
+        <div class="content">
+            <div class="p-3">
+                <div id="alertsZone"></div>
+            </div>
+
+            <!-- Tabs -->
+            <ul class="nav nav-tabs" id="presTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="tab-cedis" data-bs-toggle="tab" data-bs-target="#pane-cedis" type="button" role="tab">
+                        <i class="bi bi-building me-1"></i> Cedis
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tab-ven" data-bs-toggle="tab" data-bs-target="#pane-ven" type="button" role="tab">
+                        <i class="bi bi-person-badge me-1"></i> Vendedor
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tab-cli" data-bs-toggle="tab" data-bs-target="#pane-cli" type="button" role="tab">
+                        <i class="bi bi-people me-1"></i> Cliente
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content p-3">
+                <!-- ============================== -->
+                <!-- ============ CEDIS =========== -->
+                <!-- ============================== -->
+                <div class="tab-pane fade show active" id="pane-cedis" role="tabpanel" aria-labelledby="tab-cedis">
+
+                    <div class="toolbar align-items-center mb-3">
+                        <button type="button" id="btnAgregar" class="tbtn">
+                            <i class="bi bi-plus-circle"></i><span>Cargar ventas</span>
+                        </button>
+                     
+
+                        <button type="button" id="btnExportarXlsx" class="tbtn">
+                            <i class="bi bi-file-earmark-spreadsheet"></i><span>Exportar Excel</span>
+                        </button>
+
+                        <button type="button" id="btnImportarXlsx" class="tbtn">
+                            <i class="bi bi-upload"></i><span>Importar Excel</span>
+                        </button>
+
+                        <button type="button" id="btnPlantillaXlsx" class="tbtn">
+                            <i class="bi bi-file-earmark-arrow-down"></i><span>Plantilla</span>
+                        </button>
+                       
+
+                        <input type="file" id="fileExcelCedis" accept=".xlsx,.xls" style="display:none" />
+
+                        <div class="ms-auto"></div>
+
+                        <button type="button" id="btnAbrirModalGuardar" class="tbtn primary">
+                            <i class="bi bi-save"></i><span>Guardar</span>
+                        </button>
+                    </div>
+                  
+
+                    <form id="frmPresupuestoCedis" asp-controller="Comercial" asp-action="GuardarPresupuestoCedis" method="post">
+                        @Html.AntiForgeryToken()
+
+                        <input type="hidden" id="CanalInput" name="Canal" />
+                        <input type="hidden" id="MesInput" name="Mes" />
+                        <input type="hidden" id="AnioInput" name="Anio" />
+
+                        <div class="row g-3">
+                            <div class="col-xl-3 col-lg-4">
+                                <div class="panel h-100">
+                                    <div class="panel-head"><i class="bi bi-filter-circle"></i> Filtros</div>
+                                    <div class="panel-body">
+                                        <label class="form-label fw-semibold">CEDIS</label>
+                                        <select id="selCanal" class="form-select"><option value="">Selecciona CEDIS</option></select>
+
+                                        <div class="mt-3">
+                                            <label class="form-label fw-semibold">Meses para objetivo</label>
+                                            <select id="filtroMesesObjetivo" class="form-select">
+                                                <option value="4">Últimos 4</option>
+                                                <option value="8">Últimos 8</option>
+                                                <option value="12" selected>Últimos 12</option>
+                                            </select>
+                                            <div class="form-text">Se promedia por SKU en la ventana seleccionada.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-xl-9 col-lg-8">
+                                <div class="panel h-100">
+                                    <div class="panel-head"><i class="bi bi-collection"></i> Totales por SKU (CEDIS)</div>
+                                    <div class="panel-body p-0">
+                                        <div class="table-responsive-sticky">
+                                            <!-- aquí el scroll -->
+                                            <table class="table table-sm table-hover align-middle mb-0" id="tablaCedis">
+                                                <thead>
+                                                    <tr>
+                                                        <th>SKU</th>
+                                                        <th class="text-end">Objetivo</th>
+                                                        <th class="text-end">Presupuesto</th>
+                                                        <th class="text-end">Participación</th>
+                                                        <th class="text-center">Comentario</th>
+                                                        <th style="width:44px;"></th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="tbodyCedis"></tbody>
+                                            </table>
+                                        </div>
+                                        <div class="d-flex justify-content-end gap-4 totales-sap">
+                                            <div class="fw-semibold">Total Objetivo: <span id="totObj" class="ms-1"></span></div>
+                                            <div class="fw-semibold">Total Presupuesto: <span id="totPre" class="ms-1"></span></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- ================================= -->
+                <!-- ============ VENDEDOR ============ -->
+                <!-- ================================= -->
+                <div class="tab-pane fade" id="pane-ven" role="tabpanel" aria-labelledby="tab-ven">
+
+                    <div class="toolbar align-items-center mb-3">
+                        <button type="button" id="btnCargarVendedor" class="tbtn">
+                            <i class="bi bi-download"></i><span>Cargar ventas</span>
+                        </button>
+
+                        <button type="button" id="btnExportarXlsxVen" class="tbtn">
+                            <i class="bi bi-file-earmark-spreadsheet"></i><span>Exportar Excel</span>
+                        </button>
+
+                        <button type="button" id="btnImportarXlsxVen" class="tbtn">
+                            <i class="bi bi-upload"></i><span>Importar Excel</span>
+                        </button>
+
+                        <button type="button" id="btnPlantillaXlsxVen" class="tbtn">
+                            <i class="bi bi-file-earmark-arrow-down"></i><span>Plantilla</span>
+                        </button>
+
+                       @*  <button type="button" id="btnAdminPres" class="tbtn">
+                            <i class="bi bi-shield-lock"></i><span>Administrar</span>
+                        </button> *@
+
+                        <input type="file" id="fileExcelVendedor" accept=".xlsx,.xls" style="display:none" />
+
+                        <div class="ms-auto"></div>
+
+                        <button type="button" id="btnGuardarVendedor" class="tbtn primary">
+                            <i class="bi bi-save"></i><span>Guardar</span>
+                        </button>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-xl-3 col-lg-4">
+                            <div class="panel h-100">
+                                <div class="panel-head"><i class="bi bi-filter-circle"></i> Filtros</div>
+                                <div class="panel-body">
+                                    <div class="mt-1">
+                                        <label class="form-label fw-semibold">Vendedor</label>
+                                        <select id="selVendedor" class="form-select">
+                                            <option value="">Selecciona vendedor</option>
+                                        </select>
+                                        <div class="form-text">Trae ventas de <strong>todos los clientes</strong> asignados al vendedor.</div>
+                                    </div>
+
+                                    <div class="mt-3">
+                                        <label class="form-label fw-semibold">Meses para objetivo</label>
+                                        <select id="venMesesObjetivo" class="form-select">
+                                            <option value="4">Últimos 4</option>
+                                            <option value="8">Últimos 8</option>
+                                            <option value="12" selected>Últimos 12</option>
+                                        </select>
+                                        <div class="form-text">Se promedia por SKU en la ventana seleccionada.</div>
+                                    </div>
+
+                                    <hr class="my-3" />
+
+                                    <div class="mb-2 fw-semibold">Periodo a guardar</div>
+                                    <div class="d-flex gap-2">
+                                        <select id="venMes" class="form-select">
+                                            @for (int m = 1; m <= 12; m++)
+                                            {
+                                                <option value="@m">@System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(m)</option>
+                                            }
+                                        </select>
+                                        <input type="number" id="venAnio" class="form-control" min="2020" max="2100" value="@DateTime.Now.Year" />
+                                    </div>
+                                    <div class="form-text mt-2">Permite mes en curso o futuro (bloquea periodos anteriores).</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-xl-9 col-lg-8">
+                            <div class="panel h-100">
+                                <div class="panel-head"><i class="bi bi-list-check"></i> Totales por SKU (Vendedor)</div>
+                                <div class="panel-body p-0">
+                                    <div class="table-responsive table-wrapper pt-0 px-2 pb-2">
+                                        <table class="table table-sm table-hover align-middle mb-0" id="tablaVendedor">
+                                            <thead></thead>
+                                            <tbody id="tbodyVendedor"></tbody>
+                                        </table>
+                                    </div>
+                                    <div class="d-flex justify-content-end gap-4 totales-sap">
+                                        <div class="fw-semibold">Total Objetivo: <span id="venTotObj" class="ms-1"></span></div>
+                                        <div class="fw-semibold">Total Presupuesto: <span id="venTotPre" class="ms-1"></span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="venAlerts" class="mt-3"></div>
+                </div>
+
+                <!-- ================================= -->
+                <!-- ============= CLIENTE ============ -->
+                <!-- ================================= -->
+                <div class="tab-pane fade" id="pane-cli" role="tabpanel" aria-labelledby="tab-cli">
+
+                    <!-- ✅ FORM CLIENTE (NUEVO) -->
+                    <form id="frmPresupuestoCliente" asp-controller="Comercial" asp-action="GuardarPresupuesto" method="post">
+                        @Html.AntiForgeryToken()
+
+                        <!-- hidden periodo -->
+                        <input type="hidden" id="CliMesInput" name="Mes" />
+                        <input type="hidden" id="CliAnioInput" name="Anio" />
+
+                        <!-- hidden ids clientes seleccionados -->
+                        <div id="CliClientesHidden"></div>
+
+                        <!-- Toolbar tipo “pantalla vieja” -->
+                        <div class="toolbar align-items-center mb-3">
+                         
+                            
+                                <button type="button" id="cliBtnPresupuestar" class="tbtn">
+                                    <i class="bi bi-plus-circle"></i><span>Cargar Ventas</span>
+                                </button>
+                               
+                                <button type="button" id="btnExportarXlsxCli" class="tbtn">
+                                    <i class="bi bi-file-earmark-spreadsheet"></i><span>Exportar Excel</span>
+                                </button>
+
+                                <button type="button" id="btnImportarXlsxCli" class="tbtn">
+                                    <i class="bi bi-upload"></i><span>Importar Excel</span>
+                                </button>
+
+                                <button type="button" id="btnPlantillaXlsxCli" class="tbtn">
+                                    <i class="bi bi-file-earmark-arrow-down"></i><span>Plantilla</span>
+                                </button>
+@* 
+                            <button type="button" id="btnAdminPres" class="tbtn">
+                                <i class="bi bi-shield-lock"></i><span>Administrar</span>
+                            </button>
+ *@
+                                <input type="file" id="fileExcelCliente" accept=".xlsx,.xls" style="display:none" />
+                       
+
+                            <div class="ms-auto"></div>
+
+                            <button type="button" id="btnGuardarCliente" class="tbtn primary">
+                                <i class="bi bi-save"></i><span>Guardar</span>
+                            </button>
+
+                            <button type="button" id="cliBtnCancelar" class="tbtn">
+                                <i class="bi bi-x-lg"></i><span>Cancelar</span>
+                            </button>
+                        </div>
+
+                        <div class="row g-3">
+                            <!-- IZQUIERDA -->
+                            <div class="col-xl-4 col-lg-5">
+                                <div class="panel h-100">
+                                    <div class="panel-head"><i class="bi bi-filter-circle"></i> Filtros</div>
+                                    <div class="panel-body">
+
+                                        @* <div class="mb-2 fw-semibold">Cliente (individual)</div> *@
+                                       @*  <input type="text" id="cliClienteIndividual" class="form-control" placeholder="Escribe para buscar..." autocomplete="off" />
+                                        <input type="hidden" id="cliClienteIndividualId" />
+                                        <div class="form-text">Escribe 2 letras o más y selecciona. (Opcional)</div> *@
+
+                                        <hr class="my-3" />
+
+                                        <div class="mb-2 fw-semibold">Meses para cálculo de objetivo</div>
+                                        <select id="cliMesesObjetivo" class="form-select">
+                                            <option value="4">Últimos 4 meses</option>
+                                            <option value="8">Últimos 8 meses</option>
+                                            <option value="12" selected>Últimos 12 meses</option>
+                                        </select>
+                                        <div class="form-text">Promedio simple por SKU en la ventana seleccionada.</div>
+
+                                        <hr class="my-3" />
+
+                                        <div class="mb-2 fw-semibold">Periodo a guardar</div>
+                                        <div class="d-flex gap-2">
+                                            <select id="cliMes" class="form-select">
+                                                @for (int m = 1; m <= 12; m++)
+                                                {
+                                                    <option value="@m">@System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(m)</option>
+                                                }
+                                            </select>
+                                           <input type="number" id="cliAnio" class="form-control" min="2020" max="2100" value="@DateTime.Now.Year" />
+                                        </div>
+                                        <div class="form-text mt-2">Permite guardar cualquier periodo.</div>
+
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- DERECHA -->
+                            <div class="col-xl-8 col-lg-7">
+                                <div class="panel h-100">
+                                    <div class="panel-head"><i class="bi bi-people"></i> vendedor / canal y clasificación</div>
+                                    <div class="panel-body">
+
+                                        <div class="alert alert-light border small mb-3">
+                                            <i class="bi bi-info-circle me-2"></i>
+                                            Usa un cliente o filtra por <strong>Canal</strong> y/o <strong>múltiples vendedores</strong>.
+                                        </div>
+
+                                        <div class="row g-3">
+                                            <div class="col-md-4">
+                                                <label class="form-label fw-semibold">Canal</label>
+                                                <select id="cliCanal" class="form-select">
+                                                    <option value="">Todos los canales</option>
+                                                </select>
+                                                <div class="form-text">Filtra clientes por canal comercial.</div>
+                                            </div>
+
+                                            <div class="col-md-4">
+                                                <label class="form-label fw-semibold">Clasificación (cliente)</label>
+                                                <select id="cliClasificacion" class="form-select">
+                                                    <option value="">Todas</option>
+                                                </select>
+                                                <div class="form-text">Deja vacío para incluir todas.</div>
+                                            </div>
+
+                                            <div class="col-md-4">
+                                                <label class="form-label fw-semibold">Vendedor(es)</label>
+                                                <select id="cliVendedores" class="form-select" multiple size="4"></select>
+                                                <div class="form-text">Puedes elegir varios. Deja vacío para traer por canal.</div>
+                                            </div>
+                                        </div>
+
+                                        <hr class="my-3" />
+
+                                        <div class="mb-2 fw-semibold">Clientes</div>
+                                        <div class="d-flex align-items-center gap-2 mb-2">
+                                            <div class="input-group" style="max-width:520px;">
+                                                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                                <input type="text" id="cliBuscarLista" class="form-control" placeholder="Buscar en la lista..." />
+                                            </div>
+
+                                            <button type="button" id="cliBtnCargarClientes" class="tbtn">
+                                                <i class="bi bi-download"></i><span>Cargar clientes</span>
+                                            </button>
+
+                                            <div class="ms-auto d-flex gap-2">
+                                                <button type="button" id="cliBtnSelTodo" class="tbtn">
+                                                    <i class="bi bi-check2-square"></i><span>Seleccionar todo</span>
+                                                </button>
+                                                <button type="button" id="cliBtnLimpiar" class="tbtn">
+                                                    <i class="bi bi-eraser"></i><span>Limpiar</span>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div class="border rounded-3" style="height:220px; overflow:auto;">
+                                            <div id="cliListaClientes" class="p-2 small text-muted">Carga clientes…</div>
+                                        </div>
+
+                                        <hr class="my-3" />
+                                  
+
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TABLA (debajo) -->
+                        <div class="row g-3 mt-1">
+                            <div class="col-12">
+                                <div class="panel h-100">
+                                    <div class="panel-head"><i class="bi bi-list-check"></i> Totales por SKU (Cliente)</div>
+                                    <div class="panel-body p-0">
+                                        <div class="table-responsive table-wrapper pt-0 px-2 pb-2">
+                                            <table class="table table-sm table-hover align-middle mb-0" id="tablaCliente">
+                                                <thead></thead>
+                                                <tbody id="tbodyCliente"></tbody>
+                                            </table>
+                                        </div>
+                                        <div class="d-flex justify-content-end gap-4 totales-sap">
+                                            <div class="fw-semibold">Total Objetivo: <span id="cliTotObj" class="ms-1"></span></div>
+                                            <div class="fw-semibold">Total Presupuesto: <span id="cliTotPre" class="ms-1"></span></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div id="cliAlerts" class="mt-3"></div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+            </div><!-- /tab-content -->
+        </div><!-- /content -->
+    </div><!-- /shell -->
+</div><!-- /container-fluid -->
+
+<div id="loadingSpinnerCedis">
+    <div class="spinner-border text-danger" role="status" style="width:3.5rem;height:3.5rem;"></div>
+    <p class="mt-2 fw-semibold" style="color:#9b1b1b;">Cargando, por favor espera…</p>
+</div>
+
+<!-- ===================== MODALES ===================== -->
+<!-- Modal Guardar CEDIS -->
+<div class="modal fade" id="modalGuardarCedis" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title fw-bold">Guardar presupuesto CEDIS</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">Periodo:</div>
+                <div class="d-flex gap-2">
+                    <select id="modalMes" class="form-select">
+                        @for (int m = 1; m <= 12; m++)
+                        {
+                            <option value="@m">@System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(m)</option>
+                        }
+                    </select>
+                    <input type="number" id="modalAnio" class="form-control" min="2020" max="2100" value="@DateTime.Now.Year" />
+                </div>
+                <div class="form-text mt-2">Permite guardar cualquier periodo.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="btnGuardarModalCedis" class="btn btn-danger">Guardar</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Comentario CEDIS -->
+<div class="modal fade" id="comentarioModalCedis" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-3">
+            <div class="modal-header">
+                <h6 class="modal-title fw-bold">Comentario (CEDIS)</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="fw-bold">SKU: <span id="comentarioSkuCedis"></span></p>
+                <textarea id="comentarioTextoCedis" class="form-control" rows="4" placeholder="Escribe tu comentario..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="guardarComentarioCedis" class="btn btn-danger">Guardar</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Comentario Vendedor -->
+<div class="modal fade" id="comentarioModalVendedor" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-3">
+            <div class="modal-header">
+                <h6 class="modal-title fw-bold">Comentario (Vendedor)</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="fw-bold">SKU: <span id="comentarioSkuVendedor"></span></p>
+                <textarea id="comentarioTextoVendedor" class="form-control" rows="4" placeholder="Escribe tu comentario..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="guardarComentarioVendedor" class="btn btn-danger">Guardar</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Comentario Cliente -->
+<div class="modal fade" id="comentarioModalCliente" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-3">
+            <div class="modal-header">
+                <h6 class="modal-title fw-bold">Comentario (Cliente)</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="fw-bold">SKU: <span id="comentarioSkuCliente"></span></p>
+                <textarea id="comentarioTextoCliente" class="form-control" rows="4" placeholder="Escribe tu comentario..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="guardarComentarioCliente" class="btn btn-danger">Guardar</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalAdminPres" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title fw-bold">Administrar presupuestos</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">Tipo</label>
+                        <select id="admTipo" class="form-select">
+                            <option value="CEDIS">CEDIS</option>
+                            <option value="VENDEDOR">VENDEDOR</option>
+                            <option value="CLIENTE">CLIENTE</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">Mes</label>
+                        <select id="admMes" class="form-select"></select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">Año</label>
+                        <input id="admAnio" type="number" class="form-control" min="2020" max="2100" />
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">SKU</label>
+                        <input id="admSku" class="form-control" placeholder="SKU exacto o parte" />
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">Canal/CEDIS</label>
+                        <input id="admCanal" class="form-control" placeholder="opcional" />
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">VendedorId</label>
+                        <input id="admVendedorId" type="number" class="form-control" placeholder="opcional" />
+                    </div>
+
+                    <div class="col-md-3 mt-2">
+                        <label class="form-label fw-semibold">Cliente (CardCode)</label>
+                        <input id="admCliente" class="form-control" placeholder="opcional" />
+                    </div>
+
+                    <div class="col-md-9 mt-2 d-flex gap-2 justify-content-end">
+                        <button type="button" id="admBuscar" class="tbtn">
+                            <i class="bi bi-search"></i> Buscar
+                        </button>
+
+                        <button type="button" id="admDeleteSelected" class="tbtn">
+                            <i class="bi bi-trash"></i> Eliminar seleccionados
+                        </button>
+
+                        <button type="button" id="admDeleteByFilter" class="tbtn primary">
+                            <i class="bi bi-exclamation-octagon"></i> Eliminar por filtros
+                        </button>
+                    </div>
+                </div>
+
+                <hr class="my-3" />
+
+                <div class="table-responsive-sticky" style="max-height:55vh;">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width:38px;"><input type="checkbox" id="admChkAll"></th>
+                                <th>Tipo</th>
+                                <th>Periodo</th>
+                                <th>Nombre</th>
+                                <th>SKU</th>
+                                <th class="text-end">Objetivo</th>
+                                <th class="text-end">Presupuesto</th>
+                                <th>Comentario</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admTbody"></tbody>
+                    </table>
+                </div>
+
+                <div id="admMsg" class="small text-muted mt-2"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+
+@section Scripts {
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" />
+
+    <!-- Requeridos (si NO están ya en _Layout) -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+
+    <!-- Bootstrap JS (necesario para Toast/Modal) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- XLSX -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <script>
+        (function () {
+          // ---- guard para no bindear 2 veces
+          if (window.__PRESUPUESTOS_APP_BOUND__) return;
+          window.__PRESUPUESTOS_APP_BOUND__ = true;
+
+          const API = {
+            // CEDIS
+            canales: '@Url.Action("ObtenerCanalesCedis", "Comercial")',
+            datos: '@Url.Action("ObtenerPresupuestoPorCedis2", "Comercial")',
+            guardar: '@Url.Action("GuardarPresupuestoCedis", "Comercial")',
+            reporte: '@Url.Action("ObtenerPresupuestoReporteCedis", "Comercial")',
+
+            // VENDEDOR
+            vendedores: '@Url.Action("ObtenerVendedores", "Comercial")',
+            datosVendedor: '@Url.Action("ObtenerPresupuestoPorVendedor", "Comercial")',
+            guardarVendedor: '@Url.Action("GuardarPresupuestoVendedor", "Comercial")',
+
+            // ===== CLIENTES (lista) =====
+            clientes: '@Url.Action("GetClientes", "Comercial")',
+            clientesPorVendedor: '@Url.Action("GetClientesPorVendedor", "Comercial")',
+
+            // ===== VENTAS (para armar la tabla de presupuesto / objetivos) =====
+            ventasCliente: '@Url.Action("ObtenerPresupuesto", "Comercial")', // usa ?cardCode=
+
+            // ===== PRESUPUESTOS GUARDADOS (histórico / validar duplicados) =====
+            presupuestosMes: '@Url.Action("ObtenerPresupuestos", "Comercial")', // usa ?mes=&anio=
+
+            // ===== GUARDAR =====
+            guardarCliente: '@Url.Action("GuardarPresupuesto", "Comercial")',
+
+            // ===== COMBOS (filtros) =====
+            canalesCliente: '@Url.Action("GetCanales", "Comercial")',
+            clasificacionesCliente: '@Url.Action("GetClasificacionesClientes", "Comercial")',
+
+
+            clasificacionesCliente: '@Url.Action("GetClasificacionesClientes", "Comercial")',
+
+            // ✅ MODO PRESUPUESTO (GLOBAL)
+            modoGet: '@Url.Action("ObtenerModoPresupuesto", "Comercial")',
+            modoSet: '@Url.Action("GuardarModoPresupuesto", "Comercial")',
+
+                    // ===== ADMIN PRESUPUESTOS =====
+              adminList: '@Url.Action("AdminListPresupuestos", "Comercial")',
+              adminDelIds: '@Url.Action("AdminDeleteByIds", "Comercial")',
+              adminDelFilter: '@Url.Action("AdminDeleteByFilter", "Comercial")',
+
+
+          };
+
+          // =========================================================
+          // ===================== Helpers Comunes ====================
+          // =========================================================
+          const fmt = n => Number(n || 0).toLocaleString('es-MX');
+
+          function toggleSpin(flag) {
+            const el = document.getElementById('loadingSpinnerCedis');
+            if (el) el.style.display = flag ? 'flex' : 'none';
+          }
+
+          function escapeHtml(s) {
+            return String(s ?? '')
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
+          }
+
+          function showToast(msg, variant = "light") {
+            const id = "appToastCedis";
+            let root = document.getElementById(id);
+            if (!root) {
+              root = document.createElement('div');
+              root.id = id;
+              root.className = "position-fixed bottom-0 end-0 p-3";
+              root.style.zIndex = 2100;
+              root.innerHTML = `
+                <div class="toast align-items-center border-0">
+                  <div class="d-flex">
+                    <div class="toast-body"></div>
+                    <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
+                  </div>
+                </div>`;
+              document.body.appendChild(root);
+            }
+            const el = root.querySelector('.toast');
+            el.className = `toast align-items-center text-bg-${variant} border-0`;
+            el.querySelector('.toast-body').textContent = msg;
+            new bootstrap.Toast(el, { delay: 2600 }).show();
+          }
+
+          function banner(msg, type = "success") {
+            const z = document.getElementById('alertsZone');
+            if (!z) return;
+            z.innerHTML = msg
+              ? `<div class="alert alert-${type} shadow-sm">
+                   <i class="bi ${type === 'success' ? 'bi-check-circle' : 'bi-exclamation-triangle'} me-2"></i>${msg}
+                 </div>`
+              : '';
+          }
+
+          function buildMonthRefs(n) {
+            const out = [], hoy = new Date();
+            for (let i = n - 1; i >= 0; i--) {
+              const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+              out.push({
+                key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+                label: d.toLocaleString('es-MX', { month: 'short', year: 'numeric' })
+              });
+            }
+            return out;
+          }
+
+          function shouldIncludeRow(objetivo, presupuesto) {
+            const obj = Math.round(Number(objetivo || 0));
+            const pre = Math.round(Number(presupuesto || obj));
+            return Math.max(obj, pre) >= 100;
+          }
+
+          // function isPeriodoValido(mes, anio) {
+          //   const now = new Date();
+          //   const mA = now.getMonth() + 1, aA = now.getFullYear();
+          //   return !(anio < aA || (anio === aA && mes < mA));
+          // }
+
+        function isPeriodoValido(mes, anio) {
+        mes = Number(mes || 0);
+        anio = Number(anio || 0);
+
+        // Permitir guardar cualquier periodo válido
+        return mes >= 1 && mes <= 12 && anio >= 2020 && anio <= 2100;
+        }
+
+          function setPeriodoSiguienteMes($selMes, $inpAnio) {
+            const f = new Date();
+            const m = f.getMonth() + 1, y = f.getFullYear();
+            const ms = m === 12 ? 1 : m + 1;
+            const ys = m === 12 ? y + 1 : y;
+            $selMes.val(ms);
+            $inpAnio.val(ys);
+          }
+
+
+                  function updateTotalesUI(tbodySelector, objSpanId, preSpanId) {
+          let obj = 0, pre = 0;
+
+          document.querySelectorAll(`${tbodySelector} input[name$=".Objetivo"]`)
+            .forEach(x => obj += Number(x.value || 0));
+
+          document.querySelectorAll(`${tbodySelector} input.pre`)
+            .forEach(x => pre += Number(x.value || 0));
+
+          const o = document.getElementById(objSpanId);
+          const p = document.getElementById(preSpanId);
+
+          if (o) o.textContent = fmt(obj);
+          if (p) p.textContent = fmt(pre);
+        }
+
+        function recalcPartUI(tbodySelector) {
+          const pres = [...document.querySelectorAll(`${tbodySelector} input.pre`)];
+          const tot = pres.reduce((a, i) => a + Number(i.value || 0), 0);
+
+          pres.forEach(inp => {
+            const td = inp.closest('tr')?.querySelector('.part-cell');
+            if (!td) return;
+            const v = Number(inp.value || 0);
+            td.textContent = (tot > 0 ? (v * 100 / tot) : 0).toFixed(1) + '%';
+          });
+        }
+
+
+
+
+
+
+          // =========================================================
+          // ============================ CEDIS =======================
+          // =========================================================
+          const CEDIS = (function () {
+            let comentarioTargetId = null;
+
+            async function cargarCanales() {
+              const $sel = $("#selCanal").empty().append('<option value="">Selecciona CEDIS</option>');
+              try {
+                toggleSpin(true);
+                const r = await fetch(API.canales, { credentials: 'same-origin' });
+                const data = r.ok ? await r.json() : [];
+                (data || [])
+                  .filter(c => /^CEDIS/i.test(c))
+                  .sort((a, b) => String(a).localeCompare(String(b)))
+                  .forEach(c => $sel.append(`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`));
+              } catch {
+                showToast("Error al cargar CEDIS.", "danger");
+              } finally {
+                toggleSpin(false);
+              }
+            }
+
+            async function traerVentas() {
+              const canal = $("#selCanal").val() || '';
+              const meses = parseInt($("#filtroMesesObjetivo").val() || "12", 10);
+              if (!canal) { showToast("Selecciona un CEDIS.", "warning"); return null; }
+
+              const url = `${API.datos}?canal=${encodeURIComponent(canal)}&meses=${meses}`;
+              try {
+                toggleSpin(true);
+                const r = await fetch(url, { credentials: 'same-origin' });
+                if (!r.ok) throw 0;
+                const data = await r.json();
+
+                if (!Array.isArray(data) || !data.length) {
+                  showToast("Sin datos del CEDIS.", "warning");
+                  return null;
+                }
+
+                const refs = buildMonthRefs(meses), porSku = {};
+                data.forEach(d => {
+                  const sku = d.sku;
+                  if (!sku) return;
+                  const f = new Date(d.fecha);
+                  const ym = `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, '0')}`;
+                  porSku[sku] = porSku[sku] || { porMes: {}, objetivo: 0 };
+                  porSku[sku].porMes[ym] = (porSku[sku].porMes[ym] || 0) + Number(d.totalKilos || 0);
+                });
+
+                Object.keys(porSku).forEach(s => {
+                  const sum = refs.reduce((a, r) => a + (porSku[s].porMes[r.key] || 0), 0);
+                  porSku[s].objetivo = Math.round(sum / Math.max(1, meses));
+                });
+
+                return { porSku, refs };
+              } catch {
+                showToast("Error al consultar ventas.", "danger");
+                return null;
+              } finally {
+                toggleSpin(false);
+              }
+            }
+
+            function updateTotales() {
+              let obj = 0, pre = 0;
+              document.querySelectorAll('#tbodyCedis input[name$=".Objetivo"]').forEach(x => obj += Number(x.value || 0));
+              document.querySelectorAll('#tbodyCedis input.pre').forEach(x => pre += Number(x.value || 0));
+              document.getElementById('totObj').textContent = fmt(obj);
+              document.getElementById('totPre').textContent = fmt(pre);
+            }
+
+            function recalcPart() {
+              const pres = [...document.querySelectorAll('#tbodyCedis input.pre')];
+              const tot = pres.reduce((a, i) => a + Number(i.value || 0), 0);
+              pres.forEach(inp => {
+                const td = inp.closest('tr').querySelector('.part-cell');
+                const v = Number(inp.value || 0);
+                td.textContent = (tot > 0 ? (v * 100 / tot) : 0).toFixed(1) + '%';
+              });
+            }
+
+            function validarNoCero() {
+              let ok = true;
+              document.querySelectorAll('#tbodyCedis input.pre').forEach(i => {
+                if (Number(i.value || 0) <= 0) { ok = false; i.classList.add('is-invalid'); }
+                else i.classList.remove('is-invalid');
+              });
+              return ok;
+            }
+
+            function renderTabla(model) {
+              const { porSku, refs } = model;
+              const thead = document.querySelector('#tablaCedis thead');
+              const tbody = document.getElementById('tbodyCedis');
+
+              const thMeses = refs.map(r => {
+                const [m, y] = r.label.split(' ');
+                return `<th class="text-end"><div class="text-capitalize">${escapeHtml(m)}</div><div class="small text-muted">${escapeHtml(y)}</div></th>`;
+              }).join('');
+
+              thead.innerHTML = `
+                <tr>
+                  <th>SKU</th>
+                  ${thMeses}
+                  <th class="text-end">Objetivo</th>
+                  <th class="text-end">Presupuesto</th>
+                  <th class="text-end">Participación</th>
+                  <th class="text-center">Comentario</th>
+                  <th style="width:44px;"></th>
+                </tr>`;
+
+              tbody.innerHTML = '';
+              let i = 0;
+
+              Object.keys(porSku).sort().forEach(sku => {
+                const d = porSku[sku];
+                if (!shouldIncludeRow(d.objetivo, d.objetivo)) return;
+
+                const tds = refs.map(r => `<td class="text-end">${fmt(d.porMes[r.key] || 0)}</td>`).join('');
+                const skuSafe = escapeHtml(sku);
+
+                tbody.insertAdjacentHTML('beforeend', `
+                  <tr data-sku="${skuSafe}">
+                    <td>${skuSafe}
+                      <input type="hidden" name="items[${i}].ProductoCodigo" value="${skuSafe}">
+                      <input type="hidden" name="items[${i}].Objetivo" value="${d.objetivo}">
+                    </td>
+                    ${tds}
+                    <td class="text-end">${fmt(d.objetivo)}</td>
+                    <td class="text-end">
+                      <input type="number" class="form-control form-control-sm text-end pre" name="items[${i}].Presupuesto" value="${d.objetivo}" min="0" step="1">
+                    </td>
+                    <td class="text-end part-cell">0.0%</td>
+                    <td class="text-center">
+                      <button type="button" class="btn btn-outline-secondary btn-sm btnComentarioCedis"
+                              data-sku="${skuSafe}" data-index="${i}" title="Agregar comentario">
+                        <i class="bi bi-chat-left-text"></i>
+                      </button>
+                      <input type="hidden" name="items[${i}].Comentario" id="comentario-${i}" />
+                    </td>
+                    <td class="text-center">
+                      <button type="button" class="btn btn-outline-danger btn-sm del">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </td>
+                  </tr>`);
+                i++;
+              });
+
+              updateTotales();
+              recalcPart();
+            }
+
+            // Comentarios
+            function abrirModalComentario($btn) {
+              const sku = $btn.data("sku");
+              const index = $btn.data("index");
+              const targetId = `comentario-${index}`;
+              comentarioTargetId = targetId;
+
+              const ex = $(`#${targetId}`).val();
+              $("#comentarioSkuCedis").text(sku);
+              $("#comentarioTextoCedis").val(ex || "");
+
+              bootstrap.Modal.getOrCreateInstance(document.getElementById('comentarioModalCedis')).show();
+            }
+
+            function guardarComentario() {
+              const c = $("#comentarioTextoCedis").val();
+              if (comentarioTargetId) $(`#${comentarioTargetId}`).val(c);
+              bootstrap.Modal.getInstance(document.getElementById('comentarioModalCedis'))?.hide();
+              showToast("Comentario CEDIS guardado.", "success");
+            }
+
+            async function guardarDesdeModal() {
+              if (!validarNoCero()) { showToast("Hay presupuestos en 0.", "danger"); return; }
+
+              const mes = parseInt($("#modalMes").val(), 10);
+              const anio = parseInt($("#modalAnio").val(), 10);
+              if (!isPeriodoValido(mes, anio)) {
+        showToast("Selecciona un mes y año válidos.", "warning");
+                return;
+              }
+
+              const canal = $("#selCanal").val() || '';
+              if (!canal) { showToast("Selecciona un CEDIS.", "warning"); return; }
+
+              $("#CanalInput").val(canal);
+              $("#MesInput").val(mes);
+              $("#AnioInput").val(anio);
+
+              try {
+                toggleSpin(true);
+                const fd = new FormData(document.getElementById('frmPresupuestoCedis'));
+                const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+
+                const r = await fetch(API.guardar, {
+                  method: 'POST',
+                  credentials: 'same-origin',
+                  headers: { 'RequestVerificationToken': token, 'X-Requested-With': 'XMLHttpRequest' },
+                  body: fd
+                });
+
+                const ct = r.headers.get('content-type') || '';
+                const data = ct.includes('json') ? await r.json().catch(() => null) : null;
+
+                if (r.ok && (!data || data.ok || data.success)) {
+                  banner("Presupuesto guardado correctamente.", "success");
+                  showToast("Guardado", "success");
+                  bootstrap.Modal.getInstance(document.getElementById('modalGuardarCedis'))?.hide();
+                } else {
+                  showToast("No se pudo guardar.", "danger");
+                  banner((data?.message || 'Error al guardar'), "warning");
+                }
+              } catch {
+                showToast("Error de red al guardar.", "danger");
+              } finally {
+                toggleSpin(false);
+              }
+            }
+
+            function setPeriodoDefaultModal() {
+              const f = new Date(), m = f.getMonth() + 1, y = f.getFullYear();
+              const ms = m === 12 ? 1 : m + 1, ys = m === 12 ? y + 1 : y;
+              $("#modalMes").val(ms);
+              $("#modalAnio").val(ys).attr("min", y);
+            }
+
+            function bind() {
+              $("#btnAgregar").on('click', async function () {
+                const res = await traerVentas();
+                if (!res) return;
+                renderTabla(res);
+                banner("", "success");
+                showToast("Datos cargados por mes.", "success");
+              });
+
+              $("#btnAbrirModalGuardar").on("click", function () {
+                if (!document.querySelector('#tbodyCedis tr')) {
+                  showToast("No hay filas para guardar.", "warning");
+                  return;
+                }
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGuardarCedis')).show();
+              });
+
+              $("#btnGuardarModalCedis").on("click", guardarDesdeModal);
+
+              // ✅ FIX: quitamos el typo "look" y dejamos un solo handler
+              $(document).on('input', '#tbodyCedis input.pre', () => { updateTotales(); recalcPart(); });
+
+              $(document).on('click', '#tbodyCedis .del', function () {
+                this.closest('tr')?.remove();
+
+                // Renumerar items[] para el binder MVC
+                document.querySelectorAll('#tbodyCedis tr').forEach((tr, idx) => {
+                  tr.querySelectorAll('input[name^="items["]').forEach(inp => {
+                    inp.name = inp.name.replace(/items\[\d+\]/, `items[${idx}]`);
+                  });
+
+                  const btn = tr.querySelector('.btnComentarioCedis');
+                  if (btn) btn.setAttribute('data-index', idx);
+
+                  const com = tr.querySelector('input[name$=".Comentario"]');
+                  if (com) com.id = `comentario-${idx}`;
+                });
+
+                updateTotales();
+                recalcPart();
+              });
+
+              $(document).on("click", ".btnComentarioCedis", function () { abrirModalComentario($(this)); });
+              $("#guardarComentarioCedis").on("click", guardarComentario);
+
+              setPeriodoDefaultModal();
+            }
+
+            return { init: async () => { bind(); await cargarCanales(); } };
+          })();
+
+          // =========================================================
+          // ========================== VENDEDOR ======================
+          // =========================================================
+          const VENDEDOR = (function () {
+
+            function updateTotales() {
+              let obj = 0, pre = 0;
+              document.querySelectorAll('#tbodyVendedor input[name$=".Objetivo"]').forEach(x => obj += Number(x.value || 0));
+              document.querySelectorAll('#tbodyVendedor input.pre').forEach(x => pre += Number(x.value || 0));
+              document.getElementById('venTotObj').textContent = fmt(obj);
+              document.getElementById('venTotPre').textContent = fmt(pre);
+            }
+
+            function recalcPart() {
+              const pres = [...document.querySelectorAll('#tbodyVendedor input.pre')];
+              const tot = pres.reduce((a, i) => a + Number(i.value || 0), 0);
+              pres.forEach(inp => {
+                const td = inp.closest('tr').querySelector('.part-cell');
+                const v = Number(inp.value || 0);
+                td.textContent = (tot > 0 ? (v * 100 / tot) : 0).toFixed(1) + '%';
+              });
+            }
+
+            async function cargarVendedores() {
+              const $sel = $("#selVendedor").empty().append('<option value="">Selecciona vendedor</option>');
+              try {
+                toggleSpin(true);
+                const r = await fetch(API.vendedores, { credentials: 'same-origin' });
+                const data = r.ok ? await r.json() : [];
+                (data || []).forEach(v => {
+                  const id = v.id ?? v.Id;
+                  const nom = v.nombre ?? v.Nombre ?? '';
+                  if (id == null) return;
+                  $sel.append(`<option value="${escapeHtml(id)}">${escapeHtml(id)}${nom ? " - " + escapeHtml(nom) : ""}</option>`);
+                });
+              } catch {
+                showToast("Error al cargar vendedores.", "danger");
+              } finally {
+                toggleSpin(false);
+              }
+            }
+
+            async function traerVentas() {
+              const vendedorId = parseInt($("#selVendedor").val() || "0", 10);
+              const meses = parseInt($("#venMesesObjetivo").val() || "12", 10);
+              if (!vendedorId) { showToast("Selecciona un vendedor.", "warning"); return null; }
+
+              const url = `${API.datosVendedor}?vendedorId=${vendedorId}&meses=${meses}`;
+              try {
+                toggleSpin(true);
+                const r = await fetch(url, { credentials: 'same-origin' });
+                if (!r.ok) throw 0;
+
+                const data = await r.json();
+                if (!Array.isArray(data) || !data.length) {
+                  showToast("Sin datos para ese vendedor.", "warning");
+                  return null;
+                }
+
+                const refs = buildMonthRefs(meses);
+                const porSku = {};
+
+                data.forEach(d => {
+                  const sku = d.sku || d.Sku || d.productoCodigo || d.ProductoCodigo;
+                  if (!sku) return;
+
+                  const f = new Date(d.fecha || d.Fecha);
+                  const ym = `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, '0')}`;
+
+                  porSku[sku] = porSku[sku] || { porMes: {}, objetivo: 0, presupuesto: 0 };
+                  porSku[sku].porMes[ym] = (porSku[sku].porMes[ym] || 0) + Number(d.totalKilos || d.TotalKilos || d.total || 0);
+                });
+
+                Object.keys(porSku).forEach(s => {
+                  const sum = refs.reduce((a, r) => a + (porSku[s].porMes[r.key] || 0), 0);
+                  porSku[s].objetivo = Math.round(sum / Math.max(1, meses));
+                  porSku[s].presupuesto = porSku[s].objetivo;
+                });
+
+                return { porSku, refs };
+              } catch {
+                showToast("Error al consultar ventas por vendedor.", "danger");
+                return null;
+              } finally {
+                toggleSpin(false);
+              }
+            }
+
+            function renderTabla(model) {
+              const { porSku, refs } = model;
+              const thead = document.querySelector('#tablaVendedor thead');
+              const tbody = document.getElementById('tbodyVendedor');
+
+              const thMeses = refs.map(r => {
+                const [m, y] = r.label.split(' ');
+                return `<th class="text-end"><div class="text-capitalize">${escapeHtml(m)}</div><div class="small text-muted">${escapeHtml(y)}</div></th>`;
+              }).join('');
+
+              thead.innerHTML = `
+                <tr>
+                  <th>SKU</th>
+                  ${thMeses}
+                  <th class="text-end">Objetivo</th>
+                  <th class="text-end">Presupuesto</th>
+                  <th class="text-end">Participación</th>
+                  <th class="text-center">Comentario</th>
+                </tr>`;
+
+              tbody.innerHTML = '';
+              let i = 0;
+
+              Object.keys(porSku).sort().forEach(sku => {
+                const d = porSku[sku];
+                if (!shouldIncludeRow(d.objetivo, d.presupuesto)) return;
+
+                const tds = refs.map(r => `<td class="text-end">${fmt(d.porMes[r.key] || 0)}</td>`).join('');
+                const skuSafe = escapeHtml(sku);
+
+                tbody.insertAdjacentHTML('beforeend', `
+                  <tr data-sku="${skuSafe}">
+                    <td>${skuSafe}
+                      <input type="hidden" name="items[${i}].ProductoCodigo" value="${skuSafe}">
+                      <input type="hidden" name="items[${i}].Objetivo" value="${d.objetivo}">
+                    </td>
+                    ${tds}
+                    <td class="text-end">${fmt(d.objetivo)}</td>
+                    <td class="text-end">
+                      <input type="number" class="form-control form-control-sm text-end pre" name="items[${i}].Presupuesto" value="${d.presupuesto}" min="0" step="1">
+                    </td>
+                    <td class="text-end part-cell">0.0%</td>
+                    <td class="text-center">
+                      <button type="button" class="btn btn-outline-secondary btn-sm btnComentarioVendedor"
+                              data-sku="${skuSafe}" data-index="${i}" title="Agregar comentario">
+                        <i class="bi bi-chat-left-text"></i>
+                      </button>
+                      <input type="hidden" name="items[${i}].Comentario" id="ven-comentario-${i}" />
+                    </td>
+                  </tr>`);
+                i++;
+              });
+
+              updateTotales();
+              recalcPart();
+            }
+
+            function bind() {
+              let comentarioTargetId = null;
+
+              $("#btnCargarVendedor").on("click", async function () {
+                const res = await traerVentas();
+                if (!res) return;
+                renderTabla(res);
+                showToast("Datos por vendedor cargados.", "success");
+              });
+
+              $(document).on('input', '#tbodyVendedor input.pre', () => { updateTotales(); recalcPart(); });
+
+              // Comentarios
+              $(document).on("click", ".btnComentarioVendedor", function () {
+                const sku = $(this).data("sku");
+                const index = $(this).data("index");
+                const targetId = `ven-comentario-${index}`;
+                comentarioTargetId = targetId;
+
+                const ex = $(`#${targetId}`).val();
+                $("#comentarioSkuVendedor").text(sku);
+                $("#comentarioTextoVendedor").val(ex || "");
+
+                bootstrap.Modal.getOrCreateInstance(document.getElementById("comentarioModalVendedor")).show();
+              });
+
+              $("#guardarComentarioVendedor").on("click", function () {
+                const c = $("#comentarioTextoVendedor").val();
+                if (comentarioTargetId) $(`#${comentarioTargetId}`).val(c);
+                bootstrap.Modal.getInstance(document.getElementById('comentarioModalVendedor'))?.hide();
+                showToast("Comentario vendedor guardado.", "success");
+              });
+
+              // Guardar
+              $("#btnGuardarVendedor").on("click", async function () {
+                const rows = document.querySelectorAll('#tbodyVendedor tr');
+                if (!rows.length) { showToast("No hay filas para guardar.", "warning"); return; }
+
+                let ok = true;
+                document.querySelectorAll('#tbodyVendedor input.pre').forEach(i => {
+                  if (Number(i.value || 0) <= 0) { ok = false; i.classList.add('is-invalid'); }
+                  else i.classList.remove('is-invalid');
+                });
+                if (!ok) { showToast("Hay presupuestos en 0.", "danger"); return; }
+
+                const mes = parseInt($("#venMes").val(), 10);
+                const anio = parseInt($("#venAnio").val(), 10);
+                if (!isPeriodoValido(mes, anio)) {
+                  showToast("El periodo debe ser igual o posterior al mes actual.", "warning");
+                  return;
+                }
+
+                const vendedorId = parseInt($("#selVendedor").val() || "0", 10);
+                if (!vendedorId) { showToast("Selecciona un vendedor.", "warning"); return; }
+
+                try {
+                  toggleSpin(true);
+
+                  const fd = new FormData();
+                  fd.append("VendedorId", vendedorId);
+                  fd.append("Mes", mes);
+                  fd.append("Anio", anio);
+
+                  document.querySelectorAll('#tbodyVendedor input[name^="items["]').forEach(inp => fd.append(inp.name, inp.value));
+
+                  const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+                  const r = await fetch(API.guardarVendedor, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'RequestVerificationToken': token, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: fd
+                  });
+
+                  const ct = r.headers.get('content-type') || '';
+                  const data = ct.includes('json') ? await r.json().catch(() => null) : null;
+
+                  if (r.ok && (!data || data.ok || data.success)) {
+                    showToast("Presupuesto por vendedor guardado.", "success");
+                  } else {
+                    showToast(data?.message || "No se pudo guardar.", "danger");
+                  }
+                } catch {
+                  showToast("Error de red al guardar.", "danger");
+                } finally {
+                  toggleSpin(false);
+                }
+              });
+
+              document.getElementById("tab-ven")?.addEventListener("shown.bs.tab", async () => {
+                setPeriodoSiguienteMes($("#venMes"), $("#venAnio"));
+                if (!$("#selVendedor option").length || $("#selVendedor option").length <= 1) {
+                  await cargarVendedores();
+                }
+              });
+            }
+
+            return { init: bind };
+          })();
+
+          // =========================================================
+          // ============================ CLIENTE =====================
+          // =========================================================
+          const CLIENTE = (function () {
+            let _cliAll = [];
+            let _cliFiltered = [];
+            let _cliLoaded = false;
+            let _binded = false;
+
+            function cliUpdateTotales() {
+              let obj = 0, pre = 0;
+              document.querySelectorAll('#tbodyCliente input[name$=".Objetivo"]').forEach(x => obj += Number(x.value || 0));
+              document.querySelectorAll('#tbodyCliente input.pre').forEach(x => pre += Number(x.value || 0));
+              document.getElementById('cliTotObj').textContent = fmt(obj);
+              document.getElementById('cliTotPre').textContent = fmt(pre);
+            }
+
+            function cliRecalcPart() {
+              const pres = [...document.querySelectorAll('#tbodyCliente input.pre')];
+              const tot = pres.reduce((a, i) => a + Number(i.value || 0), 0);
+              pres.forEach(inp => {
+                const td = inp.closest('tr')?.querySelector('.part-cell');
+                if (!td) return;
+                const v = Number(inp.value || 0);
+                td.textContent = (tot > 0 ? (v * 100 / tot) : 0).toFixed(1) + '%';
+              });
+            }
+
+            function cliSetPeriodoDefault() {
+              const f = new Date(), m = f.getMonth() + 1, y = f.getFullYear();
+              const ms = m === 12 ? 1 : m + 1, ys = m === 12 ? y + 1 : y;
+              $("#cliMes").val(ms);
+              $("#cliAnio").val(ys);
+            }
+
+            async function cliLoadCanales() {
+              const $sel = $("#cliCanal").empty().append('<option value="">Todos los canales</option>');
+              try {
+                const r = await fetch(API.canalesCliente, { credentials: 'same-origin' });
+                const data = r.ok ? await r.json() : [];
+                (data || [])
+                  .map(x => (typeof x === 'string' ? x : (x.value ?? x.nombre ?? x.name ?? x.id)))
+                  .filter(Boolean)
+                  .sort((a, b) => String(a).localeCompare(String(b)))
+                  .forEach(c => $sel.append(`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`));
+              } catch {
+                showToast("Error al cargar canales (cliente).", "danger");
+              }
+            }
+
+            async function cliLoadClasificaciones() {
+              const $sel = $("#cliClasificacion").empty().append('<option value="">Todas</option>');
+              try {
+                const r = await fetch(API.clasificacionesCliente, { credentials: 'same-origin' });
+                const data = r.ok ? await r.json() : [];
+                (data || [])
+                  .map(x => (typeof x === 'string' ? x : (x.value ?? x.nombre ?? x.name ?? x.id)))
+                  .filter(Boolean)
+                  .sort((a, b) => String(a).localeCompare(String(b)))
+                  .forEach(x => $sel.append(`<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`));
+              } catch {
+                showToast("Error al cargar clasificaciones (cliente).", "danger");
+              }
+            }
+
+            async function cliLoadVendedores() {
+              const $sel = $("#cliVendedores").empty();
+              try {
+                const r = await fetch(API.vendedores, { credentials: 'same-origin' });
+                const data = r.ok ? await r.json() : [];
+                (data || []).forEach(v => {
+                  const id = v.id ?? v.Id ?? v.slpCode ?? v.SlpCode;
+                  const nom = v.nombre ?? v.Nombre ?? v.name ?? v.Name ?? '';
+                  if (id == null) return;
+                  $sel.append(`<option value="${escapeHtml(id)}">${escapeHtml(id)}${nom ? " - " + escapeHtml(nom) : ""}</option>`);
+                });
+              } catch {
+                showToast("Error al cargar vendedores (cliente).", "danger");
+              }
+            }
+
+            function cliRenderList(list) {
+              const wrap = document.getElementById("cliListaClientes");
+              if (!wrap) return;
+
+              if (!list.length) {
+                wrap.innerHTML = `<div class="text-muted p-2">No hay clientes con esos filtros.</div>`;
+                return;
+              }
+
+              wrap.innerHTML = list.map(c => {
+                const label = `${escapeHtml(c.id)}${c.nom ? " - " + escapeHtml(c.nom) : ""}`;
+                const meta = [c.canal, c.clas, c.vend].filter(Boolean).map(escapeHtml).join(" · ");
+                return `
+                  <label class="d-flex align-items-start gap-2 border-bottom py-2">
+                    <input class="form-check-input mt-1 cliChk" type="checkbox" value="${escapeHtml(c.id)}">
+                    <span>
+                      <div class="fw-semibold">${label}</div>
+                      ${meta ? `<div class="text-muted" style="font-size:.82rem">${meta}</div>` : ``}
+                    </span>
+                  </label>
+                `;
+              }).join("");
+            }
+
+            function _N(x){ return String(x ?? "").trim().toUpperCase(); }
+
+            function cliApplyFiltersLocal() {
+              const q = String($("#cliBuscarLista").val() || "").trim().toLowerCase();
+              const canal = _N($("#cliCanal").val() || "");
+              const clas  = _N($("#cliClasificacion").val() || "");
+              const vends = ($("#cliVendedores").val() || []).map(_N);
+
+              const hasMeta = (_cliAll || []).some(c => (c.canal || c.clas || c.vend));
+
+              _cliFiltered = (_cliAll || []).filter(c => {
+                if (hasMeta) {
+                  if (canal && _N(c.canal) !== canal) return false;
+                  if (clas  && _N(c.clas)  !== clas)  return false;
+                  if (vends.length && !vends.includes(_N(c.vend))) return false;
+                }
+
+                if (q) {
+                  const bag = (String(c.id) + " " + String(c.nom)).toLowerCase();
+                  if (!bag.includes(q)) return false;
+                }
+                return true;
+              });
+
+              cliRenderList(_cliFiltered);
+            }
+
+            function cliSetupAutocomplete() {
+              const input = $("#cliClienteIndividual");
+              if (!input.length || !$.fn.autocomplete) return;
+
+              const src = (_cliAll || []).map(c => ({
+                label: `${c.id}${c.nom ? " - " + c.nom : ""}`,
+                value: `${c.id}${c.nom ? " - " + c.nom : ""}`,
+                id: c.id
+              }));
+
+              input.autocomplete({
+                minLength: 2,
+                source: (req, res) => {
+                  const t = String(req.term || "").toLowerCase();
+                  res(src.filter(x => x.label.toLowerCase().includes(t)).slice(0, 50));
+                },
+                select: (e, ui) => {
+                  $("#cliClienteIndividualId").val(ui.item.id);
+                }
+              });
+
+              input.on("input", function () {
+                if (!this.value) $("#cliClienteIndividualId").val("");
+              });
+            }
+
+            async function cliCargarClientes() {
+              try {
+                toggleSpin(true);
+
+                const canal = $("#cliCanal").val() || "";
+                const clasif = $("#cliClasificacion").val() || "";
+                const vendsArr = $("#cliVendedores").val() || [];
+                const vendedores = vendsArr.join(",");
+
+                let url = "";
+                if (!canal && vendedores && vendedores.split(",").length === 1) {
+                  url = `/Comercial/GetClientesPorVendedor?vendedorId=${encodeURIComponent(vendedores)}&clasif=${encodeURIComponent(clasif)}`;
+                } else {
+                  url = `/Comercial/GetClientes?vendedores=${encodeURIComponent(vendedores)}&canal=${encodeURIComponent(canal)}&clasif=${encodeURIComponent(clasif)}`;
+                }
+
+                const r = await fetch(url, { credentials: "same-origin" });
+                const data = r.ok ? await r.json() : [];
+
+                _cliAll = (Array.isArray(data) ? data : []).map(raw => ({
+                  id: String(raw.id ?? raw.value ?? raw.cardCode ?? raw.CardCode ?? ""),
+                  nom: String(raw.text ?? raw.label ?? raw.nombre ?? raw.Nombre ?? raw.cardName ?? raw.CardName ?? ""),
+                  canal: String(raw.canal ?? raw.Canal ?? ""),
+                  clas: String(raw.clas ?? raw.Clasificacion ?? ""),
+                  vend: String(raw.vend ?? raw.VendedorId ?? raw.slpCode ?? "")
+                })).filter(x => x.id);
+
+                _cliLoaded = true;
+
+                cliApplyFiltersLocal();
+                cliSetupAutocomplete();
+                showToast("Clientes cargados.", "success");
+              } catch (e) {
+                console.error(e);
+                showToast("Error al cargar clientes.", "danger");
+              } finally {
+                toggleSpin(false);
+              }
+            }
+
+            function cliGetSelectedClientIds() {
+              const one = String($("#cliClienteIndividualId").val() || "");
+              if (one) return [one];
+              return [...document.querySelectorAll("#cliListaClientes .cliChk:checked")].map(x => String(x.value));
+            }
+
+                  // 1) Trae ventas por clientes y "inyecta" el cliente en cada registro (por si el API no lo trae)
+        async function cliTraerVentasPorClientes(ids) {
+          const meses = parseInt($("#cliMesesObjetivo").val() || "12", 10);
+          const refs = buildMonthRefs(meses);
+
+          const all = [];
+          for (const id of ids) {
+            const url = `${API.ventasCliente}?cardCode=${encodeURIComponent(id)}`;
+            const r = await fetch(url, { credentials: "same-origin" });
+            if (!r.ok) continue;
+
+            const j = await r.json().catch(() => []);
+            if (!Array.isArray(j)) continue;
+
+            // 👇 IMPORTANTÍSIMO: asegura que cada registro "sepa" de qué cliente es
+            j.forEach(x => {
+              all.push({
+                ...x,
+                __cliente: id // inyectado
+              });
+            });
+          }
+
+          if (!all.length) return null;
+          return { data: all, refs, meses };
+        }
+
+
+        // 2) Construye filas por Cliente+SKU (ya NO por SKU solamente)
+        function cliBuildPorClienteSkuFromVentas(raw, refs, meses) {
+          const porKey = {};
+
+          (raw || []).forEach(d => {
+            const sku = String(d.sku || d.Sku || d.productoCodigo || d.ProductoCodigo || "").trim();
+            if (!sku) return;
+
+            // ClienteId: intenta leerlo del payload; si no existe usa el inyectado __cliente
+            const clienteId = String(
+              d.Cliente || d.cliente ||
+              d.CardCode || d.cardCode ||
+              d.ClienteId || d.clienteId ||
+              d.__cliente || ""
+            ).trim();
+            if (!clienteId) return;
+
+            // Nombre cliente si existe (opcional)
+            const clienteNom = String(d.CardName || d.cardName || d.nombreCliente || d.NombreCliente || "").trim();
+
+            const f = new Date(d.fecha || d.Fecha);
+            if (isNaN(f.getTime())) return;
+
+            const ym = `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, "0")}`;
+
+            const key = `${clienteId}||${sku}`.toUpperCase();
+
+            porKey[key] ||= {
+              sku: sku.toUpperCase(),
+              clienteId: clienteId.toUpperCase(),
+              clienteNom,
+              porMes: {},
+              objetivo: 0,
+              presupuesto: 0
+            };
+
+            porKey[key].porMes[ym] =
+              (porKey[key].porMes[ym] || 0) +
+              Number(d.totalKilos ?? d.TotalKilos ?? d.kilos ?? d.Kilos ?? d.total ?? 0);
+          });
+
+          const rows = Object.values(porKey);
+
+          rows.forEach(r => {
+            const sum = refs.reduce((a, m) => a + (r.porMes[m.key] || 0), 0);
+            r.objetivo = Math.round(sum / Math.max(1, meses));
+            r.presupuesto = r.objetivo;
+          });
+
+          // Orden opcional: por cliente y sku
+          rows.sort((a, b) => (a.clienteId + " " + a.sku).localeCompare(b.clienteId + " " + b.sku));
+
+          return rows;
+        }
+
+
+        // 3) Render tabla: ahora incluye columna Cliente y manda items[i].Cliente (lo que tu action necesita)
+        function renderTablaCliente(model) {
+          const { rows, refs } = model;
+
+          const thead = document.querySelector("#tablaCliente thead");
+          const tbody = document.getElementById("tbodyCliente");
+          if (!thead || !tbody) return;
+
+          const thMeses = refs.map(r => `<th class="text-end text-capitalize">${escapeHtml(r.label)}</th>`).join("");
+
+          thead.innerHTML = `
+            <tr>
+              <th>SKU</th>
+              <th>Cliente</th>
+              ${thMeses}
+              <th class="text-end">Objetivo</th>
+              <th class="text-end">Presupuesto</th>
+              <th class="text-end">Participación</th>
+              <th class="text-center">Comentario</th>
+            </tr>`;
+
+          tbody.innerHTML = "";
+          let i = 0;
+
+          (rows || []).forEach(d => {
+            if (!shouldIncludeRow(d.objetivo, d.presupuesto)) return;
+
+            const tds = refs.map(r => `<td class="text-end">${fmt(d.porMes[r.key] || 0)}</td>`).join("");
+
+            const skuSafe = escapeHtml(d.sku);
+            const cliIdSafe = escapeHtml(d.clienteId);
+            const cliNomSafe = escapeHtml(d.clienteNom || "");
+            const cliLabel = cliNomSafe ? `${cliNomSafe} (${cliIdSafe})` : cliIdSafe;
+
+            tbody.insertAdjacentHTML("beforeend", `
+              <tr data-sku="${skuSafe}" data-cliente="${cliIdSafe}">
+                <td>${skuSafe}
+                  <input type="hidden" name="items[${i}].ProductoCodigo" value="${skuSafe}">
+                  <input type="hidden" name="items[${i}].Objetivo" value="${d.objetivo}">
+                  <!-- ✅ ESTE ES EL CAMPO QUE TE FALTABA PARA GUARDAR -->
+                  <input type="hidden" name="items[${i}].Cliente" value="${cliIdSafe}">
+                </td>
+
+                <td>${cliLabel}</td>
+
+                ${tds}
+
+                <td class="text-end">${fmt(d.objetivo)}</td>
+
+                <td class="text-end">
+                  <input type="number" class="form-control form-control-sm text-end pre"
+                         name="items[${i}].Presupuesto" value="${d.presupuesto}" min="0" step="1">
+                </td>
+
+                <td class="text-end part-cell">0.0%</td>
+
+                <td class="text-center">
+                  <button type="button" class="btn btn-outline-secondary btn-sm btnComentarioCliente"
+                          data-sku="${skuSafe}" data-index="${i}" title="Agregar comentario">
+                    <i class="bi bi-chat-left-text"></i>
+                  </button>
+                  <input type="hidden" name="items[${i}].Comentario" id="cli-comentario-${i}" />
+                </td>
+              </tr>`);
+            i++;
+          });
+
+          cliUpdateTotales();
+          cliRecalcPart();
+        }
+
+
+        // 4) Consultar: usa el builder nuevo y manda rows (no porSku)
+        async function cliConsultar() {
+          const ids = cliGetSelectedClientIds();
+          if (!ids.length) {
+            showToast("Selecciona al menos 1 cliente (individual o lista).", "warning");
+            return;
+          }
+
+          try {
+            toggleSpin(true);
+
+            const pack = await cliTraerVentasPorClientes(ids);
+            if (!pack) {
+              showToast("Sin datos para esos clientes.", "warning");
+              return;
+            }
+
+            const rows = cliBuildPorClienteSkuFromVentas(pack.data, pack.refs, pack.meses);
+            renderTablaCliente({ rows, refs: pack.refs });
+
+            showToast("Consulta completada.", "success");
+          } catch (e) {
+            console.error(e);
+            showToast("Error al consultar ventas por cliente(s).", "danger");
+          } finally {
+            toggleSpin(false);
+          }
+        }
+
+
+
+        // ==========================
+        // ✅ GUARDADO CLIENTE (FIX REAL)
+        // ==========================
+
+        // prefijos EXACTOS (incluye Items con I mayúscula)
+        const CLIENTE_ITEM_PREFIXES = [
+          "Items", "items",
+          "Detalles", "Detalle",
+          "Presupuestos", "Presupuesto",
+          "Renglones", "Rows",
+          "Lineas", "LineItems"
+        ];
+
+        function _dedupePrefixes(list) {
+          const seen = new Set();
+          const out = [];
+          (list || []).forEach(p => {
+            const v = String(p || "").trim();
+            if (!v) return;
+            const k = v.toLowerCase();
+            if (seen.has(k)) return;
+            seen.add(k);
+            out.push(v);
+          });
+          return out;
+        }
+
+        function _ensureHidden(form, id, name) {
+          let el = document.getElementById(id);
+          if (!el) {
+            el = document.createElement("input");
+            el.type = "hidden";
+            el.id = id;
+            el.name = name;
+            form.appendChild(el);
+          } else {
+            el.name = name;
+          }
+          return el;
+        }
+
+                function syncClienteItemsToForm(form, cardCode) {
+          let shadow = document.getElementById("CliItemsShadow");
+          if (!shadow) {
+            shadow = document.createElement("div");
+            shadow.id = "CliItemsShadow";
+            shadow.style.display = "none";
+            form.appendChild(shadow);
+          }
+          shadow.innerHTML = "";
+
+          const rows = document.querySelectorAll("#tbodyCliente tr");
+          let i = 0;
+
+          const prefixes = _dedupePrefixes(CLIENTE_ITEM_PREFIXES);
+          const cc = String(cardCode || "").trim();
+
+          const add = (name, val) => {
+            const inp = document.createElement("input");
+            inp.type = "hidden";
+            inp.name = name;
+            inp.value = val ?? "";
+            shadow.appendChild(inp);
+          };
+
+          rows.forEach(tr => {
+            const sku =
+              String(tr.querySelector('input[name$=".ProductoCodigo"]')?.value || "").trim() ||
+              String(tr.getAttribute("data-sku") || "").trim() ||
+              String(tr.querySelector("td")?.innerText || "").trim();
+
+            if (!sku) return;
+
+            const obj = String(tr.querySelector('input[name$=".Objetivo"]')?.value ?? "0");
+            const pre = String(tr.querySelector("input.pre")?.value ?? "0");
+            const com = String(tr.querySelector('input[name$=".Comentario"]')?.value ?? "");
+
+            prefixes.forEach(prefix => {
+              add(`${prefix}[${i}].ProductoCodigo`, sku);
+              add(`${prefix}[${i}].Sku`, sku);
+              add(`${prefix}[${i}].SKU`, sku);
+              add(`${prefix}[${i}].ItemCode`, sku);
+
+              add(`${prefix}[${i}].Objetivo`, obj);
+              add(`${prefix}[${i}].ObjetivoKilos`, obj);
+
+              add(`${prefix}[${i}].Presupuesto`, pre);
+              add(`${prefix}[${i}].PresupuestoKilos`, pre);
+
+              add(`${prefix}[${i}].Comentario`, com);
+
+              // 👇 SIEMPRE manda el cliente por item (esto suele salvar el backend)
+              add(`${prefix}[${i}].CardCode`, cc);
+              add(`${prefix}[${i}].ClienteId`, cc);
+              add(`items[${i}].Cliente`, cc); // <-- ESTE es el que usa el action (i.Cliente)
+            });
+
+            i++;
+          });
+
+          console.log("[Cliente] Filas armadas:", i, "CardCode:", cc);
+          return i;
+        }
+
+                  async function guardarComoEstaVistaCliente(mes, anio, cardCode) {
+          const form = document.getElementById("frmPresupuestoCliente");
+          if (!form) { showToast("No se encontró frmPresupuestoCliente", "danger"); return false; }
+
+          const cc = String(cardCode || "").trim();   // <-- ESTE es tu cliente real
+          if (!cc) { showToast("Falta Cliente para guardar.", "danger"); return false; }
+
+          // Root que tu Action sí entiende: string Cliente
+          _ensureHidden(form, "CliClienteRoot", "Cliente").value = cc;
+          _ensureHidden(form, "CliMesInput", "Mes").value = mes;
+          _ensureHidden(form, "CliAnioInput", "Anio").value = anio;
+
+          // arma items (asegúrate que syncClienteItemsToForm agrega items[i].Cliente = cc)
+          const count = syncClienteItemsToForm(form, cc);
+          if (!count) { showToast("No hay filas armadas para enviar.", "danger"); return false; }
+
+          const token =
+            form.querySelector('input[name="__RequestVerificationToken"]')?.value ||
+            document.querySelector('input[name="__RequestVerificationToken"]')?.value || "";
+
+          try {
+            toggleSpin(true);
+            const fd = new FormData(form);
+
+            // Usa action del form o el API fallback
+            const url = (form.getAttribute("action") || "").trim() || API.guardarCliente;
+
+            const r = await fetch(url, {
+              method: "POST",
+              credentials: "same-origin",
+              headers: { "RequestVerificationToken": token, "X-Requested-With": "XMLHttpRequest" },
+              body: fd
+            });
+
+            const ct = r.headers.get("content-type") || "";
+            const text = ct.includes("application/json") ? "" : await r.text().catch(() => "");
+            const data = ct.includes("application/json") ? await r.json().catch(() => null) : null;
+
+            if (r.ok && (data?.ok || data?.success)) {
+              return true;
+            }
+
+            console.log("RESPUESTA BACKEND (texto):", text);
+            console.log("RESPUESTA BACKEND (json):", data);
+            showToast(data?.message || data?.error || text || "No se pudo guardar", "danger");
+            return false;
+
+          } catch (e) {
+            console.error(e);
+            showToast("Error de red al guardar.", "danger");
+            return false;
+          } finally {
+            toggleSpin(false);
+          }
+        }
+
+
+
+                 async function cliGuardar() {
+          const ids = cliGetSelectedClientIds();
+          if (!ids.length) { showToast("Selecciona cliente(s) antes de guardar.", "warning"); return; }
+
+          const mes = parseInt($("#cliMes").val(), 10);
+          const anio = parseInt($("#cliAnio").val(), 10);
+
+          if (ids.length > 1) {
+            let okCount = 0;
+            for (const id of ids) {
+              const ok = await guardarComoEstaVistaCliente(mes, anio, id);
+              if (ok) okCount++;
+            }
+            showToast(`Guardados ${okCount} de ${ids.length}`, okCount ? "success" : "danger");
+            return;
+          }
+
+          const ok = await guardarComoEstaVistaCliente(mes, anio, ids[0]);
+          showToast(ok ? "Presupuesto guardado." : "No se pudo guardar.", ok ? "success" : "danger");
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            function bindClienteUI() {
+              if (_binded) return;
+              _binded = true;
+
+              document.getElementById("tab-cli")?.addEventListener("shown.bs.tab", async () => {
+                cliSetPeriodoDefault();
+                await cliLoadCanales();
+                await cliLoadClasificaciones();
+                await cliLoadVendedores();
+                if (_cliLoaded) cliApplyFiltersLocal();
+              });
+
+              $("#cliCanal, #cliClasificacion, #cliVendedores").on("change", () => {
+                cliCargarClientes();
+              });
+
+              $("#cliBuscarLista").on("input", () => {
+                cliApplyFiltersLocal();
+              });
+
+              $("#cliBtnCargarClientes").on("click", cliCargarClientes);
+
+              $("#cliBtnSelTodo").on("click", () => {
+                document.querySelectorAll("#cliListaClientes .cliChk").forEach(x => x.checked = true);
+              });
+
+              $("#cliBtnLimpiar").on("click", () => {
+                $("#cliClienteIndividual").val("");
+                $("#cliClienteIndividualId").val("");
+                $("#cliBuscarLista").val("");
+                document.querySelectorAll("#cliListaClientes .cliChk").forEach(x => x.checked = false);
+                cliApplyFiltersLocal();
+              });
+
+              $("#cliBtnConsultar").on("click", cliConsultar);
+              $("#cliBtnPresupuestar").on("click", cliConsultar);
+
+              $(document).on('input', '#tbodyCliente input.pre', () => { cliUpdateTotales(); cliRecalcPart(); });
+
+              // Comentarios (tu modal existente)
+              let _comentarioTargetIdCliente = null;
+              $(document).on("click", ".btnComentarioCliente", function () {
+                const sku = $(this).data("sku");
+                const index = $(this).data("index");
+                _comentarioTargetIdCliente = `cli-comentario-${index}`;
+
+                const ex = $(`#${_comentarioTargetIdCliente}`).val();
+                $("#comentarioSkuCliente").text(sku);
+                $("#comentarioTextoCliente").val(ex || "");
+
+                bootstrap.Modal.getOrCreateInstance(document.getElementById("comentarioModalCliente")).show();
+              });
+
+              $("#guardarComentarioCliente").on("click", function () {
+                const c = $("#comentarioTextoCliente").val();
+                if (_comentarioTargetIdCliente) $(`#${_comentarioTargetIdCliente}`).val(c);
+                bootstrap.Modal.getInstance(document.getElementById('comentarioModalCliente'))?.hide();
+                showToast("Comentario cliente guardado.", "success");
+              });
+
+              // ✅ binding delegado “a prueba de DOM tardío”
+              $(document)
+                .off("click", "#btnGuardarCliente")
+                .on("click", "#btnGuardarCliente", function (e) {
+                  e.preventDefault();
+                  e.stopImmediatePropagation();
+                  cliGuardar();
+                });
+            }
+
+            // utilidad para Excel cliente
+            function getClienteLabelParaExcel() {
+              const one = String($("#cliClienteIndividualId").val() || "");
+              if (one) return one;
+              const ids = [...document.querySelectorAll("#cliListaClientes .cliChk:checked")].map(x => String(x.value));
+              return ids.length ? ids[0] : "Cliente";
+            }
+
+            function init() { bindClienteUI(); }
+
+            return { init, getClienteLabelParaExcel };
+          })();
+
+          // =========================================================
+          // ======================== EXCEL (Genérico) =================
+          // =========================================================
+          const EXCEL = (function () {
+            const ES_MONTHS = {
+              'enero': 1, 'ene': 1,
+              'febrero': 2, 'feb': 2,
+              'marzo': 3, 'mar': 3,
+              'abril': 4, 'abr': 4,
+              'mayo': 5, 'may': 5,
+              'junio': 6, 'jun': 6,
+              'julio': 7, 'jul': 7,
+              'agosto': 8, 'ago': 8,
+              'septiembre': 9, 'sep': 9, 'setiembre': 9, 'set': 9,
+              'octubre': 10, 'oct': 10,
+              'noviembre': 11, 'nov': 11,
+              'diciembre': 12, 'dic': 12
+            };
+
+            const pad2 = n => String(n).padStart(2, '0');
+
+            function canonYMFromHeader(h) {
+              if (!h) return null;
+              let s = String(h).toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/\./g, ' ')
+                .replace(/\n/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+              let m = s.match(/^(\d{4})[\/\- ](\d{1,2})$/);
+              if (m) { const y = +m[1], mm = +m[2]; if (y >= 1900 && mm >= 1 && mm <= 12) return `${y}-${pad2(mm)}`; }
+
+              m = s.match(/^(\d{1,2})[\/\- ](\d{4})$/);
+              if (m) { const mm = +m[1], y = +m[2]; if (y >= 1900 && mm >= 1 && mm <= 12) return `${y}-${pad2(mm)}`; }
+
+              m = s.match(/^([a-z\u00f1]+)[ ]+(\d{4})$/i);
+              if (m) { const mm = ES_MONTHS[m[1]], y = +m[2]; if (mm) return `${y}-${pad2(mm)}`; }
+
+              m = s.match(/^(\d{4})[ ]+([a-z\u00f1]+)$/i);
+              if (m) { const y = +m[1], mm = ES_MONTHS[m[2]]; if (mm) return `${y}-${pad2(mm)}`; }
+
+              return null;
+            }
+
+            function currentMonthRefsFromSelect($selMesesObjetivo) {
+              const meses = parseInt($selMesesObjetivo.val() || "12", 10);
+              const refs = buildMonthRefs(meses);
+              return refs.map(r => {
+                const parts = String(r.label).split(' ');
+                const mesSrc = (parts[0] || '').replace('.', '');
+                const anio = parts[1] || '';
+                const niceMes = mesSrc.charAt(0).toUpperCase() + mesSrc.slice(1).toLowerCase();
+                return { key: r.key, nice: `${niceMes} ${anio}` };
+              });
+            }
+
+            function armarDataDesdeTabla(tbodySelector, months) {
+              const rows = [];
+              document.querySelectorAll(`${tbodySelector} tr`).forEach(tr => {
+                const sku = tr.getAttribute('data-sku') || tr.querySelector('td')?.innerText?.trim() || '';
+                const objetivo = Number(tr.querySelector('input[name$=".Objetivo"]')?.value || 0);
+                const presupuesto = Number(tr.querySelector('input.pre')?.value || 0);
+                const comentario = tr.querySelector('input[name$=".Comentario"]')?.value || '';
+                const c = { SKU: sku };
+
+                const tds = [...tr.children];
+                let idx = 1;
+                months.forEach(m => {
+                  const td = tds[idx++];
+                  c[m.nice] = Number((td?.innerText || '0').replace(/[^\d.-]/g, '')) || 0;
+                });
+
+                c["Objetivo"] = objetivo;
+                c["Presupuesto"] = presupuesto;
+                c["Comentario"] = comentario;
+                rows.push(c);
+              });
+              return rows;
+            }
+
+            function exportar({ tbodySelector, $selMesesObjetivo, sheetName, fileNameBase }) {
+              const months = currentMonthRefsFromSelect($selMesesObjetivo);
+              const rows = armarDataDesdeTabla(tbodySelector, months);
+              if (!rows.length) { showToast("No hay datos para exportar.", "warning"); return; }
+
+              const cols = ["SKU", ...months.map(m => m.nice), "Objetivo", "Presupuesto", "Comentario"];
+              const data = rows.map(r => {
+                const obj = {};
+                cols.forEach(k => obj[k] = r[k] ?? (k === "Comentario" ? "" : 0));
+                return obj;
+              });
+
+              const ws = XLSX.utils.json_to_sheet(data, { header: cols });
+              ws['!cols'] = cols.map(c => ({ wch: Math.max(12, c.length + 2) }));
+
+              const wb = XLSX.utils.book_new();
+              XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+              const f = new Date();
+              const stamp = `${f.getFullYear()}${pad2(f.getMonth() + 1)}${pad2(f.getDate())}`;
+              XLSX.writeFile(wb, `${fileNameBase}_${stamp}.xlsx`);
+              showToast("Excel exportado.", "success");
+            }
+
+            function plantilla({ $selMesesObjetivo, sheetName, fileNameBase }) {
+              const months = currentMonthRefsFromSelect($selMesesObjetivo);
+              const cols = ["SKU", ...months.map(m => m.nice), "Objetivo", "Presupuesto", "Comentario"];
+              const ws = XLSX.utils.aoa_to_sheet([cols]);
+              ws['!cols'] = cols.map(c => ({ wch: Math.max(12, c.length + 2) }));
+
+              const wb = XLSX.utils.book_new();
+              XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+              XLSX.writeFile(wb, `${fileNameBase}.xlsx`);
+              showToast("Plantilla descargada.", "success");
+            }
+
+            function importar({ file, tbodySelector, theadSelector, $selMesesObjetivo, comentarioIdPrefix, comentarioBtnClass }) {
+              if (!file) { showToast("Selecciona un archivo Excel.", "warning"); return; }
+              toggleSpin(true);
+
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                try {
+                  const wb = XLSX.read(e.target.result, { type: 'binary' });
+                  const ws = wb.Sheets[wb.SheetNames[0]];
+                  const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+                  if (!data.length) { showToast("El Excel está vacío.", "warning"); return; }
+
+                  const headersArchivo = Object.keys(data[0] || {});
+                  const mapYM = {};
+                  headersArchivo.forEach(h => {
+                    const ym = canonYMFromHeader(h);
+                    if (ym) mapYM[ym] = h;
+                  });
+
+                  const months = currentMonthRefsFromSelect($selMesesObjetivo);
+
+                  // ✅ PERMISIVO: si no vienen columnas de meses, no falla
+                  const missing = months.filter(m => !mapYM[m.key]);
+                  const hasAnyMonth = months.some(m => !!mapYM[m.key]);
+                  
+                  // Si no viene ninguna columna de mes, seguimos y llenamos con 0
+                  if (!hasAnyMonth) {
+                    console.warn("[Import] Excel sin columnas de meses. Se llenará con 0.");
+                  } else if (missing.length) {
+                    // Si viene al menos una de mes, pero faltan otras, también seguimos (las faltantes van en 0)
+                    console.warn("[Import] Faltan columnas de meses, se llenarán con 0:", missing.map(x => x.nice));
+                  }
+
+
+                  // Render headers
+                  const thead = document.querySelector(theadSelector);
+                  const tbody = document.querySelector(tbodySelector);
+                  const thMeses = months.map(r => {
+                    const [mes, anio] = r.nice.split(' ');
+                    return `<th class="text-end"><div class="text-capitalize">${escapeHtml(mes)}</div><div class="small text-muted">${escapeHtml(anio)}</div></th>`;
+                  }).join('');
+
+                  thead.innerHTML = `
+                    <tr>
+                      <th>SKU</th>
+                      ${thMeses}
+                      <th class="text-end">Objetivo</th>
+                      <th class="text-end">Presupuesto</th>
+                      <th class="text-end">Participación</th>
+                      <th class="text-center">Comentario</th>
+                      ${tbodySelector === '#tbodyCedis' ? '<th style="width:44px;"></th>' : ''}
+                    </tr>`;
+
+                  // Fill body
+                  tbody.innerHTML = '';
+                  let i = 0;
+
+                  data.forEach(row => {
+                    const sku = String(row['SKU'] || row['sku'] || row['ProductoCodigo'] || row['productoCodigo'] || '').trim().toUpperCase();
+                    if (!sku) return;
+
+                           const tdsMeses = months.map(m => {
+                         const col = mapYM[m.key];
+                         const val = col ? Number(row[col] ?? 0) : 0;  // ✅ si no hay col -> 0
+                         return `<td class="text-end">${fmt(val)}</td>`;
+                       }).join('');
+
+
+                    const objetivo = Math.round(Number(row['Objetivo'] ?? row['objetivo'] ?? 0));
+                    const presupuesto = Math.round(Number(row['Presupuesto'] ?? row['presupuesto'] ?? objetivo));
+                    const comentario = String(row['Comentario'] ?? row['comentario'] ?? '');
+
+                    // if (!shouldIncludeRow(objetivo, presupuesto)) return;
+
+                    // ✅ En importación NO filtres por mínimo (al menos en CEDIS)
+                           const skipFilter = (tbodySelector === '#tbodyVendedor'); // ✅ vendedor siempre entra
+        if (!skipFilter && tbodySelector !== '#tbodyCedis' && !shouldIncludeRow(objetivo, presupuesto)) return;
+
+
+                    const skuSafe = escapeHtml(sku);
+                    const comSafe = escapeHtml(comentario);
+
+                    const extraDel = (tbodySelector === '#tbodyCedis')
+                      ? `<td class="text-center"><button type="button" class="btn btn-outline-danger btn-sm del"><i class="bi bi-trash"></i></button></td>`
+                      : '';
+
+                    tbody.insertAdjacentHTML('beforeend', `
+                      <tr data-sku="${skuSafe}">
+                        <td>${skuSafe}
+                          <input type="hidden" name="items[${i}].ProductoCodigo" value="${skuSafe}">
+                          <input type="hidden" name="items[${i}].Objetivo" value="${objetivo}">
+                        </td>
+                        ${tdsMeses}
+                        <td class="text-end">${fmt(objetivo)}</td>
+                        <td class="text-end">
+                          <input type="number" class="form-control form-control-sm text-end pre" name="items[${i}].Presupuesto" value="${presupuesto}" min="0" step="1">
+                        </td>
+                        <td class="text-end part-cell">0.0%</td>
+                        <td class="text-center">
+                          <button type="button" class="btn btn-outline-secondary btn-sm ${comentarioBtnClass}"
+                                  data-sku="${skuSafe}" data-index="${i}">
+                            <i class="bi bi-chat-left-text"></i>
+                          </button>
+                          <input type="hidden" name="items[${i}].Comentario" id="${comentarioIdPrefix}${i}" value="${comSafe}" />
+                        </td>
+                        ${extraDel}
+                      </tr>`);
+                    i++;
+                  });
+
+        // ✅ Recalcular totales según tabla
+        if (tbodySelector === '#tbodyCedis') {
+          updateTotalesUI('#tbodyCedis', 'totObj', 'totPre');
+          recalcPartUI('#tbodyCedis');
+        }
+        if (tbodySelector === '#tbodyVendedor') {
+          updateTotalesUI('#tbodyVendedor', 'venTotObj', 'venTotPre');
+          recalcPartUI('#tbodyVendedor');
+        }
+        if (tbodySelector === '#tbodyCliente') {
+          updateTotalesUI('#tbodyCliente', 'cliTotObj', 'cliTotPre');
+          recalcPartUI('#tbodyCliente');
+        }
+
+
+                  showToast("Importación completada.", "success");
+                } catch (err) {
+                  console.error(err);
+                  showToast("No se pudo leer el Excel.", "danger");
+                } finally {
+                  toggleSpin(false);
+                }
+              };
+
+              
+
+              reader.onerror = () => {
+                toggleSpin(false);
+                showToast("Error leyendo el archivo.", "danger");
+              };
+
+              reader.readAsBinaryString(file);
+            }
+
+            return { exportar, plantilla, importar };
+          })();
+
+        async function initModoPresupuesto() {
+        const box = document.getElementById("modoPresupuestoBox");
+        if (!box) return;
+
+        const token =
+        document.querySelector('#frmPresupuestoCedis input[name="__RequestVerificationToken"]')?.value ||
+        document.querySelector('#frmPresupuestoCliente input[name="__RequestVerificationToken"]')?.value ||
+        document.querySelector('input[name="__RequestVerificationToken"]')?.value || "";
+
+        const norm = (modo) => {
+        const m = String(modo || "").trim().toUpperCase();
+        return (m === "VENDEDOR") ? "VENDEDOR" : "CLIENTE";
+        };
+
+        const setActive = (modo) => {
+        const m = norm(modo);
+
+        box.querySelectorAll("[data-modo]").forEach(b => b.classList.remove("active"));
+        const active = box.querySelector(`[data-modo="${m}"]`);
+        if (active) active.classList.add("active");
+
+        window.__MODO_PRESUPUESTO__ = m;
+        try { localStorage.setItem("modoPresupuesto", m); } catch {}
+        };
+
+        try {
+        const r = await fetch(API.modoGet, { credentials: "same-origin" });
+        const j = r.ok ? await r.json() : null;
+
+        // sin permiso de lectura: ocultar
+        if (!j?.puedeLeer) {
+        box.style.display = "none";
+        return;
+        }
+
+        // con permiso de lectura: mostrar
+        box.style.display = "";
+
+        const fallback = (() => {
+        try { return localStorage.getItem("modoPresupuesto"); } catch { return null; }
+        })();
+
+        setActive(j?.modo || fallback || "CLIENTE");
+
+        // sin permiso de escritura: deshabilitar
+        if (!j?.puedeEscribir) {
+        box.querySelectorAll("[data-modo]").forEach(btn => {
+        btn.disabled = true;
+        });
+        return;
+        }
+
+        // con permiso de escritura: habilitar
+        box.querySelectorAll("[data-modo]").forEach(btn => {
+        btn.disabled = false;
+        });
+
+        } catch (e) {
+        console.error("No se pudo cargar modo presupuesto:", e);
+        box.style.display = "none";
+        return;
+        }
+
+        box.querySelectorAll("[data-modo]").forEach(btn => {
+        btn.addEventListener("click", async () => {
+        if (btn.disabled) return;
+
+        const modo = norm(btn.getAttribute("data-modo"));
+        const fd = new FormData();
+        fd.append("modo", modo);
+
+        try {
+        toggleSpin(true);
+
+        const r = await fetch(API.modoSet, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+        "RequestVerificationToken": token,
+        "X-Requested-With": "XMLHttpRequest"
+        },
+        body: fd
+        });
+
+        if (r.status === 403) {
+        showToast("No tienes permiso para cambiar el modo.", "warning");
+        return;
+        }
+
+        const j = r.ok ? await r.json() : null;
+        if (r.ok && j?.ok) {
+        setActive(j.modo);
+        } else {
+        showToast("No se pudo guardar el modo.", "danger");
+        }
+        } catch {
+        showToast("Error al guardar modo presupuesto.", "danger");
+        } finally {
+        toggleSpin(false);
+        }
+        });
+        });
+        }
+
+
+       function getTokenAny() {
+          return document.querySelector('input[name="__RequestVerificationToken"]')?.value || "";
+        }
+
+        function fillAdminMeses() {
+          const $m = $("#admMes").empty();
+          const names = [
+            "Enero","Febrero","Marzo","Abril","Mayo","Junio",
+            "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"
+          ];
+          for (let i=1;i<=12;i++) $m.append(`<option value="${i}">${names[i-1]}</option>`);
+        }
+
+        function rowAmbito(r){
+          const t = String(r.tipo || r.Tipo || "").toUpperCase();
+          if (t === "CEDIS") return r.canal || r.Canal || "";
+          if (t === "VENDEDOR") return `Vendedor ${r.vendedorId ?? r.VendedorId ?? ""}`;
+          if (t === "CLIENTE") return r.cliente || r.Cliente || "";
+          return "";
+        }
+
+              async function admBuscar() {
+          const tipo = $("#admTipo").val();
+          const mes = +$("#admMes").val();
+          const anio = +$("#admAnio").val();
+
+          const sku = ($("#admSku").val() || "").trim();
+          const canal = ($("#admCanal").val() || "").trim();
+          const vendedorId = ($("#admVendedorId").val() || "").trim();
+          const cliente = ($("#admCliente").val() || "").trim();
+
+          if (!API.adminList) {
+            console.error("[ADMIN] API.adminList viene vacío. Revisa Url.Action('AdminListPresupuestos','Comercial')");
+            showToast("API.adminList vacío. Revisa Url.Action.", "danger");
+            return;
+          }
+
+          const qs = new URLSearchParams({ tipo, mes, anio, sku, canal, vendedorId, cliente });
+          const url = `${API.adminList}?${qs.toString()}`;
+
+          console.log("[ADMIN] fetch:", url);
+
+          toggleSpin(true);
+          try {
+            const r = await fetch(url, { credentials: "same-origin" });
+
+            console.log("[ADMIN] status:", r.status);
+
+            const j = await r.json().catch(() => null);
+            console.log("[ADMIN] json:", j);
+
+            if (!r.ok || !j?.ok) {
+              showToast(j?.message || `No se pudo listar (${r.status})`, "danger");
+              return;
+            }
+
+            const rows = j.rows || [];
+            $("#admMsg").text(`Resultados: ${rows.length}`);
+
+            const html = rows.map(x => {
+              const tipo2 = x.tipo ?? x.Tipo ?? "";
+              const mes2 = x.mes ?? x.Mes ?? 0;
+              const anio2 = x.anio ?? x.Anio ?? 0;
+              const sku2 = x.sku ?? x.Sku ?? "";
+              const obj2 = x.objetivo ?? x.Objetivo ?? 0;
+              const pre2 = x.presupuesto ?? x.Presupuesto ?? 0;
+              const com2 = x.comentario ?? x.Comentario ?? "";
+              const rowId = x.rowId ?? x.RowId ?? 0;
+
+              return `
+                <tr data-rowid="${rowId}">
+                  <td><input class="form-check-input admChk" type="checkbox" value="${rowId}"></td>
+                  <td>${escapeHtml(String(tipo2))}</td>
+                  <td>${String(mes2).padStart(2,'0')}/${anio2}</td>
+                  <td>${escapeHtml(rowAmbito(x))}</td>
+                  <td class="fw-semibold">${escapeHtml(String(sku2))}</td>
+                  <td class="text-end">${fmt(obj2)}</td>
+                  <td class="text-end">${fmt(pre2)}</td>
+                  <td class="text-muted small">${escapeHtml(String(com2 || ""))}</td>
+                </tr>`;
+            }).join("");
+
+            $("#admTbody").html(html || `<tr><td colspan="8" class="text-muted p-3">Sin resultados.</td></tr>`);
+
+          } catch (err) {
+            console.error("[ADMIN] error:", err);
+            showToast("Error de red/JS en buscar. Revisa consola.", "danger");
+          } finally {
+            toggleSpin(false);
+          }
+        }
+
+
+        async function admDeleteSelected() {
+          const tipo = $("#admTipo").val();
+          const ids = [...document.querySelectorAll("#admTbody .admChk:checked")]
+            .map(x => +x.value).filter(Boolean);
+
+          if (!ids.length) { showToast("Selecciona al menos 1 fila.", "warning"); return; }
+          if (!confirm(`Eliminar ${ids.length} filas seleccionadas?`)) return;
+
+          const reason = prompt("Motivo (opcional):") || "";
+
+          toggleSpin(true);
+          try {
+            const fd = new FormData();
+            fd.append("Tipo", tipo);
+            ids.forEach(i => fd.append("RowIds", i));
+            fd.append("Reason", reason);
+
+            const r = await fetch(API.adminDelIds, {
+              method:"POST",
+              credentials:"same-origin",
+              headers:{ "RequestVerificationToken": getTokenAny(), "X-Requested-With":"XMLHttpRequest" },
+              body: fd
+            });
+
+            const j = await r.json().catch(()=>null);
+            if (r.ok && j?.ok) {
+              showToast(`Eliminadas: ${j.deleted}`, "success");
+              await admBuscar();
+            } else {
+              showToast(j?.message || "No se pudo eliminar.", "danger");
+            }
+          } finally { toggleSpin(false); }
+        }
+
+        async function admDeleteByFilter() {
+          const tipo = $("#admTipo").val();
+          const mes = +$("#admMes").val();
+          const anio = +$("#admAnio").val();
+
+          const sku = ($("#admSku").val() || "").trim();
+          const canal = ($("#admCanal").val() || "").trim();
+          const vendedorId = ($("#admVendedorId").val() || "").trim();
+          const cliente = ($("#admCliente").val() || "").trim();
+
+          const dangerous = !sku && !canal && !vendedorId && !cliente;
+          const msg = dangerous
+            ? `Vas a borrar TODO ${tipo} del periodo ${String(mes).padStart(2,'0')}/${anio}. ¿Seguro?`
+            : `Vas a borrar por filtros. ¿Continuar?`;
+
+          if (!confirm(msg)) return;
+
+          const reason = prompt("Motivo (opcional):") || "";
+
+          toggleSpin(true);
+          try {
+            const fd = new FormData();
+            fd.append("Tipo", tipo);
+            fd.append("Mes", mes);
+            fd.append("Anio", anio);
+            fd.append("Sku", sku);
+            fd.append("Canal", canal);
+            fd.append("VendedorId", vendedorId);
+            fd.append("Cliente", cliente);
+            fd.append("DeleteAllInScope", "true");
+            fd.append("Reason", reason);
+
+            const r = await fetch(API.adminDelFilter, {
+              method:"POST",
+              credentials:"same-origin",
+              headers:{ "RequestVerificationToken": getTokenAny(), "X-Requested-With":"XMLHttpRequest" },
+              body: fd
+            });
+
+            const j = await r.json().catch(()=>null);
+            if (r.ok && j?.ok) {
+              showToast(`Eliminadas: ${j.deleted}`, "success");
+              await admBuscar();
+            } else {
+              showToast(j?.message || "No se pudo eliminar.", "danger");
+            }
+          } finally { toggleSpin(false); }
+        }
+
+              function bindAdminPresupuestos() {
+
+          // Abre modal
+          $("#btnAdminPres")
+            .off("click")
+            .on("click", () => {
+              console.log("[ADMIN] click btnAdminPres");
+              fillAdminMeses();
+
+              const now = new Date();
+              $("#admMes").val(now.getMonth() + 1);
+              $("#admAnio").val(now.getFullYear());
+
+              $("#admTbody").html(`<tr><td colspan="8" class="text-muted p-3">Busca para ver resultados.</td></tr>`);
+              $("#admMsg").text("");
+
+              bootstrap.Modal.getOrCreateInstance(document.getElementById("modalAdminPres")).show();
+            });
+
+          // Buscar
+          $("#admBuscar")
+            .off("click")
+            .on("click", (e) => {
+              e.preventDefault();
+              console.log("[ADMIN] click Buscar");
+              admBuscar();
+            });
+
+          // Eliminar seleccionados
+          $("#admDeleteSelected")
+            .off("click")
+            .on("click", (e) => {
+              e.preventDefault();
+              admDeleteSelected();
+            });
+
+          // Eliminar por filtros
+          $("#admDeleteByFilter")
+            .off("click")
+            .on("click", (e) => {
+              e.preventDefault();
+              admDeleteByFilter();
+            });
+
+          // Check all
+          $("#admChkAll")
+            .off("change")
+            .on("change", function () {
+              document.querySelectorAll("#admTbody .admChk").forEach(x => x.checked = this.checked);
+            });
+
+          console.log("[ADMIN] bindAdminPresupuestos listo");
+        }
+
+
+
+
+
+          // =========================================================
+          // ====================== BINDS EXCEL =======================
+          // =========================================================
+          function bindExcel() {
+            // CEDIS
+            $("#btnExportarXlsx").on("click", () => {
+              const canal = (document.getElementById('selCanal')?.value || 'CEDIS').replace(/[^\w\- ]/g, '');
+              EXCEL.exportar({
+                tbodySelector: '#tbodyCedis',
+                $selMesesObjetivo: $("#filtroMesesObjetivo"),
+                sheetName: 'CEDIS',
+                fileNameBase: `Presupuesto_CEDIS_${canal}`
+              });
+            });
+
+            $("#btnPlantillaXlsx").on("click", () => {
+              const canal = (document.getElementById('selCanal')?.value || 'CEDIS').replace(/[^\w\- ]/g, '');
+              EXCEL.plantilla({
+                $selMesesObjetivo: $("#filtroMesesObjetivo"),
+                sheetName: 'Plantilla',
+                fileNameBase: `Plantilla_Presupuesto_CEDIS_${canal}`
+              });
+            });
+
+            $("#btnImportarXlsx").on("click", () => document.getElementById('fileExcelCedis')?.click());
+            $("#fileExcelCedis").on("change", function () {
+              const f = this.files?.[0];
+              if (!f) return;
+              EXCEL.importar({
+                file: f,
+                tbodySelector: '#tbodyCedis',
+                theadSelector: '#tablaCedis thead',
+                $selMesesObjetivo: $("#filtroMesesObjetivo"),
+                comentarioIdPrefix: 'comentario-',
+                comentarioBtnClass: 'btnComentarioCedis'
+              });
+              this.value = '';
+            });
+
+            // VENDEDOR
+            $("#btnExportarXlsxVen").on("click", () => {
+              const vendedorId = $("#selVendedor").val() || 'Vendedor';
+              EXCEL.exportar({
+                tbodySelector: '#tbodyVendedor',
+                $selMesesObjetivo: $("#venMesesObjetivo"),
+                sheetName: 'VENDEDOR',
+                fileNameBase: `Presupuesto_Vendedor_${vendedorId}`
+              });
+            });
+
+            $("#btnPlantillaXlsxVen").on("click", () => {
+              const vendedorId = $("#selVendedor").val() || 'Vendedor';
+              EXCEL.plantilla({
+                $selMesesObjetivo: $("#venMesesObjetivo"),
+                sheetName: 'Plantilla',
+                fileNameBase: `Plantilla_Presupuesto_Vendedor_${vendedorId}`
+              });
+            });
+
+            $("#btnImportarXlsxVen").on("click", () => document.getElementById('fileExcelVendedor')?.click());
+            $("#fileExcelVendedor").on("change", function () {
+              const f = this.files?.[0];
+              if (!f) return;
+              EXCEL.importar({
+                file: f,
+                tbodySelector: '#tbodyVendedor',
+                theadSelector: '#tablaVendedor thead',
+                $selMesesObjetivo: $("#venMesesObjetivo"),
+                comentarioIdPrefix: 'ven-comentario-',
+                comentarioBtnClass: 'btnComentarioVendedor'
+              });
+              this.value = '';
+            });
+
+            // CLIENTE
+            $("#btnExportarXlsxCli").on("click", () => {
+              const clienteId = CLIENTE.getClienteLabelParaExcel();
+              EXCEL.exportar({
+                tbodySelector: '#tbodyCliente',
+                $selMesesObjetivo: $("#cliMesesObjetivo"),
+                sheetName: 'CLIENTE',
+                fileNameBase: `Presupuesto_Cliente_${clienteId}`
+              });
+            });
+
+            $("#btnPlantillaXlsxCli").on("click", () => {
+              const clienteId = CLIENTE.getClienteLabelParaExcel();
+              EXCEL.plantilla({
+                $selMesesObjetivo: $("#cliMesesObjetivo"),
+                sheetName: 'Plantilla',
+                fileNameBase: `Plantilla_Presupuesto_Cliente_${clienteId}`
+              });
+            });
+
+            $("#btnImportarXlsxCli").on("click", () => document.getElementById('fileExcelCliente')?.click());
+            $("#fileExcelCliente").on("change", function () {
+              const f = this.files?.[0];
+              if (!f) return;
+              EXCEL.importar({
+                file: f,
+                tbodySelector: '#tbodyCliente',
+                theadSelector: '#tablaCliente thead',
+                $selMesesObjetivo: $("#cliMesesObjetivo"),
+                comentarioIdPrefix: 'cli-comentario-',
+                comentarioBtnClass: 'btnComentarioCliente'
+              });
+              this.value = '';
+            });
+          }
+
+          // =========================================================
+          // ============================ Init ========================
+          // =========================================================
+          (async function init() {
+            try {
+              await CEDIS.init();
+              VENDEDOR.init();
+              CLIENTE.init();
+              bindExcel();
+              bindAdminPresupuestos();
+              initModoPresupuesto(); // ✅ aquí
+            } catch (e) {
+              console.error(e);
+              showToast("Error iniciando la pantalla. Revisa consola.", "danger");
+            }
+          })();
+
+        })();
+
+    </script>
+}

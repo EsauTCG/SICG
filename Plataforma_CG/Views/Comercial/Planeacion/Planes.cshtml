@@ -1,0 +1,86 @@
+﻿@model TodoPlanModel
+@{
+    ViewData["Title"] = "Planeaciones";
+}
+<style>
+    .card-img-container {
+        height: 200px; /* altura mínima fija */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: #f8f9fa; /* gris claro de fondo para imágenes pequeñas */
+        overflow: hidden;
+    }
+
+        .card-img-container img {
+            max-height: 100%;
+            max-width: 100%;
+            object-fit: contain; /* mantiene proporción, no recorta */
+        }
+</style>
+<div class="container-fluid mt-4">
+
+
+    <!-- Encabezado -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="fw-bold text-dark">📋 Planeaciones</h4>
+
+    </div>
+
+    <!-- Buscador + Botón -->
+    <div class="table-responsive mt-3 p-3 border border-danger rounded shadow-sm" style="background-color:#fff3f3;">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                 <div class="col-md-6">
+                    @* <input type="text" class="form-control" id="searchInput" placeholder="🔍 Buscar Plan..."> *@
+                </div> 
+                <div class="col-md-6 text-end">
+                    <button type="button" class="btn btn-danger"
+                            onclick="loadPartial('@Url.Action("Planeacion", "Planeacion",new {fecha = Model._PlanPro.Fecha})', document.querySelector('.toolbar button[data-url=\'/Planeacion/Index\']')); return false;">
+                        ➕ Nuevo plan de produccion
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="border: 2px solid #8B0000; border-radius: 12px; background-color: #fff;">
+        <div class="card-header bg-light fw-bold text-danger" style="border-radius: 12px;">
+            Planes en el mes @Convert.ToDateTime(Model._PlanPro.Fecha).ToString("MMMM,yyyy")
+        </div>
+        <div class="card-body">
+            <div class="row g-4">
+
+                @foreach (var item in Model._ListaPlanPro)
+                {
+                    <div class="col-md-4 col-sm-6 contenido">
+                        <div class="card h-100 shadow-sm border-0"
+                             style="cursor:pointer"
+                             onclick="loadPartial('@Url.Action("Detalle", "Planeacion", new { id = item.Id })', document.querySelector('.toolbar button[data-url=\'/Planeacion/Index\']'));  inicializarPlaneacion();return false;">
+                            <div class="card-body text-center">
+                                <h5 class="card-title fw-bold text-dark">
+                                    @foreach (var item2 in Model._ListaClasificacion)
+                                    {
+                                       if (item.fk_Clasificacion==item2.SKU)
+                                        {
+                                            <label>@item2.Nombre</label>
+                                        }
+                                    }
+                                </h5>
+                                <p class="card-text text-muted">
+                                    <label>Canales: @item.Canales</label>
+                                    <label>Peso: @item.PesoTotal</label>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+
+</div>
+
+
+

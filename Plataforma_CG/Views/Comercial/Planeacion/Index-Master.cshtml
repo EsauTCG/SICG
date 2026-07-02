@@ -1,0 +1,229 @@
+﻿@model TodoVentasModel
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Planeación de Producción";
+}
+
+<div class="container-fluid p-4 mt-3" style="border: 2px solid #8B0000; border-radius: 12px; background-color: #fff;">
+    <h4 class="mb-4 text-center text-dark fw-bold">PLANEACIÓN DE PRODUCCIÓN</h4>
+
+    <form asp-action="GuardarPlaneacion" method="post">
+        <!-- ENCABEZADO -->
+        <div class="row">
+            <div class="col-12 col-md-3 mb-3">
+                <label class="form-label">Mes de Producción</label>
+                <input  type="month" class="form-control" />
+            </div>
+
+            <div class="col-12 col-md-3 mb-3">
+                <label class="form-label">Planta</label>
+                <select class="form-select">
+                    <option value="">Selecciona planta</option>
+                    <option value="1">TIF</option>
+                    <option value="2">Planta 1</option>
+                </select>
+            </div>
+
+            <div class="col-12 col-md-3 mb-3">
+                <label class="form-label">Clasificación</label>
+                <select  class="form-select" id="clasificacionSelect">
+                    <option value="">Selecciona clasificación</option>
+                    <option value="1">Vaca Gorda</option>
+                    <option value="2">Novillo</option>
+                </select>
+            </div>
+
+            <div class="col-12 col-md-3 mb-3">
+                <label class="form-label">Canales</label>
+                <input  id="canalesInput" type="number" step="1" class="form-control" />
+            </div>
+
+            <div class="col-12 col-md-3 mb-3">
+                <label class="form-label">Kg Promedio</label>
+                <input  id="kgPromedioInput" type="number" step="0.01" class="form-control" />
+            </div>
+
+            <div class="col-12 col-md-3 mb-3">
+                <label class="form-label">Kg Estimados</label>
+                <input  id="kgEstimadosInput" type="number" step="0.01" class="form-control" readonly />
+            </div>
+        </div>
+
+        <hr />
+
+        <!-- TABLA DE MASTERS Y SKUS -->
+        <div class="table-responsive">
+            <table class="table table-bordered align-middle">
+                <thead class="table-danger">
+                    <tr>
+                        <th>#</th>
+                        <th>Máster</th>
+                        <th>%</th>
+                        <th>Kilos</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="masterBody">
+                    <!-- Se llenará dinámicamente -->
+                </tbody>
+            </table>
+        </div>
+
+        <div class="d-flex justify-content-between mb-3">
+            <a href="#" style="color: #8B0000; font-weight: bold; text-decoration: none;"
+               onclick="agregarMaster(); return false;">
+                [ Agregar Máster ]
+            </a>
+        </div>
+
+        <!-- BOTONES -->
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <button type="submit" class="btn btn-primary">Guardar</button>
+                <button type="button" class="btn btn-secondary" onclick="window.location='/Home/inicio'">Cancelar</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        // Catálogo de ejemplo
+        const clasificaciones = {
+            1: { // Vaca Gorda
+                masters: [
+                    { nombre: "COSTILLA", porcentaje: 40, skus: [
+                        { codigo: "S001", porcentaje: 60 },
+                        { codigo: "N105", porcentaje: 40 }
+                    ]},
+                    { nombre: "PESCUEZO", porcentaje: 60, skus: [
+                        { codigo: "N167", porcentaje: 100 }
+                    ]}
+                ]
+            },
+            2: { // Novillo
+                masters: [
+                    { nombre: "LOMO", porcentaje: 50, skus: [
+                        { codigo: "S010", porcentaje: 70 },
+                        { codigo: "S011", porcentaje: 30 }
+                    ]}
+                ]
+            }
+        };
+
+        // === CÁLCULO DE KG ESTIMADOS ===
+        function calcularKgEstimados() {
+            const canales = parseFloat(document.getElementById("canalesInput").value) || 0;
+            const kgProm = parseFloat(document.getElementById("kgPromedioInput").value) || 0;
+            const total = canales * kgProm;
+            document.getElementById("kgEstimadosInput").value = total.toFixed(2);
+            return total;
+        }
+        document.getElementById("canalesInput").addEventListener("input", calcularKgEstimados);
+        document.getElementById("kgPromedioInput").addEventListener("input", calcularKgEstimados);
+
+        // === AL CAMBIAR CLASIFICACIÓN ===
+        document.getElementById("clasificacionSelect").addEventListener("change", function () {
+            const clasificacionId = this.value;
+            const data = clasificaciones[clasificacionId];
+            if (!data) return;
+
+            const totalEstimados = calcularKgEstimados();
+            document.getElementById("masterBody").innerHTML = "";
+
+            data.masters.forEach((m, mi) => {
+                const kilosMaster = totalEstimados * (m.porcentaje / 100);
+                agregarMasterConDatos(mi, m.nombre, m.porcentaje, kilosMaster);
+
+                m.skus.forEach((s, si) => {
+                    const kilosSku = kilosMaster * (s.porcentaje / 100);
+                    agregarSkuConDatos(mi, si, s.codigo, s.porcentaje, kilosSku);
+                });
+            });
+        });
+
+        // === CREAR FILAS ===
+        function agregarMasterConDatos(mi, nombre, pct, kilos) {
+            const tbody = document.getElementById("masterBody");
+            const row = document.createElement("tr");
+            row.classList.add("masterRow");
+            row.setAttribute("data-index", mi);
+
+            row.innerHTML = `
+                <td>${mi + 1}</td>
+                <td><input name="Masters[${mi}].Nombre" class="form-control" value="${nombre}" /></td>
+                <td><input name="Masters[${mi}].Porcentaje" type="number" step="0.01"
+                           class="form-control masterPct" value="${pct}"
+                           oninput="syncPorcentajeMaster(${mi})" /></td>
+                <td><input name="Masters[${mi}].TotalKilos" type="number" step="0.01"
+                           class="form-control masterKilos" value="${kilos.toFixed(2)}"
+                           oninput="syncKilosMaster(${mi})" /></td>
+                <td>
+                    <a href="#" class="text-danger" onclick="eliminarMaster(this); return false;">[ Eliminar Máster ]</a>
+                    <a href="#" class="text-primary" onclick="agregarSku(this,${mi}); return false;">[ Agregar SKU ]</a>
+                </td>
+            `;
+            tbody.appendChild(row);
+        }
+
+        function agregarSkuConDatos(mi, si, codigo, pct, kilos) {
+            const tbody = document.getElementById("masterBody");
+            const row = document.createElement("tr");
+            row.classList.add("skuRow");
+            row.setAttribute("data-master", mi);
+
+            row.innerHTML = `
+                <td></td>
+                <td><input name="Masters[${mi}].Skus[${si}].Codigo" class="form-control" value="${codigo}" /></td>
+                <td><input name="Masters[${mi}].Skus[${si}].Porcentaje" type="number" step="0.01"
+                           class="form-control skuPct" value="${pct}"
+                           oninput="syncPorcentajeSku(${mi},${si})" /></td>
+                <td><input name="Masters[${mi}].Skus[${si}].Kilos" type="number" step="0.01"
+                           class="form-control skuKilos" value="${kilos.toFixed(2)}"
+                           oninput="syncKilosSku(${mi},${si})" /></td>
+                <td><a href="#" class="text-danger" onclick="eliminarSku(this); return false;">[ Eliminar SKU ]</a></td>
+            `;
+            tbody.appendChild(row);
+        }
+
+        // === SYNC Máster ===
+        function syncPorcentajeMaster(mi) {
+            const totalEstimados = calcularKgEstimados();
+            const pct = parseFloat(document.querySelector(`[name='Masters[${mi}].Porcentaje']`).value) || 0;
+            document.querySelector(`[name='Masters[${mi}].TotalKilos']`).value = ((pct / 100) * totalEstimados).toFixed(2);
+        }
+        function syncKilosMaster(mi) {
+            const totalEstimados = calcularKgEstimados();
+            const kilos = parseFloat(document.querySelector(`[name='Masters[${mi}].TotalKilos']`).value) || 0;
+            document.querySelector(`[name='Masters[${mi}].Porcentaje']`).value = ((kilos / totalEstimados) * 100).toFixed(2);
+        }
+
+        // === SYNC SKU ===
+        function syncPorcentajeSku(mi, si) {
+            const kilosMaster = parseFloat(document.querySelector(`[name='Masters[${mi}].TotalKilos']`).value) || 0;
+            const pct = parseFloat(document.querySelector(`[name='Masters[${mi}].Skus[${si}].Porcentaje']`).value) || 0;
+            document.querySelector(`[name='Masters[${mi}].Skus[${si}].Kilos']`).value = ((pct / 100) * kilosMaster).toFixed(2);
+        }
+        function syncKilosSku(mi, si) {
+            const kilosMaster = parseFloat(document.querySelector(`[name='Masters[${mi}].TotalKilos']`).value) || 0;
+            const kilos = parseFloat(document.querySelector(`[name='Masters[${mi}].Skus[${si}].Kilos']`).value) || 0;
+            document.querySelector(`[name='Masters[${mi}].Skus[${si}].Porcentaje']`).value = ((kilos / kilosMaster) * 100).toFixed(2);
+        }
+
+        // === ELIMINAR ===
+        function eliminarMaster(link) {
+            const tr = link.closest("tr");
+            const index = tr.dataset.index;
+            let next = tr.nextElementSibling;
+            while (next && next.classList.contains("skuRow") && next.dataset.master == index) {
+                next.remove();
+                next = tr.nextElementSibling;
+            }
+            tr.remove();
+        }
+        function eliminarSku(link) {
+            link.closest("tr").remove();
+        }
+    </script>
+}

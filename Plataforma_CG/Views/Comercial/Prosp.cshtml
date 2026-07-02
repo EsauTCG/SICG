@@ -1,0 +1,226 @@
+﻿@model TodoVentasModel
+@{
+    ViewData["Title"] = "Prospectos";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<style>
+    html, body {
+        height: 100%;
+        overflow: hidden; /* evita que toda la página scrollee */
+    }
+
+    #main-container {
+        height: calc(100vh - 120px); /* ajusta restando header/nav */
+        max-height: 80vh;
+        overflow-y: auto; /* solo este div tiene scroll */
+        padding: 1rem;
+        background: #f8f9fa;
+    }
+
+    /* Botones rojos */
+    .btn-red {
+        background-color: #b30000; /* rojo oscuro */
+        color: #fff;
+        border: none;
+    }
+
+        /* Hover (brillante) */
+        .btn-red:hover {
+            background-color: #800000; /* rojo vino */
+            color: #fff;
+        }
+
+        /* Activo (más intenso fijo) */
+        .btn-red.active {
+            background-color:  #ff1a1a; /* rojo brillante */
+            color: #fff !important;
+        }
+
+    #overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        display: none;
+    }
+</style>
+
+<!-- Toolbar -->
+<div class="toolbar bg-light border-bottom px-3 py-2 d-flex gap-2" role="group" aria-label="Toolbar">
+    <button class="btn btn-danger" data-url="/Prospecto/Index" onclick="loadPartial('/Prospecto/Index', this)">Prospectos:</button>
+    
+</div>
+
+<!-- Contenedor donde se cargan las vistas parciales -->
+<div id="main-container" class="border rounded p-3">
+    <p></p>
+</div>
+
+<div id="overlay"></div>
+
+@section Scripts {
+    <script>
+        let autoRefreshInterval;
+
+        async function loadPartial(url, btn) {
+            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+
+            try {
+                const response = await fetch(url);
+                const html = await response.text();
+                document.getElementById("main-container").innerHTML = html;
+
+                // resetear botones activos
+                document.querySelectorAll('.toolbar button').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                // recarga cada 30s
+                autoRefreshInterval = setInterval(async () => {
+                    const r = await fetch(url);
+                    const h = await r.text();
+                    //document.getElementById("main-container").innerHTML = h;
+                }, 30000);
+
+            } catch (err) {
+                document.getElementById("main-container").innerHTML =
+                    "<p class='text-danger'>Error cargando datos</p>";
+            }
+        }
+
+
+
+
+
+        // popup con overlay
+        function openPopup(urlPop,urlPart) {
+            const overlay = document.getElementById("overlay");
+            overlay.style.display = "block";
+            const popup = window.open(urlPop, '_blank', 'width=1250,height=750,scrollbars=yes');
+
+            const interval = setInterval(function () {
+                if (popup.closed) {
+                    clearInterval(interval);
+                    overlay.style.display = "none";
+                    //location.reload(); //Código para refrescar toda la página
+                    if(urlPart)
+                    {
+                        var btn = document.querySelector('.toolbar button[data-url="'+urlPart+'"]');
+                        loadPartial(urlPart,btn);
+                    }
+                }
+            }, 1000);
+        }
+
+        // Buscador (delegación para que funcione aunque se cargue dinámico)
+        $(document).on("keyup", "#searchInput", function () {
+            var searchText = $(this).val().trim().toLowerCase();
+            console.log("Buscando: " + searchText);
+
+            $("#table tbody tr").each(function () {
+                var fila = $(this).text().toLowerCase();
+                if (fila.includes(searchText)) {
+                    $(this).show();
+                } else {
+                    $(this).hide();
+                }
+            });
+                        $(".contenido").each(function () {
+                var fila = $(this).text().toLowerCase();
+                if (fila.includes(searchText)) {
+                    $(this).show();
+                } else {
+                    $(this).hide();
+                }
+            });
+        });
+    </script>
+    <script>
+       
+                $(document).on('submit', '#main-container form', function (e) {
+            e.preventDefault();
+            const $form = $(this);
+
+            let ajaxOptions = {
+                url: $form.attr('action'),
+                type: $form.attr('method') || 'POST',
+                dataType: 'json',
+                success: function (data) {
+                    if (data.success) {
+
+                        // ⚡ Detectar si es el modal de visitas
+                        if ($form.attr("id") === "formNuevaVisita") {
+                            // recuperar id del prospecto
+                            let prospectoId = $form.find("input[name='fk_Prospecto']").val();
+                            let detalleUrl = `/Prospecto/Modificar/${prospectoId}`;
+
+                            // cargar la vista del prospecto en lugar de regresar al index
+                            loadPartial(detalleUrl, document.querySelector('.toolbar button[data-url="/Prospecto/Index"]'));
+
+                            // cerrar el modal
+                            $("#modalNuevaVisita").modal('hide');
+                        }
+                        else {
+                            // comportamiento normal → regresar al listado
+                            let actionUrl = $form.attr('action');
+                            let controller = actionUrl.split('/')[1]; // asume formato /Controller/Action
+                            let indexUrl = `/${controller}/Index`;
+
+                            let btn = document.querySelector(`.toolbar button[data-url='${indexUrl}']`);
+                            loadPartial(indexUrl, btn);
+                        }
+                    } else {
+                        alert((data.errors || ['Ocurrió un error']).join('\n'));
+                    }
+                },
+                error: function (xhr) {
+                    console.error('Error AJAX:', xhr.responseText);
+                }
+            };
+
+            // 👇 Detectar si el form tiene input file
+            if ($form.find("input[type='file']").length > 0) {
+                let formData = new FormData($form[0]);
+                ajaxOptions.data = formData;
+                ajaxOptions.contentType = false;
+                ajaxOptions.processData = false;
+            } else {
+                ajaxOptions.data = $form.serialize();
+            }
+
+            $.ajax(ajaxOptions);
+        });
+
+    </script>
+    <script>
+        function obtenerUbicacion() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function (pos) {
+                        let lat = pos.coords.latitude.toFixed(6);
+                        let lon = pos.coords.longitude.toFixed(6);
+                        document.getElementById("geolocalizacion").value = lat + ", " + lon;
+                    },
+                    function (error) {
+                        alert("No se pudo obtener la ubicación: " + error.message);
+                    }
+                );
+            } else {
+                alert("Tu navegador no soporta geolocalización.");
+            }
+        }
+    </script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            // localizar el botón de prospectos
+            let btnProspectos = document.querySelector('.toolbar button[data-url="/Prospecto/Index"]');
+            if (btnProspectos) {
+                loadPartial("/Prospecto/Index", btnProspectos);
+            }
+        });
+    </script>
+
+}

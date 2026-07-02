@@ -1,0 +1,923 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Autorización de Precio";
+}
+
+<style>
+    :root {
+        --bg: #f0dede;
+        --panel: #f8eeee;
+        --panel-2: #f1dede;
+        --line: #c79d9d;
+        --text: #3b1717;
+        --muted: #6a3a3a;
+        --white: #ffffff;
+        --shadow: 0 1px 0 rgba(255,255,255,.55) inset;
+        --brand: #8B0000;
+        --vino-border: #9a5a5a;
+        --vino-text-dark: #4a1111;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        background: transparent !important;
+        color: var(--text);
+    }
+
+    .container, .container-fluid {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .window {
+        width: 100%;
+        max-width: 100%;
+        margin: 0 !important;
+        border: 1px solid #7e4a4a;
+        background: var(--panel);
+        box-shadow: 0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70,12,12,.14);
+        overflow: hidden;
+        padding: 0 !important;
+    }
+
+    .window > *:first-child, .titlebar { margin-top: 0 !important; }
+
+    .titlebar {
+        height: 34px;
+        /* display: flex; */
+        display: none !important;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 10px;
+        background: linear-gradient(180deg, #c00000 0%, #8b0000 60%, #5c0000 100%);
+        border-bottom: 1px solid #5c0000;
+        color: #fff;
+        font-size: 13px;
+        font-weight: bold;
+    }
+
+    .titlebar .actions { display: flex; gap: 6px; }
+
+    .win-btn {
+        width: 16px; height: 16px;
+        border: 1px solid #7c4848;
+        background: linear-gradient(#fff6f6, #ead0d0);
+    }
+
+ .toolbar{
+    display:flex;
+    justify-content:flex-end;
+    align-items:center;
+    gap:4px;
+    padding:4px 6px;
+    background:linear-gradient(#fff6f6, #ecd8d8);
+    border-bottom:1px solid var(--line);
+    font-size:12px;
+    flex-wrap:wrap;
+    width:100%;
+}
+
+    .tool-btn {
+        min-width: 72px;
+        text-align: center;
+        background: linear-gradient(#fffefe, #ecd7d7);
+        border: 1px solid var(--vino-border);
+        box-shadow: var(--shadow);
+        cursor: pointer;
+        color: var(--vino-text-dark);
+        height: 28px;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        padding: 0 8px;
+        text-decoration: none;
+    }
+
+    .tool-btn:hover { filter: brightness(.98); }
+
+    .content { padding: 8px; background: var(--bg); }
+
+    .tabs { display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap; }
+
+    .tab {
+        font-size: 12px;
+        background: linear-gradient(#f7e7e7, #ead1d1);
+        border: 1px solid #caa0a0;
+        border-bottom: none;
+        padding: 7px 12px;
+        color: #5c1a1a;
+        user-select: none;
+    }
+
+    .tab.active {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        font-weight: bold;
+        color: #fff;
+        border-color: #7a2d2d;
+    }
+
+    .workspace { border: 1px solid var(--line); background: var(--panel); padding: 8px; }
+
+    .section { border: 1px solid var(--line); background: var(--white); margin-bottom: 10px; }
+
+    .section-title {
+        padding: 6px 8px;
+        font-size: 12px;
+        font-weight: bold;
+        color: #fff;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-bottom: 1px solid #6b1f1f;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    /* ── Estado badge ── */
+    .estado-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 700;
+        border: 1px solid transparent;
+        border-radius: 2px;
+    }
+
+    .est-dot { width: 7px; height: 7px; border-radius: 50%; background: #aaa; display: inline-block; }
+    .est-ok   { background: #dff3e2; border-color: #6aa84f; color: #2f6b1f; }
+    .est-ok   .est-dot { background: #16a34a; }
+    .est-warn { background: #fff4cc; border-color: #d6b656; color: #7a5a00; }
+    .est-warn .est-dot { background: #d97706; }
+    .est-err  { background: #fde2e2; border-color: #d9534f; color: #b00000; }
+    .est-err  .est-dot { background: #dc2626; }
+    .est-info { background: #e8f4fd; border-color: #7ab8d4; color: #064b6b; }
+    .est-info .est-dot { background: #2563eb; }
+    .est-light { background: #f4f4f4; border-color: #ccc; color: #555; }
+
+    /* ── Tabla principal ── */
+    .table-wrap {
+        overflow: auto;
+        max-height: 65vh;
+        background: #fffafa;
+        width: 100%;
+        border-top: 1px solid #d9b8b8;
+    }
+
+    .table-wrap table {
+        width: 100%;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        font-size: 12px;
+        background: #fffafa;
+    }
+
+    .table-wrap thead th {
+        position: sticky;
+        top: -1px;
+        z-index: 20;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: #fff !important;
+        border-top: 1px solid #c46a6a !important;
+        border-right: 1px solid #8e3b3b !important;
+        border-bottom: 1px solid #5c0000 !important;
+        padding: 6px 5px !important;
+        font-weight: 700 !important;
+        font-size: 12px !important;
+        white-space: nowrap;
+        line-height: 1.2 !important;
+        box-shadow: 0 2px 0 #6f1d1d;
+        text-transform: none !important;
+    }
+
+    .table-wrap thead th:first-child { border-left: 1px solid #8e3b3b !important; }
+
+    .table-wrap tbody td {
+        background: #fffafa !important;
+        border-right: 1px solid #d8bcbc !important;
+        border-bottom: 1px solid #d8bcbc !important;
+        padding: 5px 5px !important;
+        white-space: nowrap;
+        vertical-align: middle;
+        font-size: 12px !important;
+        color: #401515 !important;
+    }
+
+    .table-wrap tbody td:first-child { border-left: 1px solid #d8bcbc !important; }
+    .table-wrap tbody tr:hover td { background: #f4dddd !important; }
+    .table-wrap tbody tr.row-ok td { background: #dff3e2 !important; color: #2f6b1f !important; }
+    .table-wrap tbody tr.row-danger td { background: #fde2e2 !important; }
+
+    /* ── Badges ── */
+    .badge-ok {
+        display: inline-block; padding: 3px 8px;
+        background: #dff3e2; border: 1px solid #6aa84f;
+        color: #2f6b1f; font-size: 11px; font-weight: 700; border-radius: 2px;
+    }
+
+    .badge-danger {
+        display: inline-block; padding: 3px 8px;
+        background: #fde2e2; border: 1px solid #d9534f;
+        color: #b00000; font-size: 11px; font-weight: 700; border-radius: 2px;
+    }
+
+    /* ── Botones ── */
+    .pm-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        height: 26px;
+        padding: 0 10px;
+        border: 1px solid transparent;
+        border-radius: 0;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        font-size: 11px;
+        font-weight: 700;
+        cursor: pointer;
+        text-decoration: none;
+        box-shadow: var(--shadow);
+        white-space: nowrap;
+    }
+
+    .pm-btn:hover { filter: brightness(.97); }
+    .pm-btn:disabled { opacity: .6; cursor: not-allowed; }
+
+    .pm-btn-primary {
+        color: #fff;
+        border-color: #7a2d2d;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+    }
+
+    .pm-btn-success {
+        color: #fff;
+        border-color: #157347;
+        background: linear-gradient(180deg, #27ae60 0%, #1f9a54 55%, #198754 100%);
+    }
+
+    .pm-btn-warning {
+        color: #3d2000;
+        border-color: #c87800;
+        background: linear-gradient(180deg, #ffc107 0%, #e6a800 100%);
+    }
+
+    .pm-btn-secondary {
+        background: linear-gradient(#fffefe, #ecd7d7);
+        border-color: var(--vino-border);
+        color: var(--vino-text-dark);
+    }
+
+    .pm-btn-outline {
+        background: transparent;
+        border-color: var(--vino-border);
+        color: #5a0000;
+    }
+
+    /* ── Filtros en modal ── */
+    .filters-inline {
+        display: flex;
+        gap: 8px;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+        padding: 8px 10px;
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+    }
+
+    .filters-inline label {
+        display: block;
+        font-size: 11px;
+        font-weight: 700;
+        color: #5c1a1a;
+        margin-bottom: 3px;
+    }
+
+    input[type="date"], input[type="text"], input[type="number"], select {
+        height: 28px !important;
+        padding: 3px 6px !important;
+        border: 1px solid #b48787 !important;
+        background: #fffdfd !important;
+        font-family: inherit !important;
+        font-size: 12px !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        color: #421414 !important;
+    }
+
+    /* ── Modal ── */
+    .modal-content { border: 1px solid #7d4949; border-radius: 0; }
+
+    .modal-header {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: #fff !important;
+        border-bottom: 1px solid #5c0000 !important;
+        padding: .65rem 1rem !important;
+        border-radius: 0;
+    }
+
+    .modal-title { color: #fff !important; font-weight: 700; font-size: 13px; }
+    .btn-close { filter: invert(1) grayscale(100%) !important; opacity: .95 !important; }
+    .modal-body { background: #f4e4e4; padding: .75rem !important; }
+    .modal-footer { background: #f7eaea; border-top: 1px solid #d3b0b0; }
+
+    .modal-table-wrap {
+        border: 1px solid #d8bcbc;
+        background: #fffafa;
+        overflow: auto;
+        max-height: 55vh;
+    }
+
+    .modal-table-wrap table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 12px;
+    }
+
+    .modal-table-wrap table thead th {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: #fff !important;
+        border-right: 1px solid #8e3b3b;
+        border-bottom: 1px solid #5c0000;
+        padding: 6px 5px;
+        font-size: 12px;
+        white-space: nowrap;
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        text-transform: none !important;
+    }
+
+    .modal-table-wrap table tbody td {
+        background: #fffafa;
+        border-bottom: 1px solid #d8bcbc;
+        border-right: 1px solid #d8bcbc;
+        padding: 5px;
+        font-size: 12px;
+        color: #401515;
+    }
+
+    .modal-table-wrap table tbody tr:nth-child(even) td { background: #f9eded; }
+    .modal-table-wrap table tbody tr:hover td { background: #f4dddd !important; }
+
+    /* ── Statusbar ── */
+    .statusbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 6px 10px;
+        font-size: 11px;
+        color: #4a1a1a;
+        border-top: 1px solid #b88c8c;
+        background: linear-gradient(#f6e9e9, #ead5d5);
+        flex-wrap: wrap;
+    }
+
+    .text-end { text-align: right !important; }
+    .text-center { text-align: center !important; }
+    .text-danger { color: #b00000 !important; }
+    .text-success { color: #2f6b1f !important; }
+
+    /* =========================================
+   COLUMNAS DESTACADAS - HISTÓRICO PRECIO
+   ========================================= */
+
+/* BODY (celdas) */
+#modalReporteHistoricoPrecio table tbody td:nth-child(7),
+#modalReporteHistoricoPrecio table tbody td:nth-child(9),
+#modalReporteHistoricoPrecio table tbody td:nth-child(5) {
+    background: #fff7cc !important;
+    color: #5a4300 !important;
+    font-weight: 700;
+}
+
+/* HEADER */
+#modalReporteHistoricoPrecio table thead th:nth-child(7),
+#modalReporteHistoricoPrecio table thead th:nth-child(9),
+#modalReporteHistoricoPrecio table thead th:nth-child(5) {
+    background: linear-gradient(180deg, #f4cc4d 0%, #d4a017 55%, #b88900 100%) !important;
+    color: #ffffff !important;
+    border-right: 1px solid #9c7800 !important;
+    border-bottom: 1px solid #7e6100 !important;
+    border-top: 1px solid #ffe08a !important;
+}
+
+/* HOVER (para que no se pierda el amarillo) */
+#modalReporteHistoricoPrecio table tbody tr:hover td:nth-child(7),
+#modalReporteHistoricoPrecio table tbody tr:hover td:nth-child(9),
+#modalReporteHistoricoPrecio table tbody tr:hover td:nth-child(5) {
+    background: #ffe999 !important;
+    color: #4a3700 !important;
+}
+
+.tool-btn-historico{
+    background: linear-gradient(180deg, #4da3ff 0%, #1f78d1 55%, #0f5ea8 100%);
+    border: 1px solid #0d4f8c;
+    color: #ffffff;
+}
+
+.tool-btn-historico:hover{
+    filter: brightness(.95);
+}
+
+</style>
+
+<div class="window">
+
+    <div class="titlebar">
+        <div>Autorización de Precio</div>
+        <div class="actions">
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+        </div>
+    </div>
+
+<div class="toolbar">
+   @*  <button class="tool-btn" type="button" onclick="cargar()">Actualizar</button> *@
+
+    <button class="tool-btn tool-btn-historico" type="button" data-bs-toggle="modal" data-bs-target="#modalReporteHistoricoPrecio">
+        <i class="bi bi-clock-history"></i> Ver histórico
+    </button>
+</div>
+
+    <div class="content">
+
+       
+
+        <div class="workspace">
+
+            @Html.AntiForgeryToken()
+
+            <div class="section">
+                <div class="section-title">
+                    Órdenes con partidas con precio por debajo de lista
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span class="estado-badge est-info" id="badgeEstadoPrecio">
+                            <span class="est-dot"></span>
+                            <span id="lastStatusPrecio">Cargando…</span>
+                        </span>
+                        <span style="font-size:11px;font-weight:400;color:rgba(255,255,255,.8);">
+                            Actualizado: <span id="lastUpdatedPrecio">—</span>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width:130px;">Orden Venta</th>
+                                <th style="width:90px;">Serie</th>
+                                <th>Cliente</th>
+                                <th style="width:240px;">Vendedor</th>
+                                <th colspan="3">Resumen</th>
+                                <th class="text-center">Estado</th>
+                                <th class="text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyOVPrecio">
+                            <tr><td colspan="9" class="text-center" style="padding:16px;color:#6a3a3a;">Cargando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="statusbar">
+        <div>Registro listo</div>
+        <div>Usuario: @User.Identity.Name</div>
+        <div>Empresa: Carnes G SA de CV</div>
+        <div>Módulo: Autorización de Precio</div>
+    </div>
+
+</div>
+
+<!-- MODAL: Detalle OV Precio -->
+<div class="modal fade" id="modalOVPrecio" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    Detalle OV: <span id="ovPrecioFolio"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom:8px;">
+                    <button id="btnAutorizarTodoPrecio" class="pm-btn pm-btn-success" type="button">
+                        ✔ Autorizar TODO (pendiente)
+                    </button>
+                </div>
+
+                <div class="modal-table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Producto</th>
+                                <th class="text-end" style="width:110px;">Kg OV</th>
+                                <th class="text-end" style="width:130px;">Precio Lista</th>
+                                <th class="text-end" style="width:130px;">Precio OV</th>
+                                <th class="text-end" style="width:130px;">Diferencia</th>
+                                <th class="text-center">Estado</th>
+                                <th class="text-center" style="width:200px;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyPartidasOVPrecio">
+                            <tr><td colspan="8" class="text-center" style="color:#6a3a3a;">—</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="pm-btn pm-btn-secondary" data-bs-dismiss="modal" type="button">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Histórico -->
+<div class="modal fade" id="modalReporteHistoricoPrecio" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    Histórico de Autorizaciones de Precio
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="filters-inline">
+    <div>
+        <label>Fecha inicio</label>
+        <input type="date" id="filtroFechaInicioHistPrecio" />
+    </div>
+    <div>
+        <label>Fecha fin</label>
+        <input type="date" id="filtroFechaFinHistPrecio" />
+    </div>
+    <div>
+        <button type="button" id="btnBuscarHistPrecio" class="pm-btn pm-btn-primary">
+            <i class="bi bi-search"></i> Buscar
+        </button>
+    </div>
+    <div>
+        <button type="button" id="btnDescargarHistPrecioExcel" class="pm-btn pm-btn-success">
+            <i class="bi bi-file-earmark-excel"></i> Descargar Excel
+        </button>
+    </div>
+</div>
+
+                <div class="modal-table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Orden de venta</th>
+                                <th>Cliente</th>
+                                <th>SKU</th>
+                                <th>Producto</th>
+                                <th class="text-end">Precio Lista</th>
+                                <th class="text-end">Precio Solicitado</th>
+                                <th class="text-end">Precio Autorizado</th>
+                                <th class="text-end">Diferencia</th>
+                                <th>Autorizó</th>
+                                <th>Motivo</th>
+                                <th>Fecha Registro</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyHistoricoPrecio">
+                            <tr>
+                                <td colspan="11" class="text-center" style="color:#6a3a3a;">
+                                    Selecciona un rango de fechas y consulta.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="pm-btn pm-btn-secondary" data-bs-dismiss="modal" type="button">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    $(function () {
+        const POLL_MS = 30000, MAX_BACKOFF = 120000;
+        let timer = null, inFlight = false, backoff = POLL_MS;
+        let cacheLineas = [];
+        const authorizedPrecioLines = new Set();
+
+        const safeNumber = v => Number.isFinite(+v) ? +v : 0;
+        const fmtMx = n => safeNumber(n).toLocaleString('es-MX', { style:'currency', currency:'MXN' });
+        const fmtKg = n => safeNumber(n).toLocaleString('es-MX', { minimumFractionDigits:2, maximumFractionDigits:2 });
+        const esc = s => (s ?? '').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+        function setStatus(t, cls) {
+            $("#lastStatusPrecio").text(t);
+            const $b = $("#badgeEstadoPrecio");
+            $b.removeClass("est-ok est-warn est-err est-info est-light");
+            const map = { ok:'est-ok', warn:'est-warn', err:'est-err', info:'est-info' };
+            $b.addClass(map[cls] || 'est-light');
+        }
+
+        function setUpdatedNow() {
+            $("#lastUpdatedPrecio").text(new Date().toLocaleTimeString('es-MX'));
+        }
+
+        function renderTablaOV(data) {
+            const $tb = $("#tbodyOVPrecio").empty();
+
+            if (!Array.isArray(data) || !data.length) {
+                $tb.append(`<tr><td colspan="9" class="text-center" style="padding:16px;color:#6a3a3a;">No hay órdenes con precio excedido para tus series asignadas</td></tr>`);
+                return;
+            }
+
+            const grupos = new Map();
+
+            for (const x of data) {
+                const ovId = Number(x.ovId ?? 0) || -1;
+                if (!grupos.has(ovId)) grupos.set(ovId, []);
+                grupos.get(ovId).push(x);
+            }
+
+            for (const [ovId, grupo] of grupos) {
+                const first = grupo[0] ?? {};
+                const folio = (first.ordenVenta ?? '-').toString();
+                const serie = (first.serie ?? '-').toString();
+                const clienteNombre = first.clienteNombre ?? first.clienteId ?? first.cliente ?? '-';
+                const vendedor = (first.vendedor ?? '-').toString();
+
+                const total = grupo.length;
+                const excedidas = grupo.filter(g => (g.estadoPrecio ?? '').toLowerCase() === 'excedido').length;
+
+                const todasAut = grupo.every(g =>
+                    authorizedPrecioLines.has(Number(g.lineaId)) ||
+                    (g.estadoPrecio ?? '').toLowerCase() !== 'excedido'
+                );
+
+                const cls = todasAut ? 'row-ok' : 'row-danger';
+
+                const badge = todasAut
+                    ? `<span class="badge-ok">Sin pendientes</span>`
+                    : `<span class="badge-danger">Pendientes ${excedidas}/${total}</span>`;
+
+                $tb.append(`
+                  <tr class="${cls}">
+                    <td><b>${esc(folio)}</b></td>
+                    <td><b>${esc(serie)}</b></td>
+                    <td>${esc(clienteNombre)}</td>
+                    <td>${esc(vendedor)}</td>
+                    <td colspan="3" class="text-center" style="color:#6a3a3a;font-style:italic;">${total} partida(s)</td>
+                    <td class="text-center">${badge}</td>
+                    <td class="text-center">
+                        <button type="button" class="pm-btn pm-btn-outline"
+                                onclick="abrirModalOVPrecio(${ovId}, &quot;${esc(folio)}&quot;)">
+                            Ver OV
+                        </button>
+                    </td>
+                  </tr>`);
+            }
+        }
+
+        window.cargar = function() {
+            if (inFlight) return;
+            inFlight = true;
+            setStatus("Actualizando…", "info");
+            $.ajax({ url:'/Comercial/ObtenerProductosPrecioExcedido', type:'GET', cache:false })
+                .done(function(data) {
+                    cacheLineas = Array.isArray(data) ? data : [];
+                    renderTablaOV(cacheLineas);
+                    setUpdatedNow();
+                    setStatus("Al día", "ok");
+                    backoff = POLL_MS;
+                })
+                .fail(function(xhr) {
+                    console.error("Error AJAX (precio):", xhr.responseText);
+                    setStatus("Error. Reintentando…", "err");
+                    backoff = Math.min(backoff * 2, MAX_BACKOFF);
+                    if (timer) clearInterval(timer);
+                    timer = setInterval(window.cargar, backoff);
+                })
+                .always(() => { inFlight = false; });
+        };
+
+        $('#modalReporteHistoricoPrecio').on('shown.bs.modal', function() {
+            const hoy = new Date();
+            const yyyy = hoy.getFullYear();
+            const mm = String(hoy.getMonth()+1).padStart(2,'0');
+            const dd = String(hoy.getDate()).padStart(2,'0');
+            const fechaHoy = `${yyyy}-${mm}-${dd}`;
+            if (!$("#filtroFechaInicioHistPrecio").val()) $("#filtroFechaInicioHistPrecio").val(fechaHoy);
+            if (!$("#filtroFechaFinHistPrecio").val()) $("#filtroFechaFinHistPrecio").val(fechaHoy);
+            cargarHistoricoPrecio();
+        });
+
+        $("#btnDescargarHistPrecioExcel").on("click", function () {
+    const fechaInicio = $("#filtroFechaInicioHistPrecio").val();
+    const fechaFin = $("#filtroFechaFinHistPrecio").val();
+
+    if (!fechaInicio || !fechaFin) {
+        alert("Selecciona fecha inicio y fecha fin.");
+        return;
+    }
+
+    const url = `/Comercial/DescargarHistoricoAutorizacionPrecioExcel?fechaInicio=${encodeURIComponent(fechaInicio)}&fechaFin=${encodeURIComponent(fechaFin)}`;
+    window.open(url, "_blank");
+});
+
+        function cargarHistoricoPrecio() {
+            const $tb = $("#tbodyHistoricoPrecio");
+            $tb.html(`<tr><td colspan="11" class="text-center" style="color:#6a3a3a;">Cargando...</td></tr>`);
+            $.ajax({
+                url:'/Comercial/ObtenerHistoricoAutorizacionPrecio', type:'GET',
+                data:{ fechaInicio:$("#filtroFechaInicioHistPrecio").val(), fechaFin:$("#filtroFechaFinHistPrecio").val() }
+            })
+            .done(function(data) {
+                $tb.empty();
+                if (!Array.isArray(data) || !data.length) {
+                    $tb.append(`<tr><td colspan="11" class="text-center" style="color:#6a3a3a;">No hay registros para ese rango.</td></tr>`);
+                    return;
+                }
+                data.forEach(x => {
+                    const fechaTxt = x.fechaRegistro ? new Date(x.fechaRegistro).toLocaleString('es-MX') : '-';
+                    $tb.append(`
+                        <tr>
+                            <td>${esc(x.ordenVentaConsecutivo??'-')}</td>
+                            <td>${esc(x.clienteNombre??'-')}</td>
+                            <td>${esc(x.productoCodigo??'-')}</td>
+                            <td>${esc(x.productoNombre??'-')}</td>
+                            <td class="text-end">${fmtMx(x.precioLista)}</td>
+                            <td class="text-end">${fmtMx(x.precioOVAntes)}</td>
+                            <td class="text-end">${fmtMx(x.precioAutorizado)}</td>
+                            <td class="text-end">${fmtMx(x.diferencia)}</td>
+                            <td>${esc(x.usuario??'-')}</td>
+                            <td>${esc(x.motivo??'-')}</td>
+                            <td>${fechaTxt}</td>
+                        </tr>`);
+                });
+            })
+            .fail(function(xhr) {
+                console.error(xhr);
+                $tb.html(`<tr><td colspan="11" class="text-center text-danger">Error al consultar histórico.</td></tr>`);
+            });
+        }
+
+        $("#btnBuscarHistPrecio").on("click", cargarHistoricoPrecio);
+
+        function startPolling() {
+            if (timer) clearInterval(timer);
+            timer = setInterval(window.cargar, POLL_MS);
+        }
+
+        window.abrirModalOVPrecio = function(ovId, folio) {
+            $("#ovPrecioFolio").text(folio || '');
+            const $tb = $("#tbodyPartidasOVPrecio").empty();
+            const lineas = (cacheLineas || []).filter(x => Number(x.ovId) === Number(ovId));
+
+            if (!lineas.length) {
+                $tb.append(`<tr><td colspan="8" class="text-center" style="color:#6a3a3a;">Sin partidas</td></tr>`);
+            } else {
+                lineas.forEach((it, idx) => {
+                    const lineaId = Number(it.lineaId ?? 0);
+                    const kilosOV = safeNumber(it.kilosOV ?? it.kgOV ?? it.cantidadKg ?? it.kilos ?? 0);
+                    const precioLista = safeNumber(it.precioLista);
+                    const precioOV = safeNumber(it.precioOV);
+                    const diff = precioLista - precioOV;
+                    const pendiente = (it.estadoPrecio ?? '').toLowerCase() === 'excedido' && !authorizedPrecioLines.has(lineaId);
+                    const badge = pendiente ? `<span class="badge-danger">Excedido</span>` : `<span class="badge-ok">Dentro/Autorizado</span>`;
+                    const btnAuth = pendiente
+                        ? `<button type="button" class="pm-btn pm-btn-success" onclick="autorizarPrecioLinea(${lineaId},this)">✔ Autorizar</button>`
+                        : `<button type="button" class="pm-btn pm-btn-success" disabled>✔ Autorizado</button>`;
+                    $tb.append(`
+                      <tr data-linea-id="${lineaId}" data-ov-id="${ovId}">
+                        <td>${idx+1}</td>
+                        <td><div style="font-size:11px;color:#6a3a3a;">${esc(it.producto??'-')}</div></td>
+                        <td class="text-end col-kgov">${fmtKg(kilosOV)}</td>
+                        <td class="text-end col-pl">${fmtMx(precioLista)}</td>
+                        <td class="text-end col-pov">${fmtMx(precioOV)}</td>
+                        <td class="text-end col-diff"><span class="${diff>0?'text-danger':'text-success'}">${fmtMx(diff)}</span></td>
+                        <td class="text-center col-estado">${badge}</td>
+                        <td class="text-center">
+                            ${btnAuth}
+                            <button type="button" class="pm-btn pm-btn-warning" style="margin-left:4px;"
+                                    onclick="editarPrecioLinea(${lineaId},${precioOV})">
+                                Editar Precio
+                            </button>
+                        </td>
+                      </tr>`);
+                });
+            }
+
+            $("#btnAutorizarTodoPrecio").off('click').on('click', async function() {
+                const motivo = prompt("Captura el motivo general de autorización para todas las líneas pendientes:");
+                if (motivo === null) return;
+                const motivoLimpio = (motivo || "").trim();
+                if (!motivoLimpio) { alert("Debe capturar un motivo."); return; }
+                const $btn = $(this).prop('disabled', true);
+                try {
+                    const pendientes = $("#tbodyPartidasOVPrecio tr").toArray()
+                        .map(tr => ({ id:Number($(tr).data('linea-id')), $tr:$(tr) }))
+                        .filter(o => o.id && !authorizedPrecioLines.has(o.id) && o.$tr.find(".pm-btn-success:not(:disabled)").length);
+                    for (const o of pendientes) {
+                        await postAutorizarLinea(o.id, motivoLimpio);
+                        authorizedPrecioLines.add(o.id);
+                        o.$tr.find(".col-estado").html(`<span class="badge-ok">Dentro/Autorizado</span>`);
+                        o.$tr.find(".pm-btn-success").prop('disabled', true).text('✔ Autorizado');
+                    }
+                    window.cargar();
+                } catch(e) { console.error(e); alert(e.message || "Error al autorizar las líneas."); }
+                finally { $btn.prop('disabled', false); }
+            });
+
+            new bootstrap.Modal(document.getElementById('modalOVPrecio'), { backdrop:'static' }).show();
+        };
+
+        function postAutorizarLinea(idLinea, motivo) {
+            const token = $('input[name="__RequestVerificationToken"]').val();
+            return new Promise((resolve, reject) => {
+                $.ajax({ url:'/Comercial/AutorizarPrecioLinea', type:'POST',
+                    data:{ __RequestVerificationToken:token, idLinea, motivo },
+                    headers:{ 'RequestVerificationToken':token }
+                }).done(res => resolve(res)).fail(xhr => { reject(new Error(xhr.responseJSON?.mensaje || xhr.responseJSON?.error || xhr.responseText || 'Error')); });
+            });
+        }
+
+        function postActualizarPrecioLinea(idLinea, nuevoPrecio) {
+            const token = $('input[name="__RequestVerificationToken"]').val();
+            return new Promise((resolve, reject) => {
+                $.ajax({ url:'/Comercial/ActualizarPrecioLinea', type:'POST',
+                    data:{ __RequestVerificationToken:token, idLinea, precioOV:nuevoPrecio },
+                    headers:{ 'RequestVerificationToken':token }
+                }).done(res => resolve(res)).fail(xhr => { reject(new Error(xhr.responseJSON?.mensaje || xhr.responseJSON?.error || xhr.responseText || 'Error')); });
+            });
+        }
+
+        window.autorizarPrecioLinea = async function(lineaId, btn) {
+            const motivo = prompt("Captura el motivo de autorización:");
+            if (motivo === null) return;
+            const motivoLimpio = (motivo || "").trim();
+            if (!motivoLimpio) { alert("Debe capturar un motivo."); return; }
+            const $btn = $(btn).prop('disabled', true);
+            try {
+                await postAutorizarLinea(lineaId, motivoLimpio);
+                authorizedPrecioLines.add(lineaId);
+                const $tr = $btn.closest('tr');
+                $tr.find(".col-estado").html(`<span class="badge-ok">Dentro/Autorizado</span>`);
+                $btn.text('✔ Autorizado');
+                window.cargar();
+            } catch(e) { console.error(e); alert(e.message || "Error al autorizar."); $btn.prop('disabled', false); }
+        };
+
+        window.editarPrecioLinea = function(idLinea, precioActual) {
+            const $fila = $(`#tbodyPartidasOVPrecio tr[data-linea-id='${idLinea}']`);
+            if (!$fila.length) { alert("No se encontró la línea."); return; }
+            const input = prompt("Nuevo Precio OV:", precioActual);
+            if (input === null) return;
+            const valor = parseFloat(input.toString().replace(/\./g,'').replace(/,/g,'.'));
+            if (!Number.isFinite(valor) || valor < 0) { alert("Valor inválido"); return; }
+            postActualizarPrecioLinea(idLinea, valor)
+                .then(() => {
+                    $fila.find(".col-pov").text(fmtMx(valor));
+                    const plTxt = $fila.find(".col-pl").text().replace(/[^0-9.-]+/g,"");
+                    const pl = parseFloat(plTxt) || 0;
+                    const diff = pl - valor;
+                    $fila.find(".col-diff").html(`<span class="${diff>0?'text-danger':'text-success'}">${fmtMx(diff)}</span>`);
+                    if (diff > 0) {
+                        $fila.find(".col-estado").html(`<span class="badge-danger">Excedido</span>`);
+                        $fila.find(".pm-btn-success").prop('disabled', false).text('✔ Autorizar');
+                    } else {
+                        $fila.find(".col-estado").html(`<span class="badge-ok">Dentro/Autorizado</span>`);
+                        $fila.find(".pm-btn-success").prop('disabled', true).text('✔ Autorizado');
+                    }
+                    setTimeout(window.cargar, 500);
+                    alert("Precio actualizado correctamente");
+                })
+                .catch(err => { console.error(err); alert(err.message || "Error al actualizar el precio."); });
+        };
+
+        window.cargar();
+        startPolling();
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) { clearInterval(timer); timer = null; }
+            else { window.cargar(); startPolling(); }
+        });
+    });
+</script>
+}

@@ -1,0 +1,6 @@
+CREATE TABLE UsuariosAD (
+    Id INT IDENTITY(1,1) PRIMARY KEY,
+    UsuarioAD NVARCHAR(100),
+    Nombre NVARCHAR(200),
+    Puesto NVARCHAR(200)
+);

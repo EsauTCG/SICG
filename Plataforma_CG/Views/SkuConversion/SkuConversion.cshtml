@@ -1,0 +1,2088 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "SKU Conversion";
+
+    var items = ViewBag.Items as IEnumerable<Plataforma_CG.Models.SkuGrupoItem>;
+    var skuSeleccionado = ViewBag.SkuSeleccionado as string;
+    var grupos = ViewBag.Grupos as IEnumerable<Plataforma_CG.Models.SkuGrupo>;
+    var grupo = ViewBag.GrupoSeleccionado as Plataforma_CG.Models.SkuGrupo;
+    var conversiones = ViewBag.Conversiones as IEnumerable<Plataforma_CG.Models.SkuConversion>;
+}
+
+
+<style>
+    :root {
+        --brand: linear-gradient(90deg, #8B0000 0%, #5a0000 50%, #1a0000 100%);
+        --surface: #fff;
+        --bg: linear-gradient(135deg, #f1f3f6 0%, #e9edf2 45%, #e8dada 100%);
+        --line: #e5e7eb;
+        --text: #1f2a35;
+        --muted: #64748b;
+        --radius: 12px;
+        --shadow: 0 10px 24px rgba(0,0,0,.06);
+        --shadow-sm: 0 6px 16px rgba(0,0,0,.06);
+        --focus: 0 0 0 .2rem rgba(139,0,0,.25);
+    }
+
+    body {
+        background: var(--bg) !important;
+        color: var(--text);
+    }
+
+    .shell {
+        max-width: 1300px;
+        margin: 1rem auto 2rem;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+    }
+
+    .titlebar {
+        background: linear-gradient(#f6f8fb,#eef2f7);
+        border-bottom: 1px solid var(--line);
+        padding: .9rem 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        flex-wrap: wrap;
+    }
+
+        .titlebar h5 {
+            margin: 0;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+            color: var(--text);
+        }
+
+            .titlebar h5 i {
+                color: #8B0000;
+            }
+
+        .titlebar .sub {
+            margin: 0;
+            font-size: .9rem;
+            color: var(--muted);
+        }
+
+    .content-pad {
+        padding: 1rem;
+    }
+
+    .chip-soft {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .35rem .6rem;
+        border-radius: 999px;
+        background: #f8fafc;
+        border: 1px solid var(--line);
+        color: #111;
+        font-weight: 600;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .panel {
+        margin-top: 1rem;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .panel-head {
+        background: linear-gradient(#f7f9fc,#eef2f7);
+        border-bottom: 1px solid var(--line);
+        padding: .7rem .9rem;
+        font-weight: 700;
+        color: #2b3642;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .5rem;
+        margin-bottom: 0;
+    }
+
+        .panel-head i {
+            color: #8B0000;
+        }
+
+        .panel-head .panel-title {
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+            flex: 1;
+        }
+
+        .panel-head .panel-actions {
+            display: flex;
+            align-items: center;
+            gap: .35rem;
+        }
+
+    .btn-icon-action {
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        border: 1px solid rgba(0,0,0,.08);
+        background: #fff;
+        color: #64748b;
+        transition: all .15s ease;
+        cursor: pointer;
+        font-size: .85rem;
+    }
+
+        .btn-icon-action:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 8px rgba(0,0,0,.12);
+        }
+
+        .btn-icon-action.btn-primary-icon {
+            background: #3b82f6;
+            color: #fff;
+            border-color: #2563eb;
+        }
+
+            .btn-icon-action.btn-primary-icon:hover {
+                background: #2563eb;
+                box-shadow: 0 3px 12px rgba(59,130,246,.4);
+            }
+
+        .btn-icon-action.btn-success-icon {
+            background: #16a34a;
+            color: #fff;
+            border-color: #15803d;
+        }
+
+            .btn-icon-action.btn-success-icon:hover {
+                background: #15803d;
+                box-shadow: 0 3px 12px rgba(22,163,74,.4);
+            }
+
+        .btn-icon-action.btn-warning-icon {
+            background: #f59e0b;
+            color: #fff;
+            border-color: #d97706;
+        }
+
+            .btn-icon-action.btn-warning-icon:hover {
+                background: #d97706;
+                box-shadow: 0 3px 12px rgba(245,158,11,.4);
+            }
+
+        .btn-icon-action:disabled {
+            opacity: .4;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+    .table-wrap {
+        padding: .5rem .75rem .75rem;
+        padding-top: 0;
+        margin-top: 0;
+        max-height: 65vh;
+        overflow: auto;
+        position: relative;
+    }
+
+    .table-hover tbody tr:hover {
+        background: #fafcff;
+    }
+
+    /* 🔥 GRUPOS ACTIVOS */
+    .list-group-item.grupo-item {
+        border-left: 3px solid transparent;
+        transition: all 0.2s ease;
+        margin-bottom: 0.5rem;
+        border-radius: 8px !important;
+        position: relative;
+        padding-right: 130px !important; /* 🔥 MÁS ESPACIO PARA 4 BOTONES */
+    }
+
+        .list-group-item.grupo-item:hover {
+            background: #D6D6D6 !important;
+            border-left-color: #8B0000;
+            transform: translateX(2px);
+        }
+
+        .list-group-item.grupo-item.active {
+            background: linear-gradient(90deg, #8B0000 0%, #5a0000 100%) !important;
+            border-color: #5a0000 !important;
+            color: #fff !important;
+            border-left-color: #fff;
+        }
+
+            .list-group-item.grupo-item.active small {
+                color: #D6D6D6 !important;
+            }
+
+        /* 🔥 GRUPOS INACTIVOS - Estilo diferenciado */
+        .list-group-item.grupo-item.inactive {
+            background: repeating-linear-gradient( 45deg, #f9fafb, #f9fafb 10px, #f3f4f6 10px, #f3f4f6 20px ) !important;
+            border-left: 3px solid #9ca3af !important;
+            opacity: 0.7;
+            color: #6b7280 !important;
+        }
+
+            .list-group-item.grupo-item.inactive:hover {
+                background: repeating-linear-gradient( 45deg, #f3f4f6, #f3f4f6 10px, #e5e7eb 10px, #e5e7eb 20px ) !important;
+                opacity: 0.85;
+            }
+
+            .list-group-item.grupo-item.inactive strong {
+                color: #9ca3af !important;
+            }
+
+            .list-group-item.grupo-item.inactive small {
+                color: #9ca3af !important;
+            }
+
+    /* Contenedor de botones de acción */
+    .btn-actions-grupo {
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        display: flex;
+        gap: 4px;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+
+    .list-group-item.grupo-item:hover .btn-actions-grupo {
+        opacity: 1;
+    }
+
+    /* 🔥 Botón de editar (azul) */
+    .btn-edit-grupo {
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        border: none;
+        background: rgba(59, 130, 246, 0.9);
+        color: white;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+    }
+
+        .btn-edit-grupo:hover {
+            background: rgba(37, 99, 235, 1);
+            transform: scale(1.1);
+        }
+
+    /* 🔥 Botón de reactivar (verde) */
+    .btn-reactivate-grupo {
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        border: none;
+        background: rgba(22, 163, 74, 0.9);
+        color: white;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+    }
+
+        .btn-reactivate-grupo:hover {
+            background: rgba(21, 128, 61, 1);
+            transform: scale(1.1);
+        }
+
+    /* Botón de desactivar (naranja) */
+    .btn-deactivate-grupo {
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        border: none;
+        background: rgba(245, 158, 11, 0.9);
+        color: white;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+    }
+
+        .btn-deactivate-grupo:hover {
+            background: rgba(217, 119, 6, 1);
+            transform: scale(1.1);
+        }
+
+    /* Botón de eliminar (rojo) */
+    .btn-delete-grupo {
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        border: none;
+        background: rgba(220, 38, 38, 0.9);
+        color: white;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+    }
+
+        .btn-delete-grupo:hover {
+            background: rgba(185, 28, 28, 1);
+            transform: scale(1.1);
+        }
+
+    .list-group-item.grupo-item.active .btn-edit-grupo {
+        background: rgba(255, 255, 255, 0.85);
+        color: #3b82f6;
+    }
+
+        .list-group-item.grupo-item.active .btn-edit-grupo:hover {
+            background: rgba(255, 255, 255, 1);
+        }
+
+    .list-group-item.grupo-item.active .btn-deactivate-grupo {
+        background: rgba(255, 255, 255, 0.85);
+        color: #f59e0b;
+    }
+
+        .list-group-item.grupo-item.active .btn-deactivate-grupo:hover {
+            background: rgba(255, 255, 255, 1);
+        }
+
+    .list-group-item.grupo-item.active .btn-delete-grupo {
+        background: rgba(255, 255, 255, 0.9);
+        color: #8B0000;
+    }
+
+        .list-group-item.grupo-item.active .btn-delete-grupo:hover {
+            background: rgba(255, 255, 255, 1);
+        }
+
+    /* SKU Items */
+    .items-container {
+        margin-top: 0.75rem !important;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 6px;
+        padding: 0.25rem 0;
+    }
+
+    /* 🔥 SKU ACTIVOS */
+    .list-group-item.sku-item {
+        background: rgba(255, 255, 255, 0.9) !important;
+        border: 1px solid rgba(255, 255, 255, 0.3) !important;
+        border-left: 2px solid transparent;
+        color: #1f2a35 !important;
+        margin: 0.15rem 0.5rem;
+        border-radius: 6px !important;
+        transition: all 0.15s ease;
+        font-size: 0.9rem;
+        position: relative;
+        padding-right: 120px !important; /* 🔥 MÁS ESPACIO PARA 4 BOTONES */
+    }
+
+    .grupo-item.active .list-group-item.sku-item {
+        background: #E3E3E3 !important;
+        border-color: #e5e7eb !important;
+        color: #404040 !important;
+    }
+
+    .list-group-item.sku-item:hover {
+        background: #E0E0E0 !important;
+        border-left-color: #f59e0b;
+        transform: translateX(3px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .list-group-item.sku-item.active {
+        font-weight: 900;
+    }
+
+        .list-group-item.sku-item.active .badge {
+            background: rgba(117, 117, 117) !important;
+            color: #FFFFFF !important;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+    /* 🔥 SKU INACTIVOS - Estilo diferenciado */
+    .list-group-item.sku-item.inactive {
+        background: repeating-linear-gradient( 45deg, rgba(249, 250, 251, 0.8), rgba(249, 250, 251, 0.8) 8px, rgba(243, 244, 246, 0.8) 8px, rgba(243, 244, 246, 0.8) 16px ) !important;
+        border-left: 2px solid #d1d5db !important;
+        opacity: 0.6;
+        color: #9ca3af !important;
+    }
+
+        .list-group-item.sku-item.inactive:hover {
+            opacity: 0.8;
+        }
+
+        .list-group-item.sku-item.inactive .badge {
+            background: #9ca3af !important;
+            opacity: 0.7;
+        }
+
+    /* Contenedor de botones de acción para SKUs */
+    .btn-actions-sku {
+        position: absolute;
+        right: 6px;
+        top: 50%;
+        transform: translateY(-50%);
+        display: flex;
+        gap: 3px;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+
+    .list-group-item.sku-item:hover .btn-actions-sku {
+        opacity: 1;
+    }
+
+    /* 🔥 Botón de editar SKU */
+    .btn-edit-sku {
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        border: none;
+        background: rgba(59, 130, 246, 0.8);
+        color: white;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+    }
+
+        .btn-edit-sku:hover {
+            background: rgba(37, 99, 235, 1);
+            transform: scale(1.1);
+        }
+
+    /* 🔥 Botón de reactivar SKU */
+    .btn-reactivate-sku {
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        border: none;
+        background: rgba(22, 163, 74, 0.8);
+        color: white;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+    }
+
+        .btn-reactivate-sku:hover {
+            background: rgba(21, 128, 61, 1);
+            transform: scale(1.1);
+        }
+
+    /* Botón de desactivar SKU */
+    .btn-deactivate-sku {
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        border: none;
+        background: rgba(245, 158, 11, 0.8);
+        color: white;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+    }
+
+        .btn-deactivate-sku:hover {
+            background: rgba(217, 119, 6, 1);
+            transform: scale(1.1);
+        }
+
+    /* Botón de eliminar SKU */
+    .btn-delete-sku {
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        border: none;
+        background: rgba(220, 38, 38, 0.8);
+        color: white;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+    }
+
+        .btn-delete-sku:hover {
+            background: rgba(185, 28, 28, 1);
+            transform: scale(1.1);
+        }
+
+    /* Botones en tabla de conversiones */
+    .btn-actions-conversion {
+        display: flex;
+        gap: 4px;
+        justify-content: center;
+    }
+
+    .btn-edit-conversion,
+    .btn-reactivate-conversion,
+    .btn-deactivate-conversion,
+    .btn-delete-conversion {
+        padding: 2px 6px;
+        font-size: 0.70rem;
+        border-radius: 4px;
+        border: none;
+        color: white;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+    }
+
+    .btn-edit-conversion {
+        background: #3b82f6;
+    }
+
+        .btn-edit-conversion:hover {
+            background: #2563eb;
+            transform: scale(1.05);
+        }
+
+    .btn-reactivate-conversion {
+        background: #16a34a;
+    }
+
+        .btn-reactivate-conversion:hover {
+            background: #15803d;
+            transform: scale(1.05);
+        }
+
+    .btn-deactivate-conversion {
+        background: #f59e0b;
+    }
+
+        .btn-deactivate-conversion:hover {
+            background: #d97706;
+            transform: scale(1.05);
+        }
+
+    .btn-delete-conversion {
+        background: #dc2626;
+    }
+
+        .btn-delete-conversion:hover {
+            background: #b91c1c;
+            transform: scale(1.05);
+        }
+
+    /* 🔥 Filas inactivas en la tabla */
+    tr.inactive-row {
+        background: repeating-linear-gradient( 90deg, rgba(249, 250, 251, 0.5), rgba(249, 250, 251, 0.5) 10px, rgba(243, 244, 246, 0.5) 10px, rgba(243, 244, 246, 0.5) 20px ) !important;
+        opacity: 0.7;
+        color: #9ca3af !important;
+    }
+
+        tr.inactive-row:hover {
+            opacity: 0.9;
+        }
+
+    .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255,255,255,0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+    }
+
+    .spinner-border-custom {
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #8B0000;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+    }
+
+    @@keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    .items-container {
+        animation: slideDown 0.2s ease-out;
+    }
+
+    @@keyframes slideDown {
+        from {
+            opacity: 0;
+            max-height: 0;
+        }
+
+        to {
+            opacity: 1;
+            max-height: 500px;
+        }
+    }
+
+    /* 🔥 Badge para elementos inactivos */
+    .badge-inactive {
+        background: #9ca3af !important;
+        color: white !important;
+        font-size: 0.7rem;
+        padding: 0.2rem 0.4rem;
+    }
+</style>
+
+<div class="shell">
+
+    <div class="titlebar">
+        <div>
+            <h5><i class="bi bi-arrow-left-right"></i> SKU Conversion</h5>
+            <p class="sub">Catálogo de equivalencias y conversiones por grupo</p>
+        </div>
+
+        <span class="chip-soft">
+            <i class="bi bi-diagram-3"></i> Catálogo interno
+        </span>
+    </div>
+
+    <div class="content-pad">
+
+        <div class="row">
+
+            <!-- ===================== -->
+            <!-- GRUPOS SKU (IZQUIERDA) -->
+            <!-- ===================== -->
+            <div class="col-md-4">
+                <div class="panel">
+                    <div class="panel-head">
+                        <div class="panel-title">
+                            <i class="bi bi-collection"></i> Grupos SKU
+                        </div>
+                        <div class="panel-actions">
+                            <button class="btn-icon-action btn-primary-icon"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#modalNuevoGrupo"
+                                    title="Nuevo Grupo">
+                                <i class="bi bi-folder-plus"></i>
+                            </button>
+                            <button class="btn-icon-action btn-success-icon"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#modalNuevoSku"
+                                    id="btnNuevoSku"
+                                    disabled
+                                    title="Nuevo SKU en grupo">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-wrap" style="position: relative;">
+                        <div id="gruposLoading" class="loading-overlay" style="display: none;">
+                            <div class="spinner-border-custom"></div>
+                        </div>
+                        <ul class="list-group list-group-flush" id="gruposList">
+
+                            @foreach (var g in grupos ?? Enumerable.Empty<Plataforma_CG.Models.SkuGrupo>())
+                            {
+                                var grupoActivo = grupo != null && g.GrupoId == grupo.GrupoId ? "active" : "";
+                                var inactiveClass = !g.Activo ? "inactive" : "";
+
+                                <a class="list-group-item list-group-item-action grupo-item @grupoActivo @inactiveClass"
+                                   data-grupo-id="@g.GrupoId"
+                                   data-master-sku="@g.MasterSku"
+                                   data-activo="@g.Activo.ToString().ToLower()"
+                                   href="javascript:void(0);">
+
+                                    <strong>@g.MasterSku</strong>
+                                    @if (!g.Activo)
+                                    {
+                                        <span class="badge badge-inactive ms-1">Inactivo</span>
+                                    }
+                                    <br />
+                                    <small class="text-muted">@g.NombreGrupo</small>
+
+                                    <div class="btn-actions-grupo">
+                                        <button class="btn-edit-grupo"
+                                                onclick="abrirModalEditarGrupo(@g.GrupoId, event)"
+                                                title="Editar grupo">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        @if (!g.Activo)
+                                        {
+                                            <button class="btn-reactivate-grupo"
+                                                    onclick="confirmarReactivarGrupo(@g.GrupoId, '@g.MasterSku', event)"
+                                                    title="Reactivar grupo">
+                                                <i class="bi bi-arrow-clockwise"></i>
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn-deactivate-grupo"
+                                                    onclick="confirmarDesactivarGrupo(@g.GrupoId, '@g.MasterSku', event)"
+                                                    title="Desactivar grupo">
+                                                <i class="bi bi-dash-circle"></i>
+                                            </button>
+                                        }
+                                        <button class="btn-delete-grupo"
+                                                onclick="confirmarEliminarGrupo(@g.GrupoId, '@g.MasterSku', event)"
+                                                title="Eliminar permanentemente">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+
+                                    @if (grupo != null && g.GrupoId == grupo.GrupoId)
+                                    {
+                                        <ul class="list-group list-group-flush mt-2 items-container">
+                                            @foreach (var i in items ?? Enumerable.Empty<Plataforma_CG.Models.SkuGrupoItem>())
+                                            {
+                                                var skuActivo = i.Sku == skuSeleccionado ? "active" : "";
+                                                var skuInactive = !i.Activo ? "inactive" : "";
+                                                var isMaster = i.TipoRelacion == "Master";
+
+                                                <a class="list-group-item list-group-item-action sku-item @skuActivo @skuInactive"
+                                                   style="padding-left:@(10 + i.Nivel * 15)px;"
+                                                   data-sku="@i.Sku"
+                                                   data-nivel="@i.Nivel"
+                                                   data-is-master="@(isMaster ? "true" : "false")"
+                                                   data-activo="@i.Activo.ToString().ToLower()"
+                                                   href="javascript:void(0);">
+                                                    @i.Sku
+
+                                                    @if (isMaster)
+                                                    {
+                                                        <span class="badge bg-primary ms-2">Master</span>
+                                                    }
+                                                    @if (!i.Activo)
+                                                    {
+                                                        <span class="badge badge-inactive ms-1">Inactivo</span>
+                                                    }
+
+                                                    <div class="btn-actions-sku">
+                                                        <button class="btn-edit-sku"
+                                                                onclick="abrirModalEditarSku(@g.GrupoId, '@i.Sku', event)"
+                                                                title="Editar SKU">
+                                                            <i class="bi bi-pencil"></i>
+                                                        </button>
+                                                        @if (!i.Activo)
+                                                        {
+                                                            <button class="btn-reactivate-sku"
+                                                                    onclick="confirmarReactivarSku(@g.GrupoId, '@i.Sku', @(isMaster ? "true" : "false"), event)"
+                                                                    title="Reactivar @(isMaster ? "Master SKU y Grupo" : "SKU")">
+                                                                <i class="bi bi-arrow-clockwise"></i>
+                                                            </button>
+                                                        }
+                                                        else
+                                                        {
+                                                            <button class="btn-deactivate-sku"
+                                                                    onclick="confirmarDesactivarSku(@g.GrupoId, '@i.Sku', @(isMaster ? "true" : "false"), event)"
+                                                                    title="Desactivar @(isMaster ? "Master SKU y Grupo" : "SKU")">
+                                                                <i class="bi bi-dash-circle"></i>
+                                                            </button>
+                                                        }
+                                                        <button class="btn-delete-sku"
+                                                                onclick="confirmarEliminarSku(@g.GrupoId, '@i.Sku', @(isMaster ? "true" : "false"), event)"
+                                                                title="Eliminar permanentemente">
+                                                            <i class="bi bi-x"></i>
+                                                        </button>
+                                                    </div>
+                                                </a>
+                                            }
+                                        </ul>
+                                    }
+                                </a>
+                            }
+
+                        </ul>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- ===================== -->
+            <!-- DETALLE (DERECHA) -->
+            <!-- ===================== -->
+            <div class="col-md-8">
+                <div class="panel">
+                    <div class="panel-head">
+                        <div class="panel-title">
+                            <i class="bi bi-arrow-left-right"></i>
+                            Conversiones – <span id="skuTitle">@(skuSeleccionado ?? grupo?.MasterSku ?? "—")</span>
+                        </div>
+                        <div class="panel-actions">
+                            <button class="btn-icon-action btn-warning-icon"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#modalNuevaConversion"
+                                    id="btnNuevaConversion"
+                                    disabled
+                                    title="Nueva Conversión">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-wrap" style="position: relative;">
+                        <div id="conversionesLoading" class="loading-overlay" style="display: none;">
+                            <div class="spinner-border-custom"></div>
+                        </div>
+                        <table class="table table-bordered table-hover mb-0">
+                            <thead class="text-white" style="background:#8B0000;">
+                                <tr>
+                                    <th style="width:100px;">Prioridad</th>
+                                    <th>Origen</th>
+                                    <th style="width:40px;"></th>
+                                    <th>Destino</th>
+                                    <th style="width:100px;">Estado</th>
+                                    <th style="width:180px;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="conversionesBody">
+                                @foreach (var c in conversiones ?? Enumerable.Empty<Plataforma_CG.Models.SkuConversion>())
+                                {
+                                    var inactiveRowClass = !c.Activo ? "inactive-row" : "";
+                                    <tr class="@inactiveRowClass">
+                                        <td>@(c.Prioridad.HasValue? c.Prioridad.ToString() : "Base")</td>
+                                        <td>@c.SkuOrigen</td>
+                                        <td class="text-center">→</td>
+                                        <td><strong>@c.SkuDestino</strong></td>
+                                        <td>
+                                            @if (c.Activo)
+                                            {
+                                                <span class="badge rounded-pill bg-success">
+                                                    <i class="bi bi-check-circle"></i> Activo
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge rounded-pill bg-secondary">
+                                                    <i class="bi bi-x-circle"></i> Inactivo
+                                                </span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <div class="btn-actions-conversion">
+                                                <button class="btn-edit-conversion"
+                                                        onclick="abrirModalEditarConversion(@c.Id)"
+                                                        title="Editar conversión">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                @if (!c.Activo)
+                                                {
+                                                    <button class="btn-reactivate-conversion"
+                                                            onclick="confirmarReactivarConversion(@c.Id, '@c.SkuOrigen', '@c.SkuDestino')"
+                                                            title="Reactivar conversión">
+                                                        <i class="bi bi-arrow-clockwise"></i>
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <button class="btn-deactivate-conversion"
+                                                            onclick="confirmarDesactivarConversion(@c.Id, '@c.SkuOrigen', '@c.SkuDestino')"
+                                                            title="Desactivar conversión">
+                                                        <i class="bi bi-dash-circle"></i>
+                                                    </button>
+                                                }
+                                                <button class="btn-delete-conversion"
+                                                        onclick="confirmarEliminarConversion(@c.Id, '@c.SkuOrigen', '@c.SkuDestino')"
+                                                        title="Eliminar permanentemente">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+
+<!-- ========== MODAL: NUEVO GRUPO ========== -->
+<div class="modal fade" id="modalNuevoGrupo" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(90deg, #8B0000 0%, #5a0000 100%); color: white;">
+                <h5 class="modal-title"><i class="bi bi-collection"></i> Nuevo Grupo SKU</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formNuevoGrupo">
+                    <div class="mb-3">
+                        <label class="form-label">Master SKU <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="grupoMasterSku" required>
+                        <small class="text-muted">Código del SKU principal del grupo</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nombre del Grupo <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="grupoNombre" required>
+                        
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="guardarGrupo()">
+                    <i class="bi bi-save"></i> Guardar Grupo
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========== 🔥 MODAL: EDITAR GRUPO ========== -->
+<div class="modal fade" id="modalEditarGrupo" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%); color: white;">
+                <h5 class="modal-title"><i class="bi bi-pencil"></i> Editar Grupo SKU</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formEditarGrupo">
+                    <input type="hidden" id="editGrupoId">
+                    <div class="mb-3">
+                        <label class="form-label">Master SKU</label>
+                        <input type="text" class="form-control" id="editGrupoMasterSku" readonly>
+                        <small class="text-muted">El Master SKU no se puede modificar</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nombre del Grupo <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="editGrupoNombre" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="guardarEdicionGrupo()">
+                    <i class="bi bi-save"></i> Guardar Cambios
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========== MODAL: NUEVO SKU ITEM ========== -->
+<div class="modal fade" id="modalNuevoSku" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(90deg, #16a34a 0%, #15803d 100%); color: white;">
+                <h5 class="modal-title"><i class="bi bi-tag"></i> Nuevo SKU</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formNuevoSku">
+                    <div class="mb-3">
+                        <label class="form-label">Grupo</label>
+                        <input type="text" class="form-control" id="skuGrupoNombre" readonly>
+                        <input type="hidden" id="skuGrupoId">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">SKU <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="skuCodigo" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de Relación <span class="text-danger">*</span></label>
+                        <select class="form-control" id="skuTipoRelacion" required>
+                            <option value="">Seleccione...</option>
+                            <option value="Master">Master</option>
+                            <option value="Derivado">Derivado</option>
+                        </select>
+                        <small class="text-muted">Master = SKU principal (nivel 0), Derivado = SKU relacionado (nivel 1+)</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nivel <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="skuNivel" value="0" min="0" required>
+                        <small class="text-muted">0 = Master (raíz), 1+ = Derivados</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Orden</label>
+                        <input type="number" class="form-control" id="skuOrden" value="0" min="0">
+                        <small class="text-muted">Orden de visualización (0 = automático)</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" onclick="guardarSku()">
+                    <i class="bi bi-save"></i> Guardar SKU
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========== 🔥 MODAL: EDITAR SKU ITEM ========== -->
+<div class="modal fade" id="modalEditarSku" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%); color: white;">
+                <h5 class="modal-title"><i class="bi bi-pencil"></i> Editar SKU</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formEditarSku">
+                    <input type="hidden" id="editSkuGrupoId">
+                    <input type="hidden" id="editSkuOriginal">
+                    <div class="mb-3">
+                        <label class="form-label">SKU</label>
+                        <input type="text" class="form-control" id="editSkuCodigo" readonly>
+                        <small class="text-muted">El código SKU no se puede modificar</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de Relación <span class="text-danger">*</span></label>
+                        <select class="form-control" id="editSkuTipoRelacion" required>
+                            <option value="Master">Master</option>
+                            <option value="Derivado">Derivado</option>
+                        </select>
+                        <small class="text-muted">Master = SKU principal (nivel 0), Derivado = SKU relacionado (nivel 1+)</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nivel <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="editSkuNivel" min="0" required>
+                        <small class="text-muted">0 = Master, 1+ = Derivados</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Orden</label>
+                        <input type="number" class="form-control" id="editSkuOrden" min="0">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="guardarEdicionSku()">
+                    <i class="bi bi-save"></i> Guardar Cambios
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========== MODAL: NUEVA CONVERSIÓN ========== -->
+<div class="modal fade" id="modalNuevaConversion" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%); color: white;">
+                <h5 class="modal-title"><i class="bi bi-arrow-left-right"></i> Nueva Conversión</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formNuevaConversion">
+                    <div class="mb-3">
+                        <label class="form-label">SKU Origen</label>
+                        <input type="text" class="form-control" id="conversionOrigen" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">SKU Destino <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="conversionDestino" required>
+                        <small class="text-muted">SKU al que se convertirá</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Prioridad</label>
+                        <input type="number" class="form-control" id="conversionPrioridad" value="0" min="0">
+                        <small class="text-muted">0 = automático, mayor número = mayor prioridad</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Factor de Conversión (Opcional)</label>
+                        <input type="number" step="0.01" class="form-control" id="conversionFactor" value="1.00">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning" onclick="guardarConversion()">
+                    <i class="bi bi-save"></i> Guardar Conversión
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========== 🔥 MODAL: EDITAR CONVERSIÓN ========== -->
+<div class="modal fade" id="modalEditarConversion" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%); color: white;">
+                <h5 class="modal-title"><i class="bi bi-pencil"></i> Editar Conversión</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formEditarConversion">
+                    <input type="hidden" id="editConversionId">
+                    <div class="mb-3">
+                        <label class="form-label">SKU Origen</label>
+                        <input type="text" class="form-control" id="editConversionOrigen" readonly>
+                        <small class="text-muted">El SKU Origen no se puede modificar</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">SKU Destino <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="editConversionDestino" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Prioridad</label>
+                        <input type="number" class="form-control" id="editConversionPrioridad" min="0">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Factor de Conversión</label>
+                        <input type="number" step="0.01" class="form-control" id="editConversionFactor">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="guardarEdicionConversion()">
+                    <i class="bi bi-save"></i> Guardar Cambios
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+@section Scripts {
+    <script>
+        let currentGrupoId = @(grupo?.GrupoId ?? 0);
+        let currentSku = '@(skuSeleccionado ?? "")';
+
+        $(document).ready(function () {
+
+            // Click en Grupo
+            $(document).on('click', '.grupo-item', function (e) {
+                if ($(e.target).closest('.btn-actions-grupo').length > 0) {
+                    return;
+                }
+
+                e.preventDefault();
+
+                const grupoId = $(this).data('grupo-id');
+                const masterSku = $(this).data('master-sku');
+
+                if (grupoId === currentGrupoId) return;
+
+                currentGrupoId = grupoId;
+                currentSku = masterSku;
+
+                $('.grupo-item').removeClass('active');
+                $(this).addClass('active');
+
+                cargarGrupoItems(grupoId, masterSku);
+            });
+
+            // Click en SKU
+            $(document).on('click', '.sku-item', function (e) {
+                if ($(e.target).closest('.btn-actions-sku').length > 0) {
+                    return;
+                }
+
+                e.preventDefault();
+
+                const sku = $(this).data('sku');
+
+                if (sku === currentSku) return;
+
+                currentSku = sku;
+
+                $('.sku-item').removeClass('active');
+                $(this).addClass('active');
+
+                cargarConversiones(sku);
+            });
+
+        });
+
+        function cargarGrupoItems(grupoId, masterSku) {
+            $('#gruposLoading').show();
+
+            $.ajax({
+                url: '@Url.Action("GetGrupoItems", "SkuConversion")',
+                type: 'GET',
+                data: { grupoId: grupoId },
+                success: function (data) {
+                    $('.items-container').remove();
+
+                    if (data.items && data.items.length > 0) {
+                        let itemsHtml = '<ul class="list-group list-group-flush mt-2 items-container">';
+
+                        data.items.forEach(function (item) {
+                            const paddingLeft = 10 + (item.nivel * 15);
+                            const activeClass = item.sku === currentSku ? 'active' : '';
+                            const inactiveClass = !item.activo ? 'inactive' : '';
+                            const isMaster = item.tipoRelacion === 'Master';
+                            const masterBadge = isMaster ? '<span class="badge bg-primary ms-2">Master</span>' : '';
+                            const inactiveBadge = !item.activo ? '<span class="badge badge-inactive ms-1">Inactivo</span>' : '';
+
+                            let actionButtons = `
+                                <button class="btn-edit-sku"
+                                        onclick="abrirModalEditarSku(${grupoId}, '${item.sku}', event)"
+                                        title="Editar SKU">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            `;
+
+                            if (!item.activo) {
+                                actionButtons += `
+                                    <button class="btn-reactivate-sku"
+                                            onclick="confirmarReactivarSku(${grupoId}, '${item.sku}', ${isMaster}, event)"
+                                            title="Reactivar ${isMaster ? 'Master SKU y Grupo' : 'SKU'}">
+                                        <i class="bi bi-arrow-clockwise"></i>
+                                    </button>
+                                `;
+                            } else {
+                                actionButtons += `
+                                    <button class="btn-deactivate-sku"
+                                            onclick="confirmarDesactivarSku(${grupoId}, '${item.sku}', ${isMaster}, event)"
+                                            title="Desactivar ${isMaster ? 'Master SKU y Grupo' : 'SKU'}">
+                                        <i class="bi bi-dash-circle"></i>
+                                    </button>
+                                `;
+                            }
+
+                            actionButtons += `
+                                <button class="btn-delete-sku"
+                                        onclick="confirmarEliminarSku(${grupoId}, '${item.sku}', ${isMaster}, event)"
+                                        title="Eliminar permanentemente">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            `;
+
+                            itemsHtml += `
+                                <a class="list-group-item list-group-item-action sku-item ${activeClass} ${inactiveClass}"
+                                   style="padding-left:${paddingLeft}px;"
+                                   data-sku="${item.sku}"
+                                   data-nivel="${item.nivel}"
+                                   data-is-master="${isMaster}"
+                                   data-activo="${item.activo}"
+                                   href="javascript:void(0);">
+                                    ${item.sku}
+                                    ${masterBadge}
+                                    ${inactiveBadge}
+                                    <div class="btn-actions-sku">
+                                        ${actionButtons}
+                                    </div>
+                                </a>
+                            `;
+                        });
+
+                        itemsHtml += '</ul>';
+                        $('.grupo-item.active').append(itemsHtml);
+                    }
+
+                    cargarConversiones(masterSku);
+                    actualizarEstadoBotones();
+                },
+                error: function () {
+                    alert('Error al cargar los items del grupo');
+                },
+                complete: function () {
+                    $('#gruposLoading').hide();
+                }
+            });
+        }
+
+
+        function cargarConversiones(sku) {
+            $('#conversionesLoading').show();
+            $('#skuTitle').text(sku);
+
+            $.ajax({
+                url: '@Url.Action("GetConversiones", "SkuConversion")',
+                type: 'GET',
+                data: { sku: sku },
+                success: function (data) {
+                    let html = '';
+
+                    if (data && data.length > 0) {
+                        data.forEach(function (c) {
+                            const prioridad = c.prioridad !== null ? c.prioridad : 'Base';
+                            const estadoBadge = c.activo
+                                ? '<span class="badge rounded-pill bg-success"><i class="bi bi-check-circle"></i> Activo</span>'
+                                : '<span class="badge rounded-pill bg-secondary"><i class="bi bi-x-circle"></i> Inactivo</span>';
+                            const inactiveRowClass = !c.activo ? 'inactive-row' : '';
+
+                            let actionButtons = `
+                                <button class="btn-edit-conversion"
+                                        onclick="abrirModalEditarConversion(${c.id})"
+                                        title="Editar conversión">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            `;
+
+                            if (!c.activo) {
+                                actionButtons += `
+                                    <button class="btn-reactivate-conversion"
+                                            onclick="confirmarReactivarConversion(${c.id}, '${c.skuOrigen}', '${c.skuDestino}')"
+                                            title="Reactivar conversión">
+                                        <i class="bi bi-arrow-clockwise"></i>
+                                    </button>
+                                `;
+                            } else {
+                                actionButtons += `
+                                    <button class="btn-deactivate-conversion"
+                                            onclick="confirmarDesactivarConversion(${c.id}, '${c.skuOrigen}', '${c.skuDestino}')"
+                                            title="Desactivar conversión">
+                                        <i class="bi bi-dash-circle"></i>
+                                    </button>
+                                `;
+                            }
+
+                            actionButtons += `
+                                <button class="btn-delete-conversion"
+                                        onclick="confirmarEliminarConversion(${c.id}, '${c.skuOrigen}', '${c.skuDestino}')"
+                                        title="Eliminar permanentemente">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            `;
+
+                            html += `
+                                <tr class="${inactiveRowClass}">
+                                    <td>${prioridad}</td>
+                                    <td>${c.skuOrigen}</td>
+                                    <td class="text-center">→</td>
+                                    <td><strong>${c.skuDestino}</strong></td>
+                                    <td>${estadoBadge}</td>
+                                    <td>
+                                        <div class="btn-actions-conversion">
+                                            ${actionButtons}
+                                        </div>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                    } else {
+                        html = `
+                            <tr>
+                                <td colspan="6" class="text-center text-muted">
+                                    <i class="bi bi-info-circle"></i> No hay conversiones disponibles
+                                </td>
+                            </tr>
+                        `;
+                    }
+
+                    $('#conversionesBody').html(html);
+                    actualizarEstadoBotones();
+                },
+                error: function () {
+                    alert('Error al cargar las conversiones');
+                },
+                complete: function () {
+                    $('#conversionesLoading').hide();
+                }
+            });
+        }
+
+
+        function actualizarEstadoBotones() {
+            if (currentGrupoId > 0) {
+                $('#btnNuevoSku').prop('disabled', false);
+            } else {
+                $('#btnNuevoSku').prop('disabled', true);
+            }
+
+            if (currentSku) {
+                $('#btnNuevaConversion').prop('disabled', false);
+            } else {
+                $('#btnNuevaConversion').prop('disabled', true);
+            }
+        }
+
+        $('#modalNuevoSku').on('show.bs.modal', function () {
+            var grupoNombre = $('.grupo-item.active strong').text();
+            $('#skuGrupoNombre').val(grupoNombre);
+            $('#skuGrupoId').val(currentGrupoId);
+        });
+
+        $('#modalNuevaConversion').on('show.bs.modal', function () {
+            $('#conversionOrigen').val(currentSku);
+        });
+
+        function guardarGrupo() {
+            const masterSku = $('#grupoMasterSku').val().trim();
+            const nombreGrupo = $('#grupoNombre').val().trim();
+           
+
+            if (!masterSku || !nombreGrupo) {
+                alert('Por favor complete los campos requeridos');
+                return;
+            }
+
+            const data = {
+                MasterSku: masterSku,
+                NombreGrupo: nombreGrupo,
+               
+            };
+
+            $.ajax({
+                url: '@Url.Action("CrearGrupo", "SkuConversion")',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function (response) {
+                    if (response.success) {
+                        alert(response.message);
+                        $('#modalNuevoGrupo').modal('hide');
+                        $('#formNuevoGrupo')[0].reset();
+                        location.reload();
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                },
+                error: function () {
+                    alert('Error al guardar el grupo');
+                }
+            });
+        }
+
+        // 🔥 ABRIR MODAL EDITAR GRUPO
+        function abrirModalEditarGrupo(grupoId, event) {
+            event.stopPropagation();
+
+            $.ajax({
+                url: '@Url.Action("GetGrupo", "SkuConversion")',
+                type: 'GET',
+                data: { grupoId: grupoId },
+                success: function (response) {
+                    if (response.success) {
+                        $('#editGrupoId').val(response.grupo.grupoId);
+                        $('#editGrupoMasterSku').val(response.grupo.masterSku);
+                        $('#editGrupoNombre').val(response.grupo.nombreGrupo);
+
+                        $('#modalEditarGrupo').modal('show');
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                },
+                error: function () {
+                    alert('Error al cargar los datos del grupo');
+                }
+            });
+        }
+
+        // 🔥 GUARDAR EDICIÓN GRUPO
+        function guardarEdicionGrupo() {
+            const grupoId = parseInt($('#editGrupoId').val());
+            const nombreGrupo = $('#editGrupoNombre').val().trim();
+
+            if (!nombreGrupo) {
+                alert('El nombre del grupo es requerido');
+                return;
+            }
+
+            const data = {
+                GrupoId: grupoId,
+                NombreGrupo: nombreGrupo
+            };
+
+            $.ajax({
+                url: '@Url.Action("EditarGrupo", "SkuConversion")',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function (response) {
+                    if (response.success) {
+                        alert(response.message);
+                        $('#modalEditarGrupo').modal('hide');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                },
+                error: function () {
+                    alert('Error al actualizar el grupo');
+                }
+            });
+        }
+
+        function guardarSku() {
+            const grupoId = $('#skuGrupoId').val();
+            const sku = $('#skuCodigo').val().trim();
+            const tipoRelacion = $('#skuTipoRelacion').val();
+            const nivel = parseInt($('#skuNivel').val());
+            const orden = parseInt($('#skuOrden').val());
+
+            if (!sku || !tipoRelacion) {
+                alert('Por favor complete los campos requeridos');
+                return;
+            }
+
+            // 🔥 VALIDACIONES EN FRONTEND
+            if (tipoRelacion === 'Master' && nivel !== 0) {
+                alert('El Master SKU debe tener Nivel 0');
+                return;
+            }
+
+            if (tipoRelacion === 'Derivado' && nivel === 0) {
+                alert('Un SKU Derivado debe tener Nivel mayor a 0');
+                return;
+            }
+
+            const data = {
+                GrupoId: parseInt(grupoId),
+                Sku: sku,
+                TipoRelacion: tipoRelacion,
+                Nivel: nivel,
+                Orden: orden
+                // 🔥 NO enviamos ParentSku, se asigna automáticamente en el servidor
+            };
+
+            $.ajax({
+                url: '@Url.Action("CrearSkuItem", "SkuConversion")',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function (response) {
+                    if (response.success) {
+                        alert(response.message);
+                        $('#modalNuevoSku').modal('hide');
+                        $('#formNuevoSku')[0].reset();
+
+                        cargarGrupoItems(currentGrupoId, currentSku);
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                },
+                error: function () {
+                    alert('Error al guardar el SKU');
+                }
+            });
+        }
+
+
+        // 🔥 ABRIR MODAL EDITAR SKU
+        function abrirModalEditarSku(grupoId, sku, event) {
+            event.stopPropagation();
+
+            $.ajax({
+                url: '@Url.Action("GetSkuItem", "SkuConversion")',
+                type: 'GET',
+                data: { grupoId: grupoId, sku: sku },
+                success: function (response) {
+                    if (response.success) {
+                        $('#editSkuGrupoId').val(response.item.grupoId);
+                        $('#editSkuOriginal').val(response.item.sku);
+                        $('#editSkuCodigo').val(response.item.sku);
+                        $('#editSkuTipoRelacion').val(response.item.tipoRelacion);
+                        $('#editSkuNivel').val(response.item.nivel);
+                        $('#editSkuOrden').val(response.item.orden);
+
+                        $('#modalEditarSku').modal('show');
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                },
+                error: function () {
+                    alert('Error al cargar los datos del SKU');
+                }
+            });
+        }
+
+        // 🔥 GUARDAR EDICIÓN SKU
+                function guardarEdicionSku() {
+            const grupoId = parseInt($('#editSkuGrupoId').val());
+            const skuOriginal = $('#editSkuOriginal').val();
+            const tipoRelacion = $('#editSkuTipoRelacion').val();
+            const nivel = parseInt($('#editSkuNivel').val());
+            const orden = parseInt($('#editSkuOrden').val());
+
+            // 🔥 VALIDACIONES EN FRONTEND
+            if (tipoRelacion === 'Master' && nivel !== 0) {
+                alert('El Master SKU debe tener Nivel 0');
+                return;
+            }
+
+            if (tipoRelacion === 'Derivado' && nivel === 0) {
+                alert('Un SKU Derivado debe tener Nivel mayor a 0');
+                return;
+            }
+
+            const data = {
+                GrupoId: grupoId,
+                SkuOriginal: skuOriginal,
+                TipoRelacion: tipoRelacion,
+                Nivel: nivel,
+                Orden: orden
+                // 🔥 NO enviamos ParentSku, se asigna automáticamente en el servidor
+            };
+
+            $.ajax({
+                url: '@Url.Action("EditarSkuItem", "SkuConversion")',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function (response) {
+                    if (response.success) {
+                        alert(response.message);
+                        $('#modalEditarSku').modal('hide');
+
+                        const masterSku = $('.grupo-item.active').data('master-sku');
+                        cargarGrupoItems(grupoId, masterSku);
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                },
+                error: function () {
+                    alert('Error al actualizar el SKU');
+                }
+            });
+        }
+
+        function guardarConversion() {
+            const skuOrigen = $('#conversionOrigen').val().trim();
+            const skuDestino = $('#conversionDestino').val().trim();
+            const prioridad = parseInt($('#conversionPrioridad').val());
+            const factor = parseFloat($('#conversionFactor').val());
+
+            if (!skuOrigen || !skuDestino) {
+                alert('Por favor complete los campos requeridos');
+                return;
+            }
+
+            const data = {
+                SkuOrigen: skuOrigen,
+                SkuDestino: skuDestino,
+                Prioridad: prioridad > 0 ? prioridad : null,
+                FactorConversion: factor
+            };
+
+            $.ajax({
+                url: '@Url.Action("CrearConversion", "SkuConversion")',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function (response) {
+                    if (response.success) {
+                        alert(response.message);
+                        $('#modalNuevaConversion').modal('hide');
+                        $('#formNuevaConversion')[0].reset();
+
+                        cargarConversiones(currentSku);
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                },
+                error: function () {
+                    alert('Error al guardar la conversión');
+                }
+            });
+        }
+
+        // 🔥 ABRIR MODAL EDITAR CONVERSIÓN
+        function abrirModalEditarConversion(conversionId) {
+            $.ajax({
+                url: '@Url.Action("GetConversion", "SkuConversion")',
+                type: 'GET',
+                data: { id: conversionId },
+                success: function (response) {
+                    if (response.success) {
+                        $('#editConversionId').val(response.conversion.id);
+                        $('#editConversionOrigen').val(response.conversion.skuOrigen);
+                        $('#editConversionDestino').val(response.conversion.skuDestino);
+                        $('#editConversionPrioridad').val(response.conversion.prioridad || 0);
+                        $('#editConversionFactor').val(response.conversion.factorConversion);
+
+                        $('#modalEditarConversion').modal('show');
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                },
+                error: function () {
+                    alert('Error al cargar los datos de la conversión');
+                }
+            });
+        }
+
+        // 🔥 GUARDAR EDICIÓN CONVERSIÓN
+        function guardarEdicionConversion() {
+            const id = parseInt($('#editConversionId').val());
+            const skuDestino = $('#editConversionDestino').val().trim();
+            const prioridad = parseInt($('#editConversionPrioridad').val()) || null;
+            const factor = parseFloat($('#editConversionFactor').val());
+
+            if (!skuDestino) {
+                alert('El SKU Destino es requerido');
+                return;
+            }
+
+            const data = {
+                Id: id,
+                SkuDestino: skuDestino,
+                Prioridad: prioridad,
+                FactorConversion: factor
+            };
+
+            $.ajax({
+                url: '@Url.Action("EditarConversion", "SkuConversion")',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function (response) {
+                    if (response.success) {
+                        alert(response.message);
+                        $('#modalEditarConversion').modal('hide');
+                        cargarConversiones(currentSku);
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                },
+                error: function () {
+                    alert('Error al actualizar la conversión');
+                }
+            });
+        }
+
+        // 🔥 REACTIVAR GRUPO
+        function confirmarReactivarGrupo(grupoId, masterSku, event) {
+            event.stopPropagation();
+
+            if (!confirm(`¿Reactivar el grupo "${masterSku}"?\n\nSe reactivarán:\n• El grupo\n• Todos los SKU items\n• Todas las conversiones`)) {
+                return;
+            }
+
+            $.ajax({
+                url: '@Url.Action("ReactivarGrupo", "SkuConversion")',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(grupoId),
+                success: function (response) {
+                    if (response.success) {
+                        alert(response.message);
+                        location.reload();
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                },
+                error: function () {
+                    alert('Error al reactivar el grupo');
+                }
+            });
+        }
+
+        // DESACTIVAR GRUPO
+        function confirmarDesactivarGrupo(grupoId, masterSku, event) {
+            event.stopPropagation();
+
+            if (!confirm(`¿Desactivar el grupo "${masterSku}"?\n\nSe desactivarán:\n• El grupo\n• Todos los SKU items\n• Todas las conversiones`)) {
+                return;
+            }
+
+            $.ajax({
+                url: '@Url.Action("DesactivarGrupo", "SkuConversion")',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(grupoId),
+                success: function (response) {
+                    if (response.success) {
+                        alert(response.message);
+                        location.reload();
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                },
+                error: function () {
+                    alert('Error al desactivar el grupo');
+                }
+            });
+        }
+
+        // ELIMINAR GRUPO PERMANENTEMENTE
+        function confirmarEliminarGrupo(grupoId, masterSku, event) {
+            event.stopPropagation();
+
+            if (!confirm(`⚠️ ¿ELIMINAR PERMANENTEMENTE el grupo "${masterSku}"?\n\n⚠️ ADVERTENCIA: NO SE PUEDE DESHACER\n\nSe eliminará de la BD:\n• El grupo\n• Todos los SKU items\n• Todas las conversiones\n\n¿Continuar?`)) {
+                return;
+            }
+
+            $.ajax({
+                url: '@Url.Action("EliminarGrupo", "SkuConversion")',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(grupoId),
+                success: function (response) {
+                    if (response.success) {
+                        alert(response.message);
+
+                        $(`.grupo-item[data-grupo-id="${grupoId}"]`).fadeOut(300, function () {
+                            $(this).remove();
+                        });
+
+                        if (currentGrupoId === grupoId) {
+                            currentGrupoId = 0;
+                            currentSku = '';
+                            $('#conversionesBody').html(`
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted">
+                                        <i class="bi bi-info-circle"></i> Seleccione un grupo
+                                    </td>
+                                </tr>
+                            `);
+                            $('#skuTitle').text('—');
+                            actualizarEstadoBotones();
+                        }
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                },
+                error: function () {
+                    alert('Error al eliminar el grupo');
+                }
+            });
+        }
+
+        // 🔥 REACTIVAR SKU
+        function confirmarReactivarSku(grupoId, sku, isMaster, event) {
+            event.stopPropagation();
+
+            let mensaje = isMaster
+                ? `¿Reactivar el Master SKU "${sku}"?\n\nSe reactivarán:\n• El SKU\n• Las conversiones asociadas`
+                : `¿Reactivar el SKU "${sku}"?\n\nSe reactivarán también las conversiones asociadas.`;
+
+            if (!confirm(mensaje)) {
+                return;
+            }
+
+            const data = {
+                GrupoId: grupoId,
+                Sku: sku
+            };
+
+            $.ajax({
+                url: '@Url.Action("ReactivarSkuItem", "SkuConversion")',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function (response) {
+                    if (response.success) {
+                        alert(response.message);
+                        const masterSku = $('.grupo-item.active').data('master-sku');
+                        cargarGrupoItems(grupoId, masterSku);
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                },
+                error: function () {
+                    alert('Error al reactivar el SKU');
+                }
+            });
+        }
+
+        // DESACTIVAR SKU
+        function confirmarDesactivarSku(grupoId, sku, isMaster, event) {
+            event.stopPropagation();
+
+            let mensaje = isMaster
+                ? `¿Desactivar el Master SKU "${sku}"?\n\nSe desactivará TODO EL GRUPO`
+                : `¿Desactivar el SKU "${sku}"?`;
+
+            if (!confirm(mensaje)) {
+                return;
+            }
+
+            const data = {
+                GrupoId: grupoId,
+                Sku: sku
+            };
+
+            $.ajax({
+                url: '@Url.Action("DesactivarSkuItem", "SkuConversion")',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function (response) {
+                    if (response.success) {
+                        alert(response.message);
+
+                        if (response.grupoEliminado) {
+                            location.reload();
+                        } else {
+                            const masterSku = $('.grupo-item.active').data('master-sku');
+                            cargarGrupoItems(grupoId, masterSku);
+                        }
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                },
+                error: function () {
+                    alert('Error al desactivar el SKU');
+                }
+            });
+        }
+
+        // ELIMINAR SKU PERMANENTEMENTE
+        function confirmarEliminarSku(grupoId, sku, isMaster, event) {
+            event.stopPropagation();
+
+            let mensaje = isMaster
+                ? `⚠️ ¿ELIMINAR PERMANENTEMENTE el Master SKU "${sku}"?\n\n⚠️ NO SE PUEDE DESHACER\n\nSe eliminará TODO EL GRUPO`
+                : `⚠️ ¿ELIMINAR PERMANENTEMENTE el SKU "${sku}"?\n\n⚠️ NO SE PUEDE DESHACER`;
+
+            if (!confirm(mensaje)) {
+                return;
+            }
+
+            const data = {
+                GrupoId: grupoId,
+                Sku: sku
+            };
+
+            $.ajax({
+                url: '@Url.Action("EliminarSkuItem", "SkuConversion")',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function (response) {
+                    if (response.success) {
+                        alert(response.message);
+
+                        if (response.grupoEliminado) {
+                            location.reload();
+                        } else {
+                            const masterSku = $('.grupo-item.active').data('master-sku');
+                            cargarGrupoItems(grupoId, masterSku);
+                        }
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                },
+                error: function () {
+                    alert('Error al eliminar el SKU');
+                }
+            });
+        }
+
+        // 🔥 REACTIVAR CONVERSIÓN
+        function confirmarReactivarConversion(conversionId, skuOrigen, skuDestino) {
+            if (!confirm(`¿Reactivar la conversión?\n\n${skuOrigen} → ${skuDestino}`)) {
+                return;
+            }
+
+            $.ajax({
+                url: '@Url.Action("ReactivarConversion", "SkuConversion")',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(conversionId),
+                success: function (response) {
+                    if (response.success) {
+                        alert(response.message);
+                        cargarConversiones(currentSku);
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                },
+                error: function () {
+                    alert('Error al reactivar la conversión');
+                }
+            });
+        }
+
+        // DESACTIVAR CONVERSIÓN
+        function confirmarDesactivarConversion(conversionId, skuOrigen, skuDestino) {
+            if (!confirm(`¿Desactivar la conversión?\n\n${skuOrigen} → ${skuDestino}`)) {
+                return;
+            }
+
+            $.ajax({
+                url: '@Url.Action("DesactivarConversion", "SkuConversion")',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(conversionId),
+                success: function (response) {
+                    if (response.success) {
+                        alert(response.message);
+                        cargarConversiones(currentSku);
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                },
+                error: function () {
+                    alert('Error al desactivar la conversión');
+                }
+            });
+        }
+
+        // ELIMINAR CONVERSIÓN PERMANENTEMENTE
+        function confirmarEliminarConversion(conversionId, skuOrigen, skuDestino) {
+            if (!confirm(`⚠️ ¿ELIMINAR PERMANENTEMENTE?\n\n${skuOrigen} → ${skuDestino}\n\n⚠️ NO SE PUEDE DESHACER`)) {
+                return;
+            }
+
+            $.ajax({
+                url: '@Url.Action("EliminarConversion", "SkuConversion")',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(conversionId),
+                success: function (response) {
+                    if (response.success) {
+                        alert(response.message);
+                        cargarConversiones(currentSku);
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                },
+                error: function () {
+                    alert('Error al eliminar la conversión');
+                }
+            });
+        }
+
+        $(document).ready(function () {
+            actualizarEstadoBotones();
+
+            const $grupoActivo = $('.grupo-item.active').first();
+
+            if ($grupoActivo.length) {
+                const grupoId = $grupoActivo.data('grupo-id');
+                const masterSku = $grupoActivo.data('master-sku');
+
+                currentGrupoId = grupoId;
+                currentSku = masterSku;
+
+                $('.grupo-item').removeClass('active');
+                $grupoActivo.addClass('active');
+
+                cargarGrupoItems(grupoId, masterSku);
+            }
+        });
+    </script>
+}

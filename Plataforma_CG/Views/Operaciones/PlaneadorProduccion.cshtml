@@ -1,0 +1,748 @@
+@using Plataforma_CG.Models.Operaciones.Planeacion.Diaria;
+@using Plataforma_CG.Models.Operaciones.Planeacion;
+@using Plataforma_CG.Models.Operaciones.Planeacion.Extra;
+@model TotalDiarioModel
+
+@{
+    var planVG = Model.TipoPlan == "VG" ? "selected" : "";
+    var planNOV = Model.TipoPlan == "NOV" ? "selected" : "";
+
+
+}
+<div id="planeacionData"
+     data-fecha="@Model.Fecha">
+</div>
+<h3 class="mb-3">
+    Plan Diario - @Model.Fecha
+</h3>
+
+<div class="d-flex gap-2 mb-3">
+
+    <select id="comboTipoPlan" class="form-select form-select-sm" style="width:180px">
+        <option value="VG" selected="@(Model.TipoPlan == "VG")">Vaca Gorda</option>
+        <option value="NOV" selected="@(Model.TipoPlan == "NOV")">NOVILLO</option>
+    </select>
+
+    <button class="btn btn-primary btn-sm" onclick="actualizarPlaneacionDia()">
+        Actualizar
+    </button>
+
+</div>
+
+<div class="mb-2 text-end">
+    <button class="btn btn-success btn-sm" onclick="exportarExcel()">
+        Exportar a Excel
+    </button>
+</div>
+
+<div class="mb-2 text-end">
+    <button class="btn btn-success btn-sm" onclick="guardarPlanDiario()">
+        Guardar
+    </button>
+</div>
+<button class="btn btn-warning btn-sm"
+        onclick="abrirSolicitudes()">
+    Solicitudes
+</button>
+
+<div class="modal fade"
+     id="modalSolicitudes"
+     tabindex="-1">
+
+    <div class="modal-dialog modal-xl">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+
+                <h5 class="modal-title">
+                    Solicitudes de Producción
+                </h5>
+
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal">
+                </button>
+
+            </div>
+
+            <div class="modal-body">
+
+                <div class="mb-3 text-end">
+
+                    <button class="btn btn-success"
+                            @* onclick="abrirNuevaSolicitud()"> *@
+                            onclick="abrirModalSolicitud()">
+                        Crear Solicitud
+                    </button>
+
+                </div>
+
+                <div id="contenedorSolicitudes"
+                     class="row g-3">
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<style>
+    .fila-subtotal {
+        background: #f2f3f4;
+        font-weight: bold;
+    }
+    .btn-agregar-participacion {
+        width: 100%;
+        border-style: dashed;
+        font-weight: bold;
+    }
+
+    .table-responsive {
+        max-height: 50vh;
+        overflow-y: auto;
+    }
+
+    .fila-derivado {
+        background-color: #d6ecff !important;
+    }
+
+        .fila-derivado td.td-codigo {
+            padding-left: 35px !important;
+            position: relative;
+        }
+
+            .fila-derivado td.td-codigo::before {
+                content: "↳";
+                position: absolute;
+                left: 10px;
+                color: #2e86c1;
+                font-weight: bold;
+            }
+
+    .td-0 {
+        background-color: #f8b26a !important;
+    }
+
+    .td-parcial {
+        background-color: #5dade2 !important;
+        color: #fff;
+    }
+
+    .td-1 {
+        background-color: #58d68d !important;
+    }
+
+    .td-codigo {
+        background-color: #fdf2d0 !important;
+    }
+
+    .tabla-plan thead th {
+        background-color: #d5d8dc !important;
+    }
+
+    .col-gris {
+        background-color: #e5e7e9 !important;
+    }
+
+    .input-participacion {
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        text-align: center;
+        padding: 2px;
+    }
+
+        .input-participacion:focus {
+            border: 1px solid #2e86c1 !important;
+            background-color: rgba(255,255,255,0.3);
+        }
+
+    #buscadorWrapper {
+        position: sticky;
+        top: 0;
+        z-index: 999;
+        background: #fff;
+        padding: 10px;
+        border-bottom: 2px solid #ddd;
+    }
+
+    .col-iny {
+        background-color: #d6eaf8 !important;
+    }
+
+
+
+    .master-header {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+    }
+
+        .master-header td {
+            background: #34495e !important;
+            padding: 0 !important;
+        }
+
+    .btn-toggle-master {
+        width: 100%;
+        border: none;
+        text-align: left;
+        padding: 10px 16px;
+        background: #34495e;
+        color: white;
+        font-weight: bold;
+        cursor: pointer;
+        /* NUEVO */
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+        .btn-toggle-master:hover {
+            background: #2c3e50;
+        }
+
+    /* subtotal junto al nombre */
+    .master-subtotal-inline {
+        font-size: 0.95rem;
+        font-weight: normal;
+        opacity: .95;
+        margin-left: 8px;
+        color: #d6eaf8;
+    }
+</style>
+
+<div id="buscadorWrapper">
+    <input type="text"
+           id="buscadorProductos"
+           class="form-control"
+           placeholder="Buscar código o nombre y presiona Enter...">
+</div>
+
+<div class="mb-2 text-end">
+    <button class="btn btn-primary btn-sm"
+            onclick="abrirCatalogoExtra()">
+        Agregar Producto extra
+    </button>
+
+    <button class="btn btn-outline-secondary btn-sm" onclick="toggleAllMasters(false)">
+        Colapsar todo
+    </button>
+
+    <button class="btn btn-outline-secondary btn-sm" onclick="toggleAllMasters(true)">
+        Expandir todo
+    </button>
+
+</div>
+
+ <div class="mb-2 text-end">
+
+    <button class="btn btn-warning btn-sm"
+            onclick="abrirModalSolicitud()">
+
+        Solicitud
+
+    </button>
+
+</div> 
+<div class="modal fade"
+     id="modalDetalleSolicitud"
+     tabindex="-1">
+
+    <div class="modal-dialog modal-lg">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+
+                <h5 class="modal-title">
+                    Detalle de Solicitud
+                </h5>
+
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal">
+                </button>
+
+            </div>
+
+            <div class="modal-body">
+
+                <div id="detalleSolicitud">
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<div class="modal fade"
+     id="modalSolicitud"
+     tabindex="-1">
+
+    <div class="modal-dialog modal-xl">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+
+                <h5 class="modal-title">
+                    Solicitud
+                </h5>
+
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal">
+                </button>
+
+            </div>
+
+            <div class="modal-body">
+
+                <div class="row mb-3">
+
+                    <div class="col-md-4">
+
+                        <label class="form-label">
+                            Tipo
+                        </label>
+
+                        <select id="comboSolicitud"
+                                class="form-select">
+
+                            <option value="">
+                                Cargando...
+                            </option>
+
+                        </select>
+
+                    </div>
+
+                    <div class="col-md-8">
+
+                        <label class="form-label">
+                            Comentarios
+                        </label>
+
+                        <textarea id="txtSolicitudComentarios"
+                                  class="form-control"
+                                  rows="3"></textarea>
+
+                    </div>
+
+                </div>
+                <div class="table-responsive">
+
+                    <table class="table table-bordered table-sm"
+                           id="tablaSolicitud">
+
+                        <thead class="table-light">
+
+                            <tr>
+
+                                <th style="width:150px;">
+                                    SKU
+                                </th>
+
+                                <th>
+                                    Nombre
+                                </th>
+
+                                <th style="width:140px;">
+                                    Cantidad
+                                </th>
+
+                            </tr>
+
+                        </thead>
+
+                        <tbody>
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+            <div class="modal-footer">
+
+                <button class="btn btn-secondary"
+                        data-bs-dismiss="modal">
+
+                    Cerrar
+
+                </button>
+
+                <button class="btn btn-primary"
+                        onclick="guardarSolicitud()">
+
+                    Guardar
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+<div class="table-responsive">
+
+    <table class="table table-bordered table-sm text-center tabla-plan" id="tablaPlan">
+
+        <thead class="table-light">
+
+            <tr>
+
+                <th rowspan="3">Máster</th>
+                <th rowspan="3">Código</th>
+
+                <th>No. Canal completa</th>
+
+                @foreach (var canal in Model.Canales)
+                {
+                    if (canal.NoCanalCompleta>0&&canal.KgCanalCompleta>0)
+                    {
+                        <th>@canal.NoCanalCompleta</th>
+                    }
+                }
+
+                <th rowspan="3">%</th>
+                <th rowspan="3">Total Calculado</th>
+                <th rowspan="3">Aprox. Canales completas</th>
+
+                <!-- NUEVO BLOQUE -->
+                <th colspan="5" class="col-iny">
+                    Inyección
+                </th>
+                <th colspan="2" class="col-etiq">
+                    Etiquetación
+                </th>
+
+            </tr>
+
+            <tr>
+
+                <th>Kg por canal completa</th>
+
+                @foreach (var canal in Model.Canales)
+                {
+                    if (canal.NoCanalCompleta>0&&canal.KgCanalCompleta>0)
+                    {
+                        <th>@canal.KgCanalCompleta</th>
+                    }
+                }
+
+                <!-- SUBCOLUMNAS -->
+                <th rowspan="2" class="col-iny">
+                    SKU
+                </th>
+                <th rowspan="2" class="col-iny">
+                    Producto
+                </th>
+                <th rowspan="2" class="col-iny">
+                    %Iny
+                </th>
+                <th rowspan="2" class="col-iny">
+                    Mejorado/Natural
+                </th>
+
+                <th rowspan="2" class="col-iny">
+                    KG
+                </th>
+                <th rowspan="2" class="col-iny">
+                    Etiqueta
+                </th>
+                <th rowspan="2" class="col-iny">
+                    Caducidad
+                </th>
+
+            </tr>
+
+            <tr>
+
+                <th>Producto</th>
+
+                @foreach (var canal in Model.Canales)
+                {
+                    if (canal.NoCanalCompleta>0&&canal.KgCanalCompleta>0)
+                    {
+                        <th>@canal.Nombre</th>
+                    }
+                }
+
+            </tr>
+
+        </thead>
+
+        <tbody>
+
+            @{
+                var productos = Model.Participaciones
+                .GroupBy(p => p.ProductoCodigo)
+                .Select(g => new
+                {
+                    ProductoCodigo = g.Key,
+                    Nombre = g.First().Nombre,
+                    LineaCodigo = g.First().LineaCodigo,
+                    Master = string.IsNullOrWhiteSpace(g.First().Master)
+                ? "SIN MASTER"
+                : g.First().Master
+                })
+                .OrderBy(p =>
+                p.Master == "EXTRA" ? 2 :
+                p.Master == "SIN MASTER" ? 1 :
+                0
+                )
+                .ThenBy(p => p.Master)
+
+                // Agrupador principal:
+                // Si es derivado usa la línea,
+                // si no, usa su propio SKU.
+                .ThenBy(p =>
+                string.IsNullOrWhiteSpace(p.LineaCodigo)
+                ? p.ProductoCodigo
+                : p.LineaCodigo
+                )
+
+                // Primero el producto principal
+                .ThenBy(p =>
+                string.IsNullOrWhiteSpace(p.LineaCodigo)
+                ? 0
+                : 1
+                )
+
+                // Luego los derivados
+                .ThenBy(p => p.ProductoCodigo)
+                .ToList();
+
+                string masterActual = "";
+            }
+
+            @foreach (var prod in productos)
+            {
+                var participacionesProducto = Model.Participaciones
+                .Where(p => p.ProductoCodigo == prod.ProductoCodigo)
+                .ToList();
+
+                double porcentaje =
+                participacionesProducto.FirstOrDefault()?.Porcentaje ?? 0;
+
+
+                // HEADER DEL MASTER
+                if (masterActual != prod.Master)
+                {
+                    masterActual = prod.Master;
+
+                    <tr class="master-header"
+                        data-master="@masterActual">
+
+                        <td colspan="999">
+
+                            <button class="btn-toggle-master"
+                                    type="button"
+                                    data-master="@masterActual">
+
+                                ▼ @masterActual
+
+                                <span class="float-end">
+                                    Subtotal:
+                                    <span class="subtotal-master"
+                                          data-master="@masterActual">
+                                        0.00
+                                    </span>
+                                </span>
+
+                            </button>
+
+                        </td>
+                    </tr>
+                }
+
+                <tr class="fila-producto @(prod.LineaCodigo != "" ? "fila-derivado" : "")"
+                    data-master="@prod.Master"
+                    data-porcentaje="@porcentaje"
+                    data-sku="@prod.ProductoCodigo"
+                    data-linea="@prod.LineaCodigo"
+                    data-planeacion="@Model.Canales[0].PlaneacionId">
+
+                    <!-- vacío, ya no repetir master -->
+                    <td>
+                        @if (participacionesProducto.FirstOrDefault()?.EsExtra == true)
+                        {
+                            <button type="button"
+                                    class="btn btn-danger btn-sm btn-eliminar-extra"
+                                    @* onclick="eliminarSkuExtra('@prod.ProductoCodigo')" *@
+                                    >
+                                X
+                            </button>
+                        }
+                    </td>
+
+                    <td class="td-codigo">
+                        @prod.ProductoCodigo
+                    </td>
+
+                    <td>
+                        @prod.Nombre
+                    </td>
+
+                    @foreach (var canal in Model.Canales)
+                    {
+                        if (canal.NoCanalCompleta>0&&canal.KgCanalCompleta>0)
+                        {
+                            var dato = participacionesProducto
+                            .FirstOrDefault(p => p.fk_SubClas == canal.fk_SubClas);
+
+                            var tieneDato = dato != null;
+                            double partSub = dato?.PartSub ?? 0;
+
+                            <td>
+
+                                @if (tieneDato)
+                                {
+                                    <input type="number"
+                                           class="form-control form-control-sm input-participacion"
+                                           value="@partSub"
+                                           data-prev="@partSub"
+                                           data-inicial="true"
+                                           min="0"
+                                           max="1"
+                                           step="0.01"
+                                           data-kg="@canal.KgCanalCompleta"
+                                           data-canales="@canal.NoCanalCompleta"
+                                           data-subclas="@canal.fk_SubClas" />
+                                }
+                                else
+                                {
+                                    <button type="button"
+                                            class="btn btn-outline-secondary btn-sm btn-agregar-participacion"
+                                            data-kg="@canal.KgCanalCompleta"
+                                            data-canales="@canal.NoCanalCompleta"
+                                            data-subclas="@canal.fk_SubClas">
+                                        +
+                                    </button>
+                                }
+
+                            </td>
+                        }
+                    }
+
+                    <td class="porcentaje col-gris">
+                        @porcentaje.ToString("0.##")
+                    </td>
+
+                    <td class="total-calculado col-gris">
+                        0.00
+                    </td>
+
+                    <td class="total-canales col-gris">
+                        0.00
+                    </td>
+
+                    <td class="col-iny">
+                        <select class="form-select form-select-sm select-conversion"
+                        style="min-width:100px;"
+                                data-sku-original="@prod.ProductoCodigo"
+                        data-sku-convertido="@(participacionesProducto.FirstOrDefault()?.ProductoCodigoConvertido??prod.ProductoCodigo)">
+
+                            <option value="@prod.ProductoCodigo" selected>
+                                @prod.ProductoCodigo
+                            </option>
+
+                        </select>
+                    </td>
+
+                    <td class="col-iny td-iny-nombre">
+                        ...
+                    </td>
+
+                    <td class="col-iny td-iny-porcentaje"
+                        data-sku="@prod.ProductoCodigo">
+                        ...
+                    </td>
+
+                    <td class="col-iny td-iny-tipo"
+                        data-sku="@prod.ProductoCodigo">
+                        ...
+                    </td>
+
+                    <td class="col-iny td-iny-kg"
+                        data-sku="@prod.ProductoCodigo">
+                        0.00Kg
+                    </td>
+                    <td class="td-etiq"
+                        data-sku="@prod.ProductoCodigo">
+                        ...
+                    </td>
+
+                    <td class="td-caduc"
+                        data-sku="@prod.ProductoCodigo">
+                        ...
+                    </td>
+
+                </tr>
+            }
+
+        </tbody>
+
+    </table>
+
+</div>
+
+
+
+
+
+<div class="modal fade"
+     id="modalExtra"
+     tabindex="-1">
+
+    <div class="modal-dialog modal-lg">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h5>Seleccionar SKU EXTRA</h5>
+            </div>
+
+            <div class="modal-body">
+
+                <input id="buscarExtra"
+                       class="form-control mb-2"
+                       placeholder="Buscar SKU..." />
+
+                <table class="table table-sm"
+                       id="tablaExtra">
+
+                    <thead>
+                        <tr>
+                            <th>SKU</th>
+                            <th>Producto</th>
+                            <th>%</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </div>
+
+    </div>
+</div>

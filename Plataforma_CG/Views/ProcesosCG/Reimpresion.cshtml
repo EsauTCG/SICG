@@ -1,0 +1,1761 @@
+﻿@model Plataforma_CG.ViewModels.ReimpresionEtiquetaVM
+@Html.AntiForgeryToken()
+@removeTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Reimpresión de Etiquetas";
+}
+
+<style>
+    :root {
+        --bg: #f0dede;
+        --panel: #f8eeee;
+        --panel-2: #f1dede;
+        --line: #c79d9d;
+        --text: #3b1717;
+        --muted: #6a3a3a;
+        --white: #ffffff;
+        --shadow: 0 1px 0 rgba(255,255,255,.55) inset;
+        --brand: #8B0000;
+        --vino-1: #5c0000;
+        --vino-2: #7a0000;
+        --vino-3: #980000;
+        --vino-4: #b30000;
+        --vino-border: #9a5a5a;
+        --vino-text-dark: #4a1111;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        background: transparent !important;
+        color: var(--text);
+    }
+
+    .container, .container-fluid {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .window {
+        width: 100%;
+        max-width: 100%;
+        margin: 0 !important;
+        border: 1px solid #7e4a4a;
+        background: var(--panel);
+        box-shadow: 0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70,12,12,.14);
+        overflow: visible !important;
+        padding: 0 !important;
+    }
+
+    .window > *:first-child, .titlebar { margin-top: 0 !important; }
+
+    .titlebar {
+        height: 34px;
+       /*  display: flex; */
+        display: none !important;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 10px;
+        background: linear-gradient(180deg, #c00000 0%, #8b0000 60%, #5c0000 100%);
+        border-bottom: 1px solid #5c0000;
+        color: #fff;
+        font-size: 13px;
+        font-weight: bold;
+    }
+
+    .titlebar .actions { display: flex; gap: 6px; }
+
+    .win-btn {
+        width: 16px; height: 16px;
+        border: 1px solid #7c4848;
+        background: linear-gradient(#fff6f6, #ead0d0);
+    }
+
+    .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 6px;
+        background: linear-gradient(#fff6f6, #ecd8d8);
+        border-bottom: 1px solid var(--line);
+        font-size: 12px;
+        flex-wrap: wrap;
+    }
+
+    .tool-btn {
+        min-width: 72px;
+        text-align: center;
+        background: linear-gradient(#fffefe, #ecd7d7);
+        border: 1px solid var(--vino-border);
+        box-shadow: var(--shadow);
+        cursor: pointer;
+        color: var(--vino-text-dark);
+        height: 28px;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        padding: 0 8px;
+        text-decoration: none;
+    }
+
+    .tool-btn:hover { filter: brightness(.98); }
+
+    .content { padding: 8px; background: var(--bg); }
+
+    .tabs { display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap; }
+
+    .tab {
+        font-size: 12px;
+        background: linear-gradient(#f7e7e7, #ead1d1);
+        border: 1px solid #caa0a0;
+        border-bottom: none;
+        padding: 7px 12px;
+        color: #5c1a1a;
+        user-select: none;
+    }
+
+    .tab.active {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        font-weight: bold;
+        color: #fff;
+        border-color: #7a2d2d;
+    }
+
+    .workspace { border: 1px solid var(--line); background: var(--panel); padding: 8px; }
+
+    .section { border: 1px solid var(--line); background: var(--white); margin-bottom: 10px; }
+
+    .section-title {
+        padding: 6px 8px;
+        font-size: 12px;
+        font-weight: bold;
+        color: #fff;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-bottom: 1px solid #6b1f1f;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    /* ── Filtros / Config ── */
+    .config-grid {
+        display: grid;
+        grid-template-columns: 200px 240px 240px 1fr;
+        gap: 8px;
+        padding: 10px;
+        background: var(--panel-2);
+        align-items: end;
+    }
+
+    .filter-group label {
+        display: block;
+        color: #5c1a1a;
+        font-size: 12px;
+        margin-bottom: 4px;
+        font-weight: bold;
+    }
+
+    input, select, .form-control, .form-select {
+        height: 28px !important;
+        padding: 3px 6px !important;
+        border: 1px solid #b48787 !important;
+        background: #fffdfd !important;
+        font-family: inherit !important;
+        font-size: 12px !important;
+        width: 100%;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        color: #421414 !important;
+    }
+
+    input[type="checkbox"] {
+        height: 14px !important;
+        width: 14px !important;
+        min-width: 14px !important;
+        max-width: 14px !important;
+        padding: 0 !important;
+        border-radius: 2px !important;
+        cursor: pointer;
+        display: inline-block !important;
+    }
+
+    input[type="number"].form-control-sm,
+    input[type="text"].form-control-sm {
+        height: 24px !important;
+        padding: 2px 5px !important;
+        font-size: 12px !important;
+    }
+
+    select.form-select-sm {
+        height: 24px !important;
+        padding: 2px 5px !important;
+        font-size: 12px !important;
+    }
+
+    .pm-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .pm-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        height: 28px;
+        padding: 0 10px;
+        border: 1px solid transparent;
+        border-radius: 0;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        text-decoration: none;
+        box-shadow: var(--shadow);
+        white-space: nowrap;
+    }
+
+    .pm-btn:hover { filter: brightness(.97); }
+    .pm-btn:active { transform: translateY(1px); }
+    .pm-btn:disabled { opacity: .6; cursor: not-allowed; }
+
+    .pm-btn-primary {
+        color: #fff;
+        border-color: #7a2d2d;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+    }
+
+    .pm-btn-success {
+        color: #fff;
+        border-color: #157347;
+        background: linear-gradient(180deg, #27ae60 0%, #1f9a54 55%, #198754 100%);
+    }
+
+    .pm-btn-secondary {
+        background: linear-gradient(#fffefe, #ecd7d7);
+        border-color: var(--vino-border);
+        color: var(--vino-text-dark);
+    }
+
+    .pm-btn-outline {
+        background: transparent;
+        border-color: var(--vino-border);
+        color: #5a0000;
+    }
+
+    /* ── Estado badge ── */
+    .estado-badge {
+        display: inline-block;
+        padding: 2px 10px;
+        font-size: 11px;
+        font-weight: 700;
+        border: 1px solid transparent;
+        border-radius: 2px;
+    }
+
+    .est-listo    { background: #f3f3f3; border-color: #ccc; color: #555; }
+    .est-info     { background: #e8f4fd; border-color: #7ab8d4; color: #064b6b; }
+    .est-success  { background: #dff3e2; border-color: #6aa84f; color: #2f6b1f; }
+    .est-warning  { background: #fff4cc; border-color: #d6b656; color: #7a5a00; }
+    .est-danger   { background: #fde2e2; border-color: #d9534f; color: #b00000; }
+
+    /* ── Tabla ── */
+    .table-wrap {
+        overflow: auto;
+        max-height: 55vh;
+        background: #fffafa;
+        width: 100%;
+        position: relative;
+        border-top: 1px solid #d9b8b8;
+    }
+
+    .table-wrap table {
+        width: 100%;
+        table-layout: fixed;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        font-size: 12px;
+        background: #fffafa;
+    }
+
+    .table-wrap thead,
+    .table-wrap thead tr,
+    .table-wrap thead th {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: #fff !important;
+    }
+
+    .table-wrap thead th {
+        position: sticky;
+        top: -1px;
+        z-index: 20;
+        border-top: 1px solid #c46a6a !important;
+        border-right: 1px solid #8e3b3b !important;
+        border-bottom: 1px solid #5c0000 !important;
+        padding: 6px 5px !important;
+        font-weight: 700 !important;
+        font-size: 12px !important;
+        white-space: nowrap;
+        line-height: 1.2 !important;
+        box-shadow: 0 2px 0 #6f1d1d;
+    }
+
+    .table-wrap thead th:first-child { border-left: 1px solid #8e3b3b !important; }
+
+    .table-wrap tbody td {
+        background: #fffafa !important;
+        border-right: 1px solid #d8bcbc !important;
+        border-bottom: 1px solid #d8bcbc !important;
+        padding: 4px 5px !important;
+        white-space: nowrap;
+        vertical-align: middle;
+        font-size: 12px !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.2 !important;
+        color: #401515 !important;
+    }
+
+    .table-wrap tbody td:first-child { border-left: 1px solid #d8bcbc !important; }
+    .table-wrap tbody tr:nth-child(even) td { background: #f9eded !important; }
+    .table-wrap tbody tr:hover td { background: #f4dddd !important; }
+
+    /* anchos tabla etiquetas */
+    .tbl-eti th:nth-child(1), .tbl-eti td:nth-child(1) { width: 40px; }   /* estado */
+    .tbl-eti th:nth-child(2), .tbl-eti td:nth-child(2) { width: 260px; }  /* código */
+    .tbl-eti th:nth-child(3), .tbl-eti td:nth-child(3) { width: 100px; }  /* cantidad */
+    .tbl-eti th:nth-child(4), .tbl-eti td:nth-child(4) { width: 220px; }  /* etiquetación */
+    .tbl-eti th:nth-child(5), .tbl-eti td:nth-child(5) { width: 80px; }   /* acción */
+
+    .text-end { text-align: right !important; }
+    .text-center { text-align: center !important; }
+
+    /* ── Status icono ── */
+    .status {
+        font-size: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: default;
+    }
+
+    /* ── Paste box ── */
+    #pasteBox {
+        display: none;
+        padding: 10px;
+        background: var(--panel-2);
+        border-top: 1px solid var(--line);
+    }
+
+    #pasteArea {
+        height: auto !important;
+        resize: vertical;
+        font-family: Courier New, monospace !important;
+        font-size: 11px !important;
+    }
+
+    /* ── Progress ── */
+    .progress-wrap { display: none; padding: 8px 10px; background: var(--panel-2); border-top: 1px solid var(--line); }
+
+    .progress-bar-wrap {
+        height: 8px;
+        background: #e4cece;
+        border: 1px solid #c79d9d;
+        margin-top: 4px;
+        overflow: hidden;
+    }
+
+    .progress-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #b30000, #8b0000);
+        transition: width .3s ease;
+        width: 0%;
+    }
+
+    /* ── Log ── */
+    #logBox { margin-top: 8px; display: none; }
+
+    .log-inner {
+        padding: 6px 10px;
+        font-size: 12px;
+        border: 1px solid var(--line);
+        white-space: pre-wrap;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+    }
+
+    .log-info      { background: #e8f4fd; border-color: #7ab8d4; color: #064b6b; }
+    .log-success   { background: #dff3e2; border-color: #6aa84f; color: #2f6b1f; }
+    .log-danger    { background: #fde2e2; border-color: #d9534f; color: #b00000; }
+    .log-warning   { background: #fff4cc; border-color: #d6b656; color: #7a5a00; }
+    .log-secondary { background: #f4f4f4; border-color: #ccc; color: #555; }
+
+    /* ── Statusbar ── */
+    .statusbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 6px 10px;
+        font-size: 11px;
+        color: #4a1a1a;
+        border-top: 1px solid #b88c8c;
+        background: linear-gradient(#f6e9e9, #ead5d5);
+        flex-wrap: wrap;
+    }
+
+    @@media(max-width: 992px) {
+        .config-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    @@media(max-width: 768px) {
+        .config-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Botones superiores a la derecha y con colores */
+    .toolbar {
+        justify-content: flex-end !important;
+        gap: 6px !important;
+    }
+
+        .toolbar .tool-btn {
+            color: #fff !important;
+            font-weight: 800 !important;
+            border-radius: 0 !important;
+        }
+
+    #btnPrint {
+        background: linear-gradient(180deg,#198754 0%,#146c43 100%) !important;
+        border-color: #146c43 !important;
+    }
+
+    .toolbar .tool-btn:nth-child(2) {
+        background: linear-gradient(180deg,#0d6efd 0%,#084298 100%) !important;
+        border-color: #084298 !important;
+    }
+
+    .toolbar .tool-btn:nth-child(3) {
+        background: linear-gradient(180deg,#6f42c1 0%,#4b2a86 100%) !important;
+        border-color: #4b2a86 !important;
+    }
+
+    .toolbar .tool-btn:nth-child(4) {
+        background: linear-gradient(180deg,#dc3545 0%,#a71d2a 100%) !important;
+        border-color: #a71d2a !important;
+    }
+
+    .toolbar .tool-btn:nth-child(5) {
+        background: linear-gradient(180deg,#ffc107 0%,#d39e00 100%) !important;
+        border-color: #c99700 !important;
+        color: #3b2b00 !important;
+    }
+
+    @@media (max-width: 768px) {
+        .toolbar {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+        }
+
+            .toolbar .tool-btn {
+                width: 100% !important;
+            }
+    }
+
+    .eti-search,
+    .lookup-search {
+        height: 24px !important;
+        margin-bottom: 4px;
+        font-size: 12px !important;
+    }
+
+    .eti-cell {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+        .eti-cell .eti-search {
+            margin-bottom: 0;
+        }
+
+    .lookup-source {
+        display: none !important;
+    }
+
+    .lookup-picker {
+        position: relative;
+        width: 100%;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        font-size: 12px;
+    }
+
+    .lookup-picker-btn {
+        width: 100%;
+        height: 28px;
+        padding: 3px 6px;
+        border: 1px solid #b48787;
+        background: #fffdfd;
+        color: #421414;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 12px;
+        text-align: left;
+    }
+
+    .lookup-picker-text {
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+
+    .lookup-picker-caret {
+        margin-left: 8px;
+        color: #7a3333;
+        font-size: 10px;
+    }
+
+
+    .lookup-picker-menu {
+        display: none;
+        position: absolute;
+        top: 29px;
+        left: 0;
+        width: 100%;
+        min-width: 100%;
+        max-width: 100%;
+        max-height: 620px;
+        z-index: 99999;
+        background: #fffdfd;
+        border: 1px solid #b48787;
+        box-shadow: 0 4px 10px rgba(70, 12, 12, .18);
+        padding: 8px;
+    }
+
+    .lookup-picker.open .lookup-picker-menu {
+        display: block;
+    }
+
+    .lookup-picker-search {
+        height: 28px !important;
+        margin-bottom: 8px;
+        font-size: 12px !important;
+    }
+
+    .lookup-picker-loading {
+        display: none;
+        padding: 4px 0 8px;
+        margin-bottom: 4px;
+        color: #6a3a3a;
+        font-size: 11px;
+        border-bottom: 1px solid #d8bcbc;
+    }
+
+    .lookup-picker-list {
+        max-height: 530px;
+        overflow-y: auto;
+    }
+
+    .lookup-picker-option {
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+        padding: 4px 2px;
+        cursor: pointer;
+        color: #421414;
+        line-height: 1.25;
+    }
+
+        .lookup-picker-option:hover {
+            background: #f4dddd;
+        }
+
+        .lookup-picker-option input[type="checkbox"] {
+            width: 13px !important;
+            height: 13px !important;
+            min-width: 13px !important;
+            margin-top: 1px;
+            pointer-events: none;
+        }
+
+    .lookup-picker-empty {
+        padding: 6px 2px;
+        color: #8a5a5a;
+        font-size: 11px;
+    }
+
+    @@media (max-width: 768px) {
+        .lookup-picker-menu {
+            width: 100%;
+            min-width: 100%;
+            max-height: 420px;
+        }
+
+        .lookup-picker-list {
+            max-height: 330px;
+        }
+    }
+
+    .tbl-eti .lookup-picker-menu {
+        max-height: 360px !important;
+    }
+
+    .tbl-eti .lookup-picker-list {
+        max-height: 300px !important;
+    }
+
+    .tbl-eti .lookup-picker-option span {
+        white-space: normal !important;
+        line-height: 1.2 !important;
+    }
+
+    .toolbar .tool-btn-add {
+        background: linear-gradient(180deg,#198754 0%,#146c43 100%) !important;
+        border-color: #146c43 !important;
+        color: #fff !important;
+        font-weight: 800 !important;
+    }
+
+        .toolbar .tool-btn-add i {
+            color: #fff !important;
+        }
+</style>
+
+<div class="window">
+
+    <div class="titlebar">
+        <div>Reimpresión de Etiquetas :: SIGO</div>
+        <div class="actions">
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+        </div>
+    </div>
+
+    <div class="toolbar">
+        @* <button class="tool-btn" type="button" id="btnPrint" onclick="printAll()">Imprimir</button> *@
+        <button class="tool-btn tool-btn-add" type="button" onclick="addRow()">
+            <i class="bi bi-plus-lg"></i>  Fila
+        </button>
+        <button class="tool-btn" type="button" onclick="openPaste()">Pegar lista</button>
+        <button class="tool-btn" type="button" onclick="clearAll()">Limpiar</button>
+       @*  <button class="tool-btn" type="button" onclick="location.reload()">Actualizar</button> *@
+    </div>
+
+    <div class="content">
+
+       
+
+        <div class="workspace">
+
+            <!-- Config -->
+            <div class="section">
+                <div class="section-title">
+                    Configuración de impresión
+                    <span id="uiState" class="estado-badge est-listo">Listo</span>
+                </div>
+
+                <div class="config-grid">
+
+                    <div class="filter-group">
+                        <label>Planta</label>
+                        <select id="PlantaId" class="form-select">
+                            <option value="P1">Planta 1</option>
+                            <option value="TIF">TIF</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Impresora</label>
+                        <select id="PrinterName" class="form-select lookup-source"></select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Tipo de etiquetación</label>
+                        <select id="ClaveReporte" class="form-select lookup-source"></select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label>&nbsp;</label>
+                        <div class="pm-actions">
+                            <button class="pm-btn pm-btn-primary" type="button" id="btnPrint2" onclick="printAll()">
+                                <i class="bi bi-printer"></i> Imprimir todo
+                            </button>
+                          @*   <button class="pm-btn pm-btn-outline" type="button" onclick="addRow()">
+                                + Fila
+                            </button>
+                            <button class="pm-btn pm-btn-outline" type="button" onclick="openPaste()">
+                                Pegar lista
+                            </button> *@
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="progress-wrap" id="progressWrap">
+                    <div style="display:flex;justify-content:space-between;font-size:11px;color:#6a3a3a;">
+                        <span id="progressText"></span>
+                        <span id="progressPct"></span>
+                    </div>
+                    <div class="progress-bar-wrap">
+                        <div class="progress-bar-fill" id="progressBar"></div>
+                    </div>
+                </div>
+
+                <div id="pasteBox">
+                    <div class="filter-group" style="max-width:500px;">
+                        <label>
+                            Pega aquí (una por línea):
+                            <span style="font-weight:normal;color:#9a6a6a;font-size:11px;">CODIGO o CODIGO,CANTIDAD</span>
+                        </label>
+                        <textarea id="pasteArea" class="form-control" rows="5"
+                                  placeholder="ETQ0001&#10;ETQ0002,3&#10;ETQ0003	2"
+                                  style="height:auto!important;resize:vertical;font-family:'Courier New',monospace;font-size:11px!important;"></textarea>
+                    </div>
+                    <div class="pm-actions" style="padding:0 10px 10px;">
+                        <button class="pm-btn pm-btn-success" type="button" onclick="applyPaste()">Cargar</button>
+                        <button class="pm-btn pm-btn-secondary" type="button" onclick="closePaste()">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabla -->
+            <div class="section">
+               @*  <div class="section-title">Listado de etiquetas a imprimir</div> *@
+
+                <div class="table-wrap">
+                    <table class="tbl-eti">
+                        <thead>
+                            <tr>
+                                <th class="text-center">Est.</th>
+                                <th>Código etiqueta</th>
+                                <th class="text-center">Cantidad</th>
+                                <th>Etiquetación</th>
+                                <th class="text-end">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rows"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Log -->
+            <div id="logBox">
+                <div id="log" class="log-inner log-secondary"></div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="statusbar">
+        <div>Registro listo</div>
+        <div>Usuario: @(User?.Identity?.Name ?? "")</div>
+        <div>Empresa: Carnes G SA de CV</div>
+        <div>Módulo: Reimpresión de Etiquetas</div>
+    </div>
+
+</div>
+
+<script>
+    (() => {
+      const DEFAULT_PRINTER = '@Model.PrinterName';
+      const DEFAULT_ETI     = '@Model.ClaveReporte';
+      const DEFAULT_SOURCE  = '@Model.Source';
+
+      const URL_PRINTERS = '/ProcesosCG/InstalledPrinters';
+      const URL_ETI      = '/ProcesosCG/Etiquetaciones';
+      const URL_PRINT    = '/ProcesosCG/Imprimir';
+        const URL_ETI_ACTUAL = '/ProcesosCG/EtiquetacionActualEtiquetas';
+
+      const PLANT_PRINTERS = { P1: [], TIF: [] };
+
+      function getPlant(){
+        return (document.getElementById('PlantaId')?.value || DEFAULT_SOURCE || 'P1').toString().toUpperCase();
+      }
+
+      function getPrintersForPlant(allPrinters, plant){
+        const allow = PLANT_PRINTERS?.[plant] || [];
+        if(!Array.isArray(allow) || allow.length === 0) return allPrinters;
+        const allowSet = new Set(allow.map(x => (x||'').toLowerCase()));
+        return allPrinters.filter(p => allowSet.has((p||'').toLowerCase()));
+      }
+
+      const LS_KEY = 'reimp_planta_printer_v1';
+      function getSavedPrinter(plant){
+        try{ const m = JSON.parse(localStorage.getItem(LS_KEY) || '{}'); return m?.[plant] || ''; }catch{ return ''; }
+      }
+      function savePrinter(plant, printer){
+        try{ const m = JSON.parse(localStorage.getItem(LS_KEY) || '{}'); m[plant] = printer || ''; localStorage.setItem(LS_KEY, JSON.stringify(m)); }catch{}
+      }
+
+      function getAfToken() {
+        const a = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+        if (a) return a;
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+      }
+      function antiforgeryHeaders() {
+        const token = getAfToken();
+        if (!token) return {};
+        return { 'RequestVerificationToken': token, 'X-CSRF-TOKEN': token };
+      }
+
+      function setUiState(text, kind){
+        const el = document.getElementById('uiState');
+        if(!el) return;
+        el.textContent = text || 'Listo';
+        const map = { 'text-bg-light':'est-listo', 'text-bg-info':'est-info', 'text-bg-success':'est-success', 'text-bg-warning':'est-warning', 'text-bg-danger':'est-danger' };
+        el.className = 'estado-badge ' + (map[kind] || 'est-listo');
+      }
+
+      function showLog(type, text) {
+        const box = document.getElementById('logBox');
+        const log = document.getElementById('log');
+        box.style.display = 'block';
+        log.className = 'log-inner log-' + (type || 'secondary');
+        log.textContent = text || '';
+      }
+
+      function openPaste(){ document.getElementById('pasteBox').style.display = 'block'; }
+      function closePaste(){ document.getElementById('pasteBox').style.display = 'none'; }
+
+      function setProgress(on, i, total){
+        const wrap = document.getElementById('progressWrap');
+        const bar  = document.getElementById('progressBar');
+        const txt  = document.getElementById('progressText');
+        const pct  = document.getElementById('progressPct');
+        if(!on){ wrap.style.display = 'none'; bar.style.width = '0%'; return; }
+        wrap.style.display = 'block';
+        const p = total ? Math.round((i/total)*100) : 0;
+        bar.style.width = p + '%';
+        txt.textContent = `Imprimiendo ${i} de ${total}...`;
+        pct.textContent = p + '%';
+      }
+
+      function escapeHtml(s){
+        return (s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+      }
+
+      async function safeRead(res){
+        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        let txt = '';
+        try { txt = await res.text(); } catch { txt = ''; }
+        const head = (txt || '').trimStart().slice(0, 50).toLowerCase();
+        const looksHtml = ct.includes('text/html') || head.startsWith('<');
+        if (looksHtml) return { isHtml: true, okParse: false, data: null, raw: txt };
+        try { return { isHtml: false, okParse: true, data: JSON.parse(txt), raw: txt }; }
+        catch { return { isHtml: false, okParse: false, data: null, raw: txt }; }
+      }
+
+      function fetchJson(url, bodyObj){
+        return fetch(url, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...antiforgeryHeaders() },
+          body: JSON.stringify(bodyObj ?? {})
+        });
+      }
+
+        let ETI_LIST = [];
+        let PRINTER_LIST = [];
+
+        function normText(s) {
+            return (s ?? '')
+                .toString()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .trim();
+        }
+
+        function enhanceSearchDropdown(select, cfg = {}) {
+            if (!select) return;
+
+            select.classList.add('lookup-source');
+
+            const old = select.nextElementSibling;
+
+            if (old && old.classList.contains('lookup-picker')) {
+                old.remove();
+            }
+
+            const placeholder = cfg.placeholder || '(Seleccione)';
+            const searchPlaceholder = cfg.searchPlaceholder || 'Buscar...';
+
+            const picker = document.createElement('div');
+            picker.className = 'lookup-picker';
+
+            picker.innerHTML = `
+            <button type="button" class="lookup-picker-btn">
+                <span class="lookup-picker-text"></span>
+                <span class="lookup-picker-caret">▼</span>
+            </button>
+
+            <div class="lookup-picker-menu">
+                <input type="text"
+                       class="form-control lookup-picker-search"
+                       placeholder="${escapeHtml(searchPlaceholder)}"
+                       autocomplete="off" />
+
+                <div class="lookup-picker-loading">Cargando...</div>
+
+                <div class="lookup-picker-list"></div>
+            </div>
+        `;
+
+            select.insertAdjacentElement('afterend', picker);
+
+            const btn = picker.querySelector('.lookup-picker-btn');
+            const text = picker.querySelector('.lookup-picker-text');
+            const search = picker.querySelector('.lookup-picker-search');
+            const loading = picker.querySelector('.lookup-picker-loading');
+            const list = picker.querySelector('.lookup-picker-list');
+
+            function getOptions() {
+                return Array.from(select.options).filter(o => o.value && !o.disabled);
+            }
+
+            function updateButton() {
+                const opt = select.selectedOptions[0];
+
+                text.textContent = opt && opt.value
+                    ? opt.textContent
+                    : placeholder;
+            }
+
+            function render() {
+                const q = normText(search.value);
+                const words = q.split(/\s+/).filter(Boolean);
+                const all = getOptions();
+
+                const isLoading = !all.length && /cargando/i.test(select.textContent || '');
+
+                loading.style.display = isLoading ? 'block' : 'none';
+
+                const filtered = all.filter(o => {
+                    const haystack = normText(`${o.value} ${o.textContent}`);
+                    return words.every(w => haystack.includes(w));
+                });
+
+                list._options = filtered;
+
+                if (!filtered.length && !isLoading) {
+                    list.innerHTML = `<div class="lookup-picker-empty">Sin resultados</div>`;
+                    return;
+                }
+
+                list.innerHTML = filtered.map((o, idx) => {
+                    const checked = o.value === select.value ? 'checked' : '';
+
+                    return `
+                    <label class="lookup-picker-option" data-index="${idx}">
+                        <input type="checkbox" ${checked} />
+                        <span>${escapeHtml(o.textContent)}</span>
+                    </label>
+                `;
+                }).join('');
+            }
+
+            function closeOutside(e) {
+                if (!picker.contains(e.target)) {
+                    close();
+                }
+            }
+
+            function open() {
+                picker.classList.add('open');
+                render();
+
+                setTimeout(() => {
+                    search.focus();
+                    search.select();
+                }, 0);
+
+                document.addEventListener('mousedown', closeOutside);
+            }
+
+            function close() {
+                picker.classList.remove('open');
+                search.value = '';
+                document.removeEventListener('mousedown', closeOutside);
+                render();
+            }
+
+            btn.addEventListener('click', e => {
+                e.preventDefault();
+
+                if (picker.classList.contains('open')) {
+                    close();
+                } else {
+                    open();
+                }
+            });
+
+            search.addEventListener('input', render);
+
+            search.addEventListener('keydown', e => {
+                if (e.key === 'Escape') {
+                    close();
+                    return;
+                }
+
+                if (e.key !== 'Enter') return;
+
+                e.preventDefault();
+
+                const first = list._options?.[0];
+
+                if (!first) return;
+
+                select.value = first.value;
+                select.dispatchEvent(new Event('change'));
+                updateButton();
+                close();
+            });
+
+            list.addEventListener('click', e => {
+                const item = e.target.closest('.lookup-picker-option');
+
+                if (!item) return;
+
+                const opt = list._options?.[Number(item.dataset.index)];
+
+                if (!opt) return;
+
+                select.value = opt.value;
+                select.dispatchEvent(new Event('change'));
+                updateButton();
+                close();
+            });
+
+            if (select._lookupChangeHandler) {
+                select.removeEventListener('change', select._lookupChangeHandler);
+            }
+
+            select._lookupChangeHandler = () => {
+                updateButton();
+                render();
+            };
+
+            select.addEventListener('change', select._lookupChangeHandler);
+
+            updateButton();
+            render();
+        }
+
+        function filterEtiquetaciones(text) {
+            const q = normText(text);
+
+            if (!q) return ETI_LIST;
+
+            const words = q.split(/\s+/).filter(Boolean);
+
+            return ETI_LIST.filter(x => {
+                const haystack = normText(`${x.idRaw} ${x.name}`);
+                return words.every(w => haystack.includes(w));
+            });
+        }
+
+        function filterPrinters(text) {
+            const q = normText(text);
+
+            if (!q) return PRINTER_LIST;
+
+            const words = q.split(/\s+/).filter(Boolean);
+
+            return PRINTER_LIST.filter(p => {
+                const haystack = normText(p);
+                return words.every(w => haystack.includes(w));
+            });
+        }
+
+        function printerOptionsHtml(selectedPrinter, searchText = '') {
+            const selected = (selectedPrinter ?? '').toString();
+
+            if (!PRINTER_LIST.length) {
+                return `<option value="">(sin impresoras)</option>`;
+            }
+
+            let list = filterPrinters(searchText);
+
+            if (selected && PRINTER_LIST.includes(selected) && !list.includes(selected)) {
+                list = [selected, ...list];
+            }
+
+            if (!list.length) {
+                return `<option value="">(sin resultados)</option>`;
+            }
+
+            return list.map(p => {
+                const s = p === selected ? 'selected' : '';
+                return `<option value="${escapeHtml(p)}" ${s}>${escapeHtml(p)}</option>`;
+            }).join('');
+        }
+
+        function renderPrinterOptions(selectedPrinter = '') {
+            const sel = document.getElementById('PrinterName');
+            const input = document.getElementById('BuscarImpresora');
+
+            if (!sel) return;
+
+            const current = (selectedPrinter || sel.value || '').toString();
+            const searchText = input?.value || '';
+
+            sel.innerHTML = printerOptionsHtml(current, searchText);
+
+            if (current && Array.from(sel.options).some(o => o.value === current)) {
+                sel.value = current;
+            }
+        }
+
+        function bindPrinterSearch() {
+            const input = document.getElementById('BuscarImpresora');
+            const sel = document.getElementById('PrinterName');
+
+            if (!input || !sel || input.dataset.bound === '1') return;
+
+            input.dataset.bound = '1';
+
+            input.addEventListener('input', () => {
+                renderPrinterOptions(sel.value);
+            });
+
+            input.addEventListener('keydown', e => {
+                if (e.key !== 'Enter') return;
+
+                e.preventDefault();
+
+                const first = Array.from(sel.options).find(o => o.value);
+
+                if (first) {
+                    sel.value = first.value;
+                    sel.dispatchEvent(new Event('change'));
+                }
+            });
+        }
+
+        function etiOptionsHtml(selectedId, searchText = '') {
+            const sel = (selectedId ?? DEFAULT_ETI ?? '').toString();
+
+            if (!ETI_LIST.length) {
+                return `<option value="">(cargando)</option>`;
+            }
+
+            let list = filterEtiquetaciones(searchText);
+
+            const selectedObj = ETI_LIST.find(x => x.idRaw === sel);
+
+            if (selectedObj && !list.some(x => x.idRaw === sel)) {
+                list = [selectedObj, ...list];
+            }
+
+            if (!list.length) {
+                return `<option value="">(sin resultados)</option>`;
+            }
+
+            return list.map(x => {
+                const s = (x.idRaw === sel) ? 'selected' : '';
+                return `<option value="${escapeHtml(x.idRaw)}" ${s}>${escapeHtml(x.name)}</option>`;
+            }).join('');
+        }
+
+        function setSelectOptionsPreserve(sel, selectedId, searchText) {
+            if (!sel) return;
+
+            const current = (selectedId ?? sel.value ?? DEFAULT_ETI ?? '').toString();
+
+            sel.innerHTML = etiOptionsHtml(current, searchText);
+
+            if (current && Array.from(sel.options).some(o => o.value === current)) {
+                sel.value = current;
+            }
+        }
+
+        function findEtiIdByName(etiName) {
+            const q = normText(etiName);
+
+            if (!q) return '';
+
+            let found = ETI_LIST.find(x => normText(x.name) === q);
+
+            if (!found) {
+                found = ETI_LIST.find(x => {
+                    const n = normText(x.name);
+                    return n.includes(q) || q.includes(n);
+                });
+            }
+
+            return found?.idRaw || '';
+        }
+
+        async function precargarEtiquetacionActual(rows = null) {
+            const trs = rows
+                ? Array.from(rows).filter(Boolean)
+                : Array.from(document.querySelectorAll('#rows tr'));
+
+            const codigos = trs
+                .map(tr => (tr.querySelector('.js-code')?.value || '').trim().toUpperCase())
+                .filter(Boolean);
+
+            if (!codigos.length) return;
+
+            try {
+                const res = await fetchJson(URL_ETI_ACTUAL, {
+                    source: getPlant(),
+                    codigos
+                });
+
+                const r = await safeRead(res);
+
+                if (r.isHtml || !res.ok || !r.okParse || !r.data?.ok) {
+                    showLog(
+                        'warning',
+                        'No se pudo consultar la etiquetación actual.\nHTTP ' +
+                        res.status +
+                        '\n' +
+                        ((r.raw || r.data?.msg || '').toString().slice(0, 250))
+                    );
+                    return;
+                }
+
+                const dataRows = Array.isArray(r.data.rows) ? r.data.rows : [];
+
+                const map = new Map();
+
+                dataRows.forEach(x => {
+                    const code = (x.CodigoEtiqueta ?? x.codigoEtiqueta ?? '')
+                        .toString()
+                        .trim()
+                        .toUpperCase();
+
+                    const colectorId = (x.ColectorId ?? x.colectorId ?? x.EtiquetacionId ?? x.etiquetacionId ?? '')
+                        .toString()
+                        .trim();
+
+                    const etiName = (x.Etiquetacion ?? x.etiquetacion ?? '')
+                        .toString()
+                        .trim();
+
+                    if (code) {
+                        map.set(code, {
+                            colectorId,
+                            etiName
+                        });
+                    }
+                });
+
+                let aplicadas = 0;
+                let sinMatch = [];
+                let sinLog = [];
+
+                trs.forEach(tr => {
+                    const code = (tr.querySelector('.js-code')?.value || '').trim().toUpperCase();
+
+                    if (!code) return;
+
+                    const info = map.get(code);
+
+                    if (!info) {
+                        sinLog.push(code);
+                        return;
+                    }
+
+                    let etiId = info.colectorId;
+
+                    if (!etiId) {
+                        etiId = findEtiIdByName(info.etiName);
+                    }
+
+                    if (!etiId) {
+                        sinMatch.push(`${code}: ${info.etiName || '(sin nombre)'}`);
+                        return;
+                    }
+
+                    const sel = tr.querySelector('.js-eti');
+
+                    setSelectOptionsPreserve(sel, etiId, '');
+                    enhanceRowEtiSelect(sel);
+
+                    tr.title = `Etiquetación actual: ${info.etiName || etiId}`;
+                    aplicadas++;
+                });
+
+                if (aplicadas > 0) {
+                    showLog('success', `Etiquetación actual aplicada automáticamente a ${aplicadas} etiqueta(s).`);
+                } else {
+                    showLog(
+                        'warning',
+                        'No se aplicó ninguna etiquetación.\n' +
+                        'Revisa que las etiquetas existan en ProduccionEtiquetacionLog y que EtiquetacionId coincida con COLECTOR.ColectorId.'
+                    );
+                }
+
+                if (sinLog.length) {
+                    console.warn('Etiquetas sin log:', sinLog);
+                }
+
+                if (sinMatch.length) {
+                    console.warn('Etiquetaciones sin match:', sinMatch);
+                }
+
+            } catch (e) {
+                showLog('warning', 'Error consultando etiquetación actual: ' + (e?.message || e));
+            }
+        }
+
+        function bindGlobalEtiSearch() {
+            const input = document.getElementById('BuscarEtiquetacion');
+            const sel = document.getElementById('ClaveReporte');
+
+            if (!input || !sel || input.dataset.bound === '1') return;
+
+            input.dataset.bound = '1';
+
+            input.addEventListener('input', () => {
+                setSelectOptionsPreserve(sel, sel.value, input.value);
+            });
+
+            input.addEventListener('keydown', e => {
+                if (e.key !== 'Enter') return;
+
+                e.preventDefault();
+
+                const first = Array.from(sel.options).find(o => o.value);
+
+                if (first) {
+                    sel.value = first.value;
+                    sel.dispatchEvent(new Event('change'));
+                }
+            });
+        }
+
+        window.filterRowEti = function (input) {
+            const tr = input.closest('tr');
+            const sel = tr?.querySelector('.js-eti');
+
+            setSelectOptionsPreserve(sel, sel?.value, input.value);
+        };
+
+      function rowTemplate(id, code, qty, etiId){
+        return `
+          <tr data-id="${id}">
+            <td class="text-center">
+              <span class="status js-st" title="Sin intento">—</span>
+            </td>
+            <td>
+              <input class="form-control js-code"
+                     value="${escapeHtml(code || '')}"
+                     placeholder="CódigoEtiqueta"
+                     style="width:100%;" />
+            </td>
+            <td class="text-center">
+              <input class="form-control js-qty"
+                     type="number" min="1"
+                     value="${qty || 1}"
+                     style="width:70px;text-align:right;" />
+            </td>
+                    <td>
+      <select class="form-select js-eti lookup-source" style="width:100%;">
+        ${etiOptionsHtml(etiId)}
+      </select>
+    </td>
+            <td class="text-end">
+              <button class="pm-btn pm-btn-secondary" style="font-size:11px;height:24px;padding:0 8px;" type="button" onclick="removeRow('${id}')">Quitar</button>
+            </td>
+          </tr>`;
+      }
+
+        window.addRow = function (code = '', qty = 1, etiId = null) {
+            const id = (crypto && crypto.randomUUID)
+                ? crypto.randomUUID()
+                : (Date.now() + '_' + Math.random().toString(16).slice(2));
+
+            const globalEti = document.getElementById('ClaveReporte')?.value || DEFAULT_ETI;
+            const chosenEti = (etiId ?? globalEti ?? '').toString();
+
+            const tbody = document.getElementById('rows');
+
+            tbody.insertAdjacentHTML('beforeend', rowTemplate(id, code, qty, chosenEti));
+
+            const tr = tbody.lastElementChild;
+            enhanceRowEtiSelect(tr.querySelector('.js-eti'));
+
+            return tr;
+        };
+
+      window.removeRow = function(id){
+        const tr = document.querySelector(`tr[data-id="${CSS.escape(id)}"]`);
+        if(tr) tr.remove();
+      };
+
+      window.clearAll = function(){
+        document.getElementById('rows').innerHTML = '';
+        showLog('secondary', 'Lista limpiada.');
+        setUiState('Listo', 'text-bg-light');
+      };
+
+      window.openPaste  = openPaste;
+      window.closePaste = closePaste;
+
+        window.applyPaste = async function () {
+        const text = document.getElementById('pasteArea').value || '';
+        const lines = text.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+        if(!lines.length){ showLog('warning', 'No hay líneas válidas.'); return; }
+            const nuevasFilas = [];
+
+            for (const line of lines) {
+                const parts = line.split(/[\t,;]+/).map(x => x.trim()).filter(Boolean);
+                const code = parts[0] || '';
+                const qty = parts[1] ? parseInt(parts[1], 10) : 1;
+
+                const tr = window.addRow(code, (isNaN(qty) || qty <= 0) ? 1 : qty);
+
+                if (tr) nuevasFilas.push(tr);
+            }
+
+            closePaste();
+            showLog('info', `Cargadas ${lines.length} líneas.`);
+            setUiState('Lista cargada', 'text-bg-info');
+            document.getElementById('pasteArea').value = '';
+
+            await precargarEtiquetacionActual(nuevasFilas);
+
+        };
+
+      function setRowStatus(tr, ok, msg){
+        const st = tr.querySelector('.js-st');
+        if(ok === true)       { st.textContent = '✅'; st.title = msg || 'OK'; }
+        else if(ok === false) { st.textContent = '❌'; st.title = msg || 'Error'; }
+        else                  { st.textContent = '—';  st.title = msg || 'Sin intento'; }
+      }
+
+      function getConfig(){
+        return {
+          plant: getPlant(),
+          printerName: document.getElementById('PrinterName')?.value || '',
+          claveReporte: document.getElementById('ClaveReporte')?.value || '',
+          empresaEysId: document.getElementById('EmpresaEysId')?.value || ''
+        };
+      }
+
+      function collectItems(){
+        return Array.from(document.querySelectorAll('#rows tr')).map(tr => ({
+          code: (tr.querySelector('.js-code')?.value || '').trim(),
+          qty: parseInt(tr.querySelector('.js-qty')?.value || '1', 10),
+          eti: (tr.querySelector('.js-eti')?.value || '').trim(),
+          tr
+        }));
+      }
+
+        async function loadPrinters() {
+            const plant = getPlant();
+            const sel = document.getElementById('PrinterName');
+
+            sel.innerHTML = '<option value="">Cargando...</option>';
+
+            enhanceSearchDropdown(sel, {
+                placeholder: '(Seleccione)',
+                searchPlaceholder: 'Buscar impresora...'
+            });
+
+            try {
+                const res = await fetch(`${URL_PRINTERS}?source=${encodeURIComponent(plant)}`, {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                const r = await safeRead(res);
+
+                if (r.isHtml) {
+                    throw new Error('InstalledPrinters devolvió HTML');
+                }
+
+                if (!res.ok || !r.okParse || !r.data?.ok) {
+                    throw new Error('No se pudo cargar impresoras. HTTP ' + res.status);
+                }
+
+                let printers = Array.isArray(r.data.printers) ? r.data.printers : [];
+
+                printers = printers
+                    .map(x => (x || '').toString())
+                    .filter(Boolean);
+
+                printers = getPrintersForPlant(printers, plant);
+
+                if (!printers.length) {
+                    sel.innerHTML = '<option value="">(sin impresoras)</option>';
+
+                    enhanceSearchDropdown(sel, {
+                        placeholder: '(sin impresoras)',
+                        searchPlaceholder: 'Buscar impresora...'
+                    });
+
+                    showLog('warning', `No hay impresoras para ${plant}.`);
+                    setUiState('Sin impresoras', 'text-bg-warning');
+                    return;
+                }
+
+                sel.innerHTML = printers
+                    .map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`)
+                    .join('');
+
+                const saved = getSavedPrinter(plant);
+
+                if (saved && printers.includes(saved)) {
+                    sel.value = saved;
+                } else if (DEFAULT_PRINTER && printers.includes(DEFAULT_PRINTER)) {
+                    sel.value = DEFAULT_PRINTER;
+                } else {
+                    sel.value = printers[0];
+                }
+
+                enhanceSearchDropdown(sel, {
+                    placeholder: '(Seleccione)',
+                    searchPlaceholder: 'Buscar impresora...'
+                });
+
+                sel.onchange = () => {
+                    savePrinter(plant, sel.value);
+                };
+
+            } catch (e) {
+                sel.innerHTML = '<option value="">(error)</option>';
+
+                enhanceSearchDropdown(sel, {
+                    placeholder: '(error)',
+                    searchPlaceholder: 'Buscar impresora...'
+                });
+
+                showLog('danger', 'Error impresoras: ' + (e?.message || e));
+                setUiState('Error impresoras', 'text-bg-danger');
+            }
+        }
+
+        function enhanceRowEtiSelect(sel) {
+            if (!sel) return;
+
+            enhanceSearchDropdown(sel, {
+                placeholder: '(Seleccione)',
+                searchPlaceholder: 'Buscar etiquetación...'
+            });
+        }
+
+        async function loadEtiquetaciones() {
+            const plant = getPlant();
+            const sel = document.getElementById('ClaveReporte');
+
+            sel.innerHTML = '<option value="">Cargando...</option>';
+
+            enhanceSearchDropdown(sel, {
+                placeholder: '(Cargando...)',
+                searchPlaceholder: 'Buscar etiquetación...'
+            });
+
+            try {
+                const res = await fetch(`${URL_ETI}?source=${encodeURIComponent(plant)}`, {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                const r = await safeRead(res);
+
+                if (r.isHtml) {
+                    throw new Error('Etiquetaciones devolvió HTML');
+                }
+
+                if (!res.ok || !r.okParse || !r.data?.ok) {
+                    throw new Error('No se pudo cargar etiquetaciones. HTTP ' + res.status);
+                }
+
+                const rows = Array.isArray(r.data.rows) ? r.data.rows : [];
+
+                if (!rows.length) {
+                    sel.innerHTML = '<option value="">(sin datos)</option>';
+
+                    enhanceSearchDropdown(sel, {
+                        placeholder: '(sin datos)',
+                        searchPlaceholder: 'Buscar etiquetación...'
+                    });
+
+                    showLog('warning', `No hay etiquetaciones para ${plant}.`);
+                    setUiState('Sin etiquetaciones', 'text-bg-warning');
+                    return;
+                }
+
+                ETI_LIST = rows.map(x => {
+                    const idRaw = (x.ColectorId ?? x.colectorId ?? '').toString().trim();
+                    const idNum = Number.parseInt(idRaw, 10);
+                    const name = (x.Etiquetacion ?? x.etiquetacion ?? x.Nombre ?? x.nombre ?? '').toString();
+
+                    return {
+                        idRaw,
+                        idNum: Number.isFinite(idNum) ? idNum : 999999,
+                        name
+                    };
+                }).sort((a, b) => a.idNum - b.idNum);
+
+                sel.innerHTML = ETI_LIST.map(x =>
+                    `<option value="${escapeHtml(x.idRaw)}">${escapeHtml(x.name)}</option>`
+                ).join('');
+
+                if (DEFAULT_ETI && Array.from(sel.options).some(o => o.value === DEFAULT_ETI)) {
+                    sel.value = DEFAULT_ETI;
+                } else if (!sel.value && sel.options.length) {
+                    sel.value = sel.options[0].value;
+                }
+
+                enhanceSearchDropdown(sel, {
+                    placeholder: '(Seleccione)',
+                    searchPlaceholder: 'Buscar etiquetación...'
+                });
+
+                document.querySelectorAll('#rows tr').forEach(tr => {
+                    const s = tr.querySelector('.js-eti');
+                    const current = s?.value || sel.value || DEFAULT_ETI;
+
+                    setSelectOptionsPreserve(s, current, '');
+                    enhanceRowEtiSelect(s);
+                });
+
+                sel.onchange = () => {
+                    const v = sel.value || '';
+
+                    if (!v) return;
+
+                    if (!confirm('¿Aplicar esta Etiquetación a TODAS las filas?')) return;
+                    document.querySelectorAll('#rows tr').forEach(tr => {
+                        const s = tr.querySelector('.js-eti');
+
+                        setSelectOptionsPreserve(s, v, '');
+                        enhanceRowEtiSelect(s);
+                    });
+                };
+
+            } catch (e) {
+                sel.innerHTML = '<option value="">(error)</option>';
+
+                enhanceSearchDropdown(sel, {
+                    placeholder: '(error)',
+                    searchPlaceholder: 'Buscar etiquetación...'
+                });
+
+                showLog('danger', 'Error etiquetaciones: ' + (e?.message || e));
+                setUiState('Error etiquetaciones', 'text-bg-danger');
+            }
+        }
+
+            document.addEventListener('blur', function (e) {
+                if (!e.target.matches('.js-code')) return;
+
+                const tr = e.target.closest('tr');
+
+                if (!tr) return;
+
+                const code = (e.target.value || '').trim();
+
+                if (!code) return;
+
+                precargarEtiquetacionActual([tr]);
+            }, true);
+
+      window.printAll = async function(){
+        const btn  = document.getElementById('btnPrint');
+        const btn2 = document.getElementById('btnPrint2');
+        if(btn)  btn.disabled  = true;
+        if(btn2) btn2.disabled = true;
+        try{
+          const cfg = getConfig();
+          if(!cfg.printerName){ showLog('warning', 'Selecciona impresora.'); setUiState('Falta impresora', 'text-bg-warning'); return; }
+          const items = collectItems();
+          if(!items.length){ showLog('warning', 'Agrega al menos una etiqueta.'); setUiState('Sin filas', 'text-bg-warning'); return; }
+          const valid = items.filter(it => (it.code||'').trim() && (it.qty||0) > 0 && (it.eti||'').trim());
+          if(!valid.length){ showLog('warning', 'No hay filas válidas para imprimir.'); setUiState('Sin filas válidas', 'text-bg-warning'); return; }
+          savePrinter(cfg.plant, cfg.printerName);
+          const baseReq = { source: cfg.plant, empresaEysId: cfg.empresaEysId || 'CARNG', tipoImpresion: 3, printerName: cfg.printerName };
+          const first = valid[0];
+          setUiState(`Imprimiendo prueba (${cfg.plant})...`, 'text-bg-info');
+          showLog('info', `Imprimiendo 1 etiqueta de prueba:\n${first.code}`);
+          for(const it of items) setRowStatus(it.tr, null, 'Pendiente');
+          const testReq = { ...baseReq, items: [{ CodigoEtiqueta: first.code, Cantidad: 1, ClaveReporte: first.eti }] };
+          setProgress(true, 0, 1);
+          const testRes = await fetchJson(URL_PRINT, testReq);
+          const testR = await safeRead(testRes);
+          if (testR.isHtml) { showLog('danger', 'Imprimir devolvió HTML:\n' + (testR.raw||'').slice(0,250)); setUiState('Error impresión', 'text-bg-danger'); return; }
+          if(!testRes.ok || !testR.okParse || !testR.data?.ok){ showLog('danger', (testR.data?.msg||'No se pudo imprimir prueba.')+'\nHTTP '+testRes.status+'\n'+(testR.raw||'')); setUiState('Error impresión', 'text-bg-danger'); return; }
+          const testRow = (testR.data.rows||[])[0];
+          if(testRow) setRowStatus(first.tr, testRow.ok, `${testRow.msg} (x${testRow.cantidad})`);
+          setProgress(true, 1, 1);
+          if(testRow && testRow.ok === false){ showLog('danger', `Falló la etiqueta de prueba:\n${testRow.msg}`); setUiState('Prueba fallida', 'text-bg-danger'); return; }
+          const okContinue = confirm(`✅ Se imprimió 1 etiqueta de prueba (${first.code}).\n\n¿La etiqueta salió correcta?\n\nAceptar = continuar con el resto\nCancelar = detener`);
+          if(!okContinue){ showLog('warning', 'Cancelado por el usuario después de la prueba.'); setUiState('Cancelado', 'text-bg-warning'); return; }
+          const restPayload = [];
+          if(first.qty > 1) restPayload.push({ CodigoEtiqueta: first.code, Cantidad: first.qty - 1, ClaveReporte: first.eti });
+          for(let i=1; i<valid.length; i++) restPayload.push({ CodigoEtiqueta: valid[i].code, Cantidad: valid[i].qty, ClaveReporte: valid[i].eti });
+          if(!restPayload.length){ showLog('success', 'Solo se imprimió la prueba (no había más cantidades).'); setUiState('Completado', 'text-bg-success'); return; }
+          setUiState(`Imprimiendo (${cfg.plant})...`, 'text-bg-info');
+          showLog('info', `Continuando con el resto...\nTotal filas restantes: ${restPayload.length}`);
+          setProgress(true, 0, restPayload.length);
+          const res = await fetchJson(URL_PRINT, { ...baseReq, items: restPayload });
+          const r = await safeRead(res);
+          if (r.isHtml) { showLog('danger', 'Imprimir devolvió HTML:\n' + (r.raw||'').slice(0,250)); setUiState('Error impresión', 'text-bg-danger'); return; }
+          if(!res.ok || !r.okParse || !r.data?.ok){ showLog('danger', (r.data?.msg||'No se pudo imprimir.')+'\nHTTP '+res.status+'\n'+(r.raw||'')); setUiState('Error impresión', 'text-bg-danger'); return; }
+          const map = new Map();
+          for(const row of (r.data.rows||[])) map.set((row.codigoEtiqueta||'').toUpperCase(), row);
+          let done = 0, total = (r.data.rows||[]).length;
+          for(const it of items){ const key=(it.code||'').trim().toUpperCase(); const row=map.get(key); if(row){ setRowStatus(it.tr, row.ok, `${row.msg} (x${row.cantidad})`); done++; setProgress(true, done, total); } }
+          showLog(r.data.failCount===0?'success':'warning', `Terminado.\nOK: ${r.data.okCount}\nFallidas: ${r.data.failCount}`);
+          setUiState(r.data.failCount===0?'Completado':'Completado con alertas', r.data.failCount===0?'text-bg-success':'text-bg-warning');
+        }catch(e){ showLog('danger', 'Error: '+(e?.message||e)); setUiState('Error', 'text-bg-danger'); }
+        finally{ setProgress(false); if(btn) btn.disabled=false; if(btn2) btn2.disabled=false; }
+      };
+
+      (async () => {
+        try{
+          setUiState('Cargando...', 'text-bg-info');
+          const plantSel = document.getElementById('PlantaId');
+          if (plantSel) plantSel.value = (DEFAULT_SOURCE || 'P1').toUpperCase();
+          await Promise.allSettled([loadPrinters(), loadEtiquetaciones()]);
+          if (plantSel){
+            plantSel.addEventListener('change', async () => {
+              setUiState('Cambiando planta...', 'text-bg-info');
+              await Promise.allSettled([loadPrinters(), loadEtiquetaciones()]);
+              setUiState('Listo', 'text-bg-light');
+            });
+          }
+          setUiState('Listo', 'text-bg-light');
+        }catch(e){ showLog('danger', 'Error inicializando: '+(e?.message||e)); setUiState('Error', 'text-bg-danger'); }
+      })();
+
+    })();
+
+    window.manualConfig = {
+        title: "Manual de Reimpresion",
+        sections: [
+            { id: "Primeros pasos de uso", title: "Primeros pasos de uso", icon: "fa-home",
+              steps: [
+                { title: "1.1 Configuracion Inicial", text: "Paso a paso para configurar las Reimpresiones", image: "/images/ReImpresiones/etiquetas1-gif.gif" },
+                { title: "1.2 Detalle de uso", text: "Paso a paso para configurar las Etiquetas", image: "/images/ReImpresiones/etiquetas2-gif.gif" }
+              ]
+            },
+            { id: "Tutorial", title: "Tutorial", icon: "fa-file-lines",
+              steps: [{ title: "2.1 Video Tutorial", text: "Tutorial como usar el modulo de ReImpresiones", video: "/images/ReImpresiones/etiquetas.mp4" }]
+            }
+        ]
+    };
+</script>

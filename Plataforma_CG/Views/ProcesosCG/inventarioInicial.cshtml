@@ -1,0 +1,1904 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Planeación Ejecutiva de Inventario";
+}
+
+<style>
+    :root {
+        --vino-900: #4b0000;
+        --vino-800: #650000;
+        --vino-700: #7f0000;
+        --vino-600: #9b0000;
+        --vino-500: #b40000;
+        --bg: #f4e1e1;
+        --panel: #fffafa;
+        --line: #d7b7b7;
+        --text: #351313;
+        --muted: #765050;
+        --green: #047857;
+        --orange: #b45309;
+        --red: #dc2626;
+        --blue-bg: #e8f3ff;
+        --green-bg: #e9f8ec;
+        --orange-bg: #fff1e6;
+        --gray-bg: #f3f4f6;
+        --red-bg: #fee2e2;
+        --shadow: 0 18px 36px rgba(70, 12, 12, .16);
+        --inner: inset 0 1px 0 rgba(255,255,255,.55);
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    html,
+    body {
+        width: 100%;
+        min-width: 0;
+        overflow-x: hidden;
+    }
+
+    body,
+    main,
+    .main,
+    .body-content,
+    .container,
+    .container-fluid,
+    .container-sm,
+    .container-md,
+    .container-lg,
+    .container-xl,
+    .container-xxl,
+    .pb-3 {
+        background: transparent !important;
+        box-shadow: none !important;
+        border: none !important;
+    }
+
+    body {
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        color: var(--text);
+    }
+
+    .app {
+        width: calc(100vw - 48px);
+        max-width: none;
+        min-height: calc(100dvh - 20px);
+        margin-left: 50% !important;
+        margin-right: 0 !important;
+        margin-top: 0 !important;
+        margin-bottom: 18px !important;
+        transform: translateX(-50%);
+        padding: clamp(8px, 1vw, 14px);
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        overflow-x: hidden;
+        background:
+            radial-gradient(circle at top left, rgba(139, 0, 0, .16), transparent 34%),
+            linear-gradient(135deg, #f8eeee 0%, #f3dddd 45%, #ead0d0 100%);
+    }
+
+    .hero {
+        width: 100%;
+        border-radius: 18px;
+        padding: clamp(14px, 1.5vw, 20px);
+        color: #fff;
+        background:
+            linear-gradient(135deg, rgba(75,0,0,.99), rgba(139,0,0,.96)),
+            linear-gradient(#fff, #fff);
+        border: 1px solid rgba(92,0,0,.55);
+        box-shadow: var(--shadow);
+        display: grid;
+        grid-template-columns: minmax(300px, 1fr) auto;
+        gap: 16px;
+        align-items: start;
+    }
+
+    .title-block h1 {
+        margin: 0;
+        font-size: clamp(19px, 1.55vw, 28px);
+        line-height: 1.12;
+        letter-spacing: -.03em;
+        font-weight: 900;
+    }
+
+    .title-block p {
+        margin: 7px 0 0;
+        max-width: 850px;
+        color: rgba(255,255,255,.78);
+        font-size: clamp(11px, .85vw, 13px);
+        line-height: 1.4;
+    }
+
+    .status-chip {
+        align-self: start;
+        min-width: 190px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: rgba(255,255,255,.12);
+        border: 1px solid rgba(255,255,255,.22);
+        text-align: right;
+    }
+
+    .status-chip span {
+        display: block;
+        color: rgba(255,255,255,.72);
+        font-size: 10px;
+        text-transform: uppercase;
+        font-weight: 800;
+        letter-spacing: .06em;
+    }
+
+    .status-chip strong {
+        display: block;
+        margin-top: 3px;
+        font-size: 14px;
+        font-weight: 900;
+        color: #fff;
+    }
+
+    .filtros-ejecutivos {
+        grid-column: 1 / -1;
+        width: 100%;
+        display: grid;
+        grid-template-columns: minmax(220px, 1.25fr) minmax(300px, 1.8fr) 150px 150px auto;
+        gap: 10px;
+        margin-top: 4px;
+        align-items: end;
+    }
+
+    .filtro-card {
+        min-width: 0;
+    }
+
+    .filtro-card > label {
+        display: block;
+        margin-bottom: 5px;
+        font-size: 10.5px;
+        font-weight: 900;
+        text-transform: uppercase;
+        color: rgba(255,255,255,.82);
+        letter-spacing: .05em;
+    }
+
+    .filtro-card.fechas input {
+        width: 100% !important;
+        height: 39px !important;
+        border-radius: 12px !important;
+        border: 1px solid rgba(255,255,255,.28) !important;
+        background: rgba(255,255,255,.96) !important;
+        color: #4a1111 !important;
+        font-weight: 900;
+        font-size: 12px !important;
+        padding: 0 10px !important;
+        box-shadow: 0 8px 16px rgba(0,0,0,.14) !important;
+    }
+
+    .multi-select {
+        position: relative;
+        width: 100%;
+    }
+
+    .multi-trigger {
+        width: 100%;
+        height: 39px !important;
+        border-radius: 12px !important;
+        border: 1px solid rgba(255,255,255,.28) !important;
+        background: rgba(255,255,255,.96) !important;
+        color: #4a1111 !important;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 0 12px !important;
+        font-size: 12px !important;
+        font-weight: 900;
+        cursor: pointer;
+        box-shadow: 0 8px 16px rgba(0,0,0,.14) !important;
+    }
+
+    .multi-trigger span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .multi-panel {
+        display: none;
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 0;
+        width: min(430px, 92vw);
+        max-height: 390px;
+        overflow: hidden;
+        background: #fff;
+        border: 1px solid #c99;
+        border-radius: 16px;
+        box-shadow: 0 26px 56px rgba(65, 0, 0, .30);
+        z-index: 9999;
+    }
+
+    .multi-select.open .multi-panel {
+        display: block;
+    }
+
+    .multi-search {
+        padding: 10px;
+        border-bottom: 1px solid #ead0d0;
+        background: #fff7f7;
+    }
+
+    .multi-search input {
+        width: 100% !important;
+        height: 34px !important;
+        border-radius: 9px !important;
+        border: 1px solid #d7b7b7 !important;
+        text-align: left !important;
+        padding: 0 10px !important;
+        font-weight: 800;
+        color: var(--text) !important;
+        background: #fff !important;
+    }
+
+    .multi-options {
+        max-height: 278px;
+        overflow: auto;
+        padding: 6px;
+        scrollbar-width: thin;
+    }
+
+    .multi-option {
+        display: flex !important;
+        align-items: center;
+        gap: 8px;
+        min-height: 34px;
+        padding: 7px 9px;
+        border-radius: 9px;
+        color: var(--text) !important;
+        font-size: 12px;
+        font-weight: 800;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .multi-option:hover {
+        background: #f8e7e7;
+    }
+
+    .multi-option input {
+        appearance: auto !important;
+        width: 15px !important;
+        height: 15px !important;
+        min-width: 15px !important;
+        accent-color: var(--vino-700);
+        margin: 0 !important;
+    }
+
+    .multi-option small {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 800;
+    }
+
+    .multi-all {
+        border-bottom: 1px solid #ead0d0;
+        border-radius: 0;
+        padding: 10px 14px;
+        background: #fff;
+        color: var(--vino-800) !important;
+    }
+
+    .actions {
+        display: flex;
+        gap: 7px;
+        justify-content: flex-end;
+        flex-wrap: nowrap;
+    }
+
+    .btn {
+        height: 39px;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,.28);
+        padding: 0 14px;
+        font-size: 12px;
+        font-weight: 900;
+        cursor: pointer;
+        white-space: nowrap;
+        box-shadow: 0 8px 16px rgba(0,0,0,.14);
+    }
+
+    .btn-primary {
+        background: linear-gradient(180deg, #fff 0%, #ead0d0 100%);
+        color: #4a1111;
+    }
+
+    .btn-dark {
+        background: rgba(255,255,255,.13);
+        color: #fff;
+    }
+
+    .view-options {
+        width: 100%;
+        display: flex;
+        gap: 7px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .radio-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 29px;
+        padding: 5px 10px;
+        border: 1px solid #d8bcbc;
+        border-radius: 999px;
+        background: #fffafa;
+        color: #4d1818;
+        font-size: 12px;
+        font-weight: 900;
+        cursor: pointer;
+        user-select: none;
+        box-shadow: var(--inner);
+    }
+
+    .radio-pill input[type="radio"] {
+        appearance: auto;
+        width: 14px !important;
+        height: 14px !important;
+        margin: 0 !important;
+        accent-color: var(--vino-700);
+    }
+
+    .radio-pill:has(input[type="radio"]:checked) {
+        background: linear-gradient(180deg, #b40000 0%, #8f0000 55%, #6e0000 100%);
+        color: #fff;
+        border-color: #7f0a0a;
+    }
+
+    .cards {
+        width: 100%;
+        display: grid;
+        grid-template-columns: repeat(5, minmax(150px, 1fr));
+        gap: 10px;
+    }
+
+    .card {
+        min-width: 0;
+        background: rgba(255,250,250,.96);
+        border: 1px solid #d8bcbc;
+        border-radius: 16px;
+        padding: clamp(11px, 1vw, 15px);
+        box-shadow: 0 10px 24px rgba(70,12,12,.10), var(--inner);
+    }
+
+    .card span {
+        display: block;
+        font-size: 10.5px;
+        color: var(--vino-700);
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        margin-bottom: 7px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .card strong {
+        display: block;
+        font-size: clamp(19px, 1.8vw, 27px);
+        color: #3b1111;
+        line-height: 1.02;
+        font-weight: 900;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .card em {
+        display: block;
+        margin-top: 5px;
+        font-size: 11px;
+        color: var(--muted);
+        font-style: normal;
+        font-weight: 800;
+    }
+
+    .panel {
+        width: 100%;
+        background: #fffafa;
+        border: 1px solid #d8bcbc;
+        border-radius: 16px;
+        box-shadow: 0 10px 24px rgba(70,12,12,.10), var(--inner);
+        overflow: hidden;
+    }
+
+    .panel-title {
+        min-height: 39px;
+        padding: 10px 13px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        color: #fff;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-bottom: 1px solid #6b1f1f;
+    }
+
+    .panel-title strong {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+
+    .panel-title span {
+        font-size: 11px;
+        color: rgba(255,255,255,.78);
+        font-weight: 800;
+    }
+
+    .table-wrapper {
+        width: 100%;
+        flex: 1 1 auto;
+        min-height: 260px;
+        max-height: min(48dvh, 560px);
+        overflow: auto;
+        scrollbar-width: thin;
+        padding: 8px;
+    }
+
+    table {
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        width: max-content;
+        min-width: 100%;
+        font-size: 12px;
+        background: #fffafa;
+    }
+
+    th,
+    td {
+        border-right: 1px solid #d8bcbc;
+        border-bottom: 1px solid #d8bcbc;
+        padding: 7px 6px;
+        text-align: center;
+        min-width: clamp(92px, 7vw, 122px);
+        white-space: nowrap;
+        font-size: clamp(11px, .84vw, 12px);
+        line-height: 1.2;
+    }
+
+    th {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: #fff !important;
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        border-top: 1px solid #c46a6a;
+        border-right: 1px solid #8e3b3b;
+        border-bottom: 1px solid #5c0000;
+        box-shadow: 0 2px 0 #6f1d1d;
+        font-weight: 900;
+    }
+
+    th:first-child,
+    td:first-child {
+        border-left: 1px solid #d8bcbc;
+    }
+
+    .sticky-alcance {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background: #fffafa;
+        font-weight: 900;
+        min-width: 142px;
+        width: 142px;
+        max-width: 142px;
+        text-align: left;
+        color: #4a1111;
+    }
+
+    .sticky-concepto {
+        position: sticky;
+        left: 142px;
+        z-index: 2;
+        background: #fffafa;
+        font-weight: 900;
+        min-width: 150px;
+        width: 150px;
+        max-width: 150px;
+        text-align: left;
+        color: #4a1111;
+    }
+
+    th.sticky-alcance,
+    th.sticky-concepto {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: #fff !important;
+        z-index: 4;
+    }
+
+    .row-inventario .sticky-alcance,
+    .row-inventario .sticky-concepto,
+    .row-inventario td {
+        background: var(--blue-bg);
+    }
+
+    .row-produccion .sticky-alcance,
+    .row-produccion .sticky-concepto,
+    .row-produccion td {
+        background: var(--green-bg);
+    }
+
+    .row-pedidos .sticky-alcance,
+    .row-pedidos .sticky-concepto,
+    .row-pedidos td {
+        background: var(--orange-bg);
+    }
+
+    .row-disponible .sticky-alcance,
+    .row-disponible .sticky-concepto,
+    .row-disponible td {
+        background: var(--gray-bg);
+        font-weight: 900;
+    }
+
+    tbody tr:hover td,
+    tbody tr:hover .sticky-alcance,
+    tbody tr:hover .sticky-concepto {
+        filter: brightness(.985);
+    }
+
+    .disponible-ok {
+        color: var(--green);
+        font-weight: 900;
+    }
+
+    .disponible-alerta {
+        color: var(--orange);
+        font-weight: 900;
+    }
+
+    .disponible-negativo,
+    .valor-negativo {
+        color: var(--red) !important;
+        font-weight: 900 !important;
+        background: var(--red-bg) !important;
+    }
+
+    .legend {
+        padding: 9px 12px 12px;
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        font-size: 12px;
+        color: #4a1a1a;
+    }
+
+    .legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 28px;
+        padding: 3px 8px;
+        border: 1px solid transparent;
+        border-radius: 999px;
+        cursor: pointer;
+        user-select: none;
+        font-weight: 800;
+    }
+
+    .legend-item:hover {
+        border-color: #d8bcbc;
+        background: #fffafa;
+    }
+
+    .legend-item.inactivo {
+        opacity: .45;
+        filter: grayscale(.35);
+    }
+
+    .legend-item input[type="checkbox"] {
+        appearance: auto;
+        width: 14px !important;
+        height: 14px !important;
+        margin: 0 !important;
+        accent-color: var(--vino-700);
+    }
+
+    .dot {
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        display: inline-block;
+        border: 1px solid #d8bcbc;
+    }
+
+    .dot-blue { background: var(--blue-bg); }
+    .dot-green { background: var(--green-bg); }
+    .dot-orange { background: var(--orange-bg); }
+    .dot-gray { background: var(--gray-bg); }
+
+    .chart-box {
+        min-height: 230px;
+    }
+
+    .bars {
+        display: flex;
+        align-items: flex-end;
+        gap: 8px;
+        height: clamp(150px, 23dvh, 230px);
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 16px 12px 24px;
+        border-bottom: 1px solid #d8bcbc;
+        background: #fffafa;
+        scrollbar-width: thin;
+    }
+
+    .bar-item {
+        min-width: clamp(52px, 4.8vw, 70px);
+        text-align: center;
+        font-size: 11px;
+        color: #4a1111;
+    }
+
+    .bar-stack {
+        display: flex;
+        justify-content: center;
+        align-items: flex-end;
+        gap: 3px;
+        min-height: 4px;
+        margin-bottom: 6px;
+    }
+
+    .bar {
+        width: clamp(8px, 1vw, 14px);
+        min-height: 4px;
+        border-radius: 8px 8px 0 0;
+        transition: .2s;
+    }
+
+    .bar.negative { background: #dc2626; }
+    .bar.inventario { background: #2563eb; }
+    .bar.produccion { background: #059669; }
+    .bar.pedidos { background: #ea580c; }
+    .bar.disponible { background: #6b7280; }
+
+    .bar-label {
+        transform: rotate(-42deg);
+        white-space: nowrap;
+        margin-top: 13px;
+        color: #6a3a3a;
+        transform-origin: center;
+        font-size: 10px;
+        font-weight: 800;
+    }
+
+    .sin-datos {
+        width: 100%;
+        align-self: center;
+        text-align: center;
+        color: #6a3a3a;
+        font-size: 13px;
+        font-weight: 900;
+        padding: 24px;
+    }
+
+    .loading {
+        opacity: .55;
+        pointer-events: none;
+    }
+
+    .app[data-modo-vista="tabla"] .chart-box {
+        display: none;
+    }
+
+    .app[data-modo-vista="grafica"] .table-panel {
+        display: none;
+    }
+
+    .app[data-modo-vista="grafica"] .chart-box {
+        min-height: 55dvh;
+    }
+
+    .app[data-modo-vista="grafica"] .bars {
+        height: 46dvh;
+    }
+
+    @@media (max-width: 1240px) {
+        .hero {
+            grid-template-columns: 1fr;
+        }
+
+        .status-chip {
+            text-align: left;
+        }
+
+        .filtros-ejecutivos {
+            grid-template-columns: repeat(2, minmax(220px, 1fr));
+        }
+
+        .actions {
+            justify-content: flex-start;
+        }
+
+        .cards {
+            grid-template-columns: repeat(3, minmax(150px, 1fr));
+        }
+    }
+
+    @@media (max-width: 760px) {
+        .app {
+            width: 100% !important;
+            margin: 0 !important;
+            transform: none !important;
+            padding: 8px;
+        }
+
+        .filtros-ejecutivos {
+            grid-template-columns: 1fr;
+        }
+
+        .cards {
+            grid-template-columns: 1fr;
+        }
+
+        .multi-panel {
+            position: fixed;
+            left: 12px;
+            right: 12px;
+            top: 110px;
+            width: auto;
+        }
+
+        .sticky-alcance {
+            min-width: 112px;
+            width: 112px;
+            max-width: 112px;
+        }
+
+        .sticky-concepto {
+            left: 112px;
+            min-width: 126px;
+            width: 126px;
+            max-width: 126px;
+        }
+
+        th,
+        td {
+            min-width: 82px;
+            padding: 6px 5px;
+        }
+    }
+
+    .multi-options .multi-option.opcion-oculta {
+    display: none !important;
+}
+
+    /* =========================================================
+       KPIS EJECUTIVOS CON COLOR OPERATIVO
+       ========================================================= */
+
+    .kpi-dashboard {
+        align-items: stretch;
+    }
+
+    .card.kpi-card-color {
+        position: relative;
+        overflow: hidden;
+        min-height: 122px;
+        border: 1px solid rgba(255,255,255,.28) !important;
+        box-shadow: 0 16px 30px rgba(54, 9, 9, .16), inset 0 1px 0 rgba(255,255,255,.18) !important;
+    }
+
+    .card.kpi-card-color::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(135deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,0) 55%);
+        pointer-events: none;
+    }
+
+    .card.kpi-card-color::after {
+        content: "";
+        position: absolute;
+        right: -42px;
+        bottom: -52px;
+        width: 142px;
+        height: 142px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.13);
+        border: 22px solid rgba(255,255,255,.08);
+        pointer-events: none;
+    }
+
+    .card.kpi-card-color span,
+    .card.kpi-card-color strong,
+    .card.kpi-card-color em {
+        position: relative;
+        z-index: 1;
+    }
+
+    .card.kpi-card-color span {
+        color: rgba(255,255,255,.88) !important;
+        letter-spacing: .07em;
+    }
+
+    .card.kpi-card-color strong {
+        color: #ffffff !important;
+        text-shadow: 0 2px 10px rgba(0,0,0,.24);
+    }
+
+    .card.kpi-card-color em {
+        color: rgba(255,255,255,.86) !important;
+        font-weight: 800;
+    }
+
+    .card.kpi-alcance {
+        background: linear-gradient(135deg, #4b0000 0%, #7f0000 54%, #340303 100%) !important;
+    }
+
+    .card.kpi-disponible {
+        background: linear-gradient(135deg, #047857 0%, #10a36a 54%, #064e3b 100%) !important;
+    }
+
+    .card.kpi-produccion {
+        background: linear-gradient(135deg, #0f4f74 0%, #1879a8 54%, #083449 100%) !important;
+    }
+
+    .card.kpi-pedidos {
+        background: linear-gradient(135deg, #b45309 0%, #e07b18 54%, #7c2d12 100%) !important;
+    }
+
+    .card.kpi-faltante {
+        background: linear-gradient(135deg, #374151 0%, #4b5563 54%, #111827 100%) !important;
+    }
+
+    .card.kpi-faltante.kpi-alerta-activa,
+    .card.kpi-disponible.kpi-negativo {
+        background: linear-gradient(135deg, #991b1b 0%, #dc2626 55%, #5f0f0f 100%) !important;
+    }
+
+    .card.kpi-disponible.kpi-alerta {
+        background: linear-gradient(135deg, #a16207 0%, #d97706 55%, #713f12 100%) !important;
+    }
+
+    @@media (min-width: 1500px) {
+        .card.kpi-card-color {
+            min-height: 138px;
+        }
+
+        .card.kpi-card-color strong {
+            font-size: clamp(24px, 2vw, 32px);
+        }
+    }
+
+    @@media (max-width: 760px) {
+        .card.kpi-card-color {
+            min-height: 112px;
+        }
+
+        .card.kpi-card-color strong {
+            white-space: normal;
+        }
+    }
+
+</style>
+
+<div class="app" id="app" data-modo-vista="completa">
+
+    <section class="hero">
+        <div class="title-block">
+            <h1>Planeación Ejecutiva de Inventario, Producción y Pedidos</h1>
+            <p>
+                Vista consolidada para Dirección General: inventario inicial, producción planeada,
+                pedidos comprometidos y disponibilidad proyectada por día. El disponible de un día
+                se convierte automáticamente en el inventario del siguiente.
+            </p>
+        </div>
+
+        <div class="status-chip">
+            <span>Última consulta</span>
+            <strong id="ultimaConsulta">Sin cargar</strong>
+        </div>
+
+        <div class="filtros-ejecutivos">
+            <div class="filtro-card">
+                <label>MASTER / Familia</label>
+                <div class="multi-select" id="masterSelect">
+                    <button type="button" class="multi-trigger" onclick="toggleMultiSelect('masterSelect')">
+                        <span id="masterSelectText">Cargando...</span>
+                        <b>▾</b>
+                    </button>
+
+                    <div class="multi-panel">
+                        <div class="multi-search">
+                            <input type="text" placeholder="Buscar MASTER..." oninput="filtrarOpciones('masterSelect', this.value)" />
+                        </div>
+
+                        <label class="multi-option multi-all">
+                            <input id="masterAllCheck" type="checkbox" checked onchange="seleccionarTodos('masterSelect', this.checked)" />
+                            <span>Seleccionar todo</span>
+                        </label>
+
+                        <div class="multi-options" id="masterOptions"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="filtro-card">
+                <label>SKU / Producto</label>
+                <div class="multi-select" id="skuSelect">
+                    <button type="button" class="multi-trigger" onclick="toggleMultiSelect('skuSelect')">
+                        <span id="skuSelectText">Cargando...</span>
+                        <b>▾</b>
+                    </button>
+
+                    <div class="multi-panel">
+                        <div class="multi-search">
+                            <input type="text" placeholder="Buscar SKU o producto..." oninput="filtrarOpciones('skuSelect', this.value)" />
+                        </div>
+
+                        <label class="multi-option multi-all">
+                            <input id="skuAllCheck" type="checkbox" checked onchange="seleccionarTodos('skuSelect', this.checked)" />
+                            <span>Seleccionar todo</span>
+                        </label>
+
+                        <div class="multi-options" id="skuOptions"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="filtro-card fechas">
+                <label>Desde</label>
+                <input id="fechaInicioInput" type="date" onchange="cargarDatosSql()" />
+            </div>
+
+            <div class="filtro-card fechas">
+                <label>Hasta</label>
+                <input id="fechaFinInput" type="date" onchange="cargarDatosSql()" />
+            </div>
+
+            <div class="filtro-card">
+                <label>Acciones</label>
+                <div class="actions">
+                    <button type="button" class="btn btn-primary" onclick="cargarDatosSql()">Actualizar</button>
+                    <button type="button" class="btn btn-dark" onclick="limpiarFiltros()">Limpiar</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="view-options" role="radiogroup" aria-label="Modo de visualización">
+        <label class="radio-pill">
+            <input type="radio" name="modoVista" value="completa" checked onchange="cambiarModoVista(this.value)" />
+            Completa
+        </label>
+        <label class="radio-pill">
+            <input type="radio" name="modoVista" value="tabla" onchange="cambiarModoVista(this.value)" />
+            Solo tabla
+        </label>
+        <label class="radio-pill">
+            <input type="radio" name="modoVista" value="grafica" onchange="cambiarModoVista(this.value)" />
+            Solo gráfica
+        </label>
+    </div>
+
+    <section class="cards kpi-dashboard">
+        <div class="card kpi-card-color kpi-alcance">
+            <span>Alcance</span>
+            <strong id="kpiAlcance">-</strong>
+            <em id="kpiAlcanceDetalle">Sin selección</em>
+        </div>
+
+        <div class="card kpi-card-color kpi-disponible">
+            <span>Disponible final KG</span>
+            <strong id="kpiDisponibleFinal">0</strong>
+            <em>Inventario proyectado al cierre</em>
+        </div>
+
+        <div class="card kpi-card-color kpi-produccion">
+            <span>Producción total KG</span>
+            <strong id="kpiProduccionTotal">0</strong>
+            <em>Planeación acumulada</em>
+        </div>
+
+        <div class="card kpi-card-color kpi-pedidos">
+            <span>Pedidos totales KG</span>
+            <strong id="kpiPedidosTotal">0</strong>
+            <em>Compromiso acumulado</em>
+        </div>
+
+        <div class="card kpi-card-color kpi-faltante">
+            <span>Días con faltante</span>
+            <strong id="kpiDiasFaltante">0</strong>
+            <em>Disponible negativo</em>
+        </div>
+    </section>
+
+    <section class="panel table-panel">
+        <div class="panel-title">
+            <strong>Detalle diario KG</strong>
+            <span id="tablaResumen">Inventario + Producción - Pedidos = Disponible</span>
+        </div>
+
+        <div class="table-wrapper">
+            <table id="tablaPlaneacion">
+                <thead>
+                    <tr id="filaFechas">
+                        <th class="sticky-alcance">Alcance</th>
+                        <th class="sticky-concepto">Concepto</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    <tr class="row-inventario" id="filaInventario">
+                        <td class="sticky-alcance">-</td>
+                        <td class="sticky-concepto">Inventario KG</td>
+                    </tr>
+
+                    <tr class="row-produccion" id="filaProduccion">
+                        <td class="sticky-alcance">-</td>
+                        <td class="sticky-concepto">Producción KG</td>
+                    </tr>
+
+                    <tr class="row-pedidos" id="filaPedidos">
+                        <td class="sticky-alcance">-</td>
+                        <td class="sticky-concepto">Pedidos KG</td>
+                    </tr>
+
+                    <tr class="row-disponible" id="filaDisponible">
+                        <td class="sticky-alcance">-</td>
+                        <td class="sticky-concepto">Disponible KG</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="legend" role="group" aria-label="Filtros de indicadores">
+            <label class="legend-item" data-filtro="inventario">
+                <input type="checkbox" checked onchange="cambiarFiltroMetrica('inventario', this.checked)" />
+                <span class="dot dot-blue"></span> Inventario
+            </label>
+            <label class="legend-item" data-filtro="produccion">
+                <input type="checkbox" checked onchange="cambiarFiltroMetrica('produccion', this.checked)" />
+                <span class="dot dot-green"></span> Producción
+            </label>
+            <label class="legend-item" data-filtro="pedidos">
+                <input type="checkbox" checked onchange="cambiarFiltroMetrica('pedidos', this.checked)" />
+                <span class="dot dot-orange"></span> Pedidos
+            </label>
+            <label class="legend-item" data-filtro="disponible">
+                <input type="checkbox" checked onchange="cambiarFiltroMetrica('disponible', this.checked)" />
+                <span class="dot dot-gray"></span> Disponible
+            </label>
+        </div>
+    </section>
+
+    <section class="panel chart-box">
+        <div class="panel-title">
+            <strong>Comportamiento diario</strong>
+            <span>Comparativo de inventario, producción, pedidos y disponible</span>
+        </div>
+
+        <div class="bars" id="graficaDisponible"></div>
+    </section>
+
+</div>
+
+<script>
+    let datos = [];
+    let modoVista = "completa";
+    const DIAS_ADELANTE = 23;
+
+    let filtrosCatalogo = {
+        masters: [],
+        skus: []
+    };
+
+    let seleccion = {
+        masters: [],
+        skus: []
+    };
+
+    let filtrosMetricas = {
+        inventario: true,
+        produccion: true,
+        pedidos: true,
+        disponible: true
+    };
+
+    const metricasGrafica = [
+        { key: "inventario", nombre: "Inventario", clase: "inventario" },
+        { key: "produccion", nombre: "Producción", clase: "produccion" },
+        { key: "pedidos", nombre: "Pedidos", clase: "pedidos" },
+        { key: "disponible", nombre: "Disponible", clase: "disponible" }
+    ];
+
+    function escapeHtml(value) {
+        return String(value ?? "")
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#039;");
+    }
+
+    function normalizarTexto(value) {
+        return String(value ?? "").trim().toUpperCase();
+    }
+
+    function formatoNumero(valor) {
+        return Number(valor || 0).toLocaleString("es-MX", {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 3
+        });
+    }
+
+    function normalizarNumero(valor) {
+        const numero = Number(valor);
+        return isNaN(numero) ? 0 : numero;
+    }
+
+    function claseNegativo(valor) {
+        return normalizarNumero(valor) < 0 ? "valor-negativo" : "";
+    }
+
+    function obtenerCampo(row, camelCase, pascalCase, defaultValue = 0) {
+        if (!row) return defaultValue;
+        return row[camelCase] ?? row[pascalCase] ?? defaultValue;
+    }
+
+    function fechaDesdeValor(valor) {
+        if (!valor) return null;
+
+        if (valor instanceof Date && !isNaN(valor.getTime())) {
+            const f = new Date(valor);
+            f.setHours(0, 0, 0, 0);
+            return f;
+        }
+
+        const texto = String(valor).trim();
+        const iso = texto.substring(0, 10);
+        const mIso = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+        if (mIso) {
+            const f = new Date(Number(mIso[1]), Number(mIso[2]) - 1, Number(mIso[3]));
+            f.setHours(0, 0, 0, 0);
+            return f;
+        }
+
+        const mMx = texto.match(/^(\d{2})\/(\d{2})\/(\d{2}|\d{4})$/);
+        if (mMx) {
+            const year = mMx[3].length === 2 ? 2000 + Number(mMx[3]) : Number(mMx[3]);
+            const f = new Date(year, Number(mMx[2]) - 1, Number(mMx[1]));
+            f.setHours(0, 0, 0, 0);
+            return f;
+        }
+
+        const fecha = new Date(texto);
+        if (isNaN(fecha.getTime())) return null;
+
+        fecha.setHours(0, 0, 0, 0);
+        return fecha;
+    }
+
+    function fechaKey(fecha) {
+        const f = fechaDesdeValor(fecha);
+        if (!f) return "";
+
+        const year = f.getFullYear();
+        const month = String(f.getMonth() + 1).padStart(2, "0");
+        const day = String(f.getDate()).padStart(2, "0");
+
+        return `${year}-${month}-${day}`;
+    }
+
+    function fechaCorta(valor) {
+        const fecha = fechaDesdeValor(valor);
+        if (!fecha) return "Actual";
+
+        return fecha.toLocaleDateString("es-MX", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "2-digit"
+        });
+    }
+
+    function formatoInputFecha(fecha) {
+        const f = fechaDesdeValor(fecha);
+        if (!f) return "";
+        return fechaKey(f);
+    }
+
+    function inicializarRangoFechas() {
+        const inicio = document.getElementById("fechaInicioInput");
+        const fin = document.getElementById("fechaFinInput");
+
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+
+        const fechaFin = new Date(hoy);
+        fechaFin.setDate(hoy.getDate() + DIAS_ADELANTE);
+
+        if (inicio && !inicio.value) {
+            inicio.value = formatoInputFecha(hoy);
+        }
+
+        if (fin && !fin.value) {
+            fin.value = formatoInputFecha(fechaFin);
+        }
+    }
+
+    function obtenerRangoFechas() {
+        const inicioInput = document.getElementById("fechaInicioInput")?.value || "";
+        const finInput = document.getElementById("fechaFinInput")?.value || "";
+
+        let inicio = fechaDesdeValor(inicioInput);
+        let fin = fechaDesdeValor(finInput);
+
+        if (!inicio) {
+            inicio = new Date();
+            inicio.setHours(0, 0, 0, 0);
+        }
+
+        if (!fin) {
+            fin = new Date(inicio);
+            fin.setDate(inicio.getDate() + DIAS_ADELANTE);
+        }
+
+        if (fin < inicio) {
+            const temp = inicio;
+            inicio = fin;
+            fin = temp;
+        }
+
+        return { inicio, fin };
+    }
+
+    function crearCalendarioRango(fechaInicio, fechaFin) {
+        const inicio = fechaDesdeValor(fechaInicio);
+        const fin = fechaDesdeValor(fechaFin);
+        const calendario = [];
+
+        if (!inicio || !fin) return calendario;
+
+        const actual = new Date(inicio);
+        actual.setHours(0, 0, 0, 0);
+
+        const limite = new Date(fin);
+        limite.setHours(0, 0, 0, 0);
+
+        while (actual <= limite) {
+            calendario.push({
+                fecha: fechaCorta(actual),
+                fechaKey: fechaKey(actual),
+                inventario: 0,
+                produccion: 0,
+                pedidos: 0,
+                disponible: 0
+            });
+
+            actual.setDate(actual.getDate() + 1);
+        }
+
+        return calendario;
+    }
+
+    function setCargando(activo) {
+        const app = document.getElementById("app");
+        if (app) app.classList.toggle("loading", Boolean(activo));
+    }
+
+    async function cargarFiltrosIniciales() {
+        try {
+            setCargando(true);
+
+            const response = await fetch("/ProcesosCG/InventarioInicialFiltros", {
+                method: "GET",
+                headers: { "Accept": "application/json" }
+            });
+
+            const json = await response.json();
+
+            if (!response.ok || !json.ok) {
+                throw new Error(json.msg || "No se pudieron cargar los filtros.");
+            }
+
+            filtrosCatalogo.masters = (json.masters || json.Masters || []).map(x => ({
+                value: normalizarTexto(x.value ?? x.Value),
+                text: String(x.text ?? x.Text ?? x.value ?? x.Value ?? ""),
+                totalSkus: Number(x.totalSkus ?? x.TotalSkus ?? 0)
+            })).filter(x => x.value);
+
+            filtrosCatalogo.skus = (json.skus || json.Skus || []).map(x => ({
+                value: normalizarTexto(x.value ?? x.Value),
+                text: String(x.text ?? x.Text ?? x.value ?? x.Value ?? ""),
+                articulo: String(x.articulo ?? x.Articulo ?? ""),
+                master: normalizarTexto(x.master ?? x.Master ?? x.masterProducto ?? x.MasterProducto)
+            })).filter(x => x.value);
+
+            seleccion.masters = filtrosCatalogo.masters.map(x => x.value);
+            seleccion.skus = filtrosCatalogo.skus.map(x => x.value);
+
+            renderizarOpcionesMaster();
+            renderizarOpcionesSku();
+            actualizarTextosFiltros();
+        } catch (error) {
+            console.error(error);
+            alert("Error al cargar filtros: " + error.message);
+        } finally {
+            setCargando(false);
+        }
+    }
+
+    function toggleMultiSelect(id) {
+        document.querySelectorAll(".multi-select").forEach(x => {
+            if (x.id !== id) x.classList.remove("open");
+        });
+
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle("open");
+    }
+
+function renderizarOpcionesMaster() {
+    const cont = document.getElementById("masterOptions");
+    if (!cont) return;
+
+    cont.innerHTML = filtrosCatalogo.masters.map(item => {
+        const checked = seleccion.masters.includes(item.value);
+
+        const textoBusqueda = [
+            item.value,
+            item.text
+        ].join(" ").toUpperCase();
+
+        return `
+            <label class="multi-option" data-text="${escapeHtml(textoBusqueda)}">
+                <input
+                    type="checkbox"
+                    value="${escapeHtml(item.value)}"
+                    ${checked ? "checked" : ""}
+                    onchange="toggleOpcion('masters', '${escapeHtml(item.value)}', this.checked)"
+                />
+                <span>${escapeHtml(item.text)} <small>(${formatoNumero(item.totalSkus)})</small></span>
+            </label>
+        `;
+    }).join("");
+}
+
+    function obtenerSkusVisiblesPorMaster() {
+        const mastersActivos = new Set(seleccion.masters);
+
+        return filtrosCatalogo.skus.filter(item => {
+            return !mastersActivos.size || mastersActivos.has(item.master);
+        });
+    }
+
+function renderizarOpcionesSku() {
+    const cont = document.getElementById("skuOptions");
+    if (!cont) return;
+
+    const skusFiltrados = obtenerSkusVisiblesPorMaster();
+
+    cont.innerHTML = skusFiltrados.map(item => {
+        const checked = seleccion.skus.includes(item.value);
+
+        const textoBusqueda = [
+            item.value,
+            item.text,
+            item.articulo,
+            item.master
+        ].join(" ").toUpperCase();
+
+        return `
+            <label class="multi-option" data-text="${escapeHtml(textoBusqueda)}">
+                <input
+                    type="checkbox"
+                    value="${escapeHtml(item.value)}"
+                    ${checked ? "checked" : ""}
+                    onchange="toggleOpcion('skus', '${escapeHtml(item.value)}', this.checked)"
+                />
+                <span>${escapeHtml(item.text)}</span>
+            </label>
+        `;
+    }).join("");
+}
+
+    function toggleOpcion(tipo, value, checked) {
+        value = normalizarTexto(value);
+
+        if (checked) {
+            if (!seleccion[tipo].includes(value)) {
+                seleccion[tipo].push(value);
+            }
+        } else {
+            seleccion[tipo] = seleccion[tipo].filter(x => x !== value);
+        }
+
+        if (tipo === "masters") {
+            const skusPermitidos = obtenerSkusVisiblesPorMaster().map(x => x.value);
+
+            seleccion.skus = seleccion.skus.filter(sku => skusPermitidos.includes(sku));
+
+            if (seleccion.masters.length === filtrosCatalogo.masters.length) {
+                seleccion.skus = filtrosCatalogo.skus.map(x => x.value);
+            }
+
+            renderizarOpcionesSku();
+        }
+
+        actualizarChecksTodo();
+        actualizarTextosFiltros();
+        cargarDatosSql();
+    }
+
+    function seleccionarTodos(selectId, checked) {
+        if (selectId === "masterSelect") {
+            seleccion.masters = checked
+                ? filtrosCatalogo.masters.map(x => x.value)
+                : [];
+
+            seleccion.skus = checked
+                ? filtrosCatalogo.skus.map(x => x.value)
+                : [];
+
+            renderizarOpcionesMaster();
+            renderizarOpcionesSku();
+        }
+
+        if (selectId === "skuSelect") {
+            const skusVisibles = obtenerSkusVisiblesPorMaster().map(x => x.value);
+
+            if (checked) {
+                seleccion.skus = Array.from(new Set([...seleccion.skus, ...skusVisibles]));
+            } else {
+                seleccion.skus = seleccion.skus.filter(x => !skusVisibles.includes(x));
+            }
+
+            renderizarOpcionesSku();
+        }
+
+        actualizarChecksTodo();
+        actualizarTextosFiltros();
+        cargarDatosSql();
+    }
+
+    function limpiarFiltros() {
+        seleccion.masters = filtrosCatalogo.masters.map(x => x.value);
+        seleccion.skus = filtrosCatalogo.skus.map(x => x.value);
+
+        renderizarOpcionesMaster();
+        renderizarOpcionesSku();
+        actualizarChecksTodo();
+        actualizarTextosFiltros();
+        cargarDatosSql();
+    }
+
+function filtrarOpciones(selectId, texto) {
+    const root = document.getElementById(selectId);
+    if (!root) return;
+
+    const filtro = normalizarTexto(texto);
+
+    root.querySelectorAll(".multi-options .multi-option").forEach(op => {
+        const txt = normalizarTexto(
+            (op.dataset.text || "") + " " + (op.textContent || "")
+        );
+
+        const mostrar = !filtro || txt.includes(filtro);
+
+        op.classList.toggle("opcion-oculta", !mostrar);
+    });
+}
+
+    function actualizarChecksTodo() {
+        const masterAll = document.getElementById("masterAllCheck");
+        const skuAll = document.getElementById("skuAllCheck");
+
+        if (masterAll) {
+            masterAll.checked =
+                filtrosCatalogo.masters.length > 0 &&
+                seleccion.masters.length === filtrosCatalogo.masters.length;
+        }
+
+        if (skuAll) {
+            const skusVisibles = obtenerSkusVisiblesPorMaster().map(x => x.value);
+            skuAll.checked =
+                skusVisibles.length > 0 &&
+                skusVisibles.every(sku => seleccion.skus.includes(sku));
+        }
+    }
+
+    function actualizarTextosFiltros() {
+        const masterText = document.getElementById("masterSelectText");
+        const skuText = document.getElementById("skuSelectText");
+
+        if (masterText) {
+            if (seleccion.masters.length === 0) {
+                masterText.textContent = "Sin MASTER seleccionado";
+            } else if (seleccion.masters.length === filtrosCatalogo.masters.length) {
+                masterText.textContent = "Todos los MASTER";
+            } else if (seleccion.masters.length === 1) {
+                masterText.textContent = seleccion.masters[0];
+            } else {
+                masterText.textContent = `${seleccion.masters.length} MASTER seleccionados`;
+            }
+        }
+
+        if (skuText) {
+            if (seleccion.skus.length === 0) {
+                skuText.textContent = "Sin SKU seleccionado";
+            } else if (seleccion.skus.length === filtrosCatalogo.skus.length) {
+                skuText.textContent = "Todos los SKU";
+            } else if (seleccion.skus.length === 1) {
+                skuText.textContent = seleccion.skus[0];
+            } else {
+                skuText.textContent = `${seleccion.skus.length} SKU seleccionados`;
+            }
+        }
+    }
+
+    function metricaVisible(key) {
+        return filtrosMetricas[key] !== false;
+    }
+
+    function cambiarFiltroMetrica(key, activo) {
+        filtrosMetricas[key] = Boolean(activo);
+
+        const item = document.querySelector(`.legend-item[data-filtro="${key}"]`);
+        if (item) {
+            item.classList.toggle("inactivo", !activo);
+        }
+
+        renderizar();
+    }
+
+    function aplicarFiltrosTabla() {
+        const filas = {
+            inventario: document.getElementById("filaInventario"),
+            produccion: document.getElementById("filaProduccion"),
+            pedidos: document.getElementById("filaPedidos"),
+            disponible: document.getElementById("filaDisponible")
+        };
+
+        Object.keys(filas).forEach(key => {
+            if (filas[key]) {
+                filas[key].style.display = metricaVisible(key) ? "" : "none";
+            }
+        });
+    }
+
+    function cambiarModoVista(modo) {
+        modoVista = modo || "completa";
+
+        const app = document.getElementById("app");
+        if (app) {
+            app.dataset.modoVista = modoVista;
+        }
+
+        const radio = document.querySelector(`input[name="modoVista"][value="${modoVista}"]`);
+        if (radio) {
+            radio.checked = true;
+        }
+
+        renderizarGrafica();
+    }
+
+    async function cargarDatosSql() {
+        const rango = obtenerRangoFechas();
+        const fechaInicio = formatoInputFecha(rango.inicio);
+        const fechaFin = formatoInputFecha(rango.fin);
+        const calendario = crearCalendarioRango(rango.inicio, rango.fin);
+
+        const todosMasters =
+            filtrosCatalogo.masters.length > 0 &&
+            seleccion.masters.length === filtrosCatalogo.masters.length;
+
+        const todosSkus =
+            filtrosCatalogo.skus.length > 0 &&
+            seleccion.skus.length === filtrosCatalogo.skus.length;
+
+        const mastersCsv = todosMasters ? "" : seleccion.masters.join(",");
+        const skusCsv = todosSkus ? "" : seleccion.skus.join(",");
+
+        try {
+            setCargando(true);
+
+            let url = "/ProcesosCG/InventarioInicialDatos?";
+            url += `skusCsv=${encodeURIComponent(skusCsv)}`;
+            url += `&mastersCsv=${encodeURIComponent(mastersCsv)}`;
+            url += `&fechaInicio=${encodeURIComponent(fechaInicio)}`;
+            url += `&fechaFin=${encodeURIComponent(fechaFin)}`;
+            url += `&dias=${DIAS_ADELANTE}`;
+
+            const response = await fetch(url, {
+                method: "GET",
+                headers: { "Accept": "application/json" }
+            });
+
+            const json = await response.json();
+
+            if (!response.ok || !json.ok) {
+                throw new Error(json.msg || json.error || "No se pudo consultar la información.");
+            }
+
+            const rows = json.data || json.Data || [];
+
+            const inventarioPorFecha = {};
+            const pedidosPorFecha = {};
+            const produccionPorFecha = {};
+            const disponiblePorFecha = {};
+
+            rows.forEach(row => {
+                const fechaValor = obtenerCampo(row, "fecha", "Fecha", null);
+                const key = fechaKey(fechaValor);
+                if (!key) return;
+
+                const inventario = normalizarNumero(obtenerCampo(row, "kgInventario", "KgInventario", 0));
+                const pedidos = normalizarNumero(
+                    obtenerCampo(row, "kgPedido", "KgPedido",
+                        obtenerCampo(row, "kgPedidoEstimado", "KgPedidoEstimado", 0)
+                    )
+                );
+                const produccion = normalizarNumero(obtenerCampo(row, "kgProduccion", "KgProduccion", 0));
+                const disponible = normalizarNumero(
+                    obtenerCampo(row, "kgDisponible", "KgDisponible",
+                        obtenerCampo(row, "kgDisponibleEstimado", "KgDisponibleEstimado", 0)
+                    )
+                );
+
+                inventarioPorFecha[key] = normalizarNumero(inventarioPorFecha[key]) + inventario;
+                pedidosPorFecha[key] = normalizarNumero(pedidosPorFecha[key]) + pedidos;
+                produccionPorFecha[key] = normalizarNumero(produccionPorFecha[key]) + produccion;
+                disponiblePorFecha[key] = normalizarNumero(disponiblePorFecha[key]) + disponible;
+            });
+
+            datos = calendario.map(dia => {
+                return {
+                    fecha: dia.fecha,
+                    fechaKey: dia.fechaKey,
+                    inventario: normalizarNumero(inventarioPorFecha[dia.fechaKey]),
+                    produccion: normalizarNumero(produccionPorFecha[dia.fechaKey]),
+                    pedidos: normalizarNumero(pedidosPorFecha[dia.fechaKey]),
+                    disponible: normalizarNumero(disponiblePorFecha[dia.fechaKey])
+                };
+            });
+
+            const ultima = document.getElementById("ultimaConsulta");
+            if (ultima) {
+                ultima.textContent = new Date().toLocaleString("es-MX", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit"
+                });
+            }
+
+            renderizar();
+        } catch (error) {
+            console.error(error);
+            alert("Error al cargar Inventario Inicial: " + error.message);
+        } finally {
+            setCargando(false);
+        }
+    }
+
+    function textoAlcance() {
+        if (seleccion.skus.length === 0) return "Sin SKU";
+
+        if (seleccion.skus.length === 1) return seleccion.skus[0];
+
+        if (seleccion.skus.length === filtrosCatalogo.skus.length) {
+            return "Todos";
+        }
+
+        return `${seleccion.skus.length} SKU`;
+    }
+
+    function textoDetalleAlcance() {
+        if (seleccion.masters.length === 0) return "Sin MASTER";
+
+        const masters = seleccion.masters.length === filtrosCatalogo.masters.length
+            ? "Todos los MASTER"
+            : `${seleccion.masters.length} MASTER`;
+
+        const skus = seleccion.skus.length === filtrosCatalogo.skus.length
+            ? "Todos los SKU"
+            : `${seleccion.skus.length} SKU`;
+
+        return `${masters} / ${skus}`;
+    }
+
+    function renderizar() {
+        const filaFechas = document.getElementById("filaFechas");
+        const filaInventario = document.getElementById("filaInventario");
+        const filaProduccion = document.getElementById("filaProduccion");
+        const filaPedidos = document.getElementById("filaPedidos");
+        const filaDisponible = document.getElementById("filaDisponible");
+
+        const alcance = textoAlcance();
+        const alcanceDetalle = textoDetalleAlcance();
+
+        filaFechas.innerHTML = `
+            <th class="sticky-alcance">Alcance</th>
+            <th class="sticky-concepto">Concepto</th>
+        `;
+
+        filaInventario.innerHTML = `
+            <td class="sticky-alcance">${escapeHtml(alcance)}</td>
+            <td class="sticky-concepto">Inventario KG</td>
+        `;
+
+        filaProduccion.innerHTML = `
+            <td class="sticky-alcance">${escapeHtml(alcance)}</td>
+            <td class="sticky-concepto">Producción KG</td>
+        `;
+
+        filaPedidos.innerHTML = `
+            <td class="sticky-alcance">${escapeHtml(alcance)}</td>
+            <td class="sticky-concepto">Pedidos KG</td>
+        `;
+
+        filaDisponible.innerHTML = `
+            <td class="sticky-alcance">${escapeHtml(alcance)}</td>
+            <td class="sticky-concepto">Disponible KG</td>
+        `;
+
+        datos.forEach((dia) => {
+            filaFechas.innerHTML += `<th>${escapeHtml(dia.fecha)}</th>`;
+
+            filaInventario.innerHTML += `
+                <td class="${claseNegativo(dia.inventario)}">${formatoNumero(dia.inventario)}</td>
+            `;
+
+            filaProduccion.innerHTML += `
+                <td class="${claseNegativo(dia.produccion)}">${formatoNumero(dia.produccion)}</td>
+            `;
+
+            filaPedidos.innerHTML += `
+                <td class="${claseNegativo(dia.pedidos)}">${formatoNumero(dia.pedidos)}</td>
+            `;
+
+            let claseDisponible = "disponible-ok";
+
+            if (dia.disponible < 0) {
+                claseDisponible = "disponible-negativo";
+            } else if (dia.disponible <= 10) {
+                claseDisponible = "disponible-alerta";
+            }
+
+            filaDisponible.innerHTML += `
+                <td class="${claseDisponible} ${claseNegativo(dia.disponible)}">
+                    ${formatoNumero(dia.disponible)}
+                </td>
+            `;
+        });
+
+        aplicarFiltrosTabla();
+        actualizarKPIs(alcance, alcanceDetalle);
+        renderizarGrafica();
+    }
+
+    function actualizarKPIs(alcance, alcanceDetalle) {
+        const disponibleFinal = datos.length ? datos[datos.length - 1].disponible : 0;
+
+        const produccionTotal = datos.reduce((total, dia) => {
+            return total + normalizarNumero(dia.produccion);
+        }, 0);
+
+        const pedidosTotal = datos.reduce((total, dia) => {
+            return total + normalizarNumero(dia.pedidos);
+        }, 0);
+
+        const diasFaltante = datos.filter(dia => dia.disponible < 0).length;
+
+        document.getElementById("kpiAlcance").textContent = alcance;
+        document.getElementById("kpiAlcanceDetalle").textContent = alcanceDetalle;
+        document.getElementById("kpiDisponibleFinal").textContent = formatoNumero(disponibleFinal);
+        document.getElementById("kpiProduccionTotal").textContent = formatoNumero(produccionTotal);
+        document.getElementById("kpiPedidosTotal").textContent = formatoNumero(pedidosTotal);
+        document.getElementById("kpiDiasFaltante").textContent = formatoNumero(diasFaltante);
+
+        const cardDisponible = document.getElementById("kpiDisponibleFinal")?.closest(".card");
+        const cardFaltante = document.getElementById("kpiDiasFaltante")?.closest(".card");
+
+        if (cardDisponible) {
+            cardDisponible.classList.toggle("kpi-negativo", disponibleFinal < 0);
+            cardDisponible.classList.toggle("kpi-alerta", disponibleFinal >= 0 && disponibleFinal <= 10);
+        }
+
+        if (cardFaltante) {
+            cardFaltante.classList.toggle("kpi-alerta-activa", diasFaltante > 0);
+        }
+
+        const tablaResumen = document.getElementById("tablaResumen");
+        if (tablaResumen) {
+            tablaResumen.textContent = alcanceDetalle;
+        }
+    }
+
+    function renderizarGrafica() {
+        const contenedor = document.getElementById("graficaDisponible");
+        if (!contenedor) return;
+
+        contenedor.innerHTML = "";
+
+        const metricasVisibles = metricasGrafica.filter(m => metricaVisible(m.key));
+
+        if (!metricasVisibles.length) {
+            contenedor.innerHTML = `
+                <div class="sin-datos">
+                    Selecciona al menos un indicador para mostrar información.
+                </div>
+            `;
+            return;
+        }
+
+        if (!datos.length) {
+            contenedor.innerHTML = `
+                <div class="sin-datos">
+                    No hay información para el rango seleccionado.
+                </div>
+            `;
+            return;
+        }
+
+        const valores = [];
+        datos.forEach(dia => {
+            metricasVisibles.forEach(metrica => {
+                valores.push(Math.abs(normalizarNumero(dia[metrica.key])));
+            });
+        });
+
+        const maximo = Math.max(...valores, 1);
+        const altoDisponible = Math.max(contenedor.clientHeight - 62, 90);
+
+        datos.forEach(dia => {
+            const barras = metricasVisibles.map(metrica => {
+                const valor = normalizarNumero(dia[metrica.key]);
+                const altura = Math.max((Math.abs(valor) / maximo) * altoDisponible, 4);
+
+                return `
+                    <div
+                        class="bar ${metrica.clase} ${valor < 0 ? "negative" : ""}"
+                        style="height: ${altura}px;"
+                        title="${metrica.nombre}: ${formatoNumero(valor)} KG | ${dia.fecha}"
+                    ></div>
+                `;
+            }).join("");
+
+            const resumen = metricasVisibles.length === 1
+                ? `<div>${formatoNumero(dia[metricasVisibles[0].key])}</div>`
+                : `<div>${metricasVisibles.length} datos</div>`;
+
+            contenedor.innerHTML += `
+                <div class="bar-item">
+                    <div class="bar-stack">
+                        ${barras}
+                    </div>
+                    ${resumen}
+                    <div class="bar-label">${escapeHtml(dia.fecha)}</div>
+                </div>
+            `;
+        });
+    }
+
+    document.addEventListener("click", function (e) {
+        if (!e.target.closest(".multi-select")) {
+            document.querySelectorAll(".multi-select").forEach(x => x.classList.remove("open"));
+        }
+    });
+
+    inicializarRangoFechas();
+    cambiarModoVista("completa");
+
+    cargarFiltrosIniciales().then(() => {
+        cargarDatosSql();
+    });
+</script>

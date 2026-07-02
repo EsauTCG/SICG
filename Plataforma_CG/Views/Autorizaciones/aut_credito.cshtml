@@ -1,0 +1,607 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Autorización de Crédito";
+}
+
+<style>
+    :root {
+        --bg: #f0dede;
+        --panel: #f8eeee;
+        --panel-2: #f1dede;
+        --line: #c79d9d;
+        --text: #3b1717;
+        --muted: #6a3a3a;
+        --white: #ffffff;
+        --shadow: 0 1px 0 rgba(255,255,255,.55) inset;
+        --brand: #8B0000;
+        --vino-border: #9a5a5a;
+        --vino-text-dark: #4a1111;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        background: transparent !important;
+        color: var(--text);
+    }
+
+    .container, .container-fluid {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .window {
+        width: 100%;
+        max-width: 100%;
+        margin: 0 !important;
+        border: 1px solid #7e4a4a;
+        background: var(--panel);
+        box-shadow: 0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70,12,12,.14);
+        overflow: hidden;
+        padding: 0 !important;
+    }
+
+    .window > *:first-child, .titlebar { margin-top: 0 !important; }
+
+    .titlebar {
+        height: 34px;
+        /* display: flex; */
+        display: none !important;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 10px;
+        background: linear-gradient(180deg, #c00000 0%, #8b0000 60%, #5c0000 100%);
+        border-bottom: 1px solid #5c0000;
+        color: #fff;
+        font-size: 13px;
+        font-weight: bold;
+    }
+
+    .titlebar .actions { display: flex; gap: 6px; }
+
+    .win-btn {
+        width: 16px; height: 16px;
+        border: 1px solid #7c4848;
+        background: linear-gradient(#fff6f6, #ead0d0);
+    }
+
+    .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 6px;
+        background: linear-gradient(#fff6f6, #ecd8d8);
+        border-bottom: 1px solid var(--line);
+        font-size: 12px;
+        flex-wrap: wrap;
+    }
+
+    .tool-btn {
+        min-width: 72px;
+        text-align: center;
+        background: linear-gradient(#fffefe, #ecd7d7);
+        border: 1px solid var(--vino-border);
+        box-shadow: var(--shadow);
+        cursor: pointer;
+        color: var(--vino-text-dark);
+        height: 28px;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        padding: 0 8px;
+        text-decoration: none;
+    }
+
+    .tool-btn:hover { filter: brightness(.98); }
+
+    .content { padding: 8px; background: var(--bg); }
+
+    .tabs { display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap; }
+
+    .tab {
+        font-size: 12px;
+        background: linear-gradient(#f7e7e7, #ead1d1);
+        border: 1px solid #caa0a0;
+        border-bottom: none;
+        padding: 7px 12px;
+        color: #5c1a1a;
+        user-select: none;
+    }
+
+    .tab.active {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        font-weight: bold;
+        color: #fff;
+        border-color: #7a2d2d;
+    }
+
+    .workspace { border: 1px solid var(--line); background: var(--panel); padding: 8px; }
+
+    .section { border: 1px solid var(--line); background: var(--white); margin-bottom: 10px; }
+
+    .section-title {
+        padding: 6px 8px;
+        font-size: 12px;
+        font-weight: bold;
+        color: #fff;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-bottom: 1px solid #6b1f1f;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    /* ── Estado badge ── */
+    .estado-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 700;
+        border: 1px solid transparent;
+        border-radius: 2px;
+    }
+
+    .est-dot { width: 7px; height: 7px; border-radius: 50%; background: #aaa; display: inline-block; }
+    .est-ok   { background: #dff3e2; border-color: #6aa84f; color: #2f6b1f; }
+    .est-ok   .est-dot { background: #16a34a; }
+    .est-warn { background: #fff4cc; border-color: #d6b656; color: #7a5a00; }
+    .est-warn .est-dot { background: #d97706; }
+    .est-err  { background: #fde2e2; border-color: #d9534f; color: #b00000; }
+    .est-err  .est-dot { background: #dc2626; }
+    .est-info { background: #e8f4fd; border-color: #7ab8d4; color: #064b6b; }
+    .est-info .est-dot { background: #2563eb; }
+    .est-light { background: #f4f4f4; border-color: #ccc; color: #555; }
+
+    /* ── Tabla ── */
+    .table-wrap {
+        overflow-x: auto;
+        overflow-y: auto;
+        max-height: 68vh;
+        background: #fffafa;
+        width: 100%;
+        border-top: 1px solid #d9b8b8;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .table-wrap table {
+        width: 100%;
+        min-width: 1300px;
+        table-layout: fixed;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        font-size: 12px;
+        background: #fffafa;
+    }
+
+    .table-wrap thead th {
+        position: sticky;
+        top: -1px;
+        z-index: 20;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: #fff !important;
+        border-top: 1px solid #c46a6a !important;
+        border-right: 1px solid #8e3b3b !important;
+        border-bottom: 1px solid #5c0000 !important;
+        padding: 6px 5px !important;
+        font-weight: 700 !important;
+        font-size: 11px !important;
+        white-space: nowrap;
+        line-height: 1.2 !important;
+        box-shadow: 0 2px 0 #6f1d1d;
+        text-transform: none !important;
+        letter-spacing: 0 !important;
+    }
+
+    .table-wrap thead th:first-child { border-left: 1px solid #8e3b3b !important; }
+
+    .table-wrap tbody td {
+        background: #fffafa !important;
+        border-right: 1px solid #d8bcbc !important;
+        border-bottom: 1px solid #d8bcbc !important;
+        padding: 5px 5px !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        vertical-align: middle;
+        font-size: 12px !important;
+        color: #401515 !important;
+        line-height: 1.2 !important;
+    }
+
+    .table-wrap tbody td:first-child { border-left: 1px solid #d8bcbc !important; }
+    .table-wrap tbody tr:nth-child(even) td { background: #f9eded !important; }
+    .table-wrap tbody tr:hover td { background: #f4dddd !important; }
+    .table-wrap tbody tr.row-danger td { background: #fde2e2 !important; }
+    .table-wrap tbody tr.row-ok td { background: #dff3e2 !important; }
+    .table-wrap tbody tr.row-muted td { background: #f0f0f0 !important; color: #888 !important; }
+
+    .td-num { text-align: right !important; font-variant-numeric: tabular-nums; }
+    .text-danger { color: #b00000 !important; font-weight: 700; }
+    .text-center { text-align: center !important; }
+
+    /* anchos columnas */
+    .col-ov     { width: 120px; }
+    .col-client { width: 250px; }
+    .col-kg     { width: 110px; }
+    .col-num    { width: 130px; }
+    .col-acc    { width: 180px; }
+
+    /* ── Botones ── */
+    .pm-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        height: 26px;
+        padding: 0 10px;
+        border: 1px solid transparent;
+        border-radius: 0;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        font-size: 11px;
+        font-weight: 700;
+        cursor: pointer;
+        text-decoration: none;
+        box-shadow: var(--shadow);
+        white-space: nowrap;
+    }
+
+    .pm-btn:hover { filter: brightness(.97); }
+    .pm-btn:disabled { opacity: .6; cursor: not-allowed; }
+
+    .pm-btn-success {
+        color: #fff;
+        border-color: #157347;
+        background: linear-gradient(180deg, #27ae60 0%, #1f9a54 55%, #198754 100%);
+    }
+
+    .pm-btn-danger {
+        color: #fff;
+        border-color: #a11;
+        background: linear-gradient(180deg, #dc3545 0%, #c0392b 55%, #a93226 100%);
+    }
+
+    .pm-btn-primary {
+        color: #fff;
+        border-color: #7a2d2d;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+    }
+
+    .pm-btn-secondary {
+        background: linear-gradient(#fffefe, #ecd7d7);
+        border-color: var(--vino-border);
+        color: var(--vino-text-dark);
+    }
+
+    .acciones-ov {
+        display: flex;
+        justify-content: center;
+        gap: 4px;
+        flex-wrap: nowrap;
+    }
+
+    /* ── Modal ── */
+    .modal-content { border: 1px solid #7d4949; border-radius: 0; }
+
+    .modal-header {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: #fff !important;
+        border-bottom: 1px solid #5c0000 !important;
+        padding: .65rem 1rem !important;
+        border-radius: 0;
+    }
+
+    .modal-title { color: #fff !important; font-weight: 700; font-size: 13px; }
+    .btn-close { filter: invert(1) grayscale(100%) !important; opacity: .95 !important; }
+    .modal-body { background: #f4e4e4; padding: .75rem 1rem !important; font-size: 13px; color: #3b1717; text-align: center; }
+    .modal-footer { background: #f7eaea; border-top: 1px solid #d3b0b0; justify-content: center; }
+
+    /* ── Statusbar ── */
+    .statusbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 6px 10px;
+        font-size: 11px;
+        color: #4a1a1a;
+        border-top: 1px solid #b88c8c;
+        background: linear-gradient(#f6e9e9, #ead5d5);
+        flex-wrap: wrap;
+    }
+</style>
+
+<div class="window">
+
+    <div class="titlebar">
+        <div>Autorización de Crédito</div>
+        <div class="actions">
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+        </div>
+    </div>
+
+ @*    <div class="toolbar">
+        <button class="tool-btn" type="button" onclick="cargar()">Actualizar</button>
+    </div> *@
+
+    <div class="content">
+
+       
+
+        <div class="workspace">
+
+            @Html.AntiForgeryToken()
+
+            <div class="section">
+                <div class="section-title">
+                    Órdenes con validación de crédito
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span class="estado-badge est-info" id="badgeEstado">
+                            <span class="est-dot"></span>
+                            <span id="lastStatusCredito">Cargando…</span>
+                        </span>
+                        <span style="font-size:11px;font-weight:400;color:rgba(255,255,255,.8);">
+                            Actualizado: <span id="lastUpdatedCredito">—</span>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="table-wrap">
+                    <table>
+                        <colgroup>
+                            <col class="col-ov">
+                            <col class="col-client">
+                            <col class="col-kg">
+                            <col class="col-num">
+                            <col class="col-num">
+                            <col class="col-num">
+                            <col class="col-num">
+                            <col class="col-num">
+                            <col class="col-num">
+                            <col class="col-acc">
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th>Orden Venta</th>
+                                <th>Cliente</th>
+                                <th class="td-num">KG OV</th>
+                                <th class="td-num">Importe Pedido</th>
+                                <th class="td-num">Límite Crédito</th>
+                                <th class="td-num">Saldo Actual</th>
+                                <th class="td-num">Otros Pedidos</th>
+                                <th class="td-num">Disponible</th>
+                                <th class="td-num">Excedente</th>
+                                <th class="text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyCredito">
+                            <tr>
+                                <td colspan="10" class="text-center" style="padding:16px;color:#6a3a3a;">Cargando...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="statusbar">
+        <div>Registro listo</div>
+        <div>Usuario: @User.Identity.Name</div>
+        <div>Empresa: Carnes G SA de CV</div>
+        <div>Módulo: Autorización de Crédito</div>
+    </div>
+
+</div>
+
+<!-- Modal mensaje -->
+<div class="modal fade" id="mensajeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="mensajeModalTitulo">Mensaje</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body" id="mensajeModalTexto">...</div>
+            <div class="modal-footer">
+                <button type="button" class="pm-btn pm-btn-primary" data-bs-dismiss="modal">Aceptar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal confirmación -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmModalTitulo">Confirmar acción</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body" id="confirmModalTexto">¿Desea continuar?</div>
+            <div class="modal-footer">
+                <button type="button" class="pm-btn pm-btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="pm-btn pm-btn-primary" id="confirmModalAceptar">Aceptar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    $(function () {
+        const fechaEntrega = (() => {
+            const d = new Date();
+            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        })();
+
+        const esc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        const money = n => Number(n||0).toLocaleString("es-MX", { style:"currency", currency:"MXN" });
+        const kgFmt = n => Number(n||0).toLocaleString("es-MX", { minimumFractionDigits:2, maximumFractionDigits:2 }) + " kg";
+
+        function mostrarMensajeCentro(texto, titulo="Mensaje") {
+            $("#mensajeModalTitulo").text(titulo);
+            $("#mensajeModalTexto").text(texto);
+            new bootstrap.Modal(document.getElementById("mensajeModal")).show();
+        }
+
+        function mostrarConfirmacion(texto, titulo="Confirmar acción") {
+            return new Promise(resolve => {
+                $("#confirmModalTitulo").text(titulo);
+                $("#confirmModalTexto").text(texto);
+                const modalEl = document.getElementById("confirmModal");
+                const modal = new bootstrap.Modal(modalEl);
+                let resuelto = false;
+                $("#confirmModalAceptar").off("click").on("click", function() {
+                    resuelto = true; modal.hide(); resolve(true);
+                });
+                $(modalEl).off("hidden.bs.modal.confirm").on("hidden.bs.modal.confirm", function() {
+                    if (!resuelto) resolve(false);
+                });
+                modal.show();
+            });
+        }
+
+        const POLL = 15000, MAX_BACK = 120000;
+        let timer = null, inFlight = false, backoff = POLL;
+
+        function setStatus(txt, cls) {
+            $("#lastStatusCredito").text(txt);
+            const $b = $("#badgeEstado");
+            $b.removeClass("est-ok est-warn est-err est-info est-light");
+            const map = { ok:'est-ok', warn:'est-warn', err:'est-err', info:'est-info' };
+            $b.addClass(map[cls] || 'est-light');
+        }
+
+        function setUpdated() {
+            $("#lastUpdatedCredito").text(new Date().toLocaleTimeString('es-MX'));
+        }
+
+        function renderTablaCredito(items) {
+            const $tb = $("#tbodyCredito").empty();
+            if (!items || !items.length) {
+                $tb.append("<tr><td colspan='10' class='text-center' style='padding:16px;color:#6a3a3a;'>No hay órdenes pendientes</td></tr>");
+                return;
+            }
+            items.forEach(it => {
+                const ov = it.ordenVenta ?? '';
+                const excede = Number(it.excede||0) > 0;
+                const rowClass = excede ? 'row-danger' : '';
+                const clienteNombre = it.clienteNombre ?? '';
+                const clienteCodigo = it.cliente ?? '';
+                const clienteTxt = clienteNombre || clienteCodigo;
+                const kgOv = it.kgOv ?? it.kilogramos ?? 0;
+
+                $tb.append(`
+                  <tr data-ov="${esc(ov)}" class="${rowClass}">
+                    <td class="col-ov" title="${esc(ov)}"><b>${esc(ov)}</b></td>
+                    <td class="col-client" title="${esc(clienteNombre ? (clienteNombre+' • '+clienteCodigo) : clienteCodigo)}">${esc(clienteTxt)}</td>
+                    <td class="td-num col-kg">${kgFmt(kgOv)}</td>
+                    <td class="td-num col-num">${money(it.importePedido)}</td>
+                    <td class="td-num col-num">${money(it.limiteCredito)}</td>
+                    <td class="td-num col-num">${money(it.saldoActual)}</td>
+                    <td class="td-num col-num">${money(it.otrosPedidos)}</td>
+                    <td class="td-num col-num">${money(it.disponible)}</td>
+                    <td class="td-num col-num">
+                        ${excede ? `<span class="text-danger">${money(it.montoExcedido)}</span>` : '-'}
+                    </td>
+                    <td class="text-center col-acc">
+                        <div class="acciones-ov">
+                            <button class="pm-btn pm-btn-success autorizar" data-ov="${esc(ov)}">✔ Autorizar</button>
+                            <button class="pm-btn pm-btn-danger rechazar" data-ov="${esc(ov)}">✖ Rechazar</button>
+                        </div>
+                    </td>
+                  </tr>`);
+            });
+        }
+
+        window.cargar = function() {
+            if (inFlight) return;
+            inFlight = true;
+            setStatus("Actualizando…", "info");
+            $.ajax({ url:'/Comercial/ObtenerOrdenesConCredito', type:'GET', data:{ fechaEntrega }, cache:false })
+                .done(data => { renderTablaCredito(data); backoff = POLL; setUpdated(); setStatus("Al día", "ok"); })
+                .fail((xhr, st, err) => {
+                    console.error("Error AJAX (crédito):", st, err);
+                    setStatus("Error. Reintentando…", "err");
+                    backoff = Math.min(backoff*2, MAX_BACK);
+                    if (timer) clearInterval(timer);
+                    timer = setInterval(window.cargar, backoff);
+                })
+                .always(() => { inFlight = false; });
+        };
+
+        function start() {
+            if (timer) clearInterval(timer);
+            timer = setInterval(window.cargar, POLL);
+        }
+
+        window.cargar();
+        start();
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) { clearInterval(timer); timer = null; }
+            else { window.cargar(); start(); }
+        });
+
+        $("#tbodyCredito").on('click', '.autorizar', async function() {
+            const ov = $(this).data('ov');
+            if (!ov) { mostrarMensajeCentro("Consecutivo de OV ausente.", "Aviso"); return; }
+            const confirmado = await mostrarConfirmacion(`¿Desea autorizar la ${ov}?`, "Autorizar crédito");
+            if (!confirmado) return;
+            const token = $('input[name="__RequestVerificationToken"]').val();
+            if (timer) { clearInterval(timer); timer = null; }
+            $.ajax({ url:'/Comercial/AutorizarCredito', type:'POST',
+                data:{ __RequestVerificationToken:token, idOrdenVenta:ov },
+                headers:{ 'RequestVerificationToken':token }
+            })
+            .done(res => {
+                mostrarMensajeCentro(res?.mensaje || "Crédito autorizado correctamente.", "Autorización");
+                const $tr = $(`tr[data-ov='${ov}']`);
+                $tr.removeClass('row-danger').addClass('row-ok');
+                $tr.find('button').prop('disabled', true);
+                window.cargar();
+            })
+            .fail(xhr => {
+                mostrarMensajeCentro(xhr.responseJSON?.mensaje || xhr.responseJSON?.error || "Error al autorizar crédito", "Error");
+            })
+            .always(start);
+        });
+
+        $("#tbodyCredito").on('click', '.rechazar', async function() {
+            const ov = $(this).data('ov');
+            if (!ov) { mostrarMensajeCentro("Consecutivo de OV ausente.", "Aviso"); return; }
+            const confirmado = await mostrarConfirmacion(`¿Desea rechazar la OV ${ov}?`, "Rechazar crédito");
+            if (!confirmado) return;
+            const token = $('input[name="__RequestVerificationToken"]').val();
+            if (timer) { clearInterval(timer); timer = null; }
+            $.ajax({ url:'/Comercial/RechazarCredito', type:'POST',
+                data:{ __RequestVerificationToken:token, idOrdenVenta:ov },
+                headers:{ 'RequestVerificationToken':token }
+            })
+            .done(res => {
+                mostrarMensajeCentro(res?.mensaje || "Crédito rechazado correctamente.", "Rechazo");
+                const $tr = $(`tr[data-ov='${ov}']`);
+                $tr.removeClass('row-danger').addClass('row-muted');
+                $tr.find('button').prop('disabled', true);
+                window.cargar();
+            })
+            .fail(xhr => {
+                mostrarMensajeCentro(xhr.responseJSON?.mensaje || xhr.responseJSON?.error || "Error al rechazar crédito", "Error");
+            })
+            .always(start);
+        });
+    });
+</script>
+}

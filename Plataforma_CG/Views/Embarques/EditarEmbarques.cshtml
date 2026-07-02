@@ -1,0 +1,1177 @@
+﻿@model Plataforma_CG.Models.Embarque
+@using Plataforma_CG.Models
+
+@{
+    ViewData["Title"] = "Editar Embarque";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+
+    var ordenes = ((IEnumerable<OrdenVenta>)ViewBag.OrdenesDisponibles)?.ToList() ?? new List<OrdenVenta>();
+    var transferencias = ViewBag.TransferenciasDisponibles as List<Transferencia> ?? new List<Transferencia>();
+
+    var totalOV = ordenes.Count;
+    var totalTR = transferencias.Count;
+    var totalDisponibles = totalOV + totalTR;
+}
+
+<style>
+    :root {
+        --primary: #8B0000;
+        --primary-dark: #5a0000;
+        --primary-soft: #f8eaea;
+        --bg-card: #ffffff;
+        --bg-muted: #f8f9fb;
+        --text: #1f2937;
+        --text-soft: #6b7280;
+        --border: #e5e7eb;
+        --border-strong: #d1d5db;
+        --success: #198754;
+        --warning: #f59e0b;
+        --danger: #dc3545;
+        --radius-xl: 18px;
+        --radius-lg: 14px;
+        --radius-md: 10px;
+        --shadow-sm: 0 4px 10px rgba(0,0,0,.05);
+        --shadow-md: 0 10px 30px rgba(0,0,0,.08);
+        --transition: all .22s ease;
+    }
+
+    body {
+        background: linear-gradient(180deg, #f8f9fb 0%, #eef2f7 100%);
+        color: var(--text);
+        font-family: "Segoe UI", sans-serif;
+    }
+
+    .embarque-page {
+        max-width: 1280px;
+        margin: 2rem auto;
+        padding: 0 1rem 2rem;
+    }
+
+    .page-header {
+        background: linear-gradient(135deg, var(--primary) 0%, #6d0000 55%, #2c0000 100%);
+        color: #fff;
+        border-radius: var(--radius-xl);
+        padding: 1.4rem 1.5rem;
+        box-shadow: var(--shadow-md);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+
+    .page-header-left {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .header-icon {
+        width: 58px;
+        height: 58px;
+        border-radius: 16px;
+        display: grid;
+        place-items: center;
+        background: rgba(255,255,255,.14);
+        border: 1px solid rgba(255,255,255,.18);
+        font-size: 1.5rem;
+    }
+
+    .page-title {
+        margin: 0;
+        font-size: 1.6rem;
+        font-weight: 800;
+        line-height: 1.1;
+    }
+
+    .page-subtitle {
+        margin: .3rem 0 0;
+        color: rgba(255,255,255,.85);
+        font-size: .95rem;
+    }
+
+    .page-header-right {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        flex-wrap: wrap;
+    }
+
+    .header-chip {
+        background: rgba(255,255,255,.12);
+        border: 1px solid rgba(255,255,255,.18);
+        border-radius: 999px;
+        padding: .55rem .9rem;
+        font-size: .92rem;
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+    }
+
+    .btn-top {
+        border: none;
+        border-radius: 999px;
+        padding: .72rem 1rem;
+        font-weight: 700;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        transition: var(--transition);
+    }
+
+    .btn-top-light {
+        background: #fff;
+        color: var(--primary);
+    }
+
+        .btn-top-light:hover {
+            transform: translateY(-1px);
+            color: var(--primary-dark);
+        }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0,1fr));
+        gap: 1rem;
+        margin: 1.1rem 0 1.3rem;
+    }
+
+    .summary-card {
+        background: rgba(255,255,255,.75);
+        backdrop-filter: blur(6px);
+        border: 1px solid rgba(255,255,255,.85);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-sm);
+        padding: 1rem 1.1rem;
+        display: flex;
+        align-items: center;
+        gap: .9rem;
+    }
+
+    .summary-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 12px;
+        background: var(--primary-soft);
+        color: var(--primary);
+        display: grid;
+        place-items: center;
+        font-size: 1.1rem;
+        flex-shrink: 0;
+    }
+
+    .summary-label {
+        font-size: .82rem;
+        text-transform: uppercase;
+        letter-spacing: .6px;
+        color: var(--text-soft);
+        margin-bottom: .2rem;
+        font-weight: 700;
+    }
+
+    .summary-value {
+        font-size: 1.35rem;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    .floating-toolbar {
+        position: sticky;
+        top: 70px;
+        z-index: 20;
+        margin-bottom: 1rem;
+        background: rgba(255,255,255,.88);
+        border: 1px solid var(--border);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        box-shadow: var(--shadow-sm);
+        padding: .75rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .75rem;
+        flex-wrap: wrap;
+    }
+
+    .toolbar-left,
+    .toolbar-right {
+        display: flex;
+        align-items: center;
+        gap: .65rem;
+        flex-wrap: wrap;
+    }
+
+    .btn-ui {
+        border: none;
+        border-radius: 12px;
+        padding: .8rem 1rem;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: .55rem;
+        transition: var(--transition);
+        cursor: pointer;
+        text-decoration: none;
+    }
+
+    .btn-primary-ui {
+        background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+        color: #fff;
+        box-shadow: 0 8px 18px rgba(139,0,0,.18);
+    }
+
+        .btn-primary-ui:hover {
+            transform: translateY(-1px);
+            color: #fff;
+        }
+
+    .btn-soft {
+        background: #fff;
+        color: var(--text);
+        border: 1px solid var(--border);
+    }
+
+        .btn-soft:hover {
+            background: #f9fafb;
+            color: var(--text);
+        }
+
+    .btn-primary-ui:disabled {
+        opacity: .55;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .card-ui {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-sm);
+        overflow: hidden;
+    }
+
+    .table-card {
+        margin-top: 1rem;
+    }
+
+    .card-head {
+        padding: 1rem 1.2rem;
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(180deg, #fff 0%, #fafafb 100%);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .8rem;
+        flex-wrap: wrap;
+    }
+
+    .card-title {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+    }
+
+        .card-title i {
+            color: var(--primary);
+        }
+
+    .card-sub {
+        color: var(--text-soft);
+        font-size: .88rem;
+        margin-top: .2rem;
+    }
+
+    .card-body {
+        padding: 1.2rem;
+    }
+
+    .table-tools {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .8rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+
+    .table-meta {
+        font-size: .9rem;
+        color: var(--text-soft);
+        font-weight: 600;
+    }
+
+    .filters-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: .8rem;
+        margin-bottom: 1rem;
+        align-items: end;
+    }
+
+    .filter-field label {
+        display: block;
+        font-size: .82rem;
+        font-weight: 700;
+        color: var(--text-soft);
+        margin-bottom: .45rem;
+    }
+
+    .filter-field input,
+    .filter-field select {
+        width: 100%;
+        border: 1.5px solid var(--border);
+        border-radius: 12px;
+        padding: .8rem .95rem;
+        font-size: .92rem;
+        background: #fff;
+        outline: none;
+        transition: var(--transition);
+    }
+
+        .filter-field input:focus,
+        .filter-field select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(139,0,0,.08);
+        }
+
+    .filter-actions {
+        display: flex;
+        gap: .6rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+
+    .result-counter {
+        font-size: .9rem;
+        color: var(--text-soft);
+        font-weight: 700;
+        margin-bottom: .8rem;
+    }
+
+    .table-scroll {
+        max-height: 430px;
+        overflow: auto;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+    }
+
+    .table-ui {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        min-width: 760px;
+    }
+
+        .table-ui thead th {
+            position: sticky;
+            top: 0;
+            background: #fcfcfd;
+            z-index: 2;
+            font-size: .78rem;
+            text-transform: uppercase;
+            letter-spacing: .6px;
+            color: var(--text-soft);
+            padding: 1rem .95rem;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+
+        .table-ui tbody td {
+            padding: .95rem;
+            border-bottom: 1px solid #eef1f4;
+            vertical-align: middle;
+        }
+
+        .table-ui tbody tr:hover {
+            background: #fafbfd;
+        }
+
+    .id-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 56px;
+        padding: .35rem .65rem;
+        background: var(--primary-soft);
+        color: var(--primary);
+        border-radius: 999px;
+        font-weight: 800;
+        font-size: .88rem;
+    }
+
+    .check-ui {
+        appearance: none;
+        width: 22px;
+        height: 22px;
+        border: 2px solid var(--primary);
+        border-radius: 7px;
+        background: #fff;
+        position: relative;
+        cursor: pointer;
+        transition: var(--transition);
+        vertical-align: middle;
+    }
+
+        .check-ui:hover {
+            transform: scale(1.03);
+            box-shadow: 0 0 0 4px rgba(139,0,0,.06);
+        }
+
+        .check-ui:checked {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border-color: var(--primary-dark);
+        }
+
+            .check-ui:checked::after {
+                content: "✓";
+                position: absolute;
+                left: 4px;
+                top: -1px;
+                color: #fff;
+                font-size: 14px;
+                font-weight: 800;
+            }
+
+    .empty-note {
+        text-align: center;
+        padding: 2rem 1rem;
+        color: var(--text-soft);
+    }
+
+    .alert {
+        border-radius: 14px;
+    }
+
+    body[data-theme="dark"] {
+        --primary: #ef4444;
+        --primary-dark: #991b1b;
+        --primary-soft: rgba(127,29,29,0.24);
+        --bg-card: #111827;
+        --bg-muted: #172033;
+        --text: #f9fafb;
+        --text-soft: #cbd5e1;
+        --border: rgba(255,255,255,0.12);
+        --border-strong: rgba(203,213,225,0.28);
+        background: #0f172a !important;
+        color: #e5e7eb !important;
+    }
+
+        body[data-theme="dark"] .layout-main-content {
+            background: #0f172a !important;
+        }
+
+        body[data-theme="dark"] .page-header {
+            background: linear-gradient(135deg, #7f1d1d 0%, #450a0a 55%, #111827 100%) !important;
+            border: 1px solid rgba(248,113,113,0.22) !important;
+        }
+
+        body[data-theme="dark"] .summary-card,
+        body[data-theme="dark"] .floating-toolbar,
+        body[data-theme="dark"] .card-ui {
+            background: rgba(17,24,39,.94) !important;
+            color: #e5e7eb !important;
+            border-color: rgba(255,255,255,0.12) !important;
+        }
+
+        body[data-theme="dark"] .card-head {
+            background: linear-gradient(180deg, #1f2937 0%, #172033 100%) !important;
+            border-bottom-color: rgba(255,255,255,0.12) !important;
+        }
+
+        body[data-theme="dark"] .btn-soft,
+        body[data-theme="dark"] .btn-top-light {
+            background: #0b1220 !important;
+            color: #fca5a5 !important;
+            border: 1px solid rgba(248,113,113,0.35) !important;
+        }
+
+        body[data-theme="dark"] .filter-field input,
+        body[data-theme="dark"] .filter-field select {
+            background: #0f172a !important;
+            color: #f9fafb !important;
+            border-color: rgba(255,255,255,0.14) !important;
+        }
+
+        body[data-theme="dark"] .table-scroll {
+            border-color: rgba(255,255,255,0.12) !important;
+        }
+
+        body[data-theme="dark"] .table-ui {
+            background: #111827 !important;
+            color: #e5e7eb !important;
+        }
+
+            body[data-theme="dark"] .table-ui thead th {
+                background: #172033 !important;
+                color: #f9fafb !important;
+                border-bottom-color: rgba(255,255,255,0.12) !important;
+            }
+
+            body[data-theme="dark"] .table-ui tbody td {
+                border-bottom-color: rgba(255,255,255,0.10) !important;
+                color: #e5e7eb !important;
+            }
+
+            body[data-theme="dark"] .table-ui tbody tr:hover {
+                background: rgba(248,113,113,0.08) !important;
+            }
+
+    @@media (max-width: 1100px) {
+        .summary-grid,
+        .filters-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .embarque-page {
+            padding: 0 .7rem 1.5rem;
+        }
+
+        .page-header {
+            padding: 1.1rem;
+        }
+
+        .page-title {
+            font-size: 1.3rem;
+        }
+
+        .summary-grid,
+        .filters-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .floating-toolbar {
+            top: 6px;
+            align-items: stretch;
+        }
+
+        .toolbar-left,
+        .toolbar-right,
+        .btn-ui {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .table-scroll {
+            max-height: 520px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            border-radius: 16px;
+            padding: .75rem;
+            background: #f8f9fb;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .table-ui {
+            min-width: 0 !important;
+            width: 100%;
+        }
+
+            .table-ui thead {
+                display: none;
+            }
+
+            .table-ui tbody {
+                display: flex;
+                flex-direction: column;
+                gap: .85rem;
+            }
+
+                .table-ui tbody tr {
+                    display: grid;
+                    grid-template-columns: 1fr;
+                    gap: .45rem;
+                    background: #fff;
+                    border: 1px solid var(--border);
+                    border-radius: 16px;
+                    padding: 1rem;
+                    box-shadow: var(--shadow-sm);
+                }
+
+                .table-ui tbody td {
+                    border-bottom: none;
+                    padding: .25rem 0;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    gap: 1rem;
+                    text-align: right;
+                    font-size: .92rem;
+                }
+
+                    .table-ui tbody td::before {
+                        content: attr(data-label);
+                        font-size: .78rem;
+                        font-weight: 800;
+                        color: var(--text-soft);
+                        text-transform: uppercase;
+                        letter-spacing: .4px;
+                        text-align: left;
+                        flex-shrink: 0;
+                    }
+
+                    .table-ui tbody td:first-child {
+                        background: var(--bg-muted);
+                        border-radius: 12px;
+                        padding: .75rem;
+                        margin-bottom: .25rem;
+                    }
+
+        body[data-theme="dark"] .table-scroll {
+            background: #0f172a !important;
+        }
+
+        body[data-theme="dark"] .table-ui tbody tr {
+            background: #111827 !important;
+            border-color: rgba(255,255,255,0.12) !important;
+        }
+    }
+</style>
+
+<div class="embarque-page">
+
+    <div class="page-header">
+        <div class="page-header-left">
+            <div class="header-icon">
+                <i class="bi bi-pencil-square"></i>
+            </div>
+            <div>
+                <h1 class="page-title">Editar Embarque #@Model.Consecutivo</h1>
+                <div class="page-subtitle">
+                    Agrega órdenes o transferencias disponibles sin saturar la página.
+                    Los documentos nuevos regresarán el embarque a validación.
+                </div>
+            </div>
+        </div>
+
+        <div class="page-header-right">
+            <span class="header-chip">
+                <i class="bi bi-calendar3"></i>
+                @Model.FechaCreacion.ToString("yyyy-MM-dd")
+            </span>
+
+            <a class="btn-top btn-top-light" href="@Url.Action("Detalle", "Embarques", new { id = Model.Id })">
+                <i class="bi bi-arrow-left-circle"></i> Volver al detalle
+            </a>
+        </div>
+    </div>
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            @TempData["Error"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+        </div>
+    }
+
+    <div class="summary-grid">
+        <div class="summary-card">
+            <div class="summary-icon">
+                <i class="bi bi-truck"></i>
+            </div>
+            <div>
+                <div class="summary-label">Embarque</div>
+                <div class="summary-value">@Model.Consecutivo</div>
+            </div>
+        </div>
+
+        <div class="summary-card">
+            <div class="summary-icon">
+                <i class="bi bi-bag-check"></i>
+            </div>
+            <div>
+                <div class="summary-label">Órdenes disponibles</div>
+                <div class="summary-value">@totalOV</div>
+            </div>
+        </div>
+
+        <div class="summary-card">
+            <div class="summary-icon">
+                <i class="bi bi-arrow-left-right"></i>
+            </div>
+            <div>
+                <div class="summary-label">Transferencias disponibles</div>
+                <div class="summary-value">@totalTR</div>
+            </div>
+        </div>
+    </div>
+
+    @if (totalDisponibles <= 0)
+    {
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle me-1"></i>
+            No hay órdenes ni transferencias disponibles para agregar a este embarque.
+        </div>
+    }
+    else
+    {
+        <form asp-action="AgregarDocumentosEmbarque"
+              asp-controller="Embarques"
+              method="post"
+              id="formAgregarDocumentos">
+
+            @Html.AntiForgeryToken()
+
+            <input type="hidden" name="embarqueId" value="@Model.Id" />
+
+            <div class="floating-toolbar">
+                <div class="toolbar-left">
+                    <button type="submit" class="btn-ui btn-primary-ui" id="btnGuardarDocumentos" disabled>
+                        <i class="bi bi-plus-circle"></i>
+                        Agregar seleccionados
+                    </button>
+
+                    <button type="button" class="btn-ui btn-soft" onclick="seleccionarVisibles()">
+                        <i class="bi bi-check2-square"></i>
+                        Seleccionar visibles
+                    </button>
+
+                    <button type="button" class="btn-ui btn-soft" onclick="limpiarSeleccion()">
+                        <i class="bi bi-x-square"></i>
+                        Limpiar selección
+                    </button>
+                </div>
+
+                <div class="toolbar-right">
+                    <button type="button" class="btn-ui btn-soft" onclick="irASeccion('seccionOV')">
+                        <i class="bi bi-bag-check"></i>
+                        Órdenes
+                    </button>
+
+                    <button type="button" class="btn-ui btn-soft" onclick="irASeccion('seccionTR')">
+                        <i class="bi bi-arrow-left-right"></i>
+                        Transferencias
+                    </button>
+                </div>
+            </div>
+
+            <div class="card-ui table-card" id="seccionOV">
+                <div class="card-head">
+                    <div>
+                        <div class="card-title">
+                            <i class="bi bi-bag-check"></i>
+                            Órdenes disponibles
+                        </div>
+                        <div class="card-sub">
+                            Solo aparecen órdenes autorizadas y libres para embarque.
+                        </div>
+                    </div>
+
+                    <span class="header-chip" style="color:var(--text); background:#fff; border:1px solid var(--border);">
+                        Total: @totalOV
+                    </span>
+                </div>
+
+                <div class="card-body">
+                    <div class="filters-grid">
+                        <div class="filter-field">
+                            <label for="buscarOV">Búsqueda general</label>
+                            <input type="text" id="buscarOV" placeholder="Cliente, consecutivo o ruta." />
+                        </div>
+
+                        <div class="filter-field">
+                            <label for="filtroClienteOV">Cliente</label>
+                            <input type="text" id="filtroClienteOV" placeholder="Filtrar por cliente." />
+                        </div>
+
+                        <div class="filter-field">
+                            <label for="filtroConsecutivoOV">Consecutivo</label>
+                            <input type="text" id="filtroConsecutivoOV" placeholder="Filtrar por consecutivo." />
+                        </div>
+
+                        <div class="filter-field">
+                            <label for="soloSeleccionadasOV">Selección</label>
+                            <select id="soloSeleccionadasOV">
+                                <option value="todas">Todas</option>
+                                <option value="seleccionadas">Solo seleccionadas</option>
+                                <option value="noseleccionadas">Solo no seleccionadas</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="filter-actions">
+                        <button type="button" class="btn-ui btn-soft" onclick="limpiarFiltrosOV()">
+                            <i class="bi bi-eraser"></i>
+                            Limpiar filtros
+                        </button>
+                    </div>
+
+                    <div class="result-counter" id="contadorOV">Mostrando 0 registros</div>
+
+                    <div class="table-scroll">
+                        <table class="table-ui" id="tablaOV">
+                            <thead>
+                                <tr>
+                                    <th style="width:70px;">Sel.</th>
+                                    <th>ID</th>
+                                    <th>Cliente</th>
+                                    <th>Consecutivo</th>
+                                    <th>Ruta</th>
+                                    <th>Fecha entrega</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (ordenes.Any())
+                                {
+                                    @foreach (var ov in ordenes)
+                                    {
+                                        <tr data-tipo="OV"
+                                            data-cliente="@ov.NombreCliente"
+                                            data-consecutivo="@ov.Consecutivo"
+                                            data-ruta="@ov.Ruta">
+                                            <td data-label="Seleccionar">
+                                                <input type="checkbox"
+                                                       class="check-ui chk-doc chk-ov"
+                                                       name="ordenesSeleccionadas"
+                                                       value="@ov.Id" />
+                                            </td>
+                                            <td data-label="ID"><span class="id-badge">#@ov.Id</span></td>
+                                            <td data-label="Cliente">@ov.NombreCliente</td>
+                                            <td data-label="Consecutivo">@ov.Consecutivo</td>
+                                            <td data-label="Ruta">@ov.Ruta</td>
+                                            <td data-label="Fecha">
+                                                @(ov.FechaEntrega != null
+                                                                                    ? ov.FechaEntrega.ToString("yyyy-MM-dd")
+                                                                                    : "-")
+                                </td>
+                            </tr>
+                                                        }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="6" class="empty-note">
+                                            No hay órdenes disponibles para mostrar.
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-ui table-card" id="seccionTR">
+                <div class="card-head">
+                    <div>
+                        <div class="card-title">
+                            <i class="bi bi-arrow-left-right"></i>
+                            Transferencias disponibles
+                        </div>
+                        <div class="card-sub">
+                            Solo aparecen transferencias autorizadas y libres para embarque.
+                        </div>
+                    </div>
+
+                    <span class="header-chip" style="color:var(--text); background:#fff; border:1px solid var(--border);">
+                        Total: @totalTR
+                    </span>
+                </div>
+
+                <div class="card-body">
+                    <div class="filters-grid">
+                        <div class="filter-field">
+                            <label for="buscarTR">Búsqueda general</label>
+                            <input type="text" id="buscarTR" placeholder="Sucursal, consecutivo o fecha." />
+                        </div>
+
+                        <div class="filter-field">
+                            <label for="filtroSucursalTR">Sucursal</label>
+                            <input type="text" id="filtroSucursalTR" placeholder="Filtrar por sucursal." />
+                        </div>
+
+                        <div class="filter-field">
+                            <label for="filtroConsecutivoTR">Consecutivo</label>
+                            <input type="text" id="filtroConsecutivoTR" placeholder="Filtrar por consecutivo." />
+                        </div>
+
+                        <div class="filter-field">
+                            <label for="soloSeleccionadasTR">Selección</label>
+                            <select id="soloSeleccionadasTR">
+                                <option value="todas">Todas</option>
+                                <option value="seleccionadas">Solo seleccionadas</option>
+                                <option value="noseleccionadas">Solo no seleccionadas</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="filter-actions">
+                        <button type="button" class="btn-ui btn-soft" onclick="limpiarFiltrosTR()">
+                            <i class="bi bi-eraser"></i>
+                            Limpiar filtros
+                        </button>
+                    </div>
+
+                    <div class="result-counter" id="contadorTR">Mostrando 0 registros</div>
+
+                    <div class="table-scroll">
+                        <table class="table-ui" id="tablaTR">
+                            <thead>
+                                <tr>
+                                    <th style="width:70px;">Sel.</th>
+                                    <th>ID</th>
+                                    <th>Sucursal</th>
+                                    <th>Consecutivo</th>
+                                    <th>Fecha Solicitud</th>
+                                    <th>Usuario Solicita</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (transferencias.Any())
+                                {
+                                    @foreach (var tr in transferencias)
+                                    {
+                                        <tr data-tipo="TR"
+                                            data-sucursal="@tr.Sucursal"
+                                            data-consecutivo="@tr.Consecutivo"
+                                            data-fecha="@tr.FechaSolicitud?.ToString("yyyy-MM-dd")">
+                                            <td data-label="Seleccionar">
+                                                <input type="checkbox"
+                                                       class="check-ui chk-doc chk-tr"
+                                                       name="transferenciasSeleccionadas"
+                                                       value="@tr.Id" />
+                                            </td>
+                                            <td data-label="ID"><span class="id-badge">#@tr.Id</span></td>
+                                            <td data-label="Sucursal">@tr.Sucursal</td>
+                                            <td data-label="Consecutivo">@tr.Consecutivo</td>
+                                            <td data-label="Fecha">@tr.FechaSolicitud?.ToString("yyyy-MM-dd")</td>
+                                            <td data-label="Usuario">@tr.UsuarioSolicita</td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="6" class="empty-note">
+                                            No hay transferencias disponibles para mostrar.
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </form>
+    }
+</div>
+
+<script>
+    function normalizar(valor) {
+        return (valor || "").toString().trim().toLowerCase();
+    }
+
+    function irASeccion(id) {
+        const seccion = document.getElementById(id);
+        if (!seccion) return;
+
+        const toolbar = document.querySelector(".floating-toolbar");
+        const toolbarHeight = toolbar ? toolbar.offsetHeight : 0;
+
+        const posicion =
+            seccion.getBoundingClientRect().top +
+            window.pageYOffset -
+            toolbarHeight -
+            18;
+
+        window.scrollTo({
+            top: posicion,
+            behavior: "smooth"
+        });
+    }
+
+    function actualizarBotonGuardar() {
+        const btn = document.getElementById("btnGuardarDocumentos");
+        const haySeleccion = Array.from(document.querySelectorAll(".chk-doc")).some(x => x.checked);
+
+        if (btn) {
+            btn.disabled = !haySeleccion;
+        }
+    }
+
+    function actualizarContador(tableId, counterId) {
+        const table = document.getElementById(tableId);
+        const counter = document.getElementById(counterId);
+        if (!table || !counter) return;
+
+        const filas = Array.from(table.querySelectorAll("tbody tr"))
+            .filter(f => !f.querySelector(".empty-note") && f.style.display !== "none");
+
+        counter.textContent = `Mostrando ${filas.length} registro(s)`;
+    }
+
+    function aplicarModoSeleccion(fila, modo) {
+        const check = fila.querySelector('input[type="checkbox"]');
+        const seleccionada = check ? check.checked : false;
+
+        if (modo === "seleccionadas" && !seleccionada) return false;
+        if (modo === "noseleccionadas" && seleccionada) return false;
+
+        return true;
+    }
+
+    function filtrarOV() {
+        const table = document.getElementById("tablaOV");
+        if (!table) return;
+
+        const general = normalizar(document.getElementById("buscarOV").value);
+        const cliente = normalizar(document.getElementById("filtroClienteOV").value);
+        const consecutivo = normalizar(document.getElementById("filtroConsecutivoOV").value);
+        const modo = document.getElementById("soloSeleccionadasOV").value;
+
+        table.querySelectorAll("tbody tr").forEach(fila => {
+            if (fila.querySelector(".empty-note")) return;
+
+            const txtCliente = normalizar(fila.dataset.cliente);
+            const txtConsecutivo = normalizar(fila.dataset.consecutivo);
+            const txtRuta = normalizar(fila.dataset.ruta);
+            const textoCompleto = normalizar(fila.innerText);
+
+            const cumple =
+                (!general || textoCompleto.includes(general)) &&
+                (!cliente || txtCliente.includes(cliente)) &&
+                (!consecutivo || txtConsecutivo.includes(consecutivo)) &&
+                aplicarModoSeleccion(fila, modo);
+
+            fila.style.display = cumple ? "" : "none";
+        });
+
+        actualizarContador("tablaOV", "contadorOV");
+    }
+
+    function filtrarTR() {
+        const table = document.getElementById("tablaTR");
+        if (!table) return;
+
+        const general = normalizar(document.getElementById("buscarTR").value);
+        const sucursal = normalizar(document.getElementById("filtroSucursalTR").value);
+        const consecutivo = normalizar(document.getElementById("filtroConsecutivoTR").value);
+        const modo = document.getElementById("soloSeleccionadasTR").value;
+
+        table.querySelectorAll("tbody tr").forEach(fila => {
+            if (fila.querySelector(".empty-note")) return;
+
+            const txtSucursal = normalizar(fila.dataset.sucursal);
+            const txtConsecutivo = normalizar(fila.dataset.consecutivo);
+            const textoCompleto = normalizar(fila.innerText);
+
+            const cumple =
+                (!general || textoCompleto.includes(general)) &&
+                (!sucursal || txtSucursal.includes(sucursal)) &&
+                (!consecutivo || txtConsecutivo.includes(consecutivo)) &&
+                aplicarModoSeleccion(fila, modo);
+
+            fila.style.display = cumple ? "" : "none";
+        });
+
+        actualizarContador("tablaTR", "contadorTR");
+    }
+
+    function limpiarFiltrosOV() {
+        document.getElementById("buscarOV").value = "";
+        document.getElementById("filtroClienteOV").value = "";
+        document.getElementById("filtroConsecutivoOV").value = "";
+        document.getElementById("soloSeleccionadasOV").value = "todas";
+        filtrarOV();
+    }
+
+    function limpiarFiltrosTR() {
+        document.getElementById("buscarTR").value = "";
+        document.getElementById("filtroSucursalTR").value = "";
+        document.getElementById("filtroConsecutivoTR").value = "";
+        document.getElementById("soloSeleccionadasTR").value = "todas";
+        filtrarTR();
+    }
+
+    function seleccionarVisibles() {
+        document.querySelectorAll(".table-ui tbody tr").forEach(fila => {
+            if (fila.style.display === "none") return;
+            if (fila.querySelector(".empty-note")) return;
+
+            const check = fila.querySelector('input[type="checkbox"]');
+            if (check) check.checked = true;
+        });
+
+        actualizarBotonGuardar();
+        filtrarOV();
+        filtrarTR();
+    }
+
+    function limpiarSeleccion() {
+        document.querySelectorAll(".chk-doc").forEach(chk => {
+            chk.checked = false;
+        });
+
+        actualizarBotonGuardar();
+        filtrarOV();
+        filtrarTR();
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        const form = document.getElementById("formAgregarDocumentos");
+        const filtros = [
+            "buscarOV",
+            "filtroClienteOV",
+            "filtroConsecutivoOV",
+            "soloSeleccionadasOV",
+            "buscarTR",
+            "filtroSucursalTR",
+            "filtroConsecutivoTR",
+            "soloSeleccionadasTR"
+        ];
+
+        filtros.forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+
+            const fn = id.includes("OV") ? filtrarOV : filtrarTR;
+            el.addEventListener("input", fn);
+            el.addEventListener("change", fn);
+        });
+
+        document.querySelectorAll(".chk-doc").forEach(chk => {
+            chk.addEventListener("change", function () {
+                actualizarBotonGuardar();
+                filtrarOV();
+                filtrarTR();
+            });
+        });
+
+        if (form) {
+            form.addEventListener("submit", function (e) {
+                const seleccionados = Array.from(document.querySelectorAll(".chk-doc"))
+                    .filter(x => x.checked);
+
+                if (seleccionados.length <= 0) {
+                    e.preventDefault();
+                    alert("Selecciona al menos una orden o transferencia.");
+                    return;
+                }
+
+                const ok = confirm(`¿Seguro que deseas agregar ${seleccionados.length} documento(s) al embarque?`);
+
+                if (!ok) {
+                    e.preventDefault();
+                    return;
+                }
+
+                const btn = document.getElementById("btnGuardarDocumentos");
+                if (btn) {
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Agregando...';
+                }
+            });
+        }
+
+        filtrarOV();
+        filtrarTR();
+        actualizarBotonGuardar();
+    });
+</script>

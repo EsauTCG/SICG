@@ -1,0 +1,21 @@
+USE [SIGO]
+GO
+
+/****** Object:  Table [dbo].[PinArticulos]    Script Date: 11/05/2026 05:03:48 p. m. ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[PinArticulos](
+	[Clave] [nvarchar](450) NOT NULL,
+	[Valor] [nvarchar](max) NOT NULL,
+	[Descripcion] [nvarchar](max) NOT NULL,
+ CONSTRAINT [PK_PinArticulos] PRIMARY KEY CLUSTERED 
+(
+	[Clave] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+

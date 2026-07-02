@@ -1,0 +1,697 @@
+﻿@model IEnumerable<Plataforma_CG.Models.UsuarioSQL>
+
+@{
+    ViewData["Title"] = "Configuración de Usuarios SQL";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<style>
+    /* ================================
+           SAP-LIKE THEME (Paleta CEDIS)
+           ================================ */
+    :root {
+        /* Marca */
+        --brand-grad: linear-gradient(90deg,#8B0000 0%,#5a0000 50%,#1a0000 100%);
+        --brand: #8B0000; /* sólido para bordes/inputs */
+        /* Cromado / UI */
+        --brand: linear-gradient(90deg, #8B0000 0%, #5a0000 50%, #1a0000 100%);
+        --pane: #fff;
+        --bar: #e6e9ef;
+        --bar-2: #dde2ea;
+        --line: #d8dce3;
+        --ink: #20262e;
+        --muted: #636d7b;
+        --accent: #2d6cdf;
+        --radius: 10px;
+        --shadow: 0 1px 0 rgba(0,0,0,.05), 0 12px 24px rgba(0,0,0,.06);
+        --shadow-sm: 0 6px 16px rgba(0,0,0,.06);
+        --focus: 0 0 0 .2rem rgba(45,108,223,.25);
+    }
+
+    /* Fondo de la página */
+    body {
+        background: var(--bg) !important;
+        color: var(--ink);
+    }
+
+    .container-sap {
+        max-width: 1200px;
+        margin: 1.25rem auto 2rem;
+    }
+
+    /* Titlebar */
+    .sap-titlebar {
+        background: linear-gradient(#eef1f6,#e7ebf2);
+        border: 1px solid var(--bar-2);
+        border-radius: var(--radius);
+        padding: .85rem 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        flex-wrap: wrap;
+        box-shadow: var(--shadow);
+    }
+
+        .sap-titlebar .title {
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+            font-weight: 800;
+            letter-spacing: .2px;
+            color: #2b3642;
+        }
+
+            .sap-titlebar .title i {
+                color: var(--brand);
+            }
+
+        .sap-titlebar .sub {
+            margin: 0;
+            font-size: .92rem;
+            color: var(--muted);
+        }
+
+        .sap-titlebar .actions .btn {
+            border-radius: 999px;
+            font-weight: 700;
+        }
+
+    /* Toolbar */
+    .sap-toolbar {
+        background: var(--bar);
+        border: 1px solid var(--bar-2);
+        border-top: none;
+        border-radius: 0 0 var(--radius) var(--radius);
+        padding: .45rem .65rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+        box-shadow: var(--shadow);
+    }
+
+    .tbtn {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        height: 34px;
+        padding: 0 .65rem;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        color: #1e2a35;
+        font-size: .92rem;
+        transition: .15s ease;
+    }
+
+        .tbtn:hover {
+            background: #f8fafc;
+            border-color: #cfd6e2;
+        }
+
+        .tbtn:active {
+            background: #edf1f7;
+            transform: translateY(.5px);
+        }
+
+        .tbtn.primary {
+            background: var(--brand-grad);
+            color: #fff;
+            border-color: transparent;
+        }
+
+            .tbtn.primary:hover {
+                filter: brightness(1.05);
+            }
+
+    /* Card / Panel */
+    .sap-card {
+        background: var(--pane);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+    }
+
+    .sap-card-head {
+        padding: .75rem 1rem;
+        border-bottom: 1px solid var(--line);
+        background: linear-gradient(#f6f8fb,#eef2f7);
+        font-weight: 800;
+        color: #2b3642;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .5rem;
+        flex-wrap: wrap;
+    }
+
+    /* Filters row (search) */
+    .filters {
+        display: flex;
+        gap: .5rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+        .filters .input-group {
+            max-width: 360px;
+        }
+
+    /* Table */
+    .table-wrap {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        box-shadow: var(--shadow-sm);
+        overflow: auto;
+        max-height: 65vh;
+    }
+
+    .table {
+        margin-bottom: 0;
+    }
+
+        .table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: #f3f6fb !important;
+            color: #2b3642;
+            border-bottom: 1px solid var(--line) !important;
+            text-transform: uppercase;
+            font-size: .85rem;
+            font-weight: 800;
+        }
+
+
+    /* Estado */
+    .badge-on {
+        color: #198754;
+        font-weight: 700;
+    }
+
+    .badge-off {
+        color: #dc3545;
+        font-weight: 700;
+    }
+
+    /* Buttons */
+    .btn {
+        border-radius: 8px;
+    }
+
+    .btn-outline-primary {
+        border-color: #8B0000;
+        color: #8B0000;
+    }
+
+        .btn-outline-primary:hover {
+            background: #8B0000;
+            color: #fff;
+        }
+
+    .btn-warning {
+        background: #ffc107;
+        border: none;
+        color: #000;
+    }
+
+        .btn-warning:hover {
+            filter: brightness(1.05);
+        }
+
+    .btn-success {
+        background: #198754;
+        border: none;
+    }
+
+        .btn-success:hover {
+            filter: brightness(1.05);
+        }
+
+    /* Alerts */
+    .alert {
+        box-shadow: var(--shadow-sm);
+    }
+
+    /* ============================================================
+           DARK MODE - CONFIGURACIÓN DE USUARIOS SQL / LOCALES
+    ============================================================ */
+
+    body[data-theme="dark"] {
+        --brand-grad: linear-gradient(90deg, #991b1b 0%, #7f1d1d 50%, #450a0a 100%);
+        --brand: #ef4444;
+        --pane: #111827;
+        --bar: #172033;
+        --bar-2: rgba(255,255,255,0.12);
+        --line: rgba(255,255,255,0.12);
+        --ink: #f9fafb;
+        --muted: #cbd5e1;
+        --accent: #f87171;
+        --shadow: 0 14px 34px rgba(0,0,0,.42);
+        --shadow-sm: 0 10px 26px rgba(0,0,0,.34);
+        --focus: 0 0 0 .2rem rgba(239,68,68,.22);
+    }
+
+    /* Fondo general */
+    body[data-theme="dark"] {
+        background: #0f172a !important;
+        color: #e5e7eb !important;
+    }
+
+        body[data-theme="dark"] .layout-main-content {
+            background: #0f172a !important;
+        }
+
+            body[data-theme="dark"] .layout-main-content .layout-container-fluid {
+                background: transparent !important;
+                box-shadow: none !important;
+            }
+
+        body[data-theme="dark"] .container-sap {
+            color: #e5e7eb !important;
+        }
+
+        /* Titlebar */
+        body[data-theme="dark"] .sap-titlebar {
+            background: linear-gradient(180deg, #1f2937 0%, #111827 100%) !important;
+            border-color: rgba(255,255,255,0.12) !important;
+            box-shadow: var(--shadow) !important;
+        }
+
+            body[data-theme="dark"] .sap-titlebar .title {
+                color: #f9fafb !important;
+            }
+
+                body[data-theme="dark"] .sap-titlebar .title i {
+                    color: #fca5a5 !important;
+                }
+
+            body[data-theme="dark"] .sap-titlebar .sub {
+                color: #cbd5e1 !important;
+            }
+
+            /* Botón volver */
+            body[data-theme="dark"] .sap-titlebar .btn-secondary {
+                background: #334155 !important;
+                border-color: #475569 !important;
+                color: #ffffff !important;
+            }
+
+                body[data-theme="dark"] .sap-titlebar .btn-secondary:hover {
+                    background: #475569 !important;
+                    border-color: #64748b !important;
+                    color: #ffffff !important;
+                }
+
+        /* Toolbar */
+        body[data-theme="dark"] .sap-toolbar {
+            background: #172033 !important;
+            border-color: rgba(255,255,255,0.12) !important;
+            box-shadow: var(--shadow-sm) !important;
+        }
+
+        /* Botones toolbar */
+        body[data-theme="dark"] .tbtn {
+            background: #0b1220 !important;
+            color: #e5e7eb !important;
+            border-color: rgba(203,213,225,0.28) !important;
+        }
+
+            body[data-theme="dark"] .tbtn:hover {
+                background: rgba(248,113,113,0.14) !important;
+                color: #ffffff !important;
+                border-color: rgba(248,113,113,0.55) !important;
+            }
+
+            body[data-theme="dark"] .tbtn:active {
+                background: rgba(248,113,113,0.22) !important;
+                color: #ffffff !important;
+            }
+
+            body[data-theme="dark"] .tbtn.primary {
+                background: linear-gradient(90deg, #991b1b 0%, #7f1d1d 50%, #450a0a 100%) !important;
+                color: #ffffff !important;
+                border-color: rgba(248,113,113,0.45) !important;
+            }
+
+                body[data-theme="dark"] .tbtn.primary:hover {
+                    filter: brightness(1.08);
+                    color: #ffffff !important;
+                }
+
+        /* Buscador */
+        body[data-theme="dark"] .input-group-text {
+            background: #0b1220 !important;
+            color: #cbd5e1 !important;
+            border-color: rgba(203,213,225,0.28) !important;
+        }
+
+        body[data-theme="dark"] .form-control,
+        body[data-theme="dark"] input,
+        body[data-theme="dark"] select,
+        body[data-theme="dark"] textarea {
+            background: #0b1220 !important;
+            color: #f9fafb !important;
+            border-color: rgba(203,213,225,0.28) !important;
+            box-shadow: none !important;
+        }
+
+            body[data-theme="dark"] .form-control:focus,
+            body[data-theme="dark"] input:focus,
+            body[data-theme="dark"] select:focus,
+            body[data-theme="dark"] textarea:focus {
+                background: #0f172a !important;
+                color: #ffffff !important;
+                border-color: #ef4444 !important;
+                box-shadow: 0 0 0 .2rem rgba(239,68,68,.22) !important;
+                outline: none !important;
+            }
+
+            body[data-theme="dark"] .form-control::placeholder,
+            body[data-theme="dark"] input::placeholder {
+                color: #94a3b8 !important;
+                opacity: 1 !important;
+            }
+
+        /* Card */
+        body[data-theme="dark"] .sap-card {
+            background: #111827 !important;
+            color: #e5e7eb !important;
+            border-color: rgba(255,255,255,0.12) !important;
+            box-shadow: var(--shadow) !important;
+        }
+
+        body[data-theme="dark"] .sap-card-head {
+            background: linear-gradient(180deg, #1f2937 0%, #172033 100%) !important;
+            color: #f9fafb !important;
+            border-bottom-color: rgba(255,255,255,0.12) !important;
+        }
+
+            body[data-theme="dark"] .sap-card-head i {
+                color: #fca5a5 !important;
+            }
+
+        /* Wrapper tabla */
+        body[data-theme="dark"] .table-wrap {
+            background: #111827 !important;
+            border-color: rgba(255,255,255,0.12) !important;
+            box-shadow: var(--shadow-sm) !important;
+            scrollbar-color: rgba(248,113,113,0.42) #0f172a;
+        }
+
+            body[data-theme="dark"] .table-wrap.p-2 {
+                background: #111827 !important;
+            }
+
+        /* Tabla */
+        body[data-theme="dark"] .table {
+            background: #111827 !important;
+            color: #e5e7eb !important;
+            --bs-table-bg: #111827;
+            --bs-table-color: #e5e7eb;
+            --bs-table-border-color: rgba(255,255,255,0.12);
+            --bs-table-striped-bg: #172033;
+            --bs-table-striped-color: #e5e7eb;
+            --bs-table-hover-bg: rgba(248,113,113,0.12);
+            --bs-table-hover-color: #ffffff;
+        }
+
+            body[data-theme="dark"] .table thead th {
+                background: linear-gradient(180deg, #1f2937 0%, #172033 100%) !important;
+                color: #f9fafb !important;
+                border-bottom-color: rgba(255,255,255,0.12) !important;
+            }
+
+            body[data-theme="dark"] .table tbody td {
+                background: #111827 !important;
+                color: #e5e7eb !important;
+                border-color: rgba(255,255,255,0.12) !important;
+            }
+
+        body[data-theme="dark"] .table-hover tbody tr:hover td {
+            background: rgba(248,113,113,0.12) !important;
+            color: #ffffff !important;
+        }
+
+        /* Textos */
+        body[data-theme="dark"] .text-muted {
+            color: #cbd5e1 !important;
+        }
+
+        body[data-theme="dark"] .text-nowrap {
+            color: #e5e7eb !important;
+        }
+
+        /* Series */
+        body[data-theme="dark"] .badge.bg-secondary {
+            background: rgba(71,85,105,0.72) !important;
+            color: #f9fafb !important;
+            border: 1px solid rgba(203,213,225,0.28) !important;
+        }
+
+        /* Estado activo/inactivo */
+        body[data-theme="dark"] .badge-on {
+            color: #86efac !important;
+        }
+
+        body[data-theme="dark"] .badge-off {
+            color: #fca5a5 !important;
+        }
+
+        /* Botones de acciones */
+        body[data-theme="dark"] .btn-outline-primary {
+            background: #0b1220 !important;
+            color: #fca5a5 !important;
+            border-color: rgba(248,113,113,0.45) !important;
+        }
+
+            body[data-theme="dark"] .btn-outline-primary:hover {
+                background: rgba(220,38,38,0.78) !important;
+                color: #ffffff !important;
+                border-color: rgba(248,113,113,0.75) !important;
+            }
+
+        body[data-theme="dark"] .btn-warning {
+            background: rgba(180,83,9,0.85) !important;
+            border-color: rgba(245,158,11,0.55) !important;
+            color: #ffffff !important;
+        }
+
+            body[data-theme="dark"] .btn-warning:hover {
+                background: rgba(217,119,6,0.95) !important;
+                color: #ffffff !important;
+            }
+
+        body[data-theme="dark"] .btn-success {
+            background: rgba(22,101,52,0.90) !important;
+            border-color: rgba(74,222,128,0.45) !important;
+            color: #ffffff !important;
+        }
+
+            body[data-theme="dark"] .btn-success:hover {
+                background: rgba(22,163,74,0.95) !important;
+                color: #ffffff !important;
+            }
+
+        /* Alertas */
+        body[data-theme="dark"] .alert-success {
+            background: rgba(22,101,52,0.26) !important;
+            color: #bbf7d0 !important;
+            border-color: rgba(74,222,128,0.40) !important;
+        }
+
+        body[data-theme="dark"] .alert-danger {
+            background: rgba(153,27,27,0.30) !important;
+            color: #fecaca !important;
+            border-color: rgba(248,113,113,0.48) !important;
+        }
+
+        body[data-theme="dark"] .alert {
+            box-shadow: var(--shadow-sm) !important;
+        }
+
+        /* Scrollbar */
+        body[data-theme="dark"] .table-wrap::-webkit-scrollbar {
+            width: 9px;
+            height: 9px;
+        }
+
+        body[data-theme="dark"] .table-wrap::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+
+        body[data-theme="dark"] .table-wrap::-webkit-scrollbar-thumb {
+            background: rgba(248,113,113,0.42);
+            border-radius: 999px;
+        }
+
+    /* Responsive */
+    @@media (max-width: 768px) {
+        body [data-theme="dark"] .sap-titlebar, body[data-theme="dark"] .sap-toolbar, body[data-theme="dark"] .sap-card, body[data-theme="dark"] .table-wrap
+
+    {
+        box-shadow: 0 8px 22px rgba(0,0,0,.32) !important;
+    }
+
+    body[data-theme="dark"] .filters {
+        width: 100%;
+    }
+
+        body[data-theme="dark"] .filters .input-group {
+            max-width: 100%;
+            width: 100%;
+        }
+
+    }
+</style>
+
+<div class="container-sap">
+
+    <!-- Titlebar -->
+    <div class="sap-titlebar">
+        <div>
+            <h4 class="title"><i class="bi bi-database-gear"></i> Configuración de Usuarios Locales</h4>
+            <p class="sub mb-0">Administra usuarios locales, perfiles y estado de actividad.</p>
+        </div>
+        <div class="actions">
+            <a class="btn btn-secondary btn-sm" href="@Url.Action("PermisosConfiguracion", "Permisos")">
+                <i class="bi bi-arrow-left-circle me-1"></i> Volver a Permisos
+            </a>
+        </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="sap-toolbar">
+        <a class="tbtn primary" href="@Url.Action("Crear", "Usuarios")">
+            <i class="bi bi-person-plus"></i><span>Crear nuevo usuario</span>
+        </a>
+        <button type="button" class="tbtn" onclick="location.reload()">
+            <i class="bi bi-arrow-clockwise"></i><span>Refrescar</span>
+        </button>
+        <div class="filters ms-auto">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input id="txtBuscar" type="search" class="form-control" placeholder="Buscar por usuario o nombre…">
+            </div>
+        </div>
+    </div>
+
+    <!-- Alerts -->
+    @if (TempData["Exito"] != null)
+    {
+        <div class="alert alert-success mt-3"><i class="bi bi-check-circle me-2"></i>@TempData["Exito"]</div>
+    }
+
+    <!-- Card: Tabla -->
+    <div class="sap-card mt-3">
+        <div class="sap-card-head">
+            <span class="d-flex align-items-center gap-2">
+                <i class="bi bi-table"></i> Usuarios Registrados
+            </span>
+        </div>
+
+        <div class="p-2 table-wrap">
+            <table class="table table-hover align-middle" id="tablaUsuarios">
+                <thead>
+                    <tr>
+                        <th>Usuario</th>
+                        <th>Nombre</th>
+                        <th>Perfil</th>
+                        <th>Vendedor</th>
+                        <th>Series</th>
+                        <th>Estado</th>
+                        <th style="width:210px;">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var u in Model)
+                    {
+                        <tr>
+                            <td>@u.Usuario</td>
+                            <td>@u.Nombre</td>
+                            <td>@u.Perfil?.Nombre</td>
+                            <td>@(u.EsVendedor ? "Sí" : "No")</td>
+                            <td>
+                                @if (u.UsuarioSeries != null && u.UsuarioSeries.Any())
+                                {
+                                    foreach (var us in u.UsuarioSeries.OrderBy(x => x.Serie!.NombreSerie))
+                                    {
+                                        <span class="badge bg-secondary me-1 mb-1">
+                                            @us.Serie?.NombreSerie
+                                        </span>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="text-muted">Sin series</span>
+                                }
+                        </td>
+                        <td>
+                            @(u.Activo
+                                                        ? Html.Raw("<span class='badge-on'>✅ Activo</span>")
+                                                        : Html.Raw("<span class='badge-off'>❌ Inactivo</span>")
+                                                        )
+                        </td>
+                        <td class="text-nowrap">
+                            <a href="@Url.Action("Editar", "Usuarios", new { id = u.Id })"
+                               class="btn btn-sm btn-outline-primary me-1">
+                                <i class="bi bi-pencil-square"></i> Editar
+                            </a>
+
+                                <form asp-action="CambiarEstado" asp-route-id="@u.Id" method="post" class="d-inline"
+                                      onsubmit="return confirmarCambio(this,'@u.Usuario', @u.Activo);">
+                                    <button class="btn btn-sm @(u.Activo ? "btn-warning" : "btn-success")">
+                                        <i class="bi @(u.Activo ? "bi-slash-circle" : "bi-check-circle") me-1"></i>
+                                        @(u.Activo ? "Desactivar" : "Activar")
+                                    </button>
+                                </form>
+
+                                @* 
+                                 Asignar KPIS 
+                                <a class="btn btn-sm btn-outline-dark me-1"
+                                   href="@Url.Action("Asignar", "KpisAdmin", new { usuarioKey = "SQL:" + u.Usuario })">
+                                    KPIs
+                                </a> *@
+
+                            </td>
+                        </tr>
+                                        }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+    <script>
+        // Filtro rápido por texto en cliente (usuario / nombre)
+        const txtBuscar = document.getElementById('txtBuscar');
+        const tabla = document.getElementById('tablaUsuarios');
+        txtBuscar?.addEventListener('input', () => {
+            const q = (txtBuscar.value || '').toLowerCase().trim();
+
+            tabla.querySelectorAll('tbody tr').forEach(tr => {
+                const usuario = (tr.children[0].textContent || '').toLowerCase();
+                const nombre  = (tr.children[1].textContent || '').toLowerCase();
+                const perfil  = (tr.children[2].textContent || '').toLowerCase();
+                const series  = (tr.children[4].textContent || '').toLowerCase();
+
+                tr.style.display =
+                    usuario.includes(q) ||
+                    nombre.includes(q) ||
+                    perfil.includes(q) ||
+                    series.includes(q)
+                        ? ''
+                        : 'none';
+            });
+        });
+
+        // Confirmación contextual para activar/desactivar
+        function confirmarCambio(form, usuario, activo){
+            const accion = activo ? "desactivar" : "activar";
+            return confirm(`¿Seguro que deseas ${accion} al usuario "${usuario}"?`);
+        }
+    </script>
+}

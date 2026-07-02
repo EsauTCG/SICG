@@ -1,0 +1,473 @@
+﻿@model Plataforma_CG.Models.ViewModels.KpisPermisosViewModel
+@{
+    ViewBag.Title = "KPIs por Perfil";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<style>
+    /* === Tema SAP-like (CARNES G) === */
+    :root {
+        --brand-grad: linear-gradient(90deg,#8B0000 0%,#5a0000 50%,#1a0000 100%);
+        --brand: #8B0000;
+        --pane: #fff;
+        --bar: #e6e9ef;
+        --bar-2: #dde2ea;
+        --line: #d8dce3;
+        --ink: #20262e;
+        --muted: #636d7b;
+        --radius: 10px;
+        --shadow: 0 1px 0 rgba(0,0,0,.05), 0 12px 24px rgba(0,0,0,.06);
+        --shadow-sm: 0 6px 16px rgba(0,0,0,.06);
+        --focus: 0 0 0 .2rem rgba(139,0,0,.18);
+    }
+
+    .container-sap {
+        max-width: 1200px;
+        margin: 1.25rem auto 2rem;
+    }
+
+    /* Titlebar */
+    .sap-titlebar {
+        background: linear-gradient(#eef1f6,#e7ebf2);
+        border: 1px solid var(--bar-2);
+        border-radius: var(--radius);
+        padding: .85rem 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        flex-wrap: wrap;
+        box-shadow: var(--shadow);
+    }
+
+        .sap-titlebar .title {
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+            font-weight: 800;
+            color: #2b3642;
+        }
+
+        .sap-titlebar .sub {
+            margin: 0;
+            font-size: .92rem;
+            color: var(--muted);
+        }
+
+    /* Toolbar */
+    .sap-toolbar {
+        background: var(--bar);
+        border: 1px solid var(--bar-2);
+        border-top: none;
+        border-radius: 0 0 var(--radius) var(--radius);
+        padding: .45rem .65rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+        box-shadow: var(--shadow);
+        align-items: center;
+    }
+
+    .tbtn {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        height: 34px;
+        padding: 0 .65rem;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        color: #1e2a35;
+        font-size: .92rem;
+        transition: .15s ease;
+        cursor: pointer;
+        text-decoration: none;
+        user-select: none;
+    }
+
+        .tbtn:hover {
+            background: #f8fafc;
+            border-color: #cfd6e2;
+        }
+
+        .tbtn.primary {
+            background: var(--brand-grad);
+            color: #fff;
+            border: none;
+        }
+
+            .tbtn.primary:hover {
+                filter: brightness(1.05);
+            }
+
+    /* Card */
+    .sap-card {
+        background: var(--pane);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+    }
+
+    .sap-card-head {
+        padding: .75rem 1rem;
+        border-bottom: 1px solid var(--line);
+        background: linear-gradient(#f6f8fb,#eef2f7);
+        font-weight: 800;
+        color: #2b3642;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .5rem;
+        flex-wrap: wrap;
+    }
+
+    /* Search */
+    .filters {
+        display: flex;
+        gap: .5rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+        .filters .input-group {
+            max-width: 420px;
+        }
+
+    .form-control:focus {
+        border-color: rgba(139,0,0,.35);
+        box-shadow: var(--focus);
+    }
+
+    /* Accordion perfiles */
+    .perfil-item {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
+        margin-bottom: .65rem;
+        box-shadow: var(--shadow-sm);
+        overflow: hidden;
+        transition: border-color .2s, box-shadow .2s;
+    }
+
+        .perfil-item:hover {
+            border-color: #d8ddea;
+            box-shadow: 0 8px 20px rgba(0,0,0,.06);
+        }
+
+    .perfil-header {
+        padding: .75rem 1rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        background: #fff;
+    }
+
+        .perfil-header .meta {
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        .perfil-header .icono {
+            transition: transform .2s;
+            font-weight: 900;
+            color: #8891a5;
+        }
+
+    .perfil-item.active .icono {
+        transform: rotate(90deg);
+        color: var(--brand);
+    }
+
+    .kpis-panel {
+        background: #f7f9fc;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height .35s ease;
+        padding: 0 1rem;
+    }
+
+    .perfil-item.active .kpis-panel {
+        max-height: 99999px;
+        padding-bottom: .9rem;
+    }
+
+    /* KPI row */
+    .kpi-row {
+        background: #fff;
+        border: 1px solid #e6e9f0;
+        border-radius: 10px;
+        padding: .55rem .7rem;
+        margin: .5rem 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        font-size: .92rem;
+        transition: border-color .2s, box-shadow .2s, background-color .2s;
+    }
+
+        .kpi-row:hover {
+            border-color: #d7dff0;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .kpi-row.active {
+            border-color: #9fd1b2;
+            background: #eaf7ef;
+        }
+    /* verde suave */
+
+    .kpi-left {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        min-width: 0;
+    }
+
+        .kpi-left input[type="checkbox"] {
+            transform: scale(1.25);
+            accent-color: var(--brand);
+        }
+
+    .kpi-title {
+        font-weight: 900;
+        color: #2b3642;
+        line-height: 1.1;
+        margin: 0;
+    }
+
+    .kpi-sub {
+        margin: 2px 0 0;
+        color: var(--muted);
+        font-size: .86rem;
+        display: flex;
+        gap: .4rem;
+        flex-wrap: wrap;
+    }
+
+    .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        border: 1px solid rgba(139,0,0,.22);
+        background: rgba(139,0,0,.06);
+        color: #8B0000;
+        border-radius: 999px;
+        padding: 2px 10px;
+        font-weight: 900;
+        font-size: .75rem;
+        white-space: nowrap;
+    }
+
+    .mini-muted {
+        color: var(--muted);
+        font-size: .86rem;
+        font-weight: 700;
+    }
+</style>
+
+<div class="container-sap">
+
+    <!-- Titlebar -->
+    <div class="sap-titlebar">
+        <div>
+            <h4 class="title"><i class="bi bi-shield-lock"></i> KPIs por Perfil</h4>
+            <p class="sub mb-0">Asigna y revoca KPIs por perfil (tipo tu panel de permisos).</p>
+        </div>
+
+        <div class="actions">
+            <a class="btn btn-secondary btn-sm" href="/KpisAdmin/InicioKpi">
+                <i class="bi bi-arrow-left-circle me-1"></i> Regresar
+            </a>
+        </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="sap-toolbar">
+        <button type="button" class="tbtn" onclick="location.reload()">
+            <i class="bi bi-arrow-clockwise"></i><span>Refrescar</span>
+        </button>
+
+        <button type="button" class="tbtn" onclick="expandirTodos(true)">
+            <i class="bi bi-arrows-angle-expand"></i><span>Expandir</span>
+        </button>
+
+        <button type="button" class="tbtn" onclick="expandirTodos(false)">
+            <i class="bi bi-arrows-angle-contract"></i><span>Colapsar</span>
+        </button>
+
+        <div class="filters ms-auto">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input id="searchPerfil" type="search" class="form-control" placeholder="Buscar perfil…">
+            </div>
+        </div>
+    </div>
+
+    <!-- Card principal -->
+    <div class="sap-card mt-3">
+        <div class="sap-card-head">
+            <span class="d-flex align-items-center gap-2">
+                <i class="bi bi-diagram-3"></i> Gestión de KPIs por Perfil
+            </span>
+
+            <div class="filters">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="bi bi-funnel"></i></span>
+                    <input id="searchKpi" type="search" class="form-control" placeholder="Buscar KPI (en el perfil abierto)…">
+                </div>
+            </div>
+        </div>
+
+        <div class="p-3" id="lista-perfiles">
+            @foreach (var perfil in Model.Perfiles)
+            {
+                var totalKpis = Model.Kpis.Count;
+                var kpisActivos = Model.PermisosKpi.Count(p => p.PerfilId == perfil.Id);
+
+                <div class="perfil-item" data-perfil="@perfil.Nombre.ToLowerInvariant()">
+                    <div class="perfil-header">
+                        <div>
+                            <span class="perfil-nombre fw-bold text-dark">@perfil.Nombre</span>
+                            <span class="meta ms-2">(@kpisActivos / @totalKpis)</span>
+                        </div>
+                        <span class="icono">&gt;</span>
+                    </div>
+
+                    <div class="kpis-panel">
+                        <div class="mt-2">
+                            @foreach (var kpi in Model.Kpis)
+                            {
+                                var permiso = Model.PermisosKpi.FirstOrDefault(p => p.PerfilId == perfil.Id && p.KpiCatalogoId == kpi.Id);
+
+                                <div class="kpi-row @(permiso != null ? "active" : "")"
+                                     data-kpi-title="@kpi.Titulo.ToLowerInvariant()"
+                                     data-kpi-cat="@kpi.Categoria.ToLowerInvariant()">
+
+                                    <div class="kpi-left">
+                                        <input type="checkbox"
+                                               id="chk-@perfil.Id-@kpi.Id"
+                                               data-permiso-id="@(permiso?.Id ?? 0)"
+                                               @(permiso != null ? "checked" : "")
+                                               onchange="toggleKpi(@perfil.Id, @kpi.Id, this)" />
+
+                                        <label for="chk-@perfil.Id-@kpi.Id" class="mb-0" style="cursor:pointer;">
+                                            <p class="kpi-title">@kpi.Titulo</p>
+                                            <p class="kpi-sub">
+                                                <span class="chip"><i class="bi bi-tags"></i> @kpi.Categoria</span>
+                                            </p>
+                                        </label>
+                                    </div>
+
+                                    <div class="mini-muted">ID: @kpi.Id</div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+    </div>
+</div>
+
+@section Scripts {
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+
+    <script>
+        // Expandir/colapsar todos
+        function expandirTodos(expand){
+            document.querySelectorAll(".perfil-item").forEach(i=>{
+                i.classList.toggle("active", !!expand);
+            });
+        }
+
+        // Accordion (solo 1 abierto a la vez)
+        document.querySelectorAll(".perfil-header").forEach(h => {
+            h.addEventListener("click", () => {
+                const item = h.closest(".perfil-item");
+                const isActive = item.classList.contains("active");
+
+                document.querySelectorAll(".perfil-item").forEach(i => i.classList.remove("active"));
+                if (!isActive) item.classList.add("active");
+
+                // al abrir, aplica filtro KPI actual
+                applyKpiFilter();
+            });
+        });
+
+        // Buscar perfiles
+        const searchPerfil = document.getElementById("searchPerfil");
+        searchPerfil?.addEventListener("input", () => {
+            const txt = (searchPerfil.value || "").toLowerCase().trim();
+            document.querySelectorAll(".perfil-item").forEach(item => {
+                const nombre = item.getAttribute("data-perfil") || "";
+                item.style.display = (!txt || nombre.includes(txt)) ? "block" : "none";
+            });
+        });
+
+        // Buscar KPIs (solo en el perfil abierto)
+        const searchKpi = document.getElementById("searchKpi");
+        function applyKpiFilter(){
+            const q = (searchKpi?.value || "").toLowerCase().trim();
+            const open = document.querySelector(".perfil-item.active");
+            if(!open) return;
+
+            open.querySelectorAll(".kpi-row").forEach(row=>{
+                const t = row.getAttribute("data-kpi-title") || "";
+                const c = row.getAttribute("data-kpi-cat") || "";
+                const show = !q || t.includes(q) || c.includes(q);
+                row.style.display = show ? "" : "none";
+            });
+        }
+        searchKpi?.addEventListener("input", applyKpiFilter);
+
+        // Toggle KPI AJAX
+        function toggleKpi(perfilId, kpiId, checkbox){
+            const asignar = checkbox.checked;
+            const permisoId = checkbox.getAttribute("data-permiso-id");
+            const form = new FormData();
+            let url='';
+
+            if (asignar){
+                url='/KpisPermisos/Asignar';
+                form.append('perfilId', perfilId);
+                form.append('kpiId', kpiId);
+            } else {
+                if (!permisoId || permisoId === "0"){
+                    checkbox.checked = true;
+                    return;
+                }
+                url='/KpisPermisos/Revocar';
+                form.append('id', permisoId);
+            }
+
+            fetch(url, { method:'POST', body: form })
+                .then(async r => {
+                    if (!r.ok) throw new Error("Error al actualizar KPI");
+                    const ct = r.headers.get("content-type")||"";
+                    return ct.includes("application/json") ? await r.json() : {};
+                })
+                .then(data => {
+                    const row = checkbox.closest('.kpi-row');
+
+                    if (asignar && data && data.id){
+                        checkbox.setAttribute("data-permiso-id", data.id);
+                        row?.classList.add('active');
+                    } else if (!asignar){
+                        checkbox.setAttribute("data-permiso-id","0");
+                        row?.classList.remove('active');
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert("❌ Error al actualizar KPI");
+                    checkbox.checked = !asignar;
+                });
+        }
+    </script>
+}

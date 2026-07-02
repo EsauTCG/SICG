@@ -1,0 +1,869 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Autorización de Presupuesto (Kg por mes)";
+}
+
+<style>
+    :root {
+        --bg: #f0dede;
+        --panel: #f8eeee;
+        --panel-2: #f1dede;
+        --line: #c79d9d;
+        --text: #3b1717;
+        --muted: #6a3a3a;
+        --white: #ffffff;
+        --shadow: 0 1px 0 rgba(255,255,255,.55) inset;
+        --brand: #8B0000;
+        --vino-border: #9a5a5a;
+        --vino-text-dark: #4a1111;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        background: transparent !important;
+        color: var(--text);
+    }
+
+    .container, .container-fluid {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .window {
+        width: 100%;
+        max-width: 100%;
+        margin: 0 !important;
+        border: 1px solid #7e4a4a;
+        background: var(--panel);
+        box-shadow: 0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70,12,12,.14);
+        overflow: hidden;
+        padding: 0 !important;
+    }
+
+    .window > *:first-child, .titlebar { margin-top: 0 !important; }
+
+    .titlebar {
+        height: 34px;
+        /* display: flex; */
+        display: none !important;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 10px;
+        background: linear-gradient(180deg, #c00000 0%, #8b0000 60%, #5c0000 100%);
+        border-bottom: 1px solid #5c0000;
+        color: #fff;
+        font-size: 13px;
+        font-weight: bold;
+    }
+
+    .titlebar .actions { display: flex; gap: 6px; }
+
+    .win-btn {
+        width: 16px; height: 16px;
+        border: 1px solid #7c4848;
+        background: linear-gradient(#fff6f6, #ead0d0);
+    }
+
+    .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 6px;
+        background: linear-gradient(#fff6f6, #ecd8d8);
+        border-bottom: 1px solid var(--line);
+        font-size: 12px;
+        flex-wrap: wrap;
+    }
+
+    .tool-btn {
+        min-width: 72px;
+        text-align: center;
+        background: linear-gradient(#fffefe, #ecd7d7);
+        border: 1px solid var(--vino-border);
+        box-shadow: var(--shadow);
+        cursor: pointer;
+        color: var(--vino-text-dark);
+        height: 28px;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        padding: 0 8px;
+        text-decoration: none;
+    }
+
+    .tool-btn:hover { filter: brightness(.98); }
+
+    .content { padding: 8px; background: var(--bg); }
+
+    .tabs { display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap; }
+
+    .tab {
+        font-size: 12px;
+        background: linear-gradient(#f7e7e7, #ead1d1);
+        border: 1px solid #caa0a0;
+        border-bottom: none;
+        padding: 7px 12px;
+        color: #5c1a1a;
+        user-select: none;
+    }
+
+    .tab.active {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        font-weight: bold;
+        color: #fff;
+        border-color: #7a2d2d;
+    }
+
+    .workspace { border: 1px solid var(--line); background: var(--panel); padding: 8px; }
+
+    .section { border: 1px solid var(--line); background: var(--white); margin-bottom: 10px; }
+
+    .section-title {
+        padding: 6px 8px;
+        font-size: 12px;
+        font-weight: bold;
+        color: #fff;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-bottom: 1px solid #6b1f1f;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    /* ── Estado badge ── */
+    .estado-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 700;
+        border: 1px solid transparent;
+        border-radius: 2px;
+    }
+
+    .est-dot {
+        width: 7px; height: 7px;
+        border-radius: 50%;
+        background: #aaa;
+        display: inline-block;
+    }
+
+    .est-ok    { background: #dff3e2; border-color: #6aa84f; color: #2f6b1f; }
+    .est-ok    .est-dot { background: #16a34a; }
+    .est-warn  { background: #fff4cc; border-color: #d6b656; color: #7a5a00; }
+    .est-warn  .est-dot { background: #d97706; }
+    .est-err   { background: #fde2e2; border-color: #d9534f; color: #b00000; }
+    .est-err   .est-dot { background: #dc2626; }
+    .est-info  { background: #e8f4fd; border-color: #7ab8d4; color: #064b6b; }
+    .est-info  .est-dot { background: #2563eb; }
+    .est-light { background: #f4f4f4; border-color: #ccc; color: #555; }
+    .est-light .est-dot { background: #aaa; }
+
+    /* ── Tabla principal ── */
+    .table-wrap {
+        overflow: auto;
+        max-height: 65vh;
+        background: #fffafa;
+        width: 100%;
+        border-top: 1px solid #d9b8b8;
+    }
+
+    .table-wrap table {
+        width: 100%;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        font-size: 12px;
+        background: #fffafa;
+    }
+
+    .table-wrap thead th {
+        position: sticky;
+        top: -1px;
+        z-index: 20;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: #fff !important;
+        border-top: 1px solid #c46a6a !important;
+        border-right: 1px solid #8e3b3b !important;
+        border-bottom: 1px solid #5c0000 !important;
+        padding: 6px 5px !important;
+        font-weight: 700 !important;
+        font-size: 12px !important;
+        white-space: nowrap;
+        line-height: 1.2 !important;
+        box-shadow: 0 2px 0 #6f1d1d;
+        text-transform: none !important;
+    }
+
+    .table-wrap thead th:first-child { border-left: 1px solid #8e3b3b !important; }
+
+    .table-wrap tbody td {
+        background: #fffafa !important;
+        border-right: 1px solid #d8bcbc !important;
+        border-bottom: 1px solid #d8bcbc !important;
+        padding: 5px 5px !important;
+        white-space: nowrap;
+        vertical-align: middle;
+        font-size: 12px !important;
+        color: #401515 !important;
+    }
+
+    .table-wrap tbody td:first-child { border-left: 1px solid #d8bcbc !important; }
+    .table-wrap tbody tr:hover td { background: #f4dddd !important; }
+    .table-wrap tbody tr.row-ok td { background: #dff3e2 !important; color: #2f6b1f !important; }
+    .table-wrap tbody tr.row-danger td { background: #fde2e2 !important; }
+
+    /* ── Badges ── */
+    .badge-ok {
+        display: inline-block; padding: 3px 8px;
+        background: #dff3e2; border: 1px solid #6aa84f;
+        color: #2f6b1f; font-size: 11px; font-weight: 700; border-radius: 2px;
+    }
+
+    .badge-danger {
+        display: inline-block; padding: 3px 8px;
+        background: #fde2e2; border: 1px solid #d9534f;
+        color: #b00000; font-size: 11px; font-weight: 700; border-radius: 2px;
+    }
+
+    /* ── Botones ── */
+    .pm-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        height: 26px;
+        padding: 0 10px;
+        border: 1px solid transparent;
+        border-radius: 0;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        font-size: 11px;
+        font-weight: 700;
+        cursor: pointer;
+        text-decoration: none;
+        box-shadow: var(--shadow);
+        white-space: nowrap;
+    }
+
+    .pm-btn:hover { filter: brightness(.97); }
+    .pm-btn:disabled { opacity: .6; cursor: not-allowed; }
+
+    .pm-btn-primary {
+        color: #fff;
+        border-color: #7a2d2d;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+    }
+
+    .pm-btn-success {
+        color: #fff;
+        border-color: #157347;
+        background: linear-gradient(180deg, #27ae60 0%, #1f9a54 55%, #198754 100%);
+    }
+
+    .pm-btn-secondary {
+        background: linear-gradient(#fffefe, #ecd7d7);
+        border-color: var(--vino-border);
+        color: var(--vino-text-dark);
+    }
+
+    .pm-btn-outline {
+        background: transparent;
+        border-color: var(--vino-border);
+        color: #5a0000;
+    }
+
+    .pm-btn-link {
+        background: transparent;
+        border-color: transparent;
+        color: #5a0000;
+        text-decoration: underline;
+        box-shadow: none;
+        height: auto;
+        padding: 0;
+    }
+
+    .pm-btn-link:hover { color: #8b0000; }
+
+    /* ── Modal ── */
+    .modal-content { border: 1px solid #7d4949; border-radius: 0; }
+
+    .modal-header {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: #fff !important;
+        border-bottom: 1px solid #5c0000 !important;
+        padding: .65rem 1rem !important;
+        border-radius: 0;
+    }
+
+    .modal-title { color: #fff !important; font-weight: 700; font-size: 13px; }
+    .btn-close { filter: invert(1) grayscale(100%) !important; opacity: .95 !important; }
+    .modal-body { background: #f4e4e4; padding: .75rem !important; }
+    .modal-footer { background: #f7eaea; border-top: 1px solid #d3b0b0; }
+
+    .header-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 18px;
+        padding: 8px 10px;
+        background: #fffafa;
+        border: 1px solid #d3b0b0;
+        margin-bottom: 10px;
+        font-size: 12px;
+        color: #471717;
+    }
+
+    .header-row strong { color: #7a0000; }
+
+    /* modal tabla */
+    .modal-table-wrap { border: 1px solid #d8bcbc; background: #fffafa; overflow: auto; max-height: 55vh; }
+
+    .modal-table-wrap table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 12px;
+    }
+
+    .modal-table-wrap table thead th {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: #fff !important;
+        border-right: 1px solid #8e3b3b;
+        border-bottom: 1px solid #5c0000;
+        padding: 6px 5px;
+        font-size: 12px;
+        white-space: nowrap;
+        position: sticky;
+        top: 0;
+        z-index: 5;
+    }
+
+    .modal-table-wrap table tbody td {
+        background: #fffafa;
+        border-bottom: 1px solid #d8bcbc;
+        border-right: 1px solid #d8bcbc;
+        padding: 5px;
+        font-size: 12px;
+        color: #401515;
+    }
+
+    .modal-table-wrap table tbody tr:nth-child(even) td { background: #f9eded; }
+    .modal-table-wrap table tbody tr:hover td { background: #f4dddd !important; }
+    .modal-table-wrap table tfoot th {
+        background: linear-gradient(#fff7f7, #edd9d9) !important;
+        border-top: 1px solid #c79d9d;
+        border-right: 1px solid #d8bcbc;
+        color: #4a1818 !important;
+        padding: 5px;
+        font-weight: 700;
+        font-size: 12px;
+    }
+
+    /* ── Statusbar ── */
+    .statusbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 6px 10px;
+        font-size: 11px;
+        color: #4a1a1a;
+        border-top: 1px solid #b88c8c;
+        background: linear-gradient(#f6e9e9, #ead5d5);
+        flex-wrap: wrap;
+    }
+
+    .text-end { text-align: right !important; }
+    .text-center { text-align: center !important; }
+</style>
+
+<div class="window">
+
+    <div class="titlebar">
+        <div>Autorización de Presupuesto</div>
+        <div class="actions">
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+        </div>
+    </div>
+
+    <div class="toolbar">
+        @* <button class="tool-btn" type="button" onclick="cargarExcedidos()">Actualizar</button> *@
+    </div>
+
+    <div class="content">
+
+       
+
+        <div class="workspace">
+
+            @Html.AntiForgeryToken()
+
+            <div class="section">
+                <div class="section-title">
+                    Órdenes con partidas excedidas
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span class="estado-badge est-info" id="badgeEstado">
+                            <span class="est-dot"></span>
+                            <span id="lastStatus">Cargando…</span>
+                        </span>
+                        <span style="font-size:11px;font-weight:400;color:rgba(255,255,255,.8);">
+                            Actualizado: <span id="lastUpdated">—</span>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Orden Venta</th>
+                                <th>Cliente</th>
+                                <th>Mes</th>
+                                <th colspan="5">Resumen</th>
+                                <th class="text-center">Estado</th>
+                                <th class="text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyExcedidos">
+                            <tr><td colspan="10" class="text-center" style="padding:16px;color:#6a3a3a;">Cargando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="statusbar">
+        <div>Registro listo</div>
+        <div>Usuario: @User.Identity.Name</div>
+        <div>Empresa: Carnes G SA de CV</div>
+        <div>Módulo: Autorización Presupuesto</div>
+    </div>
+
+</div>
+
+<!-- MODAL: Detalle por OV -->
+<div class="modal fade" id="modalOV" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    Detalle Orden Venta: <span id="ovFolio"></span>
+                    &nbsp;|&nbsp;
+                    Fecha Entrega: <span id="ovFechaEntrega"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="header-row">
+                    <div><strong>Cliente:</strong> <span id="ovClienteId"></span></div>
+                    <div><strong>Nombre:</strong> <span id="ovClienteNombre"></span></div>
+                </div>
+
+                <div style="margin-bottom:8px;">
+                    <button id="btnAutorizarTodo" class="pm-btn pm-btn-success">
+                        ✔ Autorizar TODO (pendiente)
+                    </button>
+                </div>
+
+                <div class="modal-table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Código</th>
+                                <th>Producto</th>
+                                <th class="text-end">Kg Solicitados</th>
+                                <th class="text-end">Presupuesto Mes</th>
+                                <th class="text-end">Consumido Mes</th>
+                                <th class="text-center">Estado</th>
+                                <th class="text-center" style="width:200px;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyOV">
+                            <tr><td colspan="8" class="text-center" style="color:#6a3a3a;">—</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="pm-btn pm-btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Detalle de consumo del mes -->
+<div class="modal fade" id="modalConsumo" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    Consumo del mes — <span id="consumoTitulo"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>OV</th>
+                                <th>Cliente</th>
+                                <th>Fecha Entrega</th>
+                                <th class="text-end">Kilos</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyConsumo">
+                            <tr><td colspan="4" class="text-center" style="color:#6a3a3a;">—</td></tr>
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <th colspan="3" class="text-end">Total:</th>
+                                <th class="text-end" id="consumoTotalKg">0.00 kg</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="pm-btn pm-btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    $(function () {
+        const POLL_MS = 15000, MAX_BACKOFF = 120000;
+        let timer = null, inFlight = false, backoff = POLL_MS;
+        window._cacheExcedidos = [];
+        const authorizedLines = new Set();
+
+        function setStatus(txt, cls) {
+            $("#lastStatus").text(txt);
+            const $b = $("#badgeEstado");
+            $b.removeClass("est-ok est-warn est-err est-info est-light");
+            const map = { ok:'est-ok', warn:'est-warn', err:'est-err', info:'est-info' };
+            $b.addClass(map[cls] || 'est-light');
+        }
+
+        function safeNumber(v) {
+            const n = Number(v);
+            return Number.isFinite(n) ? n : 0;
+        }
+
+        function niceKg(n) {
+            return safeNumber(n).toLocaleString('es-MX', { minimumFractionDigits:2, maximumFractionDigits:2 }) + " kg";
+        }
+
+        function getClienteNombreFlex(o) {
+            return (o?.clienteNombre ?? o?.ClienteNombre ?? o?.nombreCliente ?? o?.NombreCliente ?? o?.razonSocial ?? o?.RazonSocial ?? '').toString().trim();
+        }
+
+        function getClienteIdFlex(o) {
+            return (o?.cliente ?? o?.Cliente ?? o?.cardCode ?? o?.CardCode ?? '').toString().trim();
+        }
+
+        function renderTabla(data) {
+            const tbody = $("#tbodyExcedidos").empty();
+            if (!data || !data.length) {
+                tbody.append("<tr><td colspan='10' class='text-center' style='padding:16px;color:#6a3a3a;'>No hay documentos con excedentes</td></tr>");
+                return;
+            }
+
+            const grupos = {};
+            data.forEach(x => {
+                const folio = x.ordenVenta ?? "-";
+                if (!grupos[folio]) grupos[folio] = [];
+                grupos[folio].push(x);
+            });
+
+            Object.keys(grupos).forEach(folio => {
+                const grupo = grupos[folio];
+                const first = grupo[0];
+                const total = grupo.length;
+                const tipoDoc = (first.tipoDocumento || 'OV').toUpperCase();
+                const pendientes = grupo.filter(g => {
+                    const s = (g.estatus ?? '').toLowerCase();
+                    return s === 'excedido' || s === 'sin presupuesto';
+                }).length;
+                const todasAut = grupo.every(g => (g.estatus ?? '').toLowerCase() === 'autorizado');
+                const cls = todasAut ? 'row-ok' : 'row-danger';
+                const badge = todasAut
+                    ? `<span class="badge-ok">Autorizado</span>`
+                    : `<span class="badge-danger">Pendiente (${pendientes}/${total})</span>`;
+                const nombreCliente = getClienteNombreFlex(first) || getClienteIdFlex(first) || '-';
+                const idCliente = getClienteIdFlex(first) || '';
+
+                tbody.append(`
+                  <tr class="${cls}">
+                    <td><b>${folio}</b></td>
+                    <td title="${idCliente}">${nombreCliente}</td>
+                    <td>${first.mes ?? '-'}</td>
+                    <td colspan="5" class="text-center" style="color:#6a3a3a;font-style:italic;">${total} producto(s)</td>
+                    <td class="text-center">${badge}</td>
+                    <td class="text-center">
+                        <button class="pm-btn pm-btn-outline"
+                                onclick="abrirModalDoc('${folio.replace(/'/g,"\\'")}','${tipoDoc}')">
+                            Ver detalle
+                        </button>
+                    </td>
+                  </tr>`);
+            });
+        }
+
+        window.cargarExcedidos = function() {
+            if (inFlight) return;
+            inFlight = true;
+            setStatus("Actualizando…", "info");
+
+            $.when(
+                $.ajax({ url:'/Comercial/ObtenerProductosExcedidos', type:'GET', cache:false }),
+                $.ajax({ url:'/Comercial/ObtenerTransferenciasExcedidas', type:'GET', cache:false })
+            )
+            .done(function(respOv, respTr) {
+                const dataOv = Array.isArray(respOv[0]) ? respOv[0] : [];
+                const dataTr = Array.isArray(respTr[0]) ? respTr[0] : [];
+                window._cacheExcedidos = dataOv.map(x => Object.assign({ tipoDocumento:'OV' }, x))
+                    .concat(dataTr.map(x => Object.assign({ tipoDocumento:'TR' }, x)));
+                renderTabla(window._cacheExcedidos);
+                $("#lastUpdated").text(new Date().toLocaleTimeString('es-MX'));
+                setStatus("Al día", "ok");
+                backoff = POLL_MS;
+            })
+            .fail(function(xhr) {
+                console.error("Error AJAX:", xhr?.responseText || xhr?.statusText);
+                setStatus("Error. Reintentando…", "err");
+                backoff = Math.min(backoff * 2, MAX_BACKOFF);
+                if (timer) clearInterval(timer);
+                timer = setInterval(window.cargarExcedidos, backoff);
+            })
+            .always(function() { inFlight = false; });
+        };
+
+        function startPolling() {
+            if (timer) clearInterval(timer);
+            timer = setInterval(window.cargarExcedidos, POLL_MS);
+        }
+
+        window.cargarExcedidos();
+        startPolling();
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) { clearInterval(timer); timer = null; }
+            else { window.cargarExcedidos(); startPolling(); }
+        });
+
+        window.abrirModalDoc = function(folio, tipoDoc) {
+            tipoDoc = (tipoDoc || 'OV').toUpperCase();
+            const lines = (window._cacheExcedidos || [])
+                .filter(x => (x.ordenVenta ?? '') === folio && (x.tipoDocumento || 'OV').toUpperCase() === tipoDoc);
+
+            const first = lines[0] || {};
+            $("#ovClienteId").text((first.cliente || "").toString());
+            $("#ovClienteNombre").text((first.nombreCliente || first.ClienteNombre || "").toString());
+            $("#ovFolio").text(folio || '');
+            $("#ovFechaEntrega").text("Cargando…");
+
+            const urlFecha = tipoDoc === 'TR' ? '/Transferencias/ObtenerFechaSolicitudTransf' : '/Comercial/ObtenerFechaEntregaOV';
+            $.ajax({ url:urlFecha, type:'GET', data:{ folio }, cache:false })
+                .done(function(resp) {
+                    const fechaSrv = resp?.fechaEntrega || resp?.fecha || null;
+                    if (resp && resp.ok && fechaSrv) {
+                        const d = new Date(fechaSrv);
+                        $("#ovFechaEntrega").text(isNaN(d.getTime()) ? fechaSrv : d.toLocaleDateString('es-MX', { year:'numeric', month:'2-digit', day:'2-digit' }));
+                    } else { $("#ovFechaEntrega").text("—"); }
+                })
+                .fail(() => $("#ovFechaEntrega").text("—"));
+
+            const tb = $("#tbodyOV").empty();
+
+            if (!lines.length) {
+                tb.append(`<tr><td colspan="8" class="text-center" style="color:#6a3a3a;">Sin partidas</td></tr>`);
+            } else {
+                lines.forEach((it, idx) => {
+                    const idLinea = Number(it.pedidoProductoId ?? it.transferenciaDetalleId ?? 0);
+                    const estado = (it.estatus ?? '').toLowerCase();
+                    const isAuth = authorizedLines.has(idLinea) || estado === 'autorizado';
+                    const kilosSol = safeNumber(it.kilosSolicitados);
+                    const presMes = safeNumber(it.presupuesto);
+                    const consumido = safeNumber(it.totalKilosMes);
+
+                    const codigoProd = (it.productoCodigo || '').toString().trim();
+                    let nombreBruto = (it.productoNombre || '').toString().trim();
+                    let nombreLimpio = nombreBruto;
+                    if (codigoProd && nombreBruto.toUpperCase().startsWith(codigoProd.toUpperCase())) {
+                        nombreLimpio = nombreBruto.substring(codigoProd.length).trim().replace(/^[-()\s]+/, '').trim();
+                    }
+
+                    const fuente = (it.fuentePresupuesto || "").toUpperCase();
+                    let tipoCons = "CLIENTE", idCons = (it.cliente || "");
+                    if (fuente === "CEDIS") { tipoCons = "CANAL"; idCons = (it.canalEfectivo || ""); }
+                    else if (fuente === "VENDEDOR" || fuente === "SIN PRESUPUESTO VENDEDOR") { tipoCons = "VENDEDOR"; idCons = (it.vendedorId || "0"); }
+                    idCons = idCons.toString().trim().toUpperCase();
+
+                    const mesNum = it.mesNumero || 0;
+                    const anioNum = it.anio || 0;
+
+                    const badge = isAuth
+                        ? `<span class="badge-ok">Autorizado</span>`
+                        : estado === 'sin presupuesto'
+                            ? `<span class="badge-danger">Sin presupuesto</span>`
+                            : `<span class="badge-danger">Excedido</span>`;
+
+                    const btnAuth = isAuth
+                        ? `<button class="pm-btn pm-btn-success" disabled style="opacity:.6;">✔ Autorizado</button>`
+                        : `<button class="pm-btn pm-btn-success" onclick="autorizarLineaDoc(${idLinea},'${tipoDoc}',this)">✔ Autorizar</button>`;
+
+                    const btnEdit = `<button class="pm-btn pm-btn-secondary" style="margin-left:4px;" onclick="editarKilosLineaDoc(${idLinea},'${tipoDoc}',${kilosSol},this)">Editar KG</button>`;
+
+                    const btnConsumo = `<button class="pm-btn pm-btn-link" onclick="verDetalleConsumo('${tipoCons}','${idCons}','${(it.productoCodigo||'')}',${mesNum},${anioNum})">${niceKg(consumido)}</button>`;
+
+                    tb.append(`
+                      <tr data-idlinea="${idLinea}" data-tipodoc="${tipoDoc}">
+                        <td>${idx+1}</td>
+                        <td>${codigoProd||'-'}</td>
+                        <td>${nombreLimpio||'-'}</td>
+                        <td class="text-end col-kilos">${niceKg(kilosSol)}</td>
+                        <td class="text-end col-presmes">${niceKg(presMes)}</td>
+                        <td class="text-end col-cons">${btnConsumo}</td>
+                        <td class="text-center col-estado">${badge}</td>
+                        <td class="text-center">${btnAuth}${btnEdit}</td>
+                      </tr>`);
+                });
+            }
+
+            $("#btnAutorizarTodo").off('click').on('click', async function() {
+                const $btn = $(this).prop('disabled', true);
+                try {
+                    const pendientes = $("#tbodyOV tr").toArray()
+                        .map(tr => ({ id:Number($(tr).data('idlinea')), tipo:($(tr).data('tipodoc')||tipoDoc), $tr:$(tr) }))
+                        .filter(o => o.id && !authorizedLines.has(o.id) && o.$tr.find(".pm-btn-success:not(:disabled)").length);
+
+                    let lastResponse = null;
+                    for (const o of pendientes) {
+                        const res = await postAutorizarLinea(o.id, o.tipo);
+                        lastResponse = res;
+                        authorizedLines.add(o.id);
+                        o.$tr.find(".col-estado").html(`<span class="badge-ok">Autorizado</span>`);
+                        o.$tr.find("button.pm-btn-success").prop('disabled', true).text('✔ Autorizado');
+                    }
+                    if (lastResponse && lastResponse.todasAutorizadas) await postAutorizarCabecera(lastResponse.ovId, tipoDoc);
+                    window.cargarExcedidos();
+                } catch(e) { console.error(e); alert("Error al autorizar todas las líneas."); }
+                finally { $btn.prop('disabled', false); }
+            });
+
+            new bootstrap.Modal(document.getElementById('modalOV'), { backdrop:'static' }).show();
+        };
+
+        window.verDetalleConsumo = function(tipo, id, sku, mes, anio) {
+            const $tbody = $("#tbodyConsumo");
+            const $total = $("#consumoTotalKg");
+            $tbody.html(`<tr><td colspan="4" class="text-center" style="color:#6a3a3a;">Cargando...</td></tr>`);
+            $total.text("0.00 kg");
+            $("#consumoTitulo").text(`${sku} • ${mes}/${anio}`);
+
+            $.ajax({ url:'/Comercial/DetalleConsumoPresupuesto', type:'GET', data:{ tipo, id, sku, mes, anio }, cache:false })
+                .done(function(data) {
+                    const rows = Array.isArray(data) ? data : [];
+                    if (!rows.length) {
+                        $tbody.html(`<tr><td colspan="4" class="text-center" style="color:#6a3a3a;">Sin consumo registrado.</td></tr>`);
+                        $total.text("0.00 kg");
+                        new bootstrap.Modal(document.getElementById('modalConsumo')).show();
+                        return;
+                    }
+                    let sum = 0;
+                    $tbody.empty();
+                    rows.forEach(r => {
+                        const kg = Number(r.kilos || 0);
+                        sum += kg;
+                        const fecha = r.fechaEntrega ? new Date(r.fechaEntrega).toLocaleDateString('es-MX') : '';
+                        $tbody.append(`
+                            <tr>
+                                <td>${r.folio}</td>
+                                <td>${(r.cliente||'')} - ${(r.nombreCliente||'')}</td>
+                                <td>${fecha}</td>
+                                <td class="text-end">${kg.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})} kg</td>
+                            </tr>`);
+                    });
+                    $total.text(sum.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}) + " kg");
+                    new bootstrap.Modal(document.getElementById('modalConsumo')).show();
+                })
+                .fail(function(xhr) {
+                    console.error(xhr);
+                    $tbody.html(`<tr><td colspan="4" class="text-danger text-center">Error al cargar consumo.</td></tr>`);
+                    new bootstrap.Modal(document.getElementById('modalConsumo')).show();
+                });
+        };
+
+        window.autorizarLineaDoc = async function(idLinea, tipoDoc, btn) {
+            const $btn = $(btn).prop('disabled', true);
+            try {
+                const res = await postAutorizarLinea(idLinea, tipoDoc);
+                authorizedLines.add(idLinea);
+                const $tr = $btn.closest('tr');
+                $tr.find(".col-estado").html(`<span class="badge-ok">Autorizado</span>`);
+                $btn.text('✔ Autorizado');
+                if (res && res.todasAutorizadas) await postAutorizarCabecera(res.ovId, tipoDoc);
+                window.cargarExcedidos();
+            } catch(e) { console.error(e); alert(e.message || "Error al autorizar la línea."); $btn.prop('disabled', false); }
+        };
+
+        window.editarKilosLineaDoc = function(idLinea, tipoDoc, valorActual, btn) {
+            const $btn = $(btn).prop('disabled', true);
+            const $tr = $btn.closest('tr');
+            const promptVal = prompt("Nuevo valor de KILOS SOLICITADOS:", valorActual);
+            if (promptVal === null) { $btn.prop('disabled', false); return; }
+            const nuevo = parseFloat(promptVal.toString().trim().replace(/,/g, '.'));
+            if (!Number.isFinite(nuevo) || nuevo < 0) { alert("Valor inválido."); $btn.prop('disabled', false); return; }
+            postActualizarKilos(idLinea, tipoDoc, nuevo)
+                .then(() => { $tr.find(".col-kilos").text(nuevo.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})+" kg"); window.cargarExcedidos(); alert("Kilos solicitados actualizados."); })
+                .catch(err => { console.error(err); alert(err.message || "Error al actualizar los kilos."); })
+                .finally(() => $btn.prop('disabled', false));
+        };
+
+        function postAutorizarLinea(idLinea, tipoDoc) {
+            const token = $('input[name="__RequestVerificationToken"]').val();
+            return new Promise((resolve, reject) => {
+                $.ajax({ url:'/Comercial/AutorizarPresupuestoLinea', type:'POST',
+                    data:{ __RequestVerificationToken:token, idLinea, tipoDocumento:tipoDoc },
+                    headers:{ 'RequestVerificationToken':token }
+                }).done(res => resolve(res)).fail(xhr => { reject(new Error(xhr.responseJSON?.mensaje || xhr.responseJSON?.error || xhr.responseText || 'Error')); });
+            });
+        }
+
+        function postActualizarKilos(idLinea, tipoDoc, kilosSolicitados) {
+            const token = $('input[name="__RequestVerificationToken"]').val();
+            return new Promise((resolve, reject) => {
+                $.ajax({ url:'/Comercial/ActualizarKilosSolicitados', type:'POST',
+                    data:{ __RequestVerificationToken:token, idLinea, tipoDocumento:tipoDoc, kilosSolicitados },
+                    headers:{ 'RequestVerificationToken':token }
+                }).done(res => resolve(res)).fail(xhr => { reject(new Error(xhr.responseJSON?.mensaje || xhr.responseJSON?.error || xhr.responseText || 'Error')); });
+            });
+        }
+
+        function postAutorizarCabecera(docId, tipoDoc) {
+            const token = $('input[name="__RequestVerificationToken"]').val();
+            return new Promise((resolve, reject) => {
+                $.ajax({ url:'/Comercial/AutorizarPresupuesto', type:'POST',
+                    data:{ __RequestVerificationToken:token, id:docId, tipoDocumento:tipoDoc },
+                    headers:{ 'RequestVerificationToken':token }
+                }).done(res => resolve(res)).fail(xhr => { reject(new Error(xhr.responseJSON?.mensaje || xhr.responseJSON?.error || xhr.responseText || 'Error')); });
+            });
+        }
+    });
+</script>
+}

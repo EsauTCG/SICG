@@ -1,0 +1,199 @@
+﻿@model IEnumerable<Plataforma_CG.Models.ArticuloSap>
+
+@{
+    ViewData["Title"] = "Catalogo de Articulos SAP";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<div class="mb-3">
+    <div class="d-flex align-items-center gap-3 p-3 border rounded shadow-sm bg-light">
+        <div class="flex-grow-1 d-flex align-items-center gap-2">
+            <i class="bi bi-box-seam fs-3 text-primary"></i> <!-- icono de caja/paquete -->
+            <input type="text" id="searchInput" class="form-control" placeholder="Buscar código o nombre">
+        </div>
+        <button id="btnSincronizar" class="btn btn-success btn-lg d-flex align-items-center gap-2">
+            <i class="bi bi-arrow-repeat"></i> Sincronizar
+        </button>
+        <span id="loader" class="text-muted" style="display:none;">⏳ Sincronizando...</span>
+    </div>
+</div>
+
+<!-- Contenedor con borde rojo y sombra -->
+<div class="p-3 border border-danger rounded shadow-sm"> @* contenedor rojo *@
+    <table id="tablaPrecios" class="table table-bordered table-striped mb-0">
+        <thead style="background-color: #B22222; color: white;">
+            <tr>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Master</th>
+                <th>Tipo SKU</th>
+                <th>Última Modificación</th>
+                <th>Rotación</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <div class="d-flex justify-content-between align-items-center mt-2">
+        <button id="prevPage" class="btn btn-secondary">Anterior</button>
+        <span id="pageInfo"></span>
+        <button id="nextPage" class="btn btn-secondary">Siguiente</button>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        let currentPage = 1;
+        let pageSize = 50;
+        let currentSearch = "";
+
+        async function cargarArticulos(page = 1, search = "") {
+            const tbody = document.querySelector("#tablaPrecios tbody");
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center">⏳ Cargando...</td></tr>`;
+            document.getElementById("loader").style.display = "inline";
+
+            try {
+                const res = await fetch(`/Comercial/GetArticulosJsonPaged?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`);
+                if (!res.ok) throw new Error("Error al cargar artículos");
+
+                const data = await res.json();
+                tbody.innerHTML = "";
+
+                if (!data.articulos || data.articulos.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-warning">No hay artículos para mostrar.</td></tr>`;
+                    document.getElementById("pageInfo").textContent = "";
+                    return;
+                }
+
+                data.articulos.forEach((art, index) => {
+                    const tr = document.createElement("tr");
+                    tr.dataset.codigo = art.productoCodigo;
+                    tr.innerHTML = `
+                        <td>${art.productoCodigo ?? "—"}</td>
+                        <td>${art.productoNombre ?? "—"}</td>
+                        <td>${art.u_MASTER ?? "—"}</td>
+                        <td>${art.u_TipoporSKU ?? "—"}</td>
+                        <td>${new Date(art.fechaModificacion).toLocaleString()}</td>
+                        <td>
+                            <span class="rotacion-text">${art.rotacion ?? 0}</span>
+                            <input class="rotacion-input form-control form-control-sm" type="number" style="display:none; width:80px;" value="${art.rotacion ?? 0}">
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-warning btn-editar">Editar</button>
+                            <button class="btn btn-sm btn-success btn-guardar" style="display:none;">Guardar</button>
+                            <button class="btn btn-sm btn-secondary btn-cancelar" style="display:none;">Cancelar</button>
+                            <button class="btn btn-sm btn-info btn-detalles" style="margin-left:5px;">Detalles</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                document.getElementById("pageInfo").textContent = `Página ${data.page} de ${Math.ceil(data.total / data.pageSize)}`;
+                agregarEventosFila();
+            } catch(err) {
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">Error: ${err.message}</td></tr>`;
+            } finally {
+                document.getElementById("loader").style.display = "none";
+            }
+        }
+
+        function agregarEventosFila() {
+            document.querySelectorAll('.btn-editar').forEach(btn => {
+                btn.onclick = function() {
+                    const tr = this.closest('tr');
+                    tr.querySelector('.rotacion-text').style.display = 'none';
+                    tr.querySelector('.rotacion-input').style.display = 'inline-block';
+                    tr.querySelector('.btn-editar').style.display = 'none';
+                    tr.querySelector('.btn-guardar').style.display = 'inline-block';
+                    tr.querySelector('.btn-cancelar').style.display = 'inline-block';
+                }
+            });
+
+            document.querySelectorAll('.btn-cancelar').forEach(btn => {
+                btn.onclick = function() {
+                    const tr = this.closest('tr');
+                    const span = tr.querySelector('.rotacion-text');
+                    const input = tr.querySelector('.rotacion-input');
+                    input.value = span.textContent;
+                    span.style.display = 'inline';
+                    input.style.display = 'none';
+                    tr.querySelector('.btn-editar').style.display = 'inline-block';
+                    tr.querySelector('.btn-guardar').style.display = 'none';
+                    tr.querySelector('.btn-cancelar').style.display = 'none';
+                }
+            });
+
+            document.querySelectorAll('.btn-guardar').forEach(btn => {
+                btn.onclick = async function() {
+                    const tr = this.closest('tr');
+                    const codigo = tr.dataset.codigo;
+                    const nuevaRotacion = tr.querySelector('.rotacion-input').value;
+
+                    try {
+                        const res = await fetch(`/Comercial/ActualizarRotacion?codigo=${codigo}&rotacion=${nuevaRotacion}`, { method: 'POST' });
+                        if(!res.ok) throw new Error("No se pudo actualizar la rotación");
+
+                        tr.querySelector('.rotacion-text').textContent = nuevaRotacion;
+                        tr.querySelector('.rotacion-text').style.display = 'inline';
+                        tr.querySelector('.rotacion-input').style.display = 'none';
+                        tr.querySelector('.btn-editar').style.display = 'inline-block';
+                        tr.querySelector('.btn-guardar').style.display = 'none';
+                        tr.querySelector('.btn-cancelar').style.display = 'none';
+                    } catch(err) {
+                        alert("Error al guardar rotación: " + err.message);
+                    }
+                }
+            });
+
+            // Botón Detalles (opcional, para modal)
+            document.querySelectorAll('.btn-detalles').forEach(btn => {
+                btn.onclick = function() {
+                    const tr = this.closest('tr');
+                    const codigo = tr.dataset.codigo;
+                    alert(`Detalles del artículo ${codigo} (puedes reemplazar esto por un modal)`);
+                }
+            });
+        }
+
+        // Sincronizar
+        document.getElementById("btnSincronizar").addEventListener("click", async function () {
+            const loader = document.getElementById("loader");
+            loader.style.display = "inline";
+
+            try {
+                const res = await fetch('/Comercial/SincronizarItems');
+                if(!res.ok) throw new Error('Error al sincronizar');
+
+                const data = await res.text();
+                alert(data);
+                await cargarArticulos(currentPage, currentSearch);
+            } catch(err) {
+                alert(err.message);
+            } finally {
+                loader.style.display = "none";
+            }
+        });
+
+        // Buscador
+        document.getElementById("searchInput").addEventListener("keyup", function() {
+            currentSearch = this.value;
+            currentPage = 1;
+            cargarArticulos(currentPage, currentSearch);
+        });
+
+        // Paginación
+        document.getElementById("prevPage").addEventListener("click", function() {
+            if(currentPage > 1) {
+                currentPage--;
+                cargarArticulos(currentPage, currentSearch);
+            }
+        });
+        document.getElementById("nextPage").addEventListener("click", function() {
+            currentPage++;
+            cargarArticulos(currentPage, currentSearch);
+        });
+
+        document.addEventListener("DOMContentLoaded", () => cargarArticulos(currentPage, currentSearch));
+    </script>
+}

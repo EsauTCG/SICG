@@ -1,0 +1,1928 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Control de IPs";
+}
+
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
+
+<style>
+    :root {
+        --brand-main: #4a0e0e;
+        --brand-hover: #6b1515;
+        --bg-page: #fdf5f4;
+        --card-bg: #ffffff;
+        --panel-bg: #fcf5f4;
+        --border-color: #ebdcdb;
+        --text-dark: #333333;
+        --text-muted: #888888;
+    }
+
+    body {
+        background-color: var(--bg-page);
+        color: var(--text-dark);
+        font-family: 'Segoe UI', Tahoma, sans-serif;
+        font-size: 0.85rem;
+    }
+
+    .dashboard-panel {
+        background-color: var(--card-bg);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        margin-bottom: 1.5rem;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+    }
+
+    .panel-header {
+        background-color: transparent;
+        border-bottom: 1px solid var(--border-color);
+        padding: 1rem 1.25rem;
+    }
+
+    .panel-title {
+        font-size: 1rem;
+        font-weight: 800;
+        color: var(--text-dark);
+        margin: 0;
+    }
+
+    .panel-subtitle {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin: 0;
+    }
+
+    .top-banner {
+        background-color: var(--brand-main);
+        color: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        transition: background-color 0.3s;
+    }
+
+    .nav-tabs {
+        border-bottom: 2px solid var(--border-color);
+        margin-bottom: 1.5rem;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 2px;
+    }
+
+        .nav-tabs::-webkit-scrollbar {
+            height: 4px;
+        }
+
+        .nav-tabs::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        .nav-tabs .nav-link {
+            color: var(--text-muted);
+            font-weight: 600;
+            border: none;
+            padding: 10px 20px;
+            transition: 0.3s;
+            background: transparent;
+        }
+
+            .nav-tabs .nav-link:hover {
+                color: var(--brand-main);
+            }
+
+            .nav-tabs .nav-link.active {
+                color: var(--brand-main);
+                border-bottom: 3px solid var(--brand-main);
+                background-color: transparent;
+            }
+
+    .btn-brand {
+        background-color: var(--brand-main);
+        color: white;
+        border: none;
+        padding: 6px 16px;
+        border-radius: 20px;
+        font-weight: 600;
+        transition: 0.3s;
+    }
+
+        .btn-brand:hover {
+            background-color: var(--brand-hover);
+            color: white;
+        }
+
+    .btn-outline {
+        border: 1px solid var(--border-color);
+        background: white;
+        color: var(--text-dark);
+        border-radius: 20px;
+        font-weight: 600;
+    }
+
+        .btn-outline:hover {
+            background: var(--bg-page);
+            border-color: var(--brand-main);
+            color: var(--brand-main);
+        }
+
+    .table-custom {
+        margin-bottom: 0;
+    }
+
+        .table-custom thead th {
+            background-color: var(--panel-bg);
+            color: var(--text-muted);
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.7rem;
+            border-bottom: 2px solid var(--border-color);
+            padding: 12px;
+            white-space: nowrap;
+        }
+
+        .table-custom tbody tr {
+            border-bottom: 1px solid var(--border-color);
+            transition: background-color 0.2s;
+        }
+
+            .table-custom tbody tr:hover {
+                background-color: #fafafa;
+            }
+
+        .table-custom tbody td {
+            vertical-align: middle;
+            padding: 12px;
+        }
+
+    .btn-sm-action {
+        padding: 4px 8px;
+        font-size: 0.75rem;
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+        background: white;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: var(--text-dark);
+        margin-bottom: 2px;
+        margin-right: 2px;
+    }
+
+        .btn-sm-action:hover {
+            background: var(--bg-page);
+            border-color: var(--brand-main);
+            color: var(--brand-main);
+        }
+
+    .ip-badge {
+        background-color: #e0f2fe;
+        color: #0284c7;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-weight: bold;
+        font-family: monospace;
+        font-size: 0.9rem;
+        border: 1px solid #bae6fd;
+    }
+
+    .ip-clickable {
+        cursor: pointer;
+        transition: 0.2s;
+        text-decoration: none;
+    }
+
+        .ip-clickable:hover {
+            background-color: #bae6fd;
+            color: #0369a1;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-decoration: underline;
+        }
+
+    .tipo-cable {
+        color: #166534;
+        background: #dcfce7;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: bold;
+    }
+
+    .tipo-wifi {
+        color: #854d0e;
+        background: #fef08a;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: bold;
+    }
+
+    .estado-libre {
+        color: #4b5563;
+        font-style: italic;
+        font-size: 0.8rem;
+    }
+
+    .badge-disponible {
+        background-color: #dcfce7;
+        color: #15803d;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-weight: 800;
+        font-size: 0.7rem;
+        border: 1px solid #bbf7d0;
+    }
+
+    @@keyframes pulse-danger {
+        0% {
+            box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+        }
+
+        70% {
+            box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+        }
+
+        100% {
+            box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+        }
+    }
+
+    .btn-log-alert {
+        animation: pulse-danger 1.5s infinite;
+        background-color: #dc3545 !important;
+        border-color: #dc3545 !important;
+        color: white !important;
+    }
+
+    .log-badge {
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        background: #ffc107;
+        color: #000;
+        border-radius: 50%;
+        padding: 3px 6px;
+        font-size: 0.65rem;
+        font-weight: 900;
+        border: 2px solid white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    /* ESTILO GENERAL ROSITA / VINO */
+    html,
+    body {
+        background: #e9edf2 !important;
+        overflow-x: hidden !important;
+    }
+
+    body,
+    main,
+    .main,
+    .body-content,
+    .container,
+    .container-fluid {
+        background: #e9edf2 !important;
+    }
+
+    .container-fluid {
+        width: min(100%, calc(100vw - 48px)) !important;
+        max-width: 1900px !important;
+        margin: 0 auto !important;
+        padding: 8px !important;
+    }
+
+    /* Encabezado */
+    .top-banner {
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+        border-radius: 0 !important;
+        border: 1px solid #7e4a4a !important;
+        box-shadow: 0 8px 18px rgba(70,12,12,.14) !important;
+    }
+
+    /* Paneles */
+    .dashboard-panel {
+        background: #f8eeee !important;
+        border: 1px solid #c79d9d !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .panel-header {
+        background: #f1dede !important;
+        border-bottom: 1px solid #c79d9d !important;
+    }
+
+    .panel-title {
+        color: #5c1a1a !important;
+    }
+
+    /* Inputs */
+    .form-control,
+    .form-select,
+    .input-group-text {
+        background: #fffafa !important;
+        border: 1px solid #b48787 !important;
+        color: #421414 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        font-size: 12px !important;
+    }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: #8b0000 !important;
+            box-shadow: 0 0 0 .15rem rgba(139,0,0,.12) !important;
+        }
+
+    /* Botones */
+    .btn-brand {
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+        border: 1px solid #7a2d2d !important;
+        color: #fff !important;
+        border-radius: 0 !important;
+    }
+
+    .btn-outline,
+    .btn-outline-secondary {
+        background: linear-gradient(#fffefe,#ecd7d7) !important;
+        border: 1px solid #b48787 !important;
+        color: #4b1f1f !important;
+        border-radius: 0 !important;
+        font-weight: 700 !important;
+    }
+
+        .btn-outline:hover,
+        .btn-outline-secondary:hover {
+            background: #f4dddd !important;
+            border-color: #8b0000 !important;
+            color: #5c0000 !important;
+        }
+
+    /* Tabs VLAN */
+    .nav-tabs {
+        border-bottom: 1px solid #c79d9d !important;
+        background: #f1dede !important;
+        padding: 4px !important;
+        margin-top: 12px !important;
+    }
+
+        .nav-tabs .nav-link {
+            background: linear-gradient(#fffefe,#ecd7d7) !important;
+            border: 1px solid #caa0a0 !important;
+            color: #5c1a1a !important;
+            border-radius: 0 !important;
+            margin-right: 4px !important;
+            font-weight: 700 !important;
+        }
+
+            .nav-tabs .nav-link.active {
+                background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+                color: #fff !important;
+                border-color: #7a2d2d !important;
+            }
+
+    /* Tabla */
+    .table-responsive {
+        background: #fffafa !important;
+        border-top: 1px solid #d9b8b8 !important;
+    }
+
+    .table-custom {
+        background: #fffafa !important;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        font-size: 12px !important;
+    }
+
+        .table-custom thead th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+            color: #fff !important;
+            border-right: 1px solid #8e3b3b !important;
+            border-bottom: 1px solid #5c0000 !important;
+            padding: 7px 6px !important;
+            font-size: 12px !important;
+            text-transform: none !important;
+            white-space: nowrap !important;
+        }
+
+        .table-custom tbody td {
+            background: #fffafa !important;
+            border-right: 1px solid #d8bcbc !important;
+            border-bottom: 1px solid #d8bcbc !important;
+            color: #401515 !important;
+            padding: 6px !important;
+            white-space: nowrap;
+        }
+
+        .table-custom tbody tr:nth-of-type(even) > td {
+            background: #f9eded !important;
+        }
+
+        .table-custom tbody tr:hover > td {
+            background: #f4dddd !important;
+        }
+
+    /* Badges */
+    .ip-badge {
+        background: #fff3cd !important;
+        color: #664d03 !important;
+        border: 1px solid #d6b656 !important;
+        border-radius: 0 !important;
+    }
+
+    .badge-disponible {
+        background: #d1e7dd !important;
+        color: #0f5132 !important;
+        border: 1px solid #badbcc !important;
+        border-radius: 0 !important;
+    }
+
+    .tipo-cable,
+    .tipo-wifi {
+        border-radius: 0 !important;
+    }
+
+    /* Modal mismo estilo */
+    .modal-content {
+        border: 1px solid #7d4949 !important;
+        border-radius: 0 !important;
+    }
+
+    .modal-header {
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+        color: #fff !important;
+        border-bottom: 1px solid #5c0000 !important;
+    }
+
+    .modal-title {
+        color: #fff !important;
+        font-size: 13px !important;
+        font-weight: 700 !important;
+    }
+
+    .modal-body {
+        background: #f0dede !important;
+    }
+
+    .modal-footer {
+        background: #f7eaea !important;
+        border-top: 1px solid #d3b0b0 !important;
+    }
+
+    /* RESPONSIVO */
+    @@media (min-width: 1400px) {
+        .container-fluid {
+            width: calc(100vw - 80px) !important;
+        }
+    }
+
+    @@media (max-width: 1200px) {
+        .container-fluid {
+            width: calc(100vw - 24px) !important;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .container-fluid {
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 6px !important;
+        }
+
+        .top-banner {
+            padding: 12px !important;
+        }
+
+            .top-banner h2 {
+                font-size: 18px !important;
+            }
+
+        .dashboard-panel {
+            padding: 8px !important;
+        }
+
+        .row.align-items-center > div {
+            width: 100% !important;
+        }
+
+        .col-12.col-md-8.col-lg-9 {
+            justify-content: flex-start !important;
+        }
+
+        .input-group {
+            max-width: 100% !important;
+            width: 100% !important;
+        }
+
+        .btn,
+        .btn-brand,
+        .btn-outline,
+        .btn-outline-secondary {
+            width: 100% !important;
+            font-size: 12px !important;
+        }
+
+        .nav-tabs {
+            flex-wrap: nowrap !important;
+            overflow-x: auto !important;
+        }
+
+            .nav-tabs .nav-link {
+                min-width: max-content !important;
+                font-size: 11px !important;
+                padding: 7px 10px !important;
+            }
+
+        .table-responsive {
+            width: 100% !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            max-height: 65vh !important;
+        }
+
+        .table-custom {
+            min-width: 920px !important;
+            font-size: 10px !important;
+        }
+
+            .table-custom thead th,
+            .table-custom tbody td {
+                font-size: 10px !important;
+                padding: 4px 3px !important;
+            }
+
+        .modal-dialog {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+        }
+
+        .modal-content {
+            min-height: 100vh !important;
+        }
+    }
+
+    /* ============================================================
+       DARK MODE - CONTROL DE DIRECCIONES IP
+============================================================ */
+
+body[data-theme="dark"] {
+    --brand-main: #991b1b;
+    --brand-hover: #dc2626;
+    --bg-page: #0f172a;
+    --card-bg: #111827;
+    --panel-bg: #172033;
+    --border-color: rgba(255,255,255,0.12);
+    --text-dark: #f9fafb;
+    --text-muted: #cbd5e1;
+}
+
+/* Fondo general */
+body[data-theme="dark"],
+body[data-theme="dark"] html,
+body[data-theme="dark"] main,
+body[data-theme="dark"] .main,
+body[data-theme="dark"] .body-content,
+body[data-theme="dark"] .container,
+body[data-theme="dark"] .container-fluid {
+    background: #0f172a !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .layout-main-content {
+    background: #0f172a !important;
+}
+
+body[data-theme="dark"] .layout-main-content .layout-container-fluid {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+/* Banner superior */
+body[data-theme="dark"] .top-banner {
+    background: linear-gradient(180deg, #7f1d1d 0%, #450a0a 55%, #111827 100%) !important;
+    border-color: rgba(248,113,113,0.28) !important;
+    box-shadow: 0 14px 34px rgba(0,0,0,.42) !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .top-banner h2,
+body[data-theme="dark"] .top-banner p {
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .top-banner p {
+    opacity: .9 !important;
+    color: #fecaca !important;
+}
+
+body[data-theme="dark"] .top-banner .btn-outline-light {
+    background: rgba(15,23,42,0.30) !important;
+    color: #ffffff !important;
+    border-color: rgba(255,255,255,0.45) !important;
+}
+
+body[data-theme="dark"] .top-banner .btn-outline-light:hover {
+    background: rgba(248,113,113,0.16) !important;
+    border-color: rgba(248,113,113,0.70) !important;
+}
+
+/* Paneles */
+body[data-theme="dark"] .dashboard-panel {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: 0 10px 28px rgba(0,0,0,.34) !important;
+}
+
+body[data-theme="dark"] .panel-header {
+    background: #172033 !important;
+    border-bottom-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .panel-title {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .panel-subtitle {
+    color: #cbd5e1 !important;
+}
+
+/* Labels y textos */
+body[data-theme="dark"] .form-label,
+body[data-theme="dark"] label {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .text-muted,
+body[data-theme="dark"] small.text-muted,
+body[data-theme="dark"] #contadorResultados {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .text-dark {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .text-success {
+    color: #86efac !important;
+}
+
+body[data-theme="dark"] .text-primary {
+    color: #93c5fd !important;
+}
+
+body[data-theme="dark"] .text-danger {
+    color: #fca5a5 !important;
+}
+
+/* Inputs / selects */
+body[data-theme="dark"] .form-control,
+body[data-theme="dark"] .form-select,
+body[data-theme="dark"] .input-group-text,
+body[data-theme="dark"] input,
+body[data-theme="dark"] select,
+body[data-theme="dark"] textarea {
+    background: #0b1220 !important;
+    color: #f9fafb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+    box-shadow: none !important;
+}
+
+body[data-theme="dark"] .form-control:focus,
+body[data-theme="dark"] .form-select:focus,
+body[data-theme="dark"] input:focus,
+body[data-theme="dark"] select:focus,
+body[data-theme="dark"] textarea:focus {
+    background: #0f172a !important;
+    color: #ffffff !important;
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 .15rem rgba(239,68,68,.22) !important;
+    outline: none !important;
+}
+
+body[data-theme="dark"] .form-control::placeholder,
+body[data-theme="dark"] textarea::placeholder,
+body[data-theme="dark"] input::placeholder {
+    color: #94a3b8 !important;
+    opacity: 1 !important;
+}
+
+body[data-theme="dark"] .form-control.bg-light,
+body[data-theme="dark"] .bg-light,
+body[data-theme="dark"] input:disabled,
+body[data-theme="dark"] .form-control:disabled {
+    background: #172033 !important;
+    color: #cbd5e1 !important;
+    border-color: rgba(203,213,225,0.22) !important;
+    opacity: 1 !important;
+}
+
+body[data-theme="dark"] .form-select {
+    color-scheme: dark;
+}
+
+body[data-theme="dark"] .form-select option {
+    background: #111827 !important;
+    color: #f9fafb !important;
+}
+
+/* Botones */
+body[data-theme="dark"] .btn-brand {
+    background: linear-gradient(180deg, #dc2626 0%, #991b1b 55%, #7f1d1d 100%) !important;
+    border-color: rgba(248,113,113,0.50) !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .btn-brand:hover {
+    filter: brightness(1.08) !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .btn-outline,
+body[data-theme="dark"] .btn-outline-secondary {
+    background: #0b1220 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(203,213,225,0.32) !important;
+}
+
+body[data-theme="dark"] .btn-outline:hover,
+body[data-theme="dark"] .btn-outline-secondary:hover {
+    background: rgba(248,113,113,0.14) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.55) !important;
+}
+
+body[data-theme="dark"] .btn-outline-danger {
+    background: #0b1220 !important;
+    color: #fca5a5 !important;
+    border-color: rgba(248,113,113,0.45) !important;
+}
+
+body[data-theme="dark"] .btn-outline-danger:hover {
+    background: rgba(220,38,38,0.28) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.75) !important;
+}
+
+/* Tabs VLAN */
+body[data-theme="dark"] .nav-tabs {
+    background: #172033 !important;
+    border-bottom-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .nav-tabs::-webkit-scrollbar-thumb {
+    background: rgba(248,113,113,0.42) !important;
+}
+
+body[data-theme="dark"] .nav-tabs .nav-link {
+    background: #0b1220 !important;
+    color: #cbd5e1 !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+body[data-theme="dark"] .nav-tabs .nav-link:hover {
+    background: rgba(248,113,113,0.14) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.55) !important;
+}
+
+body[data-theme="dark"] .nav-tabs .nav-link.active {
+    background: linear-gradient(180deg, #dc2626 0%, #991b1b 55%, #7f1d1d 100%) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.55) !important;
+}
+
+/* Tabla principal */
+body[data-theme="dark"] .table-responsive {
+    background: #111827 !important;
+    border-top-color: rgba(255,255,255,0.12) !important;
+    scrollbar-color: rgba(248,113,113,0.42) #0f172a;
+}
+
+body[data-theme="dark"] .table-custom {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .table-custom thead th {
+    background: linear-gradient(180deg, #7f1d1d 0%, #450a0a 58%, #111827 100%) !important;
+    color: #ffffff !important;
+    border-right-color: rgba(248,113,113,0.22) !important;
+    border-bottom-color: rgba(248,113,113,0.28) !important;
+}
+
+body[data-theme="dark"] .table-custom tbody td {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-right-color: rgba(255,255,255,0.12) !important;
+    border-bottom-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .table-custom tbody tr:nth-of-type(even) > td {
+    background: #172033 !important;
+}
+
+body[data-theme="dark"] .table-custom tbody tr:hover > td {
+    background: rgba(248,113,113,0.13) !important;
+    color: #ffffff !important;
+}
+
+/* Tablas Bootstrap dentro de modales */
+body[data-theme="dark"] .table {
+    --bs-table-bg: #111827;
+    --bs-table-color: #e5e7eb;
+    --bs-table-border-color: rgba(255,255,255,0.12);
+    --bs-table-striped-bg: #172033;
+    --bs-table-striped-color: #e5e7eb;
+    --bs-table-hover-bg: rgba(248,113,113,0.12);
+    --bs-table-hover-color: #ffffff;
+    background: #111827 !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .table-light,
+body[data-theme="dark"] .table thead.table-light,
+body[data-theme="dark"] .table thead th {
+    background: linear-gradient(180deg, #1f2937 0%, #172033 100%) !important;
+    color: #f9fafb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .table tbody td {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .table tbody tr:nth-of-type(even) td {
+    background: #172033 !important;
+}
+
+/* Botones de acciones */
+body[data-theme="dark"] .btn-sm-action {
+    background: #0b1220 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+body[data-theme="dark"] .btn-sm-action:hover {
+    background: rgba(248,113,113,0.14) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.55) !important;
+}
+
+/* Badges IP / estatus */
+body[data-theme="dark"] .ip-badge {
+    background: rgba(180,83,9,0.22) !important;
+    color: #fde68a !important;
+    border-color: rgba(245,158,11,0.45) !important;
+}
+
+body[data-theme="dark"] .ip-clickable:hover {
+    background: rgba(245,158,11,0.32) !important;
+    color: #fff7ed !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,.28) !important;
+}
+
+body[data-theme="dark"] .badge-disponible {
+    background: rgba(22,101,52,0.26) !important;
+    color: #bbf7d0 !important;
+    border-color: rgba(74,222,128,0.40) !important;
+}
+
+body[data-theme="dark"] .estado-libre {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .tipo-cable {
+    background: rgba(22,101,52,0.26) !important;
+    color: #bbf7d0 !important;
+    border: 1px solid rgba(74,222,128,0.40) !important;
+}
+
+body[data-theme="dark"] .tipo-wifi {
+    background: rgba(180,83,9,0.22) !important;
+    color: #fde68a !important;
+    border: 1px solid rgba(245,158,11,0.45) !important;
+}
+
+body[data-theme="dark"] .badge.bg-secondary {
+    background: rgba(71,85,105,0.75) !important;
+    color: #f9fafb !important;
+}
+
+/* Log badge */
+body[data-theme="dark"] .log-badge {
+    background: #f59e0b !important;
+    color: #111827 !important;
+    border-color: #111827 !important;
+}
+
+/* Botón de alerta */
+body[data-theme="dark"] .btn-log-alert {
+    background-color: #dc2626 !important;
+    border-color: #ef4444 !important;
+    color: #ffffff !important;
+}
+
+/* Modales */
+body[data-theme="dark"] .modal-content {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: 0 22px 50px rgba(0,0,0,.58) !important;
+}
+
+body[data-theme="dark"] .modal-header {
+    background: linear-gradient(180deg, #7f1d1d 0%, #450a0a 58%, #111827 100%) !important;
+    color: #ffffff !important;
+    border-bottom-color: rgba(248,113,113,0.28) !important;
+}
+
+body[data-theme="dark"] .modal-title,
+body[data-theme="dark"] .modal-title span {
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .modal-body {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .modal-footer {
+    background: #172033 !important;
+    border-top-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .modal-backdrop.show {
+    opacity: .72 !important;
+}
+
+body[data-theme="dark"] .btn-close,
+body[data-theme="dark"] .btn-close-white {
+    filter: invert(1) grayscale(100%) brightness(200%) !important;
+    opacity: .95 !important;
+}
+
+/* Display IP dentro del modal */
+body[data-theme="dark"] #divDisplayIP .ip-badge,
+body[data-theme="dark"] #editIPDisplay {
+    background: rgba(180,83,9,0.22) !important;
+    color: #fde68a !important;
+    border-color: rgba(245,158,11,0.45) !important;
+}
+
+/* Separadores */
+body[data-theme="dark"] .border-bottom {
+    border-bottom-color: rgba(255,255,255,0.12) !important;
+}
+
+/* Select2 */
+body[data-theme="dark"] .select2-container--bootstrap-5 .select2-selection,
+body[data-theme="dark"] .select2-container--default .select2-selection--single,
+body[data-theme="dark"] .select2-container--default .select2-selection--multiple {
+    background: #0b1220 !important;
+    color: #f9fafb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+body[data-theme="dark"] .select2-container--bootstrap-5 .select2-selection__rendered,
+body[data-theme="dark"] .select2-container--default .select2-selection--single .select2-selection__rendered {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .select2-dropdown {
+    background: #111827 !important;
+    color: #f9fafb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+body[data-theme="dark"] .select2-results__option {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .select2-results__option--highlighted {
+    background: rgba(220,38,38,0.65) !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .select2-search__field {
+    background: #0b1220 !important;
+    color: #f9fafb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+/* Scroll panels */
+body[data-theme="dark"] .scroll-panel,
+body[data-theme="dark"] .table-responsive,
+body[data-theme="dark"] .modal-body {
+    scrollbar-color: rgba(248,113,113,0.42) #0f172a;
+}
+
+body[data-theme="dark"] .scroll-panel::-webkit-scrollbar,
+body[data-theme="dark"] .table-responsive::-webkit-scrollbar,
+body[data-theme="dark"] .modal-body::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+}
+
+body[data-theme="dark"] .scroll-panel::-webkit-scrollbar-track,
+body[data-theme="dark"] .table-responsive::-webkit-scrollbar-track,
+body[data-theme="dark"] .modal-body::-webkit-scrollbar-track {
+    background: #0f172a;
+}
+
+body[data-theme="dark"] .scroll-panel::-webkit-scrollbar-thumb,
+body[data-theme="dark"] .table-responsive::-webkit-scrollbar-thumb,
+body[data-theme="dark"] .modal-body::-webkit-scrollbar-thumb {
+    background: rgba(248,113,113,0.42);
+    border-radius: 999px;
+}
+
+/* Responsive */
+@@media (max-width: 768px) {
+    body[data-theme="dark"] .top-banner,
+    body[data-theme="dark"] .dashboard-panel,
+    body[data-theme="dark"] .modal-content {
+        box-shadow: 0 8px 22px rgba(0,0,0,.32) !important;
+    }
+
+    body[data-theme="dark"] .modal-content {
+        min-height: 100vh !important;
+    }
+}
+
+</style>
+
+<div class="container-fluid py-4">
+
+    <div class="top-banner d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h2 class="fw-bold mb-1">Control de Direcciones IP</h2>
+            <p class="mb-0" style="font-size: 0.85rem; opacity: 0.85;">Gestión dinámica de red y VLANs por planta.</p>
+        </div>
+        <div>
+            <button id="btnLog" class="btn btn-outline-light fw-bold position-relative transition-all" onclick="abrirLogMovimientos()">
+                <i class="bi bi-clock-history me-1"></i> Log General
+                <span id="badgeLog" class="log-badge d-none">!</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="dashboard-panel p-3">
+        <div class="row align-items-center">
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label text-muted fw-bold mb-1" style="font-size: 0.7rem;">PLANTA ACTIVA</label>
+                <select class="form-select border-danger fw-bold text-center" id="selectPlanta" onchange="cambioPlanta()">
+                    <option value="TIF"> TIF</option>
+                    <option value="P1"> P1</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-8 col-lg-9 mt-3 mt-md-0 d-flex justify-content-md-end flex-wrap gap-2">
+                <div style="min-width: 140px;">
+                    <select class="form-select form-select-sm fw-bold border-danger" id="filtroEstatus" onchange="renderTabla()">
+                        <option value="TODOS"> Todos</option>
+                        <option value="DISPONIBLE"> Disponible</option>
+                        <option value="ASIGNADO"> Asignado</option>
+                    </select>
+                </div>
+
+                <div class="input-group input-group-sm" style="max-width: 250px;">
+                    <span class="input-group-text bg-white border-end-0"><i class="text-muted" style="font-style: normal;">🔍</i></span>
+                    <input type="text" class="form-control border-start-0 ps-0" id="buscadorIP" placeholder="Buscar IP o equipo..." onkeyup="renderTabla()">
+                </div>
+
+                <button class="btn btn-outline-secondary btn-sm px-3 fw-bold" onclick="abrirModalVlan()"><i class="bi bi-diagram-3 me-1"></i> Nueva VLAN</button>
+                <button class="btn btn-brand btn-sm px-3" onclick="abrirNuevaIP()"><i class="bi bi-plus-lg me-1"></i> Agregar IP</button>
+            </div>
+
+        </div>
+
+        <ul class="nav nav-tabs" id="vlanTabs" role="tablist">
+        </ul>
+
+        <div class="dashboard-panel">
+            <div class="d-flex justify-content-between align-items-center mb-2 px-1">
+                <div id="contadorResultados" class="text-muted small fw-bold">
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-custom align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 15%;">Dirección IP</th>
+                            <th style="width: 20%;">Equipo Asignado</th>
+                            <th style="width: 15%;">Usuario / Área</th>
+                            <th style="width: 10%;">Tipo</th>
+                            <th style="width: 15%;">Fechas (Alta / Modif)</th>
+                            <th style="width: 10%;">Modificado Por</th>
+                            <th class="text-center" style="width: 15%;">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyIPs">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="modal fade" id="modalEditarIP" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header" style="background-color: var(--brand-main); color: white;">
+                    <h5 class="modal-title" id="tituloModalIP">Asignar Dirección IP</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+
+                    <div class="text-center mb-4" id="divDisplayIP">
+                        <h3 class="ip-badge d-inline-block p-2 px-3 m-0" id="editIPDisplay">10.2.x.x</h3>
+                    </div>
+
+                    <div id="divConfigNuevaIP" class="d-none border-bottom pb-3 mb-3">
+                        <div class="mb-3">
+                            <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">DIRECCIÓN IP NUEVA *</label>
+                            <input type="text" class="form-control fw-bold border-danger" id="inputNuevaIP" placeholder="Ej. 10.2.1.50">
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">PLANTA *</label>
+                                <input type="text" class="form-control bg-light" id="inputNuevaPlanta" disabled>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">VLAN *</label>
+                                <select class="form-select border-danger" id="inputNuevaVlan">
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <input type="hidden" id="editIdIP">
+
+                    <div class="mb-3 mt-2">
+                        <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">EQUIPO ASIGNADO</label>
+                        <input type="text" class="form-control" id="editEquipo" placeholder="Ej. DESKTOP-067SDRC (Déjalo vacío para 'Disponible')">
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">USUARIO (Opcional)</label>
+                            <input type="text" class="form-control" id="editUsuarioIP" placeholder="Ej. Juan Pérez">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">ÁREA / DEPTO (Opcional)</label>
+                            <input type="text" class="form-control" id="editAreaIP" placeholder="Ej. Finanzas">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">TIPO DE CONEXIÓN</label>
+                        <select class="form-select" id="editTipo">
+                            <option value="Cable">Cable / Ethernet</option>
+                            <option value="WiFi">Inalámbrico (WiFi)</option>
+                            <option value="-">Sin asignar</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">OBSERVACIONES</label>
+                        <textarea class="form-control" id="editNotas" rows="2" placeholder="Motivo de la modificación..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-danger me-auto" id="btnLiberarIP" onclick="liberarIP()">Liberar IP</button>
+                    <button type="button" class="btn btn-outline" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-brand" id="btnGuardarIP" onclick="guardarIP()">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalVlan" tabindex="-1">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header" style="background-color: var(--brand-main); color: white;">
+                    <h5 class="modal-title">Registrar Nueva VLAN</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">PLANTA DESTINO</label>
+                        <input type="text" class="form-control bg-light" id="vlanPlantaText" disabled>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">NÚMERO / ID VLAN *</label>
+                        <input type="text" class="form-control border-danger" id="inVlanId" placeholder="Ej. 100">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">NOMBRE / USO *</label>
+                        <input type="text" class="form-control border-danger" id="inVlanNombre" placeholder="Ej. Impresoras">
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-between">
+                    <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-brand btn-sm px-3 fw-bold" onclick="guardarNuevaVlan()">Crear VLAN</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalLog" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header text-white d-flex align-items-center flex-wrap gap-2" style="background-color: var(--brand-main);">
+                    <h5 class="modal-title text-white m-0"><i class="bi bi-journal-text me-2"></i> Log de Movimientos</h5>
+
+                    <div class="d-flex gap-2 ms-auto flex-wrap">
+                        <input type="date" class="form-control form-control-sm" id="filtroLogFecha" onchange="renderLogs()" title="Filtrar por Fecha">
+                        <select class="form-select form-select-sm" id="filtroLogPlanta" onchange="renderLogs()" style="width: 120px;">
+                            <option value="">Todas</option>
+                            <option value="TIF">TIF</option>
+                            <option value="P1">P1</option>
+                        </select>
+                        <input type="text" class="form-control form-control-sm" id="filtroLogTexto" placeholder="Buscar..." onkeyup="renderLogs()" style="width: 150px;">
+                    </div>
+
+                    <button type="button" class="btn-close btn-close-white ms-2" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="table-responsive scroll-panel" style="max-height: 400px; overflow-y:auto;">
+                        <table class="table table-sm align-middle mb-0" style="font-size: 0.85rem;" id="tablaLog">
+                            <thead class="table-light" style="position: sticky; top:0; z-index: 5;">
+                                <tr>
+                                    <th class="py-2 px-3">Fecha</th>
+                                    <th class="py-2">IP</th>
+                                    <th class="py-2">Acción Registrada</th>
+                                    <th class="py-2">Planta</th>
+                                    <th class="py-2">Usuario</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyLogs">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalHistorialIP" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header text-white" style="background-color: var(--brand-main);">
+                    <h5 class="modal-title m-0"><i class="bi bi-clock-history me-2"></i> Trazabilidad de IP: <span id="lblHistorialIP" class="fw-bold"></span></h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="table-responsive scroll-panel" style="max-height: 350px; overflow-y:auto;">
+                        <table class="table table-sm align-middle mb-0" style="font-size: 0.85rem;">
+                            <thead class="table-light" style="position: sticky; top:0; z-index: 5;">
+                                <tr>
+                                    <th class="py-2 px-3">Fecha</th>
+                                    <th class="py-2">Acción Registrada</th>
+                                    <th class="py-2">Usuario</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyHistorialIP">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+        <script>
+            let modalEditar;
+            let modalLog;
+            let modalVlanObj;
+            let vlanActiva = '21';
+            let modoCreacion = false;
+
+            let baseVlans = [];
+            let baseIPs = [];
+            let historialLogs = [];
+                        let permisosIPs = { puedeLeer: false, puedeEscribir: false, puedeEliminar: false };
+
+            $(document).ready(function () {
+                cargarPermisosIPs();
+                // ... el resto del código existente ...
+            });
+
+            async function cargarPermisosIPs() {
+                try {
+                    const res = await fetch('@Url.Action("ObtenerPermisosVistaControlIPs", "InventariosSistemas")');
+                    if (res.ok) {
+                        permisosIPs = await res.json();
+                        aplicarPermisosIPs();
+                    }
+                } catch (e) {
+                    console.error("Error permisos IPs:", e);
+                }
+            }
+
+            function aplicarPermisosIPs() {
+                if (!permisosIPs.puedeEscribir) {
+                    document.querySelectorAll(
+                        '[onclick*="abrirNuevaIP"], ' +
+                        '[onclick*="abrirModalVlan"], ' +
+                        '[onclick*="abrirEdicion"], ' +
+                        '[onclick*="eliminarIP"], ' +
+                        '#btnLiberarIP, ' +
+                        '#btnGuardarIP'
+                    ).forEach(el => el.style.display = 'none');
+                }
+            }
+
+
+            $(document).ready(function () {
+                modalEditar = new bootstrap.Modal(document.getElementById('modalEditarIP'));
+                modalLog = new bootstrap.Modal(document.getElementById('modalLog'));
+                modalVlanObj = new bootstrap.Modal(document.getElementById('modalVlan'));
+
+                cargarTodoDesdeServidor();
+            });
+
+            async function cargarTodoDesdeServidor() {
+                try {
+                    // 1. Cargar VLANs
+                    const responseVlans = await fetch('@Url.Action("GetVlans", "InventariosSistemas")');
+                    const dataVlans = await responseVlans.json();
+                    if (dataVlans.ok) { baseVlans = dataVlans.vlans; }
+
+                    // 2. Cargar Historial (Log General)
+                    const responseLogs = await fetch('@Url.Action("GetLogsRed", "InventariosSistemas")');
+                    const dataLogs = await responseLogs.json();
+                    if (dataLogs.ok) {
+                        historialLogs = dataLogs.logs;
+                        renderLogs();
+                        // VERIFICAR SI HAY NOVEDADES PARA ESTE USUARIO
+                        verificarNuevosLogs();
+                    }
+
+                    // 3. Cargar IPs
+                    const responseIPs = await fetch('@Url.Action("GetIPs", "InventariosSistemas")');
+                    const dataIPs = await responseIPs.json();
+
+                    if (dataIPs.ok) {
+                        baseIPs = dataIPs.ips;
+                        baseIPs.forEach(i => {
+                            i.fAlta = new Date(i.fechaAlta).toLocaleDateString('es-MX');
+                            i.fMod = new Date(i.fechaModificacion).toLocaleDateString('es-MX');
+                            i.ip = i.ipAddress;
+                            i.equipo = i.equipoAsignado;
+                            i.usuario = i.usuario || i.Usuario || '';
+                            i.area = i.area || i.Area || '';
+                            i.tipo = i.tipoConexion;
+                            i.modPor = i.modificadoPor;
+                            i.vlan = i.vlanId;
+                        });
+                    }
+
+                    cambioPlanta();
+
+                } catch (error) {
+                    console.error("Error al sincronizar con el servidor", error);
+                }
+            }
+
+            // --- LÓGICA DE NOTIFICACIONES INTELIGENTES ---
+
+            function verificarNuevosLogs() {
+                if (historialLogs.length === 0) return;
+
+                // Obtenemos el ID del registro más reciente (el primero de la lista)
+                const ultimoIdBase = historialLogs[0].idLog || historialLogs[0].IdLog;
+
+                // Consultamos qué ID fue el último que este navegador marcó como "visto"
+                const ultimoVisto = localStorage.getItem('ultimo_log_visto_id');
+
+                // Si el ID en la base es mayor al que tenemos guardado, hay movimientos nuevos
+                if (!ultimoVisto || parseInt(ultimoIdBase) > parseInt(ultimoVisto)) {
+                    encenderAlertaLog();
+                }
+            }
+
+            function encenderAlertaLog() {
+                let btn = $('#btnLog');
+                let badge = $('#badgeLog');
+                btn.removeClass('btn-outline-light').addClass('btn-log-alert');
+                badge.removeClass('d-none');
+            }
+
+                function abrirLogMovimientos() {
+                let btn = $('#btnLog');
+                let badge = $('#badgeLog');
+
+                btn.removeClass('btn-log-alert').addClass('btn-outline-light');
+                badge.addClass('d-none');
+
+                // MARCAR COMO VISTO
+                if (historialLogs.length > 0) {
+                    const ultimoId = historialLogs[0].idLog || historialLogs[0].IdLog;
+                    localStorage.setItem('ultimo_log_visto_id', ultimoId);
+                }
+
+                // Limpiamos los filtros cada que se abre
+                $('#filtroLogTexto').val('');
+                $('#filtroLogFecha').val('');
+                $('#filtroLogPlanta').val('');
+
+                renderLogs();
+                modalLog.show();
+            }
+
+            // --- LÓGICA DE REGISTRO Y RENDER ---
+
+            async function registrarEnLog(ip, accion) {
+                let fechaActual = new Date().toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
+
+                let nuevoLog = {
+                    Fecha: fechaActual,
+                    Ip: ip,
+                    Accion: accion
+                };
+
+                try {
+                    await fetch('@Url.Action("AddLogRed", "InventariosSistemas")', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(nuevoLog)
+                    });
+
+                    const responseLogs = await fetch('@Url.Action("GetLogsRed", "InventariosSistemas")');
+                    const dataLogs = await responseLogs.json();
+
+                    if (dataLogs.ok) {
+                        historialLogs = dataLogs.logs;
+                        renderLogs();
+                        // Alerta para todos (se activará en el siguiente refresh de otros usuarios)
+                        encenderAlertaLog();
+                    }
+                } catch(e) {
+                    console.error("No se pudo guardar el log en el servidor.", e);
+                }
+            }
+
+                function renderLogs() {
+                //  filtros
+                let texto = ($('#filtroLogTexto').val() || '').toLowerCase();
+                let fDate = $('#filtroLogFecha').val(); 
+                let fPlanta = $('#filtroLogPlanta').val();
+
+                let html = '';
+
+                historialLogs.forEach(log => {
+                    let dFechaStr = log.fecha || log.Fecha || '';
+                    let dIp = log.ip || log.Ip || '';
+                    let dAccion = log.accion || log.Accion || '';
+                    let dUsu = log.usuario || log.Usuario || '';
+
+                    let ipInfo = baseIPs.find(i => i.ip === dIp);
+                    let plantaIp = ipInfo ? ipInfo.planta : 'N/A';
+
+                    // --- Filtro Planta ---
+                    if (fPlanta && plantaIp !== fPlanta) return;
+
+                   // ---  Filtro Fecha ---
+                if (fDate) {
+                    let fechaSolo = dFechaStr.split(' ')[0].replace(',', '');
+                    let partes = fechaSolo.split('/');
+
+                    if (partes.length === 3) {
+                        let anio = partes[2];
+                        if (anio.length === 2) {
+                            anio = '20' + anio;
+                        }
+
+                        let logDateISO = `${anio}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
+
+                        if (logDateISO !== fDate) return;
+                    }
+                }
+
+                    let stringBusqueda = `${dFechaStr} ${dIp} ${dAccion} ${dUsu} ${plantaIp}`.toLowerCase();
+                    if (texto && !stringBusqueda.includes(texto)) return;
+
+                    html += `<tr>
+                                <td class="px-3 text-muted">${dFechaStr}</td>
+                                <td><span class="ip-badge py-1 px-2" style="font-size:0.75rem;">${dIp}</span></td>
+                                <td class="fw-bold text-dark">${dAccion}</td>
+                                <td><span class="badge bg-secondary px-2">${plantaIp}</span></td>
+                                <td>${dUsu}</td>
+                             </tr>`;
+                });
+
+                if (html === '') {
+                    html = '<tr><td colspan="5" class="text-center py-4 text-muted">No se encontraron movimientos con esos filtros.</td></tr>';
+                }
+
+                $('#tbodyLogs').html(html);
+            }
+
+
+            function cambioPlanta() {
+                let p = $('#selectPlanta').val();
+                let vlansPlanta = baseVlans.filter(v => v.planta === p);
+                let h = '';
+                let opt = '';
+
+                if (vlansPlanta.length > 0 && !vlansPlanta.some(v => v.id === vlanActiva)) {
+                    vlanActiva = vlansPlanta[0].id;
+                }
+
+                vlansPlanta.forEach((v) => {
+                    let active = v.id === vlanActiva ? 'active' : '';
+                    h += `<li class="nav-item"><button class="nav-link ${active}" data-vlan-id="${v.id}" onclick="cambiarVlan('${v.id}')">${v.nombre}</button></li>`;
+                    opt += `<option value="${v.id}">${v.nombre}</option>`;
+                });
+
+                $('#vlanTabs').html(h || '<li class="nav-item"><span class="nav-link text-muted">Sin VLANs configuradas</span></li>');
+                $('#inputNuevaVlan').html(opt);
+                renderTabla();
+            }
+
+            function cambiarVlan(vlanId) {
+                vlanActiva = vlanId;
+                $('.nav-tabs .nav-link').removeClass('active');
+                $(`.nav-tabs .nav-link[data-vlan-id="${vlanId}"]`).addClass('active');
+                renderTabla();
+            }
+
+            function abrirModalVlan() {
+                let p = $('#selectPlanta option:selected').text();
+                $('#vlanPlantaText').val(p);
+                $('#inVlanId').val('');
+                $('#inVlanNombre').val('');
+                modalVlanObj.show();
+            }
+
+            async function guardarNuevaVlan() {
+                let p = $('#selectPlanta').val();
+                let idVlan = $('#inVlanId').val().trim();
+                let nomRaw = $('#inVlanNombre').val().trim();
+
+                if(!idVlan || !nomRaw) { alert("Completa el ID y el Nombre de la VLAN."); return; }
+
+                let nombreFormateado = `VLAN ${idVlan} (${nomRaw})`;
+
+                try {
+                    const url = `@Url.Action("GuardarVlan", "InventariosSistemas")` +
+                                `?planta=${encodeURIComponent(p)}` +
+                                `&id=${encodeURIComponent(idVlan)}` +
+                                `&nombre=${encodeURIComponent(nombreFormateado)}`;
+
+                    const response = await fetch(url, { method: 'POST' });
+                    const data = await response.json();
+
+                    if (data.ok) {
+                        modalVlanObj.hide();
+                        vlanActiva = idVlan;
+                        await cargarTodoDesdeServidor();
+                        alert("VLAN creada exitosamente.");
+                    } else {
+                        alert("Error del servidor: " + data.mensaje);
+                    }
+                } catch (error) {
+                    alert("Error de comunicación: " + error.message);
+                }
+            }
+
+                    function renderTabla() {
+                    let plantaActiva = $('#selectPlanta').val();
+                    let textoFiltro = ($('#buscadorIP').val() || '').toLowerCase();
+                    let estatusFiltro = $('#filtroEstatus').val();
+                    let tbody = '';
+
+                    let filtrados = baseIPs.filter(i => {
+                        let coincidePlanta = i.planta === plantaActiva;
+                        let coincideVlan = i.vlan === vlanActiva;
+                        let eq = (i.equipo || '').toLowerCase();
+                        let ip = (i.ip || '').toLowerCase();
+                        let coincideTexto = !textoFiltro || ip.includes(textoFiltro) || eq.includes(textoFiltro);
+
+                        let estaLibre = !i.equipo || i.equipo.trim() === '';
+                        let coincideEstatus = true;
+                        if (estatusFiltro === "DISPONIBLE") coincideEstatus = estaLibre;
+                        if (estatusFiltro === "ASIGNADO") coincideEstatus = !estaLibre;
+
+                        return coincidePlanta && coincideVlan && coincideTexto && coincideEstatus;
+                    });
+                    filtrados.sort((a, b) => {
+                let numA = (a.ip || "0.0.0.0").split('.').reduce((acc, octeto) => acc * 256 + parseInt(octeto || 0), 0);
+                let numB = (b.ip || "0.0.0.0").split('.').reduce((acc, octeto) => acc * 256 + parseInt(octeto || 0), 0);
+                return numA - numB;
+            });
+                    // --- LÓGICA DEL CONTADOR ---
+                    let asignadas = filtrados.filter(x => x.equipo && x.equipo.trim() !== '').length;
+                    let disponibles = filtrados.length - asignadas;
+
+                    let htmlContador = `
+                        <span class="me-3"><i class="bi bi-list-ul"></i> Total: ${filtrados.length}</span>
+                        <span class="text-success me-3"><i class="bi bi-check-circle"></i> Disponibles: ${disponibles}</span>
+                        <span class="text-primary"><i class="bi bi-pc-display"></i> Asignadas: ${asignadas}</span>
+                    `;
+                    $('#contadorResultados').html(htmlContador);
+                    // ---------------------------
+
+                    if(filtrados.length === 0) {
+                        $('#tbodyIPs').html('<tr><td colspan="6" class="text-center py-4 text-muted">No se encontraron registros con los filtros aplicados.</td></tr>');
+                        return;
+                    }
+
+                    filtrados.forEach(i => {
+                let estaLibre = !i.equipo || i.equipo.trim() === '';
+                let equipoDisplay = estaLibre ? '<span class="badge-disponible">DISPONIBLE</span>' : `<b>${i.equipo}</b>`;
+
+                let usuarioAreaDisplay = '<span class="text-muted small">-</span>';
+                if (i.usuario || i.area) {
+                    let extraInfo = [];
+                    if (i.usuario) extraInfo.push(`<div class="text-dark fw-bold" style="font-size:0.8rem;"><i class="bi bi-person text-muted"></i> ${i.usuario}</div>`);
+                    if (i.area) extraInfo.push(`<div class="text-muted" style="font-size:0.75rem;"><i class="bi bi-building"></i> ${i.area}</div>`);
+                    usuarioAreaDisplay = extraInfo.join('');
+                }
+
+                let badgeTipo = '-';
+                if(i.tipo === 'Cable') badgeTipo = '<span class="tipo-cable"><i class="bi bi-ethernet"></i> Cable</span>';
+                if(i.tipo === 'WiFi') badgeTipo = '<span class="tipo-wifi"><i class="bi bi-wifi"></i> WiFi</span>';
+
+                tbody += `
+                <tr>
+                    <td><span class="ip-badge ip-clickable" onclick="verHistorialEspecifico('${i.ip}')">${i.ip}</span></td>
+                    <td>${equipoDisplay}</td>
+                    <td>${usuarioAreaDisplay}</td> <td>${badgeTipo}</td>
+                    <td>
+                        <small class="text-muted d-block" style="font-size:0.7rem;">Alta: ${i.fAlta}</small>
+                        <small class="fw-bold d-block" style="font-size:0.7rem;">Mod: ${i.fMod}</small>
+                    </td>
+                    <td><span class="text-muted small">${i.modPor}</span></td>
+                               // En renderTabla(), alrededor de la línea 1177, cambia:
+            <td class="text-center">
+                <div class="d-flex flex-wrap justify-content-center gap-1">
+                    ${permisosIPs.puedeEscribir ? `
+                        <button class="btn-sm-action fw-bold" onclick="abrirEdicion(${i.id})">Editar</button>
+                        <button class="btn-sm-action fw-bold text-danger border-danger" onclick="eliminarIP(${i.id}, '${i.ip}')" title="Eliminar IP">
+                            <i class="bi bi-trash3"></i>
+                        </button>
+                    ` : ''}
+                </div>
+            </td>
+
+                </tr>`;
+            });
+            $('#tbodyIPs').html(tbody);
+                }
+
+            function abrirNuevaIP() {
+                modoCreacion = true;
+                $('#tituloModalIP').text("Registrar Nueva IP");
+                $('#divDisplayIP').addClass('d-none');
+                $('#divConfigNuevaIP').removeClass('d-none');
+                $('#btnLiberarIP').hide();
+                $('#inputNuevaIP').val('');
+                $('#inputNuevaPlanta').val($('#selectPlanta option:selected').text());
+                if (baseVlans.filter(v => v.planta === $('#selectPlanta').val()).length === 0) {
+                    alert("Primero debes crear una VLAN para esta planta.");
+                    return;
+                }
+                $('#inputNuevaVlan').val(vlanActiva);
+                $('#editEquipo').val('');
+                $('#editUsuarioIP').val('');
+                $('#editAreaIP').val('');
+                $('#editTipo').val('-');
+                $('#editNotas').val('');
+                modalEditar.show();
+            }
+
+            function abrirEdicion(id) {
+                modoCreacion = false;
+                $('#tituloModalIP').text("Asignar Dirección IP");
+                $('#divConfigNuevaIP').addClass('d-none');
+                $('#divDisplayIP').removeClass('d-none');
+                $('#btnLiberarIP').show();
+                let ipObj = baseIPs.find(x => x.id === id);
+                $('#editIdIP').val(ipObj.id);
+                $('#editIPDisplay').text(ipObj.ip);
+                $('#editEquipo').val(ipObj.equipo);
+                $('#editUsuarioIP').val(ipObj.usuario || '');
+                $('#editAreaIP').val(ipObj.area || '');
+                $('#editTipo').val(ipObj.tipo);
+                $('#editNotas').val('');
+                if(!ipObj.equipo || ipObj.equipo.trim() === '') $('#btnLiberarIP').hide();
+                $('#modalEditarIP .btn-brand').attr('data-id-editar', id);
+                modalEditar.show();
+            }
+
+            async function guardarIP() {
+                let equipo = $('#editEquipo').val().trim();
+                let tipo = $('#editTipo').val();
+                let accionString = "";
+                let ipParaValidar = "";
+
+                let objEnvio = {
+                    EquipoAsignado: equipo,
+                    TipoConexion: tipo,
+                    Observaciones: $('#editNotas').val(),
+                    Usuario: $('#editUsuarioIP').val().trim(),
+                    Area: $('#editAreaIP').val().trim()
+                };
+
+                // Determinar si es nueva o edición
+                if (modoCreacion) {
+                    let ipN = $('#inputNuevaIP').val().trim();
+                    if(ipN === "") { alert("Por favor ingresa la dirección IP."); return; }
+                    const regexIP = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+                    if (!regexIP.test(ipN)) { alert("Formato de IP inválido."); return; }
+
+                    ipParaValidar = ipN;
+                    objEnvio.Id = 0;
+                    objEnvio.Planta = $('#selectPlanta').val();
+                    objEnvio.VlanId = $('#inputNuevaVlan').val();
+                    objEnvio.IpAddress = ipN;
+                    accionString = `Registro de nueva IP. Asignado a: ${equipo || 'Libre'}`;
+                } else {
+                    let idEditando = $('#modalEditarIP .btn-brand').attr('data-id-editar');
+                    let itemAntiguo = baseIPs.find(x => x.id == idEditando);
+                    ipParaValidar = itemAntiguo.ip;
+                    objEnvio.Id = idEditando;
+                    objEnvio.Planta = itemAntiguo.planta;
+                    objEnvio.VlanId = itemAntiguo.vlan;
+                    objEnvio.IpAddress = itemAntiguo.ip;
+                    accionString = equipo === "" ? `Se dejó la IP Disponible (Antes: ${itemAntiguo.equipo})` : `Actualizado. Asignado a: ${equipo}`;
+                }
+
+                const btn = document.getElementById('btnGuardarIP');
+                const btnOriginalText = btn.innerHTML;
+
+                try {
+                    let requierePing = modoCreacion || (!modoCreacion && equipo === "");
+
+                    if (requierePing) {
+                        btn.disabled = true;
+                        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Verificando Red...';
+
+                        const resPing = await fetch(`@Url.Action("VerificarPing", "InventariosSistemas")?ipAddress=${ipParaValidar}`);
+                        const dataPing = await resPing.json();
+
+                        if (dataPing.ok && dataPing.responde) {
+                            btn.disabled = false;
+                            btn.innerHTML = btnOriginalText;
+
+                            if (equipo === "") {
+                                alert(`OPERACIÓN RECHAZADA (Ping: ${dataPing.tiempoMs}ms)\n\nLa IP ${ipParaValidar} responde en la red. No se puede dejar libre.`);
+                                return;
+                            } else {
+                                let continuar = confirm(`ADVERTENCIA (Ping: ${dataPing.tiempoMs}ms)\n\nLa IP ${ipParaValidar} ya responde. ¿Registrar de todos modos?`);
+                                if (!continuar) return;
+                                accionString += " [Forzado con advertencia de red]";
+                            }
+                        }
+                    }
+
+                    btn.disabled = true;
+                    btn.innerHTML = "Guardando...";
+
+                    const res = await fetch('@Url.Action("GuardarIP", "InventariosSistemas")', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(objEnvio)
+                    });
+
+                    const data = await res.json();
+                    if (data.ok) {
+                        await registrarEnLog(objEnvio.IpAddress, accionString);
+                        modalEditar.hide();
+                        cargarTodoDesdeServidor();
+                    } else { alert(data.mensaje); }
+
+                } catch(e) {
+                    alert("Error: " + e.message);
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = btnOriginalText;
+                }
+            }
+
+            async function liberarIP() {
+                let idEditando = $('#modalEditarIP .btn-brand').attr('data-id-editar');
+                let item = baseIPs.find(x => x.id == idEditando);
+
+                if(confirm(`¿Liberar la IP ${item.ip}? El sistema verificará que esté disponible.`)){
+                    const btn = document.getElementById('btnLiberarIP');
+                    const btnText = btn.innerHTML;
+
+                    try {
+                        btn.disabled = true;
+                        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Haciendo Ping...';
+
+                        const resPing = await fetch(`@Url.Action("VerificarPing", "InventariosSistemas")?ipAddress=${item.ip}`);
+                        const dataPing = await resPing.json();
+
+                        if (dataPing.ok && dataPing.responde) {
+                            alert(`OPERACIÓN RECHAZADA:\n\nEl equipo respondió en ${dataPing.tiempoMs}ms. No se puede marcar como disponible.`);
+                            return;
+                        }
+
+                        btn.innerHTML = "Liberando...";
+                        let objEnvio = {
+                            Id: item.id,
+                            Planta: item.planta,
+                            IpAddress: item.ip,
+                            VlanId: item.vlan,
+                            EquipoAsignado: "",
+                            TipoConexion: "-",
+                            Observaciones: "Liberación validada (Ping fallido)",
+                            Usuario: "",
+                            Area: ""
+                        };
+
+                        const resGuardar = await fetch('@Url.Action("GuardarIP", "InventariosSistemas")', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(objEnvio)
+                        });
+
+                        if(resGuardar.ok) {
+                            await registrarEnLog(item.ip, `Liberación de IP (Antes: ${item.equipo})`);
+                            modalEditar.hide();
+                            cargarTodoDesdeServidor();
+                        }
+                    } catch(e) {
+                        alert("Error en validación: " + e.message);
+                    } finally {
+                        btn.disabled = false;
+                        btn.innerHTML = btnText;
+                    }
+                }
+            }
+
+            function filtrarLog() {
+                let v = $('#filtroLog').val().toLowerCase();
+                $("#tablaLog tbody tr").filter(function() { $(this).toggle($(this).text().toLowerCase().indexOf(v) > -1) });
+            }
+
+            function verHistorialEspecifico(ip) {
+                $('#lblHistorialIP').text(ip);
+                let logsFiltrados = historialLogs.filter(log => (log.ip || log.Ip) === ip);
+                let html = '';
+                if (logsFiltrados.length === 0) {
+                    html = '<tr><td colspan="3" class="text-center py-4 text-muted">Sin historial.</td></tr>';
+                } else {
+                    logsFiltrados.forEach(log => {
+                        html += `<tr><td class="px-3 text-muted">${log.fecha || log.Fecha}</td><td class="fw-bold">${log.accion || log.Accion}</td><td>${log.usuario || log.Usuario}</td></tr>`;
+                    });
+                }
+                $('#tbodyHistorialIP').html(html);
+                new bootstrap.Modal(document.getElementById('modalHistorialIP')).show();
+            }
+
+            async function eliminarIP(id, direccionIP) {
+                   if (!confirm(` ALERTA ⚠\n\n¿Estás seguro de que deseas eliminar  la IP ${direccionIP} del sistema?.`)) {
+                       return;
+                   }
+
+                   try {
+                       // Cambiamos el cursor o mostramos que está pensando
+                       document.body.style.cursor = 'wait';
+
+                       const resPing = await fetch(`@Url.Action("VerificarPing", "InventariosSistemas")?ipAddress=${direccionIP}`);
+                       const dataPing = await resPing.json();
+
+                       if (dataPing.ok && dataPing.responde) {
+                           document.body.style.cursor = 'default';
+                           alert(` ELIMINACIÓN RECHAZADA \n\nLa IP ${direccionIP} está ACTIVA y respondió en la red (Ping: ${dataPing.tiempoMs}ms).\n\nNo puedes borrar un registro de IP que está siendo utilizado físicamente por un equipo.`);
+                           return; // Detenemos la eliminación
+                       }
+
+                       const res = await fetch(`@Url.Action("EliminarIP", "InventariosSistemas")?id=${id}`, { method: 'POST' });
+                       const data = await res.json();
+
+                       if (data.ok) {
+                           // Guardamos el rastro en el Log General
+                           await registrarEnLog(direccionIP, `Eliminación permanente del registro IP`);
+
+                           // Recargamos la información desde cero
+                           await cargarTodoDesdeServidor();
+                           alert("✅ " + data.mensaje);
+                       } else {
+                           alert("Error: " + data.mensaje);
+                       }
+                   } catch (error) {
+                       alert("Error de conexión al intentar eliminar: " + error.message);
+                   } finally {
+                       document.body.style.cursor = 'default';
+                   }
+               }
+        </script>
+}

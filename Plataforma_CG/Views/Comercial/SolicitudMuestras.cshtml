@@ -1,0 +1,2413 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Solicitud y Trazabilidad de Muestras";
+    var usuarioLogueado = User.Identity?.Name ?? "";
+}
+
+<style>
+
+    :root {
+        --bg: #f0dede;
+        --panel: #f8eeee;
+        --panel-2: #f1dede;
+        --line: #c79d9d;
+        --text: #3b1717;
+        --white: #ffffff;
+        --vino-border: #9a5a5a;
+        --font: Tahoma, sans-serif;
+    }
+
+    /* CONTENEDOR PRINCIPAL */
+    .app-shell {
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
+        font-family: var(--font);
+        font-size: 11px;
+        color: var(--text);
+        background: var(--bg) !important;
+        min-height: 80vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+        .app-shell * {
+            box-sizing: border-box;
+        }
+
+    /* HEADER */
+    .module-header {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-bottom: 1px solid #4a0000;
+        flex-shrink: 0;
+        padding: 10px 10px 0 10px;
+        box-shadow: 0 4px 8px rgba(0,0,0,.15);
+        z-index: 100;
+        position: sticky;
+        top: 0;
+    }
+
+    .header-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 15px;
+        margin-bottom: 10px;
+    }
+
+    .brand {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .brand-mark {
+        width: 34px;
+        height: 34px;
+        display: grid;
+        place-items: center;
+        background: rgba(255,255,255,.12);
+        border: 1px solid rgba(255,255,255,.18);
+        font-weight: bold;
+        font-size: 14px;
+        color: #fff;
+        border-radius: 2px;
+    }
+
+    .brand h1 {
+        font-size: 14px;
+        margin: 0;
+        font-weight: bold;
+        color: #fff;
+    }
+
+    .brand small {
+        display: block;
+        color: #f4d7d7;
+        font-size: 10px;
+        font-weight: normal;
+        margin-top: 2px;
+    }
+
+    .header-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .module-tabs {
+        display: flex;
+        gap: 5px;
+        overflow-x: auto;
+        scrollbar-width: none;
+        padding: 0 10px;
+        margin-top: 5px;
+        position: relative;
+        bottom: -1px;
+    }
+
+        .module-tabs::-webkit-scrollbar {
+            display: none;
+        }
+
+    .nav-btn {
+        background: rgba(0,0,0,0.15);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-bottom: none;
+        color: #f4d7d7;
+        padding: 10px 18px;
+        font-weight: bold;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        border-radius: 8px 8px 0 0;
+        white-space: nowrap;
+        transition: all 0.25s ease;
+    }
+
+        .nav-btn:hover {
+            background: rgba(255,255,255,0.15);
+            color: #fff;
+        }
+
+        .nav-btn.active {
+            background: var(--bg) !important;
+            color: #5c1a1a !important;
+            border-color: transparent !important;
+            padding-top: 12px;
+            box-shadow: 0 -4px 10px rgba(0,0,0,0.05);
+        }
+
+        /* Píldora numérica de las pestañas */
+        .nav-btn .pill {
+            background: rgba(255,255,255,0.2);
+            color: #fff;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            font-size: 11px;
+            transition: 0.3s;
+        }
+
+        .nav-btn.active .pill {
+            background: #8b0000;
+            color: #fff !important;
+        }
+
+    /* AREA DE CONTENIDO PRINCIPAL */
+    .module-main {
+        flex: 1;
+        padding: 10px;
+        background: var(--bg);
+        min-width: 0;
+    }
+
+    /* BOTONES */
+    .app-shell button:not(.nav-btn), .app-shell .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        height: 26px;
+        padding: 0 12px;
+        border: 1px solid transparent;
+        border-radius: 0;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        color: #fff !important;
+        font-size: 11px;
+        font-weight: bold;
+        line-height: 1;
+        text-decoration: none;
+        white-space: nowrap;
+        cursor: pointer;
+        border-color: #7a2d2d;
+    }
+
+        .app-shell button:not(.nav-btn):hover, .app-shell .btn:hover {
+            filter: brightness(1.1);
+            color: #fff !important;
+        }
+
+        .app-shell button.secondary, .app-shell .btn.secondary {
+            background: linear-gradient(#fffefe, #ecd7d7) !important;
+            border-color: var(--vino-border) !important;
+            color: #4a1111 !important;
+        }
+
+            .app-shell button.secondary:hover, .app-shell .btn.secondary:hover {
+                background: #fff !important;
+                color: #111 !important;
+            }
+
+        .app-shell button.ghost, .app-shell .btn.ghost {
+            background: transparent;
+            color: #8b0000 !important;
+            border: 1px dashed #c79d9d;
+        }
+
+            .app-shell button.ghost:hover, .app-shell .btn.ghost:hover {
+                background: #fffafa;
+                color: #5c0000 !important;
+                border-color: #8b0000;
+            }
+
+    .app-shell button.success {
+        background: linear-gradient(180deg, #27ae60 0%, #1f9a54 55%, #198754 100%) !important;
+        border-color: #157347 !important;
+    }
+
+    .app-shell button.danger {
+        background: linear-gradient(180deg, #dc3545 0%, #c82333 55%, #bd2130 100%) !important;
+        border-color: #b02a37 !important;
+    }
+
+    /* TARJETAS Y CONTENEDORES */
+    .grid {
+        display: grid;
+        gap: 10px;
+        min-width: 0;
+    }
+
+        .grid.cols-4 {
+            grid-template-columns: repeat(4,minmax(0,1fr));
+            margin: 0 0 10px;
+        }
+
+        .grid.cols-3 {
+            grid-template-columns: repeat(3,minmax(0,1fr));
+        }
+
+        .grid.cols-2 {
+            grid-template-columns: repeat(2,minmax(0,1fr));
+        }
+
+    .app-shell .card {
+        background: var(--panel) !important;
+        border: 1px solid var(--line) !important;
+        border-radius: 0 !important;
+        padding: 12px;
+        color: var(--text) !important;
+        min-width: 0;
+    }
+
+    .form-subtitle {
+        font-size: 12px;
+        font-weight: bold;
+        color: #fff;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        padding: 4px 8px;
+        margin: 0 0 10px 0;
+        border-bottom: 1px solid #6b1f1f;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .kpi {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-height: 70px;
+        background: var(--white) !important;
+        border: 1px solid var(--line);
+        padding: 10px;
+    }
+
+        .kpi small {
+            color: #5c1a1a;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 10px;
+        }
+
+        .kpi strong {
+            font-size: 18px;
+            line-height: 1;
+            color: #8b0000;
+        }
+
+        .kpi .hint {
+            font-size: 10px;
+            color: #666;
+        }
+
+    .section {
+        display: none;
+        animation: fadeIn 0.2s ease;
+    }
+
+        .section.active {
+            display: block;
+        }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(3px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .section-header {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        margin: 10px 0 8px;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+        .section-header h3 {
+            margin: 0;
+            font-size: 13px;
+            font-weight: bold;
+            color: #5c1a1a;
+        }
+
+        .section-header p {
+            margin: 4px 0 0;
+            color: #444;
+            font-size: 11px;
+        }
+
+    /* FORMULARIOS */
+    .app-shell label {
+        display: block;
+        color: #5c1a1a !important;
+        font-weight: bold;
+        font-size: 11px;
+        margin-bottom: 4px;
+    }
+
+    .app-shell input, .app-shell select, .app-shell textarea {
+        width: 100%;
+        border-radius: 0;
+        border: 1px solid #b48787 !important;
+        background: #fffdfd !important;
+        color: #421414 !important;
+        font-size: 11px;
+        min-height: 26px;
+        padding: 2px 6px;
+        outline: none;
+    }
+
+    .app-shell textarea {
+        min-height: 50px;
+        resize: vertical;
+        line-height: 1.3;
+    }
+
+        .app-shell input:focus, .app-shell select:focus, .app-shell textarea:focus {
+            border-color: #8b0000 !important;
+            background: #fff !important;
+        }
+
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(3,minmax(0,1fr));
+        gap: 10px;
+        margin-bottom: 10px;
+        background: var(--panel-2);
+        padding: 10px;
+        border: 1px solid var(--line);
+    }
+
+        .form-grid.two {
+            grid-template-columns: repeat(2,minmax(0,1fr));
+        }
+
+        .form-grid .full {
+            grid-column: 1/-1;
+        }
+
+    /* TABLAS */
+    .app-shell .table-wrap {
+        width: 100%;
+        overflow: visible;
+        background: #fffafa !important;
+        border: 1px solid var(--line);
+    }
+
+    .app-shell table {
+        width: 100%;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        font-size: 10px;
+        background: #fffafa !important;
+    }
+
+    .app-shell th, .app-shell td {
+        padding: 4px 5px;
+        text-align: center;
+        vertical-align: middle;
+        border-bottom: 1px solid #d8bcbc !important;
+        border-right: 1px solid #d8bcbc !important;
+        color: #111 !important;
+    }
+
+    .app-shell th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: #fff !important;
+        font-weight: normal;
+        border-right: 1px solid #8e3b3b !important;
+        border-bottom: 1px solid #ffb3b3 !important;
+    }
+
+    .app-shell tbody tr:nth-child(even) td {
+        background: #f9eded !important;
+    }
+
+    .app-shell tbody tr:hover td {
+        background: #f4dddd !important;
+    }
+
+    .app-shell td:first-child, .app-shell th:first-child {
+        border-left: 1px solid #d8bcbc;
+    }
+
+    .app-shell th:first-child {
+        border-left: 1px solid #8e3b3b !important;
+    }
+
+    /* BADGES Y ESTADOS */
+    .app-shell .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 2px 6px;
+        border-radius: 2px;
+        font-size: 9px;
+        font-weight: bold;
+        border: 1px solid transparent;
+    }
+
+        .app-shell .badge.pending {
+            background: #fff7ed;
+            color: #9a3412;
+            border-color: #fed7aa;
+        }
+
+        .app-shell .badge.planned {
+            background: #eff6ff;
+            color: #1d4ed8;
+            border-color: #bfdbfe;
+        }
+
+        .app-shell .badge.progress {
+            background: #fef9c3;
+            color: #854d0e;
+            border-color: #fde68a;
+        }
+
+        .app-shell .badge.done {
+            background: #dcfce7;
+            color: #166534;
+            border-color: #bbf7d0;
+        }
+
+        .app-shell .badge.gray {
+            background: #333;
+            color: #fff;
+            border-color: #111;
+        }
+
+    .request-card {
+        display: grid;
+        grid-template-columns: 1.2fr .9fr;
+        gap: 10px;
+        align-items: start;
+        border-left: 4px solid #8b0000 !important;
+        background: var(--white) !important;
+    }
+
+    .request-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+        margin-bottom: 8px;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 6px;
+    }
+
+        .request-title h4 {
+            margin: 0;
+            font-size: 13px;
+            color: #8b0000;
+            font-weight: bold;
+        }
+
+    .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-top: 6px;
+    }
+
+        .meta span {
+            background: var(--panel-2);
+            color: #5c1a1a;
+            border: 1px solid var(--line);
+            padding: 2px 6px;
+            font-size: 10px;
+        }
+
+    .items-list {
+        display: grid;
+        gap: 6px;
+        margin-top: 8px;
+    }
+
+    .item-line {
+        border: 1px solid var(--line);
+        padding: 6px 8px;
+        background: #fffdfd;
+    }
+
+        .item-line strong {
+            display: block;
+            margin-bottom: 2px;
+            color: #111;
+            font-size: 11px;
+        }
+
+        .item-line small {
+            color: #444;
+            font-size: 10px;
+        }
+
+    .progress-bar {
+        height: 8px;
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        margin-top: 5px;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg,#5c0000,#b30000);
+        width: 0%;
+        transition: .25s ease;
+    }
+
+    .mini {
+        font-size: 10px;
+        color: #444;
+    }
+
+    .split-panel {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 10px;
+        align-items: start;
+    }
+
+    .scan-panel {
+        position: sticky;
+        top: 10px;
+        background: var(--white) !important;
+    }
+
+    .label-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill,minmax(220px,1fr));
+        gap: 10px;
+    }
+
+    .label-card {
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        padding: 10px;
+    }
+
+        .label-card h4 {
+            margin: 0 0 6px;
+            font-size: 12px;
+            color: #5c1a1a;
+            font-weight: bold;
+        }
+
+        .label-card img {
+            display: block;
+            margin: 6px 0;
+            border: 1px solid var(--line);
+            padding: 4px;
+            background: #fff;
+        }
+
+    .label-data {
+        font-size: 10px;
+        color: #111;
+        line-height: 1.4;
+    }
+
+        .label-data b {
+            color: #5c1a1a;
+        }
+
+    .empty {
+        border: 1px dashed var(--line);
+        padding: 20px;
+        text-align: center;
+        color: #5c1a1a;
+        background: var(--panel-2);
+        font-size: 11px;
+        font-weight: bold;
+    }
+
+    .timeline {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-wrap: wrap;
+        background: var(--panel-2);
+        padding: 6px 10px;
+        border: 1px solid var(--line);
+        margin-bottom: 10px;
+    }
+
+    .step {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        color: #666;
+        font-size: 10px;
+        font-weight: bold;
+    }
+
+    .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #ccc;
+        border: 1px solid #999;
+    }
+
+    .step.on {
+        color: #8b0000;
+    }
+
+        .step.on .dot {
+            background: #8b0000;
+            border-color: #5c0000;
+        }
+
+    /* MODALES Y TOAST */
+    .toast {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        background: #3b1717;
+        color: white;
+        padding: 10px 14px;
+        border: 1px solid #8b0000;
+        opacity: 0;
+        transform: translateY(16px);
+        transition: .25s ease;
+        z-index: 2000;
+        font-size: 11px;
+        font-weight: bold;
+    }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+    .modal-backdrop-custom {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,.6);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        z-index: 1900;
+    }
+
+        .modal-backdrop-custom.show {
+            display: flex;
+        }
+
+    .modal-custom {
+        background: var(--bg);
+        border: 1px solid #8b0000;
+        max-width: 1000px;
+        width: 100%;
+        max-height: 90vh;
+        overflow: auto;
+        padding: 0;
+        box-shadow: 0 10px 30px rgba(0,0,0,.3);
+    }
+
+    .modal-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 10px;
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%);
+        border-bottom: 1px solid #5c0000;
+        color: #fff;
+    }
+
+        .modal-head h3 {
+            margin: 0;
+            color: #fff;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+    .modal-custom > textarea {
+        border: 0 !important;
+        background: #fffafa !important;
+        width: 100%;
+        min-height: 400px;
+        font-family: Consolas,monospace;
+        color: #111 !important;
+        padding: 10px;
+    }
+
+    .print-only {
+        display: none;
+    }
+
+    /* RESPONSIVE */
+    @@media (max-width: 900px) {
+        .header-top {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
+        }
+
+        .nav-btn {
+            font-size: 10px;
+            padding: 6px 10px;
+            flex: 1;
+            justify-content: center;
+        }
+
+        .grid.cols-4 {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .form-grid {
+            grid-template-columns: 1fr !important;
+        }
+
+        .split-panel {
+            grid-template-columns: 1fr;
+        }
+
+        .request-card {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* ESTILOS PARA LAS ETIQUETAS EN PANTALLA */
+    .position-relative {
+        position: relative;
+    }
+
+    .print-cb {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        transform: scale(1.4);
+        cursor: pointer;
+        z-index: 10;
+        accent-color: #8b0000;
+    }
+
+    .lc-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 2px solid var(--line);
+        padding-bottom: 5px;
+        margin-bottom: 8px;
+        padding-right: 25px;
+    }
+
+        .lc-header h4 {
+            margin: 0;
+            font-size: 16px;
+            color: #5c1a1a;
+            font-weight: 900;
+        }
+
+    .lc-row {
+        display: flex;
+        padding: 3px 0;
+        border-bottom: 1px solid #f0dede;
+        font-size: 11px;
+    }
+
+    .lc-lbl {
+        width: 35%;
+        font-weight: bold;
+        color: #5c1a1a;
+        text-transform: uppercase;
+        font-size: 10px;
+    }
+
+    .lc-val {
+        width: 65%;
+        color: #111;
+    }
+
+    .sku-hl {
+        font-weight: 900;
+        color: #8b0000;
+        font-size: 13px;
+    }
+
+    .lc-footer {
+        margin-top: 10px;
+        text-align: center;
+        font-family: Consolas, monospace;
+        font-size: 10px;
+        background: #fff;
+        padding: 5px;
+        border: 1px dashed var(--line);
+        font-weight: bold;
+    }
+
+    /* BUSCADOR  */
+    .custom-select-wrapper {
+        position: relative;
+        width: 100%;
+    }
+
+    .custom-select-display {
+        border: 1px solid #b48787;
+        background: #fffdfd;
+        padding: 4px 25px 4px 8px;
+        cursor: pointer;
+        min-height: 26px;
+        display: flex;
+        align-items: center;
+        color: #421414;
+        position: relative;
+    }
+
+        .custom-select-display::after {
+            content: '▼';
+            position: absolute;
+            right: 8px;
+            font-size: 8px;
+            color: #666;
+        }
+
+    .custom-select-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: #fff;
+        border: 1px solid #b48787;
+        border-top: none;
+        z-index: 1000;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+        display: none;
+    }
+
+        .custom-select-dropdown.show {
+            display: block;
+        }
+
+    .custom-select-search {
+        width: calc(100% - 12px) !important;
+        margin: 6px !important;
+        padding: 4px 6px !important;
+        border: 1px solid #000 !important;
+        border-radius: 2px !important;
+        outline: none;
+        min-height: 24px !important;
+    }
+
+    .custom-select-options {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        max-height: 200px;
+        overflow-y: auto;
+    }
+
+        .custom-select-options li {
+            padding: 8px 10px;
+            cursor: pointer;
+            color: #111;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+            .custom-select-options li:hover {
+                background: #5591f5;
+                color: #fff;
+            }
+
+            .custom-select-options li.hidden {
+                display: none;
+            }
+</style>
+
+<div class="app-shell" id="appShellMain">
+    <header class="module-header no-print">
+        <div class="header-top">
+            <div class="brand">
+                <div class="brand-mark">SM</div>
+                <div>
+                    <h1>Solicitud de Muestras</h1>
+                    <small>Producción · Etiquetas · Tracking</small>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button type="button" class="secondary" onclick="generarReporteGeneral()">Reporte general PDF</button>
+                <button type="button" class="secondary" id="btnAdminPermisos" onclick="abrirAdminPermisos()" style="display:none;">⚙ Permisos</button>
+            </div>
+        </div>
+
+        @{
+            var perfilUsuario = ViewData["Perfil"]?.ToString() ?? "Vendedor";
+        }
+
+        <nav class="module-tabs" id="mainTabs" data-user-role="@perfilUsuario">
+            <button type="button" class="nav-btn active" style="display: none;" data-section="solicitud" data-auth="Vendedor,Admin,Solicitud"><span class="pill">1</span> Solicitud vendedor</button>
+            <button type="button" class="nav-btn" style="display: none;" data-section="planeacion" data-auth="Planeador,Admin,Planeacion"><span class="pill">2</span> Planeación</button>
+            <button type="button" class="nav-btn" style="display: none;" data-section="produccion" data-auth="Produccion,Admin,Produccion"><span class="pill">3</span> Producción / Etiquetas</button>
+            <button type="button" class="nav-btn" style="display: none;" data-section="tracking" data-auth="Vendedor,Planeador,Produccion,Admin,Solicitud,Planeacion,Produccion,Tracking"><span class="pill">4</span> Tracking</button>
+        </nav>
+    </header>
+
+    <main class="module-main">
+        <div class="grid cols-4 no-print" id="kpis"></div>
+
+        <section id="solicitud" class="section active">
+            <div class="card">
+                <form id="requestForm">
+                    <div class="form-subtitle">1. Datos Generales de la Solicitud</div>
+                    <div class="form-grid">
+                        <div>
+                            <label>Solicita / Vendedor</label>
+                            <input required name="seller" readonly value="@User.Identity?.Name" style="background-color: #f0f0f0; color: #666; cursor: not-allowed;" />
+                        </div>
+                        <div>
+                            <label>Cliente</label>
+                            <div class="custom-select-wrapper" id="clienteWrapper">
+                                <div class="custom-select-display" id="clienteDisplay">Cargando clientes...</div>
+                                <div class="custom-select-dropdown" id="clienteDropdown">
+                                    <input type="text" class="custom-select-search" id="clienteSearch" placeholder="Buscar..." autocomplete="off">
+                                    <ul class="custom-select-options" id="clienteOptions"></ul>
+                                </div>
+                                <input type="hidden" name="client" id="clientHidden" required>
+                            </div>
+                        </div>
+                        <div>
+                            <label>Especie / clasificación</label>
+                            <select required name="species">
+                                <option value="NOV">NOV</option>
+                                <option value="VG">VG</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>Fecha requerida</label>
+                            <input required type="date" name="requestedDate" />
+                        </div>
+                    </div>
+
+                    <div class="form-subtitle">2. Información Logística y Observaciones</div>
+                    <div class="form-grid">
+                        <div>
+                            <label>Ruta logística</label>
+                            <select required name="route">
+                                <option>Ruta Altos Norte</option>
+                                <option>Ruta Guadalajara</option>
+                                <option>Ruta Bajío</option>
+                                <option>Recolección en planta</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>Destino</label>
+                            <input required name="destination" placeholder="Ej. CEDIS Zapopan" />
+                        </div>
+                        <div>
+                            <label>Prioridad</label>
+                            <select name="priority">
+                                <option>Alta</option>
+                                <option>Media</option>
+                                <option>Baja</option>
+                            </select>
+                        </div>
+                        <div class="full">
+                            <label>Requerimiento general / observaciones</label>
+                            <textarea name="notes" placeholder="Ej. Cliente pidió muestras para evaluación de empaque, color, marmoleo y gramaje."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="section-header">
+                        <div>
+                            <h3>3. Artículos (SKUs) solicitados</h3>
+                        </div>
+                        <button type="button" class="ghost" id="addItemBtn">+ Agregar SKU</button>
+                    </div>
+
+                    <div class="table-wrap">
+                        <table id="itemsTable">
+                            <thead>
+                                <tr>
+                                    <th>SKU</th>
+                                    <th>Producto</th>
+                                    <th>Especificación / requerimiento</th>
+                                    <th>Cajas</th>
+                                    <th>Temperatura</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="itemsBody"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="header-actions" style="margin-top:10px; justify-content: flex-end;">
+                        <button type="submit" class="success">Crear solicitud de muestra</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="section-header" style="margin-top: 20px;">
+                <div>
+                    <h3>Solicitudes Nuevas (Pendientes)</h3>
+                    <p>Vista de requerimientos que no han sido planeados.</p>
+                </div>
+                <button type="button" class="secondary" id="btnHistSolicitudes" onclick="abrirHistorial('solicitud')">
+                    Ver historial (0)
+                </button>
+            </div>
+            <div id="requestList" class="grid"></div>
+        </section>
+
+        <section id="planeacion" class="section">
+            <div class="section-header">
+                <div>
+                    <h3>Planeación de producción (Nuevas)</h3>
+                    <p>Defina el SKU a trabajar, turno y fecha para enviarlo a producción.</p>
+                </div>
+                <button type="button" class="secondary" id="btnHistPlaneacion" onclick="abrirHistorial('planeacion')">
+                    Ver historial (0)
+                </button>
+            </div>
+            <div id="planningList" class="grid"></div>
+        </section>
+
+        <section id="produccion" class="section">
+            <div class="section-header print-title">
+                <div>
+                    <h3>Producción y Ligado de Etiquetas</h3>                    <p class="no-print">Escanee la etiqueta y líguela al SKU y solicitud correspondiente.</p>
+                </div>
+                <div class="header-actions no-print">
+                    <button class="secondary" type="button" id="btnHistProduccion" onclick="abrirHistorial('produccion')">Ver historial (0)</button>
+                    <button class="secondary" type="button" onclick="imprimirEtiquetas()">Imprimir etiquetas generadas</button>
+                </div>
+            </div>
+            <div class="split-panel">
+                <div class="card scan-panel no-print">
+                    <div class="form-subtitle" style="margin: -12px -12px 10px -12px;">Escaneo / ligado</div>
+                    <form id="scanForm" class="grid">
+                        <div>
+                            <label>Solicitud liberada</label>
+                            <select id="scanRequest" required></select>
+                        </div>
+                        <div>
+                            <label>SKU / especificación</label>
+                            <select id="scanItem" required></select>
+                        </div>
+                        <div>
+                            <label>Etiqueta DEST escaneada</label>
+                            <input id="scanLabel" required placeholder="Ej. DEST000001" />
+                        </div>
+                        <div>
+                            <label>Operario</label>
+                            <input id="operatorName" readonly required value="@usuarioLogueado" style="background-color: #f0f0f0; color: #666; cursor: not-allowed;" />
+                        </div>
+                        <button class="success" type="submit" style="margin-top: 5px;">Ligar etiqueta</button>
+                    </form>
+                </div>
+                <div>
+                    <div class="section-header" style="margin-top: 0;">
+                        <div><h3 style="margin:0;">Muestras en producción activa</h3></div>
+                    </div>
+                    <div class="grid" id="productionList"></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="tracking" class="section">
+            <div class="card no-print" style="margin-bottom: 15px;">
+                <div class="form-grid two" style="margin-bottom:0; border:none; padding:0; background:transparent;">
+                    <div>
+                        <label>Buscar folio, cliente, vendedor, SKU o etiqueta</label>
+                        <input id="trackSearch" placeholder="Ej. SM-2026-0001, RD021, DEST000001" />
+                    </div>
+                    <div>
+                        <label>Filtrar por estatus</label>
+                        <select id="trackStatus">
+                            <option value="">Todos activos</option>
+                            <option>Pendiente</option>
+                            <option>Planeada</option>
+                            <option>Producción parcial</option>
+                            <option>Cumplido producción</option>
+                            <option>En almacén</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-header">
+                <div>
+                    <h3>Panel de seguimiento activo</h3>
+                    <p>Controle la ubicación de la muestra. Las surtidas pasan al historial.</p>
+                </div>
+                <button type="button" class="secondary" id="btnHistTracking" onclick="abrirHistorial('tracking')">
+                    Ver Entregadas (0)
+                </button>
+            </div>
+            <div class="table-wrap">
+                <table id="trackingTable">
+                    <thead>
+                        <tr>
+                            <th>Folio</th>
+                            <th>Cliente</th>
+                            <th>Ruta / destino</th>
+                            <th>SKU y etiquetas</th>
+                            <th>Cumplimiento</th>
+                            <th>Ubicación</th>
+                            <th>Estatus</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trackingBody"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+</div>
+
+<div class="modal-backdrop-custom" id="modalHistorial">
+    <div class="modal-custom">
+        <div class="modal-head" style="position: sticky; top: 0; z-index: 10;">
+            <h3 id="historialTitle">Historial de Solicitudes</h3>
+            <button type="button" class="secondary" onclick="document.getElementById('modalHistorial').classList.remove('show')">Cerrar</button>
+        </div>
+        <div style="padding: 10px; min-height: 50vh;">
+            <div id="historialContentContainer" class="grid cols-1"></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-backdrop-custom" id="modalAdminPermisos">
+    <div class="modal-custom" style="max-width: 700px;">
+        <div class="modal-head" style="position: sticky; top: 0; z-index: 10;">
+            <h3>Configurar permisos del módulo</h3>
+            <button type="button" class="secondary" onclick="document.getElementById('modalAdminPermisos').classList.remove('show')">Cerrar</button>
+        </div>
+        <div style="padding: 10px;">
+            <table style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr style="background:var(--bg);">
+                        <th style="text-align:left;padding:8px;">Perfil</th>
+                        <th style="text-align:center;padding:8px;">Vendedor</th>
+                        <th style="text-align:center;padding:8px;">Planeación</th>
+                        <th style="text-align:center;padding:8px;">Producción</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyPermisosMuestras"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+@section Scripts {
+    <script>
+        const qs = selector => document.querySelector(selector);
+        const qsa = selector => Array.from(document.querySelectorAll(selector));
+
+        console.log("Modulo de muestras cargado y blindado.");
+
+        let requests = [];
+        let histSolicitud = [];
+        let histPlaneacion = [];
+        let histProduccion = [];
+        let histTracking = [];
+        let articulosSap = [];
+        let articulosOptionsHTML = '';
+
+        async function loadArticulos() {
+            try {
+                const response = await fetch('@Url.Action("ObtenerArticulosSap", "Comercial")');
+                if (!response.ok) {
+                    console.error("Error HTTP al cargar artículos SAP:", response.status);
+                    return;
+                }
+                const data = await response.json();
+
+                if (Array.isArray(data) && data.length > 0) {
+                    articulosSap = data;
+                    articulosOptionsHTML = articulosSap.map(a => {
+                        const cod = a.Codigo || a.codigo || a.ProductoCodigo || a.productoCodigo || 'SC';
+                        const nom = a.Nombre || a.nombre || a.ProductoNombre || a.productoNombre || 'Sin nombre';
+                        return `<li data-codigo="${cod}" data-nombre="${nom}">${cod} - ${nom}</li>`;
+                    }).join('');
+
+                    if(qs('.sku-options')) qsa('.sku-options').forEach(ul => ul.innerHTML = articulosOptionsHTML);
+                } else {
+                    console.warn("La respuesta de artículos SAP está vacía o no es un arreglo.", data);
+                }
+            } catch (e) {
+                console.error("Error al cargar artículos SAP", e);
+            }
+        }
+
+        async function loadClientes() {
+            const display = qs('#clienteDisplay');
+            const optionsList = qs('#clienteOptions');
+            if(!display) return;
+
+            try {
+                const userName = '@usuarioLogueado';
+                const response = await fetch(`@Url.Action("ObtenerClientesVendedor", "Comercial")?usuario=${encodeURIComponent(userName)}`);
+                const data = await response.json();
+
+                if (data && data.length > 0) {
+                    display.textContent = 'SELECCIONE UN CLIENTE...';
+                    optionsList.innerHTML = data.map(c => {
+                        const id = c.Id || c.id || c.Cliente || '';
+                        const nom = c.Nombre || c.nombre || c.Nombrecliente || '';
+                        return `<li data-value="${nom}">${id} - ${nom}</li>`;
+                    }).join('');
+                } else {
+                    display.textContent = 'No tiene clientes activos asignados';
+                    display.style.backgroundColor = '#f0f0f0';
+                    display.style.cursor = 'not-allowed';
+                }
+            } catch(e) {
+                console.error("Error al cargar clientes", e);
+                display.textContent = 'Error al conectar con servidor';
+            }
+        }
+
+        async function loadData() {
+            try {
+                const response = await fetch('@Url.Action("ObtenerSolicitudes", "Comercial")');
+                if (response.ok) {
+                    const data = await response.json();
+                    requests = Array.isArray(data) ? data : [];
+                    renderAll();
+                } else {
+                    toast('Error al leer datos del servidor.');
+                }
+            } catch (error) {
+                console.error(error);
+                toast('Sin conexion al backend.');
+            }
+        }
+
+        function uid(){ return 'it-' + crypto.randomUUID().slice(0,8); }
+        function todayPlus(days){ const d = new Date(); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); }
+        function formatDate(value){ if(!value) return 'Sin definir'; const d = new Date(value); return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString('es-MX', {year:'numeric', month:'short', day:'2-digit'}); }
+        function formatDateTime(value){ if(!value) return 'Sin definir'; const d = new Date(value); return Number.isNaN(d.getTime()) ? value : d.toLocaleString('es-MX', {dateStyle:'medium', timeStyle:'short'}); }
+        function totalBoxes(req){ return req.items.reduce((sum,item)=>sum+Number(item.boxes||0),0); }
+        function linkedLabels(req){ return req.items.reduce((sum,item)=>sum+(item.labels?.length||0),0); }
+
+        function requestStatus(req){
+            const total = totalBoxes(req), linked = linkedLabels(req);
+            if(req.stage === 'Surtido al cliente' || req.location === 'Surtido al cliente') return 'Surtido al cliente';
+            if(req.location === 'Almacén Refrigerado' && linked === total && total>0) return 'En almacén';
+            if(req.stage === 'Cancelada') return 'Cancelada';
+            if(linked === total && total>0) return 'Cumplido producción';
+            if(linked > 0) return 'Producción parcial';
+            if(req.planning) return 'Planeada';
+            return 'Pendiente';
+        }
+
+        function statusClass(status){
+            if(status.includes('Cumplido') || status.includes('Surtido')) return 'done';
+            if(status.includes('parcial')) return 'progress';
+            if(status.includes('Planeada') || status.includes('almacén')) return 'planned';
+            if(status.includes('Cancelada')) return 'danger';
+            return 'pending';
+        }
+
+        function nextRequestId(){
+            const max = requests.map(r => Number((r.id?.match(/(\d+)$/)||[0,0])[1])).reduce((a,b)=>Math.max(a,b),0);
+            return `SM-${new Date().getFullYear()}-${String(max+1).padStart(4,'0')}`;
+        }
+
+        function nextDestCode(){
+            const all = requests.flatMap(r => r.items.flatMap(i => i.labels || [])).map(l => Number((l.code?.match(/(\d+)$/)||[0,0])[1]));
+            const max = all.length ? Math.max(...all) : 0;
+            return 'DEST' + String(max+1).padStart(6,'0');
+        }
+
+        function toast(message){
+            const box = qs('#toast'); box.textContent = message; box.classList.add('show');
+            setTimeout(()=>box.classList.remove('show'), 2600);
+        }
+
+        function badge(text){ return `<span class="badge ${statusClass(text)}">${text}</span>`; }
+        function setDefaultDates(){ if(qs('[name="requestedDate"]')) qs('[name="requestedDate"]').value = todayPlus(5); }
+
+        function itemRowTemplate(item={sku:'', product:'', spec:'', boxes:1, temp:'Refrigerado 0-4 °C'}){
+            const displayCode = item.sku || 'Seleccione SKU...';
+            return `
+            <tr>
+                <td style="min-width: 250px;">
+                    <div class="custom-select-wrapper sku-wrapper">
+                        <div class="custom-select-display sku-display">${displayCode}</div>
+                        <div class="custom-select-dropdown sku-dropdown">
+                            <input type="text" class="custom-select-search sku-search" placeholder="Buscar código o nombre..." autocomplete="off">
+                            <ul class="custom-select-options sku-options">${articulosOptionsHTML}</ul>
+                        </div>
+                        <input type="hidden" class="item-sku" required value="${item.sku||''}">
+                    </div>
+                </td>
+                <td><input class="item-product" required value="${item.product||''}" placeholder="Se llena solo" readonly style="background-color: #f0f0f0; color: #666; cursor: not-allowed;" /></td>
+                <td><textarea class="item-spec" required placeholder="Ej. Caja 12 kg...">${item.spec||''}</textarea></td>
+                <td><input type="number" min="1" class="item-boxes" required value="${item.boxes||1}" /></td>
+                <td>
+                    <select class="item-temp">
+                        <option ${item.temp==='Refrigerado 0-4 °C'?'selected':''}>Refrigerado 0-4 °C</option>
+                        <option ${item.temp==='Congelado -18 °C'?'selected':''}>Congelado -18 °C</option>
+                        <option ${item.temp==='Ambiente'?'selected':''}>Ambiente</option>
+                    </select>
+                </td>
+                <td style="text-align:center;">
+                    <button type="button" class="danger remove-item">Eliminar</button>
+                </td>
+            </tr>
+            `;
+        }
+
+        function addItem(item){ if(qs('#itemsBody')) qs('#itemsBody').insertAdjacentHTML('beforeend', itemRowTemplate(item)); }
+
+        function clearItems(){
+            if(qs('#itemsBody')){
+                qs('#itemsBody').innerHTML = '';
+                addItem();
+            }
+        }
+
+        function collectItems(){
+            return qsa('#itemsBody tr').map(row => ({
+                uid:uid(), sku:row.querySelector('.item-sku').value.trim(), product:row.querySelector('.item-product').value.trim(),
+                spec:row.querySelector('.item-spec').value.trim(), boxes:Number(row.querySelector('.item-boxes').value), temp:row.querySelector('.item-temp').value, labels:[]
+            })).filter(i => i.sku && i.spec && i.boxes>0);
+        }
+
+        function renderKpis(){
+            const total = requests.length;
+            const pendingPlan = requests.filter(r=>!r.planning && requestStatus(r) !== 'Cancelada').length;
+            const boxes = requests.reduce((s,r)=>s+totalBoxes(r),0);
+            const linked = requests.reduce((s,r)=>s+linkedLabels(r),0);
+
+            if(qs('#kpis')) qs('#kpis').innerHTML = `
+            <div class="kpi"><small>Solicitudes Totales</small><strong>${total}</strong><span class="hint">folios en sistema</span></div>
+            <div class="kpi"><small>Pendientes Planeacion</small><strong>${pendingPlan}</strong><span class="hint">por asignar a produccion</span></div>
+            <div class="kpi"><small>Cajas Muestras</small><strong>${boxes}</strong><span class="hint">cajas solicitadas</span></div>
+            <div class="kpi"><small>Etiquetas Generadas</small><strong>${linked}/${boxes}</strong><span class="hint">avance total produccion</span></div>
+            `;
+        }
+
+        function createRequestCard(req) {
+            const status = requestStatus(req), total = totalBoxes(req), linked = linkedLabels(req), pct = total ? Math.round(linked/total*100) : 0;
+            let btnCancelar = '';
+            if (!req.planning && status === 'Pendiente') {
+                btnCancelar = `<button type="button" class="ghost" style="margin-top:10px; width:100%;" onclick="cancelarSolicitud('${req.id}')">Cancelar solicitud</button>`;
+            }
+            return `
+                <div class="card request-card">
+                <div>
+                    <div class="request-title">
+                    <div><h4>${req.id} · ${req.client}</h4><span class="mini">Solicito: ${req.seller} · Creada: ${formatDate(req.createdAt)}</span></div>
+                    ${badge(status)}
+                    </div>
+                    <div class="meta">
+                    <span>Especie: ${req.species || 'Sin definir'}</span><span>Ruta: ${req.route}</span>
+                    <span>Destino: ${req.destination}</span><span>Req: ${formatDate(req.requestedDate)}</span>
+                    </div>
+                    <div class="items-list">
+                    ${req.items.map(item=>`
+                        <div class="item-line">
+                            <strong>${item.sku} · ${item.product} · ${item.boxes} caja(s)</strong><small>${item.spec}<br>${item.temp}</small>
+                        </div>
+                    `).join('')}
+                    </div>
+                    ${btnCancelar}
+                </div>
+                <div>
+                    <b style="color: #5c1a1a; font-size: 11px;">Cumplimiento</b>
+                    <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+                    <p class="mini">${linked} de ${total} cajas ligadas.</p>
+                    <p class="mini" style="margin-top: 10px;"><b>Observaciones:</b><br>${req.notes || 'Ninguna'}</p>
+                </div>
+                </div>
+            `;
+        }
+
+        function createPlanningCard(req, isHistory = false) {
+            const dis = isHistory ? 'disabled' : '';
+            const btnHtml = isHistory ? '' : `<button class="success" type="submit" style="margin-top: 5px;">Guardar SKU y liberar a produccion</button>`;
+            return `
+                <div class="card request-card">
+                <div>
+                    <div class="request-title">
+                    <div><h4>${req.id} · ${req.client}</h4><span class="mini">Especie ${req.species || 'Sin definir'} · Destino ${req.destination}</span></div>
+                    ${badge(requestStatus(req))}
+                    </div>
+                    <div class="items-list">
+                    ${req.items.map(item=>`
+                        <div class="item-line"><strong>Solicitado: ${item.sku} · ${item.product}</strong><small>${item.boxes} caja(s) · ${item.spec}</small></div>
+                    `).join('')}
+                    </div>
+                </div>
+                <form class="planning-form grid" data-id="${req.id}" style="background: var(--panel-2); padding: 8px; border: 1px solid var(--line);">
+                    <div>
+                    <label>SKU asignado para producir</label>
+                    <div class="items-list" style="margin-top:0;">
+                        ${req.items.map(item=>`
+                        <div class="item-line" style="background: var(--white);">
+                            <small><b>Pedido:</b> ${item.sku} · <b>Cajas:</b> ${item.boxes}<br>${item.spec}</small>
+                            ${isHistory
+                                ? `<input style="margin-top:5px" disabled value="${item.workSku || ''}">`
+                                : `<div class="custom-select-wrapper sku-wrapper" style="margin-top:5px;">
+                                    <div class="custom-select-display sku-display">${item.workSku || 'Seleccione SKU...'}</div>
+                                    <div class="custom-select-dropdown sku-dropdown">
+                                        <input type="text" class="custom-select-search sku-search" placeholder="Buscar código o nombre..." autocomplete="off">
+                                        <ul class="custom-select-options sku-options">${articulosOptionsHTML}</ul>
+                                    </div>
+                                    <input type="hidden" class="item-sku" name="workSku-${item.uid}" value="${item.workSku || ''}">
+                                </div>`}
+                        </div>
+                        `).join('')}
+                    </div>
+                    </div>
+                    <div class="form-grid two" style="margin-bottom:0; background:transparent; padding:0; border:none;">
+                    <div><label>Proceso</label><input type="date" name="processDate" ${dis} required value="${req.planning?.processDate || todayPlus(2)}"></div>
+                    <div><label>Turno</label><select name="shift" ${dis}><option ${req.planning?.shift==='Turno 1'?'selected':''}>Turno 1</option><option ${req.planning?.shift==='Turno 2'?'selected':''}>Turno 2</option></select></div>
+                    <div><label>Linea</label><select name="line" ${dis}><option ${req.planning?.line==='Linea Empaque 01'?'selected':''}>Linea Empaque 01</option><option ${req.planning?.line==='Linea Corte 01'?'selected':''}>Linea Corte 01</option></select></div>
+                    <div><label>Planeador</label><input name="planner" ${dis} readonly required value="${req.planning?.planner || '@usuarioLogueado'}" style="background-color: #f0f0f0; color: #666; cursor: not-allowed;"></div>
+                    </div>
+                    ${btnHtml}
+                </form>
+                </div>
+            `;
+        }
+
+        function createProductionCard(req, isHistory = false) {
+            const total = totalBoxes(req), linked = linkedLabels(req), pct = total ? Math.round(linked/total*100) : 0;
+            let btnLiberar = '';
+            if (!isHistory && linked === total && total > 0) {
+                btnLiberar = `<div style="margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 10px; text-align: right;">
+                                <button type="button" class="success" onclick="liberarProduccion('${req.id}')">Finalizar Produccion (Enviar a Almacen)</button>
+                              </div>`;
+            }
+            return `
+                <div class="card" style="margin-bottom: 10px;">
+                <div class="request-title" style="border:none;">
+                    <div><h4>${req.id} · ${req.client}</h4><span class="mini">Proceso: ${formatDate(req.planning.processDate)} · ${req.planning.shift} · ${req.planning.line}</span></div>
+                    ${badge(requestStatus(req))}
+                </div>
+                <div class="timeline">
+                    <span class="step on"><i class="dot"></i>Solicitud</span>
+                    <span class="step on"><i class="dot"></i>Planeada</span>
+                    <span class="step ${linked>0?'on':''}"><i class="dot"></i>Produccion</span>
+                    <span class="step ${linked===total?'on':''}"><i class="dot"></i>Completa</span>
+                </div>
+                <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+                <p class="mini">${linked}/${total} etiquetas ligadas.</p>
+                <div class="items-list">
+                    ${req.items.map(item => `
+                        <div class="item-line">
+                            <strong>Trabajar: ${item.workSku || item.sku} · ${item.product}</strong>
+                            <small>Pedido: ${item.sku} · Cajas: ${item.boxes} · Ligadas: ${(item.labels||[]).length}<br>${item.spec}</small>
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="label-grid" style="margin-top:10px;">
+                    ${req.items.flatMap(item => (item.labels||[]).map((label,idx)=>labelCard(req,item,label,idx))).join('') || '<div class="empty" style="grid-column: 1/-1;">Sin etiquetas ligadas aun.</div>'}
+                </div>
+                ${btnLiberar}
+                </div>
+            `;
+        }
+
+        function createTrackingRow(req, isHistory = false) {
+            const total = totalBoxes(req), linked = linkedLabels(req), pct = total ? Math.round(linked/total*100) : 0;
+            const labels = req.items.map(item=>`
+                <b>Trabaja: ${item.workSku || item.sku}</b> ${item.product}<br>
+                <span class="mini">Pide: ${item.sku} · ${item.spec}</span><br>
+                <div style="margin-top:2px;">
+                    ${(item.labels||[]).map(l=>`<span class="badge gray" style="margin-bottom:2px;">${l.code}</span>`).join(' ') || '<span class="badge pending">Sin etiqueta</span>'}
+                </div>
+            `).join('<hr style="border:0;border-top:1px solid #d8bcbc; margin: 4px 0;">');
+
+            const selectHtml = isHistory
+                ? `<b>${req.location}</b>`
+                : `<select class="location-select" data-id="${req.id}">
+                    ${['Comercial','Planeación','Producción','Almacén Refrigerado','Embarques','Surtido al cliente','Entregado a cliente'].map(loc=>`<option ${req.location===loc?'selected':''}>${loc}</option>`).join('')}
+                    </select>`;
+
+            return `
+                <tr>
+                <td><b>${req.id}</b><br><span class="mini">${formatDate(req.createdAt)}</span></td>
+                <td>${req.client}<br><span class="mini">Vende: ${req.seller}</span></td>
+                <td>${req.route}<br><span class="mini">${req.destination}</span></td>
+                <td style="text-align:left;">${labels}</td>
+                <td><b style="font-size:12px; color: #8b0000;">${linked}/${total}</b><div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div></td>
+                <td>${selectHtml}</td>
+                <td>${badge(requestStatus(req))}</td>
+                </tr>
+            `;
+        }
+
+        function labelCard(req, item, label, index) {
+            const fechaProc = formatDateTime(label.processedAt);
+            const especie = req.species || 'Sin definir';
+            const temp = item.temp || 'REFRIGERADO';
+
+            const safeClient = (req.client || '').replace(/"/g, '&quot;');
+            const safeProduct = (item.product || '').replace(/"/g, '&quot;');
+            const safeSpec = (item.spec || '').replace(/"/g, '&quot;');
+            const safeSeller = (req.seller || '').replace(/"/g, '&quot;');
+
+            return `
+                <div class="label-card" style="position: relative; background: var(--panel-2); border: 1px solid var(--line); padding: 10px;">
+                    <input type="checkbox" class="print-cb no-print" value="${label.code}" checked title="Seleccionar para imprimir"
+                        data-req="${req.id}"
+                        data-client="${safeClient}"
+                        data-seller="${safeSeller}"
+                        data-skureq="${item.sku}"
+                        data-skuwork="${item.workSku || item.sku}"
+                        data-product="${safeProduct}"
+                        data-species="${especie}"
+                        data-spec="${safeSpec}"
+                        data-date="${fechaProc}"
+                        data-op="${label.operator || ''}"
+                        data-chain="${label.code}"
+                        data-temp="${temp}"
+                        style="position: absolute; top: 12px; right: 12px; width: 18px; height: 18px; cursor: pointer; z-index: 10;">
+
+                    <div style="border-bottom: 2px solid var(--line); padding-bottom: 6px; margin-bottom: 8px; padding-right: 30px;">
+                        <h4 style="margin: 0; font-size: 15px; color: #5c1a1a; font-weight: bold;">${label.code}</h4>
+                    </div>
+
+                    <div class="lc-body" style="background: #fff; padding: 8px; border: 1px solid var(--line); font-size: 11px; line-height: 1.5; text-align: left; color: #111;">
+                        <b>Solicitud:</b> ${req.id}<br>
+                        <b>Cliente:</b> ${req.client}<br>
+                        <b>Especie:</b> ${especie}<br>
+                        <b>SKU solicitado:</b> ${item.sku} · ${item.product}<br>
+                        <b>SKU a trabajar:</b> <span style="font-weight: 900; color: #8b0000; font-size: 13px;">${item.workSku || item.sku}</span><br>
+                        <b>Especificación:</b> ${item.spec}<br>
+                        <b>Procesado:</b> ${fechaProc}<br>
+                        <b>Operario:</b> ${label.operator || ''}<br>
+                        <b>Etiqueta:</b> ${label.code}
+                    </div>
+                </div>
+            `;
+        }
+
+        window.generarReporteGeneral = function() {
+            if (!requests.length) { toast('No hay datos para generar el reporte.'); return; }
+
+            const cargarImagen = (src) => new Promise((resolve) => {
+                const img = new Image();
+                img.crossOrigin = 'Anonymous';
+                img.onload = () => resolve(img);
+                img.onerror = () => resolve(null);
+                img.src = src;
+            });
+
+            async function descargarPDF() {
+                toast('Generando reporte PDF...');
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF('landscape', 'mm', 'letter');
+                const pageW = doc.internal.pageSize.getWidth();
+                const pageH = doc.internal.pageSize.getHeight();
+                const mg = 12;
+                let y = mg;
+
+                const logoCG = await cargarImagen('/images/LOGO_CARNESG.jpg');
+                const logoTIF = await cargarImagen('/images/logoTIF.png');
+
+                function header() {
+                    if (logoCG) doc.addImage(logoCG, 'JPEG', mg, 8, 30, 12);
+                    if (logoTIF) doc.addImage(logoTIF, 'PNG', pageW - mg - 16, 8, 16, 12);
+
+                    doc.setFontSize(16);
+                    doc.setTextColor(139, 0, 0);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('REPORTE GENERAL DE MUESTRAS', pageW / 2, 14, { align: 'center' });
+
+                    doc.setFontSize(8);
+                    doc.setTextColor(100);
+                    doc.setFont('helvetica', 'normal');
+                    doc.text('Sistema Integral de Gestión Operativa (SIGO) - Comercial', pageW / 2, 18, { align: 'center' });
+                    doc.text('Generado: ' + new Date().toLocaleString('es-MX'), pageW / 2, 22, { align: 'center' });
+
+                    doc.setDrawColor(139, 0, 0);
+                    doc.setLineWidth(0.5);
+                    doc.line(mg, 26, pageW - mg, 26);
+                    y = 32;
+                }
+
+                function footer() {
+                    doc.setFontSize(7);
+                    doc.setTextColor(120);
+                    doc.setFont('helvetica', 'normal');
+                    doc.text('CARNES G S.A. DE C.V. - TIF 776 | Carretera Estatal N212 San Juan de los Lagos, Jal.', pageW / 2, pageH - 6, { align: 'center' });
+                }
+
+                header();
+
+                // Cálculos del resumen
+                const total = requests.length;
+                const pendientes = requests.filter(r => requestStatus(r) === 'Pendiente').length;
+                const planeadas = requests.filter(r => requestStatus(r) === 'Planeada').length;
+                const produccion = requests.filter(r => r.planning && requestStatus(r) !== 'Pendiente' && requestStatus(r) !== 'Planeada' && requestStatus(r) !== 'Cancelada').length;
+                const completadas = requests.filter(r => requestStatus(r) === 'En almacén' || requestStatus(r) === 'Surtido al cliente').length;
+                const totalCajas = requests.reduce((s, r) => s + totalBoxes(r), 0);
+                const totalEtqs = requests.reduce((s, r) => s + linkedLabels(r), 0);
+
+                doc.setFontSize(10);
+                doc.setTextColor(139, 0, 0);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Resumen Operativo', mg, y);
+                y += 4;
+
+                const resumen = [
+                    ['Total Solicitudes', '' + total, 'En Producción', '' + produccion],
+                    ['Pendientes de Planeación', '' + pendientes, 'Completadas / Surtidas', '' + completadas],
+                    ['Planeadas (Espera)', '' + planeadas, 'Cajas Totales / Etiquetas', totalEtqs + ' / ' + totalCajas]
+                ];
+
+                doc.autoTable({
+                    startY: y,
+                    body: resumen,
+                    theme: 'plain',
+                    styles: { fontSize: 8, cellPadding: 1.5 },
+                    columnStyles: {
+                        0: { fontStyle: 'bold', textColor: [0, 0, 0], cellWidth: 40 },
+                        1: { cellWidth: 20, textColor: [139, 0, 0], fontStyle: 'bold' },
+                        2: { fontStyle: 'bold', textColor: [0, 0, 0], cellWidth: 40 },
+                        3: { cellWidth: 30, textColor: [139, 0, 0], fontStyle: 'bold' }
+                    },
+                    margin: { left: mg }
+                });
+                y = doc.lastAutoTable.finalY + 8;
+
+                const estados = [
+                    { label: 'PENDIENTES', filter: r => requestStatus(r) === 'Pendiente' },
+                    { label: 'PLANEADAS', filter: r => requestStatus(r) === 'Planeada' },
+                    { label: 'EN PRODUCCIÓN', filter: r => r.planning && (requestStatus(r) === 'Producción parcial' || requestStatus(r) === 'Cumplido producción') },
+                    { label: 'EN ALMACÉN', filter: r => requestStatus(r) === 'En almacén' },
+                    { label: 'SURTIDAS / ENTREGADAS', filter: r => requestStatus(r) === 'Surtido al cliente' },
+                    { label: 'CANCELADAS', filter: r => requestStatus(r) === 'Cancelada' }
+                ];
+
+                estados.forEach(e => {
+                    const items = requests.filter(e.filter);
+                    if (!items.length) return;
+
+                    if (y > pageH - 40) { doc.addPage(); y = mg + 5; header(); }
+
+                    const rows = items.map(r => [
+                        r.id,
+                        r.client,
+                        r.seller,
+                        r.species || '-',
+                        r.route + ' / ' + r.destination,
+                        formatDate(r.requestedDate),
+                        r.items.map(i => i.sku + ' (' + i.boxes + ' cjs)' + (i.workSku && i.workSku !== i.sku ? ' -> Trab: ' + i.workSku : '')).join('\n'),
+                        linkedLabels(r) + '/' + totalBoxes(r)
+                    ]);
+
+                    doc.autoTable({
+                        startY: y,
+                        head: [[e.label, 'Cliente', 'Vendedor', 'Esp.', 'Ruta / Destino', 'Fecha Req.', 'Artículos (Cajas)', 'Avance']],
+                        body: rows,
+                        theme: 'grid',
+                        tableLineColor: [200, 200, 200],
+                        tableLineWidth: 0.1,
+                        headStyles: { fillColor: [139, 0, 0], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7, halign: 'center' },
+                        bodyStyles: { fontSize: 7, cellPadding: 2, textColor: [30, 30, 30], valign: 'middle' },
+                        alternateRowStyles: { fillColor: [249, 245, 245] },
+                        columnStyles: {
+                            0: { cellWidth: 20, fontStyle: 'bold', textColor: [139, 0, 0] },
+                            1: { cellWidth: 42 },
+                            2: { cellWidth: 26 },
+                            3: { cellWidth: 10, halign: 'center' },
+                            4: { cellWidth: 38 },
+                            5: { cellWidth: 18, halign: 'center' },
+                            6: { cellWidth: 50 },
+                            7: { cellWidth: 14, halign: 'center', fontStyle: 'bold' }
+                        },
+                        margin: { left: mg, right: mg },
+                        didParseCell: function(data) {
+                            if (data.section === 'head' && data.row.index === 0 && data.column.index === 0) {
+                                data.cell.styles.halign = 'left';
+                            }
+                        }
+                    });
+                    y = doc.lastAutoTable.finalY + 8;
+                });
+
+                const totalPages = doc.internal.getNumberOfPages();
+                for (let j = 1; j <= totalPages; j++) {
+                    doc.setPage(j);
+                    footer();
+                    doc.setFontSize(7);
+                    doc.setTextColor(120);
+                    doc.text('Página ' + j + ' de ' + totalPages, pageW - mg, pageH - 6, { align: 'right' });
+                }
+
+                doc.save('Reporte_Muestras_' + new Date().toISOString().slice(0, 10) + '.pdf');
+            }
+
+            // Descarga o usa la librería jsPDF
+            if (typeof window.jspdf === 'undefined' || typeof window.jspdf.jsPDF === 'undefined') {
+                toast('Preparando motor PDF...');
+                const s1 = document.createElement('script');
+                s1.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+                s1.onload = function() {
+                    const s2 = document.createElement('script');
+                    s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+                    s2.onload = descargarPDF;
+                    document.head.appendChild(s2);
+                };
+                document.head.appendChild(s1);
+            } else {
+                descargarPDF();
+            }
+        }
+
+        window.imprimirEtiquetas = function() {
+            const checkboxes = document.querySelectorAll('.print-cb:checked');
+            if (checkboxes.length === 0) {
+                toast('Selecciona al menos una etiqueta marcando su casilla.');
+                return;
+            }
+
+            let printWindow = window.open('', '_blank');
+
+            let htmlContent = '<ti' + 'tle>Impresión de Etiquetas</ti' + 'tle>' +
+                '<sty' + 'le>' + `
+                    body {
+                        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                        margin: 0; padding: 10px; color: #000; background: #fff;
+                        -webkit-print-color-adjust: exact; print-color-adjust: exact;
+                    }
+                    .print-container { display: flex; flex-direction: column; align-items: center; }
+
+                    .label-print {
+                        width: 400px; min-height: 250px; border: 2px solid #000; padding: 15px;
+                        margin-bottom: 20px; border-radius: 8px; page-break-after: always;
+                        position: relative; box-sizing: border-box;
+                    }
+                    .label-print:last-child { page-break-after: auto; margin-bottom: 0; }
+
+                    .lp-header { font-size: 9px; line-height: 1.2; text-transform: uppercase; margin-bottom: 12px; font-weight: bold; }
+                    .lp-sku-title { font-size: 11px; font-weight: bold; color: #444; text-transform: uppercase; margin-bottom: 2px; }
+                    .lp-sku-value { font-size: 18px; font-weight: 900; text-transform: uppercase; margin-bottom: 8px; }
+
+                    .lp-top-info { border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 12px; font-size: 11px; line-height: 1.4; }
+                    .lp-top-row { display: flex; justify-content: space-between; }
+                    .lp-top-info b { font-size: 12px; text-transform: uppercase; color: #000; }
+
+                    .lp-details-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 10px; font-size: 11px; margin-bottom: 15px; line-height: 1.4; }
+                    .lp-lote { font-size: 16px; font-weight: 900; margin-bottom: 5px; }
+
+                    .lp-sku-small { margin-top: 6px; font-size: 10px; font-weight: bold; text-transform: uppercase; color: #333; }
+                    .lp-sku-small div { margin-bottom: 2px; }
+                    .lp-sku-small span { background: #000; color: #fff; padding: 1px 4px; border-radius: 2px; font-size: 11px; }
+
+                    .lp-spec { font-size: 10px; font-style: italic; margin-top: 5px; }
+                    .lp-temp { font-size: 11px; font-weight: bold; text-transform: uppercase; }
+
+                    .lp-footer { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 15px; }
+                    .lp-logos { display: flex; gap: 15px; align-items: center; }
+                    .lp-logos img { height: 45px; object-fit: contain; }
+
+                    .lp-barcode-container { text-align: right; }
+                    .lp-barcode-lines {
+                        display: inline-block; width: 140px; height: 35px;
+                        background: repeating-linear-gradient(90deg, #000, #000 2px, #fff 2px, #fff 4px, #000 4px, #000 5px, #fff 5px, #fff 7px);
+                        margin-bottom: 5px;
+                    }
+                    .lp-chain { font-size: 9px; font-family: monospace; display: block; }
+                ` + '</sty' + 'le><div class="print-container">';
+
+            checkboxes.forEach(cb => {
+                const d = cb.dataset;
+                htmlContent += `
+                    <div class="label-print">
+                        <div class="lp-header">
+                            Elaborado por: CARNES G S.A. DE C.V. TIF 776<br>
+                            CARRETERA ESTATAL N212 A SAN SEBASTIAN EL ALAMO KILOMETRO 21+540<br>
+                            MARGEN DERECHO. SAN JUAN DE LOS LAGOS JAL CP 47000
+                        </div>
+
+                        <div class="lp-sku-title">Producto / Clasificación:</div>
+                        <div class="lp-sku-value">${d.product} ${d.species}</div>
+
+                        <div class="lp-top-info">
+                            <div class="lp-top-row">
+                                <div>Solicitud: <b>${d.req}</b></div>
+                                <div>Vendedor: <b>${d.seller}</b></div>
+                            </div>
+                            <div>Cliente: <b>${d.client}</b></div>
+                        </div>
+
+                        <div class="lp-details-grid">
+                            <div>
+                                <div class="lp-lote">Lote: ${cb.value}</div>
+                                <div class="lp-sku-small">
+                                    <div>SKU REQ: ${d.skureq}</div>
+                                    <div>SKU TRAB: <span>${d.skuwork}</span></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div>Fecha Prod: <b>${d.date}</b></div>
+                                <div>Operario: <b>${d.op}</b></div>
+                                <div class="lp-spec">Esp: ${d.spec}</div>
+                            </div>
+                        </div>
+
+                        <div class="lp-temp">Producto ${d.temp}</div>
+
+                        <div class="lp-footer">
+                            <div class="lp-logos">
+                                <img src="/images/LOGO_CARNESG.jpg" alt="CARNES G" onerror="this.style.display='none'">
+                                <img src="/images/logoTIF.png" alt="TIF 776" onerror="this.style.display='none'">
+                            </div>
+                            <div class="lp-barcode-container">
+                                <div class="lp-barcode-lines"></div>
+                                <span class="lp-chain">${cb.value}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            htmlContent += '</div>';
+
+            printWindow.document.write(htmlContent);
+            printWindow.document.close();
+            printWindow.focus();
+
+            setTimeout(() => {
+                printWindow.print();
+                printWindow.close();
+            }, 1000);
+        }
+
+        // FUNCIONES DE ACTUALIZACION DE PANTALLA
+        function renderRequestList(){
+            const pendientes = requests.filter(r => requestStatus(r) === 'Pendiente');
+            histSolicitud = requests.filter(r => requestStatus(r) !== 'Pendiente');
+            if(qs('#requestList')) qs('#requestList').innerHTML = pendientes.length ? pendientes.map(r => createRequestCard(r)).join('') : '<div class="empty">No hay solicitudes nuevas (pendientes de planeacion).</div>';
+            if(qs('#btnHistSolicitudes')) qs('#btnHistSolicitudes').innerHTML = `Ver historial (${histSolicitud.length})`;
+        }
+
+        function renderPlanning(){
+            const pendientes = requests.filter(r => requestStatus(r) === 'Pendiente');
+            histPlaneacion = requests.filter(r => requestStatus(r) !== 'Pendiente' && requestStatus(r) !== 'Cancelada');
+            if(qs('#planningList')) qs('#planningList').innerHTML = pendientes.length ? pendientes.map(r => createPlanningCard(r, false)).join('') : '<div class="empty">No hay solicitudes pendientes de planeacion.</div>';
+            if(qs('#btnHistPlaneacion')) qs('#btnHistPlaneacion').innerHTML = `Ver historial (${histPlaneacion.length})`;
+        }
+
+        function renderProduction() {
+            const prodList = requests.filter(r => r.planning);
+            const activos = prodList.filter(r => {
+                const st = requestStatus(r);
+                return st === 'Planeada' || st === 'Producción parcial' || st === 'Cumplido producción';
+            });
+            histProduccion = prodList.filter(r => {
+                const st = requestStatus(r);
+                return st === 'En almacén' || st === 'Surtido al cliente';
+            });
+            if(qs('#productionList')) qs('#productionList').innerHTML = activos.length ? activos.map(r => createProductionCard(r, false)).join('') : '<div class="empty">No hay muestras en produccion activa.</div>';
+            if(qs('#btnHistProduccion')) qs('#btnHistProduccion').innerHTML = `Ver historial (${histProduccion.length})`;
+        }
+
+        function renderTracking(){
+            const q = (qs('#trackSearch')?.value || '').toLowerCase();
+            const filter = qs('#trackStatus')?.value || '';
+
+            let list = requests.filter(req => {
+                if(requestStatus(req) === 'Cancelada') return false;
+                const hay = [req.id,req.client,req.seller,req.species,req.route,req.destination, ...req.items.flatMap(i=>[i.sku,i.workSku,i.product,i.spec,...(i.labels||[]).map(l=>l.code)])].join(' ').toLowerCase();
+                const status = requestStatus(req);
+                return (!q || hay.includes(q)) && (!filter || status === filter);
+            });
+
+            const activos = list.filter(r => requestStatus(r) !== 'Surtido al cliente' && r.location !== 'Entregado a cliente');
+            histTracking = list.filter(r => requestStatus(r) === 'Surtido al cliente' || r.location === 'Entregado a cliente');
+
+            if(qs('#trackingBody')) qs('#trackingBody').innerHTML = activos.length ? activos.map(r => createTrackingRow(r, false)).join('') : '<tr><td colspan="8" class="empty">No hay resultados activos con esos filtros.</td></tr>';
+            if(qs('#btnHistTracking')) qs('#btnHistTracking').innerHTML = `Ver Entregadas (${histTracking.length})`;
+        }
+
+        window.abrirHistorial = function(tab) {
+            const limite = 100;
+            const container = qs('#historialContentContainer');
+            const title = qs('#historialTitle');
+            container.className = 'grid cols-1';
+
+            if(tab === 'solicitud') {
+                title.textContent = 'Historial de Solicitudes (últimos ' + limite + ')';
+                const lista = histSolicitud.slice(0, limite);
+                container.innerHTML = lista.length ? lista.map(req => createRequestCard(req)).join('') : '<div class="empty">No hay historial.</div>';
+            }
+            else if(tab === 'planeacion') {
+                title.textContent = 'Historial de Planeacion (últimos ' + limite + ')';
+                const lista = histPlaneacion.slice(0, limite);
+                container.innerHTML = lista.length ? lista.map(req => createPlanningCard(req, true)).join('') : '<div class="empty">No hay historial.</div>';
+            }
+            else if(tab === 'produccion') {
+                title.textContent = 'Historial de Produccion (últimos ' + limite + ')';
+                const lista = histProduccion.slice(0, limite);
+                container.innerHTML = lista.length ? lista.map(req => createProductionCard(req, true)).join('') : '<div class="empty">No hay historial.</div>';
+            }
+            else if(tab === 'tracking') {
+                title.textContent = 'Historial de Tracking (últimos ' + limite + ')';
+                container.className = 'table-wrap card';
+                const lista = histTracking.slice(0, limite);
+                let html = `<table style="margin:0; width:100%; border:none;">
+                    <thead><tr><th>Folio</th><th>Cliente</th><th>Ruta / destino</th><th>SKU y etiquetas</th><th>Cumplimiento</th><th>Ubicacion</th><th>Estatus</th></tr></thead><tbody>`;
+                html += lista.length ? lista.map(req => createTrackingRow(req, true)).join('') : '<tr><td colspan="7" class="empty">No hay historial.</td></tr>';
+                html += `</tbody></table>`;
+                container.innerHTML = html;
+            }
+            qs('#modalHistorial').classList.add('show');
+        }
+
+        function renderScanSelectors() {
+            const reqSelect = qs('#scanRequest');
+            if(!reqSelect) return;
+
+            const planned = requests.filter(r => {
+                if (!r.planning || requestStatus(r) === 'Surtido al cliente' || requestStatus(r) === 'En almacén') return false;
+                return linkedLabels(r) < totalBoxes(r);
+            });
+
+            if (planned.length === 0) {
+                reqSelect.innerHTML = '<option value="">No hay muestras pendientes de etiquetas</option>';
+            } else {
+                reqSelect.innerHTML = planned.map(r => `<option value="${r.id}">${r.id} · ${r.client}</option>`).join('');
+            }
+
+            updateItemSelector();
+            if(qs('#scanLabel')) qs('#scanLabel').value = nextDestCode();
+        }
+
+        function updateItemSelector() {
+            const reqSelect = qs('#scanRequest');
+            const itemSelect = qs('#scanItem');
+            if(!reqSelect || !itemSelect) return;
+
+            const req = requests.find(r => r.id === reqSelect.value);
+            if (!req) { itemSelect.innerHTML = '<option value="">Seleccione una solicitud...</option>'; return; }
+
+            const validItems = req.items.filter(item => {
+                const left = Number(item.boxes) - (item.labels?.length || 0);
+                return left > 0;
+            });
+
+            if (validItems.length === 0) {
+                itemSelect.innerHTML = '<option value="" disabled>✓ Todos los SKUs completados</option>';
+            } else {
+                itemSelect.innerHTML = validItems.map(item => {
+                    const left = Number(item.boxes) - (item.labels?.length || 0);
+                    return `<option value="${item.uid}">Trabajar ${item.workSku || item.sku} · faltan ${left} caja(s)</option>`;
+                }).join('');
+            }
+        }
+
+        window.cancelarSolicitud = async function(id) {
+            const motivo = prompt(`Escriba el motivo de cancelacion para ${id}:`);
+            if (!motivo) return;
+
+            try {
+                const response = await fetch(`@Url.Action("CancelarSolicitud", "Comercial")?id=${id}&motivo=${encodeURIComponent(motivo)}`, { method: 'POST' });
+                const data = await response.json();
+                if (data.ok) {
+                    toast('Solicitud cancelada.');
+                    loadData();
+                } else {
+                    toast('Error: ' + data.mensaje);
+                }
+            } catch (err) {
+                toast('No hay conexion al servidor.');
+            }
+        };
+
+        window.liberarProduccion = async function(reqId) {
+            const req = requests.find(r => r.id === reqId);
+            if (!req) return;
+
+            try {
+                const response = await fetch(`@Url.Action("ActualizarUbicacion", "Comercial")?solicitudId=${reqId}&ubicacion=Almacén Refrigerado`, { method: 'POST' });
+                const data = await response.json();
+                if (data.ok) {
+                    toast(`Produccion finalizada. Enviado a almacen.`);
+                    loadData();
+                } else {
+                    toast("Error del servidor: " + data.mensaje);
+                }
+            } catch(err) {
+                console.warn("Backend no disponible...");
+                req.location = 'Almacén Refrigerado';
+                renderAll();
+                toast(`Finalizado en modo local.`);
+            }
+        };
+
+        function renderAll(){
+            renderKpis();
+            renderRequestList();
+            renderPlanning();
+            renderScanSelectors();
+            renderProduction();
+            renderTracking();
+        }
+
+        document.addEventListener('click', e => {
+            const nav = e.target.closest('.nav-btn');
+            if (nav && nav.style.display !== 'none') {
+                qsa('.nav-btn').forEach(b=>b.classList.remove('active')); nav.classList.add('active');
+                qsa('.section').forEach(s=>s.classList.remove('active')); qs('#'+nav.dataset.section).classList.add('active');
+                if(nav.dataset.section === 'produccion') renderProduction();
+            }
+
+            if(e.target.classList.contains('remove-item')){
+                e.target.closest('tr').remove();
+                if(!qs('#itemsBody tr')) addItem();
+            }
+
+            if(e.target.id === 'modalHistorial') qs('#modalHistorial').classList.remove('show');
+            if(e.target.id === 'modalAdminPermisos') qs('#modalAdminPermisos').classList.remove('show');
+
+
+            if (!e.target.closest('.sku-wrapper') && !e.target.closest('#clienteWrapper')) {
+                qsa('.sku-dropdown.show').forEach(d => d.classList.remove('show'));
+                qsa('#clienteDropdown.show').forEach(d => d.classList.remove('show'));
+            }
+
+
+            const cliDisplay = e.target.closest('#clienteDisplay');
+            if (cliDisplay) {
+                e.stopPropagation();
+                qsa('.sku-dropdown.show').forEach(d => {
+                    d.classList.remove('show');
+                    d.style.position = 'absolute';
+                    d.style.top = ''; d.style.left = ''; d.style.width = ''; d.style.zIndex = '';
+                });
+
+                const wrapper = cliDisplay.closest('#clienteWrapper');
+                const dropdown = wrapper.querySelector('#clienteDropdown');
+                const search = wrapper.querySelector('#clienteSearch');
+                const items = wrapper.querySelectorAll('#clienteOptions li');
+
+                dropdown.classList.toggle('show');
+                if (dropdown.classList.contains('show')) {
+                    search.value = '';
+                    items.forEach(li => li.classList.remove('hidden'));
+                    search.focus();
+                }
+            }
+
+            // Seleccionar opcion de CLIENTE
+            const cliLi = e.target.closest('#clienteOptions li');
+            if (cliLi) {
+                const wrapper = cliLi.closest('#clienteWrapper');
+                wrapper.querySelector('#clienteDisplay').textContent = cliLi.textContent;
+                wrapper.querySelector('#clientHidden').value = cliLi.dataset.value;
+                wrapper.querySelector('#clienteDropdown').classList.remove('show');
+            }
+
+
+            // Abrir/Cerrar buscador de SKU 
+            const skuDisplay = e.target.closest('.sku-display');
+            if (skuDisplay) {
+                e.stopPropagation();
+                qsa('.sku-dropdown.show, #clienteDropdown.show').forEach(d => d.classList.remove('show'));
+
+                const wrapper = skuDisplay.closest('.sku-wrapper');
+                const dropdown = wrapper.querySelector('.sku-dropdown');
+                const search = wrapper.querySelector('.sku-search');
+                const items = wrapper.querySelectorAll('.sku-options li');
+
+                dropdown.classList.toggle('show');
+                if (dropdown.classList.contains('show')) {
+                    search.value = '';
+                    items.forEach(li => li.classList.remove('hidden'));
+                    search.focus();
+                }
+            }
+
+            // Seleccionar opcion de SKU
+            const skuLi = e.target.closest('.sku-options li');
+            if (skuLi) {
+                const wrapper = skuLi.closest('.sku-wrapper');
+                wrapper.querySelector('.sku-display').textContent = skuLi.dataset.codigo;
+                wrapper.querySelector('.item-sku').value = skuLi.dataset.codigo;
+
+                const fila = wrapper.closest('tr');
+                if (fila) {
+                    const productInput = fila.querySelector('.item-product');
+                    if(productInput) productInput.value = skuLi.dataset.nombre;
+                }
+
+                wrapper.querySelector('.sku-dropdown').classList.remove('show');
+            }
+        });
+
+        document.addEventListener('input', e => {
+            if (e.target.id === 'clienteSearch') {
+                const term = e.target.value.toLowerCase();
+                qsa('#clienteOptions li').forEach(li => {
+                    li.classList.toggle('hidden', !li.textContent.toLowerCase().includes(term));
+                });
+            }
+            // Filtro para los buscadores de SKU
+            if (e.target.classList.contains('sku-search')) {
+                const term = e.target.value.toLowerCase();
+                const wrapper = e.target.closest('.sku-wrapper');
+                wrapper.querySelectorAll('.sku-options li').forEach(li => {
+                    li.classList.toggle('hidden', !li.textContent.toLowerCase().includes(term));
+                });
+            }
+        });
+
+        //  EVENTOS AISLADOS Y FORMULARIOS
+        if(qs('#addItemBtn')) qs('#addItemBtn').addEventListener('click', ()=>{ addItem(); });
+        if(qs('#scanRequest')) qs('#scanRequest').addEventListener('change', updateItemSelector);
+
+
+        if(qs('#trackingBody')){
+            qs('#trackingBody').addEventListener('change', async e => {
+                if(e.target.classList.contains('location-select')){
+                    const req = requests.find(r=>r.id===e.target.dataset.id); if(!req) return;
+                    const nuevaLoc = e.target.value;
+
+                    try {
+                        const response = await fetch(`@Url.Action("ActualizarUbicacion", "Comercial")?solicitudId=${req.id}&ubicacion=${encodeURIComponent(nuevaLoc)}`, { method: 'POST' });
+                        const data = await response.json();
+                        if(data.ok) {
+                            toast(`${req.id} actualizado a: ${nuevaLoc}.`);
+                            loadData();
+                        } else {
+                            toast("Error del servidor: " + data.mensaje);
+                            e.target.value = req.location;
+                        }
+                    } catch(err) {
+                        console.warn("Backend no disponible...");
+                        req.location = nuevaLoc;
+                        req.items.forEach(item => (item.labels||[]).forEach(label => label.location = nuevaLoc));
+                        req.stage = requestStatus(req);
+                        renderAll();
+                        toast(`Actualizado localmente.`);
+                    }
+                }
+            });
+        }
+
+        if(qs('#trackSearch')) qs('#trackSearch').addEventListener('input', renderTracking);
+        if(qs('#trackStatus')) qs('#trackStatus').addEventListener('change', renderTracking);
+
+        if(qs('#requestForm')) {
+            qs('#requestForm').addEventListener('submit', async e => {
+                e.preventDefault();
+                const btn = e.target.querySelector('button[type="submit"]');
+                const fd = new FormData(e.target);
+                const items = collectItems();
+
+                if(!items.length){ toast('Agrega al menos un SKU con cajas solicitadas.'); return; }
+                if(!fd.get('client')){ toast('Selecciona un cliente válido de la lista.'); return; }
+
+                btn.disabled = true; btn.textContent = 'Guardando...';
+
+                const req = {
+                    id: "",
+                    createdAt: new Date().toISOString(),
+                    seller: fd.get('seller'),
+                    client: fd.get('client'),
+                    species: fd.get('species'),
+                    requestedDate: fd.get('requestedDate'),
+                    route: fd.get('route'),
+                    destination: fd.get('destination'),
+                    priority: fd.get('priority'),
+                    notes: fd.get('notes'),
+                    createdBy: '@User.Identity?.Name',
+                    planning: null, stage: 'Planeación pendiente', location: 'Comercial', items: items
+                };
+
+                try {
+                    const response = await fetch('@Url.Action("CrearSolicitud", "Comercial")', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req)
+                    });
+                    const data = await response.json();
+                    if(data.ok) {
+                        toast(`Solicitud creada.`); e.target.reset(); setDefaultDates(); clearItems(); qs('#clienteDisplay').textContent = 'SELECCIONE UN CLIENTE...'; loadData();
+                    } else { toast("Error: " + data.mensaje); }
+                } catch(err) {
+                    console.warn("Backend no disponible...");
+                    requests.unshift(req); e.target.reset(); setDefaultDates(); clearItems(); qs('#clienteDisplay').textContent = 'SELECCIONE UN CLIENTE...'; renderAll(); toast(`Creada localmente.`);
+                } finally { btn.disabled = false; btn.textContent = 'Crear solicitud de muestra'; }
+            });
+        }
+
+        document.addEventListener('submit', async e => {
+            const form = e.target.closest('.planning-form');
+            if(form){
+                e.preventDefault();
+                const req = requests.find(r=>r.id === form.dataset.id); if(!req) return;
+                const fd = new FormData(form);
+
+                const btn = form.querySelector('button[type="submit"]');
+                if(btn){ btn.disabled = true; btn.textContent = 'Procesando...'; }
+
+                req.items.forEach(item => { item.workSku = (fd.get(`workSku-${item.uid}`) || '').trim(); });
+                req.planning = {processDate:fd.get('processDate'), shift:fd.get('shift'), line:fd.get('line'), planner:fd.get('planner'), releasedAt:new Date().toISOString()};
+                req.stage = 'Planeada'; req.location = 'Planeación';
+
+                try {
+                    const response = await fetch('@Url.Action("GuardarPlaneacion", "Comercial")', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req)
+                    });
+                    const data = await response.json();
+                    if(data.ok) { toast(`Liberada a produccion.`); loadData(); } else { toast("Error: " + data.mensaje); }
+                } catch(err) {
+                    console.warn("Backend no disponible..."); renderAll(); toast(`Liberada localmente.`);
+                } finally { if(btn){ btn.disabled = false; btn.textContent = 'Guardar SKU y liberar a produccion'; } }
+            }
+        });
+
+        if(qs('#scanForm')) {
+            qs('#scanForm').addEventListener('submit', async e => {
+                e.preventDefault();
+                const btn = e.target.querySelector('button[type="submit"]');
+                const req = requests.find(r=>r.id === qs('#scanRequest').value);
+                const item = req?.items.find(i=>i.uid === qs('#scanItem').value);
+
+                if(!req || !item){ toast('Selecciona solicitud y SKU valido.'); return; }
+                if((item.labels||[]).length >= Number(item.boxes)){ toast('SKU ya completado.'); return; }
+
+                const code = qs('#scanLabel').value.trim().toUpperCase();
+
+                const duplicadoCode = requests.some(r=>r.items.some(i=>(i.labels||[]).some(l=>l.code===code)));
+                if(duplicadoCode){ toast('Etiqueta DEST ya usada.'); return; }
+
+                btn.disabled = true; btn.textContent = 'Ligando...';
+
+                const nuevaEtiqueta = {
+                    code: code, externalChain: code,
+                    operator: qs('#operatorName').value.trim(), processedAt: new Date().toISOString(), location: 'Producción'
+                };
+
+                try {
+                    const response = await fetch(`@Url.Action("LigarEtiqueta", "Comercial")?solicitudId=${req.id}&itemUid=${item.uid}`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(nuevaEtiqueta)
+                    });
+                    const data = await response.json();
+                    if(data.ok) { toast(`Ligada.`); loadData(); } else { toast("Error: " + data.mensaje); }
+                } catch(err) {
+                    console.warn("Backend no disponible...");
+                    item.labels = item.labels || []; item.labels.push(nuevaEtiqueta);
+                    req.location = 'Producción'; req.stage = requestStatus(req); renderAll(); toast(`Ligada localmente.`);
+                } finally { btn.disabled = false; btn.textContent = 'Ligar etiqueta'; }
+            });
+        }
+
+        document.addEventListener('scroll', e => {
+            if (e.target.closest('.sku-dropdown') || e.target.closest('#clienteDropdown')) return;
+            qsa('.sku-dropdown.show').forEach(d => d.classList.remove('show'));
+        }, true);
+
+
+        async function aplicarPermisos() {
+            const nav = qs('#mainTabs');
+            if (!nav) return;
+
+            const userRole = (nav.dataset.userRole || 'Vendedor').trim();
+            if (userRole === 'Admin') {
+                const btnPermisos = qs('#btnAdminPermisos');
+                if (btnPermisos) btnPermisos.style.display = 'inline-flex';
+            }
+
+            await aplicarPermisosDinamicos();
+        }
+
+        async function aplicarPermisosDinamicos() {
+            try {
+                const nav = qs('#mainTabs');
+                const rol = nav ? nav.dataset.userRole : '';
+                const r = await fetch('@Url.Action("ObtenerPermisosVistaSolicitudMuestras", "Comercial")?perfil=' + encodeURIComponent(rol));
+                const permisos = await r.json();
+                if (!permisos || typeof permisos !== 'object') return;
+
+                const map = { solicitud: 'vendedor', planeacion: 'planeacion', produccion: 'produccion', tracking: 'tracking' };
+                const tabs = qsa('.nav-btn');
+
+                tabs.forEach(tab => {
+                    const section = tab.dataset.section;
+                    const key = map[section];
+                    if (!key || permisos[key] === undefined) return;
+
+                    if (permisos[key] === true) {
+                        tab.style.display = 'inline-flex';
+                    } else {
+                        tab.style.display = 'none';
+                    }
+                });
+
+                const visible = qsa('.nav-btn').filter(t => t.style.display !== 'none');
+                const active = qs('.nav-btn.active');
+                if (visible.length > 0 && (!active || active.style.display === 'none')) {
+                    visible[0].click();
+                }
+                if (visible.length === 0) {
+                    qsa('.section').forEach(s => s.classList.remove('active'));
+                }
+            } catch (e) {
+                console.warn('Permisos dinámicos no disponibles', e);
+            }
+        }
+
+        async function abrirAdminPermisos() {
+            try {
+                const res = await fetch('@Url.Action("ObtenerPerfilesMuestras", "Comercial")');
+                const data = await res.json();
+                if (!data.ok) { toast('Error al cargar perfiles'); return; }
+
+                const perfiles = data.data || [];
+                const tbody = qs('#tbodyPermisosMuestras');
+                if (!tbody) return;
+
+                let html = '';
+                perfiles.forEach(p => {
+                    html += `<tr>
+                        <td><strong>${p.nombre}</strong></td>
+                        <td class="text-center"><input type="checkbox" class="chk-permiso-muestra" data-perfil="${p.id}" data-modulo="SOLICITUD_MUESTRAS_VENDEDOR" ${p.vendedor ? 'checked' : ''}></td>
+                        <td class="text-center"><input type="checkbox" class="chk-permiso-muestra" data-perfil="${p.id}" data-modulo="SOLICITUD_MUESTRAS_PLANEACION" ${p.planeacion ? 'checked' : ''}></td>
+                        <td class="text-center"><input type="checkbox" class="chk-permiso-muestra" data-perfil="${p.id}" data-modulo="SOLICITUD_MUESTRAS_PRODUCCION" ${p.produccion ? 'checked' : ''}></td>
+                    </tr>`;
+                });
+                tbody.innerHTML = html;
+
+                qsa('.chk-permiso-muestra').forEach(chk => {
+                    chk.addEventListener('change', async function() {
+                        const perfilId = this.dataset.perfil;
+                        const claveModulo = this.dataset.modulo;
+                        const activo = this.checked;
+
+                        try {
+                            const r = await fetch('@Url.Action("GuardarPermisoMuestras", "Comercial")', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ perfilId: parseInt(perfilId), claveModulo, activo })
+                            });
+                            const result = await r.json();
+                            if (!result.ok) { toast('Error: ' + result.mensaje); this.checked = !activo; }
+                        } catch (e) { toast('Error de conexión'); this.checked = !activo; }
+                    });
+                });
+
+                qs('#modalAdminPermisos').classList.add('show');
+            } catch (e) { toast('Error al cargar'); }
+        }
+
+        async function arrancarSistema() {
+            try { await fetch('@Url.Action("AsegurarModulosMuestras", "Comercial")'); } catch (e) {}
+            await aplicarPermisos();
+            setDefaultDates();
+            await loadClientes();
+            await loadArticulos();
+            await loadData();
+        }
+        arrancarSistema();
+
+    </script>
+}

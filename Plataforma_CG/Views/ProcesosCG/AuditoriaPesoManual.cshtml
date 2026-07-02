@@ -1,0 +1,1289 @@
+﻿@using System.Linq
+@using Microsoft.AspNetCore.Mvc.Rendering
+@model Plataforma_CG.Models.PesoLoteFiltroVm
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+
+    var tipoSel = (Model?.TipoPeso ?? "").Trim().ToUpper();
+
+    var hoy = DateTime.Today;
+    var desdeDef = (Model?.Desde ?? hoy.AddDays(-1)).Date;
+    var hastaDef = (Model?.Hasta ?? hoy).Date;
+}
+
+<style>
+    :root {
+        --bg: #f0dede;
+        --panel: #f8eeee;
+        --panel-2: #f1dede;
+        --line: #c79d9d;
+        --line-dark: #8f4c4c;
+        --text: #3b1717;
+        --muted: #6a3a3a;
+        --title: #ffffff;
+        --white: #ffffff;
+        --danger: #c00000;
+        --warning: #f3b6b6;
+        --ok: #f7e3e3;
+        --shadow: 0 1px 0 rgba(255,255,255,.55) inset;
+        --brand: #8B0000;
+        --vino-1: #5c0000;
+        --vino-2: #7a0000;
+        --vino-3: #980000;
+        --vino-4: #b30000;
+        --vino-5: #d10000;
+        --vino-soft: #f8e7e7;
+        --vino-soft-2: #f2d9d9;
+        --vino-border: #9a5a5a;
+        --vino-text: #ffffff;
+        --vino-text-dark: #4a1111;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        background: transparent !important;
+        color: var(--text);
+    }
+
+    .container, .container-fluid {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .window {
+        width: 100%;
+        max-width: 100%;
+        margin: 0 !important;
+        border: 1px solid #7e4a4a;
+        background: var(--panel);
+        box-shadow: 0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70,12,12,.14);
+        overflow: hidden;
+        padding: 0 !important;
+    }
+
+    .window > *:first-child, .titlebar { margin-top: 0 !important; }
+
+    .titlebar {
+        height: 34px;
+        /* display: flex; */
+        display: none !important;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 10px;
+        background: linear-gradient(180deg, #c00000 0%, #8b0000 60%, #5c0000 100%);
+        border-bottom: 1px solid #5c0000;
+        color: #fff;
+        font-size: 13px;
+        font-weight: bold;
+    }
+
+    .titlebar .actions { display: flex; gap: 6px; }
+
+    .win-btn {
+        width: 16px; height: 16px;
+        border: 1px solid #7c4848;
+        background: linear-gradient(#fff6f6, #ead0d0);
+    }
+
+    .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 6px;
+        background: linear-gradient(#fff6f6, #ecd8d8);
+        border-bottom: 1px solid var(--line);
+        font-size: 12px;
+        flex-wrap: wrap;
+    }
+
+    .tool-btn, .tab { border: 1px solid transparent; padding: 4px 8px; user-select: none; }
+
+    .tool-btn {
+        min-width: 72px;
+        text-align: center;
+        background: linear-gradient(#fffefe, #ecd7d7);
+        border: 1px solid var(--vino-border);
+        box-shadow: var(--shadow);
+        cursor: pointer;
+        color: var(--vino-text-dark);
+        height: 28px;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+    }
+
+    .tool-btn:hover, .tab:hover { filter: brightness(.98); }
+
+    .content { padding: 8px; background: var(--bg); }
+
+    .tabs { display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap; }
+
+    .tab {
+        font-size: 12px;
+        background: linear-gradient(#f7e7e7, #ead1d1);
+        border: 1px solid #caa0a0;
+        border-bottom: none;
+        padding: 7px 12px;
+        color: #5c1a1a;
+    }
+
+    .tab.active {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        font-weight: bold;
+        color: #fff;
+        border-color: #7a2d2d;
+    }
+
+    .workspace { border: 1px solid var(--line); background: var(--panel); padding: 8px; }
+
+    .section { border: 1px solid var(--line); background: var(--white); margin-bottom: 10px; }
+
+    .section-title {
+        padding: 6px 8px;
+        font-size: 12px;
+        font-weight: bold;
+        color: #fff;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-bottom: 1px solid #6b1f1f;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    /* ── Filtros ── */
+    .filters {
+        display: grid;
+        grid-template-columns: 160px 160px 160px 1fr 1fr auto;
+        gap: 8px;
+        padding: 10px;
+        background: var(--panel-2);
+        align-items: end;
+    }
+
+    .filter-group label {
+        display: block;
+        color: #5c1a1a;
+        font-size: 12px;
+        margin-bottom: 4px;
+        font-weight: bold;
+    }
+
+    .filter-group .sub-label {
+        font-size: 10px;
+        color: #9a6a6a;
+        font-weight: normal;
+        font-style: italic;
+    }
+
+    input, select, .form-control, .form-select {
+        height: 28px !important;
+        padding: 3px 6px !important;
+        border: 1px solid #b48787 !important;
+        background: #fffdfd !important;
+        font-family: inherit !important;
+        font-size: 12px !important;
+        width: 100%;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        color: #421414 !important;
+    }
+
+    .pm-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .pm-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        height: 28px;
+        padding: 0 10px;
+        border: 1px solid transparent;
+        border-radius: 0;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1;
+        cursor: pointer;
+        text-decoration: none;
+        box-shadow: var(--shadow);
+    }
+
+    .pm-btn:hover { filter: brightness(.97); }
+    .pm-btn:active { transform: translateY(1px); }
+
+    .pm-btn-primary {
+        color: #fff;
+        border-color: #7a2d2d;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+    }
+
+    .pm-btn-excel {
+        color: #fff;
+        border-color: #157347;
+        background: linear-gradient(180deg, #27ae60 0%, #1f9a54 55%, #198754 100%);
+    }
+
+    .pm-btn-secondary {
+        background: linear-gradient(#fffefe, #ecd7d7);
+        border-color: var(--vino-border);
+        color: var(--vino-text-dark);
+    }
+
+    /* ── Dropdown multi ── */
+    .dropdown-menu {
+        font-size: 12px !important;
+        border-radius: 0 !important;
+        border: 1px solid #b48787 !important;
+        background: #fffafa !important;
+    }
+
+    .btn-select-like {
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+        background: #fffdfd !important;
+        cursor: pointer;
+        height: 28px !important;
+        border: 1px solid #b48787 !important;
+        padding: 3px 6px !important;
+        color: #421414 !important;
+        border-radius: 0 !important;
+        font-size: 12px !important;
+        width: 100%;
+    }
+
+    .btn-select-like::after {
+        content: "▼";
+        font-size: 10px;
+        color: #7a3a3a;
+    }
+
+    /* ── Tabla principal ── */
+    .table-wrap {
+        overflow: auto;
+        max-height: 70vh;
+        background: #fffafa;
+        width: 100%;
+        position: relative;
+        border-top: 1px solid #d9b8b8;
+    }
+
+    .table-wrap table {
+        width: 100%;
+        table-layout: fixed;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        font-size: 12px;
+        background: #fffafa;
+    }
+
+    .table-wrap thead,
+    .table-wrap thead tr,
+    .table-wrap thead th {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: #fff !important;
+    }
+
+    .table-wrap thead th {
+        position: sticky;
+        top: -1px;
+        z-index: 20;
+        border-top: 1px solid #c46a6a !important;
+        border-right: 1px solid #8e3b3b !important;
+        border-bottom: 1px solid #5c0000 !important;
+        padding: 6px 5px !important;
+        font-weight: 700 !important;
+        font-size: 12px !important;
+        white-space: nowrap;
+        line-height: 1.2 !important;
+        box-shadow: 0 2px 0 #6f1d1d;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .table-wrap thead th:first-child { border-left: 1px solid #8e3b3b !important; }
+
+    .table-wrap thead th.sort-asc::after  { content: " ▲"; font-size: 9px; opacity: .9; }
+    .table-wrap thead th.sort-desc::after { content: " ▼"; font-size: 9px; opacity: .9; }
+
+    .table-wrap tbody td {
+        background: #fffafa !important;
+        border-right: 1px solid #d8bcbc !important;
+        border-bottom: 1px solid #d8bcbc !important;
+        padding: 6px 5px !important;
+        white-space: nowrap;
+        vertical-align: middle;
+        font-size: 12px !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.2 !important;
+          color: #111111 !important;
+        font-weight: 400;
+    }
+
+    .table-wrap tbody td:first-child { border-left: 1px solid #d8bcbc !important; }
+    .table-wrap tbody tr:nth-child(even) td { background: #f9eded !important; }
+    .table-wrap tbody tr:hover td { background: #f4dddd !important; }
+
+    /* anchos columnas vista 1 */
+    .tbl-main th:nth-child(1), .tbl-main td:nth-child(1) { width: 150px; }
+    .tbl-main th:nth-child(2), .tbl-main td:nth-child(2) { width: 110px; }
+    .tbl-main th:nth-child(3), .tbl-main td:nth-child(3) { width: 165px; }
+    .tbl-main th:nth-child(4), .tbl-main td:nth-child(4) { width: 110px; }
+    .tbl-main th:nth-child(5), .tbl-main td:nth-child(5) { width: 165px; }
+    .tbl-main th:nth-child(6), .tbl-main td:nth-child(6) { width: 150px; }
+    .tbl-main th:nth-child(7), .tbl-main td:nth-child(7) { width: 150px; }
+    .tbl-main th:nth-child(8), .tbl-main td:nth-child(8) { width: 150px; }
+
+    /* anchos columnas vista 2 */
+    .tbl-second th:nth-child(1), .tbl-second td:nth-child(1) { width: 150px; }
+    .tbl-second th:nth-child(2), .tbl-second td:nth-child(2) { width: 165px; }
+    .tbl-second th:nth-child(3), .tbl-second td:nth-child(3) { width: 120px; }
+    .tbl-second th:nth-child(4), .tbl-second td:nth-child(4) { width: 300px; }
+    .tbl-second th:nth-child(5), .tbl-second td:nth-child(5) { width: 140px; }
+    .tbl-second th:nth-child(6), .tbl-second td:nth-child(6) { width: 140px; }
+    .tbl-second th:nth-child(7), .tbl-second td:nth-child(7) { width: 120px; }
+
+    /* ── Badges tipo ── */
+    .badge-tipo {
+        display: inline-block;
+        min-width: 90px;
+        text-align: center;
+        padding: 3px 8px;
+        border: 1px solid transparent;
+        font-size: 11px;
+        font-weight: 700;
+        border-radius: 2px;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+
+    .badge-manual { background: #ffe3e3; border-color: #c97a7a; color: #7a0b0b; }
+    .badge-auto   { background: #e7f6ff; border-color: #7ab8d4; color: #064b6b; }
+
+    /* ── Links ── */
+    a.ver-det {
+        color: #5a0000;
+        text-decoration: none;
+        font-weight: bold;
+    }
+    a.ver-det:hover { text-decoration: underline; color: #7a0000; }
+
+    /* ── Vista 2 toggle ── */
+    .views-viewport { position: relative; overflow: hidden; width: 100%; }
+
+    .views-track {
+        display: flex;
+        width: 200%;
+        transition: transform .42s cubic-bezier(.22,.61,.36,1);
+        will-change: transform;
+    }
+
+    .views-track.show-secondary { transform: translateX(-50%); }
+
+    .view-page {
+        width: 50%;
+        flex: 0 0 50%;
+    }
+
+    /* ── Modal ── */
+    #pesoModal .modal-content { border: 1px solid #7d4949; border-radius: 0; }
+
+    #pesoModal .modal-header {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: white !important;
+        border-bottom: 1px solid #5c0000 !important;
+        padding: .65rem 1rem !important;
+        border-radius: 0;
+    }
+
+    #pesoModal .modal-title { color: white !important; font-weight: 700; font-size: 13px; }
+    #pesoModal .btn-close { filter: invert(1) grayscale(100%) !important; opacity: .95 !important; }
+    #pesoModal .modal-body { background: #f4e4e4; padding: .75rem !important; }
+
+    .header-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 18px;
+        padding: 8px 10px;
+        background: #fffafa;
+        border: 1px solid #d3b0b0;
+        margin-bottom: 10px;
+        font-size: 12px;
+        color: #471717;
+    }
+
+    .header-row strong { color: #7a0000; }
+
+    #pesoModal .table-responsive { border: 1px solid #d8bcbc; background: #fffafa; overflow: auto; }
+
+    #pesoModal table.sap-grid {
+        border-collapse: separate;
+        border-spacing: 0;
+        background: #fffafa;
+        width: 100%;
+        font-size: 12px;
+        margin: 0;
+        min-width: 900px;
+    }
+
+    #pesoModal table.sap-grid thead th {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: #fff !important;
+        border-right: 1px solid #8e3b3b;
+        border-bottom: 1px solid #5c0000;
+        padding: 6px 5px;
+        font-size: 12px;
+        white-space: nowrap;
+        position: sticky;
+        top: 0;
+        z-index: 5;
+    }
+
+    #pesoModal table.sap-grid tbody td {
+        background: #fffafa;
+        border-bottom: 1px solid #d8bcbc;
+        border-right: 1px solid #d8bcbc;
+        padding: 6px 5px;
+        font-size: 12px;
+         color: #111111;
+        font-weight: 400;
+    }
+
+    #pesoModal table.sap-grid tbody tr:nth-child(even) td { background: #f9eded; }
+    #pesoModal table.sap-grid tbody tr:hover td { background: #f4dddd !important; }
+    #pesoModal table.sap-grid td.col-desc { white-space: normal; word-break: break-word; min-width: 220px; }
+
+    .modal-footer { background: #f7eaea; border-top: 1px solid #d3b0b0; }
+
+    /* ── Overlay ── */
+    .ov-overlay {
+        position: fixed; inset: 0;
+        background: rgba(255,255,255,.72);
+        backdrop-filter: blur(1px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+    }
+
+    .ov-overlay.show { display: flex; }
+
+    .ov-overlay-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        padding: 18px 22px;
+        border-radius: 0;
+        background: rgba(255,255,255,.9);
+        border: 1px solid #c79d9d;
+        box-shadow: 0 8px 18px rgba(70,12,12,.14);
+        min-width: 260px;
+    }
+
+    .ov-spinner {
+        width: 52px; height: 52px;
+        border-radius: 50%;
+        border: 5px solid rgba(139,0,0,.18);
+        border-top-color: #8B0000;
+        animation: ovspin .9s linear infinite;
+    }
+
+    @@keyframes ovspin { to { transform: rotate(360deg); } }
+
+    .ov-overlay-text { font-weight: 700; color: #8B0000; font-size: 13px; text-align: center; }
+    .ov-overlay-sub  { color: #6a3a3a; font-size: 11px; text-align: center; margin-top: -4px; }
+
+    /* ── Statusbar ── */
+    .statusbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 6px 10px;
+        font-size: 11px;
+        color: #4a1a1a;
+        border-top: 1px solid #b88c8c;
+        background: linear-gradient(#f6e9e9, #ead5d5);
+        flex-wrap: wrap;
+    }
+
+    /* ── Vista 2 filtros ── */
+    .filters-v2 {
+        display: grid;
+        grid-template-columns: 160px 160px 1fr auto;
+        gap: 8px;
+        padding: 10px;
+        background: var(--panel-2);
+        align-items: end;
+    }
+
+    @@media(max-width: 992px) {
+        .filters { grid-template-columns: 1fr 1fr 1fr; }
+        .filters-v2 { grid-template-columns: 1fr 1fr; }
+        .view-page { width: 100%; flex: 0 0 100%; }
+        .views-track { width: 200%; }
+    }
+    .toolbar{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:12px;
+    flex-wrap:wrap;
+}
+
+.toolbar-left,
+.toolbar-right{
+    display:flex;
+    align-items:center;
+    gap:10px;
+}
+
+.toolbar-right{
+    margin-left:auto;
+}
+
+.tool-btn-accent{
+    background:#0d6efd;
+    color:#fff;
+    border:1px solid #0d6efd;
+    font-weight:600;
+}
+
+.tool-btn-accent:hover{
+    background:#0b5ed7;
+    border-color:#0b5ed7;
+    color:#fff;
+}
+
+.tool-btn-back{
+    background:#dc3545;
+    color:#fff;
+    border:1px solid #dc3545;
+    font-weight:600;
+}
+
+.tool-btn-back:hover{
+    background:#bb2d3b;
+    border-color:#bb2d3b;
+    color:#fff;
+}
+</style>
+
+<!-- Overlay global -->
+<div id="globalOverlay" class="ov-overlay" aria-hidden="true">
+    <div class="ov-overlay-card">
+        <div class="ov-spinner" role="status" aria-label="Cargando"></div>
+        <div class="ov-overlay-text" id="globalOverlayText">Cargando...</div>
+        <div class="ov-overlay-sub"  id="globalOverlaySub">Por favor espera</div>
+    </div>
+</div>
+
+<div class="window">
+
+    <div class="titlebar">
+        <div>Auditoría y Procesos</div>
+        <div class="actions">
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+        </div>
+    </div>
+
+   <div class="toolbar">
+    <div class="toolbar-left">
+        @* <button class="tool-btn" type="button" onclick="location.reload()">Actualizar</button> *@
+    </div>
+
+    <div class="toolbar-right">
+        <button class="tool-btn tool-btn-accent" type="button" id="btnGoSecondary">Kardex Etiquetas →</button>
+        <button class="tool-btn tool-btn-back" type="button" id="btnBackPrimary" style="display:none;">← Peso Manual</button>
+    </div>
+</div>
+
+    <div class="content">
+
+       
+
+        <div class="workspace">
+
+            <div class="views-viewport">
+                <div class="views-track" id="viewsTrack">
+
+                    <!-- ══════════════ VISTA 1 ══════════════ -->
+                    <div class="view-page">
+
+                        <div class="section">
+                            <div class="section-title">Filtros de búsqueda</div>
+
+                            <form id="frmBuscar" method="get" action="@Url.Action("PesoLote","ProcesosCg")">
+                                <div class="filters">
+
+                                    <div class="filter-group">
+                                        <label>Desde</label>
+                                        <input type="date" class="form-control" name="Desde" value="@desdeDef.ToString("yyyy-MM-dd")" />
+                                    </div>
+
+                                    <div class="filter-group">
+                                        <label>Hasta</label>
+                                        <input type="date" class="form-control" name="Hasta" value="@hastaDef.ToString("yyyy-MM-dd")" />
+                                    </div>
+
+                                    <div class="filter-group">
+                                        <label>Tipo</label>
+                                        <select name="TipoPeso" class="form-select">
+    @if (string.IsNullOrEmpty(tipoSel)) {
+        <option value="" selected>(Todos)</option>
+    } else {
+        <option value="">(Todos)</option>
+    }
+    @if (tipoSel == "MANUAL") {
+        <option value="MANUAL" selected>Manual</option>
+    } else {
+        <option value="MANUAL">Manual</option>
+    }
+    @if (tipoSel == "AUTOMATICO") {
+        <option value="AUTOMATICO" selected>Automático</option>
+    } else {
+        <option value="AUTOMATICO">Automático</option>
+    }
+</select>
+                                    </div>
+
+                                    <div class="filter-group">
+                                        <label>
+                                            Lote
+                                            <span class="sub-label">— cambian según fecha</span>
+                                        </label>
+
+                                        <div class="dropdown w-100" id="dd-lote">
+                                            <button class="btn-select-like" type="button"
+                                                    data-bs-toggle="dropdown" aria-expanded="false">
+                                                <span class="multi-label">(Todos)</span>
+                                            </button>
+
+                                            <ul class="dropdown-menu w-100" style="max-height:260px; overflow-y:auto;">
+                                                @if (Model?.Lotes != null && Model.Lotes.Any())
+                                                {
+                                                    var i = 0;
+                                                    foreach (var txt in Model.Lotes)
+                                                    {
+                                                        var idStr = "";
+                                                        var p1 = txt.LastIndexOf('(');
+                                                        var p2 = txt.LastIndexOf(')');
+                                                        if (p1 >= 0 && p2 > p1) idStr = txt.Substring(p1 + 1, p2 - p1 - 1);
+                                                        int.TryParse(idStr, out var idInt);
+                                                        var id = $"lote_{i++}";
+                                                        var isSelected = (Model?.LotesSeleccionados ?? new List<int>()).Contains(idInt);
+                                                        <li class="px-2">
+                                                            <div class="form-check">
+                                                                <input class="form-check-input multi-check-lote" type="checkbox"
+                                                                       value="@idInt" id="@id" data-text="@txt"
+                                                                @(isSelected ? "checked" : null) />
+                                                                <label class="form-check-label" for="@id">@txt</label>
+                                                            </div>
+                                                        </li>
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    <li class="px-3 py-2 text-muted" style="font-size:12px;">Sin lotes para ese rango.</li>
+                                                }
+                                            </ul>
+
+                                            <div id="dd-lote-hidden">
+                                                @foreach (var v in (Model?.LotesSeleccionados ?? new List<int>()))
+                                                {
+                                                    <input type="hidden" name="LotesSeleccionados" value="@v" />
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="filter-group">
+                                        <label>&nbsp;</label>
+                                        <div class="pm-actions">
+                                            <button id="btnBuscar" class="pm-btn pm-btn-primary" type="submit">
+                                                <i class="bi bi-search"></i> Buscar
+                                            </button>
+                                            <a class="pm-btn pm-btn-excel"
+                                               href="@Url.Action("PesoLoteExcel","ProcesosCg", new {
+                                                   desde = desdeDef.ToString("yyyy-MM-dd"),
+                                                   hasta = hastaDef.ToString("yyyy-MM-dd"),
+                                                   tipoPeso = (Model?.TipoPeso ?? "")
+                                               })">
+                                                <i class="bi bi-file-earmark-excel"></i> Excel
+                                            </a>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </form>
+                        </div>
+
+                        <div class="section">
+                            <div class="section-title">
+                                 Manual / Automático
+                            </div>
+
+                            <div class="table-wrap">
+                                <table class="tbl-main">
+                                    <thead>
+                                        <tr>
+                                            <th data-sort="text">Lote</th>
+                                            <th data-sort="text">Tipo</th>
+                                            <th data-sort="date">Desde</th>
+                                            <th data-sort="num">Duración</th>
+                                            <th data-sort="date">Hasta</th>
+                                            <th data-sort="text">Proceso</th>
+                                            <th data-sort="text">Solicitante</th>
+                                            <th data-sort="text">Autoriza</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @if (Model?.Resultados != null && Model.Resultados.Any())
+                                        {
+                                            foreach (var r in Model.Resultados)
+                                            {
+                                                var esManual = (r.Tipo ?? "").ToUpper().Contains("MANUAL");
+                                                var dur = (r.Hasta > r.Desde) ? (r.Hasta - r.Desde) : TimeSpan.Zero;
+                                                var durTxt = esManual ? $"{(int)dur.TotalHours:00}:{dur.Minutes:00}:{dur.Seconds:00}" : "-";
+                                                var durSort = esManual ? (int)dur.TotalSeconds : -1;
+
+                                                <tr>
+                                                    <td title="@(r.NombreLote ?? "")">
+                                                        <a href="#"
+                                                           class="ver-det"
+                                                           data-lote="@r.LoteId"
+                                                           data-nombrelote="@((r.NombreLote ?? "").Replace("\"",""))"
+                                                           data-tipo="@r.Tipo"
+                                                           data-desde="@r.Desde.ToString("o")"
+                                                           data-hasta="@r.Hasta.ToString("o")"
+                                                           title="Ver detalle">
+                                                            @(r.NombreLote ?? "")
+                                                        </a>
+                                                    </td>
+                                                    <td>
+                                                        <span class="badge-tipo @(esManual ? "badge-manual" : "badge-auto")">@r.Tipo</span>
+                                                    </td>
+                                                    <td title="@r.Desde.ToString("yyyy-MM-dd HH:mm:ss")">@r.Desde.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                                    <td data-sort-value="@durSort" title="@durTxt">@durTxt</td>
+                                                    <td title="@r.Hasta.ToString("yyyy-MM-dd HH:mm:ss")">@r.Hasta.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                                    <td title="@(r.Proceso ?? "-")">@(r.Proceso ?? "-")</td>
+                                                    <td title="@(r.Solicitante ?? "-")">@(r.Solicitante ?? "-")</td>
+                                                    <td title="@(r.Autoriza ?? "-")">@(r.Autoriza ?? "-")</td>
+                                                </tr>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <tr>
+                                                <td colspan="8" class="text-center text-muted">Sin resultados.</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                    </div><!-- /VISTA 1 -->
+
+                    <!-- ══════════════ VISTA 2 ══════════════ -->
+                    <div class="view-page">
+
+                        <div class="section">
+                            <div class="section-title">Filtros de búsqueda</div>
+
+                            <form id="frmBuscarVista2" method="get" action="@Url.Action("PesoLote","ProcesosCg")">
+                                <div class="filters-v2">
+
+                                    <div class="filter-group">
+                                        <label>Desde</label>
+                                        <input type="date" class="form-control" name="Desde" value="@desdeDef.ToString("yyyy-MM-dd")" />
+                                    </div>
+
+                                    <div class="filter-group">
+                                        <label>Hasta</label>
+                                        <input type="date" class="form-control" name="Hasta" value="@hastaDef.ToString("yyyy-MM-dd")" />
+                                    </div>
+
+                                    <div class="filter-group">
+                                        <label>
+                                            Lote
+                                            <span class="sub-label">— mismos filtros</span>
+                                        </label>
+
+                                        <div class="dropdown w-100" id="dd-lote-v2">
+                                            <button class="btn-select-like" type="button"
+                                                    data-bs-toggle="dropdown" aria-expanded="false">
+                                                <span class="multi-label">(Todos)</span>
+                                            </button>
+
+                                            <ul class="dropdown-menu w-100" style="max-height:260px; overflow-y:auto;">
+                                                @if (Model?.Lotes != null && Model.Lotes.Any())
+                                                {
+                                                    var j = 0;
+                                                    foreach (var txt in Model.Lotes)
+                                                    {
+                                                        var idStr = "";
+                                                        var p1 = txt.LastIndexOf('(');
+                                                        var p2 = txt.LastIndexOf(')');
+                                                        if (p1 >= 0 && p2 > p1) idStr = txt.Substring(p1 + 1, p2 - p1 - 1);
+                                                        int.TryParse(idStr, out var idInt);
+                                                        var id = $"lotev2_{j++}";
+                                                        var isSelected = (Model?.LotesSeleccionados ?? new List<int>()).Contains(idInt);
+                                                        <li class="px-2">
+                                                            <div class="form-check">
+                                                                <input class="form-check-input multi-check-lote-v2" type="checkbox"
+                                                                       value="@idInt" id="@id" data-text="@txt"
+                                                                @(isSelected ? "checked" : null) />
+                                                                <label class="form-check-label" for="@id">@txt</label>
+                                                            </div>
+                                                        </li>
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    <li class="px-3 py-2 text-muted" style="font-size:12px;">Sin lotes para ese rango.</li>
+                                                }
+                                            </ul>
+
+                                            <div id="dd-lote-hidden-v2">
+                                                @foreach (var v in (Model?.LotesSeleccionados ?? new List<int>()))
+                                                {
+                                                    <input type="hidden" name="LotesSeleccionados" value="@v" />
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="filter-group">
+                                        <label>&nbsp;</label>
+                                        <div class="pm-actions">
+                                            <button id="btnBuscarV2" class="pm-btn pm-btn-primary" type="submit">
+                                                <i class="bi bi-search"></i> Buscar
+                                            </button>
+                                            <a class="pm-btn pm-btn-excel"
+                                               href="@Url.Action("PesoLoteExcel","ProcesosCg", new {
+                                                   desde = desdeDef.ToString("yyyy-MM-dd"),
+                                                   hasta = hastaDef.ToString("yyyy-MM-dd")
+                                               })">
+                                                <i class="bi bi-file-earmark-excel"></i> Excel
+                                            </a>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </form>
+                        </div>
+
+                        <div class="section">
+                            <div class="section-title">Kardex Movimientos</div>
+
+                            <div class="table-wrap">
+                                <table class="tbl-second">
+                                    <thead>
+                                        <tr>
+                                            <th>Lote</th>
+                                            <th>Fecha Producción</th>
+                                            <th>Artículo</th>
+                                            <th>Producto</th>
+                                            <th>Solicitante</th>
+                                            <th>Autoriza</th>
+                                            <th class="text-end">Valor Actual</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @if (Model?.Resultados != null && Model.Resultados.Any())
+                                        {
+                                            foreach (var r in Model.Resultados)
+                                            {
+                                                <tr>
+                                                    <td title="@(r.NombreLote ?? "")">@(r.NombreLote ?? "-")</td>
+                                                    <td title="@r.Desde.ToString("yyyy-MM-dd HH:mm:ss")">@r.Desde.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                                    <td>-</td>
+                                                    <td>-</td>
+                                                    <td title="@(r.Solicitante ?? "-")">@(r.Solicitante ?? "-")</td>
+                                                    <td title="@(r.Autoriza ?? "-")">@(r.Autoriza ?? "-")</td>
+                                                    <td class="text-end">-</td>
+                                                </tr>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <tr>
+                                                <td colspan="7" class="text-center text-muted">Sin resultados.</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                    </div><!-- /VISTA 2 -->
+
+                </div><!-- /views-track -->
+            </div><!-- /views-viewport -->
+
+        </div><!-- /workspace -->
+    </div><!-- /content -->
+
+    <div class="statusbar">
+        <div>Registro listo</div>
+        <div>Usuario: @User.Identity.Name</div>
+        <div>Empresa: Carnes G SA de CV</div>
+        <div>Módulo: Peso Lote</div>
+    </div>
+
+</div><!-- /window -->
+
+@Html.AntiForgeryToken()
+
+<!-- ══════════ MODAL ══════════ -->
+<div class="modal fade" id="pesoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    Detalle de Peso — Lote: <span id="pm-lote"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+
+            <div class="modal-body">
+                <div class="header-row">
+                    <div><strong>Lote:</strong> <span id="pm-nombre"></span></div>
+                    <div><strong>Tipo:</strong>  <span id="pm-tipo"></span></div>
+                    <div><strong>Desde:</strong> <span id="pm-desde"></span></div>
+                    <div><strong>Hasta:</strong> <span id="pm-hasta"></span></div>
+                </div>
+
+                <div class="table-responsive" style="max-height:60vh;">
+                    <table class="sap-grid">
+                        <thead>
+                            <tr>
+                                <th>Artículo</th>
+                                <th>Producto</th>
+                                <th>Fecha Producción</th>
+                                <th>Fecha Solicitud</th>
+                                <th>Solicitante</th>
+                                <th>Autoriza</th>
+                                <th>Estación</th>
+                                <th class="text-end">Valor Actual</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pm-tbody">
+                            <tr>
+                                <td colspan="8" class="text-center text-muted">Selecciona un rango...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <small class="text-muted me-auto" id="pm-count"></small>
+                <a id="btnExcelDetalle"
+                   class="pm-btn pm-btn-excel"
+                   href="#"
+                   target="_blank">
+                    <i class="bi bi-file-earmark-excel"></i> Excel
+                </a>
+                <button type="button" class="pm-btn pm-btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    var DETALLE_URL       = '@Url.Action("PesoLoteDetalleApi",   "ProcesosCg")';
+    var DETALLE_EXCEL_URL = '@Url.Action("PesoLoteDetalleExcel", "ProcesosCg")';
+
+    function fmtDateTime(s) {
+        if (!s) return "";
+        var dt = new Date(s);
+        return isNaN(dt) ? String(s) : dt.toLocaleString();
+    }
+
+    function safeText(v) { return (v === null || v === undefined) ? "" : String(v); }
+
+    function getv(r, pascal, camel) {
+        if (!r) return undefined;
+        if (r[pascal] !== undefined) return r[pascal];
+        if (r[camel]  !== undefined) return r[camel];
+        return undefined;
+    }
+
+    function buildUrl(base, params) {
+        var qs = [];
+        for (var k in params) {
+            if (!params.hasOwnProperty(k)) continue;
+            qs.push(encodeURIComponent(k) + "=" + encodeURIComponent(params[k]));
+        }
+        return base + "?" + qs.join("&");
+    }
+
+    function showOverlay(msg, sub) {
+        var ov = document.getElementById('globalOverlay');
+        var t  = document.getElementById('globalOverlayText');
+        var s  = document.getElementById('globalOverlaySub');
+        if (t) t.textContent = msg || "Cargando...";
+        if (s) s.textContent = sub || "Por favor espera";
+        if (ov) { ov.classList.add('show'); ov.setAttribute('aria-hidden','false'); }
+    }
+
+    function hideOverlay() {
+        var ov = document.getElementById('globalOverlay');
+        if (ov) { ov.classList.remove('show'); ov.setAttribute('aria-hidden','true'); }
+    }
+
+    function setDetalleLoading(isLoading) {
+        var btn = document.getElementById('btnExcelDetalle');
+        if (!btn) return;
+        if (isLoading) {
+            btn.classList.add('disabled');
+            btn.setAttribute('aria-disabled','true');
+            btn.style.pointerEvents = 'none';
+        } else {
+            btn.classList.remove('disabled');
+            btn.removeAttribute('aria-disabled');
+            btn.style.pointerEvents = '';
+        }
+    }
+
+    /* ── Ordenamiento tabla principal ── */
+    function parseDateFromCell(text) {
+        var t = (text || "").trim();
+        if (!t) return NaN;
+        var d = new Date(t.replace(" ", "T"));
+        return isNaN(d) ? NaN : d.getTime();
+    }
+
+    function getCellText(tr, idx) {
+        var td = tr.children[idx];
+        if (!td) return "";
+        var dv = td.getAttribute("data-sort-value");
+        if (dv !== null) return dv;
+        return (td.innerText || td.textContent || "").trim();
+    }
+
+    function sortTableByColumn(table, colIndex, type, asc) {
+        var tbody = table.tBodies[0];
+        if (!tbody) return;
+        var rows = Array.from(tbody.querySelectorAll("tr"));
+        if (rows.length === 1 && rows[0].children.length === 1) return;
+
+        rows.sort(function(a, b) {
+            var av = getCellText(a, colIndex);
+            var bv = getCellText(b, colIndex);
+
+            if (type === "date") {
+                var at = parseDateFromCell(av), bt = parseDateFromCell(bv);
+                if (isNaN(at) || isNaN(bt)) return asc ? av.localeCompare(bv,"es",{sensitivity:"base"}) : bv.localeCompare(av,"es",{sensitivity:"base"});
+                return asc ? at - bt : bt - at;
+            }
+            if (type === "num") {
+                var an = Number(av), bn = Number(bv);
+                if (isNaN(an)) an = -999999999;
+                if (isNaN(bn)) bn = -999999999;
+                return asc ? an - bn : bn - an;
+            }
+            return asc ? av.localeCompare(bv,"es",{sensitivity:"base"}) : bv.localeCompare(av,"es",{sensitivity:"base"});
+        });
+
+        rows.forEach(function(r) { tbody.appendChild(r); });
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        var table = document.querySelector(".tbl-main");
+        if (!table) return;
+        var headers = table.querySelectorAll("thead th[data-sort]");
+        var current = { index: -1, asc: true };
+
+        headers.forEach(function(th, idx) {
+            th.addEventListener("click", function() {
+                headers.forEach(function(h) { h.classList.remove("sort-asc","sort-desc"); });
+                var type = th.getAttribute("data-sort") || "text";
+                var asc  = (current.index === idx) ? !current.asc : true;
+                current.index = idx;
+                current.asc   = asc;
+                sortTableByColumn(table, idx, type, asc);
+                th.classList.add(asc ? "sort-asc" : "sort-desc");
+            });
+        });
+    });
+
+    /* ── Cargar detalle modal ── */
+    async function cargarDetalle(loteId, desdeIso, hastaIso, nombreLote, tipo) {
+        var tbody    = document.getElementById('pm-tbody');
+        var lblCount = document.getElementById('pm-count');
+
+        document.getElementById('pm-lote').textContent   = safeText(loteId);
+        document.getElementById('pm-nombre').textContent = safeText(nombreLote);
+        document.getElementById('pm-tipo').textContent   = safeText(tipo);
+        document.getElementById('pm-desde').textContent  = fmtDateTime(desdeIso);
+        document.getElementById('pm-hasta').textContent  = fmtDateTime(hastaIso);
+
+        var btnExcel = document.getElementById('btnExcelDetalle');
+        if (btnExcel) btnExcel.href = buildUrl(DETALLE_EXCEL_URL, { loteId: loteId, desde: desdeIso, hasta: hastaIso });
+
+        lblCount.textContent = "";
+        setDetalleLoading(true);
+        showOverlay("Cargando lote " + safeText(loteId) + "...", "Obteniendo registros");
+        if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Cargando...</td></tr>';
+
+        var url = buildUrl(DETALLE_URL, { loteId: loteId, desde: desdeIso, hasta: hastaIso });
+
+        try {
+            var resp = await fetch(url, { cache: 'no-store', credentials: 'same-origin' });
+            var raw  = await resp.text();
+
+            if (!resp.ok) {
+                if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">Error HTTP ' + resp.status + '</td></tr>';
+                return;
+            }
+
+            var json;
+            try { json = JSON.parse(raw); } catch(e) {
+                if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">Respuesta no es JSON.</td></tr>';
+                return;
+            }
+
+            if (!json || json.ok === false) {
+                if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">Error del backend.</td></tr>';
+                return;
+            }
+
+            var rows = Array.isArray(json.rows) ? json.rows : [];
+            lblCount.textContent = rows.length ? (rows.length + " registro(s)") : "0 registros";
+
+            if (!rows.length) {
+                if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Sin registros.</td></tr>';
+                return;
+            }
+
+            var html = "";
+            for (var i = 0; i < rows.length; i++) {
+                var r = rows[i];
+                html += '<tr>'
+                    + '<td>'  + safeText(getv(r,"Articulo","articulo")) + '</td>'
+                    + '<td class="col-desc">' + safeText(getv(r,"NombreArticulo","nombreArticulo")) + '</td>'
+                    + '<td>'  + fmtDateTime(getv(r,"FechaProduccion","fechaProduccion")) + '</td>'
+                    + '<td>'  + fmtDateTime(getv(r,"FechaSolicitud","fechaSolicitud")) + '</td>'
+                    + '<td>'  + safeText(getv(r,"Solicitante","solicitante")) + '</td>'
+                    + '<td>'  + safeText(getv(r,"Autoriza","autoriza")) + '</td>'
+                    + '<td>'  + safeText(getv(r,"Estacion","estacion")) + '</td>'
+                    + '<td class="text-end">' + safeText(getv(r,"ValorActual","valorActual")) + '</td>'
+                    + '</tr>';
+            }
+            if (tbody) tbody.innerHTML = html;
+
+        } catch(e) {
+            if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">Error de red.</td></tr>';
+            lblCount.textContent = "";
+        } finally {
+            setDetalleLoading(false);
+            hideOverlay();
+        }
+    }
+
+    /* ── Click en link lote ── */
+    document.addEventListener('click', async function(ev) {
+        var a = ev.target.closest('a.ver-det');
+        if (!a) return;
+        ev.preventDefault();
+        new bootstrap.Modal(document.getElementById('pesoModal')).show();
+        await cargarDetalle(a.dataset.lote, a.dataset.desde, a.dataset.hasta, a.dataset.nombrelote || "", a.dataset.tipo || "");
+    });
+
+    /* ── Multi-dropdown ── */
+    function initMultiDropdown(rootId, checkClass, hiddenId, hiddenName) {
+        var root   = document.getElementById(rootId);
+        if (!root) return;
+        var label  = root.querySelector('.multi-label');
+        var checks = root.querySelectorAll('.' + checkClass);
+        var hidden = document.getElementById(hiddenId);
+
+        function refresh() {
+            hidden.innerHTML = "";
+            var texts = [];
+            checks.forEach(function(ch) {
+                if (ch.checked) {
+                    texts.push(ch.getAttribute('data-text') || ch.value);
+                    var inp = document.createElement('input');
+                    inp.type = 'hidden'; inp.name = hiddenName; inp.value = ch.value;
+                    hidden.appendChild(inp);
+                }
+            });
+            if (!texts.length)          label.textContent = '(Todos)';
+            else if (texts.length <= 2) label.textContent = texts.join(', ');
+            else                        label.textContent = texts.length + ' seleccionados';
+        }
+
+        checks.forEach(function(ch) { ch.addEventListener('change', refresh); });
+        refresh();
+    }
+
+    /* ── Cambio entre vistas ── */
+    function setActiveView(viewName) {
+        var track   = document.getElementById('viewsTrack');
+        var btnGo   = document.getElementById('btnGoSecondary');
+        var btnBack = document.getElementById('btnBackPrimary');
+        if (!track) return;
+
+        if (viewName === 'secondary') {
+            track.classList.add('show-secondary');
+            if (btnGo)   btnGo.style.display   = 'none';
+            if (btnBack) btnBack.style.display  = '';
+            sessionStorage.setItem('pesoLoteView','secondary');
+        } else {
+            track.classList.remove('show-secondary');
+            if (btnGo)   btnGo.style.display   = '';
+            if (btnBack) btnBack.style.display  = 'none';
+            sessionStorage.setItem('pesoLoteView','primary');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        initMultiDropdown('dd-lote',    'multi-check-lote',    'dd-lote-hidden',    'LotesSeleccionados');
+        initMultiDropdown('dd-lote-v2', 'multi-check-lote-v2', 'dd-lote-hidden-v2', 'LotesSeleccionados');
+
+        var btnGo   = document.getElementById('btnGoSecondary');
+        var btnBack = document.getElementById('btnBackPrimary');
+        if (btnGo)   btnGo.addEventListener('click',   function() { setActiveView('secondary'); });
+        if (btnBack) btnBack.addEventListener('click',  function() { setActiveView('primary'); });
+
+        var savedView = sessionStorage.getItem('pesoLoteView') || 'primary';
+        setActiveView(savedView);
+
+        /* overlay en submit */
+        var form1 = document.getElementById('frmBuscar');
+        var btn1  = document.getElementById('btnBuscar');
+        if (form1) form1.addEventListener('submit', function() {
+            showOverlay("Cargando resultados...", "Aplicando filtros y consultando datos");
+            if (btn1) { btn1.disabled = true; btn1.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Buscando...'; }
+        });
+
+        var form2 = document.getElementById('frmBuscarVista2');
+        var btn2  = document.getElementById('btnBuscarV2');
+        if (form2) form2.addEventListener('submit', function() {
+            showOverlay("Cargando segunda vista...", "Aplicando filtros y consultando datos");
+            if (btn2) { btn2.disabled = true; btn2.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Buscando...'; }
+            sessionStorage.setItem('pesoLoteView','secondary');
+        });
+    });
+</script>

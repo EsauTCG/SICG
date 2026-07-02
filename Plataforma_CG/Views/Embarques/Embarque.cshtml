@@ -1,0 +1,1434 @@
+﻿@model IEnumerable<Plataforma_CG.Models.Embarque>
+
+@{
+    ViewData["Title"] = "Embarques";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+@{
+    var embarquesCompletados =
+        ViewBag.EmbarquesCompletados as List<Plataforma_CG.Models.Embarque>
+        ?? new List<Plataforma_CG.Models.Embarque>();
+
+    bool buscoCompletados = ViewBag.BuscoCompletados == true;
+}
+
+<style>
+    :root {
+        --primary: #8B0000;
+        --primary-dark: #5a0000;
+        --accent: #c82333;
+        --bg-light: #f4f6f9;
+        --bg-panel: #ffffff;
+        --text: #1e1e1e;
+        --text-muted: #6c757d;
+        --border: #dfe2e6;
+        --radius: 10px;
+        --shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
+        --transition: all 0.2s ease-in-out;
+    }
+
+    body {
+        background: var(--bg-light);
+    }
+
+    .container-sap {
+        max-width: 1150px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+    }
+
+    /* ===== TITLEBAR ===== */
+    .sap-titlebar {
+        background: linear-gradient(#eef1f6, #e7ebf2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1rem 1.5rem;
+        box-shadow: var(--shadow);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .5rem;
+        margin-bottom: 12px;
+    }
+
+        .sap-titlebar h4 {
+            font-size: 1.4rem;
+            font-weight: 800;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+            color: var(--text);
+        }
+
+        .sap-titlebar .sub {
+            margin: 0;
+            font-size: .9rem;
+            color: var(--text-muted);
+        }
+
+    /* ===== TOOLBAR ===== */
+    .sap-toolbar {
+        background: #f0f2f5;
+        border: 1px solid var(--border);
+        border-top: none;
+        border-radius: 0 0 var(--radius) var(--radius);
+        padding: .65rem .75rem;
+        display: flex;
+        gap: .5rem;
+        box-shadow: var(--shadow);
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .tbtn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .45rem;
+        height: 36px;
+        padding: 0 .9rem;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #fff;
+        color: var(--text);
+        font-size: .9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: var(--transition);
+        text-decoration: none;
+        white-space: nowrap;
+    }
+
+        .tbtn:hover {
+            background: #f7f7f7;
+            transform: translateY(-1px);
+            color: var(--text);
+        }
+
+        .tbtn.primary {
+            background: linear-gradient(to right, #8B0000, #5a0000);
+            color: #ffffff;
+            border: none;
+            font-weight: 700;
+        }
+
+            .tbtn.primary:hover {
+                color: #fff;
+                box-shadow: 0 6px 14px rgba(139, 0, 0, .18);
+            }
+
+    /* ===== FILTROS RESPONSIVOS ===== */
+    .filter-card {
+        background: #ffffff;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        margin-top: 1rem;
+        padding: 1rem;
+    }
+
+    .filter-grid {
+        display: grid;
+        grid-template-columns: minmax(220px, 1.5fr) minmax(150px, .8fr) minmax(150px, .8fr) minmax(180px, .9fr) minmax(190px, auto);
+        gap: .75rem;
+        align-items: end;
+    }
+
+    .filter-field {
+        min-width: 0;
+    }
+
+        .filter-field label {
+            font-size: .76rem;
+            font-weight: 800;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: .28rem;
+            display: block;
+            letter-spacing: .35px;
+        }
+
+    .filter-control {
+        width: 100%;
+        min-width: 0;
+        height: 39px;
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        padding: 0 .75rem;
+        font-size: .9rem;
+        background: #fff;
+        color: var(--text);
+        transition: var(--transition);
+    }
+
+        .filter-control:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(139, 0, 0, .12);
+        }
+
+    .filter-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: .5rem;
+        min-width: 190px;
+    }
+
+        .filter-actions .tbtn {
+            width: 100%;
+            justify-content: center;
+            margin-top: 0;
+            white-space: nowrap;
+        }
+
+    /* ===== CARD ===== */
+    .sap-card {
+        background: var(--bg-panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        margin-top: 1rem;
+        overflow: hidden;
+    }
+
+    .sap-table-container {
+        overflow-x: auto;
+        scrollbar-width: thin;
+    }
+
+        /* ===== SCROLL PROPIO PARA LISTADO DE EMBARQUES ===== */
+        .sap-table-container.embarques-scroll {
+            max-height: clamp(600px, 58vh, 680px);
+            overflow-y: auto;
+            overflow-x: auto;
+            scrollbar-width: thin;
+        }
+
+            /* Encabezado fijo mientras bajas en el listado */
+            .sap-table-container.embarques-scroll .sap-table thead th {
+                position: sticky;
+                top: 0;
+                z-index: 5;
+            }
+
+            /* Scroll bonito */
+            .sap-table-container.embarques-scroll::-webkit-scrollbar {
+                width: 9px;
+                height: 9px;
+            }
+
+            .sap-table-container.embarques-scroll::-webkit-scrollbar-track {
+                background: #f1f3f5;
+            }
+
+            .sap-table-container.embarques-scroll::-webkit-scrollbar-thumb {
+                background: #c4c8cf;
+                border-radius: 999px;
+            }
+
+                .sap-table-container.embarques-scroll::-webkit-scrollbar-thumb:hover {
+                    background: #9ca3af;
+                }
+
+    .sap-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.95rem;
+        min-width: 750px;
+    }
+
+        .sap-table thead th {
+            text-align: center;
+            padding: .9rem;
+            background: #fafbfc;
+            color: var(--text-muted);
+            font-weight: 800;
+            border-bottom: 2px solid var(--border);
+            text-transform: uppercase;
+            font-size: 0.78rem;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+
+        .sap-table tbody td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+            text-align: center;
+            color: var(--text);
+            vertical-align: middle;
+        }
+
+        .sap-table tbody tr {
+            transition: var(--transition);
+        }
+
+            .sap-table tbody tr:hover {
+                background-color: #f9fafc;
+            }
+
+    .text-id {
+        font-weight: 800;
+        color: var(--primary);
+        font-family: monospace;
+        font-size: 1.1em;
+    }
+
+    /* ===== BADGES DE ESTATUS ===== */
+    .sap-badge {
+        min-width: 132px;
+        justify-content: center;
+        padding: .48rem .78rem;
+        border-radius: 999px;
+        font-size: .76rem;
+        font-weight: 800;
+        display: inline-flex;
+        align-items: center;
+        gap: .42rem;
+        border: 1px solid transparent;
+        line-height: 1.15;
+        white-space: nowrap;
+        box-shadow: 0 3px 8px rgba(15, 23, 42, .06);
+    }
+
+        .sap-badge i {
+            font-size: .9rem;
+            line-height: 1;
+        }
+
+    .status-pendiente-validacion {
+        background: #fff8e6;
+        color: #9a6700;
+        border-color: #f3d891;
+    }
+
+    .status-liberado-qr {
+        background: #eaf7ef;
+        color: #157347;
+        border-color: #bfe4cd;
+    }
+
+    .status-ruta {
+        background: #fff0e1;
+        color: #b85d00;
+        border-color: #ffd1a3;
+    }
+
+    .status-destino {
+        background: #edf4ff;
+        color: #0d6efd;
+        border-color: #c9ddff;
+    }
+
+    .status-retrasado {
+        background: #fdeeee;
+        color: #dc3545;
+        border-color: #f3c2c7;
+    }
+
+    .status-entregado {
+        background: #e9f8ef;
+        color: #198754;
+        border-color: #bce5ca;
+    }
+
+    .status-devuelto {
+        background: #eef1f4;
+        color: #5c636a;
+        border-color: #d4d9de;
+    }
+
+    .status-desconocido {
+        background: #f3f4f6;
+        color: #4b5563;
+        border-color: #d1d5db;
+    }
+
+    /* ===== BADGES OV / TR ===== */
+    .doc-mini-badges {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .45rem;
+        flex-wrap: wrap;
+    }
+
+    .doc-mini-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .35rem;
+        padding: .38rem .65rem;
+        border-radius: 999px;
+        font-size: .76rem;
+        font-weight: 800;
+        border: 1px solid transparent;
+        white-space: nowrap;
+    }
+
+        .doc-mini-badge.ov {
+            background: #edf4ff;
+            color: #0d6efd;
+            border-color: #c9ddff;
+        }
+
+        .doc-mini-badge.tr {
+            background: #fff8e6;
+            color: #9a6700;
+            border-color: #f3d891;
+        }
+
+    /* ===== ACCIONES ===== */
+    .actions-cell {
+        white-space: nowrap;
+    }
+
+    .action-buttons {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .5rem;
+        flex-wrap: wrap;
+    }
+
+        .action-buttons .tbtn {
+            margin-top: 0;
+        }
+
+    /* ===== RESPONSIVE TABLET ===== */
+    @@media (max-width: 950px) {
+        .filter-grid {
+            grid-template-columns: 1fr 1fr;
+            gap: .7rem;
+        }
+
+        .filter-field:first-child {
+            grid-column: 1 / -1;
+        }
+
+        .filter-actions {
+            grid-column: 1 / -1;
+            grid-template-columns: 1fr 1fr;
+            width: 100%;
+        }
+
+            .filter-actions .tbtn {
+                width: 100%;
+                justify-content: center;
+            }
+    }
+
+    /* ===== RESPONSIVE MOBILE ===== */
+    @@media (max-width: 830px) {
+        .container-sap {
+            padding: 0 .4rem;
+        }
+
+        .filter-card {
+            padding: .85rem;
+        }
+
+        .sap-titlebar {
+            padding: 1rem;
+        }
+
+            .sap-titlebar h4 {
+                font-size: 1.15rem;
+            }
+
+        .sap-toolbar {
+            padding: .75rem;
+        }
+
+            .sap-toolbar .tbtn {
+                width: 100%;
+                justify-content: center;
+            }
+
+        .sap-table-container {
+            overflow-x: hidden;
+        }
+
+        .sap-table {
+            display: block;
+            width: 100%;
+            min-width: 0;
+        }
+
+            .sap-table thead {
+                display: none;
+            }
+
+            .sap-table tbody {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                padding: 8px;
+            }
+
+                .sap-table tbody tr {
+                    background: #fff;
+                    border-radius: var(--radius);
+                    padding: 12px;
+                    box-shadow: var(--shadow);
+                    display: grid;
+                    grid-template-columns: 1fr;
+                    row-gap: 6px;
+                    width: 100%;
+                    margin: 0 auto;
+                    border: 1px solid var(--border);
+                }
+
+                .sap-table tbody td {
+                    border: none;
+                    text-align: left;
+                    padding: 4px 0;
+                    font-size: 0.9rem;
+                }
+
+                    .sap-table tbody td:before {
+                        content: attr(data-label);
+                        font-weight: 800;
+                        display: block;
+                        font-size: .75rem;
+                        color: var(--text-muted);
+                        margin-bottom: 2px;
+                        text-transform: uppercase;
+                        letter-spacing: .3px;
+                    }
+
+        .text-id {
+            font-size: 1rem;
+        }
+
+        .sap-badge {
+            max-width: 100%;
+            white-space: normal;
+            line-height: 1.2;
+        }
+
+        .actions-cell {
+            margin-top: .5rem;
+            padding-top: .75rem !important;
+            border-top: 1px dashed var(--border) !important;
+        }
+
+        .action-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: .55rem;
+            width: 100%;
+        }
+
+            .action-buttons .tbtn {
+                width: 100%;
+                min-width: 0;
+                height: 38px;
+                margin-top: 0;
+                font-size: .9rem;
+                padding: 0 .65rem;
+            }
+
+        .sap-table-container.embarques-scroll {
+            max-height: 70vh;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+    }
+
+    /* ===== RESPONSIVE CELULAR PEQUEÑO ===== */
+    @@media (max-width: 560px) {
+        .filter-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .filter-field:first-child,
+        .filter-actions {
+            grid-column: auto;
+        }
+
+        .filter-actions {
+            grid-template-columns: 1fr;
+            min-width: 0;
+        }
+
+        .sap-badge {
+            width: 100%;
+            min-width: 0;
+            justify-content: flex-start;
+            white-space: normal;
+            padding: .55rem .7rem;
+        }
+
+        .doc-mini-badges {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
+        .doc-mini-badge {
+            flex: 1;
+            justify-content: center;
+            min-width: 80px;
+        }
+
+        .action-buttons {
+            grid-template-columns: 1fr;
+        }
+
+            .action-buttons .tbtn {
+                width: 100%;
+            }
+    }
+
+    /* ============================================================
+       DARK MODE - LISTADO DE EMBARQUES
+============================================================ */
+
+body[data-theme="dark"] {
+    --primary: #ef4444;
+    --primary-dark: #991b1b;
+    --accent: #f87171;
+    --bg-light: #0f172a;
+    --bg-panel: #111827;
+    --text: #f9fafb;
+    --text-muted: #cbd5e1;
+    --border: rgba(255,255,255,0.12);
+    --shadow: 0 14px 34px rgba(0,0,0,.42);
+}
+
+/* Fondo general */
+body[data-theme="dark"] {
+    background: #0f172a !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .layout-main-content {
+    background: #0f172a !important;
+}
+
+body[data-theme="dark"] .layout-main-content .layout-container-fluid {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+body[data-theme="dark"] .container-sap {
+    color: #e5e7eb !important;
+}
+
+/* ===== TITLEBAR ===== */
+body[data-theme="dark"] .sap-titlebar {
+    background: linear-gradient(180deg, #1f2937 0%, #111827 100%) !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow) !important;
+}
+
+body[data-theme="dark"] .sap-titlebar h4 {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .sap-titlebar h4 i {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .sap-titlebar .sub {
+    color: #cbd5e1 !important;
+}
+
+/* ===== TOOLBAR ===== */
+body[data-theme="dark"] .sap-toolbar {
+    background: #172033 !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow) !important;
+}
+
+/* Botones */
+body[data-theme="dark"] .tbtn {
+    background: #0b1220 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+body[data-theme="dark"] .tbtn:hover {
+    background: rgba(248,113,113,0.14) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.55) !important;
+    transform: translateY(-1px);
+}
+
+body[data-theme="dark"] .tbtn.primary {
+    background: linear-gradient(90deg, #991b1b 0%, #7f1d1d 55%, #450a0a 100%) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.45) !important;
+}
+
+body[data-theme="dark"] .tbtn.primary:hover {
+    color: #ffffff !important;
+    box-shadow: 0 8px 18px rgba(248,113,113,.16) !important;
+}
+
+/* ===== FILTROS ===== */
+body[data-theme="dark"] .filter-card {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow) !important;
+}
+
+body[data-theme="dark"] .filter-field label {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .filter-control {
+    background: #0b1220 !important;
+    color: #f9fafb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+    box-shadow: none !important;
+}
+
+body[data-theme="dark"] .filter-control:focus {
+    background: #0f172a !important;
+    color: #ffffff !important;
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 3px rgba(239,68,68,.22) !important;
+    outline: none !important;
+}
+
+body[data-theme="dark"] .filter-control::placeholder {
+    color: #94a3b8 !important;
+    opacity: 1 !important;
+}
+
+body[data-theme="dark"] select.filter-control {
+    color-scheme: dark;
+}
+
+body[data-theme="dark"] select.filter-control option {
+    background: #111827 !important;
+    color: #f9fafb !important;
+}
+
+/* ===== CARD / TABLA ===== */
+body[data-theme="dark"] .sap-card {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow) !important;
+}
+
+body[data-theme="dark"] .sap-table-container {
+    background: #111827 !important;
+    scrollbar-color: rgba(248,113,113,0.42) #0f172a;
+}
+
+body[data-theme="dark"] .sap-table {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .sap-table thead th {
+    background: linear-gradient(180deg, #1f2937 0%, #172033 100%) !important;
+    color: #cbd5e1 !important;
+    border-bottom-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .sap-table tbody td {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-bottom-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .sap-table tbody tr:hover td {
+    background: rgba(248,113,113,0.09) !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .text-id {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .text-muted,
+body[data-theme="dark"] small.text-muted {
+    color: #cbd5e1 !important;
+}
+
+/* Scrollbar tabla */
+body[data-theme="dark"] .sap-table-container::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+}
+
+body[data-theme="dark"] .sap-table-container::-webkit-scrollbar-track {
+    background: #0f172a;
+}
+
+body[data-theme="dark"] .sap-table-container::-webkit-scrollbar-thumb {
+    background: rgba(248,113,113,0.42);
+    border-radius: 999px;
+}
+
+/* ===== BADGES DE ESTATUS EN DARK MODE ===== */
+body[data-theme="dark"] .sap-badge {
+    box-shadow: 0 6px 14px rgba(0,0,0,.22) !important;
+}
+
+/* Pendiente */
+body[data-theme="dark"] .status-pendiente-validacion {
+    background: rgba(180,83,9,0.22) !important;
+    color: #fde68a !important;
+    border-color: rgba(245,158,11,0.45) !important;
+}
+
+/* Liberado QR / Entregado */
+body[data-theme="dark"] .status-liberado-qr,
+body[data-theme="dark"] .status-entregado {
+    background: rgba(22,101,52,0.26) !important;
+    color: #bbf7d0 !important;
+    border-color: rgba(74,222,128,0.40) !important;
+}
+
+/* En ruta */
+body[data-theme="dark"] .status-ruta {
+    background: rgba(194,65,12,0.24) !important;
+    color: #fed7aa !important;
+    border-color: rgba(251,146,60,0.42) !important;
+}
+
+/* En destino */
+body[data-theme="dark"] .status-destino {
+    background: rgba(30,64,175,0.24) !important;
+    color: #bfdbfe !important;
+    border-color: rgba(96,165,250,0.45) !important;
+}
+
+/* Retrasado */
+body[data-theme="dark"] .status-retrasado {
+    background: rgba(153,27,27,0.30) !important;
+    color: #fecaca !important;
+    border-color: rgba(248,113,113,0.48) !important;
+}
+
+/* Devuelto / Desconocido */
+body[data-theme="dark"] .status-devuelto,
+body[data-theme="dark"] .status-desconocido {
+    background: rgba(71,85,105,0.34) !important;
+    color: #e5e7eb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+/* ===== BADGES OV / TR ===== */
+body[data-theme="dark"] .doc-mini-badge.ov {
+    background: rgba(30,64,175,0.24) !important;
+    color: #bfdbfe !important;
+    border-color: rgba(96,165,250,0.45) !important;
+}
+
+body[data-theme="dark"] .doc-mini-badge.tr {
+    background: rgba(180,83,9,0.22) !important;
+    color: #fde68a !important;
+    border-color: rgba(245,158,11,0.45) !important;
+}
+
+/* ===== ACCIONES ===== */
+body[data-theme="dark"] .actions-cell {
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .action-buttons .tbtn {
+    background: #0b1220 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+body[data-theme="dark"] .action-buttons .tbtn:hover {
+    background: rgba(248,113,113,0.14) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.55) !important;
+}
+
+/* ===== MOBILE: FILAS COMO TARJETAS ===== */
+@@media (max-width: 830px) {
+    body[data-theme="dark"] .sap-table tbody {
+        background: transparent !important;
+    }
+
+    body[data-theme="dark"] .sap-table tbody tr {
+        background: #111827 !important;
+        border-color: rgba(255,255,255,0.12) !important;
+        box-shadow: 0 10px 24px rgba(0,0,0,.34) !important;
+    }
+
+    body[data-theme="dark"] .sap-table tbody tr:hover {
+        background: #172033 !important;
+    }
+
+    body[data-theme="dark"] .sap-table tbody tr:hover td {
+        background: transparent !important;
+    }
+
+    body[data-theme="dark"] .sap-table tbody td {
+        background: transparent !important;
+        color: #e5e7eb !important;
+    }
+
+    body[data-theme="dark"] .sap-table tbody td:before {
+        color: #94a3b8 !important;
+    }
+
+    body[data-theme="dark"] .actions-cell {
+        border-top-color: rgba(255,255,255,0.16) !important;
+    }
+}
+
+/* ===== MOBILE SMALL ===== */
+@@media (max-width: 560px) {
+    body[data-theme="dark"] .doc-mini-badge {
+        box-shadow: 0 4px 10px rgba(0,0,0,.20);
+    }
+
+    body[data-theme="dark"] .sap-badge {
+        box-shadow: 0 4px 10px rgba(0,0,0,.20);
+    }
+}
+
+    /* ===== NOMBRE DEL EMBARQUE JUNTO AL CONSECUTIVO ===== */
+    .embarque-cell {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .32rem;
+        max-width: 240px;
+        margin: 0 auto;
+    }
+
+    .embarque-name {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .35rem;
+        padding: .32rem .58rem;
+        border-radius: 999px;
+        background: #f3f4f6;
+        color: #374151;
+        border: 1px solid #e5e7eb;
+        font-size: .76rem;
+        font-weight: 700;
+        line-height: 1.15;
+        max-width: 100%;
+        white-space: normal;
+        word-break: break-word;
+    }
+
+        .embarque-name i {
+            color: var(--primary);
+            font-size: .85rem;
+        }
+
+    .embarque-name-empty {
+        color: #9ca3af;
+        font-style: italic;
+        font-weight: 600;
+    }
+
+    body[data-theme="dark"] .embarque-name {
+        background: rgba(148,163,184,0.14) !important;
+        color: #e5e7eb !important;
+        border-color: rgba(203,213,225,0.24) !important;
+    }
+
+        body[data-theme="dark"] .embarque-name i {
+            color: #fca5a5 !important;
+        }
+
+    body[data-theme="dark"] .embarque-name-empty {
+        color: #94a3b8 !important;
+    }
+
+</style>
+
+
+<div class="container-sap">
+
+    <div class="sap-titlebar">
+        <div>
+            <h4><i class="bi bi-truck-front"></i> Listado de Embarques</h4>
+            <p class="sub">Gestión y seguimiento de salidas de almacén.</p>
+        </div>
+    </div>
+
+    @if (User.IsInRole("Administracion de Ventas") || User.IsInRole("Administrador"))
+    {
+        <div class="sap-toolbar">
+            <a asp-action="Crear" class="tbtn primary">
+                <i class="bi bi-plus-lg"></i><span>Nuevo Embarque</span>
+            </a>
+        </div>
+    }
+
+    <form asp-action="Embarque" method="get" class="filter-card">
+        <div class="filter-grid">
+
+            <div class="filter-field">
+                <label>Buscar embarque</label>
+                <input type="text"
+                       name="busqueda"
+                       value="@ViewBag.Busqueda"
+                       class="filter-control"
+                       placeholder="Buscar por consecutivo, ID o nombre del embarque..." />
+            </div>
+
+            <div class="filter-field">
+                <label>Fecha inicio</label>
+                <input type="date"
+                       name="fechaInicio"
+                       value="@ViewBag.FechaInicio"
+                       class="filter-control" />
+            </div>
+
+            <div class="filter-field">
+                <label>Fecha fin</label>
+                <input type="date"
+                       name="fechaFin"
+                       value="@ViewBag.FechaFin"
+                       class="filter-control" />
+            </div>
+
+            <div class="filter-field">
+                <label>Estatus</label>
+                <select name="estatus" class="filter-control">
+                    <option value="">Todos activos</option>
+
+                    @if ((int?)ViewBag.Estatus == 1)
+                    {
+                        <option value="1" selected>Pendiente de validaciones</option>
+                    }
+                    else
+                    {
+                        <option value="1">Pendiente de validaciones</option>
+                    }
+
+                    @if ((int?)ViewBag.Estatus == 7)
+                    {
+                        <option value="7" selected>Liberado para QR</option>
+                    }
+                    else
+                    {
+                        <option value="7">Liberado para QR</option>
+                    }
+
+                    @if ((int?)ViewBag.Estatus == 2)
+                    {
+                        <option value="2" selected>En Ruta</option>
+                    }
+                    else
+                    {
+                        <option value="2">En Ruta</option>
+                    }
+
+                    @if ((int?)ViewBag.Estatus == 3)
+                    {
+                        <option value="3" selected>En Destino</option>
+                    }
+                    else
+                    {
+                        <option value="3">En Destino</option>
+                    }
+
+                    @if ((int?)ViewBag.Estatus == 4)
+                    {
+                        <option value="4" selected>Retrasado</option>
+                    }
+                    else
+                    {
+                        <option value="4">Retrasado</option>
+                    }
+
+@*                     @if ((int?)ViewBag.Estatus == 5)
+                    {
+                        <option value="5" selected>Entregado</option>
+                    }
+                    else
+                    {
+                        <option value="5">Entregado</option>
+                    } *@
+
+                    @if ((int?)ViewBag.Estatus == 6)
+                    {
+                        <option value="6" selected>Devuelto</option>
+                    }
+                    else
+                    {
+                        <option value="6">Devuelto</option>
+                    }
+                </select>
+            </div>
+
+            <div class="filter-actions">
+                <button type="submit" class="tbtn primary">
+                    <i class="bi bi-search"></i>
+                    <span>Buscar</span>
+                </button>
+
+                <a asp-action="Embarque" class="tbtn">
+                    <i class="bi bi-x-circle"></i>
+                    <span>Limpiar</span>
+                </a>
+            </div>
+
+        </div>
+    </form>
+
+    <div class="sap-card">
+        <div class="sap-table-container embarques-scroll">
+            <table class="sap-table">
+                <thead>
+                    <tr>
+                        <th>Embarque</th>
+                        <th>Fecha De Creacion</th>
+                        <th>Estatus</th>
+                        <th>Órdenes</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+
+                    @foreach (var e in Model)
+                    {
+                        <tr>
+                            <td data-label="Embarque">
+                                <div class="embarque-cell">
+                                    <span class="text-id">@e.Consecutivo</span>
+
+                                    @if (!string.IsNullOrWhiteSpace(e.NombreEmbarque))
+                                    {
+                                        <span class="embarque-name" title="@e.NombreEmbarque">
+                                            <i class="bi bi-tag"></i>
+                                            @e.NombreEmbarque
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="embarque-name embarque-name-empty">
+                                            <i class="bi bi-tag"></i>
+                                            Sin nombre
+                                        </span>
+                                    }
+                                </div>
+                            </td>
+
+                            <td data-label="Fecha">
+                                @e.FechaCreacion.ToString("yyyy-MM-dd")
+                                <br />
+                                <small class="text-muted">
+                                    @e.FechaCreacion.ToString("HH:mm")
+                                </small>
+                            </td>
+
+                            <td data-label="Estatus">
+                                @{
+                                    bool validacionesCompletas =
+                                    e.CalidadAprobada == true &&
+                                    e.DocumentacionAprobada == true &&
+                                    e.DocumentacionCalidadAprobada == true;
+                                }
+
+                                @switch (e.Estatus)
+                                {
+                                    case 1:
+                                        <span class="sap-badge status-pendiente-validacion">
+                                            <i class="bi bi-hourglass-split"></i> Pendiente de validaciones
+                                        </span>
+                                        break;
+
+                                    case 7:
+                                        if (validacionesCompletas)
+                                        {
+                                            <span class="sap-badge status-liberado-qr">
+                                                <i class="bi bi-qr-code"></i> Liberado para QR
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="sap-badge status-pendiente-validacion">
+                                                <i class="bi bi-hourglass-split"></i> Pendiente de validaciones
+                                            </span>
+                                        }
+                                        break;
+
+                                    case 2:
+                                        <span class="sap-badge status-ruta">
+                                            <i class="bi bi-truck"></i> En Ruta
+                                        </span>
+                                        break;
+
+                                    case 3:
+                                        <span class="sap-badge status-destino">
+                                            <i class="bi bi-geo-alt-fill"></i> En Destino
+                                        </span>
+                                        break;
+
+                                    case 4:
+                                        <span class="sap-badge status-retrasado">
+                                            <i class="bi bi-exclamation-triangle-fill"></i> Retrasado
+                                        </span>
+                                        break;
+
+                                    case 5:
+                                        <span class="sap-badge status-entregado">
+                                            <i class="bi bi-check-circle-fill"></i> Entregado
+                                        </span>
+                                        break;
+
+                                    case 6:
+                                        <span class="sap-badge status-devuelto">
+                                            <i class="bi bi-arrow-counterclockwise"></i> Devuelto
+                                        </span>
+                                        break;
+
+                                    default:
+                                        <span class="sap-badge status-desconocido">
+                                            <i class="bi bi-question-circle-fill"></i> Desconocido
+                                        </span>
+                                        break;
+                                }
+                            </td>
+                            <td data-label="Documentos">
+                                @{
+                                    var ov = e.Documentos?.Count(d => d.TipoDocumento == "OV") ?? 0;
+                                    var tr = e.Documentos?.Count(d => d.TipoDocumento == "TRANSFERENCIA") ?? 0;
+                                }
+
+                                <div class="doc-mini-badges">
+                                    <span class="doc-mini-badge ov">
+                                        <i class="bi bi-file-earmark-text"></i>
+                                        OV: @ov
+                                    </span>
+
+                                    <span class="doc-mini-badge tr">
+                                        <i class="bi bi-arrow-left-right"></i>
+                                        TR: @tr
+                                    </span>
+                                </div>
+
+                            </td>
+
+
+                            <td data-label="Acciones" class="actions-cell">
+                                <div class="action-buttons">
+
+                                    <a asp-action="Detalle"
+                                       asp-route-id="@e.Id"
+                                       class="tbtn">
+                                        <i class="bi bi-eye"></i>
+                                        <span>Detalle</span>
+                                    </a>
+
+                                    @if (User.IsInRole("Administracion de Ventas") || User.IsInRole("Administrador"))
+                                {
+                                    <a asp-action="MapaCarga"
+                                       asp-route-id="@e.Id"
+                                       class="tbtn">
+                                        <i class="bi bi-map"></i>
+                                        <span>Mapa</span>
+                                    </a>
+                                }
+                                </div>
+                            </td>
+
+                        </tr>
+                    }
+
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="sap-titlebar" style="margin-top: 1.5rem;">
+        <div>
+            <h4>
+                <i class="bi bi-archive"></i>
+                Histórico de Embarques Entregados
+            </h4>
+            <p class="sub">
+                Consulta embarques ya completados únicamente por rango de fechas.
+            </p>
+        </div>
+    </div>
+
+    <form asp-action="Embarque" method="get" class="filter-card">
+        <div class="filter-grid">
+
+            <div class="filter-field">
+                <label>Buscar completado</label>
+                <input type="text"
+                       name="busquedaCompletados"
+                       value="@ViewBag.BusquedaCompletados"
+                       class="filter-control"
+                       placeholder="Buscar por consecutivo, ID o nombre." />
+            </div>
+
+            <div class="filter-field">
+                <label>Fecha inicio entregado</label>
+                <input type="date"
+                       name="fechaInicioCompletados"
+                       value="@ViewBag.FechaInicioCompletados"
+                       class="filter-control"
+                       required />
+            </div>
+
+            <div class="filter-field">
+                <label>Fecha fin entregado</label>
+                <input type="date"
+                       name="fechaFinCompletados"
+                       value="@ViewBag.FechaFinCompletados"
+                       class="filter-control"
+                       required />
+            </div>
+
+            <div class="filter-field">
+                <label>Estatus</label>
+                <input type="text"
+                       value="Entregado"
+                       class="filter-control"
+                       disabled />
+            </div>
+
+            <div class="filter-actions">
+                <button type="submit" class="tbtn primary">
+                    <i class="bi bi-search"></i>
+                    <span>Consultar</span>
+                </button>
+
+                <a asp-action="Embarque" class="tbtn">
+                    <i class="bi bi-x-circle"></i>
+                    <span>Limpiar</span>
+                </a>
+            </div>
+
+        </div>
+    </form>
+
+    @if (!buscoCompletados)
+    {
+        <div class="sap-card" style="padding: 1rem;">
+            <div class="text-muted" style="text-align:center; font-weight:700;">
+                <i class="bi bi-calendar-range"></i>
+                Selecciona una fecha inicio y una fecha fin para consultar embarques entregados.
+            </div>
+        </div>
+    }
+    else if (!embarquesCompletados.Any())
+    {
+        <div class="sap-card" style="padding: 1rem;">
+            <div class="text-muted" style="text-align:center; font-weight:700;">
+                <i class="bi bi-info-circle"></i>
+                No se encontraron embarques entregados en el rango seleccionado.
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="sap-card">
+            <div class="sap-table-container embarques-scroll">
+                <table class="sap-table">
+                    <thead>
+                        <tr>
+                            <th>Embarque</th>
+                            <th>Fecha Entregado</th>
+                            <th>Estatus</th>
+                            <th>Órdenes</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+
+                        @foreach (var e in embarquesCompletados)
+                        {
+                            <tr>
+                                <td data-label="Embarque">
+                                    <div class="embarque-cell">
+                                        <span class="text-id">@e.Consecutivo</span>
+
+                                        @if (!string.IsNullOrWhiteSpace(e.NombreEmbarque))
+                                        {
+                                            <span class="embarque-name" title="@e.NombreEmbarque">
+                                                <i class="bi bi-tag"></i>
+                                                @e.NombreEmbarque
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="embarque-name embarque-name-empty">
+                                                <i class="bi bi-tag"></i>
+                                                Sin nombre
+                                            </span>
+                                        }
+                                    </div>
+                                </td>
+
+                                <td data-label="Fecha Entregado">
+                                    @((e.FechaEntregado ?? e.FechaCreacion).ToString("yyyy-MM-dd"))
+                                    <br />
+                                    <small class="text-muted">
+                                        @((e.FechaEntregado ?? e.FechaCreacion).ToString("HH:mm"))
+                                    </small>
+                                </td>
+
+                                <td data-label="Estatus">
+                                    <span class="sap-badge status-entregado">
+                                        <i class="bi bi-check-circle-fill"></i> Entregado
+                                    </span>
+                                </td>
+
+                                <td data-label="Documentos">
+                                    @{
+                                        var ov = e.Documentos?.Count(d => d.TipoDocumento == "OV") ?? 0;
+                                        var tr = e.Documentos?.Count(d => d.TipoDocumento == "TRANSFERENCIA") ?? 0;
+                                    }
+
+                                    <div class="doc-mini-badges">
+                                        <span class="doc-mini-badge ov">
+                                            <i class="bi bi-file-earmark-text"></i>
+                                            OV: @ov
+                                        </span>
+
+                                        <span class="doc-mini-badge tr">
+                                            <i class="bi bi-arrow-left-right"></i>
+                                            TR: @tr
+                                        </span>
+                                    </div>
+                                </td>
+
+                                <td data-label="Acciones" class="actions-cell">
+                                    <div class="action-buttons">
+
+                                        <a asp-action="Detalle"
+                                           asp-route-id="@e.Id"
+                                           class="tbtn">
+                                            <i class="bi bi-eye"></i>
+                                            <span>Detalle</span>
+                                        </a>
+
+                                        @if (User.IsInRole("Administracion de Ventas") || User.IsInRole("Administrador"))
+                                        {
+                                            <a asp-action="MapaCarga"
+                                               asp-route-id="@e.Id"
+                                               class="tbtn">
+                                                <i class="bi bi-map"></i>
+                                                <span>Mapa</span>
+                                            </a>
+                                        }
+
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+</div>

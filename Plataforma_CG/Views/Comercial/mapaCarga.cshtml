@@ -1,0 +1,1024 @@
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Mapa de Carga";
+}
+
+<style>
+    html, body {
+        width: 100%;
+        min-height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow-x: hidden;
+    }
+
+    .container,
+    .container-fluid {
+        max-width: 100% !important;
+    }
+
+    .mcg-layout {
+        display: grid;
+        grid-template-columns: clamp(280px, 26vw, 320px) minmax(0, 1fr);
+        gap: 12px;
+        width: 100%;
+        max-width: 100%;
+        min-height: calc(100vh - 120px);
+        height: auto;
+        box-sizing: border-box;
+        align-items: stretch;
+    }
+
+    .mcg-panel {
+        background: #111;
+        color: #eee;
+        border-radius: 10px;
+        padding: 10px;
+        overflow: auto;
+        min-width: 0;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+        .mcg-panel h3 {
+            margin: 6px 0 10px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+    .mcg-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    .mcg-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: #1f1f1f;
+        border: 1px solid #333;
+        border-radius: 8px;
+        padding: 8px;
+        margin-bottom: 8px;
+        cursor: grab;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+        .mcg-item:active {
+            cursor: grabbing;
+        }
+
+        .mcg-item .tag {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+            display: inline-block;
+            flex: 0 0 auto;
+        }
+
+        .mcg-item .meta {
+            font-size: 12px;
+            opacity: .85;
+            min-width: 0;
+            word-break: break-word;
+        }
+
+    .mcg-actions {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        width: 100%;
+    }
+
+        .mcg-actions button {
+            background: #2a2a2a;
+            color: #eee;
+            border: 1px solid #3a3a3a;
+            border-radius: 8px;
+            padding: 6px 10px;
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+
+            .mcg-actions button:hover {
+                background: #333;
+            }
+
+    #btnAplicarDims {
+        background: #2a2a2a;
+        color: #eee;
+        border: 1px solid #3a3a3a;
+        border-radius: 8px;
+        padding: 6px 10px;
+        cursor: pointer;
+        margin-top: 6px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+        #btnAplicarDims:hover {
+            background: #333;
+        }
+
+    #mapa3d-wrapper {
+        position: relative;
+        background: #202020;
+        border-radius: 10px;
+        overflow: hidden;
+        min-width: 0;
+        width: 100%;
+        min-height: calc(100vh - 120px);
+        height: calc(100vh - 120px);
+        box-sizing: border-box;
+    }
+
+        #mapa3d-wrapper canvas {
+            position: absolute;
+            inset: 0;
+            display: block;
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+    #info, #stats {
+        position: absolute;
+        z-index: 10;
+        color: #fff;
+        background: rgba(0,0,0,.5);
+        padding: 8px 10px;
+        border-radius: 8px;
+        font: 12px/1.2 system-ui, Arial;
+        max-width: calc(100% - 20px);
+        box-sizing: border-box;
+    }
+
+    #info {
+        top: 10px;
+        left: 10px;
+    }
+
+    #stats {
+        bottom: 10px;
+        left: 10px;
+    }
+
+    .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        align-items: center;
+        width: 100%;
+    }
+
+        .form-grid > * {
+            min-width: 0;
+        }
+
+    .meta small {
+        opacity: .8;
+    }
+
+    input,
+    select,
+    textarea,
+    button {
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    @@media (max-width: 1400px) {
+        .mcg-layout {
+            grid-template-columns: 300px minmax(0, 1fr);
+        }
+    }
+
+    @@media (max-width: 1200px) {
+        .mcg-layout {
+            grid-template-columns: 280px minmax(0, 1fr);
+        }
+    }
+
+    @@media (max-width: 992px) {
+        .mcg-layout {
+            grid-template-columns: 1fr;
+            min-height: auto;
+        }
+
+        .mcg-panel {
+            max-height: none;
+        }
+
+        #mapa3d-wrapper {
+            min-height: 65vh;
+            height: 65vh;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .mcg-layout {
+            gap: 10px;
+        }
+
+        .mcg-panel {
+            padding: 8px;
+        }
+
+        .form-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .mcg-actions {
+            flex-direction: column;
+        }
+
+            .mcg-actions button {
+                width: 100%;
+            }
+
+        #btnAplicarDims {
+            width: 100%;
+        }
+
+        #mapa3d-wrapper {
+            min-height: 58vh;
+            height: 58vh;
+        }
+
+        #info,
+        #stats {
+            font-size: 11px;
+            padding: 6px 8px;
+        }
+    }
+
+    @@media (max-width: 576px) {
+        .mcg-layout {
+            gap: 8px;
+        }
+
+        .mcg-panel {
+            padding: 8px;
+            border-radius: 8px;
+        }
+
+        .mcg-item {
+            padding: 7px;
+            gap: 6px;
+        }
+
+            .mcg-item .meta {
+                font-size: 11px;
+            }
+
+        .mcg-panel h3 {
+            font-size: 15px;
+        }
+
+        #mapa3d-wrapper {
+            min-height: 50vh;
+            height: 50vh;
+            border-radius: 8px;
+        }
+    }
+</style>
+
+<div class="mcg-layout">
+    <div class="mcg-panel">
+        <h3>Órdenes (arrastra para ordenar)</h3>
+        <ul id="orderList" class="mcg-list"></ul>
+        <div class="mcg-actions" style="margin-top:10px">
+            <button id="btnAcomodar">Acomodar</button>
+            <button id="btnRotar">Rotar seleccionada 90°</button>
+            <button id="btnInterior">Ver interior</button>
+            <button id="btnReset">Reset</button>
+        </div>
+        <p style="margin-top:10px" class="meta">
+            Unidad: metros. Peso en kg. Autoacomodo simple (2 columnas) y luego puedes mover cada tarima manualmente.
+        </p>
+        <!-- NUEVO: Tipo de camión y dimensiones -->
+        <div class="mcg-panel" style="margin-top:10px; padding:10px; background:#151515;">
+            <h3 style="margin-top:0">Tipo de camión y dimensiones</h3>
+            <div class="form-grid" style="margin-bottom:8px">
+                <label>Tipo</label>
+                <select id="selTipo">
+                    <option value="trailer53">Tráiler 53’ (≈16.15×2.45×2.70)</option>
+                    <option value="trailer48">Tráiler 48’ (≈14.60×2.45×2.70)</option>
+                    <option value="torton8m" selected>Torton ~8 m (≈8.00×2.45×2.65)</option>
+                    <option value="custom">Personalizado</option>
+                </select>
+                <label>Largo interior (m)</label>
+                <input id="inLargo" type="number" step="0.01" value="13.60" />
+                <label>Ancho interior (m)</label>
+                <input id="inAncho" type="number" step="0.01" value="2.45" />
+                <label>Alto interior (m)</label>
+                <input id="inAlto" type="number" step="0.01" value="2.70" />
+            </div>
+            <button id="btnAplicarDims" class="mcg-actions" style="margin-top:6px">Aplicar dimensiones</button>
+            <div id="dimsHint" class="meta" style="margin-top:8px">Usando 13.60×2.45×2.70 m (L×A×H)</div>
+        </div>
+        <!-- Panel de Layout de la tarima seleccionada -->
+        <div id="layoutBox" class="mcg-panel" style="margin-top:10px; padding:10px; background:#151515;">
+            <h3 style="margin-top:0">Layout de la tarima (seleccionada)</h3>
+            <div class="meta" style="margin-bottom:8px">
+                Define <b>capas (camas)</b> y <b>cajas por capa</b> (Columnas × Filas).
+            </div>
+            <div class="form-grid">
+                <label>Capas (camas)</label>
+                <input id="inCapas" type="number" min="1" step="1" value="1" />
+                <label>Columnas</label>
+                <input id="inCols" type="number" min="1" step="1" value="1" />
+                <label>Filas</label>
+                <input id="inRows" type="number" min="1" step="1" value="1" />
+                <label>Cajas totales</label>
+                <input id="inCajas" type="number" min="1" step="1" value="1" />
+            </div>
+            <div class="meta" style="margin-top:8px">
+                Máx. mostradas = <code>capas × columnas × filas</code>.<br />
+                <small id="capasHint"></small>
+            </div>
+        </div>
+    </div>
+    <div id="mapa3d-wrapper">
+        <div id="info">Mapa de carga del tráiler</div>
+        <div id="stats"></div>
+    </div>
+</div>
+@section Scripts {
+    <script src="https://unpkg.com/three@0.128.0/build/three.min.js" defer></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js" defer></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/controls/TransformControls.js" defer></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/lights/RectAreaLightUniformsLib.js" defer></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js" defer></script>
+    <script>
+        window.addEventListener('load', function () {
+          // ====== Parámetros base ======
+          let TRAILER = { largo: 13.60, ancho: 2.45, alto: 2.70 }; // se actualiza con los presets/inputs
+          const FIXED_BACK = 13.60 / 2; // Posición fija absoluta del final del tráiler (puertas). Se basa en el largo inicial para no moverlo al crecer.
+          const GROUND_Y = 0; // Suelo fijo en Y=0
+          const DOCK_HEIGHT = 1.2; // Altura estándar del muelle/piso del tráiler sobre el suelo
+          const FLOOR_THK = 0.08; // espesor del piso
+          const WALL_THK = 0.05; // espesor paredes/techo
+          const PALLET = { L: 1.20, A: 1.00, H: 0.144 }; // tarima aprox
+          const PRESETS = {
+            trailer53: { largo: 16.15, ancho: 2.45, alto: 2.70 },
+            trailer48: { largo: 14.60, ancho: 2.45, alto: 2.70 },
+            torton8m : { largo: 8.00, ancho: 2.45, alto: 2.65 },
+          };
+          // Órdenes con detalle de cajas y SKU
+          const PEDIDOS_BASE = [
+            { id:1, nombre:'Julio Alejandro', color:'#3b82f6', sku:'SKU-001', cajas:35, kgPorCaja:10, boxL:0.40, boxA:0.30, boxH:0.25 },
+            { id:2, nombre:'Tiendas Soriana', color:'#f59e0b', sku:'SKU-002', cajas:30, kgPorCaja:11, boxL:0.40, boxA:0.30, boxH:0.25 },
+            { id:3, nombre:'Abarrotera de Valles', color:'#10b981', sku:'SKU-003', cajas:48, kgPorCaja:12, boxL:0.40, boxA:0.30, boxH:0.25 },
+            { id:4, nombre:'La Canasta', color:'#ef4444', sku:'SKU-004', cajas:70, kgPorCaja:12, boxL:0.40, boxA:0.30, boxH:0.25 },
+            { id:5, nombre:'Grupo Strattega', color:'#8b5cf6', sku:'SKU-005', cajas:30, kgPorCaja:13, boxL:0.40, boxA:0.30, boxH:0.25 },
+            { id:6, nombre:'Refacciones Norte', color:'#22d3ee', sku:'SKU-006', cajas:42, kgPorCaja:10, boxL:0.40, boxA:0.30, boxH:0.25 },
+            { id:7, nombre:'Bebidas Frías', color:'#84cc16', sku:'SKU-007', cajas:56, kgPorCaja:11, boxL:0.40, boxA:0.30, boxH:0.25 },
+            { id:8, nombre:'TV LED', color:'#fb7185', sku:'SKU-008', cajas:28, kgPorCaja:14, boxL:0.40, boxA:0.30, boxH:0.25 },
+          ];
+          // ====== UI ======
+          const orderList = document.getElementById('orderList');
+          const wrapper = document.getElementById('mapa3d-wrapper');
+          const info = document.getElementById('info');
+          const stats = document.getElementById('stats');
+          // layout inputs
+          const inCapas = document.getElementById('inCapas');
+          const inCols = document.getElementById('inCols');
+          const inRows = document.getElementById('inRows');
+          const inCajas = document.getElementById('inCajas');
+          const capasHint = document.getElementById('capasHint');
+          // dimensiones inputs
+          const selTipo = document.getElementById('selTipo');
+          const inLargo = document.getElementById('inLargo');
+          const inAncho = document.getElementById('inAncho');
+          const inAlto = document.getElementById('inAlto');
+          const btnAplicarDims = document.getElementById('btnAplicarDims');
+          const dimsHint = document.getElementById('dimsHint');
+          function fmt(n){ return (Math.round(n*100)/100).toFixed(2); }
+          function applyPreset(key){
+            const p = PRESETS[key];
+            if (!p) return;
+            inLargo.value = p.largo; inAncho.value = p.ancho; inAlto.value = p.alto;
+          }
+          // ====== Modelo en runtime ======
+          let pedidos = PEDIDOS_BASE.map(p => {
+            const defCols = Math.max(1, Math.floor(PALLET.L / p.boxL));
+            const defRows = Math.max(1, Math.floor(PALLET.A / p.boxA));
+            const porCapa = defCols * defRows;
+            const capasCalc = Math.max(1, Math.ceil(p.cajas / porCapa));
+            const peso = p.cajas * p.kgPorCaja;
+            return { ...p, peso, cols:defCols, rows:defRows, capas:capasCalc,
+                     cargaL: PALLET.L, cargaA: PALLET.A,
+                     cargaH: Math.max(PALLET.H + capasCalc * p.boxH, PALLET.H + 0.25) };
+          });
+          let selectedId = null;
+          let selectedGroup = null;
+          // ====== Lista izquierda ======
+          function renderList(){
+            orderList.innerHTML = '';
+            pedidos.forEach(p=>{
+              const li = document.createElement('li');
+              li.className = 'mcg-item'; li.draggable = true; li.dataset.id = p.id;
+              li.innerHTML = `
+                <span class="tag" style="background:${p.color}"></span>
+                <div>
+                  <div><strong>${p.nombre}</strong></div>
+                  <div class="meta">${p.cajas} cajas • ${p.sku} • ${fmt(p.cajas * p.kgPorCaja)} kg</div>
+                  <div class="meta">Layout: ${p.capas} capas · ${p.cols}×${p.rows}/capa</div>
+                </div>`;
+              li.addEventListener('click', ()=>{ selectById(p.id); });
+              li.addEventListener('dragstart', e=> e.dataTransfer.setData('text/plain', p.id));
+              li.addEventListener('dragover', e=> e.preventDefault());
+              li.addEventListener('drop', e=>{
+                e.preventDefault();
+                const draggedId = +e.dataTransfer.getData('text/plain');
+                const overId = +li.dataset.id;
+                const from = pedidos.findIndex(x=>x.id===draggedId);
+                const to = pedidos.findIndex(x=>x.id===overId);
+                if(from<0||to<0||from===to) return;
+                const [it] = pedidos.splice(from,1);
+                pedidos.splice(to,0,it);
+                renderList(); acomodar();
+              });
+              orderList.appendChild(li);
+            });
+            highlightSelection();
+          }
+          function highlightSelection(){
+            [...orderList.children].forEach(li=>{
+              li.style.outline = (+li.dataset.id===selectedId)? '2px solid #60a5fa' : 'none';
+            });
+          }
+          // ====== Three.js ======
+          const scene = new THREE.Scene();
+          scene.background = new THREE.Color(0x1b1f27);
+          scene.fog = new THREE.Fog(0x1b1f27, 40, 70);
+          const sceneStatic = new THREE.Group();
+          const sceneDynamic = new THREE.Group();
+          // Añadir ambos grupos a la escena principal
+          scene.add(sceneStatic);
+          scene.add(sceneDynamic);
+          const camera = new THREE.PerspectiveCamera(60, wrapper.clientWidth/wrapper.clientHeight, 0.1, 200);
+          camera.position.set(18, 9, 16);
+          const renderer = new THREE.WebGLRenderer({ antialias:true });
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+          renderer.setSize(wrapper.clientWidth, wrapper.clientHeight);
+          renderer.shadowMap.enabled = true;
+          renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+          renderer.outputEncoding = THREE.sRGBEncoding;
+          renderer.physicallyCorrectLights = true;
+          renderer.toneMapping = THREE.ACESFilmicToneMapping;
+          wrapper.appendChild(renderer.domElement);
+          const controls = new THREE.OrbitControls(camera, renderer.domElement);
+          controls.enableDamping = true;
+          // TransformControls (para mover pallets)
+          const tControls = new THREE.TransformControls(camera, renderer.domElement);
+          tControls.setMode('translate');
+          tControls.setTranslationSnap(0.05);
+          scene.add(tControls);
+          tControls.addEventListener('dragging-changed', e => { controls.enabled = !e.value; });
+          tControls.addEventListener('change', ()=>{ if (selectedGroup) clampInsideTrailer(selectedGroup); });
+          // ===== Luces =====
+          const hemi = new THREE.HemisphereLight(0xe6f0ff, 0x1b1f27, 0.35); scene.add(hemi);
+          const key = new THREE.DirectionalLight(0xffffff, 2.2);
+          key.position.set(25, 30, 18);
+          key.castShadow = true;
+          key.shadow.mapSize.set(2048, 2048);
+          key.shadow.radius = 2;
+          key.shadow.camera.left = -40; key.shadow.camera.right = 40;
+          key.shadow.camera.top = 40; key.shadow.camera.bottom = -40;
+          scene.add(key);
+          // Piso y grid
+          const ground = new THREE.Mesh(new THREE.PlaneGeometry(120,120), new THREE.MeshStandardMaterial({ color:0x2a2f3a, roughness:0.95 }));
+          ground.rotation.x = -Math.PI/2; ground.position.y = GROUND_Y; ground.receiveShadow = true; scene.add(ground);
+          const grid = new THREE.GridHelper(60, 60, 0x4a5365, 0x303744); grid.position.y = GROUND_Y + 0.001; scene.add(grid);
+          ////////////////////////////////////////
+            const loader = new THREE.GLTFLoader();
+            loader.load('/assets/models/WallLow.glb', function (gltf) {
+                const modelo = gltf.scene;
+                modelo.position.set(14.5, GROUND_Y, -20.3); // posición en el mapa
+                modelo.scale.set(5, 3.72, 7.3); // ajusta tamaño si es muy chico o grande
+                modelo.rotation.y = Math.PI / 2; // gira 90°
+                modelo.traverse(o => {
+                    if (o.isMesh) {
+                        o.castShadow = true;
+                        o.receiveShadow = true;
+                    }
+                });
+                sceneStatic.add(modelo);
+                const modelo2 = modelo.clone(true);
+                modelo2.position.set(14.5, GROUND_Y, 20.3); // ajusta posición
+                modelo2.rotation.y = Math.PI / 2; // gira 90°
+               sceneStatic.add(modelo2);
+            });
+            loader.load('/assets/models/WallLow.glb', function (gltf) {
+                const modelo = gltf.scene;
+                modelo.position.set(21.55, GROUND_Y, 0); // posición en el mapa
+                modelo.scale.set(5, 3.721, 20.5); // ajusta tamaño si es muy chico o grande
+                modelo.traverse(o => {
+                    if (o.isMesh) {
+                        o.castShadow = true;
+                        o.receiveShadow = true;
+                    }
+                });
+               sceneStatic.add(modelo);
+            }, undefined, function (error) {
+                console.error('Error cargando el modelo:', error);
+            });
+            loader.load('/assets/models/TreeD.glb', function (gltf) {
+                const modelo = gltf.scene;
+                modelo.position.set(2, GROUND_Y + 0.1, 14); // posición en el mapa
+                modelo.scale.set(0.4, 0.4, 0.4); // ajusta tamaño si es muy chico o grande
+                modelo.rotation.y = 5;
+                modelo.traverse(o => {
+                    if (o.isMesh) {
+                        o.castShadow = true;
+                        o.receiveShadow = true;
+                    }
+                });
+                sceneStatic.add(modelo);
+            }, undefined, function (error) {
+                console.error('Error cargando el modelo:', error);
+            });
+            loader.load('/assets/models/MetalFence.glb', function (gltf) {
+                const fence = gltf.scene;
+                fence.position.set(0, GROUND_Y, 12);
+                fence.scale.set(4, 1.5, 2);
+                fence.traverse(o => {
+                    if (o.isMesh) {
+                        o.castShadow = true;
+                        o.receiveShadow = true;
+                    }
+                });
+                sceneStatic.add(fence);
+                // === Clon para cerrar ===
+                const fence2 = fence.clone(true);
+                fence2.position.set(-6.5, GROUND_Y, 18.5); // ajusta posición
+                fence2.rotation.y = Math.PI / 2; // gira 90°
+                sceneStatic.add(fence2);
+                const fence3 = fence.clone(true);
+                fence3.position.set(-0, GROUND_Y, -6.4); // ajusta posición
+                sceneStatic.add(fence3);
+            });
+            loader.load('/assets/models/MitsubishiL200.glb', function (gltf) {
+                const modelo = gltf.scene;
+                modelo.position.set(5.5, GROUND_Y, 19.5); // posición en el mapa
+                modelo.scale.set(2.5, 3, 2.5); // ajusta tamaño si es muy chico o grande
+                modelo.rotation.y = Math.PI / 2; // gira 90°
+                modelo.traverse(o => {
+                    if (o.isMesh) {
+                        o.castShadow = true;
+                        o.receiveShadow = true;
+                    }
+                });
+                sceneStatic.add(modelo);
+            }, undefined, function (error) {
+                console.error('Error cargando el modelo:', error);
+            });
+            loader.load('/assets/models/RoofFlatCenter.glb', function (gltf) {
+                const modelo = gltf.scene;
+                modelo.position.set(4, GROUND_Y, 0); // posición en el mapa
+                modelo.scale.set(26, 0.5, 26); // ajusta tamaño si es muy chico o grande
+                modelo.traverse(o => {
+                    if (o.isMesh) {
+                        o.castShadow = true;
+                        o.receiveShadow = true;
+                    }
+                });
+                sceneStatic.add(modelo);
+            }, undefined, function (error) {
+                console.error('Error cargando el modelo:', error);
+            });
+             loader.load('/assets/models/RoofFlatCenter.glb', function (gltf) {
+                const modelo = gltf.scene;
+                modelo.position.set(14.5, 4.2, 0); // posición en el mapa
+                modelo.scale.set(7.2, 2.8, 20.5); // ajusta tamaño si es muy chico o grande
+                modelo.traverse(o => {
+                    if (o.isMesh) {
+                        o.castShadow = true;
+                        o.receiveShadow = true;
+                    }
+                });
+               sceneStatic.add(modelo);
+            }, undefined, function (error) {
+                console.error('Error cargando el modelo:', error);
+            });
+            let truckModel = null; // Variable global para el modelo del camión
+            function loadTruck() {
+                // Remover camión anterior si existe
+                if (truckModel) {
+                    scene.remove(truckModel);
+                    truckModel.traverse(o => {
+                        if (o.geometry) o.geometry.dispose();
+                        if (o.material) {
+                            if (Array.isArray(o.material)) o.material.forEach(m => m.dispose && m.dispose());
+                            else o.material.dispose && o.material.dispose();
+                        }
+                    });
+                }
+                loader.load('/assets/models/autotruck.glb', function (gltf) {
+                    truckModel = gltf.scene;
+                    truckModel.scale.set(0.1, 0.1, 0.1);
+                    // Posicionar el camión dinámicamente según el largo del trailer
+                    // Fórmula: mitad del largo del trailer + offset fijo de 3.0m (ajustado para más solapamiento)
+                    const offsetX = FIXED_BACK - TRAILER.largo - 3.0; // Ajustado para back fijo y más hacia atrás
+                    truckModel.position.set(offsetX, GROUND_Y, 0);
+                    truckModel.rotation.y = 4.7;
+                    truckModel.traverse(o => {
+                        if (o.isMesh) {
+                            o.castShadow = true;
+                            o.receiveShadow = true;
+                        }
+                    });
+                    sceneDynamic.add(truckModel);
+                }, undefined, function (error) {
+                    console.error('Error cargando el modelo de camión:', error);
+                });
+            }
+            loadTruck(); // Cargar inicialmente
+            function updateTruckPosition() {
+              if (!truckModel) return;
+              // recalcular posición según nuevas dimensiones
+              const offsetX = FIXED_BACK - TRAILER.largo - 3.0; // Ajustado para back fijo y más hacia atrás
+              truckModel.position.set(offsetX, GROUND_Y, 0);
+            }
+            loader.load('/assets/models/FlowerBed.glb', function (gltf) {
+                const truck = gltf.scene;
+                truck.scale.set(1, 1.5, 3.2); // ajusta tamaño general
+                truck.position.set(2, GROUND_Y + 0.3, 14.5); // posición en el mapa
+                truck.rotation.y = 1.5; // gira 90°
+                truck.traverse(o => {
+                    if (o.isMesh) {
+                        o.castShadow = true;
+                        o.receiveShadow = true;
+                    }
+                });
+                sceneStatic.add(truck);
+            }, undefined, function (error) {
+                console.error('Error cargando el modelo de camión:', error);
+            });
+            loader.load('/assets/models/grass.glb', function (gltf) {
+                const truck = gltf.scene;
+                truck.scale.set(5, 5, 3); // ajusta tamaño general
+                truck.position.set(2, GROUND_Y, 14.5); // posición en el mapa
+                truck.rotation.y = 3.8; // gira 90°
+                truck.traverse(o => {
+                    if (o.isMesh) {
+                        o.castShadow = true;
+                        o.receiveShadow = true;
+                    }
+                });
+                sceneStatic.add(truck);
+            }, undefined, function (error) {
+                console.error('Error cargando el modelo de camión:', error);
+            });
+          ////////////////////////////////////////
+          // ====== Trailer + muelles (construibles) ======
+          let rig = null;
+          let docks = null;
+          const mats = {
+            wallPhys: new THREE.MeshPhysicalMaterial({ color:0xe5e7eb, metalness:0.05, roughness:0.75, clearcoat:0.5, clearcoatRoughness:0.6, transparent:true, opacity:0.35, depthWrite:false, polygonOffset:true, polygonOffsetFactor:1, polygonOffsetUnits:1 }),
+            doorPhys: null,
+            deck: new THREE.MeshPhysicalMaterial({ color:0x6a5743, roughness:0.95, metalness:0.0 }),
+            rail: new THREE.MeshPhysicalMaterial({ color:0x2d3139, metalness:0.45, roughness:0.55, clearcoat:0.3 }),
+            bumper: new THREE.MeshStandardMaterial({ color: 0x0f0f0f, roughness:0.8 }),
+            guide: new THREE.MeshStandardMaterial({ color: 0xffcc00, metalness:0.2, roughness:0.6 })
+          };
+          mats.doorPhys = mats.wallPhys.clone(); mats.doorPhys.opacity = 0.45;
+          const walls = { wallL:null, wallR:null, techo:null, frente:null, puertaL:null, puertaR:null };
+          let interiorMode = true;
+          function disposeGroup(g){
+            if(!g) return;
+            g.traverse(o=>{
+              if(o.geometry) o.geometry.dispose();
+              if(o.material){
+                if (Array.isArray(o.material)) o.material.forEach(m=>m.dispose && m.dispose());
+                else o.material.dispose && o.material.dispose();
+              }
+            });
+            scene.remove(g);
+          }
+          function buildTrailerRig() {
+            disposeGroup(rig);
+            rig = new THREE.Group();
+            const trailerBottomY = DOCK_HEIGHT - FLOOR_THK; // Base del tráiler (debajo del piso)
+            const piso = new THREE.Mesh(new THREE.BoxGeometry(TRAILER.largo, FLOOR_THK, TRAILER.ancho), mats.deck);
+            piso.position.y = DOCK_HEIGHT - FLOOR_THK / 2; piso.receiveShadow = true; rig.add(piso);
+            const wallHeight = TRAILER.alto - FLOOR_THK;
+            const wallY = DOCK_HEIGHT + wallHeight / 2;
+            const wallL = new THREE.Mesh(new THREE.BoxGeometry(TRAILER.largo, wallHeight, WALL_THK), mats.wallPhys.clone());
+            wallL.position.set(0, wallY, TRAILER.ancho/2 - WALL_THK/2);
+            const wallR = wallL.clone(); wallR.position.z = -TRAILER.ancho/2 + WALL_THK/2;
+            const techo = new THREE.Mesh(new THREE.BoxGeometry(TRAILER.largo, WALL_THK, TRAILER.ancho), mats.wallPhys.clone());
+            techo.position.y = DOCK_HEIGHT + wallHeight + WALL_THK / 2;
+            const frente = new THREE.Mesh(new THREE.BoxGeometry(WALL_THK, wallHeight, TRAILER.ancho), mats.wallPhys.clone());
+            frente.position.set(-TRAILER.largo/2 + WALL_THK/2, wallY, 0);
+            const puertaL = new THREE.Mesh(new THREE.BoxGeometry(WALL_THK, wallHeight, TRAILER.ancho/2 - 0.06), mats.doorPhys);
+            const puertaR = puertaL.clone();
+            puertaL.position.set(TRAILER.largo/2 - WALL_THK/2, wallY, TRAILER.ancho/4);
+            puertaR.position.set(TRAILER.largo/2 - WALL_THK/2, wallY, -TRAILER.ancho/4);
+            const rail1 = new THREE.Mesh(new THREE.BoxGeometry(TRAILER.largo*0.95, 0.12, 0.15), mats.rail);
+            const rail2 = rail1.clone();
+            rail1.position.set(0, trailerBottomY + 0.22, TRAILER.ancho/2 - 0.35);
+            rail2.position.set(0, trailerBottomY + 0.22, -TRAILER.ancho/2 + 0.35);
+            rig.add(rail1, rail2);
+            const legGeo = new THREE.BoxGeometry(0.18, 0.7, 0.18);
+            const footGeo= new THREE.BoxGeometry(0.30, 0.06, 0.30);
+            ['L','R'].forEach((_,i)=>{
+              const leg = new THREE.Mesh(legGeo, mats.rail);
+              const foot= new THREE.Mesh(footGeo, mats.rail);
+              leg.position.set(-TRAILER.largo/2 + 2.0, trailerBottomY + 0.35, (i? -1:1)*(TRAILER.ancho/2 - 0.45));
+              foot.position.set(leg.position.x, trailerBottomY + 0.03, leg.position.z);
+              rig.add(leg, foot);
+            });
+            [wallL, wallR, techo, frente, puertaL, puertaR].forEach(m=>{ m.castShadow=true; m.receiveShadow=true; rig.add(m); });
+            rig.position.x = FIXED_BACK - TRAILER.largo / 2; // Ajuste clave: desplaza el rig para mantener el back fijo y crecer hacia adelante
+            scene.add(rig);
+            walls.wallL=wallL; walls.wallR=wallR; walls.techo=techo; walls.frente=frente; walls.puertaL=puertaL; walls.puertaR=puertaR;
+            setInteriorMode(interiorMode); // respetar estado actual
+          }
+          function buildDocks() {
+            disposeGroup(docks);
+            docks = new THREE.Group();
+            const DOCKS = { count: 5, gapX: 4.5, wallX: FIXED_BACK + 0.3, platformDepth: 2.0, platformW: 3.0, platformH: DOCK_HEIGHT };
+            const wall = new THREE.Mesh(new THREE.BoxGeometry(0.5, 6.0, 40), new THREE.MeshStandardMaterial({ color: 0xbfc5cc, roughness: 0.9 }));
+            wall.position.set(DOCKS.wallX, 1.3, 0);
+            wall.castShadow = true; wall.receiveShadow = true;
+            docks.add(wall);
+            // Opcional: init area light lib si está disponible
+            if (THREE.RectAreaLightUniformsLib && THREE.RectAreaLight) {
+              THREE.RectAreaLightUniformsLib.init();
+            }
+            for(let i=0;i<DOCKS.count;i++){
+              const z = (i - (DOCKS.count-1)/2) * DOCKS.gapX;
+              const plat = new THREE.Mesh(new THREE.BoxGeometry(DOCKS.platformDepth, 0.20, DOCKS.platformW),
+                new THREE.MeshStandardMaterial({ color: 0x2f2f2f, metalness:0.2, roughness:0.7 }));
+              plat.position.set(DOCKS.wallX - DOCKS.platformDepth/2 - 0.25, DOCKS.platformH - 0.10, z);
+              plat.castShadow = true; plat.receiveShadow = true;
+              docks.add(plat);
+              const bumpL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.2, 0.3), mats.bumper);
+              const bumpR = bumpL.clone();
+              const bumpTop = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 3.0), mats.bumper);
+              bumpL.position.set(DOCKS.wallX-0.25, DOCKS.platformH + 1.25, z + DOCKS.platformW/2 - 0.2);
+              bumpR.position.set(DOCKS.wallX-0.25, DOCKS.platformH + 1.25, z - DOCKS.platformW/2 + 0.2);
+              bumpTop.position.set(DOCKS.wallX-0.25, DOCKS.platformH + 2.35, z);
+              docks.add(bumpL,bumpR,bumpTop);
+              const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06, 2.2, 12), mats.guide);
+              const rail2 = rail.clone();
+              rail.rotation.x = Math.PI/2; rail2.rotation.x = Math.PI/2;
+              rail.position.set(DOCKS.wallX - 1.2, GROUND_Y + 0.12, z + DOCKS.platformW/2 + 0.45);
+              rail2.position.set(DOCKS.wallX - 1.2, GROUND_Y + 0.12, z - DOCKS.platformW/2 - 0.45);
+              docks.add(rail, rail2);
+              // Luz de área por bahía si está disponible
+              if (THREE.RectAreaLight) {
+                const rl = new THREE.RectAreaLight(0xffffff, 8.0, 2.2, 1.0);
+                rl.position.set(DOCKS.wallX - 0.6, 1.2, z);
+                rl.lookAt(DOCKS.wallX - 1.6, 1.0, z);
+                docks.add(rl);
+              }
+            }
+            scene.add(docks);
+          }
+          function setInteriorMode(on){
+            interiorMode = on;
+            if (walls.techo) walls.techo.visible = !on;
+            if (walls.wallL) walls.wallL.visible = !on;
+          }
+          document.getElementById('btnInterior').addEventListener('click', ()=> setInteriorMode(!interiorMode) );
+          // ====== Pallets ======
+          function buildPalletWithLoad(pedido){
+            const g = new THREE.Group();
+            g.userData = { tipo: 'pallet', id: pedido.id };
+            // Tarima
+            const deck = new THREE.Mesh(new THREE.BoxGeometry(PALLET.L, PALLET.H, PALLET.A),
+                                            new THREE.MeshStandardMaterial({ color:0x8b6b4a, roughness:0.9 }));
+            deck.position.y = PALLET.H/2; deck.castShadow = true; deck.receiveShadow = true; g.add(deck);
+            // Cajas
+            const cols = Math.max(1, parseInt(pedido.cols || 1, 10));
+            const rows = Math.max(1, parseInt(pedido.rows || 1, 10));
+            const capas = Math.max(1, parseInt(pedido.capas || 1, 10));
+            const porCapa = cols * rows;
+            const maxMostrables = capas * porCapa;
+            const aColocar = Math.min(pedido.cajas, maxMostrables);
+            const boxMat = new THREE.MeshStandardMaterial({ color:new THREE.Color(pedido.color), roughness:0.7 });
+            let colocadas = 0;
+            for (let k = 0; k < capas; k++){
+              for (let i = 0; i < cols; i++){
+                for (let j = 0; j < rows; j++){
+                  if (colocadas >= aColocar) break;
+                  const box = new THREE.Mesh(new THREE.BoxGeometry(pedido.boxL, pedido.boxH, pedido.boxA), boxMat);
+                  const x0 = -PALLET.L/2 + pedido.boxL/2 + i*pedido.boxL;
+                  const z0 = -PALLET.A/2 + pedido.boxA/2 + j*pedido.boxA;
+                  const y0 = PALLET.H + pedido.boxH/2 + k*pedido.boxH;
+                  box.position.set(x0, y0, z0);
+                  box.castShadow = true; box.receiveShadow = true;
+                  box.userData = { nombre: pedido.nombre, sku: pedido.sku };
+                  g.add(box);
+                  colocadas++;
+                }
+              }
+            }
+            g.traverse(o=>{ if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; }});
+            return g;
+          }
+          // ====== Autoacomodo 2 columnas ======
+          let grupos = [];
+          function limpiarPallets(){ tControls.detach(); grupos.forEach(m=>scene.remove(m)); grupos=[]; }
+          function acomodar(){
+            limpiarPallets();
+            const margenX = 0.10, margenZ = 0.08, pasillo = 0.05;
+            const zLeft = - (PALLET.A/2 + pasillo/2);
+            const zRight = (PALLET.A/2 + pasillo/2);
+            const stepX = PALLET.L + 0.05;
+            let fila = 0, col = 0;
+            let usadoLong = 0, pesoTotal = 0;
+            for(const p of pedidos){
+              const g = buildPalletWithLoad(p);
+              const x_rel = -TRAILER.largo/2 + margenX + PALLET.L/2 + fila*stepX; // Relativo al centro del rig
+              const z = (col===0) ? zLeft : zRight;
+              const frenteMax_rel = TRAILER.largo/2 - margenX - PALLET.L/2;
+              const x = rig.position.x + x_rel; // Absoluto
+              const frenteMax = rig.position.x + frenteMax_rel; // Absoluto
+              if (x > frenteMax) {
+                // overflow (colócalo afuera con color)
+                g.position.set(FIXED_BACK + PALLET.L/2 + 0.2, DOCK_HEIGHT + PALLET.H/2, 0); // Absoluto, atrás del back fijo
+                g.traverse(o=>{
+                  if(o.isMesh && o.material?.color){
+                    o.material = o.material.clone();
+                    o.material.color = new THREE.Color(0xff5555);
+                    if ('transparent' in o.material){ o.material.transparent = true; o.material.opacity = 0.85; }
+                  }
+                });
+              } else {
+                g.position.set(x, DOCK_HEIGHT + PALLET.H/2, z>0 ? z + margenZ : z - margenZ);
+                usadoLong = Math.max(usadoLong, x_rel + PALLET.L/2 + TRAILER.largo/2); // Calculado relativo (longitud usada no cambia)
+                pesoTotal += p.peso;
+              }
+              grupos.push(g); scene.add(g);
+              col = (col+1) % 2; if(col === 0) fila++;
+            }
+            const volumenTrailer = TRAILER.largo * TRAILER.ancho * TRAILER.alto;
+            const volumenCargas = pedidos.reduce((s,p)=> s + (PALLET.L*PALLET.A*PALLET.H + p.cajas * p.boxL * p.boxA * p.boxH), 0);
+            const ocupacion = (volumenCargas/volumenTrailer)*100;
+            stats.textContent =
+              `Filas usadas: ${Math.ceil(pedidos.length/2)} | Longitud usada aprox: ${fmt(usadoLong)} m / ${TRAILER.largo} m | ` +
+              `Peso total: ${pesoTotal.toLocaleString()} kg | Volumen ocupado: ${ocupacion.toFixed(1)}%`;
+            if (selectedId) selectById(selectedId);
+          }
+          // ====== Selección / movimiento ======
+          function selectById(id){
+            selectedId = id;
+            selectedGroup = grupos.find(g => g.userData?.id === id) || null;
+            if (selectedGroup) {
+              tControls.attach(selectedGroup);
+              clampInsideTrailer(selectedGroup);
+            } else {
+              tControls.detach();
+            }
+            const p = pedidos.find(x => x.id === id);
+            fillLayoutForm(p);
+            highlightSelection();
+          }
+          // Limitar dentro de la caja considerando rotación (footprint)
+          function clampInsideTrailer(obj){
+            const margen = 0.05;
+            const theta = (obj.rotation.y % (Math.PI*2) + Math.PI*2) % (Math.PI*2);
+            const c = Math.abs(Math.cos(theta)), s = Math.abs(Math.sin(theta));
+            // footprint de la tarima rotada
+            const halfFootL = (c*PALLET.L + s*PALLET.A)/2 + margen;
+            const halfFootA = (c*PALLET.A + s*PALLET.L)/2 + margen;
+            const centerX = rig.position.x; // Centro absoluto del tráiler
+            const halfL = TRAILER.largo/2 - halfFootL;
+            const halfA = TRAILER.ancho/2 - halfFootA;
+            obj.position.x = Math.max(centerX - halfL, Math.min(centerX + halfL, obj.position.x));
+            obj.position.z = Math.max(-halfA, Math.min(halfA, obj.position.z));
+            obj.position.y = DOCK_HEIGHT + PALLET.H/2; // altura fija (suelo)
+          }
+          // Hover / click 3D para seleccionar
+          const raycaster = new THREE.Raycaster();
+          const mouse = new THREE.Vector2(); let hovered = null;
+          wrapper.addEventListener('pointermove', e=>{
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const hits = raycaster.intersectObjects(grupos.flatMap(g => g.children));
+            const carga = hits.find(h => h.object.userData && (h.object.userData.nombre || h.object.userData.sku));
+            if(carga){
+              if(hovered && hovered!==carga.object){ hovered.material.emissive && hovered.material.emissive.setHex(0x000000); }
+              hovered = carga.object; if(!hovered.material.emissive) hovered.material.emissive = new THREE.Color(0x000000);
+              hovered.material.emissive.setHex(0x222222);
+              const ud = hovered.userData;
+              info.textContent = `${ud.nombre || 'Tarima'} — ${ud.sku || ''}`;
+            } else {
+              if(hovered){ hovered.material.emissive.setHex(0x000000); hovered=null; }
+              info.textContent = 'Mapa de carga del tráiler';
+            }
+          });
+          wrapper.addEventListener('pointerdown', e=>{
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const meshes = grupos.flatMap(g => g.children.filter(c => c.isMesh));
+            const hits = raycaster.intersectObjects(meshes, true);
+            if (hits.length){
+              const target = hits[0].object;
+              const g = grupos.find(gr => target === gr || gr.children.includes(target) || target.parent === gr);
+              if (g) selectById(g.userData.id);
+            }
+          });
+          // ====== Panel de layout ======
+          function fillLayoutForm(p) {
+            if (!p) { [inCapas, inCols, inRows, inCajas].forEach(i=> i.value = ''); return; }
+            inCapas.value = p.capas; inCols.value = p.cols; inRows.value = p.rows; inCajas.value = p.cajas;
+            updateCapasHint(p);
+          }
+          function updateCapasHint(p){
+            const interiorH = TRAILER.alto - FLOOR_THK - WALL_THK; // altura útil
+            const maxCapas = Math.max(1, Math.floor((interiorH - PALLET.H) / p.boxH));
+            capasHint.textContent = `Altura útil ${fmt(interiorH)} m · Máx capas por altura: ${maxCapas}`;
+          }
+          function applyLayoutForm() {
+            if (!selectedId) return;
+            const idx = pedidos.findIndex(x => x.id === selectedId);
+            if (idx < 0) return;
+            let capas = Math.max(1, parseInt(inCapas.value || '1', 10));
+            let cols = Math.max(1, parseInt(inCols.value || '1', 10));
+            let rows = Math.max(1, parseInt(inRows.value || '1', 10));
+            let cajas = Math.max(1, parseInt(inCajas.value || '1', 10));
+            // Capar capas por altura útil
+            const pTmp = pedidos[idx];
+            const interiorH = TRAILER.alto - FLOOR_THK - WALL_THK;
+            const maxCapasAltura = Math.max(1, Math.floor((interiorH - PALLET.H) / pTmp.boxH));
+            if (capas > maxCapasAltura) capas = maxCapasAltura;
+            const maxColocable = capas * cols * rows;
+            if (cajas > maxColocable) cajas = maxColocable;
+            const p = pedidos[idx];
+            p.capas = capas; p.cols = cols; p.rows = rows; p.cajas = cajas;
+            p.peso = p.cajas * p.kgPorCaja;
+            p.cargaH = Math.max(PALLET.H + p.capas * p.boxH, PALLET.H + 0.25);
+            renderList(); acomodar(); selectById(p.id);
+            updateCapasHint(p);
+          }
+          [inCapas, inCols, inRows, inCajas].forEach(inp => {
+            inp.addEventListener('change', applyLayoutForm);
+            inp.addEventListener('input', e => { e.target.value = e.target.value.replace(/[^\d]/g,''); });
+          });
+          // ====== Animación y resize ======
+          function animate(){ requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
+          animate();
+          window.addEventListener('resize', ()=>{
+            const w = wrapper.clientWidth, h = wrapper.clientHeight;
+            camera.aspect = w/h; camera.updateProjectionMatrix(); renderer.setSize(w,h);
+          });
+          // ====== Dimensiones / presets ======
+          selTipo.addEventListener('change', ()=>{
+            if (selTipo.value !== 'custom') applyPreset(selTipo.value);
+          });
+          btnAplicarDims.addEventListener('click', ()=>{
+            const L = Math.max(1, parseFloat(inLargo.value) || TRAILER.largo);
+            const A = Math.max(1, parseFloat(inAncho.value) || TRAILER.ancho);
+            const H = Math.max(1, parseFloat(inAlto.value) || TRAILER.alto);
+            TRAILER = { largo:L, ancho:A, alto:H };
+            dimsHint.textContent = `Usando ${L.toFixed(2)}×${A.toFixed(2)}×${H.toFixed(2)} m (L×A×H)`;
+            // Re-construir caja y muelles por cambio de dimensiones
+            buildTrailerRig();
+            updateTruckPosition();
+            buildDocks();
+            acomodar();
+            // reset cámara/controles suavemente (ajustado para seguir el rig desplazado)
+            controls.target.set(rig.position.x, 0, 0);
+            camera.position.set(rig.position.x + 18, 9, 16);
+            controls.update();
+          });
+          // ====== Botones ======
+          document.getElementById('btnAcomodar').addEventListener('click', acomodar);
+          document.getElementById('btnReset').addEventListener('click', ()=>{
+            pedidos = PEDIDOS_BASE.map(p => {
+              const defCols = Math.max(1, Math.floor(PALLET.L / p.boxL));
+              const defRows = Math.max(1, Math.floor(PALLET.A / p.boxA));
+              const porCapa = defCols * defRows;
+              const capasCalc = Math.max(1, Math.ceil(p.cajas / porCapa));
+              const peso = p.cajas * p.kgPorCaja;
+              return { ...p, peso, cols: defCols, rows: defRows, capas: capasCalc,
+                cargaL: PALLET.L, cargaA: PALLET.A,
+                cargaH: Math.max(PALLET.H + capasCalc * p.boxH, PALLET.H + 0.25) };
+            });
+            selectedId=null; selectedGroup=null;
+            renderList(); acomodar();
+          });
+          document.getElementById('btnRotar').addEventListener('click', ()=>{
+            if(!selectedGroup) return;
+            selectedGroup.rotation.y += Math.PI / 2;
+            clampInsideTrailer(selectedGroup);
+          });
+          // ====== Inicial ======
+          renderList();
+          applyPreset(selTipo.value); // setea inputs según preset seleccionado
+          btnAplicarDims.click(); // construye caja + muelles y acomoda pallets-
+          if (pedidos.length) selectById(pedidos[0].id);
+        });
+    </script>
+}

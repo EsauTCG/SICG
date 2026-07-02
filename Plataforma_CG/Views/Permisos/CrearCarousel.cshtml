@@ -1,0 +1,639 @@
+﻿@{
+    ViewBag.Title = "Configurar Imagen para Carrusel";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<style>
+    /* ================================
+               SAP-LIKE THEME (Paleta CEDIS)
+               ================================ */
+    :root {
+        /* Marca */
+        --brand-grad: linear-gradient(90deg,#8B0000 0%,#5a0000 50%,#1a0000 100%);
+        --brand: #8B0000; /* sólido para bordes/inputs */
+        /* Cromado / UI */
+        --pane: #fff;
+        --bar: #e6e9ef;
+        --bar-2: #dde2ea;
+        --line: #d8dce3;
+        --ink: #20262e;
+        --muted: #636d7b;
+        --accent: #2d6cdf;
+        --radius: 10px;
+        --shadow: 0 1px 0 rgba(0,0,0,.05), 0 12px 24px rgba(0,0,0,.06);
+        --shadow-sm: 0 6px 16px rgba(0,0,0,.06);
+        --focus: 0 0 0 .2rem rgba(45,108,223,.25);
+    }
+
+    /* Fondo de la página */
+    body {
+        background: var(--bg) !important;
+        color: var(--ink);
+    }
+
+    /* Shell general */
+    .container-sap {
+        max-width: 1100px;
+        margin: 1.25rem auto 2rem;
+    }
+
+    /* Titlebar claro (como CEDIS) */
+    .sap-titlebar {
+        background: linear-gradient(#eef1f6,#e7ebf2);
+        border: 1px solid var(--bar-2);
+        color: var(--ink);
+        border-radius: var(--radius);
+        padding: .8rem 1rem;
+        box-shadow: var(--shadow);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        flex-wrap: wrap;
+    }
+
+        .sap-titlebar .left h4 {
+            margin: 0;
+            font-weight: 800;
+            letter-spacing: .2px;
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+        }
+
+            .sap-titlebar .left h4 i {
+                color: var(--brand);
+            }
+
+        .sap-titlebar .left .sub {
+            margin: 0;
+            color: var(--muted);
+            font-size: .92rem;
+        }
+
+        .sap-titlebar .actions .btn {
+            border-radius: 999px;
+            font-weight: 700;
+        }
+
+    /* Toolbar del módulo (opcional) */
+    .sap-toolbar {
+        background: var(--bar);
+        border: 1px solid var(--bar-2);
+        border-top: none;
+        border-radius: 0 0 var(--radius) var(--radius);
+        padding: .45rem .65rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+        box-shadow: var(--shadow);
+    }
+
+    .tbtn {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        height: 34px;
+        padding: 0 .65rem;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        color: #1e2a35;
+        font-size: .92rem;
+        transition: .15s ease;
+    }
+
+        .tbtn:hover {
+            background: #f8fafc;
+            border-color: #cfd6e2;
+        }
+
+        .tbtn:active {
+            background: #edf1f7;
+            transform: translateY(.5px);
+        }
+
+        .tbtn.primary {
+            background: var(--brand-grad);
+            color: #fff;
+            border-color: transparent;
+        }
+
+            .tbtn.primary:hover {
+                filter: brightness(1.05);
+            }
+
+    /* Tarjeta/Panel */
+    .sap-card {
+        background: var(--pane);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+    }
+
+    .sap-card-head {
+        padding: .75rem 1rem;
+        border-bottom: 1px solid var(--line);
+        background: linear-gradient(#f6f8fb,#eef2f7);
+        font-weight: 800;
+        color: #2b3642;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .5rem;
+        flex-wrap: wrap;
+    }
+
+    /* Buscador */
+    .buscador-card {
+        margin: .9rem 0 0;
+    }
+
+    #searchInput {
+        border: 1.5px solid var(--brand);
+        border-radius: 999px;
+        padding: .65rem 1rem;
+        width: 100%;
+        max-width: 520px;
+        transition: .2s ease;
+    }
+
+        #searchInput:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: var(--focus);
+        }
+
+    /* Listado/accordion */
+    .list-perfiles {
+        margin: .8rem 0 0;
+    }
+
+    .perfil-item {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
+        margin-bottom: .65rem;
+        box-shadow: var(--shadow-sm);
+        overflow: hidden;
+        transition: border-color .2s, box-shadow .2s;
+    }
+
+        .perfil-item:hover {
+            border-color: #d8ddea;
+            box-shadow: 0 8px 20px rgba(0,0,0,.06);
+        }
+
+    .perfil-header {
+        padding: .75rem 1rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        background: #fff;
+    }
+
+        .perfil-header .meta {
+            color: var(--muted);
+            font-weight: 600;
+        }
+
+        .perfil-header .icono {
+            transition: transform .2s;
+            font-weight: 800;
+            color: #8891a5;
+        }
+
+    .perfil-item.active .icono {
+        transform: rotate(90deg);
+        color: var(--brand);
+    }
+
+    .vistas-panel {
+        background: #f7f9fc;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height .35s ease;
+        padding: 0 1rem;
+    }
+
+    .perfil-item.active .vistas-panel {
+        max-height: 99999px;
+        padding-bottom: .8rem;
+    }
+
+    /* Tarjetas de vista/permiso */
+    .vista-item {
+        background: #fff;
+        border: 1px solid #e6e9f0;
+        border-radius: 10px;
+        padding: .55rem .7rem;
+        margin: .5rem 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        font-size: .92rem;
+        transition: border-color .2s, box-shadow .2s, background-color .2s;
+    }
+
+        .vista-item:hover {
+            border-color: #d7dff0;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .vista-item.active {
+            border-color: #9fd1b2;
+            background: #eaf7ef;
+        }
+        /* activo verde suave */
+        .vista-item input[type="checkbox"] {
+            transform: scale(1.25);
+            margin-right: .55rem;
+            accent-color: var(--brand);
+        }
+
+    /* Botonería general */
+    .btn {
+        border-radius: 10px;
+    }
+
+    .btn-primary {
+        background: var(--brand-grad);
+        border-color: transparent;
+    }
+
+        .btn-primary:hover {
+            filter: brightness(1.06);
+        }
+
+    .btn-success {
+        background: #198754;
+        border-color: #198754;
+    }
+
+        .btn-success:hover {
+            background: #157347;
+            border-color: #157347;
+        }
+
+    .btn-secondary {
+        background: #5b6478;
+        border-color: #5b6478;
+    }
+
+    .btn-warning {
+        background: #d97706;
+        border-color: #d97706;
+    }
+
+    .btn-danger {
+        background: #b91c1c;
+        border-color: #b91c1c;
+    }
+
+    /* Tablas si las usas después */
+    .table-wrap {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        box-shadow: var(--shadow-sm);
+        overflow: auto;
+        max-height: 60vh;
+    }
+
+    .table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #f3f6fb !important;
+        color: #2b3642;
+        border-bottom: 1px solid var(--line) !important;
+        text-transform: uppercase;
+        font-size: .85rem;
+        font-weight: 800;
+    }
+
+    /* Badges suaves (compatibilidad) */
+    .badge-soft {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .35rem .6rem;
+        border-radius: 999px;
+        background: #f8fafc;
+        border: 1px solid var(--line);
+        color: #111;
+        font-weight: 600;
+        box-shadow: var(--shadow-sm);
+    }
+
+        .badge-soft .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: #a3a3a3;
+        }
+
+        .badge-soft.info .dot {
+            background: #2563eb;
+        }
+
+        .badge-soft.ok .dot {
+            background: #16a34a;
+        }
+
+        .badge-soft.warn .dot {
+            background: #d97706;
+        }
+
+        .badge-soft.err .dot {
+            background: #dc2626;
+        }
+
+    #dropZone.drag-over {
+        border-color: #8B0000;
+        background: #fff5f5;
+        transform: scale(1.02);
+    }
+
+    #dropZone.has-file {
+        border-color: #16a34a;
+        background: #f0fdf4;
+    }
+</style>
+
+<div class="container-sap">
+
+    <!-- TITLEBAR -->
+    <div class="sap-titlebar">
+        <div class="left">
+            <h4>
+                <i class="bi bi-image"></i>
+                Nueva Imagen de Carrusel
+            </h4>
+            <p class="sub mb-0">
+                Sube una imagen y asígnala posteriormente a perfiles específicos.
+            </p>
+        </div>
+    </div>
+
+    <!-- MENSAJES -->
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show mt-3" role="alert">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            @TempData["Error"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    @if (TempData["Exito"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show mt-3" role="alert">
+            <i class="bi bi-check-circle-fill"></i>
+            @TempData["Exito"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <!-- ÁREA DE MENSAJES DINÁMICOS -->
+    <div id="mensajeDinamico" style="display:none;" class="alert mt-3"></div>
+
+    <!-- TOOLBAR -->
+    <div class="sap-toolbar">
+        <button type="button" id="btnGuardar" class="tbtn primary">
+            <i class="bi bi-save"></i><span>Guardar</span>
+        </button>
+        <button type="button" class="tbtn" onclick="location.href='@Url.Action("CarouselConfiguracion")'">
+            <i class="bi bi-x-lg"></i><span>Cancelar</span>
+        </button>
+    </div>
+
+    <!-- CARD -->
+    <div class="sap-card mt-3">
+        <div class="sap-card-head">
+            <span class="d-flex align-items-center gap-2">
+                <i class="bi bi-upload"></i>
+                Datos de la Imagen
+            </span>
+        </div>
+
+        <div class="p-3">
+            <form id="frmCarousel" method="post" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Imagen</label>
+                    <div id="dropZone" style="
+                        border: 2px dashed #d8dce3;
+                        border-radius: 10px;
+                        padding: 3rem 2rem;
+                        text-align: center;
+                        background: #f8fafc;
+                        cursor: pointer;
+                        transition: all 0.3s ease;
+    ">
+                        <i class="bi bi-cloud-upload" style="font-size: 3rem; color: #8B0000;"></i>
+                        <p class="mt-3 mb-1 fw-bold">Arrastra tu imagen aquí</p>
+                        <p class="text-muted mb-0">o haz clic para seleccionar</p>
+                        <small class="text-muted d-block mt-2">JPG, PNG, GIF · Máximo 5MB . Resolución sugerida (1024-320px - 1920x600px)</small>
+                    </div>
+                    <div id="fileInfo" style="display:none; margin-top: 1rem;" class="alert alert-info">
+                        <i class="bi bi-file-earmark-image"></i>
+                        <span id="fileName"></span>
+                        <button type="button" class="btn btn-sm btn-danger float-end" onclick="limpiarArchivo()">
+                            <i class="bi bi-x"></i> Quitar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Preview opcional -->
+                <div id="preview" class="mb-3" style="display:none;">
+                    <label class="form-label fw-bold">Vista previa:</label>
+                    <img id="imgPreview" src="" style="max-width:100%; max-height:300px; border-radius:8px; border:1px solid #ddd;" />
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    console.log('🟢 Script Drag & Drop iniciado');
+
+    let archivoSeleccionado = null;
+
+    // ═══════════════════════════════════════════════════════════
+    // CONFIGURAR ZONA DE DROP
+    // ═══════════════════════════════════════════════════════════
+    const dropZone = document.getElementById('dropZone');
+    const preview = document.getElementById('preview');
+    const imgPreview = document.getElementById('imgPreview');
+    const fileInfo = document.getElementById('fileInfo');
+    const fileName = document.getElementById('fileName');
+
+    // Prevenir comportamiento por defecto del navegador
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+        document.body.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    // Efectos visuales
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => {
+            dropZone.classList.add('drag-over');
+        }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => {
+            dropZone.classList.remove('drag-over');
+        }, false);
+    });
+
+    // Manejar DROP
+    dropZone.addEventListener('drop', handleDrop, false);
+
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        handleFiles(files);
+    }
+
+    // Click para abrir selector (SIN input visible)
+    dropZone.addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = (e) => handleFiles(e.target.files);
+        input.click();
+    });
+
+    // ═══════════════════════════════════════════════════════════
+    // PROCESAR ARCHIVO
+    // ═══════════════════════════════════════════════════════════
+    function handleFiles(files) {
+        if (files.length === 0) return;
+
+        const file = files[0];
+        console.log('📁 Archivo recibido:', file.name);
+
+        // Validar tipo
+        if (!file.type.startsWith('image/')) {
+            mostrarMensaje('Solo se permiten imágenes', 'danger');
+            return;
+        }
+
+        // Validar tamaño (5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            mostrarMensaje('La imagen no debe superar los 5MB', 'danger');
+            return;
+        }
+
+        // Guardar archivo
+        archivoSeleccionado = file;
+
+        // Mostrar info
+        fileName.textContent = file.name + ' (' + formatBytes(file.size) + ')';
+        fileInfo.style.display = 'block';
+        dropZone.classList.add('has-file');
+
+        // Preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            imgPreview.src = e.target.result;
+            preview.style.display = 'block';
+            console.log('🖼️ Preview generado');
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // LIMPIAR ARCHIVO
+    // ═══════════════════════════════════════════════════════════
+    function limpiarArchivo() {
+        archivoSeleccionado = null;
+        fileInfo.style.display = 'none';
+        preview.style.display = 'none';
+        dropZone.classList.remove('has-file');
+        console.log('🗑️ Archivo limpiado');
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // BOTÓN GUARDAR
+    // ═══════════════════════════════════════════════════════════
+    document.getElementById('btnGuardar').addEventListener('click', function(e) {
+        console.log('💾 === INICIO SUBMIT ===');
+        e.preventDefault();
+
+        if (!archivoSeleccionado) {
+            mostrarMensaje('Debe seleccionar una imagen', 'danger');
+            return;
+        }
+
+        console.log('✅ Validación OK. Enviando...');
+
+        // Crear FormData
+        const formData = new FormData();
+        formData.append('imagen', archivoSeleccionado);
+
+        // Token antiforgery
+        const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+
+        // Enviar
+        mostrarMensaje('Subiendo imagen...', 'info');
+
+        fetch('@Url.Action("CrearCarousel", "Permisos")', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'RequestVerificationToken': token
+            }
+        })
+        .then(response => {
+            console.log('📡 Response:', response.status);
+            if (response.ok || response.redirected) {
+                console.log('✅ Éxito');
+                window.location.href = '@Url.Action("CarouselConfiguracion", "Permisos")';
+            } else {
+                return response.text().then(text => {
+                    console.error('❌ Error:', text);
+                    mostrarMensaje('Error del servidor: ' + response.status, 'danger');
+                });
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error de red:', error);
+            mostrarMensaje('Error: ' + error.message, 'danger');
+        });
+    });
+
+    // ═══════════════════════════════════════════════════════════
+    // FUNCIONES AUXILIARES
+    // ═══════════════════════════════════════════════════════════
+    function mostrarMensaje(texto, tipo) {
+        const div = document.getElementById('mensajeDinamico');
+        div.className = 'alert alert-' + tipo + ' alert-dismissible fade show mt-3';
+        div.innerHTML = `
+            <i class="bi bi-${tipo === 'danger' ? 'exclamation-triangle' : 'info-circle'}-fill"></i>
+            ${texto}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        div.style.display = 'block';
+    }
+
+    function formatBytes(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    }
+
+    console.log('🟢 Script cargado completamente');
+</script>

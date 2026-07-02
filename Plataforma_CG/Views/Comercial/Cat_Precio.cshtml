@@ -1,0 +1,2939 @@
+﻿@model IEnumerable<Plataforma_CG.Models.CatalogoPrecioSap>
+
+@{
+    ViewData["Title"] = "Catálogo de Precios por Cliente";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<style>
+    :root {
+        --bg: #f0dede;
+        --panel: #f8eeee;
+        --panel-2: #f1dede;
+        --line: #c79d9d;
+        --line-dark: #8f4c4c;
+        --text: #3b1717;
+        --muted: #6a3a3a;
+        --title: #ffffff;
+        --white: #ffffff;
+        --danger: #c00000;
+        --warning: #f3b6b6;
+        --ok: #f7e3e3;
+        --shadow: 0 1px 0 rgba(255,255,255,.55) inset;
+        --brand: #8B0000;
+        --vino-1: #5c0000;
+        --vino-2: #7a0000;
+        --vino-3: #980000;
+        --vino-4: #b30000;
+        --vino-5: #d10000;
+        --vino-soft: #f8e7e7;
+        --vino-soft-2: #f2d9d9;
+        --vino-border: #9a5a5a;
+        --vino-text: #ffffff;
+        --vino-text-dark: #4a1111;
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        background: transparent !important;
+        color: var(--text);
+    }
+
+    .container, .container-fluid {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .window {
+        width: 100%;
+        max-width: 100%;
+        margin: 0 !important;
+        border: 1px solid #7e4a4a;
+        background: var(--panel);
+        box-shadow: 0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70,12,12,.14);
+        overflow: hidden;
+        padding: 0 !important;
+    }
+
+    .titlebar {
+        height: 34px;
+        /* display: flex; */
+        display: none !important;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 10px;
+        background: linear-gradient(180deg, #c00000 0%, #8b0000 60%, #5c0000 100%);
+        border-bottom: 1px solid #5c0000;
+        color: #fff;
+        font-size: 13px;
+        font-weight: bold;
+    }
+
+        .titlebar .actions {
+            display: flex;
+            gap: 6px;
+        }
+
+    .win-btn {
+        width: 16px;
+        height: 16px;
+        border: 1px solid #7c4848;
+        background: linear-gradient(#fff6f6, #ead0d0);
+    }
+
+    .toolbar {
+        display: flex;
+        align-items: flex-end;
+        gap: 6px;
+        padding: 6px 8px;
+        background: linear-gradient(#fff6f6, #ecd8d8);
+        border-bottom: 1px solid var(--line);
+        font-size: 12px;
+        flex-wrap: wrap;
+    }
+
+        .toolbar .group {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            min-width: 260px;
+            flex: 1 1 320px;
+        }
+
+        .toolbar label {
+            display: block;
+            color: #5c1a1a;
+            font-size: 12px;
+            margin-bottom: 2px !important;
+            font-weight: bold;
+        }
+
+        .toolbar input,
+        .toolbar .form-control {
+            height: 28px !important;
+            padding: 3px 6px !important;
+            border: 1px solid #b48787 !important;
+            background: #fffdfd !important;
+            font-family: inherit !important;
+            font-size: 12px !important;
+            width: 100%;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            color: #421414 !important;
+        }
+
+            .toolbar input:focus,
+            .toolbar .form-control:focus,
+            .modal-body .form-control:focus,
+            .modal-body .form-select:focus {
+                border-color: #8f4c4c !important;
+                outline: none !important;
+                box-shadow: none !important;
+            }
+
+    .tool-btn {
+        min-width: 72px;
+        text-align: center;
+        background: linear-gradient(#fffefe, #ecd7d7);
+        border: 1px solid var(--vino-border);
+        box-shadow: var(--shadow);
+        cursor: pointer;
+        color: var(--vino-text-dark);
+        height: 28px;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 0 10px;
+        text-decoration: none;
+        border-radius: 0;
+        white-space: nowrap;
+    }
+
+        .tool-btn:hover {
+            filter: brightness(.98);
+        }
+
+    .tool-btn-primary {
+        color: #fff;
+        border-color: #7f0a0a;
+        background: linear-gradient(180deg, #b40000 0%, #8f0000 55%, #6e0000 100%);
+    }
+
+    .tool-btn-success {
+        color: #fff;
+        border-color: #157347;
+        background: linear-gradient(180deg, #27ae60 0%, #1f9a54 55%, #198754 100%);
+    }
+
+    .tool-btn-secondary {
+        color: #4a1111;
+        border-color: #9a5a5a;
+        background: linear-gradient(#fffefe, #ecd7d7);
+    }
+
+    .tool-btn-purple {
+        color: #fff;
+        border-color: #5b21b6;
+        background: linear-gradient(180deg, #7c3aed 0%, #6d28d9 55%, #5b21b6 100%);
+    }
+
+    .sep {
+        width: 1px;
+        height: 24px;
+        background: #cfa8a8;
+        align-self: center;
+        margin: 0 .2rem;
+    }
+
+    .content {
+        padding: 8px;
+        background: var(--bg);
+    }
+
+    .tabs {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 6px;
+        flex-wrap: wrap;
+    }
+
+    .tab {
+        font-size: 12px;
+        background: linear-gradient(#f7e7e7, #ead1d1);
+        border: 1px solid #caa0a0;
+        border-bottom: none;
+        padding: 7px 12px;
+        color: #5c1a1a;
+        user-select: none;
+    }
+
+        .tab.active {
+            background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+            font-weight: bold;
+            color: #fff;
+            border-color: #7a2d2d;
+        }
+
+    .workspace {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        padding: 8px;
+    }
+
+    .section {
+        border: 1px solid var(--line);
+        background: var(--white);
+        margin-bottom: 10px;
+    }
+
+    .section-title {
+        padding: 6px 8px;
+        font-size: 12px;
+        font-weight: bold;
+        color: #fff;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-bottom: 1px solid #6b1f1f;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .section-body {
+        padding: 10px;
+        background: #fffafa;
+    }
+
+    .status-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 8px;
+        font-size: 11px;
+        font-weight: 700;
+        border: 1px solid #caa0a0;
+        border-radius: 2px;
+        background: #fff7f7;
+        color: #5c1a1a;
+    }
+
+    .table-wrap {
+        padding: 0;
+        overflow: auto;
+        max-height: 70vh;
+        background: #fffafa;
+        width: 100%;
+        position: relative;
+        border-top: 1px solid #d9b8b8;
+    }
+
+        .table-wrap table {
+            width: 100%;
+            table-layout: fixed;
+            border-collapse: separate !important;
+            border-spacing: 0 !important;
+            font-size: 12px;
+            background: #fffafa;
+        }
+
+        .table-wrap thead,
+        .table-wrap thead tr,
+        .table-wrap thead th {
+            background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+            color: #fff !important;
+        }
+
+            .table-wrap thead th {
+                position: sticky;
+                top: -1px;
+                z-index: 20;
+                border-top: 1px solid #c46a6a;
+                border-right: 1px solid #8e3b3b;
+                border-bottom: 1px solid #5c0000;
+                padding: 6px 5px;
+                text-align: left;
+                white-space: nowrap;
+                font-size: 12px;
+                line-height: 1.2;
+                box-shadow: 0 2px 0 #6f1d1d;
+                font-weight: 700;
+            }
+
+                .table-wrap thead th:first-child {
+                    border-left: 1px solid #8e3b3b;
+                }
+
+        .table-wrap tbody td {
+            background: #fffafa;
+            border-right: 1px solid #d8bcbc;
+            border-bottom: 1px solid #d8bcbc;
+            padding: 6px 5px;
+            white-space: nowrap;
+            vertical-align: middle;
+            font-size: 12px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.2;
+            color: #111111;
+            font-weight: 400;
+        }
+
+            .table-wrap tbody td:first-child {
+                border-left: 1px solid #d8bcbc;
+            }
+
+        .table-wrap tbody tr:nth-child(even) td {
+            background: #f9eded;
+        }
+
+        .table-wrap tbody tr:hover td {
+            background: #f4dddd;
+        }
+
+    .num {
+        text-align: right !important;
+        font-variant-numeric: tabular-nums;
+    }
+
+    #tablaPrecios th:nth-child(1), #tablaPrecios td:nth-child(1) {
+        width: 130px;
+    }
+
+    #tablaPrecios th:nth-child(2), #tablaPrecios td:nth-child(2) {
+        width: 360px;
+    }
+
+    #tablaPrecios th:nth-child(3), #tablaPrecios td:nth-child(3) {
+        width: 120px;
+    }
+
+    #tablaPrecios th:nth-child(4), #tablaPrecios td:nth-child(4) {
+        width: 260px;
+    }
+
+    #tablaPrecios th:nth-child(5), #tablaPrecios td:nth-child(5) {
+        width: 100px;
+    }
+
+    #tablaPrecios th:nth-child(6), #tablaPrecios td:nth-child(6) {
+        width: 120px;
+    }
+
+    #tablaPrecios th:nth-child(7), #tablaPrecios td:nth-child(7) {
+        width: 130px;
+    }
+
+    #tablaPrecios th:nth-child(8), #tablaPrecios td:nth-child(8) {
+        width: 180px;
+    }
+
+    .pager {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        flex-wrap: wrap;
+        padding: 10px;
+        border-top: 1px solid #d9b8b8;
+        background: #fffafa;
+    }
+
+        .pager .btn {
+            min-width: 110px;
+            border-radius: 0;
+            font-size: 12px;
+        }
+
+            .pager .btn:focus {
+                box-shadow: none;
+            }
+
+    #pageInfo {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 8px;
+        font-size: 11px;
+        font-weight: 700;
+        border: 1px solid #caa0a0;
+        border-radius: 2px;
+        background: #fff7f7;
+        color: #5c1a1a;
+    }
+
+    #loader {
+        font-weight: 700;
+        color: #7a0000;
+        font-size: 12px;
+    }
+
+    .statusbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 6px 10px;
+        font-size: 11px;
+        color: #4a1a1a;
+        border-top: 1px solid #b88c8c;
+        background: linear-gradient(#f6e9e9, #ead5d5);
+        flex-wrap: wrap;
+    }
+
+    .modal-xl-cg {
+        max-width: 97vw;
+    }
+
+    .analisis-grid-wrap {
+        overflow: auto;
+        max-height: 60vh;
+        border-top: 1px solid #d9b8b8;
+        background: #fffafa;
+    }
+
+        .analisis-grid-wrap table {
+            width: 100%;
+            min-width: 2600px;
+            border-collapse: separate !important;
+            border-spacing: 0 !important;
+            table-layout: fixed;
+            font-size: 12px;
+        }
+
+        .analisis-grid-wrap thead th {
+            position: sticky;
+            top: 0;
+            z-index: 30;
+            background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+            color: #fff !important;
+            border-top: 1px solid #c46a6a;
+            border-right: 1px solid #8e3b3b;
+            border-bottom: 1px solid #5c0000;
+            padding: 6px 5px;
+            white-space: nowrap;
+            font-size: 12px;
+            line-height: 1.2;
+            font-weight: 700;
+        }
+
+        .analisis-grid-wrap tbody td {
+            background: #fffafa;
+            border-right: 1px solid #d8bcbc;
+            border-bottom: 1px solid #d8bcbc;
+            padding: 6px 5px;
+            white-space: nowrap;
+            vertical-align: middle;
+            color: #111;
+        }
+
+        .analisis-grid-wrap tbody tr:nth-child(even) td {
+            background: #f9eded;
+        }
+
+        .analisis-grid-wrap tbody tr:hover td {
+            background: #f4dddd;
+        }
+
+    .reco-bajar {
+        background: #f8d7da !important;
+        color: #842029 !important;
+        font-weight: 700;
+    }
+
+    .reco-subir {
+        background: #d1e7dd !important;
+        color: #0f5132 !important;
+        font-weight: 700;
+    }
+
+    .reco-mantener {
+        background: #fff3cd !important;
+        color: #856404 !important;
+        font-weight: 700;
+    }
+
+    /* ── MODAL IMPORTAR COMPETENCIA ── */
+    .imp-modal-body {
+        background: #f4e4e4;
+        padding: 14px;
+    }
+
+    .imp-step {
+        border: 1px solid var(--line);
+        background: #fff;
+        margin-bottom: 10px;
+    }
+
+    .imp-step-title {
+        padding: 6px 10px;
+        font-size: 12px;
+        font-weight: bold;
+        color: #fff;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-bottom: 1px solid #6b1f1f;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .imp-step-num {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: rgba(255,255,255,.25);
+        border: 1px solid rgba(255,255,255,.5);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        flex-shrink: 0;
+    }
+
+    .imp-step-body {
+        padding: 12px;
+        background: #fffafa;
+    }
+
+    .drop-zone {
+        border: 2px dashed #c79d9d;
+        background: #fff7f7;
+        padding: 24px 16px;
+        text-align: center;
+        cursor: pointer;
+        transition: background .15s, border-color .15s;
+    }
+
+        .drop-zone:hover, .drop-zone.over {
+            background: #f9eded;
+            border-color: #8b0000;
+        }
+
+        .drop-zone .dz-icon {
+            font-size: 28px;
+            margin-bottom: 6px;
+        }
+
+        .drop-zone p {
+            font-size: 12px;
+            color: #6a3a3a;
+            margin: 4px 0 0;
+        }
+
+    .imp-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        height: 30px;
+        padding: 0 14px;
+        font-size: 12px;
+        font-weight: 700;
+        border-radius: 0;
+        cursor: pointer;
+        border: 1px solid transparent;
+        font-family: inherit;
+    }
+
+    .imp-btn-primary {
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-color: #7a2d2d;
+        color: #fff;
+    }
+
+        .imp-btn-primary:hover {
+            background: linear-gradient(180deg, #c00000 0%, #9a0000 55%, #6b0000 100%);
+        }
+
+        .imp-btn-primary:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+
+    .imp-btn-secondary {
+        background: linear-gradient(#fffefe, #ecd7d7);
+        border-color: #9a5a5a;
+        color: #4a1111;
+    }
+
+        .imp-btn-secondary:hover {
+            filter: brightness(.97);
+        }
+
+    .imp-btn-success {
+        background: linear-gradient(180deg, #27ae60 0%, #198754 100%);
+        border-color: #157347;
+        color: #fff;
+    }
+
+        .imp-btn-success:hover {
+            filter: brightness(1.05);
+        }
+
+        .imp-btn-success:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+
+    .imp-status {
+        display: none;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: #5c1a1a;
+        margin-top: 8px;
+    }
+
+    .imp-spinner {
+        display: none;
+        width: 14px;
+        height: 14px;
+        border: 2px solid #d8bcbc;
+        border-top-color: #8b0000;
+        border-radius: 50%;
+        animation: imp-spin .6s linear infinite;
+    }
+
+    @@keyframes imp-spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    .imp-filter-bar {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+    }
+
+    .imp-chip {
+        padding: 3px 10px;
+        font-size: 11px;
+        font-weight: 700;
+        border: 1px solid #c79d9d;
+        background: #fff7f7;
+        color: #5c1a1a;
+        cursor: pointer;
+        border-radius: 0;
+    }
+
+        .imp-chip.active {
+            background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+            border-color: #7a2d2d;
+            color: #fff;
+        }
+
+    .imp-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+    }
+
+        .imp-table th {
+            background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+            color: #fff;
+            padding: 6px 8px;
+            text-align: left;
+            font-size: 11px;
+            border-right: 1px solid #8e3b3b;
+            white-space: nowrap;
+        }
+
+        .imp-table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #d8bcbc;
+            border-right: 1px solid #d8bcbc;
+            vertical-align: middle;
+            color: #111;
+        }
+
+        .imp-table tr:nth-child(even) td {
+            background: #f9eded;
+        }
+
+        .imp-table tr:hover td {
+            background: #f4dddd;
+        }
+
+        .imp-table td:first-child {
+            border-left: 1px solid #d8bcbc;
+        }
+.imp-table select,
+.imp-table input[type=text] {
+    font-size: 12px;
+    padding: 3px 6px;
+    border: 1px solid #b48787;
+    background: #fffdfd;
+    color: #421414;
+    width: 100%;
+    border-radius: 0;
+    font-family: inherit;
+}
+
+.imp-sku-search {
+    width: 90px !important;
+    flex: 0 0 90px !important;
+    min-width: 0 !important;
+}
+
+.imp-table select[data-idx] {
+    width: auto !important;
+    flex: 1 !important;
+    min-width: 0 !important;
+}
+
+            .imp-table select:focus,
+            .imp-table input:focus {
+                border-color: #8b0000;
+                outline: none;
+            }
+
+    .imp-row-mapped td:first-child {
+        border-left: 3px solid #198754 !important;
+    }
+
+    .imp-row-unmapped td:first-child {
+        border-left: 3px solid #dc3545 !important;
+    }
+
+    .imp-dif-pos {
+        color: #842029;
+        font-weight: 700;
+    }
+
+    .imp-dif-neg {
+        color: #0f5132;
+        font-weight: 700;
+    }
+
+    .imp-dif-neu {
+        color: #6a3a3a;
+    }
+
+    .imp-preview-img {
+        max-width: 100%;
+        max-height: 160px;
+        border: 1px solid #d8bcbc;
+        display: none;
+        margin-top: 8px;
+        object-fit: contain;
+    }
+
+    .imp-alert {
+        padding: 8px 12px;
+        font-size: 12px;
+        border-left: 3px solid;
+        margin-bottom: 10px;
+    }
+
+    .imp-alert-info {
+        background: #fff4e5;
+        border-color: #c79c00;
+        color: #5a4200;
+    }
+
+    .imp-alert-success {
+        background: #e8f6ee;
+        border-color: #198754;
+        color: #0a4020;
+    }
+
+    .imp-alert-error {
+        background: #fff1f1;
+        border-color: #dc3545;
+        color: #7a0000;
+    }
+
+    .imp-summary-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+    }
+
+    .imp-summary-chip {
+        font-size: 11px;
+        padding: 3px 8px;
+        border: 1px solid #caa0a0;
+        background: #fff7f7;
+        color: #5c1a1a;
+    }
+
+    @@media (max-width: 992px) {
+        .toolbar {
+            align-items: stretch;
+        }
+
+            .toolbar .group {
+                min-width: 100%;
+                flex: 1 1 100%;
+            }
+    }
+
+    @@media (max-width: 768px) {
+        .table-wrap table {
+            min-width: 1400px;
+        }
+    }
+
+    .imp-sku-search {
+        width: 100%;
+        font-size: 12px;
+        padding: 3px 6px;
+        border: 1px solid #b48787;
+        background: #fffdfd;
+        color: #421414;
+        border-radius: 0;
+        font-family: inherit;
+        margin-bottom: 4px;
+    }
+
+        .imp-sku-search:focus {
+            border-color: #8b0000;
+            outline: none;
+        }
+
+    .imp-sku-cell {
+        display: flex;
+        flex-direction: row;
+        gap: 4px;
+        align-items: center;
+    }
+
+    #tablaAnalisisSemanal th:nth-child(1),
+    #tablaAnalisisSemanal td:nth-child(1) {
+        width: 120px;
+    }
+
+    #tablaAnalisisSemanal th:nth-child(2),
+    #tablaAnalisisSemanal td:nth-child(2) {
+        width: 120px;
+    }
+
+    #tablaAnalisisSemanal th:nth-child(3),
+    #tablaAnalisisSemanal td:nth-child(3) {
+        width: 130px;
+    }
+
+    #tablaAnalisisSemanal th:nth-child(4),
+    #tablaAnalisisSemanal td:nth-child(4) {
+        width: 320px;
+        white-space: normal;
+    }
+
+    #tablaAnalisisSemanal th:nth-child(19),
+#tablaAnalisisSemanal td:nth-child(19) {
+    width: 130px;
+}
+
+#tablaAnalisisSemanal th:nth-child(20),
+#tablaAnalisisSemanal td:nth-child(20) {
+    width: 220px;
+}
+
+#tablaAnalisisSemanal th:nth-child(21),
+#tablaAnalisisSemanal td:nth-child(21) {
+    width: 90px;
+    text-align: center;
+}
+
+#tablaAnalisisSemanal th:nth-child(22),
+#tablaAnalisisSemanal td:nth-child(22) {
+    width: 150px;
+}
+
+    .gestion-dropdown {
+        display: inline-flex;
+        position: relative;
+    }
+
+    .gestion-menu {
+        border-radius: 0;
+        border: 1px solid #8b0000;
+        background: #fffafa;
+        padding: 4px;
+        min-width: 245px;
+        box-shadow: 0 6px 16px rgba(70,12,12,.22);
+    }
+
+        .gestion-menu .dropdown-item {
+            font-size: 12px;
+            color: #4a1111;
+            padding: 8px 10px;
+            border-radius: 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+            .gestion-menu .dropdown-item:hover,
+            .gestion-menu .dropdown-item:focus {
+                background: #f2d9d9;
+                color: #8b0000;
+            }
+
+    .imp-cap-input {
+        width: 100%;
+        font-size: 12px;
+        padding: 3px 6px;
+        border: 1px solid #d8bcbc;
+        background: #fffdfd;
+        color: #421414;
+        border-radius: 0;
+        font-family: inherit;
+        height: 26px;
+    }
+
+        .imp-cap-input:focus {
+            border-color: #8b0000;
+            outline: none;
+        }
+
+    .ana-check-cell {
+        text-align: center;
+    }
+
+    .ana-precio-input {
+        width: 120px;
+        max-width: 120px;
+        height: 24px;
+        font-size: 12px;
+        padding: 2px 5px;
+        border: 1px solid #b48787;
+        background: #fffdfd;
+        color: #421414;
+        border-radius: 0;
+        text-align: right;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+    }
+
+        .ana-precio-input:focus {
+            border-color: #8b0000;
+            outline: none;
+        }
+    #anaClientes,
+    #anaCanal {
+        font-size: 12px;
+        border-radius: 0;
+        border: 1px solid #b48787;
+        background: #fffdfd;
+        color: #421414;
+    }
+
+        #anaClientes option {
+            padding: 3px 5px;
+        }
+
+    .ana-comentario-input {
+        width: 210px;
+        min-height: 26px;
+        font-size: 12px;
+        padding: 3px 5px;
+        border: 1px solid #b48787;
+        background: #fffdfd;
+        color: #421414;
+        border-radius: 0;
+        resize: vertical;
+    }
+</style>
+
+<div class="window">
+    <div class="titlebar">
+        <div>Catálogo de Precios por Cliente</div>
+        <div class="actions">
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+            <div class="win-btn"></div>
+        </div>
+    </div>
+
+    <div class="toolbar">
+        <div class="group">
+            <label for="searchInput"></label>
+            <input type="text" id="searchInput" class="form-control" placeholder="Buscar producto, nombre o cliente" />
+        </div>
+
+        <button id="btnDescargarExcel" class="tool-btn tool-btn-success">
+            <i class="bi bi-file-earmark-excel"></i> Descargar Excel
+        </button>
+
+        <button id="btnSincronizar" class="tool-btn tool-btn-primary">
+            <i class="bi bi-arrow-repeat"></i> Sincronizar
+        </button>
+
+        <div class="dropdown gestion-dropdown">
+            <button id="btnGestionCompetencia"
+                    class="tool-btn tool-btn-primary dropdown-toggle"
+                    type="button"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false">
+                <i class="bi bi-kanban"></i> Gestión Competencia
+            </button>
+
+            <ul class="dropdown-menu gestion-menu">
+                <li>
+                    <button class="dropdown-item" type="button" id="btnGestionAnalisis">
+                        <i class="bi bi-graph-up-arrow me-2"></i>
+                        Análisis semanal
+                    </button>
+                </li>
+                <li>
+                    <button class="dropdown-item" type="button" id="btnGestionImportar">
+                        <i class="bi bi-camera me-2"></i>
+                        Importar precios competencia
+                    </button>
+                </li>
+            </ul>
+        </div>
+
+        <span id="loader" style="display:none;">⏳ Procesando…</span>
+    </div>
+
+    <div class="content">
+       
+
+        <div class="workspace">
+            <div class="section">
+               @*  <div class="section-title">
+                    Resultados
+                    <span class="status-chip">Fuente: SAP</span>
+                </div> *@
+
+                <div class="table-wrap">
+                    <table id="tablaPrecios" class="table table-bordered table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Sku</th>
+                                <th>Producto</th>
+                                <th>ClienteId</th>
+                                <th>Cliente</th>
+                                <th>IdPrecio</th>
+                                <th>Lista</th>
+                                <th>Precio</th>
+                                <th>Última Modificación</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <div class="pager">
+                    <button id="prevPage" class="btn btn-outline-secondary">
+                        <i class="bi bi-chevron-left"></i> Anterior
+                    </button>
+                    <div class="d-flex align-items-center gap-2">
+                        <span id="pageInfo"><i class="bi bi-info-circle"></i> — </span>
+                    </div>
+                    <button id="nextPage" class="btn btn-outline-secondary">
+                        Siguiente <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="statusbar">
+        <div>Registro listo</div>
+        <div>Usuario: @User.Identity.Name</div>
+        <div>Empresa: Carnes G SA de CV</div>
+        <div>Módulo: Precios por Cliente</div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     MODAL: ANÁLISIS SEMANAL
+══════════════════════════════════════════ -->
+<div class="modal fade" id="modalAnalisisSemanal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-xl-cg">
+        <div class="modal-content" style="border-radius:0;">
+            <div class="modal-header">
+                <h5 class="modal-title">Análisis Semanal de Precios y Competencia</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body" style="background:#f4e4e4;">
+
+                <!-- FILTROS -->
+                <div class="section mb-3">
+                    <div class="section-title">Filtros de análisis</div>
+                    <div class="section-body">
+                        <div class="row g-3">
+                            <div class="col-md-2">
+                                <label class="form-label">Fecha corte</label>
+                                <input type="date" id="anaFechaCorte" class="form-control" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">SKU masivo</label>
+                                <textarea id="anaSku"
+                                          class="form-control"
+                                          rows="4"
+                                          placeholder="Pega muchos SKU aquí. Puedes separarlos por coma, espacio o salto de línea."></textarea>
+                                <small id="anaSkuCount" style="font-size:11px;color:#5c1a1a;">
+                                    0 SKU capturados
+                                </small>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Master</label>
+                                <select id="anaMaster" class="form-select">
+                                    <option value="">Todos</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-3 d-flex align-items-end gap-2">
+                                <button type="button" class="tool-btn tool-btn-primary" id="btnCalcularAnalisis">
+                                    <i class="bi bi-calculator"></i> Calcular
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RESULTADO -->
+                <div class="section">
+                    <div class="section-title">Resultado</div>
+                    <div class="analisis-grid-wrap">
+                        <table class="table table-bordered table-hover mb-0" id="tablaAnalisisSemanal">
+                            <thead>
+                                <tr>
+                                    <th>CLASIFICACIÓN</th>
+                                    <th>MASTER</th>
+                                    <th>SKU</th>
+                                    <th>Prod</th>
+                                    <th>Inv. Inicial Refer.</th>
+                                    <th id="thInvActual">Inventario Actual</th>
+                                    <th id="thInvAnterior">Inventario Anterior</th>
+                                    <th>Inventario Ideal</th>
+                                    <th>PEDIDOS</th>
+                                    <th>Kg Venta</th>
+                                    <th>Días Inv.</th>
+                                    <th id="thSemana1">Semana 1</th>
+                                    <th id="thSemana2">Semana 2</th>
+                                    <th id="thSemana3">Semana 3</th>
+                                    <th>P.P Venta Real</th>
+                                    <th>PROM COMP.</th>
+                                    <th>COMPETIDORES</th>
+                                    <th>DIF %</th>
+                                    <th>RECOMENDACIÓN</th>
+                                    <th>COMENTARIOS</th>
+                                    <th>Guardar</th>
+                                    <th>Precio nuevo</th>
+                                </tr>
+                            </thead>
+                            <tbody id="analisisSemanalBody">
+                                <tr>
+                                    <td colspan="22" class="text-center py-4">Sin datos.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- GUARDAR RESULTADO -->
+                <div class="section mt-3" id="anaGuardarPanel">
+                    <div class="section-title">
+                        Guardar resultado en catálogo de precios
+                        <span class="status-chip">Destino automático por lista asignada al cliente</span>
+                    </div>
+
+                    <div class="section-body">
+                        <div class="d-flex align-items-end gap-3 flex-wrap">
+
+                            <div style="width: 360px;">
+                                <label class="form-label">Lista de precios</label>
+                                <select id="anaPriceListNum" class="form-select">
+                                    <option value="1" selected>1 - Precio Publico</option>
+                                </select>
+                            </div>
+
+                            <div style="width: 220px;">
+                                <label class="form-label">Fecha uso</label>
+                                <input type="date" id="anaFechaUso" class="form-control" />
+                            </div>
+
+                            <div class="d-flex gap-2 ms-auto">
+                                <button type="button" class="tool-btn tool-btn-secondary" id="btnMarcarTodosGuardar">
+                                    <i class="bi bi-check2-square"></i> Marcar SKUs
+                                </button>
+
+                                <button type="button" class="tool-btn tool-btn-success" id="btnGuardarPrecioPublico">
+                                    <i class="bi bi-save"></i> Guardar precios
+                                </button>
+                            </div>
+
+                        </div>
+
+                       @*  <div class="mt-2" style="font-size:11px;color:#5c1a1a;">
+                            Precio Público actualiza listas con factor. Las listas especiales sin factor se guardan directo.
+                            Los precios se aplicarán automáticamente sólo a los clientes que tengan asignada esa lista en ClienteSap
+                        </div> *@
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="modal-footer" style="background:#f7eaea;">
+                <button type="button" class="tool-btn tool-btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     MODAL: IMPORTAR COMPETENCIA CON OCR
+══════════════════════════════════════════ -->
+<div class="modal fade" id="modalImportarCompetencia" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-xl-cg">
+        <div class="modal-content" style="border-radius:0;">
+            <div class="modal-header" style="background:linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%);padding:8px 14px;">
+                <h5 class="modal-title" style="color:#fff;font-size:14px;font-weight:bold;">
+                    <i class="bi bi-camera me-2"></i>Importar Precios de Competencia con OCR
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body imp-modal-body">
+
+                <!-- PASO 1: Subir imagen -->
+                <div class="imp-step" id="impStep1">
+                    <div class="imp-step-title">
+                        <span class="imp-step-num">1</span>
+                        Capturar lista de precios
+                    </div>
+                    <div class="imp-step-body">
+                        <div class="imp-alert imp-alert-info">
+                            <strong>¿Cómo funciona?</strong> Captura o pega directamente desde Excel los productos de la competencia. Columnas: Código, Nombre, Precio, SKU propio. Si pegas desde Excel con <strong>Ctrl+V</strong> en la tabla, se llena automáticamente.
+                        </div>
+
+                        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start;margin-bottom:10px;">
+                            <div style="display:flex;flex-direction:column;gap:6px;">
+                                <label style="font-size:11px;color:#5c1a1a;font-weight:bold;">Nombre del competidor</label>
+                                <input type="text" id="impNombreCompetidor" class="form-control"
+                                       placeholder="Ej: DENES, Cherokee..."
+                                       style="width:200px;height:28px;font-size:12px;border-radius:0;border:1px solid #b48787;">
+                            </div>
+                            <div style="display:flex;flex-direction:column;gap:6px;">
+                                <label style="font-size:11px;color:#5c1a1a;font-weight:bold;">Fecha corte</label>
+                                <input type="date" id="impFechaCompetencia" class="form-control"
+                                       style="width:200px;height:28px;font-size:12px;border-radius:0;border:1px solid #b48787;">
+                            </div>
+                        </div>
+
+                        <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center;">
+                            <button class="imp-btn imp-btn-secondary" id="impBtnAgregarFila">+ Agregar fila</button>
+                            <button class="imp-btn imp-btn-secondary" id="impBtnLimpiarTabla">🗑 Limpiar</button>
+                            <span style="font-size:11px;color:#6a3a3a;">💡 Puedes pegar desde Excel con Ctrl+V directo en la tabla</span>
+                        </div>
+
+                        <div style="overflow:auto;max-height:340px;border:1px solid #d8bcbc;">
+                            <table class="imp-table" id="tablaCaptura">
+                                <thead>
+                                    <tr>
+                                        <th style="width:5%;">#</th>
+                                        <th style="width:15%;">Código comp.</th>
+                                        <th style="width:35%;">Nombre</th>
+                                        <th style="width:15%;">Precio</th>
+                                        <th style="width:20%;">SKU propio</th>
+                                        <th style="width:10%;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tablaCapturaBody">
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div style="margin-top:12px;">
+                            <button class="imp-btn imp-btn-primary" id="impBtnProcesarCaptura">
+                                Continuar →
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PASO 2: Mapear -->
+                <div class="imp-step" id="impStep2" style="display:none;">
+                    <div class="imp-step-title">
+                        <span class="imp-step-num">2</span>
+                        Mapear productos de la competencia a SKUs propios
+                    </div>
+                    <div class="imp-step-body">
+                        <div id="impMapAlert" class="imp-alert imp-alert-info" style="display:none;"></div>
+
+                        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+                            <div class="imp-filter-bar" id="impFilterBar">
+                                <button class="imp-chip active" data-filter="all">Todos</button>
+                                <button class="imp-chip" data-filter="mapped">Mapeados</button>
+                                <button class="imp-chip" data-filter="unmapped">Sin mapear</button>
+
+                                <button type="button" class="imp-chip" id="impBtnAutoSugerir">
+                                    ⚡ Auto sugerir
+                                </button>
+
+                                <button type="button" class="imp-chip" id="impBtnPegarSkus">
+                                    📋 Pegar SKUs
+                                </button>
+                            </div>
+                            <span id="impMapSummary" style="font-size:11px;color:#5c1a1a;"></span>
+                        </div>
+
+                        <div style="overflow:auto;max-height:380px;border:1px solid #d8bcbc;">
+                            <table class="imp-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width:12%;">SKU comp.</th>
+                                        <th style="width:25%;">Producto competencia</th>
+                                        <th style="width:10%;">Precio comp.</th>
+                                        <th style="width:35%;">Mapear a SKU propio</th>
+                                        <th style="width:9%;">Precio público</th>
+                                        <th style="width:9%;">Diferencia</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="impMapBody"></tbody>
+                            </table>
+                        </div>
+
+                        <div class="imp-summary-row">
+                            <div style="display:flex;gap:8px;">
+                                <button class="imp-btn imp-btn-secondary" id="impBtnVolver">← Volver</button>
+                                <button class="imp-btn imp-btn-success" id="impBtnGuardar" disabled>
+                                    <i class="bi bi-save"></i> Guardar en sistema
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PASO 3: Confirmación -->
+                <div class="imp-step" id="impStep3" style="display:none;">
+                    <div class="imp-step-title">
+                        <span class="imp-step-num">3</span>
+                        Guardado exitoso
+                    </div>
+                    <div class="imp-step-body">
+                        <div class="imp-alert imp-alert-success" id="impSavedMsg"></div>
+                        <div style="overflow:auto;max-height:320px;border:1px solid #d8bcbc;margin-bottom:12px;">
+                            <table class="imp-table">
+                                <thead>
+                                    <tr>
+                                        <th>SKU propio</th>
+                                        <th>Nuestro producto</th>
+                                        <th>SKU comp.</th>
+                                        <th>Producto competencia</th>
+                                        <th>Precio comp.</th>
+                                        <th>Precio público</th>
+                                        <th>Diferencia</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="impSavedBody"></tbody>
+                            </table>
+                        </div>
+                        <button class="imp-btn imp-btn-secondary" id="impBtnNuevo">← Importar otra lista</button>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="modal-footer" style="background:#f7eaea;padding:8px 14px;">
+                <button type="button" class="tool-btn tool-btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+@section Scripts {
+   @*  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script> *@
+    <script>
+        /* ═══════════════════════════════════════════════════════════
+        TABLA DE PRECIOS — original sin cambios
+        ═══════════════════════════════════════════════════════════ */
+        let currentPage = 1;
+        let pageSize = 50;
+        let currentSearch = "";
+        let totalPages = 1;
+        let totalItems = 0;
+        let modalAnalisisSemanal = null;
+        let modalImportarComp = null;
+
+        function debounce(fn, ms = 350) {
+        let t;
+        return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+        }
+
+        function fmtMoney(n) {
+        const x = Number(n);
+        return Number.isFinite(x)
+        ? x.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : "0.00";
+        }
+
+        function fmtNumAnalisis(v) {
+        const n = Number(v ?? 0);
+        return n.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+        }
+
+        function fmtMoneyAnalisis(v) {
+        const n = Number(v ?? 0);
+        return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+        }
+
+        function fmtPctAnalisis(v) {
+        return `${Number(v ?? 0).toFixed(0)}%`;
+        }
+
+        function claseRecomendacion(reco) {
+        const r = (reco || '').toUpperCase();
+        if (r === 'BAJAR') return 'reco-bajar';
+        if (r === 'SUBIR') return 'reco-subir';
+        return 'reco-mantener';
+        }
+
+        async function cargarPrecios(page = 1, search = "") {
+        const tbody = document.querySelector("#tablaPrecios tbody");
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4">⏳ Cargando...</td></tr>`;
+        document.getElementById("loader").style.display = "inline";
+        document.getElementById("prevPage").disabled = true;
+        document.getElementById("nextPage").disabled = true;
+
+        try {
+        const res = await fetch(`/Comercial/GetCatalogoPrecioJsonPaged?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`);
+        if (!res.ok) throw new Error("Error al cargar catálogo de precios");
+
+        const data = await res.json();
+        tbody.innerHTML = "";
+
+        const rows = Array.isArray(data.precios) ? data.precios : [];
+        totalItems = Number(data.total || 0);
+        totalPages = Math.max(1, Math.ceil((data.total || 0) / (data.pageSize || pageSize)));
+
+        if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-warning py-4">No hay registros para mostrar.</td></tr>`;
+        document.getElementById("pageInfo").innerHTML = `<i class="bi bi-info-circle"></i> Sin resultados`;
+        return;
+        }
+
+        rows.forEach(p => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+        <td>${p.productoCodigo ?? p.ProductoCodigo ?? p.itemCode ?? "—"}</td>
+        <td>${p.productoNombre ?? p.ProductoNombre ?? "—"}</td>
+        <td>${p.cliente ?? p.Cliente ?? "—"}</td>
+        <td>${p.clienteNombre ?? p.ClienteNombre ?? "—"}</td>
+        <td>${p.priceListNum ?? p.PriceListNum ?? "—"}</td>
+        <td>${p.priceListName ?? p.PriceListName ?? "—"}</td>
+        <td class="text-end">${fmtMoney(p.precio ?? p.Precio)}</td>
+        <td>${(p.fechaModificacion ?? p.FechaModificacion) ? new Date(p.fechaModificacion ?? p.FechaModificacion).toLocaleString('es-MX') : "—"}</td>
+        `;
+        tbody.appendChild(tr);
+        });
+
+        currentPage = Number(data.page || page);
+        pageSize = Number(data.pageSize || pageSize);
+        document.getElementById("pageInfo").innerHTML =
+        `<i class="bi bi-collection"></i> Página <strong>${currentPage}</strong> de <strong>${totalPages}</strong> · Registros: <strong>${totalItems.toLocaleString('es-MX')}</strong>`;
+        } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">Error: ${err.message}</td></tr>`;
+        document.getElementById("pageInfo").innerHTML = `<i class="bi bi-exclamation-triangle"></i> Error`;
+        } finally {
+        document.getElementById("loader").style.display = "none";
+        document.getElementById("prevPage").disabled = currentPage <= 1;
+        document.getElementById("nextPage").disabled = currentPage >= totalPages;
+        }
+        }
+
+        async function cargarAnalisisSemanal() {
+        const tbody = document.getElementById('analisisSemanalBody');
+        const colCount = document.querySelectorAll('#tablaAnalisisSemanal thead th').length || 1;
+
+        tbody.innerHTML = `<tr><td colspan="${colCount}" class="text-center py-4">⏳ Calculando...</td></tr>`;
+
+        const skus = actualizarContadorSkus();
+
+        const payload = {
+        fechaCorte: document.getElementById('anaFechaCorte')?.value || '',
+        skus: skus,
+        master: document.getElementById('anaMaster')?.value || ''
+        };
+
+        console.log('Payload análisis semanal:', payload);
+
+        try {
+        const res = await fetch('/Comercial/ObtenerAnalisisSemanal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+        });
+
+        const text = await res.text();
+
+        if (!res.ok) {
+        tbody.innerHTML = `<tr><td colspan="${colCount}" class="text-center text-danger py-4">${text}</td></tr>`;
+        return;
+        }
+
+        let rows = [];
+        try {
+        rows = JSON.parse(text);
+        } catch {
+        tbody.innerHTML = `<tr><td colspan="${colCount}" class="text-center text-danger py-4">Respuesta inválida</td></tr>`;
+        console.error('Respuesta no JSON:', text);
+        return;
+        }
+
+        console.log('Resultado análisis semanal:', rows);
+
+        if (!Array.isArray(rows) || !rows.length) {
+        tbody.innerHTML = `<tr><td colspan="${colCount}" class="text-center py-4">Sin resultados.</td></tr>`;
+        return;
+        }
+
+                tbody.innerHTML = rows.map(r => {
+                    const precioSugerido = sugerirPrecioNuevoAnalisis(r);
+
+                    return `<tr
+                data-sku="${impEscapeHtml(r.sku ?? '')}"
+                data-master="${impEscapeHtml(r.master ?? '')}"
+                data-prod="${impEscapeHtml(r.skuProd ?? '')}"
+                data-clasificacion="${impEscapeHtml(r.clasificacion ?? '')}">
+
+                <td>${r.clasificacion ?? ''}</td>
+                <td>${r.master ?? ''}</td>
+                <td>${r.sku ?? ''}</td>
+                <td>${r.skuProd ?? ''}</td>
+
+                <td class="num">${fmtNumAnalisis(r.invInicialRefer)}</td>
+                <td class="num">${fmtNumAnalisis(r.inventarioActual)}</td>
+                <td class="num">${fmtNumAnalisis(r.inventarioAnterior)}</td>
+                <td class="num">${fmtNumAnalisis(r.inventarioIdeal)}</td>
+                <td class="num">${fmtNumAnalisis(r.pedidos)}</td>
+                <td class="num">${fmtNumAnalisis(r.kgVenta)}</td>
+                <td class="num">${fmtNumAnalisis(r.diasInventario)}</td>
+
+                <td class="num">${fmtNumAnalisis(r.semana1)}</td>
+                <td class="num">${fmtNumAnalisis(r.semana2)}</td>
+                <td class="num">${fmtNumAnalisis(r.semana3)}</td>
+
+                <td class="num">${fmtMoneyAnalisis(r.ppVentaReal)}</td>
+                <td class="num">${fmtMoneyAnalisis(r.prom)}</td>
+                <td style="white-space:normal;min-width:320px;">${r.competidores ?? ''}</td>
+                <td class="num">${fmtPctAnalisis((r.difPct ?? 0) * 100)}</td>
+                <td class="${claseRecomendacion(r.recomendacion)}">${r.recomendacion ?? ''}</td>
+                        <td>
+            <textarea class="ana-comentario-input" rows="1">${r.comentarios ?? ''}</textarea>
+        </td>
+
+                <td class="ana-check-cell">
+                    <input type="checkbox" class="ana-chk-guardar" checked />
+                </td>
+
+                <td class="num">
+                    <input type="text"
+                           class="ana-precio-input ana-precio-nuevo"
+                           value="${precioSugerido.toFixed(2)}" />
+                </td>
+            </tr>`;
+                }).join('');
+
+        actualizarEncabezadosAnalisis(document.getElementById('anaFechaCorte').value);
+
+        } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="${colCount}" class="text-center text-danger py-4">${e.message}</td></tr>`;
+        console.error(e);
+        }
+        }
+
+        function getISOWeek(date) {
+        const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        const dayNum = d.getUTCDay() || 7;
+        d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+        }
+
+        function formatFechaMX(date) {
+        return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+        }
+
+        function actualizarEncabezadosAnalisis(fechaCorte) {
+        if (!fechaCorte) return;
+        const fc = new Date(`${fechaCorte}T00:00:00`);
+        if (isNaN(fc)) return;
+
+        const ant = new Date(fc); ant.setDate(ant.getDate() - 7);
+        const s1 = new Date(fc); s1.setDate(s1.getDate() - 21);
+        const s2 = new Date(fc); s2.setDate(s2.getDate() - 14);
+        const s3 = new Date(fc); s3.setDate(s3.getDate() - 7);
+
+        document.getElementById('thInvActual').textContent = `Inventario ${formatFechaMX(fc)}`;
+        document.getElementById('thInvAnterior').textContent = `Inventario ${formatFechaMX(ant)}`;
+        document.getElementById('thSemana1').textContent = `Semana ${getISOWeek(s1)}`;
+        document.getElementById('thSemana2').textContent = `Semana ${getISOWeek(s2)}`;
+        document.getElementById('thSemana3').textContent = `Semana ${getISOWeek(s3)}`;
+        }
+
+        function hoyLocalISO() {
+            const d = new Date();
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        function parseMoneyValue(v) {
+            const n = Number(String(v ?? '').replace(/[^0-9.-]/g, ''));
+            return Number.isFinite(n) ? n : 0;
+        }
+
+        function parsePrecioExcel(v) {
+    let s = String(v ?? '').trim();
+
+    if (!s) return null;
+
+    s = s
+        .replace(/\$/g, '')
+        .replace(/MXN/gi, '')
+        .replace(/\s+/g, '');
+
+    // Caso 142,50 sin punto decimal
+    if (s.includes(',') && !s.includes('.')) {
+        s = s.replace(',', '.');
+    } else {
+        // Caso 1,234.50
+        s = s.replace(/,/g, '');
+    }
+
+    s = s.replace(/[^0-9.-]/g, '');
+
+    const n = Number(s);
+
+    return Number.isFinite(n) ? n : null;
+}
+
+function aplicarPegadoPreciosDesdeExcel(inputInicial, textoPegado) {
+    const filas = String(textoPegado || '')
+        .split(/\r?\n/)
+        .filter(x => x.trim() !== '');
+
+    if (!filas.length) return;
+
+    const inputs = Array.from(
+        document.querySelectorAll('#analisisSemanalBody .ana-precio-nuevo')
+    );
+
+    const startIndex = inputs.indexOf(inputInicial);
+
+    if (startIndex < 0) return;
+
+    filas.forEach((fila, i) => {
+        const inputDestino = inputs[startIndex + i];
+
+        if (!inputDestino) return;
+
+        // Si viene desde Excel con columnas, toma la primera celda de cada fila
+        const primeraCelda = fila.split('\t')[0];
+
+        const precio = parsePrecioExcel(primeraCelda);
+
+        if (precio === null) return;
+
+        inputDestino.value = precio.toFixed(2);
+
+        const tr = inputDestino.closest('tr');
+        const chk = tr?.querySelector('.ana-chk-guardar');
+
+        if (chk) chk.checked = true;
+
+        inputDestino.dispatchEvent(new Event('input', { bubbles: true }));
+        inputDestino.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+}
+
+document.getElementById('analisisSemanalBody')?.addEventListener('paste', function (e) {
+    const input = e.target.closest('.ana-precio-nuevo');
+
+    if (!input) return;
+
+    const texto = (e.clipboardData || window.clipboardData)?.getData('text') || '';
+
+    if (!texto) return;
+
+    // Si es un solo precio, deja que el navegador lo pegue normal
+    const esPegadoMultiple = texto.includes('\n') || texto.includes('\t');
+
+    if (!esPegadoMultiple) return;
+
+    e.preventDefault();
+
+    aplicarPegadoPreciosDesdeExcel(input, texto);
+});
+
+        function sugerirPrecioNuevoAnalisis(r) {
+            const actual = Number(r.ppVentaReal ?? 0);
+            const promedioComp = Number(r.prom ?? 0);
+            const reco = String(r.recomendacion ?? '').toUpperCase();
+
+            if (reco === 'BAJAR' && promedioComp > 0 && actual > 0) {
+                return Math.min(actual, promedioComp);
+            }
+
+            if (reco === 'SUBIR' && promedioComp > 0 && actual > 0) {
+                return Math.max(actual, promedioComp);
+            }
+
+            if (actual > 0) return actual;
+            if (promedioComp > 0) return promedioComp;
+
+            return 0;
+        }
+
+        function obtenerRegistrosGuardarPrecioPublico() {
+            const registros = [];
+
+            document.querySelectorAll('#analisisSemanalBody tr').forEach(tr => {
+                const chk = tr.querySelector('.ana-chk-guardar');
+                const inputPrecio = tr.querySelector('.ana-precio-nuevo');
+
+                if (!chk || !chk.checked) return;
+
+                const sku = tr.dataset.sku || '';
+                const precio = parseMoneyValue(inputPrecio?.value);
+
+                if (!sku || precio <= 0) return;
+
+                registros.push({
+                    productoCodigo: sku,
+                    precio: precio,
+                    master: tr.dataset.master || '',
+                    productoNombre: tr.dataset.prod || '',
+                    clasificacion: tr.dataset.clasificacion || '',
+                    comentarios: tr.querySelector('.ana-comentario-input')?.value || ''
+                });
+            });
+
+            return registros;
+        }
+
+        async function guardarPrecioPublicoDesdeAnalisis() {
+            const fechaCorte = document.getElementById('anaFechaCorte')?.value || '';
+            const fechaUso = document.getElementById('anaFechaUso')?.value || '';
+            const priceListNum = Number(document.getElementById('anaPriceListNum')?.value || 1);
+
+            const alcanceClientes = 'LISTA_CLIENTE';
+            const canal = '';
+            const clientes = [];
+
+            if (!fechaCorte) {
+                alert('Captura la fecha corte.');
+                return;
+            }
+
+            if (!fechaUso) {
+                alert('Captura la fecha de uso.');
+                return;
+            }
+
+            const registros = obtenerRegistrosGuardarPrecioPublico();
+
+            if (!registros.length) {
+                alert('No hay SKUs seleccionados con precio válido.');
+                return;
+            }
+
+            const listaTexto = document.getElementById('anaPriceListNum')?.selectedOptions?.[0]?.textContent || priceListNum;
+
+            const ok = confirm(
+                `Se guardarán ${registros.length} SKU(s).\n\n` +
+                `Lista destino: ${listaTexto}\n\n` +
+                `Si eliges Precio Público, también se recalculan las listas con factor.\n` +
+                `Si eliges una lista especial sin factor, sólo se afectan clientes con esa lista asignada.\n\n` +
+                `Fecha corte: ${fechaCorte}\n` +
+                `Fecha uso: ${fechaUso}\n\n` +
+                `¿Continuar?`
+            );
+
+            if (!ok) return;
+
+            const btn = document.getElementById('btnGuardarPrecioPublico');
+            const original = btn.innerHTML;
+
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Guardando...';
+
+            try {
+                const res = await fetch('/Comercial/GuardarPrecioPublicoDesdeAnalisis', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        priceListNum,
+                        fechaCorte,
+                        fechaUso,
+                        alcanceClientes,
+                        canal,
+                        clientes,
+                        registros
+                    })
+                });
+
+                const text = await res.text();
+                let data = null;
+
+                try {
+                    data = JSON.parse(text);
+                } catch {
+                    throw new Error(text || 'Respuesta inválida del servidor.');
+                }
+
+                if (!res.ok || data.ok === false) {
+                    throw new Error(data.mensaje || data.error || 'No se pudo guardar.');
+                }
+
+                alert(
+                    `Precios guardados correctamente.\n\n` +
+                    `Lote: ${data.loteId}\n` +
+                    `Insertados: ${data.insertados}\n` +
+                    `Actualizados: ${data.actualizados}\n` +
+                    `Sin cambio: ${data.sinCambio}`
+                );
+
+                await cargarPrecios(1, currentSearch);
+
+            } catch (e) {
+                alert('Error al guardar precios: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = original;
+            }
+        }
+
+        async function guardarCompetencia() {
+        const body = {
+        fechaCorte: document.getElementById('compFechaCorte')?.value || null,
+        sku: document.getElementById('compSku')?.value || '',
+        denes: document.getElementById('compDenes')?.value || null,
+        tc: document.getElementById('compTc')?.value || null,
+        freasa: document.getElementById('compFreasa')?.value || null,
+        comentarios: document.getElementById('compComentarios')?.value || ''
+        };
+
+        try {
+        const res = await fetch('/Comercial/GuardarPrecioCompetencia', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error('No se pudo guardar la competencia');
+        alert('Competencia guardada correctamente');
+        await cargarAnalisisSemanal();
+        } catch (e) {
+        alert(e.message);
+        }
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+        IMPORTAR COMPETENCIA CON OCR
+        ═══════════════════════════════════════════════════════════ */
+        let impData = null;       // { competidor, fecha, productos:[{nombre,precio,sku,nuestroNombre,nuestroPrecio}] }
+        let impSkusData = [];     // catálogo de SKUs del sistema
+        let impImgBase64 = null;
+        let impFiltro = 'all';
+
+      
+
+       
+
+      
+
+
+       
+
+
+    
+
+
+     
+
+        /* ── Construir select de SKUs ── */
+        function impEscapeHtml(str) {
+        return String(str ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+        }
+
+
+        function impNormalizarBusqueda(txt) {
+        return String(txt ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase()
+        .replace(/\$/g, ' ')
+        .replace(/\b\d{4,}\b/g, ' ')
+        .replace(/\b\d{1,4}\.\d{1,3}\b/g, ' ')
+        .replace(/\b(FREASA|DENES|TC|ORIGINAL|NORTEÑA|NORTENA)\b/g, ' ')
+        .replace(/[^A-Z0-9Ñ]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+        }
+
+        function impTokensBusqueda(txt) {
+        const stop = new Set(['DE', 'DEL', 'LA', 'EL', 'LOS', 'LAS', 'CON', 'SIN', 'Y', 'EN', 'PARA', 'KG']);
+        return impNormalizarBusqueda(txt)
+        .split(' ')
+        .map(x => x.trim())
+        .filter(x => x.length >= 3 && !stop.has(x));
+        }
+
+        function impPrepararSkuSearchData() {
+        impSkusData = (impSkusData || []).map(s => {
+        const sku = String(s.sku ?? '').trim().toUpperCase();
+        const nombre = String(s.nombre ?? '').trim();
+        const master = String(s.master ?? '').trim();
+        const tipo = String(s.tipo ?? '').trim();
+
+        const searchText = impNormalizarBusqueda(`${sku} ${nombre} ${master} ${tipo}`);
+        const tokens = impTokensBusqueda(`${nombre} ${master} ${tipo}`);
+
+        return {
+        ...s,
+        sku,
+        nombre,
+        master,
+        tipo,
+        _searchText: searchText,
+        _tokens: tokens
+        };
+        });
+        }
+
+        function impScoreSku(term, s) {
+        const q = impNormalizarBusqueda(term);
+        if (!q) return 0;
+
+        const qTokens = impTokensBusqueda(q);
+        let score = 0;
+
+        const sku = String(s.sku ?? '').toUpperCase();
+        const nombre = String(s.nombre ?? '').toUpperCase();
+        const searchText = s._searchText || impNormalizarBusqueda(`${sku} ${nombre}`);
+
+        if (sku === q) score += 500;
+        if (sku.startsWith(q)) score += 250;
+        if (searchText.includes(q)) score += 80;
+
+        qTokens.forEach(t => {
+        if (sku.includes(t)) score += 80;
+        if (nombre.includes(t)) score += 35;
+        if (searchText.includes(t)) score += 20;
+        });
+
+        return score;
+        }
+
+        function impFiltrarSkus(term, selectedValue = '', limit = 30) {
+        const q = impNormalizarBusqueda(term);
+
+        let resultados = [];
+
+        if (q.length >= 2) {
+        resultados = impSkusData
+        .map(s => ({
+        ...s,
+        _score: impScoreSku(q, s)
+        }))
+        .filter(s => s._score > 0)
+        .sort((a, b) => b._score - a._score || String(a.sku).localeCompare(String(b.sku)))
+        .slice(0, limit);
+        }
+
+        if (selectedValue) {
+        const actual = impSkusData.find(x => String(x.sku) === String(selectedValue));
+        if (actual && !resultados.some(x => String(x.sku) === String(selectedValue))) {
+        resultados.unshift(actual);
+        }
+        }
+
+        return resultados;
+        }
+
+        function impBuildSelOpts(term = '', selectedValue = '') {
+        const filtrados = impFiltrarSkus(term, selectedValue, 30);
+
+        let html = '<option value="">— Sin mapear —</option>';
+
+        html += filtrados.map(s => {
+        const selected = String(s.sku) === String(selectedValue) ? 'selected' : '';
+        
+        
+        return `<option value="${impEscapeHtml(s.sku)}"
+        data-nombre="${impEscapeHtml(s.nombre)}"
+                data-precio="${Number(s.precioPublico ?? s.precio ?? 0)}"
+        ${selected}>
+        ${impEscapeHtml(s.nombre)}
+        </option>`;
+        }).join('');
+
+        return html;
+        }
+
+        function impAplicarSkuAProducto(idx, skuValue) {
+        const sku = String(skuValue ?? '').trim();
+
+        if (!impData?.productos?.[idx]) return;
+
+        if (!sku) {
+        impData.productos[idx].sku = '';
+        impData.productos[idx].nuestroNombre = '';
+        impData.productos[idx].nuestroPrecio = null;
+        return;
+        }
+
+        const s = impSkusData.find(x => String(x.sku).toUpperCase() === sku.toUpperCase());
+
+        if (!s) return;
+
+        impData.productos[idx].sku = s.sku;
+        impData.productos[idx].nuestroNombre = s.nombre || '';
+            impData.productos[idx].nuestroPrecio = Number(s.precioPublico ?? s.precio ?? 0);
+            impData.productos[idx].searchTerm = s.sku;
+        }
+
+        /* ── Render tabla de mapeo ── */
+        function impRenderMapTable() {
+        if (!impData || !Array.isArray(impData.productos)) return;
+
+        const tbody = document.getElementById('impMapBody');
+
+        const prods = impData.productos.filter(p => {
+        if (impFiltro === 'mapped') return p.sku;
+        if (impFiltro === 'unmapped') return !p.sku;
+        return true;
+        });
+
+        tbody.innerHTML = '';
+
+        prods.forEach(p => {
+        const realIdx = impData.productos.indexOf(p);
+        const tr = document.createElement('tr');
+        tr.className = p.sku ? 'imp-row-mapped' : 'imp-row-unmapped';
+
+        const dif = p.nuestroPrecio !== null ? p.nuestroPrecio - p.precio : null;
+        const difHtml = dif !== null
+        ? `<span class="${dif > 5 ? 'imp-dif-pos' : dif < -5 ? 'imp-dif-neg' : 'imp-dif-neu'}">${dif >= 0 ? '+' : ''}$${dif.toFixed(2)}</span>`
+        : '—';
+
+        const searchValue = p.searchTerm || '';
+        const selOpts = impBuildSelOpts(searchValue, p.sku);
+
+                tr.innerHTML = `
+        <td>${impEscapeHtml(p.codigoCompetencia || '—')}</td>
+        <td>${impEscapeHtml(p.nombre || '')}</td>
+        <td style="font-family:monospace;text-align:right;">$${Number(p.precio || 0).toFixed(2)}</td>
+        <td>
+                   <div style="display:flex;gap:4px;align-items:center;">
+            <input type="text" class="imp-sku-search" data-idx="${realIdx}"
+                placeholder="🔍 SKU..."
+                value="${impEscapeHtml(searchValue)}"
+                style="flex:0 0 90px;font-weight:700;text-transform:uppercase;">
+            <select data-idx="${realIdx}" style="flex:1;min-width:0;">
+                ${selOpts}
+            </select>
+        </div>
+        </td>
+        <td style="font-family:monospace;text-align:right;">${p.nuestroPrecio !== null ? '$' + Number(p.nuestroPrecio).toFixed(2) : '—'}</td>
+        <td style="text-align:right;">${difHtml}</td>
+        `;
+
+        const inputSearch = tr.querySelector('.imp-sku-search');
+        const selectSku = tr.querySelector('select');
+
+        inputSearch.addEventListener('input', function () {
+        const idx = Number(this.dataset.idx);
+        const term = this.value || '';
+
+        impData.productos[idx].searchTerm = term;
+
+        const currentSku = impData.productos[idx].sku || '';
+        selectSku.innerHTML = impBuildSelOpts(term, currentSku);
+        });
+
+        inputSearch.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter') return;
+
+        e.preventDefault();
+
+        const idx = Number(this.dataset.idx);
+        const term = this.value || '';
+        const sugeridos = impFiltrarSkus(term, '', 1);
+
+        if (!sugeridos.length) return;
+
+        impAplicarSkuAProducto(idx, sugeridos[0].sku);
+        impRenderMapTable();
+        impUpdateSummary();
+        });
+
+        selectSku.addEventListener('change', function () {
+        const idx = Number(this.dataset.idx);
+
+        impAplicarSkuAProducto(idx, this.value);
+
+        impRenderMapTable();
+        impUpdateSummary();
+        });
+
+        tbody.appendChild(tr);
+        });
+
+        impUpdateSummary();
+        }
+
+        function normalizarSkusMasivo(valor) {
+        return [...new Set(
+        (valor || '')
+        .split(/[\s,;|]+/g)
+        .map(x => x.trim().toUpperCase())
+        .filter(x => x.length > 0)
+        )];
+        }
+
+        async function cargarMastersAnalisis() {
+            const sel = document.getElementById('anaMaster');
+            if (!sel) return;
+
+            // Si ya está cargado correctamente, no volver a pedirlo
+            if (sel.dataset.cargado === '1') return;
+
+            sel.innerHTML = `
+                <option value="">Todos</option>
+                <option value="" disabled>⏳ Cargando...</option>
+            `;
+
+            try {
+                const res = await fetch('/Comercial/ObtenerMasters');
+
+                if (!res.ok) {
+                    throw new Error('No se pudieron cargar los masters.');
+                }
+
+                const lista = await res.json();
+
+                // Aquí limpiamos el "Cargando..."
+                sel.innerHTML = '<option value="">Todos</option>';
+
+                if (!Array.isArray(lista) || lista.length === 0) {
+                    const opt = document.createElement('option');
+                    opt.value = '';
+                    opt.textContent = '(SIN MASTERS)';
+                    opt.disabled = true;
+                    sel.appendChild(opt);
+                    return;
+                }
+
+                lista.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m || '';
+                    opt.textContent = m || '(SIN MASTER)';
+                    sel.appendChild(opt);
+                });
+
+                sel.dataset.cargado = '1';
+
+            } catch (e) {
+                console.warn('No se pudieron cargar masters:', e);
+
+                sel.innerHTML = `
+                    <option value="">Todos</option>
+                    <option value="" disabled>Error al cargar masters</option>
+                `;
+            }
+        }
+
+        /* ══════════════════════════════════════════
+        TABLA CAPTURA DIRECTA
+        ══════════════════════════════════════════ */
+        function impCrearFila(codigo = '', nombre = '', precio = '', sku = '') {
+            const tbody = document.getElementById('tablaCapturaBody');
+            const idx = tbody.rows.length + 1;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="text-align:center;color:#999;">${idx}</td>
+                <td><input type="text" class="imp-cap-input cap-codigo" value="${impEscapeHtml(codigo)}" placeholder="NE000118"></td>
+                <td><input type="text" class="imp-cap-input cap-nombre" value="${impEscapeHtml(nombre)}" placeholder="Arrachera Concha"></td>
+                <td><input type="text" class="imp-cap-input cap-precio" value="${impEscapeHtml(precio)}" placeholder="221"></td>
+                <td><input type="text" class="imp-cap-input cap-sku" value="${impEscapeHtml(sku)}" placeholder="N033"></td>
+                <td><button class="imp-btn imp-btn-secondary imp-btn-eliminar" style="padding:0 8px;height:24px;font-size:11px;">✕</button></td>
+            `;
+            tr.querySelector('.imp-btn-eliminar').addEventListener('click', () => {
+                tr.remove();
+                impRenumerarFilas();
+            });
+            tbody.appendChild(tr);
+        }
+
+        function impRenumerarFilas() {
+            document.querySelectorAll('#tablaCapturaBody tr').forEach((tr, i) => {
+                tr.cells[0].textContent = i + 1;
+            });
+        }
+
+        function impInicializarTablaCaptura() {
+            document.getElementById('tablaCapturaBody').innerHTML = '';
+            for (let i = 0; i < 5; i++) impCrearFila();
+        }
+
+        document.getElementById('impBtnAgregarFila')?.addEventListener('click', () => impCrearFila());
+
+        document.getElementById('impBtnLimpiarTabla')?.addEventListener('click', () => {
+            if (confirm('¿Limpiar toda la tabla?')) impInicializarTablaCaptura();
+        });
+
+        document.getElementById('tablaCaptura')?.addEventListener('paste', function (e) {
+            e.preventDefault();
+            const texto = (e.clipboardData || window.clipboardData).getData('text');
+            if (!texto) return;
+            const filas = texto.trim().split(/\r?\n/);
+            const tbody = document.getElementById('tablaCapturaBody');
+            tbody.innerHTML = '';
+            filas.forEach(fila => {
+                const cols = fila.split('\t');
+                const codigo = (cols[0] || '').trim();
+                const nombre = (cols[1] || '').trim();
+                const precio = (cols[2] || '').trim();
+                const sku = (cols[3] || '').trim();
+                if (codigo || nombre || precio) impCrearFila(codigo, nombre, precio, sku);
+            });
+            impRenumerarFilas();
+        });
+
+        document.getElementById('impBtnProcesarCaptura')?.addEventListener('click', () => {
+            const competidor = document.getElementById('impNombreCompetidor')?.value?.trim();
+            if (!competidor) { alert('Captura el nombre del competidor.'); return; }
+            const fecha = document.getElementById('impFechaCompetencia')?.value?.trim();
+            if (!fecha) {
+                const inp = document.getElementById('impFechaCompetencia');
+                inp.style.border = '2px solid #c00000';
+                inp.focus();
+                alert('La fecha de corte es obligatoria.');
+                return;
+            }
+            document.getElementById('impFechaCompetencia').style.border = '1px solid #b48787';
+            const filas = document.querySelectorAll('#tablaCapturaBody tr');
+            const productos = [];
+            filas.forEach(tr => {
+                const codigo = tr.querySelector('.cap-codigo')?.value?.trim() || '';
+                const nombre = tr.querySelector('.cap-nombre')?.value?.trim() || '';
+                const precioRaw = tr.querySelector('.cap-precio')?.value?.trim() || '';
+                const sku = tr.querySelector('.cap-sku')?.value?.trim() || '';
+                const precio = parseFloat(precioRaw.replace(/[^0-9.]/g, '')) || 0;
+                if (!nombre && !codigo) return;
+                if (precio <= 0) return;
+                let nuestroNombre = '';
+                let nuestroPrecio = null;
+                if (sku) {
+                    const s = impSkusData.find(x => x.sku?.toUpperCase() === sku.toUpperCase());
+                    if (s) {
+                        nuestroNombre = s.nombre || '';
+                        nuestroPrecio = Number(s.precioPublico ?? s.precio ?? 0);
+                    }
+                }
+                productos.push({ codigoCompetencia: codigo, nombre, precio, sku, nuestroNombre, nuestroPrecio, searchTerm: sku ? sku : nombre });
+            });
+
+            if (!productos.length) { alert('Agrega al menos un producto con nombre y precio.'); return; }
+            impData = { competidor, fecha, productos };
+            document.getElementById('impStep1').style.display = 'none';
+            document.getElementById('impStep2').style.display = 'block';
+            impRenderMapTable();
+        });
+
+        function actualizarContadorSkus() {
+        const txt = document.getElementById('anaSku');
+        const lbl = document.getElementById('anaSkuCount');
+
+        const skus = normalizarSkusMasivo(txt?.value || '');
+
+        if (lbl) {
+        lbl.textContent = `${skus.length.toLocaleString('es-MX')} SKU capturados`;
+        }
+
+        return skus;
+        }
+
+      
+
+
+        function impUpdateSummary() {
+        if (!impData || !Array.isArray(impData.productos)) return;
+
+        const mapped = impData.productos.filter(p => p.sku).length;
+        const total = impData.productos.length;
+        document.getElementById('impMapSummary').textContent = `${mapped} de ${total} productos mapeados`;
+        document.getElementById('impBtnGuardar').disabled = mapped === 0;
+
+        const alert = document.getElementById('impMapAlert');
+        if (mapped === 0) {
+        alert.textContent = 'Para cada producto de la competencia, selecciona el SKU propio correspondiente en el desplegable.';
+        alert.style.display = 'block';
+        } else {
+        alert.style.display = 'none';
+        }
+        }
+
+        /* ── Filtros ── */
+        document.getElementById('impFilterBar').addEventListener('click', e => {
+        const chip = e.target.closest('.imp-chip');
+        if (!chip) return;
+        document.querySelectorAll('.imp-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        impFiltro = chip.dataset.filter;
+        impRenderMapTable();
+        });
+
+        document.getElementById('impBtnAutoSugerir')?.addEventListener('click', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!impData || !Array.isArray(impData.productos)) return;
+
+    let asignados = 0;
+
+    impData.productos.forEach((p, idx) => {
+        if (p.sku) return;
+
+        const termino = impNormalizarBusqueda(p.nombre);
+        const sugeridos = impFiltrarSkus(termino, '', 1);
+
+        if (!sugeridos.length) return;
+
+        const score = impScoreSku(termino, sugeridos[0]);
+
+        // Umbral conservador para evitar malas relaciones
+        if (score >= 45) {
+            impAplicarSkuAProducto(idx, sugeridos[0].sku);
+            asignados++;
+        } else {
+            p.searchTerm = termino;
+        }
+    });
+
+    impRenderMapTable();
+    impUpdateSummary();
+
+    alert(`Auto sugerencia terminada. SKUs asignados: ${asignados}`);
+});
+
+document.getElementById('impBtnPegarSkus')?.addEventListener('click', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!impData || !Array.isArray(impData.productos)) return;
+
+    const texto = prompt(
+        'Pega un SKU por renglón, en el mismo orden de la tabla.\n\nEjemplo:\nN003\nV054\nV055'
+    );
+
+    if (!texto) return;
+
+    const skusPegados = texto
+        .split(/\r?\n/g)
+        .map(x => x.trim())
+        .filter(x => x.length > 0)
+        .map(linea => {
+            // Si viene con columnas pegadas desde Excel, toma la última columna
+            const partes = linea.split(/\t|,|;/g).map(x => x.trim()).filter(Boolean);
+            return partes.length ? partes[partes.length - 1].toUpperCase() : linea.toUpperCase();
+        });
+
+    let asignados = 0;
+
+    const productosVisibles = impData.productos.filter(p => {
+        if (impFiltro === 'mapped') return p.sku;
+        if (impFiltro === 'unmapped') return !p.sku;
+        return true;
+    });
+
+    skusPegados.forEach((sku, i) => {
+        const p = productosVisibles[i];
+        if (!p) return;
+
+        const realIdx = impData.productos.indexOf(p);
+        const existe = impSkusData.some(s => String(s.sku).toUpperCase() === sku);
+
+        if (existe) {
+            impAplicarSkuAProducto(realIdx, sku);
+            asignados++;
+        }
+    });
+
+    impRenderMapTable();
+    impUpdateSummary();
+
+    alert(`SKUs pegados y asignados: ${asignados}`);
+});
+
+        /* ── Volver ── */
+        document.getElementById('impBtnVolver').addEventListener('click', () => {
+        document.getElementById('impStep2').style.display = 'none';
+        document.getElementById('impStep1').style.display = 'block';
+        });
+
+        /* ── Guardar en sistema ── */
+        document.getElementById('impBtnGuardar').addEventListener('click', async () => {
+            const btn = document.getElementById('impBtnGuardar');
+            const mapeados = impData?.productos?.filter(p => p.sku) || [];
+
+            if (!mapeados.length) {
+                alert('No hay productos mapeados para guardar.');
+                return;
+            }
+
+            const orig = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Guardando...';
+
+            const competidorInput = (
+                document.getElementById('impNombreCompetidor')?.value || ''
+            ).trim();
+
+            const competidorData = (
+                impData?.competidor || ''
+            ).trim();
+
+            const competidorNombre = competidorInput ||
+                (competidorData.toUpperCase() !== 'COMPETENCIA' ? competidorData : '');
+
+            if (!competidorNombre) {
+                alert('Captura el nombre real del competidor. Ejemplo: Redbuchef, Praderas, C-Fira, Denes.');
+                btn.disabled = false;
+                btn.innerHTML = orig;
+                return;
+            }
+
+            const fechaCorteFinal = (
+                impData?.fechaCorte ||
+                impData?.fecha ||
+                document.getElementById('impFechaCompetencia')?.value ||
+                ''
+            ).trim();
+
+            if (!fechaCorteFinal) {
+                alert('Captura la fecha corte antes de guardar.');
+                btn.disabled = false;
+                btn.innerHTML = orig;
+                return;
+            }
+
+            const payload = {
+                competidor: competidorNombre,
+                fecha: fechaCorteFinal,
+                fechaCorte: fechaCorteFinal,
+                registros: mapeados.map(p => ({
+                    skuPropio: p.sku,
+                    codigoCompetencia: p.codigoCompetencia || '',
+                    nombreCompetencia: p.nombre || '',
+                    precioCompetencia: Number(p.precio || 0),
+                    nuestroPrecio: p.nuestroPrecio !== null && p.nuestroPrecio !== undefined
+                        ? Number(p.nuestroPrecio)
+                        : null
+                }))
+            };
+
+            try {
+                const res = await fetch('/Comercial/GuardarCompetenciaLote', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const text = await res.text();
+
+                let data = null;
+
+                try {
+                    data = JSON.parse(text);
+                } catch {
+                    throw new Error(text || 'Respuesta inválida del servidor.');
+                }
+
+                if (!res.ok || data.ok === false) {
+                    throw new Error(data.mensaje || data.error || 'Error al guardar.');
+                }
+
+                document.getElementById('impStep2').style.display = 'none';
+                document.getElementById('impStep3').style.display = 'block';
+
+                document.getElementById('impSavedMsg').textContent =
+                    `${mapeados.length} registros de "${competidorNombre}" guardados correctamente para fecha corte ${fechaCorteFinal}.`;
+
+                const savedBody = document.getElementById('impSavedBody');
+
+                savedBody.innerHTML = mapeados.map(p => {
+                    const precioComp = Number(p.precio || 0);
+                    const precioNuestro = p.nuestroPrecio !== null && p.nuestroPrecio !== undefined
+                        ? Number(p.nuestroPrecio)
+                        : null;
+
+                    const dif = precioNuestro !== null ? precioNuestro - precioComp : null;
+
+                    const difCls = dif === null
+                        ? 'imp-dif-neu'
+                        : dif > 5
+                            ? 'imp-dif-pos'
+                            : dif < -5
+                                ? 'imp-dif-neg'
+                                : 'imp-dif-neu';
+
+                    const difHtml = dif === null
+                        ? '—'
+                        : `${dif >= 0 ? '+' : ''}$${dif.toFixed(2)}`;
+
+                    return `<tr>
+                        <td><strong>${impEscapeHtml(p.sku)}</strong></td>
+                        <td>${impEscapeHtml(p.nuestroNombre || '')}</td>
+                        <td>${impEscapeHtml(p.codigoCompetencia || '—')}</td>
+                        <td>${impEscapeHtml(p.nombre || '')}</td>
+                        <td style="font-family:monospace;text-align:right;">$${precioComp.toFixed(2)}</td>
+                        <td style="font-family:monospace;text-align:right;">${precioNuestro !== null ? '$' + precioNuestro.toFixed(2) : '—'}</td>
+                        <td style="text-align:right;"><span class="${difCls}">${difHtml}</span></td>
+                    </tr>`;
+                }).join('');
+
+            } catch (e) {
+                alert('Error al guardar: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        });
+
+        /* ── Reset ── */
+        document.getElementById('impBtnNuevo').addEventListener('click', impReset);
+        
+        function impReset() {
+            impData = null;
+            impImgBase64 = null;
+            impFiltro = 'all';
+
+            document.getElementById('impNombreCompetidor').value = '';
+            document.getElementById('impFechaCompetencia').value = '';
+
+        document.querySelectorAll('.imp-chip').forEach((c, i) => c.classList.toggle('active', i === 0));
+        impFiltro = 'all';
+
+        document.getElementById('impStep1').style.display = 'block';
+        document.getElementById('impStep2').style.display = 'none';
+        document.getElementById('impStep3').style.display = 'none';
+
+        document.getElementById('impMapBody').innerHTML = '';
+        document.getElementById('impSavedBody').innerHTML = '';
+        document.getElementById('impMapSummary').textContent = '';
+        document.getElementById('impMapAlert').style.display = 'none';
+            impInicializarTablaCaptura(); // <-- agrega esta línea
+        }
+
+        function impFechaHoyISO() {
+            return new Date().toISOString().split('T')[0];
+        }
+
+      
+
+        /* ── Cargar SKUs del backend al abrir modal ── */
+        async function impCargarSkus() {
+        if (impSkusData.length) return;
+
+        try {
+        const res = await fetch('/Comercial/ObtenerSkusParaMapeo');
+        if (!res.ok) return;
+
+        const json = await res.json();
+        impSkusData = Array.isArray(json) ? json : (json.data || []);
+        impPrepararSkuSearchData();
+        } catch (e) {
+        console.warn('No se pudieron cargar SKUs para mapeo:', e);
+        }
+        }
+
+        let anaCanalesCargados = false;
+        let anaClientesData = [];
+
+        async function cargarCanalesPrecio() {
+            const sel = document.getElementById('anaCanal');
+
+            if (!sel || anaCanalesCargados) return;
+
+            sel.innerHTML = '<option value="">Todos los canales</option>';
+
+            try {
+                const res = await fetch('/Comercial/ObtenerCanalesPrecio');
+
+                if (!res.ok) throw new Error('No se pudieron cargar los canales.');
+
+                const canales = await res.json();
+
+                canales.forEach(canal => {
+                    const opt = document.createElement('option');
+                    opt.value = canal;
+                    opt.textContent = canal;
+                    sel.appendChild(opt);
+                });
+
+                anaCanalesCargados = true;
+            } catch (e) {
+                console.warn('Error cargando canales:', e);
+            }
+        }
+
+        async function cargarClientesPrecio() {
+            const canal = document.getElementById('anaCanal')?.value || '';
+            const sel = document.getElementById('anaClientes');
+
+            if (!sel) return;
+
+            sel.innerHTML = '<option disabled>⏳ Cargando clientes...</option>';
+
+            try {
+                const res = await fetch(`/Comercial/ObtenerClientesPrecio?canal=${encodeURIComponent(canal)}`);
+
+                if (!res.ok) throw new Error('No se pudieron cargar los clientes.');
+
+                const listaClientes = await res.json();
+
+                anaClientesData = Array.isArray(listaClientes) ? listaClientes : [];
+
+                sel.innerHTML = '';
+
+                anaClientesData.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.cliente;
+                    opt.textContent = `${c.cliente} - ${c.nombreCliente} (${c.canal || 'SIN CANAL'})`;
+                    sel.appendChild(opt);
+                });
+
+                actualizarContadorClientesPrecio();
+
+            } catch (e) {
+                sel.innerHTML = '';
+                console.warn('Error cargando clientes:', e);
+                alert('No se pudieron cargar los clientes: ' + e.message);
+            }
+        }
+
+        function actualizarModoDestinoPrecio() {
+            const modo = document.getElementById('anaAlcanceClientes')?.value || 'ACTIVOS';
+            const canal = document.getElementById('anaCanal');
+            const clientes = document.getElementById('anaClientes');
+            const btnClientes = document.getElementById('btnMarcarTodosClientes');
+
+            if (!canal || !clientes || !btnClientes) return;
+
+            if (modo === 'ACTIVOS') {
+                canal.disabled = true;
+                clientes.disabled = true;
+                btnClientes.disabled = true;
+                canal.value = '';
+                Array.from(clientes.options).forEach(o => o.selected = false);
+            }
+
+            if (modo === 'ACTIVOS_CANAL') {
+                canal.disabled = false;
+                clientes.disabled = true;
+                btnClientes.disabled = true;
+                Array.from(clientes.options).forEach(o => o.selected = false);
+            }
+
+            if (modo === 'CLIENTES') {
+                canal.disabled = false;
+                clientes.disabled = false;
+                btnClientes.disabled = false;
+                cargarClientesPrecio();
+            }
+
+            actualizarContadorClientesPrecio();
+        }
+
+        function actualizarContadorClientesPrecio() {
+            const sel = document.getElementById('anaClientes');
+            const lbl = document.getElementById('anaClientesCount');
+
+            if (!sel || !lbl) return;
+
+            const seleccionados = Array.from(sel.selectedOptions || []).length;
+            const total = Array.from(sel.options || []).filter(o => !o.disabled).length;
+
+            lbl.textContent = `${seleccionados.toLocaleString('es-MX')} de ${total.toLocaleString('es-MX')} clientes seleccionados`;
+        }
+
+        function obtenerClientesSeleccionadosPrecio() {
+            const sel = document.getElementById('anaClientes');
+
+            if (!sel) return [];
+
+            return Array.from(sel.selectedOptions || [])
+                .map(o => o.value)
+                .filter(x => x);
+        }
+
+        async function cargarListasPrecioGuardar() {
+            const sel = document.getElementById('anaPriceListNum');
+            if (!sel) return;
+
+            if (sel.dataset.cargado === '1') return;
+
+            sel.innerHTML = '<option value="1">⏳ Cargando listas...</option>';
+
+            try {
+                const res = await fetch('/Comercial/ObtenerListasPrecioParaGuardar');
+
+                if (!res.ok) {
+                    throw new Error('No se pudieron cargar las listas de precios.');
+                }
+
+                const json = await res.json();
+                const listas = Array.isArray(json.data) ? json.data : [];
+
+                sel.innerHTML = '';
+
+                listas.forEach(l => {
+                    const opt = document.createElement('option');
+
+                    opt.value = l.priceListNum;
+
+                    const factor = Number(l.factor || 0);
+
+                    if (Number(l.priceListNum) === 1) {
+                        opt.textContent = `${l.priceListNum} - ${l.priceListName}`;
+                    } else {
+                        opt.textContent = `${l.priceListNum} - ${l.priceListName} / Especial`;
+                    }
+
+                    sel.appendChild(opt);
+                });
+
+                if (!listas.some(x => Number(x.priceListNum) === 1)) {
+                    const opt = document.createElement('option');
+                    opt.value = '1';
+                    opt.textContent = '1 - Precio Publico';
+                    sel.prepend(opt);
+                }
+
+                sel.value = '1';
+                sel.dataset.cargado = '1';
+
+            } catch (e) {
+                console.warn(e);
+
+                sel.innerHTML = '<option value="1">1 - Precio Publico</option>';
+                alert('No se pudieron cargar las listas de precios: ' + e.message);
+            }
+        }
+
+
+        /* ════════════════════════════════════════
+        EVENTOS GLOBALES
+        ════════════════════════════════════════ */
+        document.addEventListener("DOMContentLoaded", function () {
+        cargarPrecios(currentPage, currentSearch);
+
+        modalAnalisisSemanal = new bootstrap.Modal(document.getElementById('modalAnalisisSemanal'));
+        modalImportarComp = new bootstrap.Modal(document.getElementById('modalImportarCompetencia'));
+
+            document.getElementById('anaAlcanceClientes')?.addEventListener('change', function () {
+                actualizarModoDestinoPrecio();
+            });
+
+            document.getElementById('anaCanal')?.addEventListener('change', async function () {
+                const modo = document.getElementById('anaAlcanceClientes')?.value || 'ACTIVOS';
+
+                if (modo === 'CLIENTES') {
+                    await cargarClientesPrecio();
+                }
+            });
+
+            document.getElementById('anaClientes')?.addEventListener('change', function () {
+                actualizarContadorClientesPrecio();
+            });
+
+            document.getElementById('btnMarcarTodosClientes')?.addEventListener('click', function () {
+                const sel = document.getElementById('anaClientes');
+
+                if (!sel || sel.disabled) return;
+
+                const opciones = Array.from(sel.options).filter(o => !o.disabled);
+                const haySinMarcar = opciones.some(o => !o.selected);
+
+                opciones.forEach(o => {
+                    o.selected = haySinMarcar;
+                });
+
+                actualizarContadorClientesPrecio();
+
+                this.innerHTML = haySinMarcar
+                    ? '<i class="bi bi-people"></i> Desmarcar clientes'
+                    : '<i class="bi bi-people"></i> Marcar clientes';
+            });
+
+            document.getElementById('btnMarcarTodosGuardar')?.addEventListener('click', function () {
+                const checks = document.querySelectorAll('.ana-chk-guardar');
+                const algunoSinMarcar = Array.from(checks).some(x => !x.checked);
+
+                checks.forEach(chk => {
+                    chk.checked = algunoSinMarcar;
+                });
+
+                this.innerHTML = algunoSinMarcar
+                    ? '<i class="bi bi-check2-square"></i> Desmarcar todos'
+                    : '<i class="bi bi-check2-square"></i> Marcar todos';
+            });
+
+            document.getElementById('btnGuardarPrecioPublico')?.addEventListener('click', function (e) {
+                e.preventDefault();
+                guardarPrecioPublicoDesdeAnalisis();
+            });
+
+        /* Análisis semanal */
+            document.getElementById('btnGestionAnalisis')?.addEventListener('click', async function () {
+                modalAnalisisSemanal.show();
+
+                await cargarMastersAnalisis();
+                await cargarListasPrecioGuardar();
+
+                await cargarCanalesPrecio();
+                await cargarClientesPrecio();
+                actualizarModoDestinoPrecio();
+
+                const hoy = hoyLocalISO();
+
+        if (!document.getElementById('anaFechaCorte').value) {
+        document.getElementById('anaFechaCorte').value = hoy;
+        }
+
+                if (!document.getElementById('anaFechaUso').value) {
+                    document.getElementById('anaFechaUso').value = hoy;
+                }
+
+        actualizarContadorSkus();
+        });
+
+        document.getElementById('btnCalcularAnalisis')?.addEventListener('click', function (e) {
+        e.preventDefault();
+        cargarAnalisisSemanal();
+        });
+
+        document.getElementById('anaSku')?.addEventListener('input', actualizarContadorSkus);
+        document.getElementById('anaSku')?.addEventListener('change', actualizarContadorSkus);
+
+        document.getElementById('anaSku')?.addEventListener('keydown', function (e) {
+        if (e.ctrlKey && e.key === 'Enter') {
+        e.preventDefault();
+        cargarAnalisisSemanal();
+        }
+        });
+
+  
+
+            document.getElementById('btnGestionImportar')?.addEventListener('click', async () => {
+                impReset();
+                await impCargarSkus();               
+                impInicializarTablaCaptura();
+                modalImportarComp.show();
+            });
+
+        /* Tabla de precios */
+        document.getElementById("btnSincronizar").addEventListener("click", async function () {
+        document.getElementById("loader").style.display = "inline";
+        this.disabled = true;
+        try {
+        const res = await fetch('/Comercial/SincronizarPrecioCliente');
+        if (!res.ok) throw new Error('Error al sincronizar');
+        alert(await res.text());
+        await cargarPrecios(currentPage, currentSearch);
+        } catch (err) {
+        alert(err.message);
+        } finally {
+        document.getElementById("loader").style.display = "none";
+        this.disabled = false;
+        }
+        });
+
+        const doSearch = debounce(() => {
+        currentSearch = document.getElementById("searchInput").value || "";
+        currentPage = 1;
+        cargarPrecios(currentPage, currentSearch);
+        }, 350);
+
+        document.getElementById("searchInput").addEventListener("input", doSearch);
+
+        document.getElementById("prevPage").addEventListener("click", function () {
+        if (currentPage > 1) {
+        currentPage--;
+        cargarPrecios(currentPage, currentSearch);
+        }
+        });
+
+        document.getElementById("nextPage").addEventListener("click", function () {
+        if (currentPage < totalPages) {
+        currentPage++;
+        cargarPrecios(currentPage, currentSearch);
+        }
+        });
+
+        document.getElementById("btnDescargarExcel").addEventListener("click", function () {
+        const search = document.getElementById("searchInput").value || "";
+        window.location.href = `/Comercial/DescargarCatalogoPreciosExcel?search=${encodeURIComponent(search)}`;
+        });
+        });
+    </script>
+}

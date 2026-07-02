@@ -1,0 +1,14 @@
+CREATE TABLE Vistas (
+    Id INT IDENTITY(1,1) PRIMARY KEY,
+    Nombre NVARCHAR(100) NOT NULL,
+    Controlador NVARCHAR(100) NOT NULL,
+    Accion NVARCHAR(100) NOT NULL
+);
+
+CREATE TABLE Permisos (
+    Id INT IDENTITY(1,1) PRIMARY KEY,
+    PerfilId INT NOT NULL,
+    VistaId INT NOT NULL,
+    CONSTRAINT FK_Permisos_Perfiles FOREIGN KEY (PerfilId) REFERENCES Perfiles(Id),
+    CONSTRAINT FK_Permisos_Vistas FOREIGN KEY (VistaId) REFERENCES Vistas(Id)
+);

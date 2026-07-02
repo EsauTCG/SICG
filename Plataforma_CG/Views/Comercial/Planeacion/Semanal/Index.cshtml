@@ -1,0 +1,66 @@
+﻿@model TodoSemanalModel
+@{
+    ViewData["Title"] = "Planeaciones";
+}
+<style>
+    .card-img-container {
+        height: 200px; /* altura mínima fija */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: #f8f9fa; /* gris claro de fondo para imágenes pequeñas */
+        overflow: hidden;
+    }
+
+        .card-img-container img {
+            max-height: 100%;
+            max-width: 100%;
+            object-fit: contain; /* mantiene proporción, no recorta */
+        }
+</style>
+<div class="container-fluid mt-4">
+
+
+    <!-- Encabezado -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="fw-bold text-dark">📋 Semanas</h4>
+
+    </div>
+
+
+
+    <div class="table-responsive mt-3 p-3 border border-danger rounded shadow-sm" style="background-color:#fff3f3;">
+        <div class="card-header bg-light fw-bold text-danger" style="border-radius: 12px;">
+            Semanas del mes
+        </div>
+        <div class="card-body">
+            <div class="row g-4">
+
+                @foreach(var item in Model._ListaSemanas)
+                {
+                    var inicio = item.Inicio;
+                    var fin = item.Fin;
+                    <div class="col-md-4 col-sm-6 contenido">
+                        <div class="card h-100 shadow-sm border-0"
+                             style="cursor:pointer"
+                             onclick="loadPartial('@Url.Action("Detalle", "PlanSemanal", new { id = Model._PlanSemanal.fk_Plan, fechain=item.Inicio.ToString("dd/MM/yyyy"), fechafin =item.Fin.ToString("dd/MM/yyyy")})', document.querySelector('.toolbar button[data-url=\'/Planeacion/Index\']'));  inicializarPlaneacion();return false;">
+                            <div class="card-body text-center">
+                                <h5 class="card-title fw-bold text-dark">Del: @inicio.ToString("dddd dd/MM") al @fin.ToString("dddd dd/MM")</h5>
+                                <p class="card-text text-muted">Haz clic para ver información de la semana</p>
+                                @foreach(var item2 in Model._ListaPlanSemanal)
+                                {
+                                    if (Convert.ToDateTime(item2.FechaIn).ToString("dd/MM/yyyy") == @inicio.ToString("dd/MM/yyyy"))
+                                    {
+                                        <p class="card-text text-muted">Canales asignadas:@item2.Canales Peso:@item2.PesoTotal</p>
+                                    }
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+
+</div>

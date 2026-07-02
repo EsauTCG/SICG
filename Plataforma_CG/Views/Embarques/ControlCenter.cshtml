@@ -1,0 +1,2208 @@
+﻿@{
+    ViewData["Title"] = "Control Center Logística";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+
+    var embarques = ViewBag.Embarques as List<dynamic> ?? new List<dynamic>();
+    var embarquesCompletados = ViewBag.EmbarquesCompletados as List<dynamic> ?? new List<dynamic>();
+
+    var busqueda = Context.Request.Query["busqueda"].ToString();
+    var fechaInicio = Context.Request.Query["fechaInicio"].ToString();
+    var fechaFin = Context.Request.Query["fechaFin"].ToString();
+
+    bool buscoCompletados = ViewBag.BuscoCompletados == true;
+
+    var busquedaCompletados = Context.Request.Query["busquedaCompletados"].ToString();
+    var fechaInicioCompletados = Context.Request.Query["fechaInicioCompletados"].ToString();
+    var fechaFinCompletados = Context.Request.Query["fechaFinCompletados"].ToString();
+
+    // Calcular KPIs
+    int totalViajes = embarques.Count;
+    int pendientes = embarques.Count(e => e.Estatus == 1);
+    int liberadosQr = embarques.Count(e => e.Estatus == 7);
+    int enRuta = embarques.Count(e => e.Estatus == 2);
+    int enDestino = embarques.Count(e => e.Estatus == 3);
+    int retrasados = embarques.Count(e => e.Estatus == 4);
+    int entregados = embarques.Count(e => e.Estatus == 5);
+}
+
+<style>
+    :root {
+        --primary: #8B0000;
+        --primary-dark: #5a0000;
+        --primary-soft: #fdf1f1;
+        --accent: #c82333;
+        --bg: #f3f6fa;
+        --panel: #ffffff;
+        --panel-soft: #f8fafc;
+        --border: #dfe5ec;
+        --border-strong: #cfd7e1;
+        --text: #1f2937;
+        --muted: #6b7280;
+        --success: #198754;
+        --success-soft: #eaf7ef;
+        --warning: #f59e0b;
+        --warning-soft: #fff8e8;
+        --danger: #dc3545;
+        --danger-soft: #fdeeee;
+        --info: #0d6efd;
+        --info-soft: #edf4ff;
+        --shadow-sm: 0 6px 18px rgba(15, 23, 42, 0.06);
+        --shadow-md: 0 14px 34px rgba(15, 23, 42, 0.10);
+        --radius-xl: 22px;
+        --radius-lg: 18px;
+        --radius-md: 14px;
+        --transition: all .22s ease;
+    }
+
+    body {
+        background: linear-gradient(180deg, #f8fafc 0%, #eef3f8 100%);
+        color: var(--text);
+    }
+
+    .control-wrap {
+        max-width: 1380px;
+        margin: 0 auto;
+        padding: 1.5rem 1rem 2.2rem;
+    }
+
+    .control-header {
+        background: linear-gradient(135deg, #8B0000 0%, #5a0000 55%, #240000 100%);
+        color: #fff;
+        border-radius: var(--radius-xl);
+        padding: 1.45rem 1.55rem;
+        margin-bottom: 1.1rem;
+        box-shadow: var(--shadow-md);
+        position: relative;
+        overflow: hidden;
+    }
+
+        .control-header::after {
+            content: "";
+            position: absolute;
+            right: -45px;
+            top: -45px;
+            width: 190px;
+            height: 190px;
+            border-radius: 50%;
+            background: rgba(255,255,255,.06);
+        }
+
+    .control-header-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+        position: relative;
+        z-index: 1;
+    }
+
+    .control-title-box {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .control-header-icon {
+        width: 58px;
+        height: 58px;
+        border-radius: 18px;
+        background: rgba(255,255,255,.12);
+        border: 1px solid rgba(255,255,255,.16);
+        display: grid;
+        place-items: center;
+        font-size: 1.45rem;
+        flex-shrink: 0;
+    }
+
+    .control-header h2 {
+        margin: 0;
+        font-size: 1.65rem;
+        font-weight: 800;
+    }
+
+    .control-header p {
+        margin: .35rem 0 0;
+        color: rgba(255,255,255,.88);
+        font-size: .95rem;
+    }
+
+    .control-refresh-btn {
+        border: none;
+        border-radius: 999px;
+        padding: .75rem 1rem;
+        background: #fff;
+        color: var(--primary);
+        font-weight: 800;
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+        transition: var(--transition);
+    }
+
+        .control-refresh-btn:hover {
+            color: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(0,0,0,.12);
+        }
+
+    .kpi-card {
+        background: rgba(255,255,255,.86);
+        backdrop-filter: blur(6px);
+        border: 1px solid rgba(255,255,255,.96);
+        border-radius: var(--radius-lg);
+        padding: 1rem 1.1rem;
+        box-shadow: var(--shadow-sm);
+        transition: var(--transition);
+        height: 100%;
+        position: relative;
+        overflow: hidden;
+    }
+
+        .kpi-card::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 5px;
+            background: var(--primary);
+            opacity: .9;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-md);
+            border-color: #f0cfcf;
+        }
+
+    .kpi-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 15px;
+        display: grid;
+        place-items: center;
+        font-size: 1.22rem;
+        background: var(--primary-soft);
+        color: var(--primary);
+        flex-shrink: 0;
+    }
+
+        .kpi-icon.route {
+            background: var(--info-soft);
+            color: var(--info);
+        }
+
+        .kpi-icon.warning {
+            background: var(--warning-soft);
+            color: #9a6700;
+        }
+
+        .kpi-icon.success {
+            background: var(--success-soft);
+            color: var(--success);
+        }
+
+    .detail-label {
+        color: var(--muted);
+        font-size: .78rem;
+        text-transform: uppercase;
+        letter-spacing: .45px;
+        font-weight: 800;
+    }
+
+    .detail-value {
+        font-size: .95rem;
+        font-weight: 700;
+        color: var(--text);
+        word-break: break-word;
+    }
+
+    .control-filter-panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        padding: 1.15rem;
+        margin-bottom: 1.1rem;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .control-filter-title {
+        font-size: 1rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+        color: var(--text);
+    }
+
+        .control-filter-title i {
+            color: var(--primary);
+        }
+
+    .control-filter-grid {
+        display: grid;
+        grid-template-columns: minmax(240px, 1.4fr) repeat(2, minmax(170px, .8fr)) auto auto;
+        gap: .8rem;
+        align-items: end;
+    }
+
+    .control-filter-group label {
+        display: block;
+        font-size: .78rem;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: .45px;
+        margin-bottom: .4rem;
+        font-weight: 800;
+    }
+
+    .control-input {
+        width: 100%;
+        border: 1px solid var(--border);
+        background: #fff;
+        color: var(--text);
+        border-radius: 12px;
+        padding: .72rem .85rem;
+        outline: none;
+        font-weight: 600;
+        transition: var(--transition);
+    }
+
+        .control-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(139,0,0,.10);
+        }
+
+    .control-filter-btn {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: .72rem 1rem;
+        font-weight: 800;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .5rem;
+        text-decoration: none;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: var(--transition);
+    }
+
+        .control-filter-btn.primary {
+            background: linear-gradient(to right, #8B0000, #5a0000);
+            color: #fff;
+            border-color: var(--primary);
+        }
+
+        .control-filter-btn.secondary {
+            background: #fff;
+            color: var(--text);
+        }
+
+        .control-filter-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(15,23,42,.08);
+        }
+
+    .embarque-card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        padding: 1.15rem;
+        margin-bottom: 1rem;
+        box-shadow: var(--shadow-sm);
+        transition: var(--transition);
+        position: relative;
+        overflow: hidden;
+    }
+
+        .embarque-card::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 5px;
+            background: var(--primary);
+        }
+
+        .embarque-card:hover {
+            border-color: #f0cfcf;
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+
+    .embarque-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .embarque-id {
+        font-size: 1.35rem;
+        font-weight: 900;
+        color: var(--primary);
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        flex-wrap: wrap;
+    }
+
+    .status-badge {
+        padding: .52rem .9rem;
+        border-radius: 999px;
+        font-size: .82rem;
+        font-weight: 800;
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        white-space: nowrap;
+        border: 1px solid transparent;
+    }
+
+        .status-badge i {
+            font-size: .7rem;
+        }
+
+    .status-pendiente-validaciones {
+        background: var(--warning-soft);
+        color: #9a6700;
+        border-color: #ffe4ad;
+    }
+
+    .status-liberado-qr {
+        background: var(--success-soft);
+        color: var(--success);
+        border-color: #ccebd8;
+    }
+
+    .status-en-ruta {
+        background: var(--info-soft);
+        color: var(--info);
+        border-color: #cfe2ff;
+    }
+
+    .status-en-destino {
+        background: #f1edff;
+        color: #6841c7;
+        border-color: #ded4ff;
+    }
+
+    .status-retrasado {
+        background: var(--danger-soft);
+        color: var(--danger);
+        border-color: #f6cfd4;
+    }
+
+    .status-entregado {
+        background: var(--success-soft);
+        color: var(--success);
+        border-color: #ccebd8;
+    }
+
+    .status-devuelto {
+        background: #eef1f4;
+        color: #6c757d;
+        border-color: #d8dee5;
+    }
+
+    .embarque-details {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        gap: .9rem;
+        margin-bottom: 1rem;
+    }
+
+    .detail-item {
+        background: var(--panel-soft);
+        border: 1px solid #e7ecf2;
+        border-radius: 14px;
+        padding: .82rem .9rem;
+        display: flex;
+        flex-direction: column;
+        gap: .25rem;
+    }
+
+    .embarque-actions {
+        display: flex;
+        gap: .55rem;
+        flex-wrap: wrap;
+        padding-top: .15rem;
+    }
+
+    .action-btn {
+        padding: .68rem .9rem;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: #fff;
+        color: var(--text);
+        font-size: .84rem;
+        font-weight: 800;
+        cursor: pointer;
+        text-decoration: none;
+        transition: var(--transition);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .5rem;
+    }
+
+        .action-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(15,23,42,.08);
+        }
+
+        .action-btn.primary {
+            background: var(--info-soft);
+            border-color: #cfe2ff;
+            color: var(--info);
+        }
+
+            .action-btn.primary:hover {
+                background: var(--info);
+                color: #fff;
+            }
+
+        .action-btn.success {
+            background: var(--success-soft);
+            border-color: #ccebd8;
+            color: var(--success);
+        }
+
+            .action-btn.success:hover {
+                background: var(--success);
+                color: #fff;
+            }
+
+        .action-btn.warning {
+            background: var(--warning-soft);
+            border-color: #ffe4ad;
+            color: #9a6700;
+        }
+
+            .action-btn.warning:hover {
+                background: var(--warning);
+                color: #fff;
+            }
+
+        .action-btn.danger {
+            background: var(--danger-soft);
+            border-color: #f6cfd4;
+            color: var(--danger);
+        }
+
+            .action-btn.danger:hover {
+                background: var(--danger);
+                color: #fff;
+            }
+
+    .doc-badge {
+        font-size: .68rem;
+        padding: .28rem .55rem;
+        border-radius: 999px;
+        font-weight: 900;
+        letter-spacing: .4px;
+        border: 1px solid transparent;
+    }
+
+        .doc-badge.ov {
+            background: var(--info-soft);
+            color: var(--info);
+            border-color: #cfe2ff;
+        }
+
+        .doc-badge.tr {
+            background: var(--success-soft);
+            color: var(--success);
+            border-color: #ccebd8;
+        }
+
+        .doc-badge.mixto {
+            background: var(--primary-soft);
+            color: var(--primary);
+            border-color: #f0cfcf;
+        }
+
+    .pedido-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+        align-items: center;
+        max-height: 82px;
+        overflow-y: auto;
+        padding-right: .2rem;
+    }
+
+    .pedido-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .42rem .62rem;
+        border-radius: 999px;
+        font-size: .76rem;
+        font-weight: 800;
+        line-height: 1;
+        border: 1px solid #e7ecf2;
+        background: #fff;
+        color: var(--text);
+        white-space: nowrap;
+    }
+
+        .pedido-chip.ov {
+            background: var(--info-soft);
+            color: var(--info);
+            border-color: #cfe2ff;
+        }
+
+        .pedido-chip.tr {
+            background: var(--success-soft);
+            color: var(--success);
+            border-color: #ccebd8;
+        }
+
+    .pedido-chip-type {
+        font-size: .66rem;
+        padding: .22rem .4rem;
+        border-radius: 999px;
+        background: rgba(255,255,255,.75);
+        color: inherit;
+        letter-spacing: .35px;
+    }
+
+    .pedido-empty {
+        color: var(--muted);
+        font-size: .9rem;
+        font-weight: 700;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 3.2rem 1rem;
+        background: var(--panel);
+        border: 1px dashed var(--border-strong);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-sm);
+    }
+
+        .empty-state i {
+            font-size: 3.8rem;
+            color: var(--muted);
+            opacity: .32;
+            margin-bottom: 1rem;
+        }
+
+        .empty-state h3 {
+            color: var(--text);
+            font-size: 1.1rem;
+            font-weight: 800;
+        }
+
+        .empty-state p {
+            color: var(--muted);
+        }
+
+    .custom-modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.45);
+        backdrop-filter: blur(8px);
+        z-index: 9999;
+        animation: fadeIn .22s ease;
+        padding: 1rem;
+    }
+
+        .custom-modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+    .modal-content {
+        background: var(--panel);
+        border-radius: var(--radius-xl);
+        padding: 1.8rem;
+        max-width: 500px;
+        width: 100%;
+        border: 1px solid var(--border);
+        box-shadow: 0 22px 60px rgba(15,23,42,.24);
+        animation: slideUp .22s ease;
+        position: relative;
+    }
+
+    .modal-header {
+        margin-bottom: 1.3rem;
+    }
+
+    .modal-title {
+        font-size: 1.35rem;
+        font-weight: 900;
+        color: var(--text);
+        margin-bottom: .4rem;
+    }
+
+    .modal-subtitle {
+        font-size: .95rem;
+        color: var(--muted);
+        margin: 0;
+    }
+
+    .modal-footer {
+        display: flex;
+        gap: .75rem;
+        justify-content: flex-end;
+        border-top: 1px solid var(--border);
+        padding-top: 1rem;
+    }
+
+    .modal-btn {
+        padding: .72rem 1.1rem;
+        border-radius: 12px;
+        border: none;
+        font-size: .9rem;
+        font-weight: 800;
+        cursor: pointer;
+        transition: var(--transition);
+    }
+
+        .modal-btn.cancel {
+            background: #eef1f4;
+            color: var(--text);
+        }
+
+            .modal-btn.cancel:hover {
+                background: #dfe5ec;
+            }
+
+        .modal-btn.confirm {
+            background: linear-gradient(to right, #8B0000, #5a0000);
+            color: #fff;
+        }
+
+            .modal-btn.confirm:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 8px 18px rgba(139,0,0,.20);
+            }
+
+    .modal-icon {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 1rem;
+        border-radius: 20px;
+        display: grid;
+        place-items: center;
+        font-size: 1.75rem;
+    }
+
+        .modal-icon.success {
+            background: var(--success-soft);
+            color: var(--success);
+        }
+
+        .modal-icon.warning {
+            background: var(--warning-soft);
+            color: #9a6700;
+        }
+
+        .modal-icon.danger {
+            background: var(--danger-soft);
+            color: var(--danger);
+        }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    @@keyframes slideUp {
+        from {
+            opacity: 0;
+            transform: translateY(18px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @@media (max-width: 992px) {
+        .control-filter-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .embarque-header {
+            flex-direction: column;
+        }
+    }
+
+    @@media (max-width: 650px) {
+        .control-wrap {
+            padding: 1rem .65rem 1.5rem;
+        }
+
+        .control-header {
+            padding: 1.1rem;
+            border-radius: 18px;
+        }
+
+        .control-title-box {
+            align-items: flex-start;
+        }
+
+        .control-header h2 {
+            font-size: 1.25rem;
+        }
+
+        .control-header-icon {
+            width: 50px;
+            height: 50px;
+            font-size: 1.2rem;
+        }
+
+        .control-refresh-btn,
+        .control-filter-btn,
+        .action-btn {
+            width: 100%;
+        }
+
+        .control-filter-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .embarque-card {
+            padding: 1rem;
+        }
+
+        .embarque-id {
+            font-size: 1.15rem;
+        }
+
+        .status-badge {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .modal-footer {
+            flex-direction: column;
+        }
+
+        .modal-btn {
+            width: 100%;
+        }
+    }
+
+    /* ============================================================
+       DARK MODE - CONTROL CENTER LOGÍSTICA
+============================================================ */
+
+body[data-theme="dark"] {
+    --primary: #ef4444;
+    --primary-dark: #991b1b;
+    --primary-soft: rgba(127,29,29,0.24);
+    --accent: #f87171;
+
+    --bg: #0f172a;
+    --panel: #111827;
+    --panel-soft: #172033;
+    --border: rgba(255,255,255,0.12);
+    --border-strong: rgba(203,213,225,0.28);
+    --text: #f9fafb;
+    --muted: #cbd5e1;
+
+    --success: #22c55e;
+    --success-soft: rgba(22,101,52,0.26);
+    --warning: #f59e0b;
+    --warning-soft: rgba(180,83,9,0.22);
+    --danger: #f87171;
+    --danger-soft: rgba(153,27,27,0.30);
+    --info: #60a5fa;
+    --info-soft: rgba(30,64,175,0.24);
+
+    --shadow-sm: 0 10px 26px rgba(0,0,0,.34);
+    --shadow-md: 0 18px 42px rgba(0,0,0,.46);
+}
+
+/* Fondo general */
+body[data-theme="dark"] {
+    background: #0f172a !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .layout-main-content {
+    background: #0f172a !important;
+}
+
+body[data-theme="dark"] .layout-main-content .layout-container-fluid {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+body[data-theme="dark"] .control-wrap {
+    color: #e5e7eb !important;
+}
+
+/* Header */
+body[data-theme="dark"] .control-header {
+    background: linear-gradient(135deg, #7f1d1d 0%, #450a0a 55%, #111827 100%) !important;
+    border: 1px solid rgba(248,113,113,0.22) !important;
+    box-shadow: var(--shadow-md) !important;
+}
+
+body[data-theme="dark"] .control-header::after {
+    background: rgba(255,255,255,.04) !important;
+}
+
+body[data-theme="dark"] .control-header-icon {
+    background: rgba(255,255,255,.10) !important;
+    border-color: rgba(255,255,255,.14) !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .control-header h2 {
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .control-header p {
+    color: #fecaca !important;
+}
+
+body[data-theme="dark"] .control-refresh-btn {
+    background: #0b1220 !important;
+    color: #fca5a5 !important;
+    border: 1px solid rgba(248,113,113,0.35) !important;
+}
+
+body[data-theme="dark"] .control-refresh-btn:hover {
+    background: rgba(248,113,113,0.14) !important;
+    color: #ffffff !important;
+    box-shadow: 0 10px 24px rgba(0,0,0,.34) !important;
+}
+
+/* KPIs */
+body[data-theme="dark"] .kpi-card {
+    background: rgba(17,24,39,.94) !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow-sm) !important;
+    color: #e5e7eb !important;
+}
+
+body[data-theme="dark"] .kpi-card:hover {
+    border-color: rgba(248,113,113,0.35) !important;
+    box-shadow: var(--shadow-md) !important;
+}
+
+body[data-theme="dark"] .kpi-card::before {
+    background: #ef4444 !important;
+}
+
+body[data-theme="dark"] .kpi-card .h2 {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .kpi-icon {
+    background: rgba(127,29,29,0.24) !important;
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .kpi-icon.route {
+    background: rgba(30,64,175,0.24) !important;
+    color: #bfdbfe !important;
+}
+
+body[data-theme="dark"] .kpi-icon.warning {
+    background: rgba(180,83,9,0.22) !important;
+    color: #fde68a !important;
+}
+
+body[data-theme="dark"] .kpi-icon.success {
+    background: rgba(22,101,52,0.26) !important;
+    color: #bbf7d0 !important;
+}
+
+/* Filtros */
+body[data-theme="dark"] .control-filter-panel {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+body[data-theme="dark"] .control-filter-title {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .control-filter-title i {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .control-filter-group label,
+body[data-theme="dark"] .detail-label {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .control-input {
+    background: #0b1220 !important;
+    color: #f9fafb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+    box-shadow: none !important;
+}
+
+body[data-theme="dark"] .control-input:focus {
+    background: #0f172a !important;
+    color: #ffffff !important;
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 4px rgba(239,68,68,.22) !important;
+    outline: none !important;
+}
+
+body[data-theme="dark"] .control-input::placeholder {
+    color: #94a3b8 !important;
+    opacity: 1 !important;
+}
+
+body[data-theme="dark"] .control-filter-btn.primary {
+    background: linear-gradient(90deg, #991b1b 0%, #7f1d1d 55%, #450a0a 100%) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.45) !important;
+}
+
+body[data-theme="dark"] .control-filter-btn.secondary {
+    background: #0b1220 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+body[data-theme="dark"] .control-filter-btn:hover {
+    box-shadow: 0 10px 24px rgba(0,0,0,.34) !important;
+}
+
+/* Cards de embarque */
+body[data-theme="dark"] .embarque-card {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+body[data-theme="dark"] .embarque-card::before {
+    background: #ef4444 !important;
+}
+
+body[data-theme="dark"] .embarque-card:hover {
+    border-color: rgba(248,113,113,0.35) !important;
+    box-shadow: var(--shadow-md) !important;
+}
+
+body[data-theme="dark"] .embarque-header {
+    border-bottom-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .embarque-id {
+    color: #fca5a5 !important;
+}
+
+body[data-theme="dark"] .embarque-header small,
+body[data-theme="dark"] small {
+    color: #cbd5e1 !important;
+}
+
+/* Detalles */
+body[data-theme="dark"] .detail-item {
+    background: #172033 !important;
+    border-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .detail-value {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .pedido-empty {
+    color: #cbd5e1 !important;
+}
+
+/* Status badges */
+body[data-theme="dark"] .status-badge {
+    box-shadow: 0 6px 14px rgba(0,0,0,.22) !important;
+}
+
+body[data-theme="dark"] .status-pendiente-validaciones {
+    background: rgba(180,83,9,0.22) !important;
+    color: #fde68a !important;
+    border-color: rgba(245,158,11,0.45) !important;
+}
+
+body[data-theme="dark"] .status-liberado-qr,
+body[data-theme="dark"] .status-entregado {
+    background: rgba(22,101,52,0.26) !important;
+    color: #bbf7d0 !important;
+    border-color: rgba(74,222,128,0.40) !important;
+}
+
+body[data-theme="dark"] .status-en-ruta {
+    background: rgba(30,64,175,0.24) !important;
+    color: #bfdbfe !important;
+    border-color: rgba(96,165,250,0.45) !important;
+}
+
+body[data-theme="dark"] .status-en-destino {
+    background: rgba(109,40,217,0.24) !important;
+    color: #ddd6fe !important;
+    border-color: rgba(167,139,250,0.42) !important;
+}
+
+body[data-theme="dark"] .status-retrasado {
+    background: rgba(153,27,27,0.30) !important;
+    color: #fecaca !important;
+    border-color: rgba(248,113,113,0.48) !important;
+}
+
+body[data-theme="dark"] .status-devuelto {
+    background: rgba(71,85,105,0.34) !important;
+    color: #e5e7eb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+/* Badges documentos */
+body[data-theme="dark"] .doc-badge.ov {
+    background: rgba(30,64,175,0.24) !important;
+    color: #bfdbfe !important;
+    border-color: rgba(96,165,250,0.45) !important;
+}
+
+body[data-theme="dark"] .doc-badge.tr {
+    background: rgba(22,101,52,0.26) !important;
+    color: #bbf7d0 !important;
+    border-color: rgba(74,222,128,0.40) !important;
+}
+
+body[data-theme="dark"] .doc-badge.mixto {
+    background: rgba(127,29,29,0.24) !important;
+    color: #fca5a5 !important;
+    border-color: rgba(248,113,113,0.35) !important;
+}
+
+/* Chips pedidos */
+body[data-theme="dark"] .pedido-list {
+    scrollbar-color: rgba(248,113,113,0.42) #0f172a;
+}
+
+body[data-theme="dark"] .pedido-chip {
+    background: #0b1220 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+body[data-theme="dark"] .pedido-chip.ov {
+    background: rgba(30,64,175,0.24) !important;
+    color: #bfdbfe !important;
+    border-color: rgba(96,165,250,0.45) !important;
+}
+
+body[data-theme="dark"] .pedido-chip.tr {
+    background: rgba(22,101,52,0.26) !important;
+    color: #bbf7d0 !important;
+    border-color: rgba(74,222,128,0.40) !important;
+}
+
+body[data-theme="dark"] .pedido-chip-type {
+    background: rgba(255,255,255,0.10) !important;
+    color: inherit !important;
+}
+
+/* Action buttons */
+body[data-theme="dark"] .action-btn {
+    background: #0b1220 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+}
+
+body[data-theme="dark"] .action-btn:hover {
+    background: rgba(248,113,113,0.14) !important;
+    color: #ffffff !important;
+    border-color: rgba(248,113,113,0.55) !important;
+    box-shadow: 0 10px 24px rgba(0,0,0,.34) !important;
+}
+
+body[data-theme="dark"] .action-btn.primary {
+    background: rgba(30,64,175,0.24) !important;
+    color: #bfdbfe !important;
+    border-color: rgba(96,165,250,0.45) !important;
+}
+
+body[data-theme="dark"] .action-btn.primary:hover {
+    background: rgba(37,99,235,0.75) !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .action-btn.success {
+    background: rgba(22,101,52,0.26) !important;
+    color: #bbf7d0 !important;
+    border-color: rgba(74,222,128,0.40) !important;
+}
+
+body[data-theme="dark"] .action-btn.success:hover {
+    background: rgba(22,163,74,0.75) !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .action-btn.warning {
+    background: rgba(180,83,9,0.22) !important;
+    color: #fde68a !important;
+    border-color: rgba(245,158,11,0.45) !important;
+}
+
+body[data-theme="dark"] .action-btn.warning:hover {
+    background: rgba(217,119,6,0.75) !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .action-btn.danger {
+    background: rgba(153,27,27,0.30) !important;
+    color: #fecaca !important;
+    border-color: rgba(248,113,113,0.48) !important;
+}
+
+body[data-theme="dark"] .action-btn.danger:hover {
+    background: rgba(220,38,38,0.75) !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .action-btn.disabled {
+    background: #172033 !important;
+    color: #94a3b8 !important;
+    border-color: rgba(203,213,225,0.18) !important;
+}
+
+/* Empty state */
+body[data-theme="dark"] .empty-state {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(203,213,225,0.28) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+body[data-theme="dark"] .empty-state i {
+    color: #fca5a5 !important;
+    opacity: .75 !important;
+}
+
+body[data-theme="dark"] .empty-state h3 {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .empty-state p {
+    color: #cbd5e1 !important;
+}
+
+/* Modal personalizado */
+body[data-theme="dark"] .custom-modal {
+    background: rgba(2,6,23,0.72) !important;
+    backdrop-filter: blur(8px);
+}
+
+body[data-theme="dark"] .modal-content {
+    background: #111827 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: 0 22px 60px rgba(0,0,0,.58) !important;
+}
+
+body[data-theme="dark"] .modal-header {
+    border-bottom-color: transparent !important;
+}
+
+body[data-theme="dark"] .modal-title {
+    color: #f9fafb !important;
+}
+
+body[data-theme="dark"] .modal-subtitle {
+    color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .modal-footer {
+    border-top-color: rgba(255,255,255,0.12) !important;
+}
+
+body[data-theme="dark"] .modal-btn.cancel {
+    background: #172033 !important;
+    color: #e5e7eb !important;
+    border: 1px solid rgba(203,213,225,0.28) !important;
+}
+
+body[data-theme="dark"] .modal-btn.cancel:hover {
+    background: rgba(248,113,113,0.14) !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .modal-btn.confirm {
+    background: linear-gradient(90deg, #991b1b 0%, #7f1d1d 55%, #450a0a 100%) !important;
+    color: #ffffff !important;
+}
+
+body[data-theme="dark"] .modal-icon.success {
+    background: rgba(22,101,52,0.26) !important;
+    color: #bbf7d0 !important;
+}
+
+body[data-theme="dark"] .modal-icon.warning {
+    background: rgba(180,83,9,0.22) !important;
+    color: #fde68a !important;
+}
+
+body[data-theme="dark"] .modal-icon.danger {
+    background: rgba(153,27,27,0.30) !important;
+    color: #fecaca !important;
+}
+
+/* Scrollbars */
+body[data-theme="dark"] .pedido-list::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+body[data-theme="dark"] .pedido-list::-webkit-scrollbar-track {
+    background: #0f172a;
+}
+
+body[data-theme="dark"] .pedido-list::-webkit-scrollbar-thumb {
+    background: rgba(248,113,113,0.42);
+    border-radius: 999px;
+}
+
+/* Responsive */
+@@media (max-width: 650px) {
+    body[data-theme="dark"] .control-header,
+    body[data-theme="dark"] .control-filter-panel,
+    body[data-theme="dark"] .embarque-card,
+    body[data-theme="dark"] .empty-state,
+    body[data-theme="dark"] .modal-content {
+        box-shadow: 0 8px 22px rgba(0,0,0,.32) !important;
+    }
+}
+
+</style>
+
+<div class="control-wrap">
+    <!-- Header -->
+    <div class="control-header">
+        <div class="control-header-inner">
+            <div class="control-title-box">
+                <div class="control-header-icon">
+                    <i class="fa-solid fa-gauge-high"></i>
+                </div>
+
+                <div>
+                    <h2>Control Center · Logística</h2>
+                    <p>Monitoreo en tiempo real de rutas, incidencias y entregas</p>
+                </div>
+            </div>
+
+            <button type="button" class="control-refresh-btn" onclick="location.reload()">
+                <i class="fa-solid fa-rotate-right"></i>
+                Actualizar
+            </button>
+        </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="kpi-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="detail-label mb-2">Viajes activos</div>
+                        <div class="h2 mb-0 fw-bold">@totalViajes</div>
+                    </div>
+                    <div class="kpi-icon">
+                        <i class="fa-solid fa-truck-fast"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="kpi-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="detail-label mb-2">En ruta</div>
+                        <div class="h2 mb-0 fw-bold" style="color: var(--accent-blue);">@enRuta</div>
+                    </div>
+                    <div class="kpi-icon route">
+                        <i class="fa-solid fa-truck"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="kpi-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="detail-label mb-2">Incidencias</div>
+                        <div class="h2 mb-0 fw-bold" style="color: var(--accent-yellow);">@retrasados</div>
+                    </div>
+                    <div class="kpi-icon warning">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="kpi-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="detail-label mb-2">Entregados hoy</div>
+                        <div class="h2 mb-0 fw-bold" style="color: var(--accent-green);">@entregados</div>
+                    </div>
+                    <div class="kpi-icon success">
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="control-filter-panel">
+        <div class="control-filter-title">
+            <i class="fa-solid fa-filter"></i>
+            Filtros de búsqueda
+        </div>
+
+        <form method="get" asp-action="ControlCenter" class="control-filter-grid">
+            <div class="control-filter-group">
+                <label>Buscar embarque</label>
+                <input type="text"
+                       name="busqueda"
+                       value="@busqueda"
+                       class="control-input"
+                       placeholder="Ej. EMB-0001, 125, consecutivo..." />
+            </div>
+
+            <div class="control-filter-group">
+                <label>Fecha inicio</label>
+                <input type="date"
+                       name="fechaInicio"
+                       value="@fechaInicio"
+                       class="control-input" />
+            </div>
+
+            <div class="control-filter-group">
+                <label>Fecha fin</label>
+                <input type="date"
+                       name="fechaFin"
+                       value="@fechaFin"
+                       class="control-input" />
+            </div>
+
+            <button type="submit" class="control-filter-btn primary">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                Buscar
+            </button>
+
+            <a asp-action="ControlCenter" class="control-filter-btn secondary">
+                <i class="fa-solid fa-rotate-left"></i>
+                Limpiar
+            </a>
+        </form>
+    </div>
+
+    <!-- Lista de Embarques -->
+    <div id="embarques-container">
+        @if (embarques.Any())
+        {
+            foreach (var e in embarques)
+            {
+                string statusClass = e.Estatus switch
+                {
+                    1 => "status-pendiente-validaciones",
+                    7 => "status-liberado-qr",
+                    2 => "status-en-ruta",
+                    3 => "status-en-destino",
+                    4 => "status-retrasado",
+                    5 => "status-entregado",
+                    6 => "status-devuelto",
+                    _ => ""
+                };
+
+                string statusText = e.Estatus switch
+                {
+                    1 => "Pendiente de validaciones",
+                    7 => "Liberado para QR",
+                    2 => "En Ruta",
+                    3 => "En Destino",
+                    4 => "Incidencia",
+                    5 => "Entregado",
+                    6 => "Devuelto",
+                    _ => "Desconocido"
+                };
+
+                string statusIcon = e.Estatus switch
+                {
+                    1 => "fa-hourglass-half",
+                    7 => "fa-qrcode",
+                    2 => "fa-truck",
+                    3 => "fa-location-dot",
+                    4 => "fa-triangle-exclamation",
+                    5 => "fa-circle-check",
+                    6 => "fa-rotate-left",
+                    _ => "fa-question"
+                };
+
+                <div class="embarque-card" data-embarque-id="@e.EmbarqueId" data-estatus="@e.Estatus">
+                    <div class="embarque-header">
+                        <div>
+                            <div class="embarque-id">
+                                #@e.EmbarqueConsecutivo
+
+                                @if (e.TipoDocumento == "OV")
+                                {
+                                    <span class="doc-badge ov">OV</span>
+                                }
+                                else if (e.TipoDocumento == "TR")
+                                {
+                                    <span class="doc-badge tr">TR</span>
+                                }
+                                else
+                                {
+                                    <span class="doc-badge mixto">OV + TR</span>
+                                }
+                            </div>
+
+                            <small style="color: var(--text-secondary);">
+                                Ruta: @e.Ruta
+                            </small>
+                        </div>
+
+                        <span class="status-badge @statusClass">
+                            <i class="fa-solid @statusIcon"></i>
+                            @statusText
+                        </span>
+
+                        @if (e.Estatus == 1)
+                        {
+                            <div style="margin-top:.55rem; display:flex; gap:.4rem; flex-wrap:wrap;">
+                                <span class="doc-badge @(e.CalidadAprobada ? "tr" : "mixto")">
+                                    Calidad: @(e.CalidadAprobada ? "OK" : "Pendiente")
+                                </span>
+
+                                <span class="doc-badge @(e.DocumentacionAprobada ? "tr" : "mixto")">
+                                    Docs. Logística: @(e.DocumentacionAprobada ? "OK" : "Pendiente")
+                                </span>
+
+                                <span class="doc-badge @(e.DocumentacionCalidadAprobada ? "tr" : "mixto")">
+                                    Docs. Calidad: @(e.DocumentacionCalidadAprobada ? "OK" : "Pendiente")
+                                </span>
+                            </div>
+                        }
+
+                    </div>
+
+
+                    <div class="embarque-details">
+                        <div class="detail-item">
+                            <span class="detail-label">Cliente</span>
+                            <span class="detail-value">@e.Cliente</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Presentacion</span>
+                            <span class="detail-value">@e.Temperatura</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Pedidos / Transferencias</span>
+
+                            @{
+                                string pedidosTexto = Convert.ToString(e.Pedido) ?? "";
+
+                                var pedidosLista = pedidosTexto
+                                .Split("||", StringSplitOptions.RemoveEmptyEntries)
+                                .Select(p => p.Trim())
+                                .Where(p => !string.IsNullOrWhiteSpace(p))
+                                .ToList();
+                            }
+
+                            @if (pedidosLista.Any())
+                            {
+                                <div class="pedido-list">
+                                    @foreach (var pedido in pedidosLista)
+                                    {
+                                        bool esOv = pedido.StartsWith("OV ");
+                                        bool esTr = pedido.StartsWith("TR ");
+
+                                        string tipo = esOv ? "OV" : esTr ? "TR" : "DOC";
+                                        string clase = esOv ? "ov" : esTr ? "tr" : "";
+                                        string texto = esOv || esTr ? pedido.Substring(3) : pedido;
+
+                                        <span class="pedido-chip @clase">
+                                            <span class="pedido-chip-type">@tipo</span>
+                                            @texto
+                                        </span>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <span class="pedido-empty">Sin información</span>
+                            }
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Salida</span>
+                            <span class="detail-value">@(e.FechaSalida != null ? ((DateTime)e.FechaSalida).ToString("dd/MM HH:mm") : "N/A")</span>
+                        </div>
+                    </div>
+
+                    <div class="embarque-actions">
+                        @* EN RUTA *@
+                        @if (e.Estatus == 2)
+                        {
+                            <button class="action-btn primary"
+                                    onclick="mostrarModal(@e.EmbarqueId, 3, 'Confirmar llegada', '¿El embarque ha llegado a su destino?', 'success')">
+                                <i class="fa-solid fa-location-dot"></i>
+                                Llegó a destino
+                            </button>
+
+                            <button class="action-btn warning"
+                                    onclick="mostrarModal(@e.EmbarqueId, 4, 'Marcar incidencia', '¿Deseas marcar una incidencia para este embarque?', 'warning')">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                                Marcar incidencia
+                            </button>
+
+                            <button class="action-btn danger"
+                                    onclick="mostrarModal(@e.EmbarqueId, 6, 'Marcar devolución', '¿Este embarque fue devuelto?', 'danger')">
+                                <i class="fa-solid fa-rotate-left"></i>
+                                Marcar devuelto
+                            </button>
+                        }
+
+                        @* EN DESTINO *@
+                        @if (e.Estatus == 3)
+                        {
+                            <button class="action-btn success"
+                                    onclick="mostrarModal(@e.EmbarqueId, 5, 'Confirmar entrega', '¿Se ha completado la entrega?', 'success')">
+                                <i class="fa-solid fa-check"></i>
+                                Marcar entregado
+                            </button>
+
+                            <button class="action-btn warning"
+                                    onclick="mostrarModal(@e.EmbarqueId, 4, 'Marcar incidencia', '¿Deseas marcar una incidencia para este embarque?', 'warning')">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                                Marcar incidencia
+                            </button>
+
+                            <button class="action-btn danger"
+                                    onclick="mostrarModal(@e.EmbarqueId, 6, 'Marcar devolución', '¿Este embarque fue devuelto?', 'danger')">
+                                <i class="fa-solid fa-rotate-left"></i>
+                                Marcar devuelto
+                            </button>
+
+                            <button class="action-btn warning"
+                                    onclick="mostrarModal(@e.EmbarqueId, 2, 'Regresar a ruta', '¿Deseas regresar este embarque a En Ruta?', 'warning')">
+                                <i class="fa-solid fa-arrow-left"></i>
+                                Regresar a ruta
+                            </button>
+                        }
+
+                        @* INCIDENCIA *@
+                        @if (e.Estatus == 4)
+                        {
+                            <button class="action-btn primary"
+                                    onclick="mostrarModal(@e.EmbarqueId, 2, 'Reanudar ruta', '¿El embarque está nuevamente en ruta?', 'success')">
+                                <i class="fa-solid fa-truck"></i>
+                                Volver a en ruta
+                            </button>
+
+                            <button class="action-btn primary"
+                                    onclick="mostrarModal(@e.EmbarqueId, 3, 'Confirmar llegada', '¿El embarque ya llegó a destino?', 'success')">
+                                <i class="fa-solid fa-location-dot"></i>
+                                Llegó a destino
+                            </button>
+
+                            <button class="action-btn danger"
+                                    onclick="mostrarModal(@e.EmbarqueId, 6, 'Marcar devolución', '¿Este embarque fue devuelto?', 'danger')">
+                                <i class="fa-solid fa-rotate-left"></i>
+                                Marcar devuelto
+                            </button>
+                        }
+
+                        @* ENTREGADO *@
+                        @if (e.Estatus == 5)
+                        {
+                            <button class="action-btn warning"
+                                    onclick="mostrarModal(@e.EmbarqueId, 3, 'Corregir entrega', '¿Deseas regresar a En Destino?', 'warning')">
+                                <i class="fa-solid fa-rotate-left"></i>
+                                Corregir entrega
+                            </button>
+                        }
+
+                        @* DEVUELTO *@
+                        @if (e.Estatus == 6)
+                        {
+                            <button class="action-btn warning"
+                                    onclick="mostrarModal(@e.EmbarqueId, 2, 'Corregir devolución', '¿Deseas regresar este embarque a En Ruta?', 'warning')">
+                                <i class="fa-solid fa-truck"></i>
+                                Corregir a ruta
+                            </button>
+
+                            <button class="action-btn warning"
+                                    onclick="mostrarModal(@e.EmbarqueId, 3, 'Corregir devolución', '¿Deseas regresar este embarque a En Destino?', 'warning')">
+                                <i class="fa-solid fa-location-dot"></i>
+                                Corregir a destino
+                            </button>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(Convert.ToString(e.Token)))
+                        {
+                            <a href="@Url.Action("TrackingSIGO", "Embarques", new { token = e.Token })"
+                               class="action-btn"
+                               target="_blank">
+                                <i class="fa-solid fa-eye"></i>
+                                Ver tracking
+                            </a>
+                        }
+                        else
+                        {
+                            <span class="action-btn disabled"
+                                  style="opacity:.55; cursor:not-allowed; pointer-events:none;">
+                                <i class="fa-solid fa-lock"></i>
+                                Tracking no disponible
+                            </span>
+                        }
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="empty-state">
+                <i class="fa-solid fa-inbox"></i>
+                <h3>No hay embarques en tránsito</h3>
+                <p style="color: var(--text-secondary);">Los embarques activos aparecerán aquí</p>
+            </div>
+        }
+    </div>
+
+    <div class="control-filter-panel" style="margin-top:1.6rem;">
+        <div class="control-filter-title">
+            <i class="fa-solid fa-box-archive"></i>
+            Embarques completados
+
+            @if (buscoCompletados)
+            {
+                <span class="doc-badge tr">@embarquesCompletados.Count resultado(s)</span>
+            }
+        </div>
+
+        <form method="get" asp-action="ControlCenter" class="control-filter-grid">
+            <input type="hidden" name="busqueda" value="@busqueda" />
+            <input type="hidden" name="fechaInicio" value="@fechaInicio" />
+            <input type="hidden" name="fechaFin" value="@fechaFin" />
+
+            <div class="control-filter-group">
+                <label>Buscar completado</label>
+                <input type="text"
+                       name="busquedaCompletados"
+                       value="@busquedaCompletados"
+                       class="control-input"
+                       placeholder="Ej. EMB-0001, nombre o ID" />
+            </div>
+
+            <div class="control-filter-group">
+                <label>Fecha entregado inicio</label>
+                <input type="date"
+                       name="fechaInicioCompletados"
+                       value="@fechaInicioCompletados"
+                       class="control-input" />
+            </div>
+
+            <div class="control-filter-group">
+                <label>Fecha entregado fin</label>
+                <input type="date"
+                       name="fechaFinCompletados"
+                       value="@fechaFinCompletados"
+                       class="control-input" />
+            </div>
+
+            <button type="submit" class="control-filter-btn primary">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                Buscar completados
+            </button>
+
+            <a asp-action="ControlCenter"
+               asp-route-busqueda="@busqueda"
+               asp-route-fechaInicio="@fechaInicio"
+               asp-route-fechaFin="@fechaFin"
+               class="control-filter-btn secondary">
+                <i class="fa-solid fa-rotate-left"></i>
+                Limpiar completados
+            </a>
+        </form>
+
+        <div style="margin-top:.8rem; color:var(--muted); font-weight:700; font-size:.9rem;">
+            <i class="fa-solid fa-circle-info"></i>
+            Para cuidar el rendimiento, los completados no cargan hasta seleccionar fecha inicio y fecha fin.
+        </div>
+    </div>
+
+    <div id="embarques-completados-container">
+        @if (!buscoCompletados)
+        {
+            <div class="empty-state">
+                <i class="fa-solid fa-calendar-days"></i>
+                <h3>Selecciona un rango de fechas</h3>
+                <p>Los embarques completados aparecerán aquí después de aplicar los filtros.</p>
+            </div>
+        }
+        else if (!embarquesCompletados.Any())
+        {
+            <div class="empty-state">
+                <i class="fa-solid fa-inbox"></i>
+                <h3>No hay completados con esos filtros</h3>
+                <p>Prueba con otro rango de fechas o con otra búsqueda.</p>
+            </div>
+        }
+        else
+        {
+            foreach (var e in embarquesCompletados)
+            {
+                string pedidosTexto = Convert.ToString(e.Pedido) ?? "";
+
+                var pedidosLista = pedidosTexto
+                .Split("||", StringSplitOptions.RemoveEmptyEntries)
+                .Select(p => p.Trim())
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .ToList();
+
+                string fechaCreacionTxt = e.FechaCreacion == null
+                ? "Sin registro"
+                : ((DateTime)e.FechaCreacion).ToString("dd/MM/yyyy HH:mm");
+
+                string fechaSalidaTxt = e.FechaSalida == null
+                ? "Sin registro"
+                : ((DateTime)e.FechaSalida).ToString("dd/MM/yyyy HH:mm");
+
+                string fechaDestinoTxt = e.FechaLlegadaDestino == null
+                ? "Sin registro"
+                : ((DateTime)e.FechaLlegadaDestino).ToString("dd/MM/yyyy HH:mm");
+
+                string fechaEntregadoTxt = e.FechaEntregado == null
+                ? "Sin registro"
+                : ((DateTime)e.FechaEntregado).ToString("dd/MM/yyyy HH:mm");
+
+                <div class="embarque-card"
+                     data-embarque-id="@e.EmbarqueId"
+                     data-estatus="@e.Estatus"
+                     data-es-completado="true">
+
+                    <div class="embarque-header">
+                        <div>
+                            <div class="embarque-id">
+                                #@e.EmbarqueConsecutivo
+
+                                @if (e.TipoDocumento == "OV")
+                                {
+                                    <span class="doc-badge ov">OV</span>
+                                }
+                                else if (e.TipoDocumento == "TR")
+                                {
+                                    <span class="doc-badge tr">TR</span>
+                                }
+                                else
+                                {
+                                    <span class="doc-badge mixto">OV + TR</span>
+                                }
+                            </div>
+
+                            <small style="color: var(--text-secondary);">
+                                Ruta: @e.Ruta
+                            </small>
+
+                            @if (!string.IsNullOrWhiteSpace(Convert.ToString(e.NombreEmbarque)))
+                            {
+                                <br />
+                                <small style="color: var(--text-secondary); font-weight:700;">
+                                    Nombre: @e.NombreEmbarque
+                                </small>
+                            }
+                        </div>
+
+                        <span class="status-badge status-entregado">
+                            <i class="fa-solid fa-circle-check"></i>
+                            Entregado
+                        </span>
+                    </div>
+
+                    <div class="embarque-details">
+                        <div class="detail-item">
+                            <span class="detail-label">Cliente / destino</span>
+                            <span class="detail-value">@e.Cliente</span>
+                        </div>
+
+                        <div class="detail-item">
+                            <span class="detail-label">Presentación</span>
+                            <span class="detail-value">@e.Temperatura</span>
+                        </div>
+
+                        <div class="detail-item">
+                            <span class="detail-label">Fecha creación</span>
+                            <span class="detail-value">@fechaCreacionTxt</span>
+                        </div>
+
+                        <div class="detail-item">
+                            <span class="detail-label">Fecha salida</span>
+                            <span class="detail-value">@fechaSalidaTxt</span>
+                        </div>
+
+                        <div class="detail-item">
+                            <span class="detail-label">Fecha destino</span>
+                            <span class="detail-value">@fechaDestinoTxt</span>
+                        </div>
+
+                        <div class="detail-item">
+                            <span class="detail-label">Fecha entregado</span>
+                            <span class="detail-value">@fechaEntregadoTxt</span>
+                        </div>
+
+                        <div class="detail-item">
+                            <span class="detail-label">Pedidos / transferencias</span>
+
+                            @if (pedidosLista.Any())
+                            {
+                                <div class="pedido-list">
+                                    @foreach (var pedido in pedidosLista)
+                                    {
+                                        bool esOv = pedido.StartsWith("OV ");
+                                        bool esTr = pedido.StartsWith("TR ");
+
+                                        string tipo = esOv ? "OV" : esTr ? "TR" : "DOC";
+                                        string clase = esOv ? "ov" : esTr ? "tr" : "";
+                                        string texto = esOv || esTr ? pedido.Substring(3) : pedido;
+
+                                        <span class="pedido-chip @clase">
+                                            <span class="pedido-chip-type">@tipo</span>
+                                            @texto
+                                        </span>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <span class="pedido-empty">Sin información</span>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="embarque-actions">
+                        <button class="action-btn warning"
+                                onclick="mostrarModal(@e.EmbarqueId, 3, 'Corregir entrega', '¿Deseas regresar este embarque a En Destino?', 'warning')">
+                            <i class="fa-solid fa-rotate-left"></i>
+                            Regresar a En Destino
+                        </button>
+
+                        @if (!string.IsNullOrWhiteSpace(Convert.ToString(e.Token)))
+                        {
+                            <a href="@Url.Action("TrackingSIGO", "Embarques", new { token = e.Token })"
+                               class="action-btn primary"
+                               target="_blank">
+                                <i class="fa-solid fa-eye"></i>
+                                Ver tracking
+                            </a>
+                        }
+                    </div>
+                </div>
+            }
+        }
+    </div>
+
+</div>
+
+<!-- Modal personalizado -->
+<div id="confirmModal" class="custom-modal">
+    <div class="modal-content">
+        <div class="modal-header text-center">
+            <div class="modal-icon" id="modalIcon">
+                <i class="fa-solid fa-question"></i>
+            </div>
+            <h3 class="modal-title" id="modalTitle">Confirmar acción</h3>
+            <p class="modal-subtitle" id="modalSubtitle">¿Estás seguro de realizar esta acción?</p>
+        </div>
+        <div class="modal-footer">
+            <button class="modal-btn cancel" onclick="cerrarModal()">
+                Cancelar
+            </button>
+            <button class="modal-btn confirm" id="btnConfirmar">
+                Confirmar
+            </button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        let embarqueActual = null;
+        let estatusNuevo = null;
+        let procesandoCambio = false;
+
+        function mostrarModal(embarqueId, nuevoEstatus, titulo, mensaje, tipo) {
+            if (procesandoCambio) return;
+
+            embarqueActual = embarqueId;
+            estatusNuevo = nuevoEstatus;
+
+            const modal = document.getElementById('confirmModal');
+            const modalIcon = document.getElementById('modalIcon');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalSubtitle = document.getElementById('modalSubtitle');
+            const btnConfirmar = document.getElementById('btnConfirmar');
+
+            const iconos = {
+                success: 'fa-circle-check',
+                warning: 'fa-triangle-exclamation',
+                danger: 'fa-circle-exclamation'
+            };
+
+            modalIcon.className = `modal-icon ${tipo}`;
+            modalIcon.innerHTML = `<i class="fa-solid ${iconos[tipo] || 'fa-question'}"></i>`;
+
+            modalTitle.textContent = titulo;
+            modalSubtitle.textContent = mensaje;
+
+            // Asegurar que el botón quede limpio cada vez que se abre el modal
+            btnConfirmar.disabled = false;
+            btnConfirmar.textContent = 'Confirmar';
+
+            modal.classList.add('active');
+        }
+
+        function cerrarModal() {
+            const modal = document.getElementById('confirmModal');
+            const btnConfirmar = document.getElementById('btnConfirmar');
+
+            modal.classList.remove('active');
+
+            embarqueActual = null;
+            estatusNuevo = null;
+            procesandoCambio = false;
+
+            btnConfirmar.disabled = false;
+            btnConfirmar.textContent = 'Confirmar';
+        }
+
+        document.getElementById('btnConfirmar').addEventListener('click', function () {
+            if (!procesandoCambio && embarqueActual && estatusNuevo) {
+                cambiarEstatus(embarqueActual, estatusNuevo);
+            }
+        });
+
+        document.getElementById('confirmModal').addEventListener('click', function (e) {
+            if (e.target === this && !procesandoCambio) {
+                cerrarModal();
+            }
+        });
+
+        async function cambiarEstatus(embarqueId, nuevoEstatus) {
+            const btnConfirmar = document.getElementById('btnConfirmar');
+
+            if (procesandoCambio) return;
+            procesandoCambio = true;
+
+            btnConfirmar.disabled = true;
+            btnConfirmar.textContent = 'Procesando...';
+
+            try {
+                const response = await fetch('@Url.Action("ActualizarEstatus", "Embarques")', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        embarqueId: embarqueId,
+                        nuevoEstatus: nuevoEstatus
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+
+            if (data.success) {
+                const card = document.querySelector(`[data-embarque-id="${embarqueId}"]`);
+                const vieneDeCompletados = card?.dataset.esCompletado === "true";
+
+                if (vieneDeCompletados || nuevoEstatus === 5) {
+                    cerrarModal();
+                    window.location.reload();
+                    return;
+                }
+
+                actualizarEmbarqueUI(embarqueId, nuevoEstatus);
+                actualizarKPIs();
+                cerrarModal();
+            } else {
+                    alert('Error: ' + (data.message || 'No se pudo actualizar el estatus.'));
+                    procesandoCambio = false;
+                    btnConfirmar.disabled = false;
+                    btnConfirmar.textContent = 'Confirmar';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Ocurrió un error al actualizar el estatus.');
+                procesandoCambio = false;
+                btnConfirmar.disabled = false;
+                btnConfirmar.textContent = 'Confirmar';
+            }
+        }
+
+        function actualizarEmbarqueUI(embarqueId, nuevoEstatus) {
+            const card = document.querySelector(`[data-embarque-id="${embarqueId}"]`);
+            if (!card) return;
+
+            const badge = card.querySelector('.status-badge');
+
+            const statusInfo = {
+                1: { class: 'status-pendiente-validaciones', icon: 'fa-hourglass-half', text: 'Pendiente de validaciones' },
+                7: { class: 'status-liberado-qr', icon: 'fa-qrcode', text: 'Liberado para QR' },
+                2: { class: 'status-en-ruta', icon: 'fa-truck', text: 'En Ruta' },
+                3: { class: 'status-en-destino', icon: 'fa-location-dot', text: 'En Destino' },
+                4: { class: 'status-retrasado', icon: 'fa-triangle-exclamation', text: 'Incidencia' },
+                5: { class: 'status-entregado', icon: 'fa-circle-check', text: 'Entregado' },
+                6: { class: 'status-devuelto', icon: 'fa-rotate-left', text: 'Devuelto' }
+            };
+
+            const info = statusInfo[nuevoEstatus];
+
+            if (info) {
+                badge.className = `status-badge ${info.class}`;
+                badge.innerHTML = `<i class="fa-solid ${info.icon}"></i> ${info.text}`;
+            }
+
+            const actionsDiv = card.querySelector('.embarque-actions');
+            const trackingLink = actionsDiv.querySelector('a[href*="TrackingSIGO"]');
+            const trackingBtn = trackingLink ? trackingLink.outerHTML : '';
+
+            let newButtons = '';
+
+            if (nuevoEstatus === 2) {
+                newButtons = `
+                    <button class="action-btn primary" onclick="mostrarModal(${embarqueId}, 3, 'Confirmar llegada', '¿El embarque ha llegado a su destino?', 'success')">
+                        <i class="fa-solid fa-location-dot"></i>
+                        Llegó a destino
+                    </button>
+
+                    <button class="action-btn warning" onclick="mostrarModal(${embarqueId}, 4, 'Marcar incidencia', '¿Deseas marcar una incidencia para este embarque?', 'warning')">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        Marcar incidencia
+                    </button>
+
+                    <button class="action-btn danger" onclick="mostrarModal(${embarqueId}, 6, 'Marcar devolución', '¿Este embarque fue devuelto?', 'danger')">
+                        <i class="fa-solid fa-rotate-left"></i>
+                        Marcar devuelto
+                    </button>
+                `;
+            } else if (nuevoEstatus === 3) {
+                newButtons = `
+                    <button class="action-btn success" onclick="mostrarModal(${embarqueId}, 5, 'Confirmar entrega', '¿Se ha completado la entrega?', 'success')">
+                        <i class="fa-solid fa-check"></i>
+                        Marcar entregado
+                    </button>
+
+                    <button class="action-btn warning" onclick="mostrarModal(${embarqueId}, 4, 'Marcar incidencia', '¿Deseas marcar una incidencia para este embarque?', 'warning')">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        Marcar incidencia
+                    </button>
+
+                    <button class="action-btn danger" onclick="mostrarModal(${embarqueId}, 6, 'Marcar devolución', '¿Este embarque fue devuelto?', 'danger')">
+                        <i class="fa-solid fa-rotate-left"></i>
+                        Marcar devuelto
+                    </button>
+
+                    <button class="action-btn warning" onclick="mostrarModal(${embarqueId}, 2, 'Regresar a ruta', '¿Deseas regresar este embarque a En Ruta?', 'warning')">
+                        <i class="fa-solid fa-arrow-left"></i>
+                        Regresar a ruta
+                    </button>
+                `;
+            } else if (nuevoEstatus === 4) {
+                newButtons = `
+                    <button class="action-btn primary" onclick="mostrarModal(${embarqueId}, 2, 'Reanudar ruta', '¿El embarque está nuevamente en ruta?', 'success')">
+                        <i class="fa-solid fa-truck"></i>
+                        Volver a en ruta
+                    </button>
+
+                    <button class="action-btn primary" onclick="mostrarModal(${embarqueId}, 3, 'Confirmar llegada', '¿El embarque ya llegó a destino?', 'success')">
+                        <i class="fa-solid fa-location-dot"></i>
+                        Llegó a destino
+                    </button>
+
+                    <button class="action-btn danger" onclick="mostrarModal(${embarqueId}, 6, 'Marcar devolución', '¿Este embarque fue devuelto?', 'danger')">
+                        <i class="fa-solid fa-rotate-left"></i>
+                        Marcar devuelto
+                    </button>
+                `;
+            } else if (nuevoEstatus === 5) {
+                newButtons = `
+                    <button class="action-btn warning" onclick="mostrarModal(${embarqueId}, 3, 'Corregir entrega', '¿Deseas regresar a En Destino?', 'warning')">
+                        <i class="fa-solid fa-rotate-left"></i>
+                        Corregir entrega
+                    </button>
+                `;
+            } else if (nuevoEstatus === 6) {
+                newButtons = `
+                    <button class="action-btn warning" onclick="mostrarModal(${embarqueId}, 2, 'Corregir devolución', '¿Deseas regresar este embarque a En Ruta?', 'warning')">
+                        <i class="fa-solid fa-truck"></i>
+                        Corregir a ruta
+                    </button>
+
+                    <button class="action-btn warning" onclick="mostrarModal(${embarqueId}, 3, 'Corregir devolución', '¿Deseas regresar este embarque a En Destino?', 'warning')">
+                        <i class="fa-solid fa-location-dot"></i>
+                        Corregir a destino
+                    </button>
+                `;
+            }
+
+            actionsDiv.innerHTML = newButtons + trackingBtn;
+            card.dataset.estatus = nuevoEstatus;
+
+            card.style.animation = 'none';
+
+            setTimeout(() => {
+                card.style.animation = 'slideUp 0.5s ease';
+            }, 10);
+        }
+
+        function actualizarKPIs() {
+            const cards = document.querySelectorAll('.embarque-card');
+
+            let total = cards.length;
+            let enRuta = 0;
+            let retrasados = 0;
+            let entregados = 0;
+
+            cards.forEach(card => {
+                const estatus = parseInt(card.dataset.estatus);
+
+                if (estatus === 2) enRuta++;
+                if (estatus === 4) retrasados++;
+                if (estatus === 5) entregados++;
+            });
+
+            const kpiValues = document.querySelectorAll('.kpi-card .h2');
+            if (kpiValues.length >= 4) {
+                kpiValues[0].textContent = total;
+                kpiValues[1].textContent = enRuta;
+                kpiValues[2].textContent = retrasados;
+                kpiValues[3].textContent = entregados;
+            }
+        }
+    </script>
+}

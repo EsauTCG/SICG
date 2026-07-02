@@ -1,0 +1,2141 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewBag.Title = "Calendario de Logística";
+}
+
+@Html.AntiForgeryToken()
+
+<style>
+    :root {
+        --bg: #f1dede;
+        --panel: #f8eeee;
+        --line: #c79d9d;
+        --line-dark: #8f4c4c;
+        --text: #351313;
+        --muted: #6d4c4c;
+        --brand: #8B0000;
+        --brand-dark: #5c0000;
+        --brand-light: #b30000;
+        --gold: #c79c00;
+        --gold-dark: #8d6d00;
+        --ok: #198754;
+        --warn: #ffc107;
+        --danger: #dc3545;
+        --orange: #ff8c00;
+        --card: #f6e7e7;
+        --card2: #efdddd;
+        --slot: #f3e3e3;
+        --slot2: #ecd8d8;
+    }
+
+    html,
+    body {
+        width: 100%;
+        min-height: 100%;
+        margin: 0;
+        overflow-x: hidden;
+    }
+
+    body {
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+        background: transparent !important;
+    }
+
+    .cal-window {
+        width: calc(100vw - 18px);
+        max-width: none;
+        min-height: calc(100vh - 18px);
+        margin: 0 auto 8px auto;
+        border: 1px solid #7e4a4a;
+        background: var(--panel);
+        box-shadow: 0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70,12,12,.14);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .cal-titlebar {
+        min-height: 38px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 0 14px;
+        background: linear-gradient(180deg,#c00000 0%,#8b0000 60%,#5c0000 100%);
+        border-bottom: 1px solid #5c0000;
+        color: #fff;
+        font-size: 15px;
+        font-weight: bold;
+    }
+
+    .cal-titlebar small {
+        display: block;
+        font-size: 11px;
+        font-weight: 400;
+        opacity: .92;
+    }
+
+    .cal-content {
+        padding: clamp(8px, .7vw, 14px);
+        background: var(--bg);
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .section {
+        border: 1px solid var(--line);
+        background: transparent;
+        margin-bottom: 10px;
+        flex-shrink: 0;
+    }
+
+    .section-calendar {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .section-calendar .section-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .section-title {
+        padding: 6px 10px;
+        font-size: 13px;
+        font-weight: bold;
+        color: #fff;
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%);
+        border-bottom: 1px solid #6b1f1f;
+    }
+
+    .section-body {
+        padding: 10px 12px;
+        background: transparent;
+    }
+
+    .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: flex-end;
+    }
+
+    .toolbar-group {
+        display: flex;
+        gap: 8px;
+        align-items: flex-end;
+        flex-wrap: wrap;
+    }
+
+    .toolbar-sep {
+        width: 1px;
+        height: 36px;
+        background: var(--line);
+        margin: 0 4px;
+        align-self: flex-end;
+    }
+
+    .form-label {
+        display: block;
+        color: #5c1a1a;
+        font-size: 12px;
+        margin-bottom: 3px;
+        font-weight: bold;
+    }
+
+    .form-control, .form-select {
+        border: 1px solid #b48787 !important;
+        background: #fff7f7 !important;
+        color: #421414 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        font-size: 13px !important;
+        height: 36px !important;
+    }
+
+    .form-control[readonly],
+    .form-control:disabled,
+    .form-select:disabled {
+        background: #ead6d6 !important;
+        color: #604040 !important;
+        opacity: 1 !important;
+        cursor: not-allowed;
+    }
+
+    textarea.form-control {
+        height: auto !important;
+        resize: vertical;
+    }
+
+    .form-control:focus, .form-select:focus {
+        border-color: #8b0000 !important;
+        box-shadow: 0 0 0 .18rem rgba(139,0,0,.14) !important;
+    }
+
+    .btn-main, .btn-light, .btn-gold, .btn-danger-soft, .btn-orange-soft {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .4rem;
+        min-height: 36px;
+        padding: 0 14px;
+        font-weight: 700;
+        border-radius: 0;
+        font-size: 13px;
+        cursor: pointer;
+        white-space: nowrap;
+        text-decoration: none;
+    }
+
+    .btn-main {
+        border: 1px solid #7a2d2d;
+        color: #fff;
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%);
+    }
+
+    .btn-light {
+        border: 1px solid #b48787;
+        color: #4b1f1f;
+        background: linear-gradient(#fffefe,#ecd7d7);
+    }
+
+    .btn-gold {
+        border: 1px solid var(--gold-dark);
+        color: #fff;
+        background: linear-gradient(180deg,#dcb000 0%,#c79c00 55%,#a88000 100%);
+    }
+
+    .btn-danger-soft {
+        border: 1px solid #b02a37;
+        color: #fff;
+        background: linear-gradient(180deg,#dc3545 0%,#c12d3c 55%,#9f2030 100%);
+    }
+
+    .btn-orange-soft {
+        border: 1px solid #d97706;
+        color: #fff;
+        background: linear-gradient(180deg,#ff9f1a 0%,#ff8c00 55%,#d97706 100%);
+    }
+
+    .btn-main:disabled,
+    .btn-light:disabled,
+    .btn-gold:disabled,
+    .btn-danger-soft:disabled,
+    .btn-orange-soft:disabled,
+    .mini-btn:disabled {
+        opacity: .55;
+        cursor: not-allowed;
+    }
+
+    .range-title {
+        font-size: 17px;
+        font-weight: 700;
+        color: #5a1111;
+        padding: 6px 0 0 0;
+    }
+
+    .loading-bar {
+        display: none;
+        margin-top: 8px;
+        padding: 7px 10px;
+        border: 1px solid #d6b4b4;
+        background: #fff5f5;
+        color: #5a1111;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .loading-bar.show {
+        display: block;
+    }
+
+    .kpis {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+    }
+
+    .kpi-card {
+        min-width: 170px;
+        border: 1px solid #d8bcbc;
+        background: linear-gradient(#fffefe,#f1dddd);
+        padding: 10px 14px;
+        text-align: center;
+        flex: 1 1 170px;
+        max-width: 230px;
+    }
+
+    .kpi-title {
+        font-size: 11px;
+        color: #7a0000;
+        font-weight: 700;
+        margin-bottom: 4px;
+        text-transform: uppercase;
+    }
+
+    .kpi-value {
+        font-size: 20px;
+        font-weight: 700;
+        color: #401515;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .legend {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+        font-size: 12px;
+        color: #4b1f1f;
+        justify-content: center;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .legend-box {
+        width: 14px;
+        height: 14px;
+        border: 1px solid #a87e7e;
+    }
+
+    .lg-programado { background: #8b0000; }
+    .lg-pendiente { background: #c79c00; }
+    .lg-asignado { background: #198754; }
+    .lg-cancelado-fletera { background: #ff8c00; border-color: #c75b00; }
+    .lg-cancelado { background: #8b0000; border-color: #5c0000; }
+
+    .calendar-wrap {
+        overflow: auto;
+        border: 1px solid var(--line);
+        background: transparent;
+        width: 100%;
+        flex: 1 1 auto;
+        min-height: 460px;
+        height: max(460px, calc(100vh - 345px));
+        max-height: none;
+    }
+
+    .calendar-board {
+        min-width: 1280px;
+        width: 100%;
+        min-height: 100%;
+        display: grid;
+        grid-template-columns: repeat(7, minmax(230px, 1fr));
+        background: transparent;
+    }
+
+    .sticky-top {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+    }
+
+    .day-head {
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%);
+        color: #fff;
+        border-right: 1px solid #8e3b3b;
+        border-bottom: 1px solid #5c0000;
+        padding: 8px 10px;
+        min-height: 62px;
+    }
+
+    .day-num {
+        font-size: 26px;
+        line-height: 1;
+        font-weight: 700;
+    }
+
+    .day-name {
+        font-size: 12px;
+        margin-top: 4px;
+    }
+
+    .day-date {
+        font-size: 11px;
+        opacity: .9;
+    }
+
+    .day-col {
+        background: #f4e4e4;
+        border-right: 1px solid #d2b1b1;
+    }
+
+    .day-slot {
+        min-height: 100%;
+        height: 100%;
+        border-bottom: 1px solid #d2b1b1;
+        padding: 6px;
+        background: linear-gradient(to bottom, rgba(255,255,255,.08), rgba(255,255,255,0));
+    }
+
+    .embarque-card {
+        border: 1px solid #b99595;
+        background: linear-gradient(#f7eded,#ecd8d8);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.6);
+        padding: 8px;
+        font-size: 12px;
+        color: #2e1111;
+        margin-bottom: 6px;
+        min-height: 140px;
+    }
+
+    .embarque-card.programado { border-left: 5px solid #8b0000; }
+    .embarque-card.pendiente { border-left: 5px solid #c79c00; }
+    .embarque-card.asignado { border-left: 5px solid #198754; }
+
+    .embarque-card.cancelado-fletera {
+        border-left: 6px solid #c75b00;
+        background: linear-gradient(180deg,#fff0d9 0%, #ffd59a 50%, #ffbe66 100%);
+        border-color: #d97706;
+    }
+
+    .embarque-card.cancelado {
+        border-left: 7px solid #7a0000;
+        background: linear-gradient(180deg,#ffd9d9 0%, #ffb3b3 45%, #ff8f8f 100%);
+        border-color: #8b0000;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 0 0 1px rgba(122,0,0,.18);
+        opacity: 1;
+    }
+
+    .embarque-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 8px;
+        margin-bottom: 6px;
+    }
+
+    .embarque-ruta {
+        font-weight: 700;
+        color: #7a0000;
+        font-size: 12px;
+        text-transform: uppercase;
+    }
+
+    .embarque-kg {
+        font-weight: 700;
+        font-size: 12px;
+        background: #fff3f3;
+        border: 1px solid #d8bcbc;
+        padding: 2px 6px;
+        white-space: nowrap;
+    }
+
+    .embarque-row {
+        margin-bottom: 3px;
+        line-height: 1.25;
+    }
+
+    .embarque-label {
+        font-weight: 700;
+        color: #6b1f1f;
+    }
+
+    .embarque-actions {
+        margin-top: 7px;
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .mini-btn {
+        border: 1px solid #b48787;
+        background: linear-gradient(#fffefe,#ecd7d7);
+        color: #4b1f1f;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 4px 8px;
+        cursor: pointer;
+    }
+
+    .status-chip {
+        display: inline-block;
+        padding: 2px 7px;
+        font-size: 11px;
+        font-weight: 700;
+        color: #fff;
+    }
+
+    .status-programado { background: #8b0000; }
+    .status-pendiente { background: #c79c00; }
+    .status-asignado { background: #198754; }
+
+    .status-cancelado-fletera {
+        background: linear-gradient(180deg,#ff9f1a 0%, #ff8c00 55%, #d97706 100%);
+        color: #fff;
+        border: 1px solid #b45309;
+    }
+
+    .status-cancelado {
+        background: linear-gradient(180deg,#b30000 0%, #8b0000 55%, #5c0000 100%);
+        color: #fff;
+        border: 1px solid #4a0000;
+    }
+
+    .listado-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .listado-count {
+        font-size: 13px;
+        color: #5a1111;
+        font-weight: 700;
+    }
+
+    .table-responsive {
+        overflow: auto;
+        border: 1px solid #d3b2b2;
+        background: #f7ebeb;
+    }
+
+    .table-list {
+        width: 100%;
+        border-collapse: collapse;
+        background: transparent;
+        margin-top: 0;
+    }
+
+    .table-list th {
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%);
+        color: #fff;
+        font-size: 12px;
+        padding: 7px 6px;
+        border: 1px solid #8e3b3b;
+        text-align: left;
+        white-space: nowrap;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    .table-list td {
+        padding: 7px 6px;
+        border: 1px solid #d3b2b2;
+        font-size: 12px;
+        color: #2f1111;
+        background: #f7ebeb;
+        vertical-align: middle;
+    }
+
+    .table-list tr:hover td {
+        background: #f0dede;
+    }
+
+    .modal-mask {
+        position: fixed;
+        inset: 0;
+        background: rgba(35,8,8,.45);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        padding: 20px;
+    }
+
+    .modal-mask.show {
+        display: flex;
+    }
+
+    .modal-box {
+        width: min(980px, 96vw);
+        border: 1px solid #7e4a4a;
+        background: var(--panel);
+        box-shadow: 0 0 0 1px rgba(255,255,255,.45) inset, 0 18px 40px rgba(30,0,0,.35);
+        overflow: hidden;
+    }
+
+    .modal-box.wide {
+        width: min(1900px, calc(100vw - 28px));
+        max-height: calc(100vh - 28px);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .modal-box.wide .modal-body {
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .modal-title {
+        padding: 10px 12px;
+        color: #fff;
+        font-size: 14px;
+        font-weight: 700;
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%);
+        border-bottom: 1px solid #6b1f1f;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        color: #fff;
+        font-size: 18px;
+        cursor: pointer;
+        line-height: 1;
+        padding: 0 4px;
+        opacity: .8;
+    }
+
+    .modal-close:hover {
+        opacity: 1;
+    }
+
+    .modal-body {
+        padding: 14px;
+        background: #f4e4e4;
+    }
+
+    #modal-mask .modal-body {
+        overflow: auto;
+        flex: 1 1 auto;
+    }
+
+    .modal-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+    }
+
+    .modal-grid .full {
+        grid-column: 1 / -1;
+    }
+
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 12px 14px;
+        border-top: 1px solid #d6b4b4;
+        background: #f0dddd;
+    }
+
+    .empty-cell {
+        color: #8a6666;
+        font-size: 11px;
+        padding-top: 2px;
+    }
+
+    .split-grid {
+        display: grid;
+        grid-template-columns: 1.15fr .85fr;
+        gap: 12px;
+    }
+
+    .ruta-row {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+        align-items: center;
+    }
+
+    .ruta-row .form-control {
+        flex: 1;
+    }
+
+    .motivo-box {
+        margin-top: 10px;
+        padding: 8px;
+        border: 1px dashed #b48787;
+        background: #fff5f5;
+        font-size: 12px;
+        color: #5a1111;
+    }
+
+    .badge-mini {
+        display: inline-block;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 2px 6px;
+        border: 1px solid #b48787;
+        background: #fff7f7;
+        color: #6b1f1f;
+        margin-right: 3px;
+    }
+
+    .container,
+    .container-fluid {
+        max-width: none !important;
+        width: 100% !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+
+    main,
+    .content-wrapper,
+    .page-content,
+    .main-content,
+    .wrapper,
+    .body-content {
+        max-width: none !important;
+        width: 100% !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+
+
+    @@media (min-width: 1700px) {
+        .cal-titlebar {
+            min-height: 44px;
+            font-size: 16px;
+        }
+
+        .section-title {
+            font-size: 14px;
+            padding: 7px 12px;
+        }
+
+        .form-control,
+        .form-select,
+        .btn-main,
+        .btn-light,
+        .btn-gold,
+        .btn-danger-soft,
+        .btn-orange-soft {
+            height: 38px !important;
+            min-height: 38px;
+            font-size: 13.5px !important;
+        }
+
+        .kpi-card {
+            max-width: none;
+            min-width: 190px;
+            padding: 11px 16px;
+        }
+
+        .kpi-value {
+            font-size: 23px;
+        }
+
+        .calendar-board {
+            min-width: 0;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+        }
+
+        .embarque-card {
+            font-size: 12.5px;
+            min-height: 150px;
+        }
+    }
+
+    @@media (min-width: 2200px) {
+        .cal-window {
+            width: calc(100vw - 26px);
+        }
+
+        .calendar-wrap {
+            height: max(560px, calc(100vh - 345px));
+        }
+
+        .calendar-board {
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+        }
+
+        .embarque-card {
+            font-size: 13px;
+        }
+    }
+
+    @@media (max-width: 1200px) {
+        .toolbar-sep {
+            display: none;
+        }
+
+        .modal-grid,
+        .split-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .calendar-board {
+            min-width: 1120px;
+            grid-template-columns: repeat(7, minmax(180px, 1fr));
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .calendar-board {
+            min-width: 980px;
+        }
+
+        .calendar-wrap {
+            min-height: 420px;
+            height: max(420px, calc(100vh - 300px));
+            max-height: none;
+        }
+
+        .day-slot {
+            min-height: 100%;
+        }
+
+        .ruta-row {
+            flex-direction: column;
+            align-items: stretch;
+        }
+    }
+
+
+    /* =========================================================
+       KPIS A COLOR - Calendario de Logística
+       Mantiene los mismos IDs de JavaScript y solo mejora vista.
+       ========================================================= */
+    .kpis {
+        align-items: stretch;
+    }
+
+    .kpi-card {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,.28) !important;
+        border-radius: 14px;
+        min-height: 92px;
+        box-shadow: inset 5px 0 0 rgba(255,255,255,.18), 0 12px 24px rgba(49, 7, 7, .14) !important;
+    }
+
+    .kpi-card::after {
+        content: "";
+        position: absolute;
+        right: -34px;
+        bottom: -44px;
+        width: 122px;
+        height: 122px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.14);
+        border: 18px solid rgba(255,255,255,.07);
+        pointer-events: none;
+    }
+
+    .kpi-card::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(135deg, rgba(255,255,255,.10), transparent 52%);
+        pointer-events: none;
+    }
+
+    .kpi-title,
+    .kpi-value {
+        position: relative;
+        z-index: 1;
+    }
+
+    .kpi-card .kpi-title {
+        color: rgba(255,255,255,.90) !important;
+        letter-spacing: .055em;
+        font-size: 11px !important;
+    }
+
+    .kpi-card .kpi-value {
+        color: #ffffff !important;
+        text-shadow: 0 2px 8px rgba(0,0,0,.22);
+        font-size: clamp(20px, 1.45vw, 27px) !important;
+    }
+
+    .kpi-ordenes {
+        background: linear-gradient(135deg, #7b1113 0%, #a3161a 55%, #5c090b 100%) !important;
+    }
+
+    .kpi-kilos {
+        background: linear-gradient(135deg, #174ea6 0%, #2563eb 55%, #0f2f73 100%) !important;
+    }
+
+    .kpi-pendientes {
+        background: linear-gradient(135deg, #b7791f 0%, #d99a28 55%, #8a4f05 100%) !important;
+    }
+
+    .kpi-asignados {
+        background: linear-gradient(135deg, #157f49 0%, #22a65a 55%, #0f5132 100%) !important;
+    }
+
+    .kpi-cancelados {
+        background: linear-gradient(135deg, #991b1b 0%, #dc2626 55%, #6f0808 100%) !important;
+    }
+
+    .kpi-card:hover {
+        transform: translateY(-1px);
+        box-shadow: inset 5px 0 0 rgba(255,255,255,.20), 0 16px 30px rgba(49, 7, 7, .18) !important;
+    }
+
+    @@media (max-width: 768px) {
+        .kpi-card {
+            min-width: 145px !important;
+            min-height: 82px;
+            flex: 1 1 145px;
+            padding: 9px 10px;
+        }
+
+        .kpi-card .kpi-title {
+            font-size: 10px !important;
+        }
+
+        .kpi-card .kpi-value {
+            font-size: 19px !important;
+        }
+    }
+
+</style>
+
+<div class="cal-window">
+    <div class="cal-titlebar">
+        <div>
+            Calendario de Logística / Embarques
+           @*  <small>Órdenes de venta de MATRIZ por FechaEntrega</small> *@
+        </div>
+        <div id="title-clock"></div>
+    </div>
+
+    <div class="cal-content">
+
+        <div class="section">
+            <div class="section-title">Navegación y filtros</div>
+            <div class="section-body">
+                <div class="toolbar">
+                    <div class="toolbar-group">
+                        <div>
+                            <label class="form-label">Vista</label>
+                            <select id="vista-tipo" class="form-select" style="width:120px;">
+                                <option value="week">Semana</option>
+                                <option value="day">Día</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="form-label">Ir a fecha entrega</label>
+                            <input type="date" id="fecha-base" class="form-control" style="width:155px;" />
+                        </div>
+                    </div>
+
+                    <div class="toolbar-sep"></div>
+
+                    <div class="toolbar-group">
+                        <div>
+                            <label class="form-label">Vendedor</label>
+                            <select id="filtro-vendedor" class="form-select" style="width:190px;">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="form-label">Estatus logística</label>
+                            <select id="filtro-estatus" class="form-select" style="width:195px;">
+                                <option value="">Todos</option>
+                                <option value="PROGRAMADO">Programado</option>
+                                <option value="PENDIENTE FLETERA">Pendiente fletera</option>
+                                <option value="ASIGNADO">Asignado</option>
+                                <option value="FLETERA CANCELADA">Fletera cancelada</option>
+                                <option value="CANCELADO">Cancelado</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="toolbar-sep"></div>
+
+                    <div class="toolbar-group">
+                        <div>
+                            <label class="form-label">&nbsp;</label>
+                            <div style="display:flex;gap:6px;">
+                                <button type="button" class="btn-light" id="btn-prev">◀ Anterior</button>
+                                <button type="button" class="btn-light" id="btn-hoy">Hoy</button>
+                                <button type="button" class="btn-light" id="btn-next">Siguiente ▶</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="toolbar-sep"></div>
+
+                    <div class="toolbar-group">
+                        <div>
+                            <label class="form-label">&nbsp;</label>
+                            <div style="display:flex;gap:6px;">
+                                <button type="button" class="btn-main" id="btn-filtrar">Actualizar</button>
+                                <button type="button" class="btn-light" id="btn-reset">Reset</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="range-title" id="range-title"></div>
+                <div class="loading-bar" id="loading-bar">Cargando órdenes de venta de matriz...</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Resumen</div>
+            <div class="section-body">
+                <div class="kpis">
+                    <div class="kpi-card kpi-ordenes">
+                        <div class="kpi-title">Órdenes / embarques</div>
+                        <div class="kpi-value" id="kpi-embarques">0</div>
+                    </div>
+                    <div class="kpi-card kpi-kilos">
+                        <div class="kpi-title">Kg programados</div>
+                        <div class="kpi-value" id="kpi-kilos">0</div>
+                    </div>
+                    <div class="kpi-card kpi-pendientes">
+                        <div class="kpi-title">Pendiente fletera</div>
+                        <div class="kpi-value" id="kpi-pendientes">0</div>
+                    </div>
+                    <div class="kpi-card kpi-asignados">
+                        <div class="kpi-title">Con fletera</div>
+                        <div class="kpi-value" id="kpi-asignados">0</div>
+                    </div>
+                    <div class="kpi-card kpi-cancelados">
+                        <div class="kpi-title">Cancelados</div>
+                        <div class="kpi-value" id="kpi-cancelados">0</div>
+                    </div>
+                </div>
+
+                <div class="legend">
+                    <div class="legend-item"><span class="legend-box lg-programado"></span> Programado</div>
+                    <div class="legend-item"><span class="legend-box lg-pendiente"></span> Pendiente fletera</div>
+                    <div class="legend-item"><span class="legend-box lg-asignado"></span> Asignado</div>
+                    <div class="legend-item"><span class="legend-box lg-cancelado-fletera"></span> Fletera cancelada</div>
+                    <div class="legend-item"><span class="legend-box lg-cancelado"></span> Cancelado</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section section-calendar">
+            <div class="section-title">Calendario por fecha de entrega</div>
+            <div class="section-body">
+                <div class="calendar-wrap">
+                    <div id="calendar-board" class="calendar-board"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Listado rápido</div>
+            <div class="section-body">
+                <div class="listado-header">
+                    <div class="listado-count" id="listado-count">0 órdenes en el rango</div>
+                    <button type="button" class="btn-main" id="btn-ver-listado">
+                        ☰ Ver listado completo
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- MODAL: AJUSTAR LOGÍSTICA -->
+<div class="modal-mask" id="modal-mask">
+    <div class="modal-box" style="width:min(1700px, calc(100vw - 28px)); max-height:calc(100vh - 28px); display:flex; flex-direction:column;">
+        <div class="modal-title">
+            <span id="modal-title">Ajustar logística</span>
+            <button type="button" class="modal-close" id="btn-cancelar">✕</button>
+        </div>
+
+        <div class="modal-body">
+            <div class="split-grid">
+                <!-- BLOQUE ORDEN DE VENTA -->
+                <div class="section" style="margin-bottom:0;">
+                    <div class="section-title">Datos de la orden de venta</div>
+                    <div class="section-body">
+                        <div class="modal-grid">
+                            <div>
+                                <label class="form-label">Pedido / consecutivo</label>
+                                <input type="text" id="m-consecutivo" class="form-control" readonly />
+                            </div>
+
+                            <div>
+                                <label class="form-label">Serie</label>
+                                <input type="text" id="m-serie" class="form-control" readonly />
+                            </div>
+
+                            <div>
+                                <label class="form-label">Fecha entrega</label>
+                                <input type="date" id="m-fecha" class="form-control" readonly />
+                            </div>
+
+                            <div>
+                                <label class="form-label">Cliente</label>
+                                <input type="text" id="m-cliente" class="form-control" readonly />
+                            </div>
+
+                            <div>
+                                <label class="form-label">Vendedor</label>
+                                <input type="text" id="m-vendedor" class="form-control" readonly />
+                            </div>
+
+                            <div>
+                                <label class="form-label">Kg</label>
+                                <input type="number" id="m-kilos" class="form-control" readonly />
+                            </div>
+
+                            <div>
+                                <label class="form-label">Presentación</label>
+                                <input type="text" id="m-presentacion" class="form-control" readonly />
+                            </div>
+
+                            <div class="full">
+                                <label class="form-label">Ruta</label>
+                                <div id="rutas-container"></div>
+                            </div>
+
+                            <div class="full">
+                                <label class="form-label">Observación de venta</label>
+                                <textarea id="m-observacion-venta" class="form-control" style="height:70px;" readonly></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- BLOQUE LOGISTICA -->
+                <div class="section" style="margin-bottom:0;">
+                    <div class="section-title">Datos de logística</div>
+                    <div class="section-body">
+                        <div class="modal-grid">
+                            <div>
+                                <label class="form-label">Fletera</label>
+                                <input type="text" id="m-fletera" class="form-control" placeholder="Nombre de fletera" />
+                            </div>
+
+                            <div>
+                                <label class="form-label">Estatus automático</label>
+                                <input type="text" id="m-estatus-display" class="form-control" readonly />
+                                <input type="hidden" id="m-estatus" />
+                            </div>
+
+                            <div>
+                                <label class="form-label">Espacio de tarimas</label>
+                                <input type="number" id="m-espacio-tarimas" class="form-control" min="0" />
+                            </div>
+
+                            <div>
+                                <label class="form-label">Hora llegada de unidad</label>
+                                <input type="time" id="m-hora-llegada" class="form-control" />
+                            </div>
+
+                            <div class="full">
+                                <label class="form-label">Observación logística</label>
+                                <textarea id="m-observacion-logistica" class="form-control" style="height:80px;" placeholder="Comentarios de logística, transporte, unidad, indicaciones..."></textarea>
+                            </div>
+
+                        </div>
+
+                        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+                            <button type="button" class="btn-orange-soft" id="btn-cancelar-fletera">Cancelar fletera</button>
+                            <button type="button" class="btn-danger-soft" id="btn-cancelar-registro">Cancelar registro</button>
+                        </div>
+
+                        <div class="motivo-box" id="motivo-info" style="display:none;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-actions">
+            <button type="button" class="btn-light" id="btn-cancelar2">Cancelar</button>
+            <button type="button" class="btn-main" id="btn-guardar">Guardar logística</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: MOTIVO DE CANCELACIÓN -->
+<div class="modal-mask" id="modal-cancelacion-mask">
+    <div class="modal-box" style="width:min(620px, 96vw);">
+        <div class="modal-title">
+            <span id="cancelacion-title">Cancelar</span>
+            <button type="button" class="modal-close" id="btn-cerrar-cancelacion">✕</button>
+        </div>
+
+        <div class="modal-body">
+            <div class="motivo-box" id="cancelacion-resumen" style="margin-top:0;"></div>
+
+            <div style="margin-top:12px;">
+                <label class="form-label">Motivo de cancelación</label>
+                <textarea id="cancelacion-motivo"
+                          class="form-control"
+                          style="height:120px;"
+                          placeholder="Captura el motivo obligatorio..."></textarea>
+            </div>
+        </div>
+
+        <div class="modal-actions">
+            <button type="button" class="btn-light" id="btn-cancelar-cancelacion">Cerrar</button>
+            <button type="button" class="btn-danger-soft" id="btn-confirmar-cancelacion">Confirmar cancelación</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: LISTADO COMPLETO -->
+<div class="modal-mask" id="modal-listado-mask">
+    <div class="modal-box wide">
+        <div class="modal-title">
+            <span id="modal-listado-title">Listado de órdenes para logística</span>
+            <button type="button" class="modal-close" id="btn-cerrar-listado">✕</button>
+        </div>
+        <div class="modal-body">
+            <div class="table-responsive">
+                <table class="table-list">
+                    <thead>
+                        <tr>
+                            <th>Fecha entrega</th>
+                            <th>Pedido</th>
+                            <th>Serie</th>
+                            <th>Cliente</th>
+                            <th>Ruta</th>
+                            <th>Vendedor</th>
+                            <th>Presentación</th>
+                            <th>Kg</th>
+                            <th>Fletera</th>
+                            <th>Estatus</th>
+                            <th>Tarimas</th>
+                            <th>Llegada unidad</th>
+                            <th>Obs. logística</th>
+                            <th>Motivo cancelación</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-listado"></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="btn-light" id="btn-cerrar-listado2">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (() => {
+            const URL_GET_PEDIDOS = '@Url.Action("GetPedidosLogistica", "Calendario")';
+            const URL_GUARDAR_LOGISTICA = '@Url.Action("GuardarLogistica", "Calendario")';
+
+            const nombresDias = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+            const nombresMeses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+            let currentEditId = null;
+            let currentEditItem = null;
+            let tipoCancelacionActual = null;
+            let currentDate = getTodayNoon();
+            let data = [];
+            let isLoading = false;
+
+            const $vistaTipo             = document.getElementById('vista-tipo');
+            const $fechaBase             = document.getElementById('fecha-base');
+            const $filtroVendedor        = document.getElementById('filtro-vendedor');
+            const $filtroEstatus         = document.getElementById('filtro-estatus');
+            const $btnPrev               = document.getElementById('btn-prev');
+            const $btnHoy                = document.getElementById('btn-hoy');
+            const $btnNext               = document.getElementById('btn-next');
+            const $btnFiltrar            = document.getElementById('btn-filtrar');
+            const $btnReset              = document.getElementById('btn-reset');
+            const $rangeTitle            = document.getElementById('range-title');
+            const $loadingBar            = document.getElementById('loading-bar');
+            const $board                 = document.getElementById('calendar-board');
+            const $tbodyListado          = document.getElementById('tbody-listado');
+            const $listadoCount          = document.getElementById('listado-count');
+            const $btnVerListado         = document.getElementById('btn-ver-listado');
+
+            const $kpiEmbarques          = document.getElementById('kpi-embarques');
+            const $kpiKilos              = document.getElementById('kpi-kilos');
+            const $kpiPendientes         = document.getElementById('kpi-pendientes');
+            const $kpiAsignados          = document.getElementById('kpi-asignados');
+            const $kpiCancelados         = document.getElementById('kpi-cancelados');
+
+            const $modal                 = document.getElementById('modal-mask');
+            const $modalTitle            = document.getElementById('modal-title');
+            const $btnCancelar           = document.getElementById('btn-cancelar');
+            const $btnCancelar2          = document.getElementById('btn-cancelar2');
+            const $btnGuardar            = document.getElementById('btn-guardar');
+
+            const $mConsecutivo          = document.getElementById('m-consecutivo');
+            const $mSerie                = document.getElementById('m-serie');
+            const $mFecha                = document.getElementById('m-fecha');
+            const $mCliente              = document.getElementById('m-cliente');
+            const $mVendedor             = document.getElementById('m-vendedor');
+            const $mKilos                = document.getElementById('m-kilos');
+            const $mPresentacion         = document.getElementById('m-presentacion');
+            const $mObservacionVenta     = document.getElementById('m-observacion-venta');
+
+            const $mFletera              = document.getElementById('m-fletera');
+            const $mEstatus              = document.getElementById('m-estatus');
+            const $mEstatusDisplay       = document.getElementById('m-estatus-display');
+            const $mEspacioTarimas       = document.getElementById('m-espacio-tarimas');
+            const $mHoraLlegada          = document.getElementById('m-hora-llegada');
+            const $mObservacionLogistica = document.getElementById('m-observacion-logistica');
+
+            const $rutasContainer        = document.getElementById('rutas-container');
+            const $btnCancelarFletera    = document.getElementById('btn-cancelar-fletera');
+            const $btnCancelarRegistro   = document.getElementById('btn-cancelar-registro');
+            const $motivoInfo            = document.getElementById('motivo-info');
+
+            const $modalListado          = document.getElementById('modal-listado-mask');
+            const $modalListadoTitle     = document.getElementById('modal-listado-title');
+            const $btnCerrarListado      = document.getElementById('btn-cerrar-listado');
+            const $btnCerrarListado2     = document.getElementById('btn-cerrar-listado2');
+
+            const $modalCancelacion        = document.getElementById('modal-cancelacion-mask');
+            const $cancelacionTitle        = document.getElementById('cancelacion-title');
+            const $cancelacionResumen      = document.getElementById('cancelacion-resumen');
+            const $cancelacionMotivo       = document.getElementById('cancelacion-motivo');
+            const $btnCerrarCancelacion    = document.getElementById('btn-cerrar-cancelacion');
+            const $btnCancelarCancelacion  = document.getElementById('btn-cancelar-cancelacion');
+            const $btnConfirmarCancelacion = document.getElementById('btn-confirmar-cancelacion');
+
+            const nf = new Intl.NumberFormat('es-MX');
+
+            function getTodayNoon() {
+                const d = new Date();
+                return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+            }
+
+            function pad(n) {
+                return String(n).padStart(2, '0');
+            }
+
+            function toDateString(d) {
+                return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+            }
+
+            function parseDate(str) {
+                if (!str) return getTodayNoon();
+                const [y, m, d] = str.split('-').map(Number);
+                return new Date(y, m - 1, d, 12, 0, 0);
+            }
+
+            function cloneDate(d) {
+                return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+            }
+
+            function addDays(d, days) {
+                const x = cloneDate(d);
+                x.setDate(x.getDate() + days);
+                return x;
+            }
+
+            function getMonday(d) {
+                const x = cloneDate(d);
+                const day = x.getDay();
+                const diff = day === 0 ? -6 : 1 - day;
+                x.setDate(x.getDate() + diff);
+                return x;
+            }
+
+            function escapeHtml(v) {
+                return String(v ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            function pick(obj, ...names) {
+                for (const name of names) {
+                    if (obj && Object.prototype.hasOwnProperty.call(obj, name)) {
+                        return obj[name];
+                    }
+                }
+                return null;
+            }
+
+            function normalizeDateOnly(value) {
+                if (!value) return '';
+
+                if (typeof value === 'string') {
+                    const msMatch = /\/Date\((\d+)\)\//.exec(value);
+                    if (msMatch) {
+                        const d = new Date(Number(msMatch[1]));
+                        return toDateString(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0));
+                    }
+
+                    if (value.length >= 10) {
+                        return value.substring(0, 10);
+                    }
+                }
+
+                const d = new Date(value);
+                if (!isNaN(d.getTime())) {
+                    return toDateString(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0));
+                }
+
+                return '';
+            }
+
+            function normalizeTime(value) {
+                if (!value) return '';
+
+                if (typeof value === 'string') {
+                    if (value.length >= 5) return value.substring(0, 5);
+                    return value;
+                }
+
+                if (typeof value === 'object') {
+                    const h = value.Hours ?? value.hours ?? 0;
+                    const m = value.Minutes ?? value.minutes ?? 0;
+                    return `${pad(h)}:${pad(m)}`;
+                }
+
+                return '';
+            }
+
+            function normalizeText(value) {
+                return String(value ?? '').trim();
+            }
+
+            function normalizeStatusByCarrier(item) {
+                if (item.estatus === 'CANCELADO' || item.estatus === 'FLETERA CANCELADA') return item.estatus;
+                if (item.fletera && item.estatus !== 'ASIGNADO') return 'ASIGNADO';
+                if (!item.fletera && item.estatus === 'ASIGNADO') return 'PENDIENTE FLETERA';
+                return item.estatus || 'PENDIENTE FLETERA';
+            }
+
+            function setEstatusModal(estatus) {
+                const valor = estatus || 'PENDIENTE FLETERA';
+                $mEstatus.value = valor;
+                $mEstatusDisplay.value = valor;
+            }
+
+            function calcularEstatusAutomatico() {
+                const fletera = ($mFletera.value || '').trim();
+
+                if (fletera) {
+                    return 'ASIGNADO';
+                }
+
+                return 'PENDIENTE FLETERA';
+            }
+
+            function setLoading(value) {
+                isLoading = value;
+                $loadingBar.classList.toggle('show', value);
+                $btnFiltrar.disabled = value;
+                $btnPrev.disabled = value;
+                $btnHoy.disabled = value;
+                $btnNext.disabled = value;
+                $btnGuardar.disabled = value;
+                if ($btnConfirmarCancelacion) $btnConfirmarCancelacion.disabled = value;
+            }
+
+            function getAntiForgeryToken() {
+                const input = document.querySelector('input[name="__RequestVerificationToken"]');
+                return input ? input.value : '';
+            }
+
+            function getCardClass(estatus) {
+                if (estatus === 'ASIGNADO') return 'asignado';
+                if (estatus === 'PENDIENTE FLETERA') return 'pendiente';
+                if (estatus === 'FLETERA CANCELADA') return 'cancelado-fletera';
+                if (estatus === 'CANCELADO') return 'cancelado';
+                return 'programado';
+            }
+
+            function getChipClass(estatus) {
+                if (estatus === 'ASIGNADO') return 'status-asignado';
+                if (estatus === 'PENDIENTE FLETERA') return 'status-pendiente';
+                if (estatus === 'FLETERA CANCELADA') return 'status-cancelado-fletera';
+                if (estatus === 'CANCELADO') return 'status-cancelado';
+                return 'status-programado';
+            }
+
+            function getVisibleDays() {
+                if ($vistaTipo.value === 'day') return [cloneDate(currentDate)];
+                const monday = getMonday(currentDate);
+                return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+            }
+
+            function getFilteredData() {
+                const days = getVisibleDays();
+                const minDate = toDateString(days[0]);
+                const maxDate = toDateString(days[days.length - 1]);
+
+                return data.filter(x => {
+                    const okRange = x.fecha >= minDate && x.fecha <= maxDate;
+                    const okVend = !$filtroVendedor.value || x.vendedor === $filtroVendedor.value;
+                    const okEst = !$filtroEstatus.value || x.estatus === $filtroEstatus.value;
+                    return okRange && okVend && okEst;
+                });
+            }
+
+            function mapPedidoToItem(x) {
+                const fecha = normalizeDateOnly(pick(x, 'FechaEntrega', 'fechaEntrega'));
+
+                const item = {
+                    id: Number(pick(x, 'Id', 'id') || 0),
+                    ordenVentaId: Number(pick(x, 'Id', 'id') || pick(x, 'OrdenVentaId', 'ordenVentaId') || 0),
+                    consecutivo: normalizeText(pick(x, 'Consecutivo', 'consecutivo')),
+                    serie: normalizeText(pick(x, 'Serie', 'serie')),
+                    nombreSerie: normalizeText(pick(x, 'NombreSerie', 'nombreSerie')),
+                    sucursal: normalizeText(pick(x, 'Sucursal', 'sucursal')),
+                    sucursalId: normalizeText(pick(x, 'SucursalId', 'sucursalId', 'sucursalid')),
+
+                    fecha: fecha,
+                    fechaEmbarque: normalizeDateOnly(pick(x, 'FechaEmbarque', 'fechaEmbarque')),
+                    horaEmbarque: normalizeTime(pick(x, 'HoraEmbarque', 'horaEmbarque')),
+
+                    clienteCodigo: normalizeText(pick(x, 'Cliente', 'cliente', 'ClienteId', 'clienteId', 'CodigoCliente', 'codigoCliente')),
+                    clienteNombre: normalizeText(pick(x, 'NombreCliente', 'nombreCliente', 'ClienteNombre', 'clienteNombre', 'RazonSocial', 'razonSocial', 'CardName', 'cardName')),
+                    cliente: normalizeText(pick(x, 'NombreCliente', 'nombreCliente', 'ClienteNombre', 'clienteNombre', 'RazonSocial', 'razonSocial', 'CardName', 'cardName')) 
+                        || normalizeText(pick(x, 'Cliente', 'cliente', 'ClienteId', 'clienteId', 'CodigoCliente', 'codigoCliente')),
+                    vendedor: normalizeText(pick(x, 'Vendedor', 'vendedor')),
+                    rutas: [normalizeText(pick(x, 'Ruta', 'ruta')) || 'SIN RUTA'],
+                    presentacion: normalizeText(pick(x, 'Presentacion', 'presentacion')),
+                    observaciones: normalizeText(pick(x, 'Observacion', 'observacion')),
+
+                    kilos: Number(pick(x, 'Saldo', 'saldo') || 0),
+                    otrosPedidos: Number(pick(x, 'OtrosPedidos', 'otrosPedidos') || 0),
+                    credito: Number(pick(x, 'Credito', 'credito') || 0),
+
+                    fletera: normalizeText(pick(x, 'Fletera', 'fletera')),
+                    espacioTarimas: Number(pick(x, 'EspacioTarimas', 'espacioTarimas') || 0),
+                    horaLlegadaUnidad: normalizeTime(pick(x, 'HoraLlegadaUnidad', 'horaLlegadaUnidad')),
+                    estatus: normalizeText(pick(x, 'EstatusLogistico', 'estatusLogistico')) || 'PENDIENTE FLETERA',
+                    observacionLogistica: normalizeText(pick(x, 'ObservacionLogistica', 'observacionLogistica')),
+
+                    cancelado: Boolean(pick(x, 'Cancelado', 'cancelado')),
+                    canceladoFletera: Boolean(pick(x, 'CanceladoFletera', 'canceladoFletera')),
+                    motivoCancelacion: normalizeText(pick(x, 'MotivoCancelacion', 'motivoCancelacion')),
+                    motivoCancelacionFletera: normalizeText(pick(x, 'MotivoCancelacionFletera', 'motivoCancelacionFletera'))
+                };
+
+                item.estatus = normalizeStatusByCarrier(item);
+                return item;
+            }
+
+            async function cargarPedidosDesdeBD() {
+                const days = getVisibleDays();
+                const fechaInicio = toDateString(days[0]);
+                const fechaFin = toDateString(days[days.length - 1]);
+
+                const url = `${URL_GET_PEDIDOS}?fechaInicio=${encodeURIComponent(fechaInicio)}&fechaFin=${encodeURIComponent(fechaFin)}`;
+
+                setLoading(true);
+
+                try {
+                    const response = await fetch(url, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+
+                    const pedidos = await response.json();
+                    data = Array.isArray(pedidos) ? pedidos.map(mapPedidoToItem) : [];
+                } catch (error) {
+                    console.error(error);
+                    data = [];
+                    alert('No se pudieron cargar las órdenes de venta para logística. Revisa el controlador GetPedidosLogistica.');
+                } finally {
+                    setLoading(false);
+                }
+            }
+
+            async function guardarLogisticaRequest(payload) {
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                };
+
+                const token = getAntiForgeryToken();
+                if (token) {
+                    headers['RequestVerificationToken'] = token;
+                    headers['__RequestVerificationToken'] = token;
+                }
+
+                const response = await fetch(URL_GUARDAR_LOGISTICA, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const result = await response.json();
+                const ok = result.ok ?? result.Ok ?? result.success ?? result.Success ?? false;
+
+                if (!ok) {
+                    throw new Error(result.mensaje || result.Mensaje || result.message || 'No se pudo guardar la logística.');
+                }
+
+                return result;
+            }
+
+            function renderVendedores() {
+                const vendedores = [...new Set(data.map(x => x.vendedor).filter(Boolean))].sort();
+                const selected = $filtroVendedor.value;
+
+                $filtroVendedor.innerHTML = '<option value="">Todos</option>' +
+                    vendedores.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+
+                $filtroVendedor.value = vendedores.includes(selected) ? selected : '';
+            }
+
+            function renderRangeTitle() {
+                const days = getVisibleDays();
+
+                if ($vistaTipo.value === 'day') {
+                    const d = days[0];
+                    $rangeTitle.textContent = `${nombresDias[d.getDay()]} ${d.getDate()} de ${nombresMeses[d.getMonth()]} de ${d.getFullYear()}`;
+                    return;
+                }
+
+                const first = days[0];
+                const last = days[days.length - 1];
+
+                if (first.getMonth() === last.getMonth() && first.getFullYear() === last.getFullYear()) {
+                    $rangeTitle.textContent = `${first.getDate()} - ${last.getDate()} de ${nombresMeses[first.getMonth()]} de ${first.getFullYear()}`;
+                } else if (first.getFullYear() === last.getFullYear()) {
+                    $rangeTitle.textContent = `${first.getDate()} de ${nombresMeses[first.getMonth()]} - ${last.getDate()} de ${nombresMeses[last.getMonth()]} de ${first.getFullYear()}`;
+                } else {
+                    $rangeTitle.textContent = `${first.getDate()} de ${nombresMeses[first.getMonth()]} de ${first.getFullYear()} - ${last.getDate()} de ${nombresMeses[last.getMonth()]} de ${last.getFullYear()}`;
+                }
+            }
+
+            function renderKpis(items) {
+                $kpiEmbarques.textContent = nf.format(items.length);
+                $kpiKilos.textContent = nf.format(items.reduce((a, b) => a + Number(b.kilos || 0), 0));
+                $kpiPendientes.textContent = nf.format(items.filter(x => x.estatus === 'PENDIENTE FLETERA').length);
+                $kpiAsignados.textContent = nf.format(items.filter(x => x.estatus === 'ASIGNADO').length);
+                $kpiCancelados.textContent = nf.format(items.filter(x => x.estatus === 'CANCELADO' || x.estatus === 'FLETERA CANCELADA').length);
+            }
+
+            function renderRutas(rutas = ['SIN RUTA']) {
+                $rutasContainer.innerHTML = rutas.map(ruta => `
+                    <div class="ruta-row">
+                        <input type="text"
+                               class="form-control js-ruta"
+                               value="${escapeHtml(ruta)}"
+                               readonly />
+                    </div>
+                `).join('');
+            }
+
+            function getMotivoResumen(item) {
+                if (item.motivoCancelacion) return item.motivoCancelacion;
+                if (item.motivoCancelacionFletera) return item.motivoCancelacionFletera;
+                return '';
+            }
+
+            function renderBoard() {
+                const visibleDays = getVisibleDays();
+                const items = getFilteredData();
+
+                const minCol = window.innerWidth >= 1700 ? 'minmax(0, 1fr)' : 'minmax(230px, 1fr)';
+                $board.style.gridTemplateColumns = `repeat(${visibleDays.length}, ${minCol})`;
+
+                let html = '';
+
+                visibleDays.forEach(d => {
+                    html += `
+                        <div class="day-head sticky-top">
+                            <div class="day-num">${d.getDate()}</div>
+                            <div class="day-name">${nombresDias[d.getDay()]}</div>
+                            <div class="day-date">${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}</div>
+                        </div>`;
+                });
+
+                visibleDays.forEach(d => {
+                    const fecha = toDateString(d);
+                    const embarques = items
+                        .filter(x => x.fecha === fecha)
+                        .sort((a, b) => ((a.rutas || []).join(',') + a.cliente + a.consecutivo)
+                            .localeCompare((b.rutas || []).join(',') + b.cliente + b.consecutivo));
+
+                    html += `<div class="day-col"><div class="day-slot">`;
+
+                    if (!embarques.length) {
+                        html += `<div class="empty-cell">Sin órdenes de matriz para esta fecha de entrega</div>`;
+                    } else {
+                        html += embarques.map(x => `
+                            <div class="embarque-card ${getCardClass(x.estatus)}">
+                                <div class="embarque-head">
+                                    <div class="embarque-ruta">${escapeHtml((x.rutas || []).join(', '))}</div>
+                                    <div class="embarque-kg">${nf.format(x.kilos)} kg</div>
+                                </div>
+
+                                <div class="embarque-row">
+                                    <span class="badge-mini">${escapeHtml(x.consecutivo || 'SIN PEDIDO')}</span>
+                                    <span class="badge-mini">${escapeHtml(x.serie || '')}</span>
+                                </div>
+
+                                <div class="embarque-row">
+                                    <span class="embarque-label">Cliente:</span>
+                                    ${escapeHtml(x.cliente || 'Sin cliente')}
+                                    ${x.clienteCodigo && x.clienteCodigo !== x.cliente
+                                        ? `<span class="badge-mini" title="Código cliente">${escapeHtml(x.clienteCodigo)}</span>`
+                                        : ''
+                                    }
+                                </div>
+
+                                <div class="embarque-row">
+                                    <span class="embarque-label">Vendedor:</span>
+                                    ${escapeHtml(x.vendedor || 'Sin vendedor')}
+                                </div>
+
+                                <div class="embarque-row">
+                                    <span class="embarque-label">Presentación:</span>
+                                    ${escapeHtml(x.presentacion || '')}
+                                </div>
+
+                                <div class="embarque-row">
+                                    <span class="embarque-label">Fletera:</span>
+                                    ${escapeHtml(x.fletera || 'Sin asignar')}
+                                </div>
+
+                                <div class="embarque-row">
+                                    <span class="embarque-label">Tarimas:</span>
+                                    ${escapeHtml(x.espacioTarimas || 0)}
+                                </div>
+
+                                <div class="embarque-row">
+                                    <span class="embarque-label">Llegada unidad:</span>
+                                    ${escapeHtml(x.horaLlegadaUnidad || 'Sin definir')}
+                                </div>
+
+                                <div class="embarque-row">
+                                    <span class="status-chip ${getChipClass(x.estatus)}">${escapeHtml(x.estatus)}</span>
+                                </div>
+
+                                ${getMotivoResumen(x)
+                                    ? `<div class="embarque-row"><span class="embarque-label">Motivo:</span> ${escapeHtml(getMotivoResumen(x))}</div>`
+                                    : ''
+                                }
+
+                                <div class="embarque-actions">
+                                    <button type="button" class="mini-btn js-edit" data-id="${x.id}">Editar logística</button>
+                                  
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+
+                    html += `</div></div>`;
+                });
+
+                $board.innerHTML = html;
+                renderKpis(items);
+                renderRangeTitle();
+            }
+
+            function renderListado() {
+                const items = getFilteredData()
+                    .slice()
+                    .sort((a, b) => (a.fecha + a.rutas.join(',') + a.cliente).localeCompare(b.fecha + b.rutas.join(',') + b.cliente));
+
+                $listadoCount.textContent = `${items.length} orden${items.length !== 1 ? 'es' : ''} en el rango`;
+                $modalListadoTitle.textContent = `Listado de órdenes para logística — ${items.length} registro${items.length !== 1 ? 's' : ''}`;
+
+                if (!items.length) {
+                    $tbodyListado.innerHTML = `<tr><td colspan="15" style="text-align:center;">Sin órdenes de matriz en este rango</td></tr>`;
+                    return;
+                }
+
+                $tbodyListado.innerHTML = items.map(x => `
+                    <tr>
+                        <td>${escapeHtml(x.fecha)}</td>
+                        <td>${escapeHtml(x.consecutivo)}</td>
+                        <td>${escapeHtml(x.serie)}</td>
+                        <td title="${escapeHtml(x.clienteCodigo || '')}">
+                            ${escapeHtml(x.cliente || '')}
+                            ${x.clienteCodigo && x.clienteCodigo !== x.cliente ? `<br><span class="badge-mini">${escapeHtml(x.clienteCodigo)}</span>` : ''}
+                        </td>
+                        <td>${escapeHtml((x.rutas || []).join(', '))}</td>
+                        <td>${escapeHtml(x.vendedor)}</td>
+                        <td>${escapeHtml(x.presentacion)}</td>
+                        <td>${nf.format(x.kilos)}</td>
+                        <td>${escapeHtml(x.fletera || 'Sin asignar')}</td>
+                        <td><span class="status-chip ${getChipClass(x.estatus)}">${escapeHtml(x.estatus)}</span></td>
+                        <td>${escapeHtml(x.espacioTarimas || 0)}</td>
+                        <td>${escapeHtml(x.horaLlegadaUnidad || '')}</td>
+                        <td>${escapeHtml(x.observacionLogistica || '')}</td>
+                        <td>${escapeHtml(getMotivoResumen(x))}</td>
+                        <td>
+                            <button type="button" class="mini-btn js-edit" data-id="${x.id}">Editar</button>
+                            <button type="button" class="mini-btn js-fletera" data-id="${x.id}">Fletera</button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            async function renderAll() {
+                $fechaBase.value = toDateString(currentDate);
+                renderRangeTitle();
+                await cargarPedidosDesdeBD();
+                renderVendedores();
+                renderBoard();
+                renderListado();
+            }
+
+            function refreshMotivoInfo(item) {
+                const texto = item
+                    ? [
+                        item.motivoCancelacion ? `Registro cancelado: ${item.motivoCancelacion}` : '',
+                        item.motivoCancelacionFletera ? `Fletera cancelada: ${item.motivoCancelacionFletera}` : ''
+                    ].filter(Boolean).join(' | ')
+                    : '';
+
+                if (texto) {
+                    $motivoInfo.style.display = 'block';
+                    $motivoInfo.textContent = texto;
+                } else {
+                    $motivoInfo.style.display = 'none';
+                    $motivoInfo.textContent = '';
+                }
+            }
+
+            function openModal(item) {
+                if (!item) {
+                    alert('Selecciona una orden de venta existente. Los embarques se generan desde OrdenVenta.');
+                    return;
+                }
+
+                currentEditItem = item;
+                currentEditId = item.ordenVentaId || item.id;
+
+                $modalTitle.textContent = `Ajustar logística — ${item.consecutivo || 'Orden ' + currentEditId}`;
+
+                $mConsecutivo.value = item.consecutivo || '';
+                $mSerie.value = item.serie || '';
+                $mFecha.value = item.fecha || '';
+                $mCliente.value = item.cliente || '';
+                $mVendedor.value = item.vendedor || '';
+                $mKilos.value = item.kilos || 0;
+                $mPresentacion.value = item.presentacion || '';
+                $mObservacionVenta.value = item.observaciones || '';
+
+                $mFletera.value = item.fletera || '';
+                setEstatusModal(item.estatus || 'PENDIENTE FLETERA');
+                $mEspacioTarimas.value = item.espacioTarimas || '';
+                $mHoraLlegada.value = item.horaLlegadaUnidad || '';
+                $mObservacionLogistica.value = item.observacionLogistica || '';
+
+                renderRutas(item.rutas?.length ? item.rutas : ['SIN RUTA']);
+                refreshMotivoInfo(item);
+
+                $modal.classList.add('show');
+            }
+
+            function closeModal() {
+                $modal.classList.remove('show');
+                currentEditId = null;
+                currentEditItem = null;
+                $motivoInfo.style.display = 'none';
+                $motivoInfo.textContent = '';
+            }
+
+            function buildPayloadFromModal() {
+                if (!currentEditId) {
+                    throw new Error('No hay una orden de venta seleccionada.');
+                }
+
+                const fletera = ($mFletera.value || '').trim().toUpperCase();
+                const estatus = calcularEstatusAutomatico();
+
+                setEstatusModal(estatus);
+
+                return {
+                    OrdenVentaId: currentEditId,
+                    Fletera: fletera,
+                    EspacioTarimas: Number($mEspacioTarimas.value || 0),
+                    HoraLlegadaUnidad: $mHoraLlegada.value || null,
+                    EstatusLogistico: estatus,
+                    ObservacionLogistica: ($mObservacionLogistica.value || '').trim().toUpperCase(),
+                    MotivoCancelacion: '',
+                    MotivoCancelacionFletera: '',
+                    Cancelado: false,
+                    CanceladoFletera: false
+                };
+            }
+
+            function abrirModalCancelacion(tipo) {
+                if (!currentEditId || !currentEditItem) {
+                    alert('Selecciona una orden de venta primero.');
+                    return;
+                }
+
+                tipoCancelacionActual = tipo;
+                $cancelacionMotivo.value = '';
+
+                if (tipo === 'FLETERA') {
+                    $cancelacionTitle.textContent = 'Cancelar fletera';
+                    $cancelacionResumen.innerHTML = `
+                        <b>Pedido:</b> ${escapeHtml(currentEditItem.consecutivo || '')}<br>
+                        <b>Cliente:</b> ${escapeHtml(currentEditItem.cliente || '')}<br>
+                        <b>Fletera actual:</b> ${escapeHtml(currentEditItem.fletera || $mFletera.value || 'Sin asignar')}<br>
+                        <b>Acción:</b> Se cancelará únicamente la fletera y el estatus quedará como <b>FLETERA CANCELADA</b>.
+                    `;
+                } else {
+                    $cancelacionTitle.textContent = 'Cancelar registro logístico';
+                    $cancelacionResumen.innerHTML = `
+                        <b>Pedido:</b> ${escapeHtml(currentEditItem.consecutivo || '')}<br>
+                        <b>Cliente:</b> ${escapeHtml(currentEditItem.cliente || '')}<br>
+                        <b>Acción:</b> Se cancelará el registro logístico completo y el estatus quedará como <b>CANCELADO</b>.
+                    `;
+                }
+
+                $modalCancelacion.classList.add('show');
+
+                setTimeout(() => {
+                    $cancelacionMotivo.focus();
+                }, 100);
+            }
+
+            function cerrarModalCancelacion() {
+                $modalCancelacion.classList.remove('show');
+                tipoCancelacionActual = null;
+                $cancelacionMotivo.value = '';
+            }
+
+            async function confirmarCancelacion() {
+                if (!tipoCancelacionActual || !currentEditId || !currentEditItem) {
+                    alert('No hay una cancelación válida.');
+                    return;
+                }
+
+                const motivo = ($cancelacionMotivo.value || '').trim().toUpperCase();
+
+                if (!motivo) {
+                    alert('Captura el motivo de cancelación.');
+                    return;
+                }
+
+                const esCancelacionFletera = tipoCancelacionActual === 'FLETERA';
+                const esCancelacionRegistro = tipoCancelacionActual === 'REGISTRO';
+                const estatusFinal = esCancelacionFletera ? 'FLETERA CANCELADA' : 'CANCELADO';
+
+                const payload = {
+                    OrdenVentaId: currentEditId,
+                    Fletera: '',
+                    EspacioTarimas: Number($mEspacioTarimas.value || currentEditItem.espacioTarimas || 0),
+                    HoraLlegadaUnidad: $mHoraLlegada.value || currentEditItem.horaLlegadaUnidad || null,
+                    EstatusLogistico: estatusFinal,
+                    ObservacionLogistica: ($mObservacionLogistica.value || currentEditItem.observacionLogistica || '').trim().toUpperCase(),
+                    MotivoCancelacion: esCancelacionRegistro ? motivo : (currentEditItem.motivoCancelacion || ''),
+                    MotivoCancelacionFletera: esCancelacionFletera ? motivo : (currentEditItem.motivoCancelacionFletera || ''),
+                    Cancelado: esCancelacionRegistro,
+                    CanceladoFletera: esCancelacionFletera
+                };
+
+                try {
+                    setLoading(true);
+                    await guardarLogisticaRequest(payload);
+
+                    cerrarModalCancelacion();
+                    closeModal();
+
+                    await renderAll();
+                } catch (error) {
+                    console.error(error);
+                    alert(error.message || 'No se pudo guardar la cancelación.');
+                } finally {
+                    setLoading(false);
+                }
+            }
+
+            async function saveModal() {
+                try {
+                    const payload = buildPayloadFromModal();
+
+                    setLoading(true);
+                    await guardarLogisticaRequest(payload);
+
+                    currentDate = parseDate($mFecha.value);
+                    closeModal();
+                    await renderAll();
+                } catch (error) {
+                    console.error(error);
+                    alert(error.message || 'No se pudo guardar logística.');
+                } finally {
+                    setLoading(false);
+                }
+            }
+
+            async function quickAssignCarrier(id) {
+                const item = data.find(x => x.id === id || x.ordenVentaId === id);
+                if (!item) return;
+
+                const nuevaFletera = prompt(
+                    'Escribe la fletera para este embarque. Deja vacío para quitarla:',
+                    item.fletera || ''
+                );
+
+                if (nuevaFletera === null) return;
+
+                const fletera = nuevaFletera.trim().toUpperCase();
+
+                const payload = {
+                    OrdenVentaId: item.ordenVentaId || item.id,
+                    Fletera: fletera,
+                    EspacioTarimas: item.espacioTarimas || 0,
+                    HoraLlegadaUnidad: item.horaLlegadaUnidad || null,
+                    EstatusLogistico: fletera ? 'ASIGNADO' : 'PENDIENTE FLETERA',
+                    ObservacionLogistica: item.observacionLogistica || '',
+                    MotivoCancelacion: item.motivoCancelacion || '',
+                    MotivoCancelacionFletera: '',
+                    Cancelado: false,
+                    CanceladoFletera: false
+                };
+
+                try {
+                    setLoading(true);
+                    await guardarLogisticaRequest(payload);
+                    await renderAll();
+                } catch (error) {
+                    console.error(error);
+                    alert(error.message || 'No se pudo guardar la fletera.');
+                } finally {
+                    setLoading(false);
+                }
+            }
+
+            function cancelarFleteraActual() {
+                abrirModalCancelacion('FLETERA');
+            }
+
+            function cancelarRegistroActual() {
+                abrirModalCancelacion('REGISTRO');
+            }
+
+            async function navigate(step) {
+                if ($vistaTipo.value === 'day') {
+                    currentDate = addDays(currentDate, step);
+                } else {
+                    currentDate = addDays(currentDate, step * 7);
+                }
+
+                await renderAll();
+            }
+
+            async function resetFilters() {
+                $vistaTipo.value = 'week';
+                $filtroVendedor.value = '';
+                $filtroEstatus.value = '';
+                currentDate = getTodayNoon();
+                await renderAll();
+            }
+
+            function openListadoModal() {
+                renderListado();
+                $modalListado.classList.add('show');
+            }
+
+            function closeListadoModal() {
+                $modalListado.classList.remove('show');
+            }
+
+            $btnPrev.addEventListener('click', () => navigate(-1));
+            $btnNext.addEventListener('click', () => navigate(1));
+            $btnHoy.addEventListener('click', async () => {
+                currentDate = getTodayNoon();
+                await renderAll();
+            });
+
+            $fechaBase.addEventListener('change', async () => {
+                if ($fechaBase.value) {
+                    currentDate = parseDate($fechaBase.value);
+                    await renderAll();
+                }
+            });
+
+            $vistaTipo.addEventListener('change', renderAll);
+            $btnFiltrar.addEventListener('click', renderAll);
+            $btnReset.addEventListener('click', resetFilters);
+
+            $btnCancelar.addEventListener('click', closeModal);
+            $btnCancelar2.addEventListener('click', closeModal);
+            $btnGuardar.addEventListener('click', saveModal);
+
+            $btnCancelarFletera.addEventListener('click', cancelarFleteraActual);
+            $btnCancelarRegistro.addEventListener('click', cancelarRegistroActual);
+
+            $btnCerrarCancelacion.addEventListener('click', cerrarModalCancelacion);
+            $btnCancelarCancelacion.addEventListener('click', cerrarModalCancelacion);
+            $btnConfirmarCancelacion.addEventListener('click', confirmarCancelacion);
+
+            $mFletera.addEventListener('input', () => {
+                const estatus = calcularEstatusAutomatico();
+                setEstatusModal(estatus);
+            });
+
+            $btnVerListado.addEventListener('click', openListadoModal);
+            $btnCerrarListado.addEventListener('click', closeListadoModal);
+            $btnCerrarListado2.addEventListener('click', closeListadoModal);
+
+            $modal.addEventListener('click', e => {
+                if (e.target === $modal) closeModal();
+            });
+
+            $modalListado.addEventListener('click', e => {
+                if (e.target === $modalListado) closeListadoModal();
+            });
+
+            $modalCancelacion.addEventListener('click', e => {
+                if (e.target === $modalCancelacion) cerrarModalCancelacion();
+            });
+
+            $board.addEventListener('click', e => {
+                const editBtn = e.target.closest('.js-edit');
+                if (editBtn) {
+                    const item = data.find(x => x.id === Number(editBtn.dataset.id));
+                    if (item) openModal(item);
+                    return;
+                }
+
+                const fleteraBtn = e.target.closest('.js-fletera');
+                if (fleteraBtn) {
+                    quickAssignCarrier(Number(fleteraBtn.dataset.id));
+                }
+            });
+
+            $tbodyListado.addEventListener('click', e => {
+                const editBtn = e.target.closest('.js-edit');
+                if (editBtn) {
+                    const item = data.find(x => x.id === Number(editBtn.dataset.id));
+                    if (item) {
+                        closeListadoModal();
+                        openModal(item);
+                    }
+                    return;
+                }
+
+                const fleteraBtn = e.target.closest('.js-fletera');
+                if (fleteraBtn) {
+                    quickAssignCarrier(Number(fleteraBtn.dataset.id));
+                }
+            });
+
+            let resizeTimer = null;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(() => {
+                    renderBoard();
+                    renderListado();
+                }, 150);
+            });
+
+            renderRutas(['SIN RUTA']);
+            renderAll();
+        })();
+    </script>
+}
