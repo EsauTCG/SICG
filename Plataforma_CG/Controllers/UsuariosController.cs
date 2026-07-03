@@ -223,6 +223,7 @@ namespace Plataforma_CG.Controllers
             usuarioDb.PerfilId = model.PerfilId;
             usuarioDb.EsVendedor = model.EsVendedor;
             usuarioDb.VendedorId = model.VendedorId;
+            usuarioDb.IgnoraFiltroSerieTransferencias = model.IgnoraFiltroSerieTransferencias;
             usuarioDb.FechaModificacion = DateTime.Now;
 
             usuarioDb.AlmacenesPermitidos = JsonSerializer.Serialize(
