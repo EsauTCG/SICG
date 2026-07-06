@@ -16,7 +16,6 @@ using QRCoder;
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.Odbc;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -57,6 +56,234 @@ namespace Plataforma_CG.Controllers
             _db = db;
             _logger = logger;
             _autoStore = autoStore;
+        }
+
+        // =======================================================
+        // SAP SERVICE LAYER SQLQUERIES
+        // Reemplazo de consultas directas ODBC/HANA.
+        // Estas consultas deben existir en SAP Business One Service Layer.
+        // Endpoint de ejecución: SQLQueries('<SqlCode>')/List
+        // =======================================================
+        private const string SAP_SQL_INV_LOTE_DISPONIBLE = "CG_INV_LOTE_DISPONIBLE";
+        private const string SAP_SQL_DEV_APLICADAS_PEDIDO = "CG_DEV_APLICADAS_PEDIDO";
+        private const string SAP_SQL_CONCILIACION_INVENTARIO = "CG_CONCILIACION_INVENTARIO";
+        private const string SAP_SQL_CONCILIACION_INVENTARIO_P1 = "CG_CONCILIACION_INVENTARIO_P1";
+        private const string SAP_SQL_CONCILIACION_INVENTARIO_TIF = "CG_CONCILIACION_INVENTARIO_TIF";
+
+        private sealed class SapSqlQueryDefinitionVM
+        {
+            public string SqlCode { get; set; } = "";
+            public string SqlName { get; set; } = "";
+            public string ParamList { get; set; } = "";
+            public string SqlText { get; set; } = "";
+        }
+
+        [HttpGet("SapSqlQueriesRequeridas")]
+        [RevisarPermiso("ENTREGAS_SAP", "LEER")]
+        public IActionResult SapSqlQueriesRequeridas()
+        {
+            return Ok(new
+            {
+                ok = true,
+                msg = "Crea estas SQLQueries en SAP Business One Service Layer para reemplazar la conexión ODBC/HANA.",
+                queries = GetSapSqlQueriesRequeridas()
+            });
+        }
+
+        private static List<SapSqlQueryDefinitionVM> GetSapSqlQueriesRequeridas()
+        {
+            return new List<SapSqlQueryDefinitionVM>
+            {
+                new SapSqlQueryDefinitionVM
+                {
+                    SqlCode = SAP_SQL_INV_LOTE_DISPONIBLE,
+                    SqlName = "CG - Inventario lote disponible",
+                    ParamList = "itemCode,whsCode,lote",
+                    SqlText = @"SELECT
+    T0.""ItemCode"" AS ""Articulo"",
+    T0.""WhsCode"" AS ""Almacen"",
+    T1.""DistNumber"" AS ""Lote"",
+    SUM(IFNULL(T0.""Quantity"", 0)) AS ""CantidadSap"",
+    SUM(IFNULL(T0.""CommitQty"", 0)) AS ""ComprometidoSap"",
+    SUM(IFNULL(T0.""Quantity"", 0) - IFNULL(T0.""CommitQty"", 0)) AS ""DisponibleSap""
+FROM OBTQ T0
+INNER JOIN OBTN T1
+    ON T0.""ItemCode"" = T1.""ItemCode""
+   AND T0.""SysNumber"" = T1.""SysNumber""
+WHERE
+    T0.""ItemCode"" = :itemCode
+    AND T0.""WhsCode"" = :whsCode
+    AND T1.""DistNumber"" = :lote
+GROUP BY
+    T0.""ItemCode"",
+    T0.""WhsCode"",
+    T1.""DistNumber"""
+                },
+                new SapSqlQueryDefinitionVM
+                {
+                    SqlCode = SAP_SQL_DEV_APLICADAS_PEDIDO,
+                    SqlName = "CG - Devoluciones aplicadas por pedido",
+                    ParamList = "pedidoSap",
+                    SqlText = @"WITH P AS (
+    SELECT :pedidoSap AS ""PedidoSap"" FROM DUMMY
+),
+Entrega AS (
+    SELECT
+        T0.""DocEntry"",
+        T0.""DocNum"",
+        T0.""DocDate"",
+        T0.""CardCode"",
+        T0.""CardName"",
+        T0.""NumAtCard""
+    FROM ODLN T0, P
+    WHERE
+        T0.""NumAtCard"" = P.""PedidoSap""
+        OR T0.""Comments"" LIKE '%' || P.""PedidoSap"" || '%'
+),
+Factura AS (
+    SELECT
+        T0.""DocEntry"",
+        T0.""DocNum"",
+        T0.""DocDate"",
+        T0.""CardCode"",
+        T0.""CardName"",
+        T0.""NumAtCard""
+    FROM OINV T0, P
+    WHERE
+        T0.""NumAtCard"" = P.""PedidoSap""
+        OR T0.""Comments"" LIKE '%' || P.""PedidoSap"" || '%'
+),
+DetalleSap AS (
+    SELECT
+        'ORDN/RDN1' AS ""TipoAplicacion"",
+        E.""NumAtCard"" AS ""PedidoSap"",
+        E.""DocNum"" AS ""DocNumOriginal"",
+        E.""DocEntry"" AS ""DocEntryOriginal"",
+        D0.""DocEntry"" AS ""DocEntryDevolucion"",
+        D0.""DocNum"" AS ""DocNumDevolucion"",
+        D0.""DocDate"" AS ""FechaDevolucion"",
+        D1.""ItemCode"",
+        BTN.""DistNumber"" AS ""Lote"",
+        ABS(IFNULL(TLD.""Quantity"", D1.""Quantity"")) AS ""CantidadDevuelta""
+    FROM Entrega E
+    INNER JOIN RDN1 D1
+        ON D1.""BaseType"" = 15
+        AND D1.""BaseEntry"" = E.""DocEntry""
+    INNER JOIN ORDN D0
+        ON D0.""DocEntry"" = D1.""DocEntry""
+    LEFT JOIN OITL TL
+        ON TL.""DocType"" = 16
+        AND TL.""DocEntry"" = D0.""DocEntry""
+        AND TL.""DocLine"" = D1.""LineNum""
+        AND TL.""ItemCode"" = D1.""ItemCode""
+    LEFT JOIN ITL1 TLD
+        ON TLD.""LogEntry"" = TL.""LogEntry""
+    LEFT JOIN OBTN BTN
+        ON BTN.""AbsEntry"" = TLD.""MdAbsEntry""
+    WHERE
+        D0.""CANCELED"" = 'N'
+
+    UNION ALL
+
+    SELECT
+        'ORIN/RIN1' AS ""TipoAplicacion"",
+        F.""NumAtCard"" AS ""PedidoSap"",
+        F.""DocNum"" AS ""DocNumOriginal"",
+        F.""DocEntry"" AS ""DocEntryOriginal"",
+        NC0.""DocEntry"" AS ""DocEntryDevolucion"",
+        NC0.""DocNum"" AS ""DocNumDevolucion"",
+        NC0.""DocDate"" AS ""FechaDevolucion"",
+        NC1.""ItemCode"",
+        BTN.""DistNumber"" AS ""Lote"",
+        ABS(IFNULL(TLD.""Quantity"", NC1.""Quantity"")) AS ""CantidadDevuelta""
+    FROM Factura F
+    INNER JOIN RIN1 NC1
+        ON NC1.""BaseType"" = 13
+        AND NC1.""BaseEntry"" = F.""DocEntry""
+    INNER JOIN ORIN NC0
+        ON NC0.""DocEntry"" = NC1.""DocEntry""
+    LEFT JOIN OITL TL
+        ON TL.""DocType"" = 14
+        AND TL.""DocEntry"" = NC0.""DocEntry""
+        AND TL.""DocLine"" = NC1.""LineNum""
+        AND TL.""ItemCode"" = NC1.""ItemCode""
+    LEFT JOIN ITL1 TLD
+        ON TLD.""LogEntry"" = TL.""LogEntry""
+    LEFT JOIN OBTN BTN
+        ON BTN.""AbsEntry"" = TLD.""MdAbsEntry""
+    WHERE
+        NC0.""CANCELED"" = 'N'
+)
+SELECT
+    UPPER(TRIM(""PedidoSap"")) AS ""PedidoSap"",
+    UPPER(TRIM(""ItemCode"")) AS ""Articulo"",
+    UPPER(TRIM(IFNULL(""Lote"", 'SIN_LOTE'))) AS ""Lote"",
+    SUM(""CantidadDevuelta"") AS ""KgDevueltosSap"",
+    MAX(""DocNumDevolucion"") AS ""DocNumDevolucion"",
+    MAX(""DocEntryDevolucion"") AS ""DocEntryDevolucion"",
+    MAX(""FechaDevolucion"") AS ""FechaDevolucionSap"",
+    STRING_AGG(""TipoAplicacion"", ', ') AS ""TipoAplicacion""
+FROM DetalleSap
+GROUP BY
+    UPPER(TRIM(""PedidoSap"")),
+    UPPER(TRIM(""ItemCode"")),
+    UPPER(TRIM(IFNULL(""Lote"", 'SIN_LOTE')))
+ORDER BY
+    ""Articulo"",
+    ""Lote"""
+                },
+                new SapSqlQueryDefinitionVM
+                {
+                    SqlCode = SAP_SQL_CONCILIACION_INVENTARIO_P1,
+                    SqlName = "CG - Conciliacion inventario SAP P1",
+                    ParamList = "",
+                    SqlText = @"SELECT
+    T0.ItemCode AS ProductoCodigo,
+    T0.WhsCode AS Sucursal,
+    T0.Quantity AS CantidadSap,
+    T0.CommitQty AS ComprometidoSap,
+    T1.ItemName AS DescripcionSap,
+    T2.DistNumber AS Lote
+FROM OBTQ T0
+INNER JOIN OITM T1
+    ON T1.ItemCode = T0.ItemCode
+INNER JOIN OBTN T2
+    ON T2.ItemCode = T0.ItemCode
+   AND T2.SysNumber = T0.SysNumber
+WHERE
+    T0.Quantity > 0
+    AND T0.WhsCode = 'PLAP1GEN'
+ORDER BY
+    T0.WhsCode,
+    T0.ItemCode,
+    T2.DistNumber"
+                },
+                new SapSqlQueryDefinitionVM
+                {
+                    SqlCode = SAP_SQL_CONCILIACION_INVENTARIO_TIF,
+                    SqlName = "CG - Conciliacion inventario SAP TIF",
+                    ParamList = "",
+                    SqlText = @"SELECT
+    T0.ItemCode AS ProductoCodigo,
+    T0.WhsCode AS Sucursal,
+    T0.Quantity AS CantidadSap,
+    T0.CommitQty AS ComprometidoSap,
+    T1.ItemName AS DescripcionSap,
+    T2.DistNumber AS Lote
+FROM OBTQ T0
+INNER JOIN OITM T1
+    ON T1.ItemCode = T0.ItemCode
+INNER JOIN OBTN T2
+    ON T2.ItemCode = T0.ItemCode
+   AND T2.SysNumber = T0.SysNumber
+WHERE
+    T0.Quantity > 0
+    AND T0.WhsCode = 'PLATIFGE'
+ORDER BY
+    T0.WhsCode,
+    T0.ItemCode,
+    T2.DistNumber"
+                }            };
         }
         [HttpGet]
         public async Task<IActionResult> ObtenerPermisosVistaEntregas()
@@ -648,154 +875,30 @@ ORDER BY
 
         private async Task<List<DevolucionSapAplicadaRow>> ObtenerDevolucionesAplicadasSapAsync(string pedidoSap)
         {
-            var cs = _configuration.GetConnectionString("SapHana");
+            pedidoSap = (pedidoSap ?? "").Trim();
 
-            if (string.IsNullOrWhiteSpace(cs))
-                throw new Exception("No existe la cadena de conexión 'SapHana'.");
+            if (string.IsNullOrWhiteSpace(pedidoSap))
+                return new List<DevolucionSapAplicadaRow>();
 
-            var pedido = SqlText(pedidoSap);
-
-            var sql = $@"
-WITH P AS (
-    SELECT '{pedido}' AS ""PedidoSap"" FROM DUMMY
-),
-
-Entrega AS (
-    SELECT
-        T0.""DocEntry"",
-        T0.""DocNum"",
-        T0.""DocDate"",
-        T0.""CardCode"",
-        T0.""CardName"",
-        T0.""NumAtCard""
-    FROM ""PROD_CARNESG"".""ODLN"" T0, P
-    WHERE
-        T0.""NumAtCard"" = P.""PedidoSap""
-        OR T0.""Comments"" LIKE '%' || P.""PedidoSap"" || '%'
-),
-
-Factura AS (
-    SELECT
-        T0.""DocEntry"",
-        T0.""DocNum"",
-        T0.""DocDate"",
-        T0.""CardCode"",
-        T0.""CardName"",
-        T0.""NumAtCard""
-    FROM ""PROD_CARNESG"".""OINV"" T0, P
-    WHERE
-        T0.""NumAtCard"" = P.""PedidoSap""
-        OR T0.""Comments"" LIKE '%' || P.""PedidoSap"" || '%'
-),
-
-DetalleSap AS (
-    SELECT
-        'ORDN/RDN1' AS ""TipoAplicacion"",
-        E.""NumAtCard"" AS ""PedidoSap"",
-        E.""DocNum"" AS ""DocNumOriginal"",
-        E.""DocEntry"" AS ""DocEntryOriginal"",
-        D0.""DocEntry"" AS ""DocEntryDevolucion"",
-        D0.""DocNum"" AS ""DocNumDevolucion"",
-        D0.""DocDate"" AS ""FechaDevolucion"",
-        D1.""ItemCode"",
-        BTN.""DistNumber"" AS ""Lote"",
-        ABS(IFNULL(TLD.""Quantity"", D1.""Quantity"")) AS ""CantidadDevuelta""
-    FROM Entrega E
-    INNER JOIN ""PROD_CARNESG"".""RDN1"" D1
-        ON D1.""BaseType"" = 15
-        AND D1.""BaseEntry"" = E.""DocEntry""
-    INNER JOIN ""PROD_CARNESG"".""ORDN"" D0
-        ON D0.""DocEntry"" = D1.""DocEntry""
-    LEFT JOIN ""PROD_CARNESG"".""OITL"" TL
-        ON TL.""DocType"" = 16
-        AND TL.""DocEntry"" = D0.""DocEntry""
-        AND TL.""DocLine"" = D1.""LineNum""
-        AND TL.""ItemCode"" = D1.""ItemCode""
-    LEFT JOIN ""PROD_CARNESG"".""ITL1"" TLD
-        ON TLD.""LogEntry"" = TL.""LogEntry""
-    LEFT JOIN ""PROD_CARNESG"".""OBTN"" BTN
-        ON BTN.""AbsEntry"" = TLD.""MdAbsEntry""
-    WHERE
-        D0.""CANCELED"" = 'N'
-
-    UNION ALL
-
-    SELECT
-        'ORIN/RIN1' AS ""TipoAplicacion"",
-        F.""NumAtCard"" AS ""PedidoSap"",
-        F.""DocNum"" AS ""DocNumOriginal"",
-        F.""DocEntry"" AS ""DocEntryOriginal"",
-        NC0.""DocEntry"" AS ""DocEntryDevolucion"",
-        NC0.""DocNum"" AS ""DocNumDevolucion"",
-        NC0.""DocDate"" AS ""FechaDevolucion"",
-        NC1.""ItemCode"",
-        BTN.""DistNumber"" AS ""Lote"",
-        ABS(IFNULL(TLD.""Quantity"", NC1.""Quantity"")) AS ""CantidadDevuelta""
-    FROM Factura F
-    INNER JOIN ""PROD_CARNESG"".""RIN1"" NC1
-        ON NC1.""BaseType"" = 13
-        AND NC1.""BaseEntry"" = F.""DocEntry""
-    INNER JOIN ""PROD_CARNESG"".""ORIN"" NC0
-        ON NC0.""DocEntry"" = NC1.""DocEntry""
-    LEFT JOIN ""PROD_CARNESG"".""OITL"" TL
-        ON TL.""DocType"" = 14
-        AND TL.""DocEntry"" = NC0.""DocEntry""
-        AND TL.""DocLine"" = NC1.""LineNum""
-        AND TL.""ItemCode"" = NC1.""ItemCode""
-    LEFT JOIN ""PROD_CARNESG"".""ITL1"" TLD
-        ON TLD.""LogEntry"" = TL.""LogEntry""
-    LEFT JOIN ""PROD_CARNESG"".""OBTN"" BTN
-        ON BTN.""AbsEntry"" = TLD.""MdAbsEntry""
-    WHERE
-        NC0.""CANCELED"" = 'N'
-)
-
-SELECT
-    UPPER(TRIM(""PedidoSap"")) AS ""PedidoSap"",
-    UPPER(TRIM(""ItemCode"")) AS ""Articulo"",
-    UPPER(TRIM(IFNULL(""Lote"", 'SIN_LOTE'))) AS ""Lote"",
-    SUM(""CantidadDevuelta"") AS ""KgDevueltosSap"",
-    MAX(""DocNumDevolucion"") AS ""DocNumDevolucion"",
-    MAX(""DocEntryDevolucion"") AS ""DocEntryDevolucion"",
-    MAX(""FechaDevolucion"") AS ""FechaDevolucionSap"",
-    STRING_AGG(""TipoAplicacion"", ', ') AS ""TipoAplicacion""
-FROM DetalleSap
-GROUP BY
-    UPPER(TRIM(""PedidoSap"")),
-    UPPER(TRIM(""ItemCode"")),
-    UPPER(TRIM(IFNULL(""Lote"", 'SIN_LOTE')))
-ORDER BY
-    ""Articulo"",
-    ""Lote"";
-";
-
-            var lista = new List<DevolucionSapAplicadaRow>();
-
-            using var cn = new OdbcConnection(cs);
-            await cn.OpenAsync();
-
-            using var cmd = cn.CreateCommand();
-            cmd.CommandText = sql;
-            cmd.CommandTimeout = 180;
-
-            using var rd = await cmd.ExecuteReaderAsync();
-
-            while (await rd.ReadAsync())
-            {
-                lista.Add(new DevolucionSapAplicadaRow
+            var rows = await EjecutarSapSqlQueryListAsync(
+                SAP_SQL_DEV_APLICADAS_PEDIDO,
+                new Dictionary<string, string>
                 {
-                    PedidoSap = rd["PedidoSap"]?.ToString() ?? "",
-                    Articulo = rd["Articulo"]?.ToString() ?? "",
-                    Lote = rd["Lote"]?.ToString() ?? "",
-                    KgDevueltosSap = ToDecimalSafe(rd["KgDevueltosSap"]),
-                    DocNumDevolucion = ToIntSafe(rd["DocNumDevolucion"]),
-                    DocEntryDevolucion = ToIntSafe(rd["DocEntryDevolucion"]),
-                    FechaDevolucionSap = ToDateTimeSafe(rd["FechaDevolucionSap"]),
-                    TipoAplicacion = rd["TipoAplicacion"]?.ToString() ?? ""
-                });
-            }
+                    ["pedidoSap"] = pedidoSap
+                }
+            );
 
-            return lista;
+            return rows.Select(x => new DevolucionSapAplicadaRow
+            {
+                PedidoSap = JsonStr(x, "PedidoSap"),
+                Articulo = JsonStr(x, "Articulo"),
+                Lote = JsonStr(x, "Lote"),
+                KgDevueltosSap = JsonDecimal(x, "KgDevueltosSap"),
+                DocNumDevolucion = JsonIntNullable(x, "DocNumDevolucion"),
+                DocEntryDevolucion = JsonIntNullable(x, "DocEntryDevolucion"),
+                FechaDevolucionSap = JsonDateNullable(x, "FechaDevolucionSap"),
+                TipoAplicacion = JsonStr(x, "TipoAplicacion")
+            }).ToList();
         }
 
         private static string ExtraerNumAtCardDesdeJson(string json)
@@ -892,19 +995,24 @@ ORDER BY
                             !string.IsNullOrWhiteSpace(lote) &&
                             kg > 0)
                         {
-                            lotesReq.Add((itemCode, whsCode, lote, kg));
+                            lotesReq.Add((itemCode.Trim(), whsCode.Trim(), lote.Trim(), kg));
                         }
                     }
                 }
             }
 
             var agrupado = lotesReq
-                .GroupBy(x => new { x.ItemCode, x.WhsCode, x.Lote })
+                .GroupBy(x => new
+                {
+                    ItemCode = NormalizeKey(x.ItemCode),
+                    WhsCode = NormalizeKey(x.WhsCode),
+                    Lote = NormalizeKey(x.Lote)
+                })
                 .Select(g => new
                 {
-                    g.Key.ItemCode,
-                    g.Key.WhsCode,
-                    g.Key.Lote,
+                    ItemCode = g.First().ItemCode,
+                    WhsCode = g.First().WhsCode,
+                    Lote = g.First().Lote,
                     Kg = g.Sum(x => x.Kg)
                 })
                 .ToList();
@@ -920,102 +1028,87 @@ ORDER BY
                 };
             }
 
-            var sapSchema = "PROD_CARNESG";
+            var resultado = new List<TrazabilidadSapVM>();
 
-            var selects = agrupado.Select(x => $@"
-        SELECT
-            '{SqlText(x.ItemCode)}' AS ""ItemCode"",
-            '{SqlText(x.WhsCode)}' AS ""WhsCode"",
-            '{SqlText(x.Lote)}' AS ""DistNumber"",
-            {x.Kg.ToString(System.Globalization.CultureInfo.InvariantCulture)} AS ""KgJson""
-        FROM DUMMY
-    ");
+            foreach (var x in agrupado)
+            {
+                // Reutilizamos la conciliación SAP por almacén fijo y filtramos en C#.
+                // Esto evita usar parámetros string en SQLQueries, que en tu Service Layer está regresando "Parameter error".
+                var sapInv = await ObtenerInventarioSapConciliacionAsync(x.WhsCode, x.ItemCode, x.Lote);
 
-            var reqRawSql = string.Join(" UNION ALL ", selects);
+                var sap = sapInv
+                    .Where(r =>
+                        NormalizeKey(r.ProductoCodigo) == NormalizeKey(x.ItemCode) &&
+                        NormLoteInv(r.Lote) == NormLoteInv(x.Lote))
+                    .GroupBy(r => KeyInv(r.Sucursal, r.ProductoCodigo, r.Lote))
+                    .Select(g => new InventarioSapConciliacionRow
+                    {
+                        Sucursal = g.First().Sucursal,
+                        ProductoCodigo = g.First().ProductoCodigo,
+                        DescripcionSap = g.First().DescripcionSap,
+                        Lote = g.First().Lote,
+                        CantidadSap = g.Sum(r => r.CantidadSap),
+                        ComprometidoSap = g.Sum(r => r.ComprometidoSap),
+                        DisponibleSap = g.Sum(r => r.DisponibleSap)
+                    })
+                    .FirstOrDefault();
 
-            var sql = $@"
-WITH ReqRaw AS
-(
-    {reqRawSql}
-),
-Req AS
-(
-    SELECT
-        ""ItemCode"",
-        ""WhsCode"",
-        ""DistNumber"",
-        SUM(""KgJson"") AS ""KgJson""
-    FROM ReqRaw
-    GROUP BY
-        ""ItemCode"",
-        ""WhsCode"",
-        ""DistNumber""
-),
-Sap AS
-(
-    SELECT
-        T0.""ItemCode"",
-        T0.""WhsCode"",
-        T1.""DistNumber"",
-        SUM(IFNULL(T0.""Quantity"", 0)) AS ""CantidadSap"",
-        SUM(IFNULL(T0.""CommitQty"", 0)) AS ""ComprometidoSap"",
-        SUM(IFNULL(T0.""Quantity"", 0) - IFNULL(T0.""CommitQty"", 0)) AS ""DisponibleSap""
-    FROM ""{sapSchema}"".""OBTQ"" T0
-    INNER JOIN ""{sapSchema}"".""OBTN"" T1
-        ON T0.""ItemCode"" = T1.""ItemCode""
-       AND T0.""SysNumber"" = T1.""SysNumber""
-    INNER JOIN Req R
-        ON R.""ItemCode"" = T0.""ItemCode""
-       AND R.""WhsCode"" = T0.""WhsCode""
-       AND R.""DistNumber"" = T1.""DistNumber""
-    GROUP BY
-        T0.""ItemCode"",
-        T0.""WhsCode"",
-        T1.""DistNumber""
-)
-SELECT
-    COALESCE(R.""ItemCode"", '') AS ""Articulo"",
-    COALESCE(R.""WhsCode"", '') AS ""Almacen"",
-    COALESCE(R.""DistNumber"", '') AS ""Lote"",
-    COALESCE(R.""KgJson"", 0) AS ""KgSolicitadosJson"",
+                decimal cantidadSap = sap?.CantidadSap ?? 0m;
+                decimal comprometidoSap = sap?.ComprometidoSap ?? 0m;
+                decimal disponibleSap = sap?.DisponibleSap ?? 0m;
 
-    COALESCE(S.""CantidadSap"", 0) AS ""CantidadSap"",
-    COALESCE(S.""ComprometidoSap"", 0) AS ""ComprometidoSap"",
-    COALESCE(S.""DisponibleSap"", 0) AS ""DisponibleSap"",
+                decimal kgFaltantes = 0m;
+                decimal kgSobrantes = 0m;
+                string estatus;
 
-    CASE
-        WHEN S.""DistNumber"" IS NULL THEN COALESCE(R.""KgJson"", 0)
-        WHEN COALESCE(S.""DisponibleSap"", 0) + 0.01 < COALESCE(R.""KgJson"", 0)
-            THEN COALESCE(R.""KgJson"", 0) - COALESCE(S.""DisponibleSap"", 0)
-        ELSE 0
-    END AS ""KgFaltantes"",
+                if (sap == null)
+                {
+                    kgFaltantes = x.Kg;
+                    estatus = "NO EXISTE LOTE EN SAP";
+                }
+                else if (disponibleSap <= 0)
+                {
+                    kgFaltantes = x.Kg;
+                    estatus = "SIN DISPONIBLE";
+                }
+                else if (disponibleSap + 0.01m < x.Kg)
+                {
+                    kgFaltantes = x.Kg - disponibleSap;
+                    estatus = "FALTAN KG";
+                }
+                else if (Math.Abs(disponibleSap - x.Kg) <= 0.01m)
+                {
+                    estatus = "OK EXACTO";
+                }
+                else if (disponibleSap > x.Kg)
+                {
+                    kgSobrantes = disponibleSap - x.Kg;
+                    estatus = "OK CON SOBRANTE";
+                }
+                else
+                {
+                    estatus = "REVISAR";
+                }
 
-    CASE
-        WHEN S.""DistNumber"" IS NULL THEN 0
-        WHEN COALESCE(S.""DisponibleSap"", 0) > COALESCE(R.""KgJson"", 0)
-            THEN COALESCE(S.""DisponibleSap"", 0) - COALESCE(R.""KgJson"", 0)
-        ELSE 0
-    END AS ""KgSobrantes"",
+                resultado.Add(new TrazabilidadSapVM
+                {
+                    Articulo = sap?.ProductoCodigo ?? x.ItemCode,
+                    Almacen = sap?.Sucursal ?? x.WhsCode,
+                    Lote = sap?.Lote ?? x.Lote,
+                    KgSolicitadosJson = x.Kg,
+                    CantidadSap = cantidadSap,
+                    ComprometidoSap = comprometidoSap,
+                    DisponibleSap = disponibleSap,
+                    KgFaltantes = kgFaltantes,
+                    KgSobrantes = kgSobrantes,
+                    Estatus = estatus
+                });
+            }
 
-    CASE
-        WHEN S.""DistNumber"" IS NULL THEN 'NO EXISTE LOTE EN SAP'
-        WHEN COALESCE(S.""DisponibleSap"", 0) <= 0 THEN 'SIN DISPONIBLE'
-        WHEN COALESCE(S.""DisponibleSap"", 0) + 0.01 < COALESCE(R.""KgJson"", 0) THEN 'FALTAN KG'
-        WHEN ABS(COALESCE(S.""DisponibleSap"", 0) - COALESCE(R.""KgJson"", 0)) <= 0.01 THEN 'OK EXACTO'
-        WHEN COALESCE(S.""DisponibleSap"", 0) > COALESCE(R.""KgJson"", 0) THEN 'OK CON SOBRANTE'
-        ELSE 'REVISAR'
-    END AS ""Estatus""
-FROM Req R
-LEFT JOIN Sap S
-    ON S.""ItemCode"" = R.""ItemCode""
-   AND S.""WhsCode"" = R.""WhsCode""
-   AND S.""DistNumber"" = R.""DistNumber""
-ORDER BY
-    R.""ItemCode"",
-    R.""DistNumber"";
-";
-
-            return await EjecutarConsultaTrazabilidadSapAsync(sql);
+            return resultado
+                .OrderBy(x => x.Articulo)
+                .ThenBy(x => x.Lote)
+                .ToList();
         }
 
         private static string SqlText(string value)
@@ -1023,46 +1116,225 @@ ORDER BY
             return (value ?? "").Replace("'", "''");
         }
 
-        private async Task<List<TrazabilidadSapVM>> EjecutarConsultaTrazabilidadSapAsync(string sql)
+        private async Task<List<JsonElement>> EjecutarSapSqlQueryListAsync(
+            string sqlCode,
+            Dictionary<string, string>? parameters = null)
         {
-            var lista = new List<TrazabilidadSapVM>();
+            if (string.IsNullOrWhiteSpace(sqlCode))
+                throw new Exception("Código de SQLQuery SAP vacío.");
 
-            var cs = _configuration.GetConnectionString("SapHana");
+            parameters ??= new Dictionary<string, string>();
 
-            if (string.IsNullOrWhiteSpace(cs))
+            var endpoint = $"SQLQueries('{ODataEscape(sqlCode)}')/List";
+            var rows = new List<JsonElement>();
+
+            (bool ok, string? response, string? error) r;
+
+            // Para SQLQueries sin parámetros, usar GET.
+            // Esto evita errores de "Parameter error" en Service Layer cuando el body va vacío.
+            if (parameters.Count == 0)
             {
-                throw new Exception("No existe la cadena de conexión 'SapHana' dentro de ConnectionStrings.");
+                var g = await _sap.GetAsync(endpoint);
+                r = (g.ok, g.response, g.error);
+            }
+            else
+            {
+                var paramList = string.Join(",", parameters.Select(x =>
+                    $"{x.Key}={SapSqlParamValue(x.Value)}"));
+
+                var body = JsonSerializer.Serialize(new { ParamList = paramList });
+                var p = await _sap.PostJsonAsync(endpoint, body);
+                r = (p.ok, p.response, p.error);
             }
 
-            using var cn = new OdbcConnection(cs);
-            await cn.OpenAsync();
-
-            using var cmd = cn.CreateCommand();
-            cmd.CommandText = sql;
-            cmd.CommandTimeout = 180;
-
-            using var rd = await cmd.ExecuteReaderAsync();
-
-            while (await rd.ReadAsync())
+            if (!r.ok)
             {
-                lista.Add(new TrazabilidadSapVM
+                throw new Exception(
+                    $"No se pudo ejecutar SQLQuery SAP '{sqlCode}'. " +
+                    $"Verifica que exista en Service Layer y que el usuario tenga permisos. " +
+                    $"Error: {r.error}. Respuesta: {r.response}");
+            }
+
+            string? nextLink = LeerRowsSqlQueryResponse(r.response, rows);
+
+            var guard = 0;
+            while (!string.IsNullOrWhiteSpace(nextLink) && guard < 200)
+            {
+                guard++;
+
+                var nextEndpoint = NormalizarSapEndpoint(nextLink);
+                var next = await _sap.GetAsync(nextEndpoint);
+
+                if (!next.ok)
                 {
-                    Articulo = rd["Articulo"]?.ToString() ?? "",
-                    Almacen = rd["Almacen"]?.ToString() ?? "",
-                    Lote = rd["Lote"]?.ToString() ?? "",
+                    throw new Exception(
+                        $"No se pudo leer la siguiente página de SQLQuery SAP '{sqlCode}'. " +
+                        $"Error: {next.error}. Respuesta: {next.response}");
+                }
 
-                    KgSolicitadosJson = ToDecimalSafe(rd["KgSolicitadosJson"]),
-                    CantidadSap = ToDecimalSafe(rd["CantidadSap"]),
-                    ComprometidoSap = ToDecimalSafe(rd["ComprometidoSap"]),
-                    DisponibleSap = ToDecimalSafe(rd["DisponibleSap"]),
-                    KgFaltantes = ToDecimalSafe(rd["KgFaltantes"]),
-                    KgSobrantes = ToDecimalSafe(rd["KgSobrantes"]),
-
-                    Estatus = rd["Estatus"]?.ToString() ?? ""
-                });
+                nextLink = LeerRowsSqlQueryResponse(next.response, rows);
             }
 
-            return lista;
+            return rows;
+        }
+
+        private static string? LeerRowsSqlQueryResponse(string? response, List<JsonElement> rows)
+        {
+            if (string.IsNullOrWhiteSpace(response))
+                return null;
+
+            using var doc = JsonDocument.Parse(response);
+            var root = doc.RootElement;
+
+            if (root.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in root.EnumerateArray())
+                    rows.Add(item.Clone());
+
+                return null;
+            }
+
+            if (root.TryGetProperty("value", out var value) && value.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in value.EnumerateArray())
+                    rows.Add(item.Clone());
+            }
+
+            if (root.TryGetProperty("@odata.nextLink", out var next1) && next1.ValueKind == JsonValueKind.String)
+                return next1.GetString();
+
+            if (root.TryGetProperty("odata.nextLink", out var next2) && next2.ValueKind == JsonValueKind.String)
+                return next2.GetString();
+
+            return null;
+        }
+
+        private static string NormalizarSapEndpoint(string endpointOrUrl)
+        {
+            var s = (endpointOrUrl ?? "").Trim();
+
+            if (string.IsNullOrWhiteSpace(s))
+                return s;
+
+            var idx = s.IndexOf("/b1s/v1/", StringComparison.OrdinalIgnoreCase);
+            if (idx >= 0)
+                return s.Substring(idx + "/b1s/v1/".Length);
+
+            idx = s.IndexOf("/b1s/v2/", StringComparison.OrdinalIgnoreCase);
+            if (idx >= 0)
+                return s.Substring(idx + "/b1s/v2/".Length);
+
+            return s.TrimStart('/');
+        }
+
+        //PARA VER QUERYS REQUERIDAS
+        //http://localhost:5019/ProcesosCG/SapSqlQueriesRequeridas
+
+
+        //pra enviar los endpoint o querys a service layer
+        //POST https://TU_SERVIDOR:50000/b1s/v2/SQLQueries
+
+        //BODY
+        //        {
+        //  "SqlCode": "CG_CONCILIACION_INVENTARIO",
+        //  "SqlName": "CG - Conciliacion inventario SAP",
+        //  "ParamList": "sucursal,articulo,lote",
+        //  "SqlText": "SELECT T0.\"WhsCode\" AS \"Sucursal\", T0.\"ItemCode\" AS \"ProductoCodigo\", IFNULL(T1.\"ItemName\", '') AS \"DescripcionSap\", IFNULL(NULLIF(T2.\"DistNumber\", ''), '-') AS \"Lote\", SUM(IFNULL(T0.\"Quantity\", 0)) AS \"CantidadSap\", SUM(IFNULL(T0.\"CommitQty\", 0)) AS \"ComprometidoSap\", SUM(IFNULL(T0.\"Quantity\", 0) - IFNULL(T0.\"CommitQty\", 0)) AS \"DisponibleSap\" FROM OBTQ T0 INNER JOIN OITM T1 ON T1.\"ItemCode\" = T0.\"ItemCode\" INNER JOIN OBTN T2 ON T2.\"ItemCode\" = T0.\"ItemCode\" AND T2.\"SysNumber\" = T0.\"SysNumber\" WHERE T0.\"Quantity\" > 0 AND (:sucursal = '' OR T0.\"WhsCode\" = :sucursal) AND (:articulo = '' OR UPPER(T0.\"ItemCode\") LIKE '%' || UPPER(:articulo) || '%') AND (:lote = '' OR UPPER(T2.\"DistNumber\") LIKE '%' || UPPER(:lote) || '%') GROUP BY T0.\"WhsCode\", T0.\"ItemCode\", T1.\"ItemName\", T2.\"DistNumber\" ORDER BY T0.\"WhsCode\", T0.\"ItemCode\", T2.\"DistNumber\""
+        //}
+        private static string SapSqlParamValue(string value)
+        {
+            return (value ?? string.Empty)
+                .Trim()
+                .Replace(",", " ")
+                .Replace("\r", " ")
+                .Replace("\n", " ");
+        }
+
+        private static bool TryGetJsonProperty(JsonElement row, string name, out JsonElement value)
+        {
+            if (row.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var p in row.EnumerateObject())
+                {
+                    if (p.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        value = p.Value;
+                        return true;
+                    }
+                }
+            }
+
+            value = default;
+            return false;
+        }
+
+        private static string JsonStr(JsonElement row, string name)
+        {
+            if (!TryGetJsonProperty(row, name, out var value))
+                return "";
+
+            return value.ValueKind switch
+            {
+                JsonValueKind.String => value.GetString() ?? "",
+                JsonValueKind.Number => value.ToString(),
+                JsonValueKind.True => "true",
+                JsonValueKind.False => "false",
+                _ => value.ToString() ?? ""
+            };
+        }
+
+        private static decimal JsonDecimal(JsonElement row, string name)
+        {
+            if (!TryGetJsonProperty(row, name, out var value))
+                return 0m;
+
+            try
+            {
+                if (value.ValueKind == JsonValueKind.Number)
+                    return value.GetDecimal();
+
+                if (value.ValueKind == JsonValueKind.String &&
+                    decimal.TryParse(value.GetString(), System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out var d))
+                    return d;
+            }
+            catch { }
+
+            return 0m;
+        }
+
+        private static int? JsonIntNullable(JsonElement row, string name)
+        {
+            if (!TryGetJsonProperty(row, name, out var value))
+                return null;
+
+            try
+            {
+                if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var n))
+                    return n;
+
+                if (value.ValueKind == JsonValueKind.String && int.TryParse(value.GetString(), out var s))
+                    return s;
+            }
+            catch { }
+
+            return null;
+        }
+
+        private static DateTime? JsonDateNullable(JsonElement row, string name)
+        {
+            if (!TryGetJsonProperty(row, name, out var value))
+                return null;
+
+            if (value.ValueKind == JsonValueKind.String)
+            {
+                var s = value.GetString() ?? "";
+
+                if (DateTime.TryParse(s, out var d))
+                    return d;
+            }
+
+            return null;
         }
 
         private static decimal ToDecimalSafe(object value)
@@ -1464,85 +1736,74 @@ ORDER BY
             string articulo,
             string lote)
         {
-            var lista = new List<InventarioSapConciliacionRow>();
+            sucursal = (sucursal ?? "").Trim().ToUpperInvariant();
+            articulo = (articulo ?? "").Trim().ToUpperInvariant();
+            lote = (lote ?? "").Trim().ToUpperInvariant();
 
-            var cs = _configuration.GetConnectionString("SapHana");
+            var sqlCodes = new List<string>();
 
-            if (string.IsNullOrWhiteSpace(cs))
-                throw new Exception("No existe la cadena de conexión 'SapHana' dentro de ConnectionStrings.");
-
-            var sapSchema = _configuration["SapHana:Schema"];
-
-            if (string.IsNullOrWhiteSpace(sapSchema))
-                sapSchema = "PROD_CARNESG";
-
-            var where = new List<string>
-    {
-        @"T0.""Quantity"" > 0"
-    };
-
-            if (!string.IsNullOrWhiteSpace(sucursal))
-                where.Add($@"T0.""WhsCode"" = '{SqlTextInv(sucursal.Trim())}'");
-
-            if (!string.IsNullOrWhiteSpace(articulo))
-                where.Add($@"UPPER(T0.""ItemCode"") LIKE '%{SqlTextInv(articulo.Trim().ToUpperInvariant())}%'");
-
-            if (!string.IsNullOrWhiteSpace(lote))
-                where.Add($@"UPPER(T2.""DistNumber"") LIKE '%{SqlTextInv(lote.Trim().ToUpperInvariant())}%'");
-
-            var sql = $@"
-SELECT
-    T0.""WhsCode"" AS ""Sucursal"",
-    T0.""ItemCode"" AS ""ProductoCodigo"",
-    IFNULL(T1.""ItemName"", '') AS ""DescripcionSap"",
-    IFNULL(NULLIF(T2.""DistNumber"", ''), '-') AS ""Lote"",
-
-    SUM(IFNULL(T0.""Quantity"", 0)) AS ""CantidadSap"",
-    SUM(IFNULL(T0.""CommitQty"", 0)) AS ""ComprometidoSap"",
-    SUM(IFNULL(T0.""Quantity"", 0) - IFNULL(T0.""CommitQty"", 0)) AS ""DisponibleSap""
-FROM ""{sapSchema}"".""OBTQ"" T0
-INNER JOIN ""{sapSchema}"".""OITM"" T1
-    ON T1.""ItemCode"" = T0.""ItemCode""
-INNER JOIN ""{sapSchema}"".""OBTN"" T2
-    ON T2.""ItemCode"" = T0.""ItemCode""
-   AND T2.""SysNumber"" = T0.""SysNumber""
-WHERE {string.Join(" AND ", where)}
-GROUP BY
-    T0.""WhsCode"",
-    T0.""ItemCode"",
-    T1.""ItemName"",
-    T2.""DistNumber""
-ORDER BY
-    T0.""WhsCode"",
-    T0.""ItemCode"",
-    T2.""DistNumber"";
-";
-
-            using var cn = new OdbcConnection(cs);
-            await cn.OpenAsync();
-
-            using var cmd = cn.CreateCommand();
-            cmd.CommandText = sql;
-            cmd.CommandTimeout = 180;
-
-            using var rd = await cmd.ExecuteReaderAsync();
-
-            while (await rd.ReadAsync())
+            if (string.IsNullOrWhiteSpace(sucursal))
             {
-                lista.Add(new InventarioSapConciliacionRow
-                {
-                    Sucursal = rd["Sucursal"]?.ToString() ?? "",
-                    ProductoCodigo = rd["ProductoCodigo"]?.ToString() ?? "",
-                    DescripcionSap = rd["DescripcionSap"]?.ToString() ?? "",
-                    Lote = rd["Lote"]?.ToString() ?? "",
-
-                    CantidadSap = ToDecimalInv(rd["CantidadSap"]),
-                    ComprometidoSap = ToDecimalInv(rd["ComprometidoSap"]),
-                    DisponibleSap = ToDecimalInv(rd["DisponibleSap"])
-                });
+                // Cuando la pantalla está en "Todos", consultamos las dos SQLQueries fijas
+                // para evitar parámetros string en Service Layer.
+                sqlCodes.Add(SAP_SQL_CONCILIACION_INVENTARIO_P1);
+                sqlCodes.Add(SAP_SQL_CONCILIACION_INVENTARIO_TIF);
+            }
+            else if (sucursal == "PLAP1GEN")
+            {
+                sqlCodes.Add(SAP_SQL_CONCILIACION_INVENTARIO_P1);
+            }
+            else if (sucursal == "PLATIFGE")
+            {
+                sqlCodes.Add(SAP_SQL_CONCILIACION_INVENTARIO_TIF);
+            }
+            else
+            {
+                return new List<InventarioSapConciliacionRow>();
             }
 
-            return lista;
+            var salida = new List<InventarioSapConciliacionRow>();
+
+            foreach (var sqlCode in sqlCodes)
+            {
+                // Estas consultas ya tienen el almacén fijo dentro del SQLText,
+                // por eso no mandamos ParamList.
+                var rows = await EjecutarSapSqlQueryListAsync(sqlCode);
+
+                foreach (var x in rows)
+                {
+                    var item = JsonStr(x, "ProductoCodigo").Trim();
+                    var loteSap = JsonStr(x, "Lote").Trim();
+
+                    if (!string.IsNullOrWhiteSpace(articulo) &&
+                        !item.ToUpperInvariant().Contains(articulo))
+                    {
+                        continue;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(lote) &&
+                        !loteSap.ToUpperInvariant().Contains(lote))
+                    {
+                        continue;
+                    }
+
+                    var cantidad = JsonDecimal(x, "CantidadSap");
+                    var comprometido = JsonDecimal(x, "ComprometidoSap");
+
+                    salida.Add(new InventarioSapConciliacionRow
+                    {
+                        Sucursal = JsonStr(x, "Sucursal"),
+                        ProductoCodigo = item,
+                        DescripcionSap = JsonStr(x, "DescripcionSap"),
+                        Lote = string.IsNullOrWhiteSpace(loteSap) ? "-" : loteSap,
+                        CantidadSap = cantidad,
+                        ComprometidoSap = comprometido,
+                        DisponibleSap = cantidad - comprometido
+                    });
+                }
+            }
+
+            return salida;
         }
 
         private static string KeyInv(string sucursal, string producto, string lote)
@@ -3546,8 +3807,9 @@ ORDER BY
             public decimal TotalKg => Rows.Sum(x => x.Suma_De_Kg);
         }
 
+
         [HttpGet("AvisosMovilizacionPdf")]
-        [RevisarPermiso("ENTREGAS_SAP", "LEER")]
+        [RevisarPermiso("AVISOS_PDF", "LEER")]
         public async Task<IActionResult> AvisosMovilizacionPdf(
        [FromQuery] string ids,
        [FromQuery] string comentarios = "")
@@ -5404,24 +5666,15 @@ ORDER BY u.CodigoEtiqueta;
 
         [HttpGet("AvisosMovilizacion")]
         [RevisarPermiso("AVISOS_MOVILIZACION", "LEER")]
-        public async Task<IActionResult> AvisosMovilizacion(
-     DateTime? desde,
-     DateTime? hasta,
-     string cliente = "",
-     string venta = "",
-     string lote = "")
+        public IActionResult AvisosMovilizacion(
+            DateTime? desde,
+            DateTime? hasta,
+            string cliente = "",
+            string venta = "",
+            string lote = "")
         {
             var d1 = (desde ?? DateTime.Today).Date;
             var d2Visible = (hasta ?? DateTime.Today).Date;
-            var d2Exclusive = d2Visible.AddDays(1);
-
-            var rows = await ObtenerResumenAvisosMovilizacionTifAsync(
-                d1,
-                d2Exclusive,
-                cliente ?? "",
-                venta ?? "",
-                lote ?? ""
-            );
 
             var vm = new AvisosMovilizacionPageVM
             {
@@ -5430,10 +5683,72 @@ ORDER BY u.CodigoEtiqueta;
                 Cliente = cliente ?? "",
                 Venta = venta ?? "",
                 Lote = lote ?? "",
-                Rows = rows
+
+                // Importante: aquí NO se cargan datos pesados.
+                // La vista se abre rápido y después llama AvisosMovilizacionData por AJAX.
+                Rows = new List<AvisoMovilizacionResumenVM>()
             };
 
             return View("~/Views/ProcesosCG/AvisosMovilizacion.cshtml", vm);
+        }
+
+        [HttpGet("AvisosMovilizacionData")]
+        [RevisarPermiso("AVISOS_MOVILIZACION", "LEER")]
+        public async Task<IActionResult> AvisosMovilizacionData(
+            DateTime? desde,
+            DateTime? hasta,
+            string cliente = "",
+            string venta = "",
+            string lote = "")
+        {
+            try
+            {
+                var d1 = (desde ?? DateTime.Today).Date;
+                var d2Visible = (hasta ?? DateTime.Today).Date;
+                var d2Exclusive = d2Visible.AddDays(1);
+
+                var rows = await ObtenerResumenAvisosMovilizacionTifAsync(
+                    d1,
+                    d2Exclusive,
+                    cliente ?? "",
+                    venta ?? "",
+                    lote ?? ""
+                );
+
+                return Ok(new
+                {
+                    ok = true,
+                    desde = d1.ToString("yyyy-MM-dd"),
+                    hasta = d2Visible.ToString("yyyy-MM-dd"),
+                    totalSolicitudes = rows.Count,
+                    totalCajas = rows.Sum(x => x.TotalCajas),
+                    totalKg = rows.Sum(x => x.TotalKg),
+                    rows
+                });
+            }
+            catch (SqlException ex) when (ex.Number == -2)
+            {
+                _logger.LogError(ex, "Timeout SQL en AvisosMovilizacionData");
+
+                return StatusCode(504, new
+                {
+                    ok = false,
+                    msg = "Timeout SQL al cargar avisos de movilización.",
+                    error = ex.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error en AvisosMovilizacionData");
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = "Error al cargar avisos de movilización.",
+                    error = ex.Message,
+                    inner = ex.InnerException?.Message
+                });
+            }
         }
 
         [HttpGet("AvisosMovilizacionDetalle")]
