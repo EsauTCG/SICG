@@ -118,6 +118,7 @@ namespace Plataforma_CG.Data
         public DbSet<PermisoModel> PermisosAutoArticulos { get; set; }
         public DbSet<LogExcepcionModel> LogsExcepcionesArticulos { get; set; }
         public DbSet<PinArticulosModel> PinArticulos { get; set; }
+        public DbSet<LogDanoEquipoModel> LogsDanosEquipos { get; set; }
 
         public DbSet<ListaPreciosSap> ListaPreciosSap { get; set; }
 
