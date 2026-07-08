@@ -4426,15 +4426,28 @@ OPTION (RECOMPILE);";
             return View("~/Views/ProcesosCG/AutoArticulos.cshtml");
         }
 
-        // Consultas de Lectura
         [HttpGet("ObtenerDatosBase")]
         [RevisarPermiso("AUTO_ARTICULOS", "LEER")]
         public async Task<IActionResult> ObtenerDatosBase()
         {
             try
             {
-                var usuarios = await _db.UsuariosAutoArticulos.ToListAsync();
-                var categorias = await _db.CategoriasAutoArticulos.ToListAsync();
+                // El Select crea un objeto anónimo limpio para evitar que el JSON explote
+                var usuarios = await _db.UsuariosAutoArticulos
+                    .Select(u => new {
+                        id = u.Id,
+                        nombre = u.Nombre,
+                        departamento = u.Departamento,
+                        tokenGafete = u.TokenGafete
+                    }).ToListAsync();
+
+                var categorias = await _db.CategoriasAutoArticulos
+                    .Select(c => new {
+                        id = c.Id,
+                        nombre = c.Nombre,
+                        criticidad = c.Criticidad
+                    }).ToListAsync();
+
                 return Json(new { ok = true, usuarios, categorias });
             }
             catch (Exception ex)
@@ -4442,26 +4455,31 @@ OPTION (RECOMPILE);";
                 return Json(new { ok = false, mensaje = ex.Message });
             }
         }
-
         [HttpGet("ObtenerTablaPermisos")]
         [RevisarPermiso("AUTO_ARTICULOS", "LEER")]
         public async Task<IActionResult> ObtenerTablaPermisos()
         {
             try
             {
-                var datos = await _db.UsuariosAutoArticulos
-                    .Select(u => new
-                    {
-                        UsuarioId = u.Id,
-                        Nombre = u.Nombre,
-                        Departamento = u.Departamento,
-                        TokenGafete = u.TokenGafete,
-                        Categorias = _db.PermisosAutoArticulos
-                                        .Where(p => p.UsuarioId == u.Id)
-                                        .Select(p => p.Categoria)
-                                        .ToList()
-                    })
-                    .ToListAsync();
+                // 1. Traemos todos los usuarios a memoria
+                var usuarios = await _db.UsuariosAutoArticulos.ToListAsync();
+
+                // 2. Traemos todos los permisos incluyendo la información de la categoría
+                var permisos = await _db.PermisosAutoArticulos
+                                        .Include(p => p.Categoria)
+                                        .ToListAsync();
+
+                // 3. Cruzamos los datos en memoria (Esto ya no falla en EF Core)
+                var datos = usuarios.Select(u => new
+                {
+                    UsuarioId = u.Id,
+                    Nombre = u.Nombre,
+                    Departamento = u.Departamento,
+                    TokenGafete = u.TokenGafete,
+                    Categorias = permisos.Where(p => p.UsuarioId == u.Id)
+                                         .Select(p => p.Categoria)
+                                         .ToList()
+                }).ToList();
 
                 return Json(new { ok = true, datos });
             }
@@ -4682,9 +4700,120 @@ OPTION (RECOMPILE);";
 
             return Json(new { ok = true, mensaje = "PIN actualizado correctamente." });
         }
-        // =======================================================
-        // MÉTODOS INTERNOS DE SEGURIDAD
-        // =======================================================
+
+        [HttpPost("GuardarNuevaCategoriaArticulo")]
+        [RevisarPermiso("AUTO_ARTICULOS", "ESCRIBIR")]
+        public async Task<IActionResult> GuardarNuevaCategoriaArticulo([FromBody] CategoriaModel nuevaCategoria)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(nuevaCategoria.Nombre))
+                    return Json(new { ok = false, mensaje = "El nombre de la categoría es obligatorio." });
+
+                bool existe = await _db.CategoriasAutoArticulos.AnyAsync(c => c.Nombre.ToLower() == nuevaCategoria.Nombre.ToLower());
+
+                if (existe)
+                    return Json(new { ok = false, mensaje = "Esta categoría o artículo ya existe." });
+
+                _db.CategoriasAutoArticulos.Add(nuevaCategoria);
+                await _db.SaveChangesAsync();
+
+                return Json(new { ok = true, mensaje = "Registrado correctamente." });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+        [HttpPost("GuardarReporteDano")]
+        [RevisarPermiso("AUTO_ARTICULOS", "ESCRIBIR")]
+        public async Task<IActionResult> GuardarReporteDano([FromForm] string Equipo, [FromForm] string UsuarioResponsable, [FromForm] string TipoHallazgo, [FromForm] string Detalle, [FromForm] IFormFile Foto)
+        {
+            try
+            {
+                var usuarioActivo = User?.Identity?.Name ?? "SISTEMA";
+                string fotoBase64 = null;
+
+                if (Foto != null && Foto.Length > 0)
+                {
+                    using (var ms = new MemoryStream())
+                    {
+                        await Foto.CopyToAsync(ms);
+                        var fileBytes = ms.ToArray();
+                        string base64String = Convert.ToBase64String(fileBytes);
+
+                        fotoBase64 = $"data:{Foto.ContentType};base64,{base64String}";
+                    }
+                }
+
+                var nuevoReporte = new LogDanoEquipoModel
+                {
+                    Equipo = Equipo,
+                    UsuarioResponsable = UsuarioResponsable,
+                    TipoHallazgo = TipoHallazgo,
+                    Detalle = Detalle,
+                    RutaFoto = fotoBase64, 
+                    UsuarioRegistro = usuarioActivo,
+                    FechaHora = DateTime.Now
+                };
+
+                _db.LogsDanosEquipos.Add(nuevoReporte);
+                await _db.SaveChangesAsync();
+
+                return Json(new { ok = true, mensaje = "Guardado con éxito" });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+        [HttpGet("ObtenerReportesDanos")]
+        [RevisarPermiso("AUTO_ARTICULOS", "LEER")]
+        public async Task<IActionResult> ObtenerReportesDanos()
+        {
+            try
+            {
+                var reportes = await _db.LogsDanosEquipos
+                    .OrderByDescending(r => r.FechaHora)
+                    .Take(100)
+                    .Select(r => new {
+                        id = r.Id, 
+                        fecha = r.FechaHora.ToString("dd/MM/yyyy HH:mm"),
+                        equipo = r.Equipo,
+                        responsable = r.UsuarioResponsable ?? "",
+                        tipoHallazgo = r.TipoHallazgo,
+                        detalle = r.Detalle,
+                        tieneFoto = !string.IsNullOrEmpty(r.RutaFoto), 
+                        usuarioRegistro = r.UsuarioRegistro
+                    })
+                    .ToListAsync();
+
+                return Json(new { ok = true, reportes });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+        [HttpGet("ObtenerFotoDano")]
+        public async Task<IActionResult> ObtenerFotoDano(int id)
+        {
+            try
+            {
+                var reporte = await _db.LogsDanosEquipos.FindAsync(id);
+                if (reporte != null && !string.IsNullOrEmpty(reporte.RutaFoto))
+                {
+                    return Json(new { ok = true, fotoBase64 = reporte.RutaFoto });
+                }
+                return Json(new { ok = false, mensaje = "Sin foto" });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
 
         private string ObtenerPinSupervisor()
         {

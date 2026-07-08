@@ -934,7 +934,7 @@
                 </div>
             </div>
             <div class="header-actions">
-                <button type="button" class="secondary" onclick="generarReporteGeneral()">Reporte PDF</button>
+                <button type="button" class="secondary" onclick="generarReporteGeneral()">Reporte general PDF</button>
                 <button type="button" class="secondary" id="btnAdminPermisos" onclick="abrirAdminPermisos()" style="display:none;">⚙ Permisos</button>
             </div>
         </div>
@@ -991,12 +991,7 @@
                     <div class="form-grid">
                         <div>
                             <label>Ruta logística</label>
-                            <select required name="route">
-                                <option>Ruta Altos Norte</option>
-                                <option>Ruta Guadalajara</option>
-                                <option>Ruta Bajío</option>
-                                <option>Recolección en planta</option>
-                            </select>
+                            <input required name="route" placeholder="Ej. Ruta Altos Norte, Ruta Guadalajara, etc." />
                         </div>
                         <div>
                             <label>Destino</label>
@@ -1475,7 +1470,7 @@
             `;
         }
 
-        function createProductionCard(req, isHistory = false) {
+                function createProductionCard(req, isHistory = false) {
             const total = totalBoxes(req), linked = linkedLabels(req), pct = total ? Math.round(linked/total*100) : 0;
             let btnLiberar = '';
             if (!isHistory && linked === total && total > 0) {
@@ -1506,12 +1501,13 @@
                     `).join('')}
                 </div>
                 <div class="label-grid" style="margin-top:10px;">
-                    ${req.items.flatMap(item => (item.labels||[]).map((label,idx)=>labelCard(req,item,label,idx))).join('') || '<div class="empty" style="grid-column: 1/-1;">Sin etiquetas ligadas aun.</div>'}
+                    ${req.items.flatMap(item => (item.labels||[]).map((label,idx)=>labelCard(req,item,label,idx, isHistory))).join('') || '<div class="empty" style="grid-column: 1/-1;">Sin etiquetas ligadas aun.</div>'}
                 </div>
                 ${btnLiberar}
                 </div>
             `;
         }
+        
 
         function createTrackingRow(req, isHistory = false) {
             const total = totalBoxes(req), linked = linkedLabels(req), pct = total ? Math.round(linked/total*100) : 0;
@@ -1542,7 +1538,7 @@
             `;
         }
 
-        function labelCard(req, item, label, index) {
+               function labelCard(req, item, label, index, isHistory = false) {
             const fechaProc = formatDateTime(label.processedAt);
             const especie = req.species || 'Sin definir';
             const temp = item.temp || 'REFRIGERADO';
@@ -1552,22 +1548,28 @@
             const safeSpec = (item.spec || '').replace(/"/g, '&quot;');
             const safeSeller = (req.seller || '').replace(/"/g, '&quot;');
 
+            // Si es historial, no dibujamos el checkbox
+            const checkboxHtml = isHistory ? '' : `
+                <input type="checkbox" class="print-cb no-print" value="${label.code}" checked title="Seleccionar para imprimir"
+                    data-req="${req.id}"
+                    data-client="${safeClient}"
+                    data-seller="${safeSeller}"
+                    data-skureq="${item.sku}"
+                    data-skuwork="${item.workSku || item.sku}"
+                    data-product="${safeProduct}"
+                    data-species="${especie}"
+                    data-spec="${safeSpec}"
+                    data-date="${fechaProc}"
+                    data-op="${label.operator || ''}"
+                    data-chain="${label.code}"
+                    data-temp="${temp}"
+                    style="position: absolute; top: 12px; right: 12px; width: 18px; height: 18px; cursor: pointer; z-index: 10;">
+            `;
+
             return `
                 <div class="label-card" style="position: relative; background: var(--panel-2); border: 1px solid var(--line); padding: 10px;">
-                    <input type="checkbox" class="print-cb no-print" value="${label.code}" checked title="Seleccionar para imprimir"
-                        data-req="${req.id}"
-                        data-client="${safeClient}"
-                        data-seller="${safeSeller}"
-                        data-skureq="${item.sku}"
-                        data-skuwork="${item.workSku || item.sku}"
-                        data-product="${safeProduct}"
-                        data-species="${especie}"
-                        data-spec="${safeSpec}"
-                        data-date="${fechaProc}"
-                        data-op="${label.operator || ''}"
-                        data-chain="${label.code}"
-                        data-temp="${temp}"
-                        style="position: absolute; top: 12px; right: 12px; width: 18px; height: 18px; cursor: pointer; z-index: 10;">
+
+                    ${checkboxHtml}
 
                     <div style="border-bottom: 2px solid var(--line); padding-bottom: 6px; margin-bottom: 8px; padding-right: 30px;">
                         <h4 style="margin: 0; font-size: 15px; color: #5c1a1a; font-weight: bold;">${label.code}</h4>
@@ -2108,7 +2110,7 @@
             }
 
 
-            // Abrir/Cerrar buscador de SKU 
+            // Abrir/Cerrar buscador de SKU
             const skuDisplay = e.target.closest('.sku-display');
             if (skuDisplay) {
                 e.stopPropagation();
@@ -2122,7 +2124,15 @@
                 dropdown.classList.toggle('show');
                 if (dropdown.classList.contains('show')) {
                     search.value = '';
-                    items.forEach(li => li.classList.remove('hidden'));
+                    const esPlaneacion = !!wrapper.closest('.planning-form');
+                    items.forEach(li => {
+                        if (esPlaneacion) {
+                            const codigo = (li.dataset.codigo || '').toUpperCase();
+                            li.classList.toggle('hidden', !codigo.includes('PR'));
+                        } else {
+                            li.classList.remove('hidden');
+                        }
+                    });
                     search.focus();
                 }
             }
