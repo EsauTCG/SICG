@@ -20,7 +20,7 @@ namespace Plataforma_CG.Models
         public Perfil? Perfil { get; set; }
         public bool EsVendedor { get; set; }
         public int? VendedorId { get; set; }
-
+        public bool IgnoraFiltroSerieTransferencias { get; set; } = false;
         public ICollection<UsuarioSerie> UsuarioSeries { get; set; } = new List<UsuarioSerie>();
 
         [NotMapped]

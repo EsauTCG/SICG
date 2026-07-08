@@ -1901,24 +1901,42 @@ ORDER BY
             return (raw, username, usernameEmail);
         }
 
-        private async Task<List<string>> ObtenerSucursalesPermitidasTransferenciasAsync(CancellationToken ct = default)
+        private async Task<(bool IgnoraFiltroSerieTransferencias, List<string> Sucursales)> ObtenerPermisoSucursalesTransferenciasAsync(CancellationToken ct = default)
         {
             var (raw, username, usernameEmail) = NormalizeLoginTr(User?.Identity?.Name);
 
-            var sucursalesDb = await (
-                from u in _context.UsuarioSQL.AsNoTracking()
-                join us in _context.UsuarioSeries.AsNoTracking()
-                    on u.Id equals us.UsuarioId
-                join s in _context.Series.AsNoTracking()
-                    on us.SerieId equals s.Id
-                where u.Activo
-                   && (
+            var usuario = await _context.UsuarioSQL
+                .AsNoTracking()
+                .Where(u => u.Activo
+                    && (
                         u.Usuario == raw ||
                         u.Usuario == username ||
                         u.Usuario == usernameEmail ||
                         u.Nombre == raw ||
                         u.Nombre == username
-                      )
+                    ))
+                .Select(u => new
+                {
+                    u.Id,
+                    u.IgnoraFiltroSerieTransferencias
+                })
+                .FirstOrDefaultAsync(ct);
+
+            // Se respeta tu comportamiento actual:
+            // si no encuentra usuario SQL, no restringe por serie.
+            if (usuario == null)
+                return (false, new List<string>());
+
+            // ✅ Privilegio especial:
+            // si está activo, regresamos sin sucursales para que NO aplique filtro.
+            if (usuario.IgnoraFiltroSerieTransferencias)
+                return (true, new List<string>());
+
+            var sucursalesDb = await (
+                from us in _context.UsuarioSeries.AsNoTracking()
+                join s in _context.Series.AsNoTracking()
+                    on us.SerieId equals s.Id
+                where us.UsuarioId == usuario.Id
                    && s.Sucursal != null
                    && s.Sucursal != ""
                 select s.Sucursal
@@ -1926,11 +1944,13 @@ ORDER BY
             .Distinct()
             .ToListAsync(ct);
 
-            return sucursalesDb
+            var sucursales = sucursalesDb
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .Select(x => x.Trim().ToUpper())
                 .Distinct()
                 .ToList();
+
+            return (false, sucursales);
         }
 
 
@@ -1948,9 +1968,10 @@ ORDER BY
             // Si el usuario tiene series configuradas, solo ve esas sucursales.
             // Si no tiene series configuradas, ve todo.
             // =====================================================
-            var sucursalesPermitidasUsuario = await ObtenerSucursalesPermitidasTransferenciasAsync(HttpContext.RequestAborted);
+            var permisoSeriesTransferencias = await ObtenerPermisoSucursalesTransferenciasAsync(HttpContext.RequestAborted);
+            var sucursalesPermitidasUsuario = permisoSeriesTransferencias.Sucursales;
 
-            if (sucursalesPermitidasUsuario.Any())
+            if (!permisoSeriesTransferencias.IgnoraFiltroSerieTransferencias && sucursalesPermitidasUsuario.Any())
             {
                 q = q.Where(t =>
                     t.Sucursal != null &&
@@ -2270,7 +2291,7 @@ ORDER BY
      .AsNoTracking()
      .Where(s => s.Sucursal != null && s.Sucursal.Trim() != "");
 
-            if (sucursalesPermitidasUsuario.Any())
+            if (!permisoSeriesTransferencias.IgnoraFiltroSerieTransferencias && sucursalesPermitidasUsuario.Any())
             {
                 querySucursales = querySucursales
                     .Where(s => sucursalesPermitidasUsuario.Contains(s.Sucursal.Trim().ToUpper()));

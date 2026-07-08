@@ -14855,6 +14855,7 @@ ResumenFinal AS (
         ON p.OrdenVentaId = c.Id
     INNER JOIN ClienteSap d 
         ON p.Cliente = d.Cliente
+AND ISNULL(d.AplicaPresupuesto, 0) = 1
     WHERE c.Estatus <> 0
 
     UNION ALL
@@ -15012,6 +15013,7 @@ WITH PedidoDetOV AS (
         ON a.Id = b.SubpedidoId
     INNER JOIN OrdenVenta ov
         ON a.OrdenVentaId = ov.Id
+ AND ISNULL(d.AplicaPresupuesto, 0) = 1
     WHERE a.ConsecutivoOV = @Folio
       AND ov.Estatus <> 0
       AND (
@@ -15208,6 +15210,7 @@ WITH BaseOV AS (
         ON a.OrdenVentaId = c.Id
     INNER JOIN ClienteSap d
         ON a.Cliente = d.Cliente
+ AND ISNULL(d.AplicaPresupuesto, 0) = 1
     WHERE c.Estatus <> 0
     GROUP BY
         a.ConsecutivoOV,

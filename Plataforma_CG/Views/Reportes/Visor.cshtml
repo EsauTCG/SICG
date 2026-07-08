@@ -50,6 +50,8 @@
         ["pageSize"] = Model.Paginacion.TamanoPagina
     };
 
+    
+
     if (!string.IsNullOrWhiteSpace(nombreReporte))
     {
         routeValues["nombreReporte"] = nombreReporte;
@@ -277,6 +279,14 @@
         flex: 1;
     }
 
+    .sidebar-toggle svg {
+        -o-transition: transform .25s ease-in-out;
+    }
+
+    .report-sidebar.sidebar-collapsed .sidebar-toggle svg {
+        transform: rotate(180deg);
+    } 
+
     .report-main {
         min-width: 0;
     }
@@ -336,19 +346,7 @@
     }
 
     .builder-section-header {
-        width: 100%;
-        border: 0;
-        background: #f8f9fa;
-        padding: .8rem .9rem;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .75rem;
-        font-weight: 800;
-        color: #343a40;
-        cursor: pointer;
-        text-align: left;
-        transition: all .18s ease-in-out;
+        background: #f1dede !important;
     }
 
         .builder-section-header:hover {
@@ -369,13 +367,18 @@
             text-overflow: ellipsis;
         }
 
-        .builder-section-header i.chevron {
-            transition: transform .18s ease-in-out;
+        .builder-section-header .chevron {
+            transition: transform .20s ease-in-out;
             flex: 0 0 auto;
         }
 
-        .builder-section-header.section-collapsed i.chevron {
+        .builder-section-header.section-collapsed .chevron {
             transform: rotate(-90deg);
+        }
+
+        .builder-section-header:not(.section-collapsed){
+            background: #f8e6e8 !important;
+            border-left: 4px solid #c82333 !important;
         }
 
     .builder-section-body {
@@ -676,13 +679,25 @@
     }
 
     .builder-section-header {
+        width: 100%;
+        border: 0;
+        border-left: 4px solid transparent;
         background: #f1dede !important;
-        border-color: #c79d9d !important;
+        padding: .8rem .9rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        font-weight: 800;
+        color: #343a40;
+        cursor: pointer;
+        text-align: left;
+        transition: background .18s ease, border-left-color .18s ease, color .18s ease;
     }
 
     .builder-section-header:hover,
     .column-option:hover {
-        background: #f7e7e7 !important;
+            background: #f3d7da !important;
     }
 
     .builder-input,
@@ -904,7 +919,33 @@
         background: rgba(248, 113, 113, .13) !important;
     }
 
+    /* ================================================
+        Algunos aditamentos para que no pierda estilo con modo oscuro
+        =================================================*/
+    [data-theme="dark"] .table-report tbody tr:hover{
+        background: #401518;
+    }
 
+    body[data-theme="dark"] .builder-section-header:not(.section-collapsed) {
+        background: #2b1b22 !important;
+        border-left: 4px solid #dc3545 !important;
+    }
+
+    body[data-theme="dark"] .builder-section-header.section-collapsed {
+        background: #172033 !important;
+        border-left-color: transparent !important;
+    }
+
+
+    body[data-theme="dark"] .builder-section-header:hover{
+        background: #331b25 !important;
+    }
+
+    body[data-theme="dark"] .builder-section-header:not(.section-collapsed):hover {
+        background: #3a2029 !important;
+        border-left-color: #ff5a6a !important;
+    }
+   
 
     /* ============================================================
        MODO ANCHO REAL EN PANTALLAS GRANDES
@@ -1787,7 +1828,7 @@
         const button = document.getElementById("btnToggleSidebar");
 
         if (workspace && sidebar && button) {
-            const icon = button.querySelector("i");
+            const icon = button.querySelector("svg");
 
             function setCollapsed(collapsed) {
                 if (collapsed) {
@@ -1812,6 +1853,7 @@
                     button.title = "Contraer panel";
                 }
 
+                
                 localStorage.setItem("reportSidebarCollapsed", collapsed ? "true" : "false");
             }
 
