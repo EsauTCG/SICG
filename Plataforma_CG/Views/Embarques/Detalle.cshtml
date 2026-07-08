@@ -17,9 +17,69 @@
 
     var archivos = Model.Archivos ?? new List<Plataforma_CG.Models.EmbarqueArchivo>();
 
+    var fotosCalidad =
+    ViewBag.FotosCalidad as List<Plataforma_CG.Models.Embarque.EmbarqueCalidadFoto>
+    ?? new List<Plataforma_CG.Models.Embarque.EmbarqueCalidadFoto>();
+
+    var embarqueConsecutivo = !string.IsNullOrWhiteSpace(Model.Consecutivo)
+    ? Model.Consecutivo
+    : $"EMB-{Model.Id}";
+
+    var tieneNombreEmbarque = !string.IsNullOrWhiteSpace(Model.NombreEmbarque);
+
+    var nombreEmbarqueTexto = tieneNombreEmbarque
+        ? Model.NombreEmbarque.Trim()
+        : "Sin nombre asignado";
+
+    var nombreEmbarqueClase = tieneNombreEmbarque
+        ? "detail-name-value"
+        : "detail-name-value empty";
+
     // DOCUMENTACIÓN LOGÍSTICA
-    var cartasPorte = archivos.Where(a => a.Tipo == "CARTA_PORTE").ToList();
+    var cartasPorte = archivos
+        .Where(a => a.Tipo == "CARTA_PORTE")
+        .OrderByDescending(a => a.FechaRegistro)
+        .ToList();
+
     var tieneCartaPorte = cartasPorte.Any();
+
+    var certificacionesLavado = archivos
+        .Where(a => a.Tipo == "CERTIFICACION_LAVADO")
+        .OrderByDescending(a => a.FechaRegistro)
+        .ToList();
+
+    var tieneCertificacionLavado = certificacionesLavado.Any();
+
+    var certificacionesFumigacion = archivos
+        .Where(a => a.Tipo == "CERTIFICACION_FUMIGACION")
+        .OrderByDescending(a => a.FechaRegistro)
+        .ToList();
+
+    var tieneCertificacionFumigacion = certificacionesFumigacion.Any();
+
+    string certificacionLavadoTexto = tieneCertificacionLavado
+        ? "Cargada"
+        : "No cargada";
+
+    string certificacionLavadoClase = tieneCertificacionLavado
+        ? "success"
+        : "warning";
+
+    string certificacionLavadoIcono = tieneCertificacionLavado
+        ? "bi-check-circle"
+        : "bi-info-circle";
+
+    string certificacionFumigacionTexto = tieneCertificacionFumigacion
+        ? "Cargada"
+        : "No cargada";
+
+    string certificacionFumigacionClase = tieneCertificacionFumigacion
+        ? "success"
+        : "warning";
+
+    string certificacionFumigacionIcono = tieneCertificacionFumigacion
+        ? "bi-check-circle"
+        : "bi-info-circle";
 
     var cartaPorteSinDefinir = Model.RequiereCartaPorte == null;
     var cartaPorteRequerida = Model.RequiereCartaPorte == true;
@@ -44,22 +104,50 @@
         "bi-exclamation-triangle";
 
     // DOCUMENTACIÓN CALIDAD
-    var calidadCartasGarantia = archivos.Where(a => a.Tipo == "CALIDAD_CARTA_GARANTIA").ToList();
-    var calidadLibreClembuterol = archivos.Where(a => a.Tipo == "CALIDAD_LIBRE_CLEMBUTEROL").ToList();
-    var calidadLibreResiduosToxicos = archivos.Where(a => a.Tipo == "CALIDAD_LIBRE_RESIDUOS_TOXICOS").ToList();
-    var calidadCartasEEB = archivos.Where(a => a.Tipo == "CALIDAD_CARTA_EEB").ToList();
-    var calidadAvisosMovilizacion = archivos.Where(a => a.Tipo == "CALIDAD_AVISO_MOVILIZACION").ToList();
-    var calidadHojasTrabajo = archivos.Where(a => a.Tipo == "CALIDAD_HOJA_TRABAJO").ToList();
+    var tiposDocumentosCalidad = new[]
+    {
+    // =========================
+    // EXPEDIENTE DE CALIDAD
+    // =========================
+    new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_AVISO_MOVILIZACION", Label = "Aviso de movilización", Icon = "bi-truck" },
+    new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_HOJA_TRABAJO", Label = "Hoja de trabajo", Icon = "bi-clipboard-check" },
+    new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_CARTA_GARANTIA", Label = "Carta Garantía", Icon = "bi-patch-check" },
+    new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_CARTA_EEB", Label = "Carta Libre de EEB", Icon = "bi-file-earmark-medical" },
+    new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_LIBRE_CLEMBUTEROL", Label = "Carta libre de Clembuterol", Icon = "bi-shield-check" },
+    new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_LIBRE_RESIDUOS_TOXICOS", Label = "Carta libre de residuos tóxicos", Icon = "bi-shield-exclamation" },
 
-    var totalDocsLogistica = cartasPorte.Count;
+    // NUEVOS
+    new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_MICROBIOLOGICOS", Label = "Microbiológicos", Icon = "bi-virus" },
+    new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_FICHA_TECNICA", Label = "Ficha Técnica", Icon = "bi-file-earmark-text" },
+    new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_FACTURA", Label = "Factura", Icon = "bi-receipt" },
 
-    var totalDocsCalidad =
-        calidadCartasGarantia.Count +
-        calidadLibreClembuterol.Count +
-        calidadLibreResiduosToxicos.Count +
-        calidadCartasEEB.Count +
-        calidadAvisosMovilizacion.Count +
-        calidadHojasTrabajo.Count;
+    // =========================
+    // POCO PRESENTES
+    // =========================
+    new { Grupo = "Documentos poco presentes", Tipo = "CALIDAD_ROMANEOS", Label = "Romaneos", Icon = "bi-box-seam" },
+    new { Grupo = "Documentos poco presentes", Tipo = "CALIDAD_REMISION", Label = "Remisión", Icon = "bi-journal-text" }
+};
+
+    var documentosCalidadCargados = tiposDocumentosCalidad
+        .Select(t => new
+        {
+            t.Grupo,
+            t.Tipo,
+            t.Label,
+            t.Icon,
+            Archivos = archivos
+                .Where(a => a.Tipo == t.Tipo)
+                .OrderByDescending(a => a.FechaRegistro)
+                .ToList()
+        })
+        .Where(t => t.Archivos.Any())
+        .ToList();
+
+    var totalDocsLogistica =
+      cartasPorte.Count +
+      certificacionesLavado.Count +
+      certificacionesFumigacion.Count;
+    var totalDocsCalidad = documentosCalidadCargados.Sum(t => t.Archivos.Count);
 
     string estatusTexto =
         Model.Estatus == 7 && !validacionesCompletas ? "Pendiente de validaciones" :
@@ -81,6 +169,68 @@
         Model.Estatus == 5 ? "primary" :
         Model.Estatus == 6 ? "secondary" : "neutral";
         
+}
+
+@functions {
+    private string GetExtensionArchivo(string? ruta)
+    {
+        if (string.IsNullOrWhiteSpace(ruta))
+            return "";
+
+        return System.IO.Path.GetExtension(ruta).ToLowerInvariant();
+    }
+
+    private bool EsImagenArchivo(string? ruta)
+    {
+        var ext = GetExtensionArchivo(ruta);
+        return ext == ".jpg"
+            || ext == ".jpeg"
+            || ext == ".png"
+            || ext == ".webp"
+            || ext == ".gif"
+            || ext == ".bmp";
+    }
+
+    private bool EsPdfArchivo(string? ruta)
+    {
+        return GetExtensionArchivo(ruta) == ".pdf";
+    }
+
+    private bool EsExcelArchivo(string? ruta)
+    {
+        var ext = GetExtensionArchivo(ruta);
+        return ext == ".xls"
+            || ext == ".xlsx"
+            || ext == ".csv";
+    }
+
+    private bool EsWordArchivo(string? ruta)
+    {
+        var ext = GetExtensionArchivo(ruta);
+        return ext == ".doc"
+            || ext == ".docx";
+    }
+
+    private string GetIconoArchivo(string? ruta)
+    {
+        if (EsImagenArchivo(ruta)) return "bi-file-earmark-image";
+        if (EsPdfArchivo(ruta)) return "bi-file-earmark-pdf";
+        if (EsExcelArchivo(ruta)) return "bi-file-earmark-excel";
+        if (EsWordArchivo(ruta)) return "bi-file-earmark-word";
+
+        return "bi-file-earmark";
+    }
+
+    private string GetTipoArchivoTexto(string? ruta)
+    {
+        if (EsImagenArchivo(ruta)) return "Imagen";
+        if (EsPdfArchivo(ruta)) return "PDF";
+        if (EsExcelArchivo(ruta)) return "Excel / CSV";
+        if (EsWordArchivo(ruta)) return "Word";
+
+        var ext = GetExtensionArchivo(ruta);
+        return string.IsNullOrWhiteSpace(ext) ? "Archivo" : ext.Replace(".", "").ToUpperInvariant();
+    }
 }
 
 <style>
@@ -185,6 +335,46 @@
         color: rgba(255,255,255,.88);
         font-size: .95rem;
     }
+
+    .detail-name-line {
+        margin-top: .65rem;
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+        flex-wrap: wrap;
+    }
+
+    .detail-name-label {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        color: rgba(255,255,255,.82);
+        font-size: .82rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .35px;
+    }
+
+    .detail-name-value {
+        display: inline-flex;
+        align-items: center;
+        max-width: 100%;
+        padding: .42rem .72rem;
+        border-radius: 999px;
+        background: rgba(255,255,255,.14);
+        border: 1px solid rgba(255,255,255,.18);
+        color: #ffffff;
+        font-size: .95rem;
+        font-weight: 800;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+    }
+
+        .detail-name-value.empty {
+            color: rgba(255,255,255,.72);
+            font-style: italic;
+            font-weight: 700;
+        }
 
     .header-actions {
         display: flex;
@@ -750,6 +940,14 @@
         .doc-actions {
             flex-direction: column;
         }
+
+        .detail-name-line {
+            align-items: flex-start;
+        }
+
+        .detail-name-value {
+            border-radius: 14px;
+        }
     }
 
     .token-box {
@@ -993,6 +1191,20 @@ body[data-theme="dark"] .detail-title {
 body[data-theme="dark"] .detail-sub {
     color: #fecaca !important;
 }
+
+        body[data-theme="dark"] .detail-name-label {
+            color: #fecaca !important;
+        }
+
+        body[data-theme="dark"] .detail-name-value {
+            background: rgba(15,23,42,.48) !important;
+            border-color: rgba(255,255,255,.16) !important;
+            color: #ffffff !important;
+        }
+
+            body[data-theme="dark"] .detail-name-value.empty {
+                color: #cbd5e1 !important;
+            }
 
 body[data-theme="dark"] .header-chip {
     background: rgba(255,255,255,.10) !important;
@@ -1427,6 +1639,14 @@ body[data-theme="dark"] .table-responsive-ui::-webkit-scrollbar-thumb {
     body[data-theme="dark"] .table-soft {
         background: #111827 !important;
     }
+
+        .detail-name-line {
+            align-items: flex-start;
+        }
+
+        .detail-name-value {
+            border-radius: 14px;
+        }
 }
 
     /* ============================================================
@@ -1624,6 +1844,321 @@ body[data-theme="dark"] .table-responsive-ui::-webkit-scrollbar-thumb {
         border-color: rgba(255,255,255,.16) !important;
     }
 
+    .file-quality-group {
+        display: grid;
+        gap: .75rem;
+    }
+
+        .file-quality-group + .file-quality-group {
+            margin-top: .5rem;
+            padding-top: .9rem;
+            border-top: 1px dashed var(--border);
+        }
+
+    .file-quality-group-title {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        color: var(--muted);
+        font-size: .78rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .45px;
+    }
+
+        .file-quality-group-title i {
+            color: var(--primary);
+        }
+
+    body[data-theme="dark"] .file-quality-group + .file-quality-group {
+        border-top-color: rgba(255,255,255,.14) !important;
+    }
+
+    body[data-theme="dark"] .file-quality-group-title {
+        color: #cbd5e1 !important;
+    }
+
+        body[data-theme="dark"] .file-quality-group-title i {
+            color: #fca5a5 !important;
+        }
+
+    .empty-file-box-lg {
+        display: flex;
+        align-items: flex-start;
+        gap: .85rem;
+        padding: 1rem 1.1rem;
+        border-radius: 16px;
+        background: linear-gradient(180deg, #fff8e8 0%, #fffdf7 100%);
+        border: 1px dashed #f0cf88;
+        color: #9a6700;
+        font-weight: 700;
+    }
+
+        .empty-file-box-lg i {
+            font-size: 1.35rem;
+            margin-top: .1rem;
+            flex-shrink: 0;
+        }
+
+        .empty-file-box-lg strong {
+            display: block;
+            margin-bottom: .18rem;
+            color: #7c5200;
+        }
+
+        .empty-file-box-lg span {
+            display: block;
+            font-size: .9rem;
+            color: #9a6700;
+            font-weight: 600;
+        }
+
+    .quality-block-full {
+        grid-column: 1 / -1;
+    }
+
+    .quality-photo-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+        gap: .85rem;
+    }
+
+    .quality-photo-card {
+        border: 1px solid var(--border);
+        background: #fff;
+        border-radius: 16px;
+        padding: .55rem;
+        cursor: pointer;
+        transition: var(--transition);
+        text-align: left;
+        width: 100%;
+    }
+
+        .quality-photo-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-sm);
+            border-color: rgba(139,0,0,.25);
+        }
+
+        .quality-photo-card img {
+            width: 100%;
+            height: 115px;
+            object-fit: cover;
+            border-radius: 12px;
+            border: 1px solid #edf1f5;
+            background: #f8fafc;
+        }
+
+    .quality-photo-caption {
+        margin-top: .45rem;
+        display: flex;
+        align-items: center;
+        gap: .35rem;
+        color: var(--primary);
+        font-size: .84rem;
+        font-weight: 900;
+    }
+
+    .quality-photo-date {
+        color: var(--muted);
+        font-size: .74rem;
+        font-weight: 700;
+        margin-top: .15rem;
+    }
+
+    .photo-preview-img {
+        width: 100%;
+        max-height: 75vh;
+        object-fit: contain;
+        border-radius: 14px;
+        background: #f8fafc;
+    }
+
+    body[data-theme="dark"] .quality-photo-card {
+        background: #172033 !important;
+        border-color: rgba(255,255,255,0.12) !important;
+    }
+
+        body[data-theme="dark"] .quality-photo-card img {
+            border-color: rgba(255,255,255,0.12) !important;
+            background: #0b1220 !important;
+        }
+
+    body[data-theme="dark"] .quality-photo-caption {
+        color: #fecaca !important;
+    }
+
+    body[data-theme="dark"] .quality-photo-date {
+        color: #cbd5e1 !important;
+    }
+
+    /* ============================================================
+       PREVIEW DE DOCUMENTOS EN DETALLE
+    ============================================================ */
+
+    .doc-preview-card {
+        width: 190px;
+        min-height: 150px;
+        border: 1px solid #e7ecf2;
+        border-radius: 18px;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+        padding: .8rem;
+        text-align: left;
+        cursor: pointer;
+        transition: var(--transition);
+        color: var(--text);
+        display: flex;
+        flex-direction: column;
+        gap: .65rem;
+    }
+
+        .doc-preview-card:hover {
+            border-color: var(--primary);
+            background: var(--primary-soft);
+            color: var(--primary);
+            box-shadow: 0 8px 18px rgba(139,0,0,.10);
+            transform: translateY(-2px);
+        }
+
+    .doc-preview-thumb {
+        height: 70px;
+        border-radius: 14px;
+        background: #fff;
+        border: 1px solid #edf1f5;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+    }
+
+        .doc-preview-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .doc-preview-thumb i {
+            font-size: 2.1rem;
+            color: var(--primary);
+        }
+
+    .doc-preview-name {
+        font-size: .84rem;
+        font-weight: 900;
+        color: var(--text);
+        line-height: 1.15;
+        word-break: break-word;
+    }
+
+    .doc-preview-meta {
+        color: var(--muted);
+        font-size: .75rem;
+        font-weight: 700;
+    }
+
+    .doc-preview-action {
+        margin-top: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        color: var(--primary);
+        font-size: .78rem;
+        font-weight: 900;
+    }
+
+    .file-type-body.preview-mode {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .75rem;
+    }
+
+    .preview-modal-frame {
+        width: 100%;
+        height: 72vh;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: #f8fafc;
+    }
+
+    .preview-modal-img {
+        width: 100%;
+        max-height: 72vh;
+        object-fit: contain;
+        border-radius: 14px;
+        background: #f8fafc;
+    }
+
+    .preview-unavailable {
+        border: 1px dashed var(--border-strong);
+        background: linear-gradient(180deg, #f8fafc 0%, #f4f7fb 100%);
+        border-radius: 18px;
+        padding: 2rem 1rem;
+        text-align: center;
+        color: var(--muted);
+    }
+
+        .preview-unavailable i {
+            font-size: 3rem;
+            color: var(--primary);
+            margin-bottom: .7rem;
+        }
+
+        .preview-unavailable h6 {
+            color: var(--text);
+            font-weight: 900;
+            margin-bottom: .35rem;
+        }
+
+    /* DARK MODE */
+    body[data-theme="dark"] .doc-preview-card {
+        background: #172033 !important;
+        border-color: rgba(255,255,255,0.12) !important;
+        color: #e5e7eb !important;
+    }
+
+        body[data-theme="dark"] .doc-preview-card:hover {
+            background: rgba(248,113,113,0.12) !important;
+            border-color: rgba(248,113,113,0.42) !important;
+        }
+
+    body[data-theme="dark"] .doc-preview-thumb {
+        background: #0b1220 !important;
+        border-color: rgba(255,255,255,0.12) !important;
+    }
+
+    body[data-theme="dark"] .doc-preview-name {
+        color: #f9fafb !important;
+    }
+
+    body[data-theme="dark"] .doc-preview-meta {
+        color: #cbd5e1 !important;
+    }
+
+    body[data-theme="dark"] .preview-modal-frame,
+    body[data-theme="dark"] .preview-modal-img {
+        background: #0b1220 !important;
+        border-color: rgba(255,255,255,0.12) !important;
+    }
+
+    body[data-theme="dark"] .preview-unavailable {
+        background: #172033 !important;
+        border-color: rgba(255,255,255,0.18) !important;
+        color: #cbd5e1 !important;
+    }
+
+        body[data-theme="dark"] .preview-unavailable h6 {
+            color: #f9fafb !important;
+        }
+
+    @@media (max-width: 768px) {
+        .doc-preview-card {
+            width: 100%;
+        }
+
+        .preview-modal-frame {
+            height: 65vh;
+        }
+    }
+
 </style>
 
 <div class="detail-wrap">
@@ -1635,7 +2170,19 @@ body[data-theme="dark"] .table-responsive-ui::-webkit-scrollbar-thumb {
                     <i class="bi bi-clipboard-data"></i>
                 </div>
                 <div>
-                    <h1 class="detail-title">Detalle del Embarque #@Model.Consecutivo</h1>
+                    <h1 class="detail-title">Detalle del Embarque #@embarqueConsecutivo</h1>
+
+                    <div class="detail-name-line">
+                        <span class="detail-name-label">
+                            <i class="bi bi-tag-fill"></i>
+                            Nombre
+                        </span>
+
+                        <span class="@nombreEmbarqueClase">
+                            @nombreEmbarqueTexto
+                        </span>
+                    </div>
+
                     <p class="detail-sub">
                         Consulta el estado general del embarque, su validación de calidad, documentos relacionados y el código QR.
                     </p>
@@ -1765,6 +2312,16 @@ body[data-theme="dark"] .table-responsive-ui::-webkit-scrollbar-thumb {
             <div class="card-body">
                 <table class="info-table">
                     <tr>
+                        <th>Consecutivo</th>
+                        <td>@embarqueConsecutivo</td>
+                    </tr>
+
+                    <tr>
+                        <th>Nombre del embarque</th>
+                        <td>@nombreEmbarqueTexto</td>
+                    </tr>
+
+                    <tr>
                         <th>Fecha creación</th>
                         <td>@Model.FechaCreacion</td>
                     </tr>
@@ -1816,6 +2373,30 @@ body[data-theme="dark"] .table-responsive-ui::-webkit-scrollbar-thumb {
                     </tr>
 
                     <tr>
+                        <th>Certificaciones logísticas</th>
+                        <td>
+                            <div class="d-flex flex-wrap gap-2">
+                                <span class="status-pill @certificacionLavadoClase">
+                                    <i class="bi @certificacionLavadoIcono"></i>
+                                    Lavado: @certificacionLavadoTexto
+                                </span>
+
+                                <span class="status-pill @certificacionFumigacionClase">
+                                    <i class="bi @certificacionFumigacionIcono"></i>
+                                    Fumigación: @certificacionFumigacionTexto
+                                </span>
+                            </div>
+
+                            @if (!tieneCertificacionLavado || !tieneCertificacionFumigacion)
+                            {
+                                <div class="summary-sub mt-2">
+                                    Estas certificaciones no estar cargadas.
+                                </div>
+                            }
+                        </td>
+                    </tr>
+
+                    <tr>
                         <th>Documentación calidad</th>
                         <td>
                             <span class="status-pill @(documentacionCalidadAprobada ? "success" : "warning")">
@@ -1857,7 +2438,7 @@ body[data-theme="dark"] .table-responsive-ui::-webkit-scrollbar-thumb {
                     </h5>
                     <div class="card-sub">
                         Expediente del embarque ·
-                        Carta Porte: @totalDocsLogistica archivo(s) ·
+                        Documentos logística: @totalDocsLogistica archivo(s) ·
                         Documentos de calidad: @totalDocsCalidad archivo(s)
                     </div>
                 </div>
@@ -1877,7 +2458,7 @@ body[data-theme="dark"] .table-responsive-ui::-webkit-scrollbar-thumb {
                                     Documentación logística
                                 </h6>
                                 <div class="file-section-sub">
-                                    Logística solo controla Carta Porte y define si aplica o no aplica para este embarque.
+                                    Logística controla Carta Porte y permite consultar las certificaciones cargadas para este embarque.
                                 </div>
                             </div>
 
@@ -1902,7 +2483,7 @@ body[data-theme="dark"] .table-responsive-ui::-webkit-scrollbar-thumb {
                                     </span>
                                 </div>
 
-                                <div class="file-type-body">
+                                <div class="file-type-body preview-mode">
 
                                     @if (cartaPorteNoAplica)
                                     {
@@ -1915,22 +2496,39 @@ body[data-theme="dark"] .table-responsive-ui::-webkit-scrollbar-thumb {
                                     {
                                         @foreach (var archivo in cartasPorte.OrderByDescending(x => x.FechaRegistro))
                                         {
-                                            <a href="@archivo.RutaArchivo" target="_blank" class="file-item">
-                                                <div class="file-item-icon">
-                                                    <i class="bi bi-file-earmark-text"></i>
+                                            var tituloArchivo = $"Carta Porte #{archivo.Id}";
+                                            var tipoArchivo = GetTipoArchivoTexto(archivo.RutaArchivo);
+                                            var iconoArchivo = GetIconoArchivo(archivo.RutaArchivo);
+
+                                            <button type="button"
+                                                    class="doc-preview-card"
+                                                    data-file-url="@archivo.RutaArchivo"
+                                                    data-file-title="@tituloArchivo"
+                                                    data-file-type="@tipoArchivo"
+                                                    onclick="abrirPreviewArchivoDesdeBoton(this)">
+                                                <div class="doc-preview-thumb">
+                                                    @if (EsImagenArchivo(archivo.RutaArchivo))
+                                                    {
+                                                        <img src="@archivo.RutaArchivo" alt="@tituloArchivo" loading="lazy" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <i class="bi @iconoArchivo"></i>
+                                                    }
                                                 </div>
 
-                                                <div class="file-item-main">
-                                                    <div class="file-item-name">Carta Porte #@archivo.Id</div>
-                                                    <div class="file-item-meta">
-                                                        @(archivo.FechaRegistro.ToString("yyyy-MM-dd HH:mm"))
+                                                <div>
+                                                    <div class="doc-preview-name">@tituloArchivo</div>
+                                                    <div class="doc-preview-meta">
+                                                        @tipoArchivo · @archivo.FechaRegistro.ToString("yyyy-MM-dd HH:mm")
                                                     </div>
                                                 </div>
 
-                                                <div class="file-item-action">
-                                                    <i class="bi bi-box-arrow-up-right"></i>
+                                                <div class="doc-preview-action">
+                                                    <i class="bi bi-eye"></i>
+                                                    Vista previa
                                                 </div>
-                                            </a>
+                                            </button>
                                         }
                                     }
                                     else if (cartaPorteRequerida)
@@ -1951,6 +2549,138 @@ body[data-theme="dark"] .table-responsive-ui::-webkit-scrollbar-thumb {
                                 </div>
                             </div>
 
+                            <!-- =========================================================
+                                 CERTIFICACIÓN DE LAVADO
+                            ========================================================== -->
+                            <div class="file-type-card">
+                                <div class="file-type-head">
+                                    <h6 class="file-type-title">
+                                        <i class="bi bi-droplet-half"></i>
+                                        Certificación de Lavado
+                                    </h6>
+
+                                    <span class="status-pill @certificacionLavadoClase">
+                                        <i class="bi @certificacionLavadoIcono"></i>
+                                        @certificacionLavadoTexto
+                                    </span>
+                                </div>
+
+                                <div class="file-type-body preview-mode">
+                                    @if (certificacionesLavado.Any())
+                                    {
+                                        @foreach (var archivo in certificacionesLavado.OrderByDescending(x => x.FechaRegistro))
+                                        {
+                                            var tituloArchivo = $"Certificación de Lavado #{archivo.Id}";
+                                            var tipoArchivo = GetTipoArchivoTexto(archivo.RutaArchivo);
+                                            var iconoArchivo = GetIconoArchivo(archivo.RutaArchivo);
+
+                                            <button type="button"
+                                                    class="doc-preview-card"
+                                                    data-file-url="@archivo.RutaArchivo"
+                                                    data-file-title="@tituloArchivo"
+                                                    data-file-type="@tipoArchivo"
+                                                    onclick="abrirPreviewArchivoDesdeBoton(this)">
+                                                <div class="doc-preview-thumb">
+                                                    @if (EsImagenArchivo(archivo.RutaArchivo))
+                                                    {
+                                                        <img src="@archivo.RutaArchivo" alt="@tituloArchivo" loading="lazy" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <i class="bi @iconoArchivo"></i>
+                                                    }
+                                                </div>
+
+                                                <div>
+                                                    <div class="doc-preview-name">@tituloArchivo</div>
+                                                    <div class="doc-preview-meta">
+                                                        @tipoArchivo · @archivo.FechaRegistro.ToString("yyyy-MM-dd HH:mm")
+                                                    </div>
+                                                </div>
+
+                                                <div class="doc-preview-action">
+                                                    <i class="bi bi-eye"></i>
+                                                    Vista previa
+                                                </div>
+                                            </button>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <div class="empty-file-box">
+                                            <i class="bi bi-info-circle"></i>
+                                            Certificación de Lavado no cargada.
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+
+                            <!-- =========================================================
+                                 CERTIFICACIÓN DE FUMIGACIÓN
+                            ========================================================== -->
+                            <div class="file-type-card">
+                                <div class="file-type-head">
+                                    <h6 class="file-type-title">
+                                        <i class="bi bi-bug"></i>
+                                        Certificación de Fumigación
+                                    </h6>
+
+                                    <span class="status-pill @certificacionFumigacionClase">
+                                        <i class="bi @certificacionFumigacionIcono"></i>
+                                        @certificacionFumigacionTexto
+                                    </span>
+                                </div>
+
+                                <div class="file-type-body preview-mode">
+                                    @if (certificacionesFumigacion.Any())
+                                    {
+                                        @foreach (var archivo in certificacionesFumigacion.OrderByDescending(x => x.FechaRegistro))
+                                        {
+                                            var tituloArchivo = $"Certificación de Fumigación #{archivo.Id}";
+                                            var tipoArchivo = GetTipoArchivoTexto(archivo.RutaArchivo);
+                                            var iconoArchivo = GetIconoArchivo(archivo.RutaArchivo);
+
+                                            <button type="button"
+                                                    class="doc-preview-card"
+                                                    data-file-url="@archivo.RutaArchivo"
+                                                    data-file-title="@tituloArchivo"
+                                                    data-file-type="@tipoArchivo"
+                                                    onclick="abrirPreviewArchivoDesdeBoton(this)">
+                                                <div class="doc-preview-thumb">
+                                                    @if (EsImagenArchivo(archivo.RutaArchivo))
+                                                    {
+                                                        <img src="@archivo.RutaArchivo" alt="@tituloArchivo" loading="lazy" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <i class="bi @iconoArchivo"></i>
+                                                    }
+                                                </div>
+
+                                                <div>
+                                                    <div class="doc-preview-name">@tituloArchivo</div>
+                                                    <div class="doc-preview-meta">
+                                                        @tipoArchivo · @archivo.FechaRegistro.ToString("yyyy-MM-dd HH:mm")
+                                                    </div>
+                                                </div>
+
+                                                <div class="doc-preview-action">
+                                                    <i class="bi bi-eye"></i>
+                                                    Vista previa
+                                                </div>
+                                            </button>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <div class="empty-file-box">
+                                            <i class="bi bi-info-circle"></i>
+                                            Certificación de Fumigación no cargada.
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+
                         </div>
                     </div>
 
@@ -1965,7 +2695,7 @@ body[data-theme="dark"] .table-responsive-ui::-webkit-scrollbar-thumb {
                                     Documentación de calidad
                                 </h6>
                                 <div class="file-section-sub">
-                                    Certificados, cartas, avisos y documentos de control solicitados por calidad.
+                                    Solo se muestran los documentos de calidad que fueron cargados para este embarque.
                                 </div>
                             </div>
 
@@ -1976,241 +2706,94 @@ body[data-theme="dark"] .table-responsive-ui::-webkit-scrollbar-thumb {
                         </div>
 
                         <div class="file-section-body">
+                            @if (documentosCalidadCargados.Any())
+                            {
+                                @foreach (var grupo in documentosCalidadCargados.GroupBy(x => x.Grupo))
+                                {
+                                    var grupoIcono = grupo.Key == "Expediente de calidad"
+                                    ? "bi-folder2-open"
+                                    : "bi-archive";
 
-                            <div class="file-type-card">
-                                <div class="file-type-head">
-                                    <h6 class="file-type-title">
-                                        <i class="bi bi-patch-check"></i>
-                                        Calidad - Carta Garantías
-                                    </h6>
-                                    <span class="file-count">@calidadCartasGarantia.Count archivo(s)</span>
-                                </div>
-
-                                <div class="file-type-body">
-                                    @if (calidadCartasGarantia.Any())
-                                    {
-                                        @foreach (var archivo in calidadCartasGarantia.OrderByDescending(x => x.FechaRegistro))
-                                        {
-                                            <a href="@archivo.RutaArchivo" target="_blank" class="file-item">
-                                                <div class="file-item-icon">
-                                                    <i class="bi bi-patch-check"></i>
-                                                </div>
-
-                                                <div class="file-item-main">
-                                                    <div class="file-item-name">Carta Garantías #@archivo.Id</div>
-                                                </div>
-
-                                                <div class="file-item-action">
-                                                    <i class="bi bi-box-arrow-up-right"></i>
-                                                </div>
-                                            </a>
-                                        }
-                                    }
-                                    else
-                                    {
-                                        <div class="empty-file-box">
-                                            <i class="bi bi-inbox"></i>
-                                            Sin archivos cargados.
+                                    <div class="file-quality-group">
+                                        <div class="file-quality-group-title">
+                                            <i class="bi @grupoIcono"></i>
+                                            @grupo.Key
                                         </div>
-                                    }
-                                </div>
-                            </div>
 
-                            <div class="file-type-card">
-                                <div class="file-type-head">
-                                    <h6 class="file-type-title">
-                                        <i class="bi bi-shield-check"></i>
-                                        Calidad - Libre Clembuterol
-                                    </h6>
-                                    <span class="file-count">@calidadLibreClembuterol.Count archivo(s)</span>
-                                </div>
-
-                                <div class="file-type-body">
-                                    @if (calidadLibreClembuterol.Any())
-                                    {
-                                        @foreach (var archivo in calidadLibreClembuterol.OrderByDescending(x => x.FechaRegistro))
+                                        @foreach (var tipo in grupo)
                                         {
-                                            <a href="@archivo.RutaArchivo" target="_blank" class="file-item">
-                                                <div class="file-item-icon">
-                                                    <i class="bi bi-shield-check"></i>
+                                            <div class="file-type-card">
+                                                <div class="file-type-head">
+                                                    <h6 class="file-type-title">
+                                                        <i class="bi @tipo.Icon"></i>
+                                                        @tipo.Label
+                                                    </h6>
+
+                                                    <span class="file-count">
+                                                        @tipo.Archivos.Count archivo(s)
+                                                    </span>
                                                 </div>
 
-                                                <div class="file-item-main">
-                                                    <div class="file-item-name">Libre Clembuterol #@archivo.Id</div>
-                                                </div>
+                                                <div class="file-type-body preview-mode">
+                                                    @foreach (var archivo in tipo.Archivos)
+                                                    {
+                                                        var tituloArchivo = $"{tipo.Label} #{archivo.Id}";
+                                                        var tipoArchivo = GetTipoArchivoTexto(archivo.RutaArchivo);
+                                                        var iconoArchivo = GetIconoArchivo(archivo.RutaArchivo);
 
-                                                <div class="file-item-action">
-                                                    <i class="bi bi-box-arrow-up-right"></i>
+                                                        <button type="button"
+                                                                class="doc-preview-card"
+                                                                data-file-url="@archivo.RutaArchivo"
+                                                                data-file-title="@tituloArchivo"
+                                                                data-file-type="@tipoArchivo"
+                                                                onclick="abrirPreviewArchivoDesdeBoton(this)">
+                                                            <div class="doc-preview-thumb">
+                                                                @if (EsImagenArchivo(archivo.RutaArchivo))
+                                                                {
+                                                                    <img src="@archivo.RutaArchivo" alt="@tituloArchivo" loading="lazy" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    <i class="bi @iconoArchivo"></i>
+                                                                }
+                                                            </div>
+
+                                                            <div>
+                                                                <div class="doc-preview-name">@tituloArchivo</div>
+                                                                <div class="doc-preview-meta">
+                                                                    @tipoArchivo · @archivo.FechaRegistro.ToString("yyyy-MM-dd HH:mm")
+
+                                                                    @if (!string.IsNullOrWhiteSpace(archivo.UsuarioRegistro))
+                                                                    {
+                                                                        <span> · @archivo.UsuarioRegistro</span>
+                                                                    }
+                                                                </div>
+                                                            </div>
+
+                                                            <div class="doc-preview-action">
+                                                                <i class="bi bi-eye"></i>
+                                                                Vista previa
+                                                            </div>
+                                                        </button>
+                                                    }
                                                 </div>
-                                            </a>
+                                            </div>
                                         }
-                                    }
-                                    else
-                                    {
-                                        <div class="empty-file-box">
-                                            <i class="bi bi-inbox"></i>
-                                            Sin archivos cargados.
-                                        </div>
-                                    }
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <div class="empty-file-box empty-file-box-lg">
+                                    <i class="bi bi-hourglass-split"></i>
+                                    <div>
+                                        <strong>Aún no se ha capturado documentación de calidad.</strong>
+                                        <span>
+                                            Este apartado sigue pendiente. Cuando calidad cargue archivos, aparecerán aquí automáticamente.
+                                        </span>
+                                    </div>
                                 </div>
-                            </div>
-
-                            <div class="file-type-card">
-                                <div class="file-type-head">
-                                    <h6 class="file-type-title">
-                                        <i class="bi bi-shield-exclamation"></i>
-                                        Calidad - Libre residuos tóxicos
-                                    </h6>
-                                    <span class="file-count">@calidadLibreResiduosToxicos.Count archivo(s)</span>
-                                </div>
-
-                                <div class="file-type-body">
-                                    @if (calidadLibreResiduosToxicos.Any())
-                                    {
-                                        @foreach (var archivo in calidadLibreResiduosToxicos.OrderByDescending(x => x.FechaRegistro))
-                                        {
-                                            <a href="@archivo.RutaArchivo" target="_blank" class="file-item">
-                                                <div class="file-item-icon">
-                                                    <i class="bi bi-shield-exclamation"></i>
-                                                </div>
-
-                                                <div class="file-item-main">
-                                                    <div class="file-item-name">Libre residuos tóxicos #@archivo.Id</div>
-                                                </div>
-
-                                                <div class="file-item-action">
-                                                    <i class="bi bi-box-arrow-up-right"></i>
-                                                </div>
-                                            </a>
-                                        }
-                                    }
-                                    else
-                                    {
-                                        <div class="empty-file-box">
-                                            <i class="bi bi-inbox"></i>
-                                            Sin archivos cargados.
-                                        </div>
-                                    }
-                                </div>
-                            </div>
-
-                            <div class="file-type-card">
-                                <div class="file-type-head">
-                                    <h6 class="file-type-title">
-                                        <i class="bi bi-file-earmark-medical"></i>
-                                        Calidad - Carta EEB
-                                    </h6>
-                                    <span class="file-count">@calidadCartasEEB.Count archivo(s)</span>
-                                </div>
-
-                                <div class="file-type-body">
-                                    @if (calidadCartasEEB.Any())
-                                    {
-                                        @foreach (var archivo in calidadCartasEEB.OrderByDescending(x => x.FechaRegistro))
-                                        {
-                                            <a href="@archivo.RutaArchivo" target="_blank" class="file-item">
-                                                <div class="file-item-icon">
-                                                    <i class="bi bi-file-earmark-medical"></i>
-                                                </div>
-
-                                                <div class="file-item-main">
-                                                    <div class="file-item-name">Carta EEB #@archivo.Id</div>
-                                                </div>
-
-                                                <div class="file-item-action">
-                                                    <i class="bi bi-box-arrow-up-right"></i>
-                                                </div>
-                                            </a>
-                                        }
-                                    }
-                                    else
-                                    {
-                                        <div class="empty-file-box">
-                                            <i class="bi bi-inbox"></i>
-                                            Sin archivos cargados.
-                                        </div>
-                                    }
-                                </div>
-                            </div>
-
-                            <div class="file-type-card">
-                                <div class="file-type-head">
-                                    <h6 class="file-type-title">
-                                        <i class="bi bi-truck"></i>
-                                        Calidad - Aviso de movilización
-                                    </h6>
-                                    <span class="file-count">@calidadAvisosMovilizacion.Count archivo(s)</span>
-                                </div>
-
-                                <div class="file-type-body">
-                                    @if (calidadAvisosMovilizacion.Any())
-                                    {
-                                        @foreach (var archivo in calidadAvisosMovilizacion.OrderByDescending(x => x.FechaRegistro))
-                                        {
-                                            <a href="@archivo.RutaArchivo" target="_blank" class="file-item">
-                                                <div class="file-item-icon">
-                                                    <i class="bi bi-truck"></i>
-                                                </div>
-
-                                                <div class="file-item-main">
-                                                    <div class="file-item-name">Aviso movilización #@archivo.Id</div>
-                                                </div>
-
-                                                <div class="file-item-action">
-                                                    <i class="bi bi-box-arrow-up-right"></i>
-                                                </div>
-                                            </a>
-                                        }
-                                    }
-                                    else
-                                    {
-                                        <div class="empty-file-box">
-                                            <i class="bi bi-inbox"></i>
-                                            Sin archivos cargados.
-                                        </div>
-                                    }
-                                </div>
-                            </div>
-
-                            <div class="file-type-card">
-                                <div class="file-type-head">
-                                    <h6 class="file-type-title">
-                                        <i class="bi bi-clipboard-check"></i>
-                                        Calidad - Hoja de trabajo
-                                    </h6>
-                                    <span class="file-count">@calidadHojasTrabajo.Count archivo(s)</span>
-                                </div>
-
-                                <div class="file-type-body">
-                                    @if (calidadHojasTrabajo.Any())
-                                    {
-                                        @foreach (var archivo in calidadHojasTrabajo.OrderByDescending(x => x.FechaRegistro))
-                                        {
-                                            <a href="@archivo.RutaArchivo" target="_blank" class="file-item">
-                                                <div class="file-item-icon">
-                                                    <i class="bi bi-clipboard-check"></i>
-                                                </div>
-
-                                                <div class="file-item-main">
-                                                    <div class="file-item-name">Hoja de trabajo #@archivo.Id</div>
-                                                </div>
-
-                                                <div class="file-item-action">
-                                                    <i class="bi bi-box-arrow-up-right"></i>
-                                                </div>
-                                            </a>
-                                        }
-                                    }
-                                    else
-                                    {
-                                        <div class="empty-file-box">
-                                            <i class="bi bi-inbox"></i>
-                                            Sin archivos cargados.
-                                        </div>
-                                    }
-                                </div>
-                            </div>
-
+                            }
                         </div>
                     </div>
 
@@ -2465,6 +3048,59 @@ body[data-theme="dark"] .table-responsive-ui::-webkit-scrollbar-thumb {
                             </div>
                         </div>
                     </div>
+
+                    <div class="quality-block quality-block-full">
+                        <div class="quality-block-head">
+                            <h6 class="quality-block-title">
+                                <i class="bi bi-images"></i>
+                                Evidencia fotográfica
+                            </h6>
+                        </div>
+
+                        <div class="quality-block-body">
+                            @if (fotosCalidad.Any())
+                            {
+                                <div class="quality-photo-grid">
+                                    @{
+                                        var indexFotoDetalle = 1;
+                                    }
+
+                                    @foreach (var foto in fotosCalidad)
+                                    {
+                                        var tituloFoto = $"Foto {indexFotoDetalle} - {embarqueConsecutivo}";
+
+                                        <button type="button"
+                                                class="quality-photo-card"
+                                                data-photo-url="@foto.RutaArchivo"
+                                                data-photo-title="@tituloFoto"
+                                                onclick="abrirFotoCalidadDesdeBoton(this)">
+                                            <img src="@foto.RutaArchivo"
+                                                 alt="@tituloFoto"
+                                                 loading="lazy" />
+
+                                            <div class="quality-photo-caption">
+                                                <i class="bi bi-image"></i>
+                                                Foto @indexFotoDetalle
+                                            </div>
+
+                                            <div class="quality-photo-date">
+                                                @foto.FechaRegistro.ToString("yyyy-MM-dd HH:mm")
+                                            </div>
+                                        </button>
+
+                                        indexFotoDetalle++;
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="empty-quality">
+                                    No se ha capturado evidencia fotográfica en el formulario de calidad.
+                                </div>
+                            }
+                        </div>
+                    </div>
+
                 </div>
             }
             else
@@ -2650,6 +3286,59 @@ body[data-theme="dark"] .table-responsive-ui::-webkit-scrollbar-thumb {
         }
     </div>
 
+    <div class="modal fade" id="modalPreviewArchivo" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title fw-bold" id="modalPreviewArchivoTitulo">
+                            Vista previa
+                        </h5>
+                        <div class="text-muted small" id="modalPreviewArchivoTipo">
+                            Archivo
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+
+                <div class="modal-body">
+                    <img id="modalPreviewArchivoImg"
+                         class="preview-modal-img d-none"
+                         src=""
+                         alt="Vista previa" />
+
+                    <iframe id="modalPreviewArchivoFrame"
+                            class="preview-modal-frame d-none"
+                            src="">
+                    </iframe>
+
+                    <div id="modalPreviewArchivoNoDisponible" class="preview-unavailable d-none">
+                        <i id="modalPreviewArchivoIcono" class="bi bi-file-earmark"></i>
+                        <h6>Vista previa no disponible directamente</h6>
+                        <p class="mb-0">
+                            Este tipo de archivo normalmente debe abrirse en su aplicación correspondiente.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <a id="modalPreviewArchivoAbrir"
+                       href="#"
+                       target="_blank"
+                       class="btn btn-outline-secondary">
+                        <i class="bi bi-box-arrow-up-right"></i>
+                        Abrir original
+                    </a>
+
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 @section Scripts {
@@ -2687,5 +3376,101 @@ body[data-theme="dark"] .table-responsive-ui::-webkit-scrollbar-thumb {
                 document.body.removeChild(tempInput);
             }
         }
+
+        function obtenerExtensionArchivo(url) {
+            if (!url) return "";
+
+            const cleanUrl = url.split("?")[0].split("#")[0];
+            const index = cleanUrl.lastIndexOf(".");
+
+            if (index === -1) return "";
+
+            return cleanUrl.substring(index).toLowerCase();
+        }
+
+        function esImagenArchivo(url) {
+            const ext = obtenerExtensionArchivo(url);
+            return [".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"].includes(ext);
+        }
+
+        function esPdfArchivo(url) {
+            return obtenerExtensionArchivo(url) === ".pdf";
+        }
+
+        function obtenerIconoArchivo(url) {
+            const ext = obtenerExtensionArchivo(url);
+
+            if ([".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"].includes(ext)) {
+                return "bi-file-earmark-image";
+            }
+
+            if (ext === ".pdf") {
+                return "bi-file-earmark-pdf";
+            }
+
+            if ([".xls", ".xlsx", ".csv"].includes(ext)) {
+                return "bi-file-earmark-excel";
+            }
+
+            if ([".doc", ".docx"].includes(ext)) {
+                return "bi-file-earmark-word";
+            }
+
+            return "bi-file-earmark";
+        }
+
+        function abrirPreviewArchivoDesdeBoton(btn) {
+            const url = btn.dataset.fileUrl || btn.dataset.photoUrl;
+            const title = btn.dataset.fileTitle || btn.dataset.photoTitle || "Vista previa";
+            const type = btn.dataset.fileType || "Archivo";
+
+            if (!url) return;
+
+            const modalEl = document.getElementById("modalPreviewArchivo");
+            const titulo = document.getElementById("modalPreviewArchivoTitulo");
+            const tipo = document.getElementById("modalPreviewArchivoTipo");
+            const img = document.getElementById("modalPreviewArchivoImg");
+            const frame = document.getElementById("modalPreviewArchivoFrame");
+            const noDisponible = document.getElementById("modalPreviewArchivoNoDisponible");
+            const icono = document.getElementById("modalPreviewArchivoIcono");
+            const abrirOriginal = document.getElementById("modalPreviewArchivoAbrir");
+
+            if (!modalEl || !titulo || !tipo || !img || !frame || !noDisponible || !abrirOriginal) return;
+
+            titulo.textContent = title;
+            tipo.textContent = type;
+            abrirOriginal.href = url;
+
+            img.classList.add("d-none");
+            frame.classList.add("d-none");
+            noDisponible.classList.add("d-none");
+
+            img.removeAttribute("src");
+            frame.removeAttribute("src");
+
+            if (esImagenArchivo(url)) {
+                img.src = url;
+                img.classList.remove("d-none");
+            } else if (esPdfArchivo(url)) {
+                frame.src = url;
+                frame.classList.remove("d-none");
+            } else {
+                icono.className = `bi ${obtenerIconoArchivo(url)}`;
+                noDisponible.classList.remove("d-none");
+            }
+
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+        }
+
+        /* Para no romper tus fotos de calidad actuales */
+        function abrirFotoCalidadDesdeBoton(btn) {
+            btn.dataset.fileUrl = btn.dataset.photoUrl;
+            btn.dataset.fileTitle = btn.dataset.photoTitle || "Evidencia fotográfica";
+            btn.dataset.fileType = "Imagen";
+
+            abrirPreviewArchivoDesdeBoton(btn);
+        }
+
     </script>
 }

@@ -3183,6 +3183,85 @@ body[data-theme="dark"] textarea::-webkit-scrollbar-thumb {
         }
     }
 
+    .quality-block-full {
+        grid-column: 1 / -1;
+    }
+
+    .quality-photo-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+        gap: .85rem;
+    }
+
+    .quality-photo-card {
+        border: 1px solid var(--border);
+        background: #fff;
+        border-radius: 16px;
+        padding: .55rem;
+        cursor: pointer;
+        transition: var(--transition);
+        text-align: left;
+        width: 100%;
+    }
+
+        .quality-photo-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-sm);
+            border-color: rgba(139,0,0,.25);
+        }
+
+        .quality-photo-card img {
+            width: 100%;
+            height: 115px;
+            object-fit: cover;
+            border-radius: 12px;
+            border: 1px solid #edf1f5;
+            background: #f8fafc;
+        }
+
+    .quality-photo-caption {
+        margin-top: .45rem;
+        display: flex;
+        align-items: center;
+        gap: .35rem;
+        color: var(--primary);
+        font-size: .84rem;
+        font-weight: 900;
+    }
+
+    .quality-photo-date {
+        color: var(--muted);
+        font-size: .74rem;
+        font-weight: 700;
+        margin-top: .15rem;
+    }
+
+    .photo-preview-img {
+        width: 100%;
+        max-height: 75vh;
+        object-fit: contain;
+        border-radius: 14px;
+        background: #f8fafc;
+    }
+
+    body[data-theme="dark"] .quality-photo-card {
+        background: #172033 !important;
+        border-color: rgba(255,255,255,0.12) !important;
+    }
+
+        body[data-theme="dark"] .quality-photo-card img {
+            border-color: rgba(255,255,255,0.12) !important;
+            background: #0b1220 !important;
+        }
+
+    body[data-theme="dark"] .quality-photo-caption {
+        color: #fecaca !important;
+    }
+
+    body[data-theme="dark"] .quality-photo-date {
+        color: #cbd5e1 !important;
+    }
+
 </style>
 
 <div class="quality-wrap">
@@ -4412,19 +4491,36 @@ body[data-theme="dark"] textarea::-webkit-scrollbar-thumb {
                                                 <div class="history-detail-value">
                                             @if (fotosHist.Any())
                                                     {
-                                                        <div class="history-photo-list">
+                                                        <div class="quality-photo-grid">
                                                             @{
                                                                 var indexFoto = 1;
+                                                                var consecutivoHist = !string.IsNullOrWhiteSpace(h.Consecutivo)
+                                                                ? h.Consecutivo
+                                                                : $"EMB-{h.Id}";
                                                             }
 
                                                             @foreach (var foto in fotosHist)
                                                             {
-                                                                <a href="@foto.RutaArchivo"
-                                                                   target="_blank"
-                                                                   class="history-photo-link">
-                                                                    <i class="bi bi-image"></i>
-                                                                    Foto @indexFoto
-                                                                </a>
+                                                                var tituloFoto = $"Foto {indexFoto} - {consecutivoHist}";
+
+                                                                <button type="button"
+                                                                        class="quality-photo-card"
+                                                                        data-photo-url="@foto.RutaArchivo"
+                                                                        data-photo-title="@tituloFoto"
+                                                                        onclick="abrirFotoCalidadDesdeBoton(this)">
+                                                                    <img src="@foto.RutaArchivo"
+                                                                         alt="@tituloFoto"
+                                                                         loading="lazy" />
+
+                                                                    <div class="quality-photo-caption">
+                                                                        <i class="bi bi-image"></i>
+                                                                        Foto @indexFoto
+                                                                    </div>
+
+                                                                    <div class="quality-photo-date">
+                                                                        @foto.FechaRegistro.ToString("yyyy-MM-dd HH:mm")
+                                                                    </div>
+                                                                </button>
 
                                                                 indexFoto++;
                                                             }
@@ -4532,6 +4628,40 @@ body[data-theme="dark"] textarea::-webkit-scrollbar-thumb {
             }
         </div>
     }
+
+    <div class="modal fade" id="modalFotoCalidad" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="modalFotoCalidadTitulo">
+                        Evidencia fotográfica
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+
+                <div class="modal-body text-center">
+                    <img id="modalFotoCalidadImg"
+                         class="photo-preview-img"
+                         src=""
+                         alt="Evidencia fotográfica" />
+                </div>
+
+                <div class="modal-footer">
+                    <a id="modalFotoCalidadAbrir"
+                       href="#"
+                       target="_blank"
+                       class="btn btn-outline-secondary">
+                        <i class="bi bi-box-arrow-up-right"></i>
+                        Abrir original
+                    </a>
+
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
 </div>
 
@@ -4845,5 +4975,25 @@ body[data-theme="dark"] textarea::-webkit-scrollbar-thumb {
                 });
             });
         });
+
+        function abrirFotoCalidadDesdeBoton(btn) {
+            const url = btn.dataset.photoUrl;
+            const title = btn.dataset.photoTitle || "Evidencia fotográfica";
+
+            const modalEl = document.getElementById("modalFotoCalidad");
+            const img = document.getElementById("modalFotoCalidadImg");
+            const titulo = document.getElementById("modalFotoCalidadTitulo");
+            const abrirOriginal = document.getElementById("modalFotoCalidadAbrir");
+
+            if (!url || !modalEl || !img || !titulo || !abrirOriginal) return;
+
+            img.src = url;
+            titulo.textContent = title;
+            abrirOriginal.href = url;
+
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+        }
+
     </script>
 }
