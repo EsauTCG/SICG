@@ -332,6 +332,14 @@ public class EmbarquesController : Controller
         ViewBag.OrdenesVenta = ordenesReal;
         ViewBag.Transferencias = transferenciasReal;
 
+        var fotosCalidad = await _qrContext.Set<Embarque.EmbarqueCalidadFoto>()
+            .AsNoTracking()
+            .Where(f => f.EmbarqueId == embarque.Id)
+            .OrderByDescending(f => f.FechaRegistro)
+            .ToListAsync();
+
+        ViewBag.FotosCalidad = fotosCalidad;
+
         return View(embarque);
     }
 
@@ -1661,11 +1669,15 @@ public class EmbarquesController : Controller
 
     [HttpPost]
     public async Task<IActionResult> CargarDocumentos(
-        int id,
-        bool? requiereCartaPorte,
-        List<IFormFile>? cartaPorteArchivos,
-        List<IFormFile>? fichaTecnicaArchivos,
-        List<IFormFile>? cartaGarantiaArchivos)
+     int id,
+     bool? requiereCartaPorte,
+     List<IFormFile>? cartaPorteArchivos,
+     List<IFormFile>? fichaTecnicaArchivos,
+     List<IFormFile>? cartaGarantiaArchivos,
+
+     // NUEVOS OPCIONALES
+     List<IFormFile>? certificacionLavadoArchivos,
+     List<IFormFile>? certificacionFumigacionArchivos)
     {
         var embarque = await _qrContext.Embarque
             .Include(e => e.QR)
@@ -1721,6 +1733,7 @@ public class EmbarquesController : Controller
 
         // =========================================================
         // 2. GUARDAR MÚLTIPLES ARCHIVOS DE FICHA TÉCNICA
+        // Se deja por compatibilidad aunque actualmente no lo estés mostrando.
         // =========================================================
         if (fichaTecnicaArchivos != null && fichaTecnicaArchivos.Any(f => f.Length > 0))
         {
@@ -1743,6 +1756,7 @@ public class EmbarquesController : Controller
 
         // =========================================================
         // 3. GUARDAR MÚLTIPLES ARCHIVOS DE CARTA GARANTÍA
+        // Se deja por compatibilidad aunque actualmente no lo estés mostrando.
         // =========================================================
         if (cartaGarantiaArchivos != null && cartaGarantiaArchivos.Any(f => f.Length > 0))
         {
@@ -1763,12 +1777,56 @@ public class EmbarquesController : Controller
             }
         }
 
+        // =========================================================
+        // 4. GUARDAR CERTIFICACIÓN DE LAVADO - OPCIONAL
+        // =========================================================
+        if (certificacionLavadoArchivos != null && certificacionLavadoArchivos.Any(f => f.Length > 0))
+        {
+            foreach (var archivo in certificacionLavadoArchivos.Where(f => f.Length > 0))
+            {
+                var ruta = await GuardarArchivo(archivo, "certificacionesLavado", "certificacion_lavado");
+
+                _qrContext.Set<EmbarqueArchivo>().Add(new EmbarqueArchivo
+                {
+                    EmbarqueId = embarque.Id,
+                    Tipo = "CERTIFICACION_LAVADO",
+                    RutaArchivo = ruta,
+                    FechaRegistro = DateTime.Now,
+                    UsuarioRegistro = User.Identity?.Name ?? "Sistema"
+                });
+
+                seCargoAlgunArchivoNuevo = true;
+            }
+        }
+
+        // =========================================================
+        // 5. GUARDAR CERTIFICACIÓN DE FUMIGACIÓN - OPCIONAL
+        // =========================================================
+        if (certificacionFumigacionArchivos != null && certificacionFumigacionArchivos.Any(f => f.Length > 0))
+        {
+            foreach (var archivo in certificacionFumigacionArchivos.Where(f => f.Length > 0))
+            {
+                var ruta = await GuardarArchivo(archivo, "certificacionesFumigacion", "certificacion_fumigacion");
+
+                _qrContext.Set<EmbarqueArchivo>().Add(new EmbarqueArchivo
+                {
+                    EmbarqueId = embarque.Id,
+                    Tipo = "CERTIFICACION_FUMIGACION",
+                    RutaArchivo = ruta,
+                    FechaRegistro = DateTime.Now,
+                    UsuarioRegistro = User.Identity?.Name ?? "Sistema"
+                });
+
+                seCargoAlgunArchivoNuevo = true;
+            }
+        }
+
         await _qrContext.SaveChangesAsync();
 
         // =========================================================
-        // NUEVA VALIDACIÓN:
-        // Carta Porte solo es obligatoria si Logística marcó que aplica.
-        // Si no aplica, puede validar sin Carta Porte.
+        // VALIDACIÓN CARTA PORTE
+        // Esta se queda como ya estaba:
+        // solo es obligatoria si logística indicó que aplica.
         // =========================================================
         bool tieneCartaPorte = await _qrContext.Set<EmbarqueArchivo>()
             .AnyAsync(a => a.EmbarqueId == embarque.Id && a.Tipo == "CARTA_PORTE");
@@ -1785,11 +1843,14 @@ public class EmbarquesController : Controller
             return RedirectToAction("Documentacion");
         }
 
+        // =========================================================
+        // VALIDACIÓN FINAL LOGÍSTICA
+        // Lavado y Fumigación NO bloquean, solo se avisan en frontend.
+        // =========================================================
         embarque.DocumentacionAprobada = true;
         embarque.FechaValidacionDocumentacion = DateTime.Now;
         embarque.UsuarioValidaDocumentacion = User.Identity?.Name ?? "Sistema";
 
-        // Solo se libera si también Calidad y Documentación de Calidad ya fueron aprobadas
         embarque.Estatus =
             embarque.CalidadAprobada == true &&
             embarque.DocumentacionAprobada == true &&
@@ -1799,15 +1860,30 @@ public class EmbarquesController : Controller
 
         await _qrContext.SaveChangesAsync();
 
+        bool tieneLavado = await _qrContext.Set<EmbarqueArchivo>()
+            .AnyAsync(a => a.EmbarqueId == embarque.Id && a.Tipo == "CERTIFICACION_LAVADO");
+
+        bool tieneFumigacion = await _qrContext.Set<EmbarqueArchivo>()
+            .AnyAsync(a => a.EmbarqueId == embarque.Id && a.Tipo == "CERTIFICACION_FUMIGACION");
+
         string textoCartaPorte = embarque.RequiereCartaPorte == true
             ? "Carta Porte requerida y validada."
             : "Carta Porte marcada como No aplica.";
 
+        string textoCertificaciones =
+            tieneLavado && tieneFumigacion
+                ? "Certificaciones de Lavado y Fumigación cargadas."
+                : !tieneLavado && !tieneFumigacion
+                    ? "Se validó sin Certificación de Lavado ni Certificación de Fumigación."
+                    : !tieneLavado
+                        ? "Se validó sin Certificación de Lavado."
+                        : "Se validó sin Certificación de Fumigación.";
+
         TempData["Success"] =
             embarque.CalidadAprobada == true &&
             embarque.DocumentacionCalidadAprobada == true
-                ? $"Documentación logística validada correctamente para el embarque #{embarque.Consecutivo}. {textoCartaPorte} Ya puede generar QR."
-                : $"Documentación logística validada correctamente para el embarque #{embarque.Consecutivo}. {textoCartaPorte} Aún faltan otras validaciones.";
+                ? $"Documentación logística validada correctamente para el embarque #{embarque.Consecutivo}. {textoCartaPorte} {textoCertificaciones} Ya puede generar QR."
+                : $"Documentación logística validada correctamente para el embarque #{embarque.Consecutivo}. {textoCartaPorte} {textoCertificaciones} Aún faltan otras validaciones.";
 
         return RedirectToAction("Documentacion");
     }
