@@ -1204,6 +1204,68 @@
             body[data-theme="dark"] input[type="file"]::file-selector-button:hover {
                 background: rgba(248,113,113,0.18) !important;
             }
+
+    .embarque-title-with-name {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        flex-wrap: wrap;
+    }
+
+    .embarque-title-main {
+        display: inline-flex;
+        align-items: center;
+        gap: .55rem;
+    }
+
+    .embarque-name-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        max-width: 380px;
+        padding: .34rem .65rem;
+        border-radius: 999px;
+        background: var(--primary-soft);
+        border: 1px solid rgba(139,0,0,.16);
+        color: var(--primary);
+        font-size: .82rem;
+        font-weight: 900;
+        line-height: 1.1;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+        .embarque-name-chip.empty {
+            background: #f3f5f8;
+            border-color: var(--border);
+            color: var(--text-soft, var(--muted));
+            font-style: italic;
+            font-weight: 800;
+        }
+
+    @@media (max-width: 576px) {
+        .embarque-name-chip
+
+    {
+        width: 100%;
+        max-width: 100%;
+        justify-content: flex-start;
+    }
+
+    }
+
+    /* Dark mode */
+    body[data-theme="dark"] .embarque-name-chip {
+        background: rgba(127,29,29,0.24) !important;
+        border-color: rgba(248,113,113,0.35) !important;
+        color: #fecaca !important;
+    }
+
+        body[data-theme="dark"] .embarque-name-chip.empty {
+            background: #0b1220 !important;
+            border-color: rgba(203,213,225,0.28) !important;
+            color: #cbd5e1 !important;
+        }
 </style>
 
 <div class="docs-page">
@@ -1407,9 +1469,32 @@
                         <div class="embarque-card" id="@cardId">
                             <div class="embarque-head" onclick="toggleCard('@cardId')">
                                 <div>
-                                    <h3 class="embarque-title">
-                                        <i class="bi bi-truck-front"></i>
-                                        Embarque #@e.Consecutivo
+                                    @{
+                                        var consecutivoEmbarque = !string.IsNullOrWhiteSpace(e.Consecutivo)
+                                        ? e.Consecutivo
+                                        : $"EMB-{e.Id}";
+
+                                        var tieneNombreEmbarque = !string.IsNullOrWhiteSpace(e.NombreEmbarque);
+
+                                        var nombreEmbarqueTexto = tieneNombreEmbarque
+                                        ? e.NombreEmbarque.Trim()
+                                        : "Sin nombre asignado";
+
+                                        var nombreEmbarqueClase = tieneNombreEmbarque
+                                        ? "embarque-name-chip"
+                                        : "embarque-name-chip empty";
+                                    }
+
+                                    <h3 class="embarque-title embarque-title-with-name">
+                                        <span class="embarque-title-main">
+                                            <i class="bi bi-truck-front"></i>
+                                            Embarque #@consecutivoEmbarque
+                                        </span>
+
+                                        <span class="@nombreEmbarqueClase">
+                                            <i class="bi bi-tag"></i>
+                                            @nombreEmbarqueTexto
+                                        </span>
                                     </h3>
                                     <div class="embarque-sub">
                                         ID: @e.Id · Fecha de creación: @e.FechaCreacion.ToString("yyyy-MM-dd HH:mm")
@@ -1834,9 +1919,32 @@
                         <div class="embarque-card" id="@cardId">
                             <div class="embarque-head" onclick="toggleCard('@cardId')">
                                 <div>
-                                    <h3 class="embarque-title">
-                                        <i class="bi bi-folder-check"></i>
-                                        Embarque #@e.Consecutivo
+                                    @{
+                                        var consecutivoEmbarqueHistorial = !string.IsNullOrWhiteSpace(e.Consecutivo)
+                                        ? e.Consecutivo
+                                        : $"EMB-{e.Id}";
+
+                                        var tieneNombreEmbarqueHistorial = !string.IsNullOrWhiteSpace(e.NombreEmbarque);
+
+                                        var nombreEmbarqueTextoHistorial = tieneNombreEmbarqueHistorial
+                                        ? e.NombreEmbarque.Trim()
+                                        : "Sin nombre asignado";
+
+                                        var nombreEmbarqueClaseHistorial = tieneNombreEmbarqueHistorial
+                                        ? "embarque-name-chip"
+                                        : "embarque-name-chip empty";
+                                    }
+
+                                    <h3 class="embarque-title embarque-title-with-name">
+                                        <span class="embarque-title-main">
+                                            <i class="bi bi-folder-check"></i>
+                                            Embarque #@consecutivoEmbarqueHistorial
+                                        </span>
+
+                                        <span class="@nombreEmbarqueClaseHistorial">
+                                            <i class="bi bi-tag"></i>
+                                            @nombreEmbarqueTextoHistorial
+                                        </span>
                                     </h3>
                                     <div class="embarque-sub">
                                         ID: @e.Id · Validado:
