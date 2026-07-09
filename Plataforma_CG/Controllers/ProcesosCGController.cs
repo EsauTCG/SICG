@@ -4806,7 +4806,7 @@ OPTION (RECOMPILE);";
                 return File(qrCode.GetGraphic(10), "image/png");
             }
         }
-
+         
         [HttpGet("ObtenerBitacoraExcepciones")]
         [RevisarPermiso("AUTO_ARTICULOS", "LEER")]
         public async Task<IActionResult> ObtenerBitacoraExcepciones()
