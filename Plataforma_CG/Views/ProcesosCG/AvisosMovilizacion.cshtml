@@ -15,6 +15,13 @@
     var clienteTxt = Model?.Cliente ?? "";
     var ventaTxt = Model?.Venta ?? "";
     var loteTxt = Model?.Lote ?? "";
+
+    var origenReq = ((ViewBag.Source as string) ?? Context?.Request?.Query["source"].ToString() ?? "TIF").Trim();
+    var origenSel = origenReq.Equals("P1", StringComparison.OrdinalIgnoreCase)
+        || origenReq.Equals("PLANTA 1", StringComparison.OrdinalIgnoreCase)
+        || origenReq.Equals("PLANTA1", StringComparison.OrdinalIgnoreCase)
+            ? "P1"
+            : "TIF";
 }
 
 <style>
@@ -81,7 +88,7 @@
 
     .filters {
         display: grid;
-        grid-template-columns: 130px 130px 190px 170px 160px auto;
+        grid-template-columns: 145px 130px 130px 190px 170px 160px auto;
         gap: 10px;
         padding: 10px;
         background: var(--panel-2);
@@ -256,7 +263,7 @@
 
     table.tbl-aviso {
         width: 100%;
-        min-width: 920px;
+        min-width: 1040px;
         table-layout: fixed;
         border-collapse: separate !important;
         border-spacing: 0 !important;
@@ -440,10 +447,28 @@
         <div class="workspace">
 
             <div class="section">
-                <div class="section-title">Avisos de movilización - Planta TIF</div>
+                <div class="section-title">Avisos de movilización - <span id="tituloPlanta">@(origenSel == "P1" ? "Planta 1" : "Planta TIF")</span></div>
 
                 <form id="filtrosAvisosForm" autocomplete="off">
+                    <input type="hidden" id="plantaHidden" name="planta" value="@origenSel" />
+                    <input type="hidden" id="origenHidden" name="origen" value="@(origenSel == "P1" ? "Planta 1" : "Planta TIF")" />
                     <div class="filters">
+
+                        <div class="filter-group">
+                            <label>Origen</label>
+                            <select id="origenPlanta" name="source">
+                                @if (origenSel == "P1")
+                                {
+                                    <option value="P1" selected>Planta 1</option>
+                                    <option value="TIF">Planta TIF</option>
+                                }
+                                else
+                                {
+                                    <option value="P1">Planta 1</option>
+                                    <option value="TIF" selected>Planta TIF</option>
+                                }
+                            </select>
+                        </div>
 
                         <div class="filter-group">
                             <label>Desde</label>
@@ -491,6 +516,7 @@
                                 <button class="pm-btn pm-btn-secondary" type="button" onclick="selectAllAvisos(false)">☐ Ninguno</button>
                                 <button class="pm-btn pm-btn-success" type="button" onclick="abrirEnvioMedico()">📧 Enviar médico</button>
                                 <button class="pm-btn pm-btn-primary" type="button" onclick="abrirPdfSeleccionados()">📄 PDF</button>
+                               @*  <button class="pm-btn pm-btn-success" type="button" onclick="descargarExcelAvisoMovilizacion()">📊 Aviso de Movilización</button> *@
                             </div>
                         </div>
 
@@ -530,6 +556,7 @@
                         <thead>
                             <tr>
                                 <th style="width:42px;" class="text-center">Sel.</th>
+                                <th style="width:92px;">Origen</th>
                                 <th style="width:95px;">Fecha venta</th>
                                 <th style="width:110px;">Solicitud</th>
                                 <th style="width:150px;">Venta</th>
@@ -542,7 +569,7 @@
                         </thead>
                         <tbody id="avisosBody">
                             <tr>
-                                <td colspan="9" class="text-center">Cargando avisos...</td>
+                                <td colspan="10" class="text-center">Cargando avisos...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -642,6 +669,58 @@
     const URL_DETALLE = '@Url.Action("AvisosMovilizacionDetalle", "ProcesosCg")';
     const URL_PDF = '@Url.Action("AvisosMovilizacionPdf", "ProcesosCg")';
     const URL_ENVIAR = '@Url.Action("EnviarAvisosMovilizacionSenasica", "ProcesosCg")';
+    const URL_EXCEL_AVISO = '@Url.Action("AvisosMovilizacionExcel", "ProcesosCg")';
+
+    function normalizePlanta(value) {
+        const v = String(value || '').trim().toUpperCase();
+        return (v === 'P1' || v === 'PLANTA 1' || v === 'PLANTA1') ? 'P1' : 'TIF';
+    }
+
+    function getPlantaActual() {
+        return normalizePlanta(document.getElementById('origenPlanta')?.value || 'TIF');
+    }
+
+    function getNombrePlanta(value) {
+        return normalizePlanta(value) === 'P1' ? 'Planta 1' : 'Planta TIF';
+    }
+
+    function syncOrigenFields() {
+        const planta = getPlantaActual();
+        const nombre = getNombrePlanta(planta);
+
+        const plantaHidden = document.getElementById('plantaHidden');
+        const origenHidden = document.getElementById('origenHidden');
+        const tituloPlanta = document.getElementById('tituloPlanta');
+
+        if (plantaHidden) plantaHidden.value = planta;
+        if (origenHidden) origenHidden.value = nombre;
+        if (tituloPlanta) tituloPlanta.textContent = nombre;
+
+        return { planta, nombre };
+    }
+
+    function appendOrigenParams(params) {
+        const origen = syncOrigenFields();
+        params.set('source', origen.planta);
+        params.set('planta', origen.planta);
+        params.set('origen', origen.nombre);
+        return params;
+    }
+
+    function getFiltroAvisosParams() {
+        const form = document.getElementById('filtrosAvisosForm');
+        const params = form
+            ? new URLSearchParams(new FormData(form))
+            : new URLSearchParams();
+
+        appendOrigenParams(params);
+        return params;
+    }
+
+    function buildUrlWithParams(baseUrl, params) {
+        appendOrigenParams(params);
+        return baseUrl + '?' + params.toString();
+    }
 
     function showLog(type, text) {
         const box = document.getElementById('logBox');
@@ -698,7 +777,7 @@
 
         body.innerHTML = `
             <tr>
-                <td colspan="9" class="text-center">${escapeHtml(text)}</td>
+                <td colspan="10" class="text-center">${escapeHtml(text)}</td>
             </tr>
         `;
     }
@@ -743,12 +822,15 @@
             const totalPartidas = pick(x, 'totalPartidas', 'TotalPartidas');
             const totalCajas = pick(x, 'totalCajas', 'TotalCajas');
             const totalKg = pick(x, 'totalKg', 'TotalKg');
+            const planta = pick(x, 'planta', 'Planta', 'origen', 'Origen') || getPlantaActual();
+            const plantaNombre = getNombrePlanta(planta);
 
             return `
-                <tr data-id="${escapeHtml(id)}">
+                <tr data-id="${escapeHtml(id)}" data-venta="${escapeHtml(venta)}" data-planta="${escapeHtml(normalizePlanta(planta))}">
                     <td class="text-center">
                         <input type="checkbox" class="ck-aviso" value="${escapeHtml(id)}" />
                     </td>
+                    <td title="${escapeHtml(plantaNombre)}">${escapeHtml(plantaNombre)}</td>
                     <td title="${escapeHtml(fechaVenta)}">${escapeHtml(fechaVenta)}</td>
                     <td title="${escapeHtml(id)}"><strong>${escapeHtml(id)}</strong></td>
                     <td title="${escapeHtml(venta)}">${escapeHtml(venta)}</td>
@@ -796,7 +878,7 @@
 
     async function cargarAvisos() {
         const form = document.getElementById('filtrosAvisosForm');
-        const params = new URLSearchParams(new FormData(form));
+        const params = appendOrigenParams(new URLSearchParams(new FormData(form)));
 
         hideLog();
         setBuscando(true);
@@ -868,7 +950,10 @@
         bootstrap.Modal.getOrCreateInstance(document.getElementById('detalleAvisoModal')).show();
 
         try {
-            const res = await fetch(URL_DETALLE + '?id=' + encodeURIComponent(id), {
+            const params = getFiltroAvisosParams();
+            params.set('id', id);
+
+            const res = await fetch(URL_DETALLE + '?' + params.toString(), {
                 headers: { 'Accept': 'application/json' },
                 cache: 'no-store'
             });
@@ -912,7 +997,9 @@
 
     function abrirPdfAviso(id) {
         if (!id) return;
-        window.open(URL_PDF + '?ids=' + encodeURIComponent(id), '_blank');
+        const params = getFiltroAvisosParams();
+        params.set('ids', id);
+        window.open(URL_PDF + '?' + params.toString(), '_blank');
     }
 
     function abrirPdfSeleccionados() {
@@ -923,7 +1010,9 @@
             return;
         }
 
-        window.open(URL_PDF + '?ids=' + encodeURIComponent(ids.join(',')), '_blank');
+        const params = getFiltroAvisosParams();
+        params.set('ids', ids.join(','));
+        window.open(URL_PDF + '?' + params.toString(), '_blank');
     }
 
     function abrirEnvioMedico() {
@@ -935,7 +1024,7 @@
         }
 
         document.getElementById('totalSeleccionadasEnvio').textContent = ids.length;
-        document.getElementById('listaSeleccionadasEnvio').textContent = ids.join(', ');
+        document.getElementById('listaSeleccionadasEnvio').textContent = getNombrePlanta(getPlantaActual()) + ': ' + ids.join(', ');
 
         bootstrap.Modal.getOrCreateInstance(document.getElementById('envioMedicoModal')).show();
     }
@@ -950,12 +1039,11 @@
 
         const comentarios = document.getElementById('comentariosEnvio')?.value || '';
 
-        window.open(
-            URL_PDF
-            + '?ids=' + encodeURIComponent(ids.join(','))
-            + '&comentarios=' + encodeURIComponent(comentarios),
-            '_blank'
-        );
+        const params = getFiltroAvisosParams();
+        params.set('ids', ids.join(','));
+        params.set('comentarios', comentarios);
+
+        window.open(URL_PDF + '?' + params.toString(), '_blank');
     }
 
     async function enviarAvisosMedico() {
@@ -968,6 +1056,7 @@
 
         const correoMedico = document.getElementById('correoMedico')?.value || '';
         const comentarios = document.getElementById('comentariosEnvio')?.value || '';
+        const origenActual = syncOrigenFields();
 
         if (!correoMedico) {
             alert('Captura el correo del médico SENASICA.');
@@ -981,13 +1070,18 @@
         showLog('info', 'Enviando avisos de movilización...');
 
         try {
-            const res = await fetch(URL_ENVIAR, {
+            const paramsEnvio = getFiltroAvisosParams();
+
+            const res = await fetch(URL_ENVIAR + '?' + paramsEnvio.toString(), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     solicitudes: ids,
                     correoMedico,
-                    comentarios
+                    comentarios,
+                    source: origenActual.planta,
+                    planta: origenActual.planta,
+                    origen: origenActual.nombre
                 })
             });
 
@@ -1010,12 +1104,87 @@
         }
     }
 
+
+    function getSolicitudesSeleccionadasAviso() {
+        return Array.from(document.querySelectorAll('.ck-aviso:checked'))
+            .map(x => (x.value || '').trim())
+            .filter(x => x)
+            .filter((x, i, arr) => arr.indexOf(x) === i);
+    }
+
+    function getFileNameFromDispositionAviso(disposition) {
+        if (!disposition) return null;
+
+        const match = /filename\*?=(?:UTF-8''|")?([^\";]+)"?/i.exec(disposition);
+        if (!match || !match[1]) return null;
+
+        try { return decodeURIComponent(match[1]); }
+        catch { return match[1]; }
+    }
+
+    async function descargarBlobAvisoMovilizacion(url) {
+        showLog('info', 'Generando Aviso de Movilización ' + getNombrePlanta(getPlantaActual()) + '...');
+
+        try {
+            const resp = await fetch(url, {
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                cache: 'no-store'
+            });
+
+            if (!resp.ok) {
+                const txt = await resp.text().catch(() => '');
+                throw new Error(txt || resp.statusText || 'No se pudo generar el archivo.');
+            }
+
+            const blob = await resp.blob();
+            const disposition = resp.headers.get('content-disposition');
+            const serverName = getFileNameFromDispositionAviso(disposition);
+            const filename = serverName || ('AvisoMovilizacion_' + getPlantaActual() + '.xlsx');
+
+            const blobUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(blobUrl);
+
+            showLog('success', 'Aviso de Movilización ' + getNombrePlanta(getPlantaActual()) + ' generado correctamente.');
+        } catch (err) {
+            showLog('danger', 'No se pudo generar el Aviso de Movilización ' + getNombrePlanta(getPlantaActual()) + '.\n\n' + err.message);
+        }
+    }
+
+    function descargarExcelAvisoMovilizacion() {
+        const solicitudes = getSolicitudesSeleccionadasAviso();
+
+        if (!solicitudes.length) {
+            alert('Selecciona al menos una solicitud para generar el Aviso de Movilización.');
+            return;
+        }
+
+        const params = getFiltroAvisosParams();
+        params.set('ids', solicitudes.join(','));
+
+        const url = URL_EXCEL_AVISO + '?' + params.toString();
+        descargarBlobAvisoMovilizacion(url);
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('filtrosAvisosForm')?.addEventListener('submit', e => {
             e.preventDefault();
             cargarAvisos();
         });
 
+        document.getElementById('origenPlanta')?.addEventListener('change', () => {
+            selectAllAvisos(false);
+            cargarAvisos();
+        });
+
+        syncOrigenFields();
         actualizarKpiSeleccionadas();
         cargarAvisos();
     });

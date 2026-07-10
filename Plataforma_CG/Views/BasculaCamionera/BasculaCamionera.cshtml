@@ -3501,6 +3501,498 @@
         }
     }
 
+
+
+    /* =========================================================
+       PRE-REGISTRO QR / CÓDIGO DE BARRAS
+       ========================================================= */
+
+    .pre-registro-panel {
+        border: 2px solid rgba(123, 17, 19, .18);
+        background: linear-gradient(180deg, #fffdfd, #fff1f1);
+    }
+
+    .pre-registro-status {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 32px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid #d4adad;
+        background: #fff;
+        color: #5c090b;
+        font-size: 12px;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .pre-registro-status.ok {
+        color: #0f5132;
+        background: #dcfce7;
+        border-color: #86efac;
+    }
+
+    .pre-registro-status.warn {
+        color: #7c4a00;
+        background: #fff4ce;
+        border-color: #f2c96b;
+    }
+
+    .pre-registro-status.error {
+        color: #7f1d1d;
+        background: #fee2e2;
+        border-color: #fca5a5;
+    }
+
+    .pre-registro-help {
+        display: block;
+        margin-top: 5px;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.25;
+    }
+
+    .pre-registro-lock input:not(#scanPreRegistro),
+    .pre-registro-lock select,
+    .pre-registro-lock textarea {
+        background: #f3e8e8 !important;
+    }
+
+
+
+    /* =========================================================
+       TRÁILER PNG PERSONALIZADO EN INDICADOR DE BÁSCULA
+       Coloque su imagen transparente en:
+       wwwroot/img/bascula/trailer-bascula.png
+       ========================================================= */
+
+    .truck-vehicle.truck-vehicle-img {
+        position: absolute !important;
+        left: 50% !important;
+        bottom: 11px !important;
+        width: clamp(205px, 47vw, 345px) !important;
+        height: 82px !important;
+        opacity: 0;
+        pointer-events: none;
+        transform: translateX(-205%) !important;
+        transition: transform 1.15s cubic-bezier(.22,.85,.23,1), opacity .45s ease !important;
+        will-change: transform, opacity;
+        z-index: 8;
+        overflow: visible !important;
+    }
+
+    .truck-scene.active .truck-vehicle.truck-vehicle-img {
+        transform: translateX(-50%) !important;
+        opacity: 1 !important;
+    }
+
+    .truck-scene.leaving .truck-vehicle.truck-vehicle-img {
+        transform: translateX(92%) !important;
+        opacity: 0 !important;
+        transition: transform .85s cubic-bezier(.55,.08,.78,.2), opacity .35s ease !important;
+    }
+
+    .truck-scene.empty .truck-vehicle.truck-vehicle-img {
+        transform: translateX(-205%) !important;
+        opacity: 0 !important;
+    }
+
+    .truck-img {
+        position: relative;
+        z-index: 2;
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        object-position: center bottom;
+        user-select: none;
+        -webkit-user-drag: none;
+        filter: drop-shadow(0 9px 9px rgba(0,0,0,.36));
+    }
+
+    .truck-scene.active .truck-img {
+        animation: trailerFloat 2.2s ease-in-out infinite;
+    }
+
+    .truck-scene.leaving .truck-img,
+    .truck-scene.empty .truck-img {
+        animation: none;
+    }
+
+    .truck-img-shadow {
+        position: absolute;
+        left: 8%;
+        right: 8%;
+        bottom: 2px;
+        height: 12px;
+        border-radius: 999px;
+        background: rgba(0,0,0,.30);
+        filter: blur(5px);
+        z-index: 1;
+    }
+
+    .truck-vehicle.truck-vehicle-img .truck-cab,
+    .truck-vehicle.truck-vehicle-img .truck-cab-window,
+    .truck-vehicle.truck-vehicle-img .truck-cab-light,
+    .truck-vehicle.truck-vehicle-img .truck-trailer-box,
+    .truck-vehicle.truck-vehicle-img .truck-trailer-line,
+    .truck-vehicle.truck-vehicle-img .truck-wheel,
+    .truck-vehicle.truck-vehicle-img .truck-shadow {
+        display: none !important;
+    }
+
+    @@keyframes trailerFloat {
+        0%, 100% {
+            transform: translateY(0);
+        }
+
+        50% {
+            transform: translateY(-2px);
+        }
+    }
+
+    @@media (max-width: 1500px) and (min-width: 901px) {
+        .truck-vehicle.truck-vehicle-img {
+            width: clamp(200px, 44vw, 315px) !important;
+            height: 76px !important;
+            bottom: 10px !important;
+        }
+    }
+
+    @@media (max-width: 900px) {
+        .truck-vehicle.truck-vehicle-img {
+            width: clamp(178px, 70vw, 275px) !important;
+            height: 66px !important;
+            bottom: 10px !important;
+        }
+    }
+
+    @@media (max-width: 640px) {
+        .truck-vehicle.truck-vehicle-img {
+            width: clamp(165px, 78vw, 245px) !important;
+            height: 58px !important;
+            bottom: 10px !important;
+        }
+    }
+
+
+    /* =========================================================
+       AJUSTE FINAL KPIs COMPACTOS
+       Reduce altura de tarjetas superiores para liberar pantalla.
+       Pegar siempre al final del <style> para que gane sobre overrides previos.
+       ========================================================= */
+
+    @@media screen {
+        #basculaApp .bascula-resumen {
+            gap: 8px !important;
+            padding: 8px 10px !important;
+            align-items: stretch !important;
+        }
+
+        #basculaApp .bascula-resumen .kpi {
+            min-height: 92px !important;
+            height: 92px !important;
+            max-height: 92px !important;
+            padding: 10px 12px !important;
+            border-radius: 14px !important;
+            box-shadow: inset 4px 0 0 rgba(255,255,255,.16), 0 8px 18px rgba(40, 7, 7, .18) !important;
+            overflow: hidden !important;
+        }
+
+        #basculaApp .bascula-resumen .kpi label {
+            font-size: 10px !important;
+            margin-bottom: 3px !important;
+            line-height: 1.1 !important;
+        }
+
+        #basculaApp .bascula-resumen .kpi strong {
+            font-size: clamp(24px, 2.2vw, 38px) !important;
+            line-height: 1 !important;
+            margin-top: 2px !important;
+        }
+
+        #basculaApp .bascula-resumen .kpi .muted,
+        #basculaApp .bascula-resumen .kpi .text-muted {
+            font-size: 10px !important;
+            margin-top: 4px !important;
+            line-height: 1.1 !important;
+        }
+
+        #basculaApp .bascula-resumen .kpi::after,
+        #basculaApp .bascula-resumen .kpi::before {
+            opacity: .34 !important;
+            transform: scale(.68) !important;
+            transform-origin: right bottom !important;
+        }
+
+        #basculaApp .bascula-resumen .kpi-folio strong,
+        #basculaApp .bascula-resumen #kpiFolio {
+            font-size: clamp(18px, 1.55vw, 26px) !important;
+            line-height: 1.05 !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        }
+    }
+
+    @@media screen and (min-width: 1600px) {
+        #basculaApp .bascula-resumen .kpi {
+            min-height: 105px !important;
+            height: 105px !important;
+            max-height: 105px !important;
+        }
+
+        #basculaApp .bascula-resumen .kpi strong {
+            font-size: clamp(30px, 2.1vw, 44px) !important;
+        }
+
+        #basculaApp .bascula-resumen .kpi-folio strong,
+        #basculaApp .bascula-resumen #kpiFolio {
+            font-size: clamp(20px, 1.35vw, 30px) !important;
+        }
+    }
+
+    @@media screen and (max-width: 1500px) and (min-width: 901px) {
+        #basculaApp .bascula-resumen .kpi {
+            min-height: 86px !important;
+            height: 86px !important;
+            max-height: 86px !important;
+            padding: 9px 10px !important;
+        }
+
+        #basculaApp .bascula-resumen .kpi strong {
+            font-size: clamp(22px, 2vw, 34px) !important;
+        }
+
+        #basculaApp .bascula-resumen .kpi-folio strong,
+        #basculaApp .bascula-resumen #kpiFolio {
+            font-size: clamp(16px, 1.35vw, 22px) !important;
+        }
+    }
+
+    @@media screen and (max-width: 900px) {
+        #basculaApp .bascula-resumen .kpi {
+            min-height: 82px !important;
+            height: auto !important;
+            max-height: none !important;
+            padding: 9px 10px !important;
+        }
+
+        #basculaApp .bascula-resumen .kpi strong {
+            font-size: clamp(24px, 6vw, 34px) !important;
+        }
+
+        #basculaApp .bascula-resumen .kpi-folio strong,
+        #basculaApp .bascula-resumen #kpiFolio {
+            white-space: normal !important;
+            font-size: clamp(17px, 4.4vw, 24px) !important;
+        }
+    }
+
+
+
+    /* =========================================================
+       ORDEN REGISTRO: DATOS GENERALES ARRIBA Y QR ABAJO
+       ========================================================= */
+
+    @@media screen {
+        #view-registro > .section:not(.pre-registro-panel) {
+            margin-bottom: 10px !important;
+        }
+
+        #view-registro .pre-registro-panel {
+            margin-top: 0 !important;
+            margin-bottom: 10px !important;
+            border-width: 1px !important;
+        }
+
+        #view-registro .pre-registro-panel .section-title {
+            min-height: 32px !important;
+            padding: 7px 12px !important;
+            font-size: 11px !important;
+        }
+
+        #view-registro .pre-registro-panel .section-title span {
+            font-size: 10px !important;
+        }
+
+        #view-registro .pre-registro-panel .form-grid.compact {
+            grid-template-columns: minmax(260px, 2fr) 120px 145px minmax(160px, 1fr) minmax(160px, 1fr) 130px !important;
+            gap: 7px !important;
+            padding: 9px 12px !important;
+            align-items: end !important;
+        }
+
+        #view-registro .pre-registro-panel input,
+        #view-registro .pre-registro-panel select,
+        #view-registro .pre-registro-panel .pm-btn {
+            min-height: 30px !important;
+            height: 30px !important;
+            font-size: 11px !important;
+            border-radius: 8px !important;
+        }
+
+        #view-registro .pre-registro-panel label {
+            font-size: 10px !important;
+            margin-bottom: 3px !important;
+        }
+
+        #view-registro .pre-registro-panel .pre-registro-help {
+            margin-top: 3px !important;
+            font-size: 10px !important;
+            line-height: 1.15 !important;
+        }
+
+        #view-registro .pre-registro-panel .pre-registro-status {
+            min-height: 30px !important;
+            height: 30px !important;
+            padding: 4px 9px !important;
+            font-size: 10px !important;
+        }
+    }
+
+    @@media (max-width: 1280px) {
+        #view-registro .pre-registro-panel .form-grid.compact {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        }
+
+        #view-registro .pre-registro-panel .form-group.span-2 {
+            grid-column: span 2 !important;
+        }
+    }
+
+    @@media (max-width: 900px) {
+        #view-registro .pre-registro-panel .form-grid.compact {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        #view-registro .pre-registro-panel .form-group.span-2 {
+            grid-column: 1 / -1 !important;
+        }
+    }
+
+    @@media (max-width: 640px) {
+        #view-registro .pre-registro-panel .form-grid.compact {
+            grid-template-columns: 1fr !important;
+        }
+    }
+
+
+
+    /* =========================================================
+       UBICACIÓN CORRECTA: QR EN HUECO BAJO KPIs
+       El escaneo queda dentro del Panel operativo, debajo de los KPIs,
+       antes de Datos generales.
+       ========================================================= */
+
+    @@media screen {
+        #basculaApp .pre-registro-panel-operativo {
+            margin: 0 10px 10px 10px !important;
+            border: 1px solid rgba(123,17,19,.18) !important;
+            border-radius: 14px !important;
+            overflow: hidden !important;
+            background: linear-gradient(180deg, #fffafa, #f8eeee) !important;
+            box-shadow: 0 8px 18px rgba(61,14,14,.08) !important;
+        }
+
+        #basculaApp .pre-registro-panel-operativo .section-title {
+            min-height: 30px !important;
+            padding: 7px 12px !important;
+            font-size: 11px !important;
+            border-bottom: 1px solid rgba(82,5,7,.25) !important;
+        }
+
+        #basculaApp .pre-registro-panel-operativo .section-title span {
+            font-size: 10px !important;
+            font-weight: 800 !important;
+        }
+
+        #basculaApp .pre-registro-panel-operativo .form-grid.compact {
+            grid-template-columns: minmax(360px, 2fr) 125px 145px minmax(170px, 1fr) minmax(170px, 1fr) 130px !important;
+            gap: 7px !important;
+            padding: 8px 12px !important;
+            align-items: end !important;
+            background: transparent !important;
+        }
+
+        #basculaApp .pre-registro-panel-operativo .form-group {
+            min-width: 0 !important;
+        }
+
+        #basculaApp .pre-registro-panel-operativo .form-group.span-2 {
+            grid-column: span 1 !important;
+        }
+
+        #basculaApp .pre-registro-panel-operativo label {
+            font-size: 10px !important;
+            margin-bottom: 3px !important;
+            line-height: 1.1 !important;
+        }
+
+        #basculaApp .pre-registro-panel-operativo input,
+        #basculaApp .pre-registro-panel-operativo .pm-btn {
+            min-height: 30px !important;
+            height: 30px !important;
+            padding: 5px 8px !important;
+            font-size: 11px !important;
+            border-radius: 8px !important;
+        }
+
+        #basculaApp .pre-registro-panel-operativo .pre-registro-help {
+            margin-top: 3px !important;
+            font-size: 10px !important;
+            line-height: 1.12 !important;
+        }
+
+        #basculaApp .pre-registro-panel-operativo .pre-registro-status {
+            min-height: 30px !important;
+            height: 30px !important;
+            padding: 4px 9px !important;
+            font-size: 10px !important;
+        }
+
+        #view-registro .pre-registro-panel {
+            display: none !important;
+        }
+    }
+
+    @@media screen and (max-width: 1500px) and (min-width: 901px) {
+        #basculaApp .pre-registro-panel-operativo .form-grid.compact {
+            grid-template-columns: minmax(320px, 2fr) 115px 135px minmax(150px, 1fr) minmax(150px, 1fr) 120px !important;
+        }
+    }
+
+    @@media screen and (max-width: 1280px) {
+        #basculaApp .pre-registro-panel-operativo .form-grid.compact {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        }
+
+        #basculaApp .pre-registro-panel-operativo .form-group.span-2 {
+            grid-column: span 2 !important;
+        }
+    }
+
+    @@media screen and (max-width: 900px) {
+        #basculaApp .pre-registro-panel-operativo {
+            margin: 0 8px 8px 8px !important;
+        }
+
+        #basculaApp .pre-registro-panel-operativo .form-grid.compact {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        #basculaApp .pre-registro-panel-operativo .form-group.span-2 {
+            grid-column: 1 / -1 !important;
+        }
+    }
+
+    @@media screen and (max-width: 640px) {
+        #basculaApp .pre-registro-panel-operativo .form-grid.compact {
+            grid-template-columns: 1fr !important;
+        }
+    }
+
 </style>
 
 
@@ -3582,17 +4074,12 @@
                                 <span class="truck-scale-mark"></span>
                               @*   <span class="truck-scale-label">PLATAFORMA DE BÁSCULA</span> *@
                             </div>
-                            <div class="truck-vehicle" id="truckVehicle">
-                                <div class="truck-cab"></div>
-                                <div class="truck-cab-window"></div>
-                                <div class="truck-cab-light"></div>
-                                <div class="truck-trailer-box"></div>
-                                <div class="truck-trailer-line"></div>
-                                <div class="truck-wheel truck-wheel-1"></div>
-                                <div class="truck-wheel truck-wheel-2"></div>
-                                <div class="truck-wheel truck-wheel-3"></div>
-                                <div class="truck-wheel truck-wheel-4"></div>
-                                <div class="truck-shadow"></div>
+                            <div class="truck-vehicle truck-vehicle-img" id="truckVehicle">
+                                <img src="/images/trailer-bascula.png?v=1"
+                                     class="truck-img"
+                                     alt="Tráiler báscula"
+                                     draggable="false" />
+                                <div class="truck-img-shadow"></div>
                             </div>
                         </div>
 
@@ -3625,6 +4112,55 @@
                         <label>Último folio</label>
                         <strong id="kpiFolio">---</strong>
                         <span class="muted">Último movimiento</span>
+                    </div>
+                </div>
+
+                <div class="pre-registro-panel pre-registro-panel-operativo">
+                    <div class="section-title">
+                        <div>Escaneo de pre-registro / QR / código de barras</div>
+                        <span>CEDIS, Compras, Embarques o Producción capturan antes; caseta solo escanea y pesa.</span>
+                    </div>
+
+                    <div class="form-grid compact">
+                        <div class="form-group span-2">
+                            <label>Escanear QR / código</label>
+                            <input id="scanPreRegistro"
+                                   type="text"
+                                   placeholder="Escanee aquí el QR o código de barras de la hoja"
+                                   autocomplete="off" />
+                          @*   <span class="pre-registro-help">
+                                Formatos aceptados: BASPRE|TOKEN, URL con ?token=TOKEN o solo TOKEN.
+                            </span> *@
+                        </div>
+
+                        <div class="form-group">
+                            <label>Acción</label>
+                            <button class="pm-btn pm-btn-primary" type="button" id="btnBuscarPreRegistro">
+                                Cargar datos
+                            </button>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Estatus</label>
+                            <span id="estatusPreRegistro" class="pre-registro-status warn">Sin escaneo</span>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Folio previo</label>
+                            <input id="folioPreRegistroVista" type="text" readonly value="" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>Área origen</label>
+                            <input id="areaPreRegistroVista" type="text" readonly value="" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>Modo</label>
+                            <button class="pm-btn" type="button" id="btnLiberarCapturaManual">
+                                Captura manual
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -3785,6 +4321,8 @@
                        @*  <button class="pm-btn pm-btn-primary" type="button" id="btnImprimirActual2">Imprimir ticket</button> *@
                     </div>
                 </div>
+
+
             </div>
 
             <div class="view-panel" id="view-pendientes">
@@ -4075,6 +4613,7 @@
     var STORAGE_TERMINAL_ID = "sigoBasculaTerminalId";
     var STORAGE_BASCULA_CONFIG = "sigoBasculaConfiguracionActiva";
     var SYNC_ENDPOINT = "/BasculaCamionera/Sync/Movimiento";
+    var PRE_REGISTRO_ENDPOINT = "/BasculaCamionera/PreRegistroPorToken";
     var CATALOGOS_OFFLINE_ENDPOINT = "/BasculaCamionera/CatalogosOffline";
     var IDB_NAME = "SIGO_BASCULA_OFFLINE";
     var IDB_VERSION = 1;
@@ -4088,6 +4627,8 @@
         registros: [],
         bitacora: [],
         selectedFolio: null,
+        preRegistro: null,
+        preRegistroBloqueado: false,
         liveWeight: 0,
         connected: false,
         manualAutorizado: false,
@@ -4894,6 +5435,170 @@
         return "pesoEntrada";
     }
 
+
+    function setPreRegistroStatus(texto, tipo) {
+        var el = byId("estatusPreRegistro");
+        if (!el) return;
+
+        el.textContent = texto || "Sin escaneo";
+        el.classList.remove("ok", "warn", "error");
+        el.classList.add(tipo || "warn");
+    }
+
+    function extraerTokenPreRegistro(valor) {
+        var txt = String(valor || "").trim();
+
+        if (!txt) return "";
+
+        if (txt.toUpperCase().indexOf("BASPRE|") === 0) {
+            return (txt.split("|")[1] || "").trim();
+        }
+
+        try {
+            var url = new URL(txt, window.location.origin);
+            var token = url.searchParams.get("token");
+            if (token) return token.trim();
+        } catch (e) {
+            // No era URL; se usa como token directo.
+        }
+
+        return txt;
+    }
+
+    async function cargarPreRegistroDesdeToken(valor) {
+        var token = extraerTokenPreRegistro(valor);
+
+        if (!token) {
+            setPreRegistroStatus("Código inválido", "error");
+            alert("Escanee o capture un QR/código válido.");
+            return;
+        }
+
+        setPreRegistroStatus("Buscando...", "warn");
+        safeText("connectionText", "Consultando pre-registro de báscula...");
+
+        try {
+            var resp = await fetch(PRE_REGISTRO_ENDPOINT + "?token=" + encodeURIComponent(token), {
+                method: "GET",
+                headers: { "Accept": "application/json" }
+            });
+
+            var data = await resp.json();
+
+            if (!resp.ok || !data || data.ok !== true) {
+                setPreRegistroStatus("No encontrado", "error");
+                alert(data && data.msg ? data.msg : "No se encontró el pre-registro.");
+                return;
+            }
+
+            aplicarPreRegistroEnFormulario(data.preRegistro);
+            setPreRegistroStatus("Cargado", "ok");
+            safeText("connectionText", "Pre-registro cargado. Caseta solo debe capturar peso y guardar.");
+
+        } catch (err) {
+            setPreRegistroStatus("Error", "error");
+            alert("Error al consultar el pre-registro: " + err.message);
+        }
+    }
+
+    function aplicarPreRegistroEnFormulario(p) {
+        if (!p) return;
+
+        setForm(null);
+
+        state.preRegistro = {
+            preRegistroId: p.preRegistroId || null,
+            preRegistroGuid: p.preRegistroGuid || "",
+            token: p.token || "",
+            folioPreRegistro: p.folioPreRegistro || "",
+            areaOrigen: p.areaOrigen || "",
+            usuarioCaptura: p.usuarioCaptura || ""
+        };
+
+        state.preRegistroBloqueado = true;
+
+        safeValue("tipoMovimiento", p.tipoMovimiento || "Entrada proveedor");
+        safeValue("clasificacion", p.clasificacion || "Ganado en pie");
+        safeValue("tercero", p.tercero || "");
+        safeValue("codigoSap", p.codigoSap || "");
+        safeValue("placas", (p.placas || "").toUpperCase());
+        safeValue("producto", p.producto || "");
+        safeValue("sku", p.sku || "");
+        safeValue("documento", p.documento || "");
+        safeValue("chofer", p.chofer || "");
+        safeValue("origen", p.origen || "");
+        safeValue("destino", p.destino || "");
+        safeValue("condicion", p.condicion || "");
+        safeValue("observaciones", p.observaciones || "");
+        safeValue("folioPreRegistroVista", p.folioPreRegistro || "");
+        safeValue("areaPreRegistroVista", p.areaOrigen || "");
+
+        bloquearCamposPreRegistro(true);
+        renderResumen();
+    }
+
+    function bloquearCamposPreRegistro(bloquear) {
+        state.preRegistroBloqueado = !!bloquear;
+
+        var form = byId("frmBascula");
+        if (form) {
+            form.classList.toggle("pre-registro-lock", !!bloquear);
+        }
+
+        var camposClave = [
+            "tipoMovimiento",
+            "clasificacion",
+            "tercero",
+            "codigoSap",
+            "producto",
+            "sku",
+            "documento",
+            "origen",
+            "destino"
+        ];
+
+        camposClave.forEach(function (id) {
+            var el = byId(id);
+            if (el) {
+                el.disabled = !!bloquear;
+                if (bloquear) el.setAttribute("data-lock-preregistro", "1");
+                else el.removeAttribute("data-lock-preregistro");
+            }
+        });
+
+        // Caseta puede corregir estos datos operativos si la unidad llegó diferente.
+        ["placas", "chofer", "condicion", "observaciones"].forEach(function (id) {
+            var el = byId(id);
+            if (el) el.disabled = false;
+        });
+    }
+
+    function limpiarPreRegistro() {
+        state.preRegistro = null;
+        state.preRegistroBloqueado = false;
+        safeValue("scanPreRegistro", "");
+        safeValue("folioPreRegistroVista", "");
+        safeValue("areaPreRegistroVista", "");
+        setPreRegistroStatus("Sin escaneo", "warn");
+        bloquearCamposPreRegistro(false);
+    }
+
+    function liberarCapturaManualDesdePreRegistro() {
+        if (!state.preRegistro) {
+            limpiarPreRegistro();
+            setForm(null);
+            return;
+        }
+
+        var ok = confirm("Esto liberará la captura manual y el movimiento quedará marcado como CAPTURA_CASETA. ¿Desea continuar?");
+
+        if (!ok) return;
+
+        limpiarPreRegistro();
+        safeText("connectionText", "Captura manual habilitada. Revise todos los datos antes de pesar.");
+    }
+
+
     function getForm() {
         var entrada = num(getValue("pesoEntrada"));
         var salida = num(getValue("pesoSalida"));
@@ -4926,6 +5631,13 @@
             usuarioSalida: salida > 0 ? usuario() : "",
             movimientoGuid: "",
             terminalId: obtenerTerminalId(),
+            preRegistroId: state.preRegistro ? state.preRegistro.preRegistroId : null,
+            preRegistroGuid: state.preRegistro ? state.preRegistro.preRegistroGuid : null,
+            tokenPreRegistro: state.preRegistro ? state.preRegistro.token : "",
+            folioPreRegistro: state.preRegistro ? state.preRegistro.folioPreRegistro : "",
+            origenCaptura: state.preRegistro ? "PRE_REGISTRO_QR" : "CAPTURA_CASETA",
+            areaOrigenPreRegistro: state.preRegistro ? state.preRegistro.areaOrigen : "",
+            usuarioCapturaPreRegistro: state.preRegistro ? state.preRegistro.usuarioCaptura : "",
             syncStatus: "PENDIENTE_SYNC",
             syncAttempts: 0,
             fechaCreacionLocal: new Date().toISOString()
@@ -4935,6 +5647,23 @@
     function setForm(r) {
         state.selectedFolio = r ? r.folio : null;
         state.manualAutorizado = false;
+
+        if (r && (r.tokenPreRegistro || r.folioPreRegistro || r.preRegistroGuid || r.preRegistroId)) {
+            state.preRegistro = {
+                preRegistroId: r.preRegistroId || null,
+                preRegistroGuid: r.preRegistroGuid || "",
+                token: r.tokenPreRegistro || "",
+                folioPreRegistro: r.folioPreRegistro || "",
+                areaOrigen: r.areaOrigenPreRegistro || "",
+                usuarioCaptura: r.usuarioCapturaPreRegistro || ""
+            };
+            state.preRegistroBloqueado = true;
+            safeValue("folioPreRegistroVista", state.preRegistro.folioPreRegistro);
+            safeValue("areaPreRegistroVista", state.preRegistro.areaOrigen);
+            setPreRegistroStatus("Cargado", "ok");
+        } else if (!r) {
+            limpiarPreRegistro();
+        }
 
         safeValue("tipoMovimiento", r ? r.tipoMovimiento : "Entrada proveedor");
         safeValue("clasificacion", r ? r.clasificacion : "Ganado en pie");
@@ -4954,6 +5683,7 @@
         safeValue("motivoManual", r ? r.motivoManual : "");
         safeValue("observaciones", r ? r.observaciones : "");
 
+        bloquearCamposPreRegistro(!!state.preRegistro);
         aplicarModoCapturaManual();
         renderResumen();
     }
@@ -6875,6 +7605,19 @@ function seleccionarArticuloObj(a) {
 
         on("btnNuevo", "click", function () { setForm(null); });
         on("btnNuevo2", "click", function () { setForm(null); });
+
+        on("btnBuscarPreRegistro", "click", function () {
+            cargarPreRegistroDesdeToken(getValue("scanPreRegistro"));
+        });
+
+        on("scanPreRegistro", "keydown", function (ev) {
+            if (ev.key === "Enter") {
+                ev.preventDefault();
+                cargarPreRegistroDesdeToken(getValue("scanPreRegistro"));
+            }
+        });
+
+        on("btnLiberarCapturaManual", "click", liberarCapturaManualDesdePreRegistro);
 
         on("btnGuardarEntrada", "click", guardarEntrada);
         on("btnGuardarEntrada2", "click", guardarEntrada);

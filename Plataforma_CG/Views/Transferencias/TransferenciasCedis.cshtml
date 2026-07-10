@@ -2553,6 +2553,51 @@ body,
     }
 }
 
+
+    /* ============================================================
+       PERFORMANCE MOBILE - SOLICITUD TRANSFERENCIA
+       Reduce repintados costosos en celulares.
+    ============================================================ */
+    @@media (max-width: 768px) {
+        .st-executive *,
+        .st-page * {
+            animation: none !important;
+            transition-duration: .01ms !important;
+        }
+
+        .st-executive .panel,
+        .st-executive .content-block,
+        .st-executive .p-3,
+        .st-executive .modal-content,
+        .st-hero,
+        .st-step,
+        .st-summary-card,
+        .st-sticky-actions,
+        .tbtn,
+        .btn {
+            box-shadow: none !important;
+            filter: none !important;
+        }
+
+        .st-sticky-actions,
+        #savingOverlay,
+        body[data-theme="dark"] #savingOverlay {
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+        }
+
+        .st-table-wrap,
+        .table-responsive {
+            contain: layout paint;
+            overscroll-behavior: contain;
+        }
+
+        .st-products-tip,
+        .st-guidance {
+            transform: translateZ(0);
+        }
+    }
+
 </style>
 
 <div class="container-fluid st-page st-executive">
@@ -2975,8 +3020,22 @@ body,
         </div>`;
         document.body.appendChild(ov);
         }
-        function showOverlay() { ensureOverlay(); document.getElementById('savingOverlay').style.display = 'block'; }
-        function hideOverlay() { const el = document.getElementById('savingOverlay'); if (el) el.style.display = 'none'; }
+        function showOverlay(blocking) {
+        ensureOverlay();
+        const el = document.getElementById('savingOverlay');
+        if (!el) return;
+        // En consultas de presupuesto no bloquea toques/clicks en móvil.
+        // En guardado sí bloquea para evitar doble envío.
+        el.style.pointerEvents = blocking ? 'auto' : 'none';
+        el.style.display = 'block';
+        }
+        function hideOverlay() {
+        const el = document.getElementById('savingOverlay');
+        if (el) {
+        el.style.display = 'none';
+        el.style.pointerEvents = 'none';
+        }
+        }
 
         // ===== Utilidades =====
         let modalElem, modalInstance, currentRow = null;
@@ -3061,10 +3120,18 @@ body,
         renumerar(); calcKg();
         }
 
-        function calcKg() {
+        let calcKgRaf = null;
+        function calcKgNow() {
         let t = 0;
-        $(".cant").each(function () { t += parseFloat($(this).val()) || 0; });
+        $("#tbodyArt .cant").each(function () { t += parseFloat($(this).val()) || 0; });
         $("#totKg").text(t.toFixed(2));
+        }
+        function calcKg() {
+        if (calcKgRaf) cancelAnimationFrame(calcKgRaf);
+        calcKgRaf = requestAnimationFrame(function () {
+        calcKgRaf = null;
+        calcKgNow();
+        });
         }
 
         // ✅ Resetear fila (cuando NO hay presupuesto)
@@ -3475,7 +3542,7 @@ body,
         }
 
         e.preventDefault();
-        clearErrors(); showOverlay();
+        clearErrors(); showOverlay(true);
 
         try {
         const form = document.getElementById('formST');
@@ -3528,30 +3595,35 @@ body,
 
     <script>
         /* ============================================================
-           FIX FINAL RESPONSIVO SIDEBAR - TRANSFERENCIA
-           Calcula empuje faltante + ancho real disponible.
+           FIX RESPONSIVO SIDEBAR - TRANSFERENCIA OPTIMIZADO
+           Sin setInterval permanente para evitar congelamiento en móvil.
         ============================================================ */
         (function () {
-            const page = document.querySelector('.st-page');
-            if (!page) return;
+            const sidebar =
+                document.querySelector('.layout-sidebar') ||
+                document.querySelector('.sidebar') ||
+                document.querySelector('#sidebar') ||
+                document.querySelector('.main-sidebar');
 
-            const sidebar = document.querySelector('.layout-sidebar, .sidebar');
-            const main = page.closest('.layout-main-content')
-                || document.querySelector('.layout-main-content, .content-wrapper, main')
-                || document.body;
+            const main =
+                document.querySelector('.layout-main-content') ||
+                document.querySelector('.layout-page') ||
+                document.querySelector('main') ||
+                document.body;
 
             if (!sidebar || !main) return;
 
             let lastPush = -1;
             let lastWidth = -1;
+            let sidebarRaf = null;
 
             function applyTransferenciaSidebar() {
                 if (window.innerWidth < 992) {
                     document.body.classList.remove('st-sidebar-final-ready');
-                    document.documentElement.style.setProperty('--st-sidebar-push', '0px');
-                    document.documentElement.style.setProperty('--st-page-width', '100%');
-                    lastPush = 0;
-                    lastWidth = 0;
+                    document.documentElement.style.removeProperty('--st-sidebar-push');
+                    document.documentElement.style.removeProperty('--st-page-width');
+                    lastPush = -1;
+                    lastWidth = -1;
                     return;
                 }
 
@@ -3562,31 +3634,35 @@ body,
                 const sidebarVisible =
                     sidebarStyle.display !== 'none' &&
                     sidebarStyle.visibility !== 'hidden' &&
-                    sidebarRect.width > 0 &&
-                    sidebarRect.right > 0;
+                    sidebarRect.width > 40;
 
-                let sidebarRight = sidebarVisible ? Math.round(sidebarRect.right) : 0;
+                let push = 0;
 
-                // Si solo queda una pestaña pequeña del sidebar cerrado, no empuja.
-                if (sidebarRight < 90) sidebarRight = 0;
+                if (sidebarVisible && sidebarRect.right > 0 && mainRect.left < sidebarRect.right - 2) {
+                    push = Math.max(0, Math.ceil(sidebarRect.right - mainRect.left));
+                }
 
-                const mainLeft = Math.max(0, Math.round(mainRect.left));
-
-                // Empuja solo lo que todavía esté encimado por el sidebar.
-                const push = Math.max(0, sidebarRight - mainLeft);
-
-                // Ancho real desde donde empieza la vista hasta el borde derecho.
-                const pageLeft = mainLeft + push;
-                const width = Math.max(320, Math.round(window.innerWidth - pageLeft - 12));
-
-                if (push === lastPush && width === lastWidth) return;
-
-                lastPush = push;
-                lastWidth = width;
+                const pageWidth = Math.max(320, Math.floor(window.innerWidth - push));
 
                 document.body.classList.add('st-sidebar-final-ready');
-                document.documentElement.style.setProperty('--st-sidebar-push', push + 'px');
-                document.documentElement.style.setProperty('--st-page-width', width + 'px');
+
+                if (push !== lastPush) {
+                    document.documentElement.style.setProperty('--st-sidebar-push', push + 'px');
+                    lastPush = push;
+                }
+
+                if (pageWidth !== lastWidth) {
+                    document.documentElement.style.setProperty('--st-page-width', pageWidth + 'px');
+                    lastWidth = pageWidth;
+                }
+            }
+
+            function scheduleTransferenciaSidebar() {
+                if (sidebarRaf) return;
+                sidebarRaf = requestAnimationFrame(function () {
+                    sidebarRaf = null;
+                    applyTransferenciaSidebar();
+                });
             }
 
             function trackFor(ms) {
@@ -3601,24 +3677,17 @@ body,
             }
 
             applyTransferenciaSidebar();
-            setInterval(applyTransferenciaSidebar, 60);
 
-            window.addEventListener('resize', function () {
-                trackFor(700);
-            }, { passive: true });
+            window.addEventListener('resize', scheduleTransferenciaSidebar, { passive: true });
+            window.addEventListener('orientationchange', function () { trackFor(700); }, { passive: true });
 
             if (window.ResizeObserver) {
-                const resizeObserver = new ResizeObserver(function () {
-                    trackFor(700);
-                });
-
+                const resizeObserver = new ResizeObserver(scheduleTransferenciaSidebar);
                 resizeObserver.observe(sidebar);
                 resizeObserver.observe(main);
             }
 
-            const mutationObserver = new MutationObserver(function () {
-                trackFor(900);
-            });
+            const mutationObserver = new MutationObserver(scheduleTransferenciaSidebar);
 
             mutationObserver.observe(sidebar, {
                 attributes: true,
@@ -3630,13 +3699,13 @@ body,
                 attributeFilter: ['class', 'style']
             });
 
-            sidebar.addEventListener('transitionstart', function () { trackFor(1000); });
-            sidebar.addEventListener('transitionrun', function () { trackFor(1000); });
-            sidebar.addEventListener('transitionend', function () { trackFor(300); });
+            sidebar.addEventListener('transitionstart', function () { trackFor(700); });
+            sidebar.addEventListener('transitionrun', function () { trackFor(700); });
+            sidebar.addEventListener('transitionend', function () { trackFor(250); });
 
             document.addEventListener('click', function (e) {
-                if (e.target.closest('[data-bs-toggle], .sidebar-toggle, .layout-menu-toggle, .hamburger, .menu-toggle, button, a')) {
-                    trackFor(1100);
+                if (e.target.closest('[data-bs-toggle], .sidebar-toggle, .layout-menu-toggle, .hamburger, .menu-toggle')) {
+                    trackFor(700);
                 }
             }, true);
         })();
@@ -3887,14 +3956,29 @@ body,
                Se ejecuta después del handler original para corregir cualquier
                renglón que haya quedado sin sincronizar.
             */
+            let cajasKgRaf = null;
+            let cajasKgPendiente = null;
+
+            function scheduleCajasKg(fn, el) {
+                cajasKgPendiente = { fn: fn, el: el };
+
+                if (cajasKgRaf) return;
+
+                cajasKgRaf = requestAnimationFrame(function () {
+                    const item = cajasKgPendiente;
+                    cajasKgPendiente = null;
+                    cajasKgRaf = null;
+
+                    if (item && item.el) item.fn(item.el);
+                });
+            }
+
             $(document)
                 .on("input.stFixCajasKg change.stFixCajasKg", ".cajas", function () {
-                    const el = this;
-                    setTimeout(function () { recalcularDesdeCajas(el); }, 0);
+                    scheduleCajasKg(recalcularDesdeCajas, this);
                 })
                 .on("input.stFixCajasKg change.stFixCajasKg", ".cant", function () {
-                    const el = this;
-                    setTimeout(function () { recalcularDesdeKg(el); }, 0);
+                    scheduleCajasKg(recalcularDesdeKg, this);
                 });
 
             /*
@@ -3912,8 +3996,11 @@ body,
 
 
     <script>
-        // ===== UX EJECUTIVO: Estado visual de la captura =====
+        // ===== UX EJECUTIVO: Estado visual de la captura OPTIMIZADO =====
         (function () {
+            let stStateRaf = null;
+            let stStateTimer = null;
+
             function stNumber(value) {
                 const n = parseFloat((value || "0").toString().replace(",", "."));
                 return isFinite(n) ? n : 0;
@@ -3921,65 +4008,82 @@ body,
 
             function stFilledRows() {
                 let count = 0;
-                document.querySelectorAll("#tbodyArt tr").forEach(function (row) {
-                    const sku = (row.querySelector(".productoCodigo")?.value || "").trim();
-                    const nombre = (row.querySelector(".productoInput")?.value || "").trim();
-                    const kg = stNumber(row.querySelector(".cant")?.value);
-                    const cajas = stNumber(row.querySelector(".cajas")?.value);
-                    if (sku || nombre || kg > 0 || cajas > 0) count++;
+                document.querySelectorAll("#tbodyArt tr").forEach(function (tr) {
+                    const sku = (tr.querySelector(".productoCodigo")?.value || "").trim();
+                    const kg = stNumber(tr.querySelector(".cant")?.value || "0");
+                    if (sku && kg > 0) count++;
                 });
                 return count;
             }
 
-            function stSetStep(id, active) {
-                const el = document.getElementById(id);
+            function stSetStep(step, active) {
+                const el = document.querySelector('.st-step[data-step="' + step + '"]');
                 if (el) el.classList.toggle("is-active", !!active);
             }
 
             window.stRefreshExecutiveState = function () {
                 const sucursal = (document.querySelector("select[name='Sucursal']")?.value || "").trim();
                 const fecha = (document.querySelector("input[name='FechaSolicitud']")?.value || "").trim();
-                const productos = stFilledRows();
+                const rows = stFilledRows();
+                const notas = Array.from(document.querySelectorAll(".notaHidden")).filter(function (x) {
+                    return (x.value || "").trim();
+                }).length;
 
-                const countEl = document.getElementById("stItemCount");
-                if (countEl) countEl.textContent = productos.toString();
+                stSetStep(1, !!sucursal);
+                stSetStep(2, !!fecha);
+                stSetStep(3, rows > 0);
+                stSetStep(4, rows > 0 && !!sucursal && !!fecha);
 
-                const estadoEl = document.getElementById("stEstadoCaptura");
-                if (estadoEl) {
-                    if (!sucursal) estadoEl.textContent = "Falta sucursal";
-                    else if (!fecha) estadoEl.textContent = "Falta fecha";
-                    else if (productos <= 0) estadoEl.textContent = "Faltan productos";
-                    else estadoEl.textContent = "Lista para revisar";
-                }
+                const filled = document.getElementById("stRowsFilled");
+                if (filled) filled.textContent = rows;
 
-                stSetStep("stStepSucursal", !!sucursal);
-                stSetStep("stStepFecha", !!fecha);
-                stSetStep("stStepProductos", productos > 0);
-                stSetStep("stStepGuardar", !!sucursal && !!fecha && productos > 0);
+                const notes = document.getElementById("stNotesCount");
+                if (notes) notes.textContent = notas;
+
+                const summaryRows = document.getElementById("stSummaryRows");
+                if (summaryRows) summaryRows.textContent = rows + " línea(s)";
             };
 
+            function scheduleStRefresh(delay) {
+                if (stStateTimer) clearTimeout(stStateTimer);
+
+                stStateTimer = setTimeout(function () {
+                    stStateTimer = null;
+
+                    if (stStateRaf) return;
+                    stStateRaf = requestAnimationFrame(function () {
+                        stStateRaf = null;
+                        window.stRefreshExecutiveState();
+                    });
+                }, delay || 0);
+            }
+
             document.addEventListener("input", function (e) {
-                if (e.target.closest("#formST")) setTimeout(window.stRefreshExecutiveState, 0);
+                if (e.target.matches("select[name='Sucursal'], input[name='FechaSolicitud'], .productoInput, .productoCodigo, .cant, .cajas, .notaHidden")) {
+                    scheduleStRefresh(80);
+                }
             }, true);
 
             document.addEventListener("change", function (e) {
-                if (e.target.closest("#formST")) setTimeout(window.stRefreshExecutiveState, 0);
+                if (e.target.matches("select[name='Sucursal'], input[name='FechaSolicitud'], .productoInput, .productoCodigo, .cant, .cajas, .notaHidden")) {
+                    scheduleStRefresh(80);
+                }
             }, true);
 
             document.addEventListener("DOMContentLoaded", function () {
+                scheduleStRefresh(80);
+                scheduleStRefresh(700);
+
                 const tbody = document.getElementById("tbodyArt");
                 if (tbody && window.MutationObserver) {
                     new MutationObserver(function () {
-                        setTimeout(window.stRefreshExecutiveState, 0);
-                    }).observe(tbody, { childList: true, subtree: true, attributes: true, attributeFilter: ["value", "class"] });
+                        scheduleStRefresh(120);
+                    }).observe(tbody, { childList: true, subtree: true });
                 }
-
-                setTimeout(window.stRefreshExecutiveState, 100);
-                setTimeout(window.stRefreshExecutiveState, 700);
 
                 if (window.jQuery) {
                     jQuery(document).ajaxStop(function () {
-                        setTimeout(window.stRefreshExecutiveState, 0);
+                        scheduleStRefresh(120);
                     });
                 }
             });

@@ -1363,15 +1363,17 @@ ORDER BY Origen;";
 
         [HttpGet("Transferencias/PresupuestoDisponible")]
         public async Task<IActionResult> PresupuestoDisponible(
-            string sucursal,
-            string sku,
-            DateTime fechaSolicitud,
-            CancellationToken ct)
+        string sucursal,
+        string sku,
+        DateTime fechaSolicitud,
+        CancellationToken ct)
         {
             if (string.IsNullOrWhiteSpace(sucursal) || string.IsNullOrWhiteSpace(sku))
                 return BadRequest("Sucursal y SKU son requeridos.");
 
             const string sql = @"
+SET NOCOUNT ON;
+
 DECLARE 
     @Canal NVARCHAR(100),
     @Mes   INT,
@@ -1399,7 +1401,7 @@ SET @Anio = YEAR(@FechaSolicitud);
 
 WITH
 -- =====================================================
--- CATÁLOGOS (mínimos necesarios)
+-- CATÁLOGOS
 -- =====================================================
 productos AS (
     SELECT
@@ -1417,13 +1419,15 @@ clientes AS (
     FROM dbo.ClienteSap cs
 ),
 vendedores AS (
-    SELECT DISTINCT VendedorId, VendedorNombre
+    SELECT DISTINCT 
+        VendedorId, 
+        VendedorNombre
     FROM clientes
     WHERE VendedorId IS NOT NULL
 ),
 
 -- =====================================================
--- Vendedores por Canal CEDIS (mapeo CANAL -> VENDEDOR)
+-- VENDEDORES POR CANAL CEDIS
 -- =====================================================
 canal_vendedores AS (
     SELECT DISTINCT
@@ -1435,32 +1439,34 @@ canal_vendedores AS (
 ),
 
 -- =====================================================
--- OV (MATRIZ) - incluye estatus 5 (igual a reporte)
+-- OV MATRIZ
 -- =====================================================
 ov AS (
     SELECT
         o.Id,
-        o.Cliente,
+        Cliente = UPPER(LTRIM(RTRIM(o.Cliente))),
         o.VendedorId,
         o.Estatus,
         o.Serie,
         FechaDate = TRY_CONVERT(date, o.FechaEntrega)
     FROM dbo.OrdenVenta o
-    INNER JOIN dbo.Series ser ON o.Serie = ser.NombreSerie
+    INNER JOIN dbo.Series ser 
+        ON o.Serie = ser.NombreSerie
     WHERE o.FechaEntrega IS NOT NULL
       AND o.Estatus BETWEEN 1 AND 5
       AND ser.Sucursal = 'MATRIZ'
 ),
 
--- OV con surtido existente (para regla Estatus=5)
 ov_con_surtido AS (
-    SELECT DISTINCT o.Id
+    SELECT DISTINCT 
+        o.Id
     FROM dbo.OrdenVenta o
-    JOIN dbo.Subpedido sp         ON sp.OrdenVentaId = o.Id
-    JOIN dbo.SurtidoEncabezado se ON se.SolicitudSurtidoId = sp.U_DocMeat
+    JOIN dbo.Subpedido sp         
+        ON sp.OrdenVentaId = o.Id
+    JOIN dbo.SurtidoEncabezado se 
+        ON se.SolicitudSurtidoId = sp.U_DocMeat
 ),
 
--- Peso pedido por OV + SKU
 ov_peso_agg AS (
     SELECT
         PedidoId = op.PedidoId,
@@ -1472,23 +1478,24 @@ ov_peso_agg AS (
         UPPER(LTRIM(RTRIM(op.ProductoCodigo)))
 ),
 
--- Surtido validado por OV + SKU
 ov_surtido_agg AS (
     SELECT
         PedidoId = o.Id,
         SKU      = UPPER(LTRIM(RTRIM(sd.Articulo))),
         KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
     FROM dbo.OrdenVenta o
-    JOIN dbo.Subpedido sp         ON sp.OrdenVentaId = o.Id
-    JOIN dbo.SurtidoEncabezado se ON se.SolicitudSurtidoId = sp.U_DocMeat
-    JOIN dbo.SurtidoDetalle sd    ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+    JOIN dbo.Subpedido sp         
+        ON sp.OrdenVentaId = o.Id
+    JOIN dbo.SurtidoEncabezado se 
+        ON se.SolicitudSurtidoId = sp.U_DocMeat
+    JOIN dbo.SurtidoDetalle sd    
+        ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
     WHERE se.FechaValidacion IS NOT NULL
     GROUP BY
         o.Id,
         UPPER(LTRIM(RTRIM(sd.Articulo)))
 ),
 
--- Pendiente real por OV + SKU (pedido - surtido validado, clamp 0)
 ov_pendiente_sku AS (
     SELECT
         ov.Id,
@@ -1527,16 +1534,17 @@ presupuestos_cedis AS (
         SKU   = UPPER(LTRIM(RTRIM(pc.ProductoCodigo))),
         Mes   = pc.Mes,
         Anio  = pc.Anio,
-        Presupuesto = SUM(pc.PresupuestoAsignado)
+        Presupuesto = SUM(CAST(pc.PresupuestoAsignado AS DECIMAL(18,4)))
     FROM dbo.PresupuestoCedis pc
     GROUP BY
         UPPER(LTRIM(RTRIM(pc.Canal))),
         UPPER(LTRIM(RTRIM(pc.ProductoCodigo))),
-        pc.Mes, pc.Anio
+        pc.Mes, 
+        pc.Anio
 ),
 
 -- =====================================================
--- SURTIDO POR TRANSFERENCIA (AGRUPADO) PARA REBAJAR PENDIENTE
+-- TRANSFERENCIAS SURTIDAS AGRUPADAS
 -- =====================================================
 tr_surtido_agg AS (
     SELECT
@@ -1550,14 +1558,19 @@ tr_surtido_agg AS (
 ),
 
 -- =====================================================
--- CONSUMO CEDIS BASE (PENDIENTE REAL)
---   1) OV CEDIS (pendiente real)
---   2) Transferencias (solicitado - surtido), clamp 0
+-- CONSUMO CEDIS BASE
+-- 1) OV CEDIS pendiente
+-- 2) Transferencias pendientes
 -- =====================================================
 consumo_cedis_base AS (
-    SELECT Canal, SKU, Mes, Anio, SUM(Kg) Kg
-    FROM (
-        -- OV CEDIS (pendiente real)
+    SELECT 
+        Canal, 
+        SKU, 
+        Mes, 
+        Anio, 
+        SUM(Kg) AS Kg
+    FROM 
+    (
         SELECT
             Canal = UPPER(LTRIM(RTRIM(cli.U_CANAL))),
             SKU   = ovp.SKU,
@@ -1565,7 +1578,8 @@ consumo_cedis_base AS (
             Anio  = YEAR(ovp.FechaDate),
             Kg    = SUM(ovp.KgPendiente)
         FROM ov_pendiente_sku ovp
-        JOIN dbo.ClienteSap cli ON cli.Cliente = ovp.Cliente
+        JOIN clientes cli 
+            ON cli.Cliente = ovp.Cliente
         WHERE UPPER(LTRIM(RTRIM(cli.U_CANAL))) LIKE 'CEDIS%'
         GROUP BY
             UPPER(LTRIM(RTRIM(cli.U_CANAL))),
@@ -1575,24 +1589,25 @@ consumo_cedis_base AS (
 
         UNION ALL
 
-        -- Transferencias (pendiente = solicitado - surtido)
         SELECT
             Canal = UPPER(LTRIM(RTRIM(s.Canal))),
             SKU   = UPPER(LTRIM(RTRIM(td.ProductoCodigo))),
             Mes   = MONTH(TRY_CONVERT(date, t.FechaSolicitud)),
             Anio  = YEAR(TRY_CONVERT(date, t.FechaSolicitud)),
             Kg    = SUM(
-                      CASE
-                          WHEN (CAST(td.CantidadKg AS DECIMAL(18,4)) - ISNULL(tsa.KgSurtido,0)) < 0 THEN 0
-                          ELSE (CAST(td.CantidadKg AS DECIMAL(18,4)) - ISNULL(tsa.KgSurtido,0))
-                      END
-                   )
+                        CASE
+                            WHEN (CAST(td.CantidadKg AS DECIMAL(18,4)) - ISNULL(tsa.KgSurtido,0)) < 0 THEN 0
+                            ELSE (CAST(td.CantidadKg AS DECIMAL(18,4)) - ISNULL(tsa.KgSurtido,0))
+                        END
+                    )
         FROM dbo.Transferencias t
-        JOIN dbo.TransferenciaDetalles td ON td.TransferenciaId = t.Id
-        JOIN dbo.Series s                 ON s.Sucursal = t.Sucursal
+        JOIN dbo.TransferenciaDetalles td 
+            ON td.TransferenciaId = t.Id
+        JOIN dbo.Series s                 
+            ON s.Sucursal = t.Sucursal
         LEFT JOIN tr_surtido_agg tsa
-               ON tsa.TransferenciaId = t.Id
-              AND tsa.SKU = UPPER(LTRIM(RTRIM(td.ProductoCodigo)))
+            ON tsa.TransferenciaId = t.Id
+           AND tsa.SKU = UPPER(LTRIM(RTRIM(td.ProductoCodigo)))
         WHERE t.FechaSolicitud IS NOT NULL
           AND t.Estatus BETWEEN 1 AND 4
           AND UPPER(LTRIM(RTRIM(s.Canal))) LIKE 'CEDIS%'
@@ -1602,7 +1617,11 @@ consumo_cedis_base AS (
             MONTH(TRY_CONVERT(date, t.FechaSolicitud)),
             YEAR(TRY_CONVERT(date, t.FechaSolicitud))
     ) X
-    GROUP BY Canal, SKU, Mes, Anio
+    GROUP BY 
+        Canal, 
+        SKU, 
+        Mes, 
+        Anio
 ),
 
 todo_cedis AS (
@@ -1625,7 +1644,7 @@ todo_cedis AS (
 ),
 
 -- =====================================================
--- PRESUPUESTO VENDEDOR + PRORRATEO DESDE CEDIS (igual al reporte)
+-- PRESUPUESTO VENDEDOR / PRORRATEO DESDE CEDIS
 -- =====================================================
 presupuestos_vendedor AS (
     SELECT
@@ -1633,7 +1652,7 @@ presupuestos_vendedor AS (
         SKU = UPPER(LTRIM(RTRIM(pv.ProductoCodigo))),
         Mes = pv.Mes,
         Anio = pv.Anio,
-        Presupuesto = SUM(pv.PresupuestoAsignado)
+        Presupuesto = SUM(CAST(pv.PresupuestoAsignado AS DECIMAL(18,4)))
     FROM dbo.PresupuestoVendedor pv
     GROUP BY
         pv.VendedorId,
@@ -1652,7 +1671,10 @@ pres_vendedor_x_canal AS (
     JOIN canal_vendedores cv
         ON cv.VendedorId = pv.VendedorId
     GROUP BY
-        cv.Canal, pv.SKU, pv.Mes, pv.Anio
+        cv.Canal, 
+        pv.SKU, 
+        pv.Mes, 
+        pv.Anio
 ),
 consumo_vendedor_desde_cedis AS (
     SELECT
@@ -1680,7 +1702,10 @@ consumo_vendedor_desde_cedis AS (
        AND cb.Mes   = pv.Mes
        AND cb.Anio  = pv.Anio
     GROUP BY
-        pv.VendedorId, pv.SKU, pv.Mes, pv.Anio
+        pv.VendedorId, 
+        pv.SKU, 
+        pv.Mes, 
+        pv.Anio
 ),
 todo_vendedor AS (
     SELECT
@@ -1702,8 +1727,9 @@ todo_vendedor AS (
 ),
 
 -- =====================================================
--- SURTIDO REAL CEDIS (ALINEADO AL REPORTE):
---   OV VALIDADO + TransferenciaSurtido (NO PedidosTransferenciaDetalle)
+-- SURTIDO REAL CEDIS
+-- IMPORTANTE:
+-- OV CEDIS solo de MATRIZ + TransferenciaSurtido
 -- =====================================================
 surtido_ov_cedis AS (
     SELECT
@@ -1713,12 +1739,19 @@ surtido_ov_cedis AS (
         Anio  = YEAR(se.FechaValidacion),
         KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
     FROM dbo.OrdenVenta o
-    JOIN dbo.Subpedido sp           ON sp.OrdenVentaId = o.Id
-    JOIN dbo.SurtidoEncabezado se   ON se.SolicitudSurtidoId = sp.U_DocMeat
-    JOIN dbo.SurtidoDetalle sd      ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
-    JOIN dbo.ClienteSap cli         ON cli.Cliente = o.Cliente
+    JOIN dbo.Series ser
+        ON ser.NombreSerie = o.Serie
+    JOIN dbo.Subpedido sp           
+        ON sp.OrdenVentaId = o.Id
+    JOIN dbo.SurtidoEncabezado se   
+        ON se.SolicitudSurtidoId = sp.U_DocMeat
+    JOIN dbo.SurtidoDetalle sd      
+        ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+    JOIN clientes cli
+        ON cli.Cliente = UPPER(LTRIM(RTRIM(o.Cliente)))
     WHERE o.Estatus <> 0
       AND se.FechaValidacion IS NOT NULL
+      AND ser.Sucursal = 'MATRIZ'
       AND UPPER(LTRIM(RTRIM(cli.U_CANAL))) LIKE 'CEDIS%'
     GROUP BY
         UPPER(LTRIM(RTRIM(cli.U_CANAL))),
@@ -1734,8 +1767,10 @@ surtido_transferencias_cedis AS (
         Anio  = YEAR(TRY_CONVERT(date, t.FechaSolicitud)),
         KgSurtido = SUM(CAST(ts.KgSurtido AS DECIMAL(18,4)))
     FROM dbo.TransferenciaSurtido ts
-    JOIN dbo.Transferencias t ON t.Id = ts.TransferenciaId
-    JOIN dbo.Series s         ON s.Sucursal = t.Sucursal
+    JOIN dbo.Transferencias t 
+        ON t.Id = ts.TransferenciaId
+    JOIN dbo.Series s         
+        ON s.Sucursal = t.Sucursal
     WHERE t.FechaSolicitud IS NOT NULL
       AND t.Estatus >= 5
       AND ts.KgSurtido > 0
@@ -1747,13 +1782,23 @@ surtido_transferencias_cedis AS (
         YEAR(TRY_CONVERT(date, t.FechaSolicitud))
 ),
 surtido_cedis_base AS (
-    SELECT Canal, SKU, Mes, Anio, SUM(KgSurtido) AS KgSurtido
-    FROM (
+    SELECT 
+        Canal, 
+        SKU, 
+        Mes, 
+        Anio, 
+        SUM(KgSurtido) AS KgSurtido
+    FROM 
+    (
         SELECT Canal, SKU, Mes, Anio, KgSurtido FROM surtido_ov_cedis
         UNION ALL
         SELECT Canal, SKU, Mes, Anio, KgSurtido FROM surtido_transferencias_cedis
     ) x
-    GROUP BY Canal, SKU, Mes, Anio
+    GROUP BY 
+        Canal, 
+        SKU, 
+        Mes, 
+        Anio
 ),
 surtido_vendedor_desde_cedis AS (
     SELECT
@@ -1781,7 +1826,10 @@ surtido_vendedor_desde_cedis AS (
        AND sb.Mes   = pv.Mes
        AND sb.Anio  = pv.Anio
     GROUP BY
-        pv.VendedorId, pv.SKU, pv.Mes, pv.Anio
+        pv.VendedorId, 
+        pv.SKU, 
+        pv.Mes, 
+        pv.Anio
 ),
 surtido_real AS (
     SELECT
@@ -1789,10 +1837,16 @@ surtido_real AS (
         CAST(NULL AS NVARCHAR(50)) AS Cliente,
         Canal,
         CAST(NULL AS INT) AS VendedorId,
-        SKU, Mes, Anio,
+        SKU, 
+        Mes, 
+        Anio,
         SUM(KgSurtido) AS KgSurtido
     FROM surtido_cedis_base
-    GROUP BY Canal, SKU, Mes, Anio
+    GROUP BY 
+        Canal, 
+        SKU, 
+        Mes, 
+        Anio
 
     UNION ALL
 
@@ -1801,10 +1855,112 @@ surtido_real AS (
         CAST(NULL AS NVARCHAR(50)),
         CAST(NULL AS NVARCHAR(100)),
         VendedorId,
-        SKU, Mes, Anio,
+        SKU, 
+        Mes, 
+        Anio,
         SUM(KgSurtido)
     FROM surtido_vendedor_desde_cedis
-    GROUP BY VendedorId, SKU, Mes, Anio
+    GROUP BY 
+        VendedorId, 
+        SKU, 
+        Mes, 
+        Anio
+),
+
+-- =====================================================
+-- DEVOLUCIONES CEDIS
+-- Se suman al disponible:
+-- Disponible = Presupuesto - Pendiente - SurtidoReal + Devoluciones
+-- =====================================================
+devoluciones_cedis_base AS (
+    SELECT
+        Canal = UPPER(LTRIM(RTRIM(cli.U_CANAL))),
+        SKU   = UPPER(LTRIM(RTRIM(d.Articulo))),
+        Mes   = MONTH(d.FechaDevolucion),
+        Anio  = YEAR(d.FechaDevolucion),
+        KgDevolucion = SUM(CAST(ISNULL(d.Peso, 0) AS DECIMAL(18,4)))
+    FROM dbo.DevolucionMeat d
+    JOIN clientes cli
+        ON cli.Cliente = UPPER(LTRIM(RTRIM(d.CodigoSap)))
+    WHERE d.FechaDevolucion IS NOT NULL
+      AND UPPER(LTRIM(RTRIM(cli.U_CANAL))) LIKE 'CEDIS%'
+      AND EXISTS
+      (
+          SELECT 1
+          FROM dbo.Subpedido sp
+          WHERE sp.U_DocMeat = d.SolicitudSurtidoId
+      )
+    GROUP BY
+        UPPER(LTRIM(RTRIM(cli.U_CANAL))),
+        UPPER(LTRIM(RTRIM(d.Articulo))),
+        MONTH(d.FechaDevolucion),
+        YEAR(d.FechaDevolucion)
+),
+devoluciones_vendedor_desde_cedis AS (
+    SELECT
+        VendedorId = pv.VendedorId,
+        SKU        = pv.SKU,
+        Mes        = pv.Mes,
+        Anio       = pv.Anio,
+        KgDevolucion = SUM(
+            CASE
+                WHEN ISNULL(pxc.PresTotalCanal,0) <= 0 THEN 0
+                ELSE (dc.KgDevolucion * (CAST(pv.Presupuesto AS DECIMAL(18,4)) / pxc.PresTotalCanal))
+            END
+        )
+    FROM presupuestos_vendedor pv
+    JOIN canal_vendedores cv
+        ON cv.VendedorId = pv.VendedorId
+    JOIN pres_vendedor_x_canal pxc
+        ON pxc.Canal = cv.Canal
+       AND pxc.SKU   = pv.SKU
+       AND pxc.Mes   = pv.Mes
+       AND pxc.Anio  = pv.Anio
+    JOIN devoluciones_cedis_base dc
+        ON dc.Canal = cv.Canal
+       AND dc.SKU   = pv.SKU
+       AND dc.Mes   = pv.Mes
+       AND dc.Anio  = pv.Anio
+    GROUP BY
+        pv.VendedorId, 
+        pv.SKU, 
+        pv.Mes, 
+        pv.Anio
+),
+devoluciones_real AS (
+    SELECT
+        'CEDIS' AS Origen,
+        CAST(NULL AS NVARCHAR(50)) AS Cliente,
+        Canal,
+        CAST(NULL AS INT) AS VendedorId,
+        SKU,
+        Mes,
+        Anio,
+        SUM(KgDevolucion) AS KgDevolucion
+    FROM devoluciones_cedis_base
+    GROUP BY 
+        Canal, 
+        SKU, 
+        Mes, 
+        Anio
+
+    UNION ALL
+
+    SELECT
+        'VENDEDOR',
+        CAST(NULL AS NVARCHAR(50)),
+        CAST(NULL AS NVARCHAR(100)),
+        VendedorId,
+        SKU,
+        Mes,
+        Anio,
+        SUM(KgDevolucion)
+    FROM devoluciones_vendedor_desde_cedis
+    GROUP BY 
+        VendedorId, 
+        SKU, 
+        Mes, 
+        Anio
 )
 
 SELECT
@@ -1820,27 +1976,53 @@ SELECT
     CAST(t.Presupuesto AS DECIMAL(18,4)) AS PresupuestoAsignado,
     CAST(t.Kg AS DECIMAL(18,4)) AS KgPedidosMes,
     CAST(ISNULL(sr.KgSurtido,0) AS DECIMAL(18,4)) AS KgSurtidoReal,
+    CAST(ISNULL(dev.KgDevolucion,0) AS DECIMAL(18,4)) AS KgDevoluciones,
     CAST(
         CASE
-            WHEN (t.Presupuesto - ISNULL(t.Kg,0) - ISNULL(sr.KgSurtido,0)) < 0 THEN 0
-            ELSE (t.Presupuesto - ISNULL(t.Kg,0) - ISNULL(sr.KgSurtido,0))
+            WHEN (
+                t.Presupuesto 
+                - ISNULL(t.Kg,0) 
+                - ISNULL(sr.KgSurtido,0)
+                + ISNULL(dev.KgDevolucion,0)
+            ) < 0 THEN 0
+            ELSE (
+                t.Presupuesto 
+                - ISNULL(t.Kg,0) 
+                - ISNULL(sr.KgSurtido,0)
+                + ISNULL(dev.KgDevolucion,0)
+            )
         END
     AS DECIMAL(18,4)) AS DisponibleVenta
-FROM (
+FROM 
+(
     -- CEDIS para el canal/sucursal y mes/año/sku
-    SELECT * FROM todo_cedis
-    WHERE Canal = @Canal AND Mes = @Mes AND Anio = @Anio AND SKU = @SkuN
+    SELECT * 
+    FROM todo_cedis
+    WHERE Canal = @Canal 
+      AND Mes = @Mes 
+      AND Anio = @Anio 
+      AND SKU = @SkuN
 
     UNION ALL
 
     -- Vendedores ligados a este canal (prorrateo)
-    SELECT * FROM todo_vendedor
-    WHERE Mes = @Mes AND Anio = @Anio AND SKU = @SkuN
-      AND VendedorId IN (SELECT VendedorId FROM canal_vendedores WHERE Canal = @Canal)
+    SELECT * 
+    FROM todo_vendedor
+    WHERE Mes = @Mes 
+      AND Anio = @Anio 
+      AND SKU = @SkuN
+      AND VendedorId IN (
+            SELECT VendedorId 
+            FROM canal_vendedores 
+            WHERE Canal = @Canal
+      )
 ) t
-LEFT JOIN productos  prd  ON prd.SKU = t.SKU
-LEFT JOIN clientes   cl   ON cl.Cliente = t.Cliente
-LEFT JOIN vendedores vend ON vend.VendedorId = t.VendedorId
+LEFT JOIN productos prd  
+    ON prd.SKU = t.SKU
+LEFT JOIN clientes cl   
+    ON cl.Cliente = t.Cliente
+LEFT JOIN vendedores vend 
+    ON vend.VendedorId = t.VendedorId
 LEFT JOIN surtido_real sr
     ON sr.Origen = t.Origen
    AND sr.SKU    = t.SKU
@@ -1850,10 +2032,19 @@ LEFT JOIN surtido_real sr
         (t.Origen = 'CEDIS'    AND sr.Canal      = t.Canal)
      OR (t.Origen = 'VENDEDOR' AND sr.VendedorId = t.VendedorId)
    )
+LEFT JOIN devoluciones_real dev
+    ON dev.Origen = t.Origen
+   AND dev.SKU    = t.SKU
+   AND dev.Mes    = t.Mes
+   AND dev.Anio   = t.Anio
+   AND (
+        (t.Origen = 'CEDIS'    AND dev.Canal      = t.Canal)
+     OR (t.Origen = 'VENDEDOR' AND dev.VendedorId = t.VendedorId)
+   )
 ORDER BY
-    Origen,
-    AnioConsulta,
-    MesConsulta,
+    t.Origen,
+    t.Anio,
+    t.Mes,
     ISNULL(t.Canal,''),
     t.SKU;
 ";
@@ -1865,7 +2056,12 @@ ORDER BY
             var rows = await conn.QueryAsync<PresupuestoConsumoDto>(
                 new CommandDefinition(
                     sql,
-                    new { Sucursal = sucursal, Sku = sku, FechaSolicitud = fechaSolicitud },
+                    new
+                    {
+                        Sucursal = sucursal,
+                        Sku = sku,
+                        FechaSolicitud = fechaSolicitud
+                    },
                     cancellationToken: ct
                 )
             );
@@ -1890,6 +2086,7 @@ ORDER BY
                 enPresupuesto = cedis.PresupuestoAsignado > 0m
             });
         }
+
 
 
         private static (string raw, string username, string usernameEmail) NormalizeLoginTr(string? identityName)

@@ -895,7 +895,7 @@
         <div class="title-block">
             <h1>Planeación Ejecutiva de Inventario, Producción y Pedidos</h1>
             <p>
-                Vista consolidada para Dirección General: inventario inicial, producción planeada,
+                Vista consolidada para Dirección General: inventario inicial del día actual, producción planeada,
                 pedidos comprometidos y disponibilidad proyectada por día. El disponible de un día
                 se convierte automáticamente en el inventario del siguiente.
             </p>
@@ -1023,7 +1023,7 @@
     <section class="panel table-panel">
         <div class="panel-title">
             <strong>Detalle diario KG</strong>
-            <span id="tablaResumen">Inventario + Producción - Pedidos = Disponible</span>
+            <span id="tablaResumen">Inventario inicial del día anterior + Producción - Pedidos = Disponible</span>
         </div>
 
         <div class="table-wrapper">
@@ -1094,6 +1094,9 @@
     let datos = [];
     let modoVista = "completa";
     const DIAS_ADELANTE = 23;
+    const SOLO_SKU_CON_INVENTARIO_O_PRODUCCION = true;
+    let catalogoDepuradoPorMovimiento = false;
+
 
     let filtrosCatalogo = {
         masters: [],
@@ -1151,6 +1154,59 @@
     function obtenerCampo(row, camelCase, pascalCase, defaultValue = 0) {
         if (!row) return defaultValue;
         return row[camelCase] ?? row[pascalCase] ?? defaultValue;
+    }
+
+    function obtenerTextoCampo(row, nombres, defaultValue = "") {
+        if (!row) return defaultValue;
+
+        for (const nombre of nombres) {
+            if (row[nombre] !== undefined && row[nombre] !== null) {
+                return String(row[nombre]);
+            }
+        }
+
+        return defaultValue;
+    }
+
+    function obtenerSkuRow(row) {
+        return normalizarTexto(obtenerTextoCampo(row, [
+            "sku", "Sku", "SKU",
+            "articulo", "Articulo",
+            "itemCode", "ItemCode",
+            "productoCodigo", "ProductoCodigo",
+            "codigoProducto", "CodigoProducto"
+        ], ""));
+    }
+
+    function filaTieneInventarioOProduccion(row) {
+        const inventario = normalizarNumero(obtenerCampo(row, "kgInventario", "KgInventario", 0));
+        const produccion = normalizarNumero(obtenerCampo(row, "kgProduccion", "KgProduccion", 0));
+
+        return inventario > 0 || produccion > 0;
+    }
+
+    function obtenerSkusConInventarioOProduccion(rows) {
+        const skus = new Set();
+
+        (rows || []).forEach(row => {
+            const sku = obtenerSkuRow(row);
+
+            if (sku && filaTieneInventarioOProduccion(row)) {
+                skus.add(sku);
+            }
+        });
+
+        return skus;
+    }
+
+    function aplicarCatalogoSkusConMovimiento(rows, consultaSinFiltros) {
+        /*
+           No depurar el catálogo desde el resultado de InventarioInicialDatos.
+           Ese endpoint puede regresar filas consolidadas como "TODOS" o "123 SKU".
+           Si se usa eso para filtrar el catálogo, se borran MASTER/SKU y el combo queda vacío.
+           Los filtros deben venir de /ProcesosCG/InventarioInicialFiltros.
+        */
+        return;
     }
 
     function fechaDesdeValor(valor) {
@@ -1213,6 +1269,13 @@
         const f = fechaDesdeValor(fecha);
         if (!f) return "";
         return fechaKey(f);
+    }
+
+    function sumarDiasInput(fechaIso, dias) {
+        const f = fechaDesdeValor(fechaIso);
+        if (!f) return "";
+        f.setDate(f.getDate() + Number(dias || 0));
+        return formatoInputFecha(f);
     }
 
     function inicializarRangoFechas() {
@@ -1298,7 +1361,21 @@
         try {
             setCargando(true);
 
-            const response = await fetch("/ProcesosCG/InventarioInicialFiltros", {
+            const rango = obtenerRangoFechas();
+            const fechaInicio = formatoInputFecha(rango.inicio);
+            const fechaFin = formatoInputFecha(rango.fin);
+            const fechaInventarioInicial = sumarDiasInput(fechaInicio, -1);
+
+            const params = new URLSearchParams({
+                fechaInicio: fechaInicio,
+                fechaFin: fechaFin,
+                fechaInventarioInicial: fechaInventarioInicial,
+                // Los combos MASTER/SKU siempre deben venir del catálogo activo.
+                // La depuración por inventario/producción se aplica al consultar datos, no al cargar filtros.
+                soloSkuMovimiento: "false"
+            });
+
+            const response = await fetch(`/ProcesosCG/InventarioInicialFiltros?${params.toString()}`, {
                 method: "GET",
                 headers: { "Accept": "application/json" }
             });
@@ -1614,7 +1691,10 @@ function filtrarOpciones(selectId, texto) {
             url += `&mastersCsv=${encodeURIComponent(mastersCsv)}`;
             url += `&fechaInicio=${encodeURIComponent(fechaInicio)}`;
             url += `&fechaFin=${encodeURIComponent(fechaFin)}`;
+            const fechaInventarioInicial = sumarDiasInput(fechaInicio, -1);
+            url += `&fechaInventarioInicial=${encodeURIComponent(fechaInventarioInicial)}`;
             url += `&dias=${DIAS_ADELANTE}`;
+            url += `&soloSkuMovimiento=${SOLO_SKU_CON_INVENTARIO_O_PRODUCCION ? "true" : "false"}`;
 
             const response = await fetch(url, {
                 method: "GET",
@@ -1629,12 +1709,21 @@ function filtrarOpciones(selectId, texto) {
 
             const rows = json.data || json.Data || [];
 
+            aplicarCatalogoSkusConMovimiento(rows, todosMasters && todosSkus);
+
+            const skusConMovimiento = obtenerSkusConInventarioOProduccion(rows);
+            const rowsProcesar = SOLO_SKU_CON_INVENTARIO_O_PRODUCCION && skusConMovimiento.size
+                ? rows.filter(row => {
+                    const sku = obtenerSkuRow(row);
+                    return !sku || skusConMovimiento.has(sku);
+                })
+                : rows;
+
             const inventarioPorFecha = {};
             const pedidosPorFecha = {};
             const produccionPorFecha = {};
-            const disponiblePorFecha = {};
 
-            rows.forEach(row => {
+            rowsProcesar.forEach(row => {
                 const fechaValor = obtenerCampo(row, "fecha", "Fecha", null);
                 const key = fechaKey(fechaValor);
                 if (!key) return;
@@ -1646,26 +1735,33 @@ function filtrarOpciones(selectId, texto) {
                     )
                 );
                 const produccion = normalizarNumero(obtenerCampo(row, "kgProduccion", "KgProduccion", 0));
-                const disponible = normalizarNumero(
-                    obtenerCampo(row, "kgDisponible", "KgDisponible",
-                        obtenerCampo(row, "kgDisponibleEstimado", "KgDisponibleEstimado", 0)
-                    )
-                );
-
                 inventarioPorFecha[key] = normalizarNumero(inventarioPorFecha[key]) + inventario;
                 pedidosPorFecha[key] = normalizarNumero(pedidosPorFecha[key]) + pedidos;
                 produccionPorFecha[key] = normalizarNumero(produccionPorFecha[key]) + produccion;
-                disponiblePorFecha[key] = normalizarNumero(disponiblePorFecha[key]) + disponible;
             });
 
-            datos = calendario.map(dia => {
+            let inventarioArrastre = 0;
+
+            datos = calendario.map((dia, index) => {
+                const produccion = normalizarNumero(produccionPorFecha[dia.fechaKey]);
+                const pedidos = normalizarNumero(pedidosPorFecha[dia.fechaKey]);
+
+                // El inventario inicial se toma en la fecha de inicio seleccionada,
+                // que por defecto es hoy. Ya no se toma el día anterior.
+                const inventario = index === 0
+                    ? normalizarNumero(inventarioPorFecha[dia.fechaKey])
+                    : inventarioArrastre;
+
+                const disponible = inventario + produccion - pedidos;
+                inventarioArrastre = disponible;
+
                 return {
                     fecha: dia.fecha,
                     fechaKey: dia.fechaKey,
-                    inventario: normalizarNumero(inventarioPorFecha[dia.fechaKey]),
-                    produccion: normalizarNumero(produccionPorFecha[dia.fechaKey]),
-                    pedidos: normalizarNumero(pedidosPorFecha[dia.fechaKey]),
-                    disponible: normalizarNumero(disponiblePorFecha[dia.fechaKey])
+                    inventario,
+                    produccion,
+                    pedidos,
+                    disponible
                 };
             });
 
@@ -1819,7 +1915,7 @@ function filtrarOpciones(selectId, texto) {
 
         const tablaResumen = document.getElementById("tablaResumen");
         if (tablaResumen) {
-            tablaResumen.textContent = alcanceDetalle;
+            tablaResumen.textContent = `${alcanceDetalle} | Inventario inicial desde hoy`;
         }
     }
 
