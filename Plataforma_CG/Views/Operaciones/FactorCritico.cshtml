@@ -832,7 +832,49 @@
     body[data-theme="dark"] .sap-input::placeholder {
         color: #6b7280;
     }
+     .status-badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
 
+    .status-ok {
+        background-color: #d1e7dd;
+        color: #0f5132;
+        border: 1px solid #badbcc;
+    }
+
+    .status-warn {
+        background-color: #fff3cd;
+        color: #664d03;
+        border: 1px solid #ffecb5;
+    }
+
+    .status-error {
+        background-color: #f8d7da;
+        color: #842029;
+        border: 1px solid #f5c2c7;
+    }
+
+    body[data-theme="dark"] .status-ok {
+        background-color: rgba(25, 135, 84, 0.2);
+        color: #75b798;
+        border-color: rgba(25, 135, 84, 0.5);
+    }
+
+    body[data-theme="dark"] .status-warn {
+        background-color: rgba(255, 193, 7, 0.2);
+        color: #ffda6a;
+        border-color: rgba(255, 193, 7, 0.5);
+    }
+
+    body[data-theme="dark"] .status-error {
+        background-color: rgba(220, 53, 69, 0.2);
+        color: #ea868f;
+        border-color: rgba(220, 53, 69, 0.5);
+    }
 </style>
 
 <div class="container-sap">
@@ -856,6 +898,9 @@
         </button>
         <button id="btn-tab-graficas" class="tab-btn" onclick="cambiarPestana('graficas')">
             <i class=""></i> Gráficas
+        </button>
+        <button id="btn-tab-log" class="tab-btn" onclick="cambiarPestana('log'); cargarLogSimulado();">
+            </i> Log de Pruebas
         </button>
     </div>
 
@@ -1081,7 +1126,39 @@
             </div>
         </div>
     </div>
+    <!-- CONTENIDO NUEVA PESTAÑA LOG -->
+    <div id="tab-log" class="tab-content">
+        <div class="sap-card">
+            <div class="sap-card-head" style="flex-wrap: wrap; gap: 10px;">
+                <span><i style="color: var(--primary);"></i> Historial Completo de Pruebas</span>
 
+                <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                    <label style="font-size: 0.8rem; font-weight: bold;">Desde:</label>
+                    <input type="date" id="fechaDesdeLog" class="sap-input" style="width: 130px; height: 32px; padding: 2px 8px;" onchange="filtrarLog()">
+
+                    <label style="font-size: 0.8rem; font-weight: bold;">Hasta:</label>
+                    <input type="date" id="fechaHastaLog" class="sap-input" style="width: 130px; height: 32px; padding: 2px 8px;" onchange="filtrarLog()">
+
+                    <input type="text" id="buscadorLog" class="sap-input" style="width: 200px; height: 32px;" placeholder="Buscar lote o usuario..." onkeyup="filtrarLog()">
+                </div>
+            </div>
+            <div style="overflow-x: auto;">
+                <table class="sap-table" id="tabla-log">
+                    <thead>
+                        <tr>
+                            <th>Prueba ID</th>
+                            <th>Lote Asignado</th>
+                            <th>Fecha</th>
+                            <th>Usuario</th>
+                            <th style="text-align: center;">Ver Pruebas</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lista-log-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div id="modalNuevaPrueba" class="modal-overlay">
@@ -1168,6 +1245,27 @@
         <div class="modal-footer">
             <button class="tbtn" onclick="cerrarModal('modalGrasa')">Cerrar</button>
             <button id="btnGuardarGrasa" class="tbtn primary" onclick="guardarGrasa()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<div id="modalDetalleLog" class="modal-overlay">
+    <div class="modal-content-sap modal-content-sm">
+        <div class="sap-card-head">
+            <span><i class="bi bi-list-check" style="color: var(--primary);"></i> Detalle de Prueba</span>
+            <button class="tbtn" style="border:none; padding:0;" onclick="cerrarModal('modalDetalleLog')"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="modal-body-scroll" style="text-align: center;">
+            <h5 id="lblDetalleLote" style="color: var(--primary); font-weight: bold; margin-bottom: 15px;"></h5>
+            <p style="margin-bottom: 20px; color: #666;">Seleccione el factor a consultar:</p>
+            <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                <button class="tbtn" id="btnLogHueso">Hueso</button>
+                <button class="tbtn" id="btnLogRecorte">Recorte</button>
+                <button class="tbtn" id="btnLogGrasa">Grasa</button>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="tbtn" onclick="cerrarModal('modalDetalleLog')">Cerrar</button>
         </div>
     </div>
 </div>
@@ -1418,11 +1516,16 @@
         });
     }
 
-    function abrirPruebaGrasa(idPrueba, lote) {
+    function abrirPruebaGrasa(idPrueba, lote, isReadOnly = false) {
         idPruebaActual = idPrueba;
         document.getElementById("modalGrasa").style.display = "flex";
         document.getElementById("lote-Grasa").innerText = lote;
         document.getElementById("badge-prueba-grasa").innerText = `Prueba #${idPrueba}`;
+
+        // Ocultar boton guardar si es lectura
+        const btnGuardar = document.getElementById("btnGuardarGrasa");
+        if (btnGuardar) btnGuardar.style.display = isReadOnly ? "none" : "inline-flex";
+
         const tbody = document.getElementById("tabla-Grasa");
         tbody.innerHTML = "<tr><td colspan='5'>Cargando...</td></tr>";
 
@@ -1431,17 +1534,20 @@
             .then(data => {
                 let g = (data && data.id) ? data : { id: 0, porcObjetivo: 6.5, kgEntrada: 0, kgSalida: 0, porcPartic: 0, difPorc: 0 };
                 let colorDif = obtenerColorSemaforo(g.difPorc || 0);
+
+                // Desactivar inputs si es lectura
+                const disabledAttr = isReadOnly ? "disabled" : "";
+
                 tbody.innerHTML = `
                     <tr data-id="${g.id}">
                         <td><span class="badge-sap">${g.porcObjetivo}%</span></td>
                         <td>${g.porcPartic}%</td>
                         <td style="color:${colorDif}; font-weight:bold;">${g.difPorc}%</td>
-                            <td><input type="number" class="sap-input kg-entrada" id="txtGrasaEnt" value="${(parseFloat(g.kgEntrada) || 0) === 0 ? '' : g.kgEntrada}" placeholder="0"></td>
-                            <td><input type="number" class="sap-input kg-salida" id="txtGrasaSal" value="${(parseFloat(g.kgSalida) || 0) === 0 ? '' : g.kgSalida}" placeholder="0"></td>
+                        <td><input type="number" class="sap-input kg-entrada" id="txtGrasaEnt" value="${(parseFloat(g.kgEntrada) || 0) === 0 ? '' : g.kgEntrada}" placeholder="0" ${disabledAttr}></td>
+                        <td><input type="number" class="sap-input kg-salida" id="txtGrasaSal" value="${(parseFloat(g.kgSalida) || 0) === 0 ? '' : g.kgSalida}" placeholder="0" ${disabledAttr}></td>
                     </tr>`;
             }).catch(() => { tbody.innerHTML = "<tr><td colspan='5'>No se pudo cargar la información.</td></tr>"; });
     }
-
     function guardarGrasa() {
         const btn = document.getElementById("btnGuardarGrasa");
         btn.innerText = "..."; btn.disabled = true;
@@ -1472,11 +1578,16 @@
         .catch(error => { console.error(error); alert("Hubo un problema de red."); btn.innerText = "Guardar"; btn.disabled = false; });
     }
 
-    function abrirPruebaRecorte(idPrueba, lote) {
+     function abrirPruebaRecorte(idPrueba, lote, isReadOnly = false) {
         idPruebaActual = idPrueba;
         document.getElementById("modalRecorte").style.display = "flex";
         document.getElementById("lote-Recorte").innerText = lote;
         document.getElementById("badge-prueba-recorte").innerText = `Prueba #${idPrueba}`;
+
+        // Ocultar boton guardar si es lectura
+        const btnGuardar = document.getElementById("btnGuardarRecorte");
+        if (btnGuardar) btnGuardar.style.display = isReadOnly ? "none" : "inline-flex";
+
         const tbody = document.getElementById("tabla-Recorte");
         tbody.innerHTML = "<tr><td colspan='6'>Cargando...</td></tr>";
 
@@ -1484,7 +1595,6 @@
             .then(res => res.json())
             .then(data => {
                 let r = (data && data.id) ? data : { id: 0, fk_Receta: 0, porcObjetivo: 0, kgEntrada: 0, kgSalida: 0, porcPartic: 0, difPorc: 0 };
-
                 let idRecetaGuardada = (r.fk_Receta || r.Fk_Receta || r.idReceta || r.recetaId || 0).toString();
 
                 let opciones = recetasCargadas.map(rec => {
@@ -1494,16 +1604,18 @@
 
                 let colorDif = obtenerColorSemaforo(r.difPorc || 0);
 
+                // Desactivar inputs si es lectura
+                const disabledAttr = isReadOnly ? "disabled" : "";
+
                 tbody.innerHTML = `
                     <tr data-id="${r.id}">
-                        <td><select class="sap-input receta-select" onchange="actualizarObjetivoRecorte(this)"><option value="0">Seleccione...</option>${opciones}</select></td>
+                        <td><select class="sap-input receta-select" onchange="actualizarObjetivoRecorte(this)" ${disabledAttr}><option value="0">Seleccione...</option>${opciones}</select></td>
                         <td><span class="badge-sap">${r.porcObjetivo}%</span></td>
                         <td>${r.porcPartic}%</td>
                         <td style="color:${colorDif}; font-weight:bold;">${r.difPorc}%</td>
-                            <td><input type="number" class="sap-input kg-entrada" id="txtRecorteEnt" value="${(parseFloat(r.kgEntrada) || 0) === 0 ? '' : r.kgEntrada}" placeholder="0"></td>
-                            <td><input type="number" class="sap-input kg-salida" id="txtRecorteSal" value="${(parseFloat(r.kgSalida) || 0) === 0 ? '' : r.kgSalida}" placeholder="0"></td>
+                        <td><input type="number" class="sap-input kg-entrada" id="txtRecorteEnt" value="${(parseFloat(r.kgEntrada) || 0) === 0 ? '' : r.kgEntrada}" placeholder="0" ${disabledAttr}></td>
+                        <td><input type="number" class="sap-input kg-salida" id="txtRecorteSal" value="${(parseFloat(r.kgSalida) || 0) === 0 ? '' : r.kgSalida}" placeholder="0" ${disabledAttr}></td>
                     </tr>`;
-
 
                 const selectElement = tbody.querySelector('.receta-select');
                 if(selectElement && selectElement.value !== "0") {
@@ -1785,7 +1897,7 @@
         });
     }
 
-    function abrirPruebaHueso(idPrueba, lote, scrollGuardado = 0) {
+    function abrirPruebaHueso(idPrueba, lote, scrollGuardado = 0, isReadOnly = false) {
         idPruebaActual = idPrueba;
 
         const modal = document.getElementById("modalHueso");
@@ -1795,6 +1907,10 @@
         modal.style.display = "flex";
         document.getElementById("lote-hueso").innerText = lote;
         document.getElementById("badge-prueba-hueso").innerText = `Prueba #${idPrueba}`;
+
+        // Ocultar boton global guardar si es lectura
+        const btnGuardarTodos = document.getElementById("btnGuardarTodosHueso");
+        if (btnGuardarTodos) btnGuardarTodos.style.display = isReadOnly ? "none" : "inline-flex";
 
         tbody.innerHTML = "<tr><td colspan='7'>Cargando...</td></tr>";
 
@@ -1810,30 +1926,24 @@
             .then(data => {
                 if (!Array.isArray(data) || data.length === 0) {
                     data = [{
-                        id: 0,
-                        fk_Hueso: 1,
-                        nombreHueso: "Nuevo Hueso",
-                        porcObjetivo: 0,
-                        kgEntrada: 0,
-                        kgSalida: 0,
-                        porcPartic: 0,
-                        difPorc: 0
+                        id: 0, fk_Hueso: 1, nombreHueso: "Nuevo Hueso", porcObjetivo: 0,
+                        kgEntrada: 0, kgSalida: 0, porcPartic: 0, difPorc: 0
                     }];
                 }
 
                 const html = data.map(h => {
                     const draft = obtenerDraftHueso(idPrueba, h.fk_Hueso);
 
-                const kgEntradaMostrar = draft
-                    ? draft.kgEntrada
-                    : ((parseFloat(h.kgEntrada) || 0) === 0 ? "" : h.kgEntrada);
-
-                const kgSalidaMostrar = draft
-                    ? draft.kgSalida
-                    : ((parseFloat(h.kgSalida) || 0) === 0 ? "" : h.kgSalida);
+                    const kgEntradaMostrar = draft ? draft.kgEntrada : ((parseFloat(h.kgEntrada) || 0) === 0 ? "" : h.kgEntrada);
+                    const kgSalidaMostrar = draft ? draft.kgSalida : ((parseFloat(h.kgSalida) || 0) === 0 ? "" : h.kgSalida);
 
                     const tieneConfirmado = (parseFloat(h.kgEntrada) || 0) > 0;
                     const colorDif = obtenerColorSemaforo(h.difPorc || 0);
+
+                    // Lógica de lectura o inputs habilitados
+                    const attrEntrada = isReadOnly ? "disabled" : (tieneConfirmado ? "disabled" : "");
+                    const attrSalida = isReadOnly ? "disabled" : "";
+                    const btnFila = isReadOnly ? `<span class="badge-sap">Lectura</span>` : `<button class="tbtn primary" style="height:28px;" onclick="guardarFilaHueso(this)">Guardar</button>`;
 
                     return `
                         <tr data-id="${h.id}" data-fkhueso="${h.fk_Hueso}" data-porcobjetivo="${h.porcObjetivo}">
@@ -1841,32 +1951,17 @@
                             <td><span class="badge-sap">${h.porcObjetivo}%</span></td>
                             <td class="td-partic">${h.porcPartic}%</td>
                             <td class="td-dif" style="color:${colorDif}; font-weight:bold;">${h.difPorc}%</td>
-                            <td>
-                                <input
-                                    type="number"
-                                    class="sap-input kg-entrada"
-                                    value="${kgEntradaMostrar ?? ''}"
-                                    placeholder="0"
-                                    ${tieneConfirmado ? "disabled" : ""}
-                                >
-                            </td>
-                            <td>
-                                <input
-                                    type="number"
-                                    class="sap-input kg-salida"
-                                    value="${kgSalidaMostrar ?? ''}"
-                                    placeholder="0"
-                                >
-                            </td>
-                            <td>
-                                <button class="tbtn primary" style="height:28px;" onclick="guardarFilaHueso(this)">Guardar</button>
-                            </td>
+                            <td><input type="number" class="sap-input kg-entrada" value="${kgEntradaMostrar ?? ''}" placeholder="0" ${attrEntrada}></td>
+                            <td><input type="number" class="sap-input kg-salida" value="${kgSalidaMostrar ?? ''}" placeholder="0" ${attrSalida}></td>
+                            <td style="text-align:center;">${btnFila}</td>
                         </tr>`;
                 }).join("");
 
                 tbody.innerHTML = html;
 
-                activarCapturaHuesoOptimizada();
+                if(!isReadOnly) {
+                    activarCapturaHuesoOptimizada();
+                }
 
                 requestAnimationFrame(() => {
                     scrollBody.scrollTop = scrollGuardado;
@@ -1874,14 +1969,8 @@
             })
             .catch(error => {
                 if (error.name === "AbortError") return;
-
                 console.error("Error al cargar hueso:", error);
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="7" style="text-align:center; color:red; font-weight:600;">
-                            ${obtenerMensajeUsuario(error)}
-                        </td>
-                    </tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:red; font-weight:600;">${obtenerMensajeUsuario(error)}</td></tr>`;
             });
     }
 
@@ -3162,5 +3251,76 @@
             timeout.clear();
         }
     }
+    
+    function cargarLogSimulado() {
+        const tbody = document.getElementById("lista-log-body");
+        tbody.innerHTML = "";
 
+        // Datos simulados
+        const logsMock = [
+            { id: 1045, lote: "DEST000011", fecha: "2026-07-09", hora: "08:30", usuario: "Cristo Vazquez" },
+            { id: 1044, lote: "DEST000012", fecha: "2026-07-08", hora: "14:15", usuario: "Maria Lopez" },
+            { id: 1043, lote: "DEST000013", fecha: "2026-07-08", hora: "09:00", usuario: "Cristo Vazquez" },
+            { id: 1042, lote: "DEST000014", fecha: "2026-07-07", hora: "16:45", usuario: "Juan Perez" },
+            { id: 1041, lote: "DEST000019", fecha: "2026-07-06", hora: "11:20", usuario: "Cristo Vazquez" }
+        ];
+
+        logsMock.forEach(log => {
+            tbody.innerHTML += `
+                <tr data-fecha="${log.fecha}">
+                    <td><strong>#${log.id}</strong></td>
+                    <td style="color: var(--primary); font-weight: bold;">${log.lote}</td>
+                    <td>${log.fecha} ${log.hora}</td>
+                    <td>${log.usuario}</td>
+                    <td style="text-align: right; min-width: 230px;">
+                        <button class="tbtn" style="height: 28px; font-size: 0.8rem;" onclick="abrirPruebaHueso(${log.id}, '${log.lote}', 0, true)">Hueso</button>
+                        <button class="tbtn" style="height: 28px; font-size: 0.8rem;" onclick="abrirPruebaRecorte(${log.id}, '${log.lote}', true)">Recorte</button>
+                        <button class="tbtn" style="height: 28px; font-size: 0.8rem;" onclick="abrirPruebaGrasa(${log.id}, '${log.lote}', true)">Grasa</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+     function abrirDetalleLog(idPrueba, lote) {
+        document.getElementById("lblDetalleLote").innerText = `${lote} (Prueba #${idPrueba})`;
+
+         document.getElementById("btnLogHueso").onclick = function() { abrirPruebaHueso(idPrueba, lote); };
+        document.getElementById("btnLogRecorte").onclick = function() { abrirPruebaRecorte(idPrueba, lote); };
+        document.getElementById("btnLogGrasa").onclick = function() { abrirPruebaGrasa(idPrueba, lote); };
+
+        document.getElementById("modalDetalleLog").style.display = "flex";
+    }
+
+    function filtrarLog() {
+        let inputTxt = document.getElementById("buscadorLog").value.toLowerCase();
+        let fechaDesde = document.getElementById("fechaDesdeLog").value;
+        let fechaHasta = document.getElementById("fechaHastaLog").value;
+
+        let tbody = document.getElementById("lista-log-body");
+        let tr = tbody.getElementsByTagName("tr");
+
+        for (let i = 0; i < tr.length; i++) {
+            let tdLote = tr[i].getElementsByTagName("td")[1];
+            let tdUsuario = tr[i].getElementsByTagName("td")[3];
+            let fechaFila = tr[i].getAttribute("data-fecha");
+
+            if (tdLote && tdUsuario && fechaFila) {
+                let txtLote = tdLote.textContent || tdLote.innerText;
+                let txtUsu = tdUsuario.textContent || tdUsuario.innerText;
+
+                 let cumpleTexto = txtLote.toLowerCase().includes(inputTxt) || txtUsu.toLowerCase().includes(inputTxt);
+
+                 let cumpleFecha = true;
+                if (fechaDesde && fechaFila < fechaDesde) cumpleFecha = false;
+                if (fechaHasta && fechaFila > fechaHasta) cumpleFecha = false;
+
+                if (cumpleTexto && cumpleFecha) {
+                    tr[i].style.display = "";
+                } else {
+                    tr[i].style.display = "none";
+                }
+            }
+        }
+    }
 </script>

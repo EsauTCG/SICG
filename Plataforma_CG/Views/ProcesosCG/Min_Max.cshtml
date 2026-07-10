@@ -1,0 +1,1099 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Planeación Ejecutiva de Inventario";
+}
+
+<style>
+    :root {
+      --bg: #f0dede;
+      --panel: #f8eeee;
+      --panel-2: #f1dede;
+      --line: #c79d9d;
+      --line-dark: #8f4c4c;
+      --text: #3b1717;
+      --muted: #6a3a3a;
+      --white: #ffffff;
+      --brand: #8B0000;
+
+      --vino-1: #5c0000;
+      --vino-2: #7a0000;
+      --vino-3: #980000;
+      --vino-4: #b30000;
+
+      --bajo-bg: #fde2e2;
+      --bajo-text: #b00000;
+
+      --min-bg: #fff4cc;
+      --min-text: #7a5a00;
+
+      --ok-bg: #dff3e2;
+      --ok-text: #2f6b1f;
+
+      --sobre-bg: #eadcff;
+      --sobre-text: #5b3fa3;
+
+      --sin-bg: #eeeeee;
+      --sin-text: #555555;
+
+      --shadow: 0 1px 0 rgba(255,255,255,.55) inset;
+    }
+
+    .minmax-layout2-root,
+    .minmax-layout2-root * {
+      box-sizing: border-box;
+    }
+
+    .minmax-layout2-root {
+      width: 100%;
+      height: calc(100vh - var(--layout2-offset, 72px));
+      min-height: 620px;
+      margin: 0;
+      overflow: hidden;
+      font-family: Tahoma, Verdana, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    @@supports (height: 100dvh) {
+      .minmax-layout2-root {
+        height: calc(100dvh - var(--layout2-offset, 72px));
+      }
+    }
+
+    .app {
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      padding: 0;
+      background: var(--bg);
+      overflow: hidden;
+    }
+
+    .window {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: var(--panel);
+      box-shadow: none;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .titlebar {
+      padding: 8px 12px;
+      background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+      color: #fff;
+      font-weight: 800;
+      font-size: 14px;
+      border-bottom: 1px solid #5c0000;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .titlebar small {
+      font-size: 11px;
+      opacity: .92;
+      font-weight: 600;
+    }
+
+    .content {
+      flex: 1;
+      min-height: 0;
+      padding: 8px;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      gap: 8px;
+    }
+
+    .section {
+      border: 1px solid var(--line);
+      background: #fffafa;
+      margin-bottom: 0;
+      box-shadow: var(--shadow);
+    }
+
+    .detalle-section {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .section-title {
+      padding: 6px 8px;
+      font-size: 12px;
+      font-weight: bold;
+      color: #fff;
+      background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+      border-bottom: 1px solid #6b1f1f;
+    }
+
+    .filters {
+      display: grid;
+      grid-template-columns: minmax(250px, 1.2fr) 180px 210px auto auto auto;
+      gap: 8px;
+      padding: 10px;
+      background: var(--panel-2);
+      align-items: end;
+    }
+
+    .filter-group label {
+      display: block;
+      color: #5c1a1a;
+      font-size: 12px;
+      margin-bottom: 4px;
+      font-weight: bold;
+    }
+
+    input,
+    select {
+      height: 28px !important;
+      padding: 3px 6px !important;
+      border: 1px solid #b48787 !important;
+      background: #fffdfd !important;
+      font-family: inherit !important;
+      font-size: 12px !important;
+      width: 100%;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      color: #421414 !important;
+    }
+
+    input:focus,
+    select:focus {
+      outline: 2px solid rgba(139, 0, 0, .22);
+      border-color: #8b0000 !important;
+    }
+
+    button {
+      height: 28px;
+      padding: 0 10px;
+      border: 1px solid #9a5a5a;
+      background: linear-gradient(#fffefe, #ecd7d7);
+      font-size: 12px;
+      font-weight: 700;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      color: #4d1818;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+
+    button.primary {
+      color: #fff;
+      border-color: #7f0a0a;
+      background: linear-gradient(180deg, #b40000 0%, #8f0000 55%, #6e0000 100%);
+    }
+
+    button:hover {
+      filter: brightness(0.98);
+    }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(150px, 1fr));
+      gap: 8px;
+      padding: 10px;
+      background: #fffafa;
+    }
+
+    .kpi {
+      border: 1px solid #d8bcbc;
+      background: #fffafa;
+      padding: 8px 10px;
+      box-shadow: var(--shadow);
+    }
+
+    .kpi span {
+      display: block;
+      font-size: 11px;
+      color: #7a0000;
+      font-weight: 800;
+      margin-bottom: 5px;
+      text-transform: uppercase;
+    }
+
+    .kpi strong {
+      font-size: 22px;
+      color: #4a1111;
+    }
+
+    .kpi.bajo strong {
+      color: var(--bajo-text);
+    }
+
+    .kpi.ok strong {
+      color: var(--ok-text);
+    }
+
+    .table-wrap {
+      flex: 1;
+      min-height: 220px;
+      overflow: auto;
+      max-height: none;
+      background: #fffafa;
+      width: 100%;
+      position: relative;
+      border-top: 1px solid #d9b8b8;
+    }
+
+    table {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: separate !important;
+      border-spacing: 0 !important;
+      font-size: 12px;
+      background: #fffafa;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+      color: #fff !important;
+      border-top: 1px solid #c46a6a;
+      border-right: 1px solid #8e3b3b;
+      border-bottom: 1px solid #5c0000;
+      padding: 6px 5px;
+      text-align: left;
+      white-space: nowrap;
+      font-size: 12px;
+      line-height: 1.2;
+      box-shadow: 0 2px 0 #6f1d1d;
+    }
+
+    tbody td {
+      background: #fffafa;
+      border-right: 1px solid #d8bcbc;
+      border-bottom: 1px solid #d8bcbc;
+      padding: 5px;
+      white-space: nowrap;
+      vertical-align: middle;
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.2;
+      color: #111111;
+    }
+
+    tbody tr:nth-child(even) td {
+      background: #f9eded;
+    }
+
+    tbody tr:hover td {
+      background: #f4dddd;
+    }
+
+    th:first-child,
+    td:first-child {
+      border-left: 1px solid #d8bcbc;
+    }
+
+    .sticky-master {
+      position: sticky;
+      left: 0;
+      z-index: 12;
+      min-width: 120px;
+      width: 120px;
+    }
+
+    .sticky-sku {
+      position: sticky;
+      left: 120px;
+      z-index: 12;
+      min-width: 80px;
+      width: 80px;
+      font-weight: 800;
+    }
+
+    thead .sticky-master,
+    thead .sticky-sku {
+      z-index: 25;
+    }
+
+    tbody .sticky-master,
+    tbody .sticky-sku {
+      background: inherit;
+    }
+
+    .producto {
+      min-width: 300px;
+      max-width: 360px;
+    }
+
+    .num {
+      text-align: right !important;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .actual-input {
+      width: 95px;
+      text-align: right;
+      font-weight: 700;
+      background: #f7f1f1 !important;
+      color: #2f1515 !important;
+    }
+
+    .actual-input[readonly] {
+      cursor: default;
+    }
+
+    .badge {
+      display: inline-block;
+      min-width: 130px;
+      text-align: center;
+      padding: 4px 8px;
+      border: 1px solid transparent;
+      font-size: 11px;
+      font-weight: 800;
+      border-radius: 2px;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    .status-bajo {
+      background: var(--bajo-bg);
+      border-color: #d9534f;
+      color: var(--bajo-text);
+    }
+
+    .status-min {
+      background: var(--min-bg);
+      border-color: #d6b656;
+      color: var(--min-text);
+    }
+
+    .status-ok {
+      background: var(--ok-bg);
+      border-color: #6aa84f;
+      color: var(--ok-text);
+    }
+
+    .status-sobre {
+      background: var(--sobre-bg);
+      border-color: #8e7cc3;
+      color: var(--sobre-text);
+    }
+
+    .status-sin {
+      background: var(--sin-bg);
+      border-color: #bbbbbb;
+      color: var(--sin-text);
+    }
+
+    .bar-wrap {
+      width: 120px;
+      height: 14px;
+      background: #f4eeee;
+      border: 1px solid #d8bcbc;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .bar-fill {
+      height: 100%;
+      width: 0%;
+      transition: width .2s;
+    }
+
+    .fill-bajo {
+      background: #dc2626;
+    }
+
+    .fill-min {
+      background: #f59e0b;
+    }
+
+    .fill-ok {
+      background: #16a34a;
+    }
+
+    .fill-sobre {
+      background: #7c3aed;
+    }
+
+    .fill-sin {
+      background: #999999;
+    }
+
+    .charts {
+      display: grid;
+      grid-template-columns: 1fr 1.4fr;
+      gap: 8px;
+      padding: 8px;
+      background: #fffafa;
+    }
+
+    .chart-card {
+      border: 1px solid #d8bcbc;
+      background: #fffafa;
+      padding: 8px;
+      min-height: 180px;
+    }
+
+    .chart-card h3 {
+      margin: 0 0 10px 0;
+      font-size: 12px;
+      color: #4a1111;
+      text-transform: uppercase;
+    }
+
+    .sem-row {
+      display: grid;
+      grid-template-columns: 150px 1fr 45px;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 12px;
+    }
+
+    .sem-bar {
+      height: 20px;
+      background: #f4eeee;
+      border: 1px solid #d8bcbc;
+      overflow: hidden;
+    }
+
+    .sem-fill {
+      height: 100%;
+      min-width: 3px;
+    }
+
+    .top-list {
+      display: grid;
+      gap: 7px;
+    }
+
+    .top-item {
+      display: grid;
+      grid-template-columns: 105px 1fr 90px;
+      gap: 8px;
+      align-items: center;
+      font-size: 11px;
+    }
+
+    .top-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .footer-note {
+      flex: 0 0 auto;
+      padding: 7px 10px;
+      font-size: 11px;
+      color: #4a1a1a;
+      border-top: 1px solid #b88c8c;
+      background: linear-gradient(#f6e9e9, #ead5d5);
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    @@media (max-width: 1100px) {
+      .filters {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .kpis {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .charts {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @@media (max-width: 650px) {
+      .minmax-layout2-root {
+        height: auto;
+        min-height: calc(100vh - var(--layout2-offset, 72px));
+        overflow: visible;
+      }
+
+      .app {
+        height: auto;
+        min-height: calc(100vh - var(--layout2-offset, 72px));
+        overflow: visible;
+      }
+
+      .filters,
+      .kpis {
+        grid-template-columns: 1fr;
+      }
+
+      .sticky-master,
+      .sticky-sku {
+        position: static;
+      }
+
+      table {
+        min-width: 1100px;
+      }
+    }
+  </style>
+
+<div class="minmax-layout2-root">
+<div class="app">
+    <div class="window">
+      <div class="titlebar">
+        <div>Indicador de Inventario Mínimos y Máximos</div>
+        <small>Inventario real desde SIGO · Semáforo por SKU</small>
+      </div>
+
+      <div class="content">
+
+        <div class="section">
+          <div class="section-title">Filtros</div>
+          <div class="filters">
+            <div class="filter-group">
+              <label>Buscar SKU / Producto / Master</label>
+              <input type="text" id="buscarInput" placeholder="Ej. N108, costilla, pulpa..." oninput="renderizar()" />
+            </div>
+
+            <div class="filter-group">
+              <label>Master</label>
+              <select id="masterSelect" onchange="renderizar()">
+                <option value="">Todos</option>
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <label>Estatus</label>
+              <select id="estatusSelect" onchange="renderizar()">
+                <option value="">Todos</option>
+                <option value="BAJO">Bajo mínimo</option>
+                <option value="MIN">Entre mínimo e ideal</option>
+                <option value="OK">Dentro de rango</option>
+                <option value="SOBRE">Sobre máximo</option>
+                <option value="SIN">Sin parámetro</option>
+              </select>
+            </div>
+
+            <button class="primary" type="button" onclick="cargarInventarioReal()">Actualizar inventario real</button>
+            <button type="button" onclick="exportarCSV()">Exportar CSV</button>
+            <button type="button" onclick="toggleFullscreen()">Pantalla completa</button>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Resumen ejecutivo</div>
+          <div class="kpis">
+            <div class="kpi">
+              <span>SKUs filtrados</span>
+              <strong id="kpiSkus">0</strong>
+            </div>
+            <div class="kpi bajo">
+              <span>Bajo mínimo</span>
+              <strong id="kpiBajo">0</strong>
+            </div>
+            <div class="kpi ok">
+              <span>Dentro de rango</span>
+              <strong id="kpiOk">0</strong>
+            </div>
+            <div class="kpi">
+              <span>Sobre máximo</span>
+              <strong id="kpiSobre">0</strong>
+            </div>
+            <div class="kpi">
+              <span>Inventario actual</span>
+              <strong id="kpiActual">0</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Semáforo de inventario</div>
+          <div class="charts">
+            <div class="chart-card">
+              <h3>Distribución por estatus</h3>
+              <div id="semaforoChart"></div>
+            </div>
+
+            <div class="chart-card">
+              <h3>Top 20 por máximo permitido</h3>
+              <div id="topChart" class="top-list"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section detalle-section">
+          <div class="section-title">Detalle por SKU</div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="sticky-master">Master</th>
+                  <th class="sticky-sku">SKU</th>
+                  <th class="producto">Producto</th>
+                  <th class="num">Total base</th>
+                  <th class="num">Inventario actual</th>
+                  <th class="num">Mínimo</th>
+                  <th class="num">Ideal</th>
+                  <th class="num">Máximo</th>
+                  <th class="num">% Máx</th>
+                  <th class="num">Días actual</th>
+                  <th class="num">Días inv. máx</th>
+                  <th>Indicador</th>
+                </tr>
+              </thead>
+              <tbody id="tablaBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="footer-note">
+        <div>Regla: Inventario actual &lt; mínimo = bajo mínimo; entre mínimo e ideal = alerta; ideal a máximo = dentro de rango; arriba de máximo = sobre inventario.</div>
+        <div id="fuenteDatos">Fuente base: INDICADOR DE INVENTARIO MIN-MAX (2).xlsx · Inventario actual: SIGO</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let datos = [{"master": "Costilla", "sku": "N108", "producto": "S-COSTILLA C/H BH NOV", "total": 1586821.6476638718, "minimo": 17389.826275768457, "ideal": 34779.652551536914, "maximo": 65211.848534131714, "diasMax": 15.0, "actual": 34779.652551536914}, {"master": "Pulpa Blanca", "sku": "N093", "producto": "S-PULPA BLANCA NOV", "total": 1518698.2972003089, "minimo": 16643.269010414344, "ideal": 33286.53802082869, "maximo": 87377.16230467531, "diasMax": 21.0, "actual": 33286.53802082869}, {"master": "Paleta", "sku": "N010", "producto": "S-PALETA S/H NOV", "total": 1185092.961939968, "minimo": 12987.320130848964, "ideal": 25974.64026169793, "maximo": 97404.90098136723, "diasMax": 30.0, "actual": 25974.64026169793}, {"master": "Pulpa Negra", "sku": "N012", "producto": "S-PULPA NEGRA NOV", "total": 1115705.7928012933, "minimo": 12226.912797822393, "ideal": 24453.825595644787, "maximo": 91701.84598366795, "diasMax": 30.0, "actual": 24453.825595644787}, {"master": "Chamberete", "sku": "N028", "producto": "S-CHAMBERETE C/H NOV", "total": 1025905.7135729978, "minimo": 11242.802340526003, "ideal": 22485.604681052006, "maximo": 126481.52633091754, "diasMax": 45.0, "actual": 22485.604681052006}, {"master": "Chuleton", "sku": "N065", "producto": "S-CHULETON SUPREMO NOV", "total": 877767.750625272, "minimo": 9619.372609592023, "ideal": 19238.745219184046, "maximo": 50501.70620035812, "diasMax": 21.0, "actual": 19238.745219184046}, {"master": "Pescuezo", "sku": "N039", "producto": "S-PESCUEZO S/H NOV", "total": 807972.3295662635, "minimo": 8854.491282917956, "ideal": 17708.98256583591, "maximo": 66408.68462188466, "diasMax": 30.0, "actual": 17708.98256583591}, {"master": "Diezmillo", "sku": "N080", "producto": "S-DIEZMILLO C/H NOV", "total": 794863.9424755177, "minimo": 8710.837725759098, "ideal": 17421.675451518196, "maximo": 65331.28294319323, "diasMax": 30.0, "actual": 17421.675451518196}, {"master": "Pulpa Pulpa", "sku": "R106", "producto": "S-PULPA PULPA RES 3 BOLSAS", "total": 763389.8999999999, "minimo": 8365.916712328766, "ideal": 16731.833424657532, "maximo": 62744.37534246575, "diasMax": 30.0, "actual": 16731.833424657532}, {"master": "Pescuezo", "sku": "N024", "producto": "S-PESCUEZO C/H NOV", "total": 733692.0112834938, "minimo": 8040.460397627329, "ideal": 16080.920795254659, "maximo": 42212.41708754348, "diasMax": 21.0, "actual": 16080.920795254659}, {"master": "Pulpa Bola", "sku": "N016", "producto": "S-PULPA BOLA NOV", "total": 704048.2890235777, "minimo": 7715.597687929619, "ideal": 15431.195375859237, "maximo": 57866.98265947214, "diasMax": 30.0, "actual": 15431.195375859237}, {"master": "T Bone", "sku": "N092", "producto": "S-T BONE SUPREMO NOV", "total": 691787.4594421384, "minimo": 7581.232432242613, "ideal": 15162.464864485226, "maximo": 56859.2432418196, "diasMax": 30.0, "actual": 15162.464864485226}, {"master": "Secundarios", "sku": "S010", "producto": "SEBO DE COBERTURA NOV", "total": 580917.4604983378, "minimo": 6366.218745187263, "ideal": 12732.437490374527, "maximo": 33422.64841223313, "diasMax": 21.0, "actual": 12732.437490374527}, {"master": "Recorte", "sku": "V181", "producto": "S-RECORTE 80/20 VG", "total": 552069.8159520237, "minimo": 6050.080174816699, "ideal": 12100.160349633397, "maximo": 31762.92091778767, "diasMax": 21.0, "actual": 12100.160349633397}, {"master": "Secundarios", "sku": "S006", "producto": "G-MENUDO RES", "total": 511224.89142857154, "minimo": 5602.4645636007845, "ideal": 11204.929127201569, "maximo": 105046.2105675147, "diasMax": 75.0, "actual": 11204.929127201569}, {"master": "Pecho", "sku": "N149", "producto": "S-PECHO S/H LIMPIO", "total": 508994.2790277108, "minimo": 5578.019496194091, "ideal": 11156.038992388181, "maximo": 41835.14622145568, "diasMax": 30.0, "actual": 11156.038992388181}, {"master": "Sirloin", "sku": "N044", "producto": "S-SIRLOIN NOV", "total": 506884.3183958252, "minimo": 5554.896639954249, "ideal": 11109.793279908497, "maximo": 16664.689919862747, "diasMax": 12.0, "actual": 11109.793279908497}, {"master": "Recorte", "sku": "R002", "producto": "S-RECORTE 90/10 RES", "total": 491400.0, "minimo": 5385.2054794520545, "ideal": 10770.410958904109, "maximo": 40389.04109589041, "diasMax": 30.0, "actual": 10770.410958904109}, {"master": "Sirloin", "sku": "N011", "producto": "S-TOP SIRLOIN NOV", "total": 438544.62416243076, "minimo": 4805.968483971844, "ideal": 9611.936967943688, "maximo": 54067.14544468324, "diasMax": 45.0, "actual": 9611.936967943688}, {"master": "Deshebrada", "sku": "V122", "producto": "S-DESHEBRADA BH VG", "total": 420566.9159021888, "minimo": 4608.952503037685, "ideal": 9217.90500607537, "maximo": 34567.14377278264, "diasMax": 30.0, "actual": 9217.90500607537}, {"master": "Secundarios", "sku": "S008", "producto": "G-PATAS RES", "total": 401386.8787922572, "minimo": 4398.7603155315865, "ideal": 8797.520631063173, "maximo": 82476.75591621724, "diasMax": 75.0, "actual": 8797.520631063173}, {"master": "Secundarios", "sku": "S003", "producto": "G-CABEZA RES", "total": 393547.7142857143, "minimo": 4312.851663405088, "ideal": 8625.703326810177, "maximo": 22642.471232876713, "diasMax": 21.0, "actual": 8625.703326810177}, {"master": "Secundarios", "sku": "S015", "producto": "G-TRIPA DELGADA RES", "total": 377805.80571428576, "minimo": 4140.337596868885, "ideal": 8280.67519373777, "maximo": 31052.53197651664, "diasMax": 30.0, "actual": 8280.67519373777}, {"master": "Diezmillo", "sku": "N040", "producto": "S-DIEZMILLO S/H NOV", "total": 345159.4457454127, "minimo": 3782.569268442879, "ideal": 7565.138536885758, "maximo": 19858.488659325114, "diasMax": 21.0, "actual": 7565.138536885758}, {"master": "Short Rib", "sku": "N109", "producto": "S-SHORT RIB SUPREMO BH NOV", "total": 344623.9489777172, "minimo": 3776.700810714709, "ideal": 7553.401621429418, "maximo": 19827.67925625222, "diasMax": 21.0, "actual": 7553.401621429418}, {"master": "Valor Agregado", "sku": "R105", "producto": "S-ARRACHERA SKIRT STEAK", "total": 332549.27857608296, "minimo": 3644.3756556283065, "ideal": 7288.751311256613, "maximo": 27332.8174172123, "diasMax": 30.0, "actual": 7288.751311256613}, {"master": "Pulpa Blanca", "sku": "V045", "producto": "S-PULPA BLANCA SUPREMO VG", "total": 310302.5376604296, "minimo": 3400.57575518279, "ideal": 6801.15151036558, "maximo": 25504.318163870925, "diasMax": 30.0, "actual": 6801.15151036558}, {"master": "Paleta", "sku": "V029", "producto": "S-PALETA S/H VG", "total": 303599.282735855, "minimo": 3327.115427242247, "ideal": 6654.230854484494, "maximo": 37430.048556475274, "diasMax": 45.0, "actual": 6654.230854484494}, {"master": "Costilla", "sku": "N160", "producto": "S-COSTILLA CARGADA 6-8", "total": 290567.7695252863, "minimo": 3184.304323564781, "ideal": 6368.608647129562, "maximo": 23882.28242673586, "diasMax": 30.0, "actual": 6368.608647129562}, {"master": "Recorte", "sku": "N023", "producto": "G-RECORTE 80/20 NOV", "total": 288000.0, "minimo": 3156.1643835616437, "ideal": 6312.328767123287, "maximo": 9468.493150684932, "diasMax": 12.0, "actual": 6312.328767123287}, {"master": "Diezmillo", "sku": "N148", "producto": "S-DIEZMILLO C/H NORTEÑO", "total": 276969.31618863496, "minimo": 3035.2801774096984, "ideal": 6070.560354819397, "maximo": 9105.840532229095, "diasMax": 12.0, "actual": 6070.560354819397}, {"master": "Secundarios", "sku": "S004", "producto": "G-HIGADO RES", "total": 266838.17142857146, "minimo": 2924.253933463797, "ideal": 5848.507866927594, "maximo": 21931.904500978475, "diasMax": 30.0, "actual": 5848.507866927594}, {"master": "Pulpa Negra", "sku": "V044", "producto": "S-PULPA NEGRA SUPREMO VG", "total": 258998.019034755, "minimo": 2838.3344551753976, "ideal": 5676.668910350795, "maximo": 31931.262620723224, "diasMax": 45.0, "actual": 5676.668910350795}, {"master": "Costilla", "sku": "V127", "producto": "S-COSTILLA C/H H VG", "total": 241884.42155070338, "minimo": 2650.788181377571, "ideal": 5301.576362755142, "maximo": 13916.63795223225, "diasMax": 21.0, "actual": 5301.576362755142}, {"master": "Chuleton", "sku": "V008", "producto": "S-CHULETON VG", "total": 228836.64566262503, "minimo": 2507.7988565767128, "ideal": 5015.5977131534255, "maximo": 13165.943997027742, "diasMax": 21.0, "actual": 5015.5977131534255}, {"master": "T Bone", "sku": "V013", "producto": "S-T BONE VG", "total": 196356.30839825002, "minimo": 2151.849955049315, "ideal": 4303.69991009863, "maximo": 11297.212264008906, "diasMax": 21.0, "actual": 4303.69991009863}, {"master": "Pulpa Bola", "sku": "N094", "producto": "S-PULPA BOLA SUPREMO NOV", "total": 184985.76466977753, "minimo": 2027.2412566550963, "ideal": 4054.4825133101926, "maximo": 22806.464137369832, "diasMax": 45.0, "actual": 4054.4825133101926}, {"master": "Secundarios", "sku": "S025", "producto": "G-TRIPA GRUESA RES", "total": 180145.15581485647, "minimo": 1974.1934883819886, "ideal": 3948.386976763977, "maximo": 14806.451162864914, "diasMax": 30.0, "actual": 3948.386976763977}, {"master": "Paleta", "sku": "N140", "producto": "S-CUÑA BH NOV", "total": 178744.38720015713, "minimo": 1958.8425994537768, "ideal": 3917.6851989075535, "maximo": 14691.319495903326, "diasMax": 30.0, "actual": 3917.6851989075535}, {"master": "Fajita Falda", "sku": "Y019", "producto": "MPC-FAJITA FALDA NOV", "total": 178130.66691801554, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "Secundarios", "sku": "S105", "producto": "G-LIBRILLO RES", "total": 177096.4714285714, "minimo": 1940.7832485322895, "ideal": 3881.566497064579, "maximo": 14555.87436399217, "diasMax": 30.0, "actual": 3881.566497064579}, {"master": "Valor Agregado", "sku": "R021", "producto": "S-NORTEÑA", "total": 177000.0, "minimo": 1939.7260273972602, "ideal": 3879.4520547945203, "maximo": 21821.917808219176, "diasMax": 45.0, "actual": 3879.4520547945203}, {"master": "Secundarios", "sku": "S111", "producto": "G-CACHETE DE RES", "total": 173160.99428571432, "minimo": 1897.654731898239, "ideal": 3795.309463796478, "maximo": 21348.61573385519, "diasMax": 45.0, "actual": 3795.309463796478}, {"master": "Recorte", "sku": "R050", "producto": "G-RECORTE #15 (CG) RES", "total": 157247.99999999997, "minimo": 1723.2657534246573, "ideal": 3446.5315068493146, "maximo": 19386.739726027394, "diasMax": 45.0, "actual": 3446.5315068493146}, {"master": "Deshebrada", "sku": "N207", "producto": "G-EMPUJE NOV", "total": 154396.43083510862, "minimo": 1692.015680384752, "ideal": 3384.031360769504, "maximo": 5076.047041154256, "diasMax": 12.0, "actual": 3384.031360769504}, {"master": "Pecho", "sku": "N158", "producto": "S-FALDA DE PECHO NOV", "total": 147709.74377901765, "minimo": 1618.7369181262209, "ideal": 3237.4738362524417, "maximo": 18210.790328919986, "diasMax": 45.0, "actual": 3237.4738362524417}, {"master": "Recorte", "sku": "R107", "producto": "S-RECORTE #8 BH RES", "total": 146966.4, "minimo": 1610.5906849315068, "ideal": 3221.1813698630135, "maximo": 18119.14520547945, "diasMax": 45.0, "actual": 3221.1813698630135}, {"master": "T Bone", "sku": "Y020", "producto": "H-MPC NEW YORK NOV", "total": 144270.17449249202, "minimo": 1581.0430081368988, "ideal": 3162.0860162737977, "maximo": 8300.475792718718, "diasMax": 21.0, "actual": 3162.0860162737977}, {"master": "Secundarios", "sku": "S016", "producto": "G-BOFE RES", "total": 142340.93456801152, "minimo": 1559.9006528001262, "ideal": 3119.8013056002524, "maximo": 11699.254896000946, "diasMax": 30.0, "actual": 3119.8013056002524}, {"master": "Pescuezo", "sku": "N041", "producto": "G-RETAZO 60/40 NOV", "total": 141292.7413746126, "minimo": 1548.4136041053437, "ideal": 3096.8272082106873, "maximo": 29032.755076975194, "diasMax": 75.0, "actual": 3096.8272082106873}, {"master": "Costilla", "sku": "Y106", "producto": "H-MPC COSTILLA C/H NOV", "total": 140289.8467118148, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "Recorte", "sku": "R115", "producto": "S-RECORTE 90/10 H RES", "total": 139103.99999999997, "minimo": 1524.4273972602737, "ideal": 3048.8547945205473, "maximo": 11433.205479452052, "diasMax": 30.0, "actual": 3048.8547945205473}, {"master": "Chamberete", "sku": "R032", "producto": "S-CHAMBERETE C/H RES", "total": 136079.99999999997, "minimo": 1491.2876712328764, "ideal": 2982.575342465753, "maximo": 27961.643835616433, "diasMax": 75.0, "actual": 2982.575342465753}, {"master": "Chuleton", "sku": "N133", "producto": "S-EXPORT RIB NOV", "total": 126936.96855269429, "minimo": 1391.0900663308964, "ideal": 2782.180132661793, "maximo": 15649.763246222585, "diasMax": 45.0, "actual": 2782.180132661793}, {"master": "Secundarios", "sku": "S087", "producto": "G-TRIPERO RES", "total": 118064.31428571431, "minimo": 1293.8554990215266, "ideal": 2587.710998043053, "maximo": 6792.741369863014, "diasMax": 21.0, "actual": 2587.710998043053}, {"master": "Secundarios", "sku": "S043", "producto": "G-HUESO PERICO", "total": 116749.94781484478, "minimo": 1279.4514829024085, "ideal": 2558.902965804817, "maximo": 23989.71530442016, "diasMax": 75.0, "actual": 2558.902965804817}, {"master": "Paleta", "sku": "N003", "producto": "S-PALETA C/H NOV", "total": 112514.29341655159, "minimo": 1233.0333525101544, "ideal": 2466.0667050203087, "maximo": 6473.425100678311, "diasMax": 21.0, "actual": 2466.0667050203087}, {"master": "Secundarios", "sku": "S018", "producto": "G-CUAJO RES", "total": 106257.88285714286, "minimo": 1164.4699491193737, "ideal": 2328.9398982387474, "maximo": 13100.286927592955, "diasMax": 45.0, "actual": 2328.9398982387474}, {"master": "Pulpa Blanca", "sku": "V068", "producto": "S-PULPA BLANCA VG", "total": 102061.84733482402, "minimo": 1118.4859981898524, "ideal": 2236.9719963797047, "maximo": 12582.96747963584, "diasMax": 45.0, "actual": 2236.9719963797047}, {"master": "T Bone", "sku": "N097", "producto": "G-FILETE CAÑA INDIVIDUAL + 1.6 NOV", "total": 97173.08881454298, "minimo": 1064.910562351156, "ideal": 2129.821124702312, "maximo": 5590.780452343569, "diasMax": 21.0, "actual": 2129.821124702312}, {"master": "Costilla", "sku": "V144", "producto": "S-COSTILLA  S/H H VG", "total": 91554.34405349552, "minimo": 1003.335277298581, "ideal": 2006.670554597162, "maximo": 5267.51020581755, "diasMax": 21.0, "actual": 2006.670554597162}, {"master": "Chuleton", "sku": "N071", "producto": "S-RIB EYE NOV", "total": 89985.12499836218, "minimo": 986.1383561464348, "ideal": 1972.2767122928697, "maximo": 11094.056506647392, "diasMax": 45.0, "actual": 1972.2767122928697}, {"master": "Pulpa Negra", "sku": "V087", "producto": "S-PULPA NEGRA VG", "total": 86439.9031262625, "minimo": 947.2866096028768, "ideal": 1894.5732192057535, "maximo": 10656.974358032363, "diasMax": 45.0, "actual": 1894.5732192057535}, {"master": "Short Rib", "sku": "V146", "producto": "S-SHORT RIB BH VG", "total": 84908.07863503687, "minimo": 930.4994918908151, "ideal": 1860.9989837816302, "maximo": 4885.122332426779, "diasMax": 21.0, "actual": 1860.9989837816302}, {"master": "T Bone", "sku": "V125", "producto": "S-NEW YORK VR", "total": 83873.67222390651, "minimo": 919.1635312208933, "ideal": 1838.3270624417867, "maximo": 10340.58972623505, "diasMax": 45.0, "actual": 1838.3270624417867}, {"master": "Secundarios", "sku": "S009", "producto": "G-CORAZON RES", "total": 82645.02, "minimo": 905.6988493150685, "ideal": 1811.397698630137, "maximo": 10189.112054794521, "diasMax": 45.0, "actual": 1811.397698630137}, {"master": "T Bone", "sku": "N060", "producto": "S-NEW YORK NOV", "total": 81323.45521242356, "minimo": 891.2159475334089, "ideal": 1782.4318950668178, "maximo": 4678.883724550396, "diasMax": 21.0, "actual": 1782.4318950668178}, {"master": "Secundarios", "sku": "S060", "producto": "G-LENGUA RES", "total": 80677.28142857144, "minimo": 884.1345909980432, "ideal": 1768.2691819960864, "maximo": 13262.018864970649, "diasMax": 60.0, "actual": 1768.2691819960864}, {"master": "Arrachera", "sku": "Y038", "producto": "MPC-ARRACHERA CONCHA NOV", "total": 80547.66756018983, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "Secundarios", "sku": "S012", "producto": "G-COLAS RES", "total": 78709.54285714286, "minimo": 862.5703326810177, "ideal": 1725.1406653620354, "maximo": 9703.91624266145, "diasMax": 45.0, "actual": 1725.1406653620354}, {"master": "Arrachera", "sku": "N029", "producto": "G-ARRACHERA IN SIDE NOV", "total": 76978.54744535201, "minimo": 843.6005199490631, "ideal": 1687.2010398981263, "maximo": 4428.902729732581, "diasMax": 21.0, "actual": 1687.2010398981263}, {"master": "Paleta", "sku": "V005", "producto": "S-PALETA C/H VG", "total": 75481.14552847834, "minimo": 827.1906359285298, "ideal": 1654.3812718570596, "maximo": 4342.750838624781, "diasMax": 21.0, "actual": 1654.3812718570596}, {"master": "Chuleton", "sku": "V075", "producto": "S-RIB EYE VR", "total": 75296.281296977, "minimo": 825.1647265422138, "ideal": 1650.3294530844275, "maximo": 9283.103173599904, "diasMax": 45.0, "actual": 1650.3294530844275}, {"master": "Arrachera", "sku": "N036", "producto": "G-ARRACHERA OUT SIDE NOV", "total": 75232.60946418202, "minimo": 824.4669530321318, "ideal": 1648.9339060642635, "maximo": 4328.451503418692, "diasMax": 21.0, "actual": 1648.9339060642635}, {"master": "Arrachera", "sku": "Y005", "producto": "MPC-ARRACHERA IN SIDE NOV", "total": 75034.19460261261, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "Chuleton", "sku": "N084", "producto": "G-BACK RIB NOV", "total": 72947.7507512373, "minimo": 799.4274054930115, "ideal": 1598.854810986023, "maximo": 4196.993878838311, "diasMax": 21.0, "actual": 1598.854810986023}, {"master": "Pulpa Negra", "sku": "N203", "producto": "H-PULPA NEGRA SUPREMO NOV", "total": 72000.0, "minimo": 789.0410958904109, "ideal": 1578.0821917808219, "maximo": 2367.123287671233, "diasMax": 12.0, "actual": 1578.0821917808219}, {"master": "Deshebrada", "sku": "N082", "producto": "G-SUADERO NOV", "total": 69184.36695154897, "minimo": 758.1848433046463, "ideal": 1516.3696866092926, "maximo": 3980.470427349393, "diasMax": 21.0, "actual": 1516.3696866092926}, {"master": "T Bone", "sku": "N057", "producto": "G-CABEZA DE FILETE NOV", "total": 68502.39706056597, "minimo": 750.7112006637367, "ideal": 1501.4224013274734, "maximo": 5630.334004978025, "diasMax": 30.0, "actual": 1501.4224013274734}, {"master": "Chuleton", "sku": "Y012", "producto": "H-MPC RIB EYE NOV", "total": 63854.491432179915, "minimo": 699.7752485718347, "ideal": 1399.5504971436694, "maximo": 10496.628728577522, "diasMax": 60.0, "actual": 1399.5504971436694}, {"master": "Chamberete", "sku": "R016", "producto": "S-CHAMBERETE S/H RES", "total": 63504.0, "minimo": 695.9342465753425, "ideal": 1391.868493150685, "maximo": 10439.013698630137, "diasMax": 60.0, "actual": 1391.868493150685}, {"master": "Sirloin", "sku": "V163", "producto": "S-TOP SIRLOIN SELECTO VG", "total": 63166.12144690624, "minimo": 692.2314679113013, "ideal": 1384.4629358226025, "maximo": 5191.73600933476, "diasMax": 30.0, "actual": 1384.4629358226025}, {"master": "Secundarios", "sku": "S069", "producto": "G-HUESO TUETANERO", "total": 62247.881246129524, "minimo": 682.1685616014195, "ideal": 1364.337123202839, "maximo": 5116.264212010646, "diasMax": 30.0, "actual": 1364.337123202839}, {"master": "Pescuezo", "sku": "V001", "producto": "S-PESCUEZO C/H VG", "total": 60102.832535459995, "minimo": 658.6611784707944, "ideal": 1317.3223569415889, "maximo": 7409.938257796437, "diasMax": 45.0, "actual": 1317.3223569415889}, {"master": "Secundarios", "sku": "S113", "producto": "G-PATA REBANADA A GRANEL", "total": 60000.0, "minimo": 657.5342465753424, "ideal": 1315.0684931506848, "maximo": 7397.260273972603, "diasMax": 45.0, "actual": 1315.0684931506848}, {"master": "Diezmillo", "sku": "V101", "producto": "S-AGUJA REGIA VG", "total": 56153.11001256958, "minimo": 615.3765480829543, "ideal": 1230.7530961659086, "maximo": 6922.9861659332355, "diasMax": 45.0, "actual": 1230.7530961659086}, {"master": "Paleta", "sku": "N137", "producto": "S-PLATANILLO BH NOV", "total": 55906.91193832925, "minimo": 612.678486995389, "ideal": 1225.356973990778, "maximo": 4595.088652465418, "diasMax": 30.0, "actual": 1225.356973990778}, {"master": "Diezmillo", "sku": "V069", "producto": "S-DIEZMILLO S/H VG", "total": 50227.924958640004, "minimo": 550.4430132453699, "ideal": 1100.8860264907398, "maximo": 2889.8258195381923, "diasMax": 21.0, "actual": 1100.8860264907398}, {"master": "Secundarios", "sku": "S114", "producto": "G-HIGADO REBANADO 0.5KG", "total": 48000.0, "minimo": 526.027397260274, "ideal": 1052.054794520548, "maximo": 5917.808219178083, "diasMax": 45.0, "actual": 1052.054794520548}, {"master": "Diezmillo", "sku": "V182", "producto": "G-COSTILLA DE DIEZMILLO VG", "total": 47722.687167943106, "minimo": 522.9883525254039, "ideal": 1045.9767050508078, "maximo": 9806.031609851323, "diasMax": 75.0, "actual": 1045.9767050508078}, {"master": "Secundarios", "sku": "S089", "producto": "G-HUESO ROJO", "total": 47313.6730146811, "minimo": 518.5060056403408, "ideal": 1037.0120112806817, "maximo": 5833.192563453835, "diasMax": 45.0, "actual": 1037.0120112806817}, {"master": "Valor Agregado", "sku": "R086", "producto": "G-ARRACHERA TORONOVO", "total": 46445.805642671075, "minimo": 508.9951303306419, "ideal": 1017.9902606612839, "maximo": 2672.22443423587, "diasMax": 21.0, "actual": 1017.9902606612839}, {"master": "Pulpa Bola", "sku": "N202", "producto": "H-PULPA BOLA SUPREMO NOV", "total": 46000.0, "minimo": 504.1095890410959, "ideal": 1008.2191780821918, "maximo": 1512.3287671232877, "diasMax": 12.0, "actual": 1008.2191780821918}, {"master": "Arrachera", "sku": "N049", "producto": "G-ARRACHERA GALLO NOV", "total": 45982.82099686235, "minimo": 503.92132599301203, "ideal": 1007.8426519860241, "maximo": 5669.114917421385, "diasMax": 45.0, "actual": 1007.8426519860241}, {"master": "Chuleton", "sku": "N130", "producto": "S-RIB CAP CON GRASA NOV", "total": 43475.18646199248, "minimo": 476.44039958347923, "ideal": 952.8807991669585, "maximo": 5359.954495314141, "diasMax": 45.0, "actual": 952.8807991669585}, {"master": "Fajita Falda", "sku": "Y022", "producto": "MPC-FAJITA FALDA VG", "total": 41629.36735147667, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "Secundarios", "sku": "S104", "producto": "G- HUESO HUMERO", "total": 35654.6001606811, "minimo": 390.73534422664216, "ideal": 781.4706884532843, "maximo": 1172.2060326799265, "diasMax": 12.0, "actual": 781.4706884532843}, {"master": "Costilla", "sku": "N205", "producto": "G-COSTILLA C/H NOV", "total": 34675.0, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "Secundarios", "sku": "S077", "producto": "G-LABIO RES", "total": 33451.55571428572, "minimo": 366.5923913894326, "ideal": 733.1847827788652, "maximo": 4124.164403131116, "diasMax": 45.0, "actual": 733.1847827788652}, {"master": "Secundarios", "sku": "S098", "producto": "G-TRAQUEA RES", "total": 27548.340000000004, "minimo": 301.8996164383562, "ideal": 603.7992328767124, "maximo": 1584.97298630137, "diasMax": 21.0, "actual": 603.7992328767124}, {"master": "Secundarios", "sku": "S101", "producto": "G-RECTO RES", "total": 27548.340000000004, "minimo": 301.8996164383562, "ideal": 603.7992328767124, "maximo": 1584.97298630137, "diasMax": 21.0, "actual": 603.7992328767124}, {"master": "T Bone", "sku": "V139", "producto": "G-FILETE CAÑA INDIVIDUAL VG", "total": 26818.621987935006, "minimo": 293.90270671709595, "ideal": 587.8054134341919, "maximo": 1542.9892102647536, "diasMax": 21.0, "actual": 587.8054134341919}, {"master": "Secundarios", "sku": "S110", "producto": "G-RECORTE CABEZA DESHUESADA RES", "total": 25580.60142857143, "minimo": 280.3353581213307, "ideal": 560.6707162426615, "maximo": 3153.772778864971, "diasMax": 45.0, "actual": 560.6707162426615}, {"master": "Secundarios", "sku": "S096", "producto": "G-Pata Rebanada Res", "total": 24283.51993643459, "minimo": 266.12076642668046, "ideal": 532.2415328533609, "maximo": 4989.764370500258, "diasMax": 75.0, "actual": 532.2415328533609}, {"master": "Valor Agregado", "sku": "N121", "producto": "S-RIB EYE NOV 350 G", "total": 24000.0, "minimo": 263.013698630137, "ideal": 526.027397260274, "maximo": 1972.6027397260277, "diasMax": 30.0, "actual": 526.027397260274}, {"master": "Secundarios", "sku": "S115", "producto": "G-MENUDO CUBICADO 1.5\" 1 KG", "total": 24000.0, "minimo": 263.013698630137, "ideal": 526.027397260274, "maximo": 1380.8219178082193, "diasMax": 21.0, "actual": 526.027397260274}, {"master": "Valor Agregado", "sku": "N122", "producto": "S-NEW YORK NOV 350G", "total": 23500.0, "minimo": 257.5342465753425, "ideal": 515.068493150685, "maximo": 1931.5068493150686, "diasMax": 30.0, "actual": 515.068493150685}, {"master": "Chuleton", "sku": "V086", "producto": "S-LOMO DESHUESADO VG", "total": 21407.824327032, "minimo": 234.60629399487127, "ideal": 469.21258798974253, "maximo": 1231.6830434730741, "diasMax": 21.0, "actual": 469.21258798974253}, {"master": "Chuleton", "sku": "N066", "producto": "G-CHULETON SUPREMO NOV", "total": 20000.0, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "Arrachera", "sku": "Y013", "producto": "MPC-ARRACHERA CONCHA VG", "total": 19451.21987809, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "Pecho", "sku": "V006", "producto": "S-PECHO C/H VG", "total": 16411.289895, "minimo": 179.84975227397263, "ideal": 359.69950454794525, "maximo": 1348.8731420547947, "diasMax": 30.0, "actual": 359.69950454794525}, {"master": "Deshebrada", "sku": "V117", "producto": "G-SUADERO VG", "total": 15668.49846323667, "minimo": 171.7095721998539, "ideal": 343.4191443997078, "maximo": 1287.8217914989043, "diasMax": 30.0, "actual": 343.4191443997078}, {"master": "Paleta", "sku": "N047", "producto": "G-PALETA S/H NOV", "total": 15625.0, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "Chuleton", "sku": "NF66", "producto": "G-CHULETON SUPREMO NOV", "total": 13275.0, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "Secundarios", "sku": "S019", "producto": "G-MEDULA RES", "total": 9838.692857142858, "minimo": 107.82129158512721, "ideal": 215.64258317025443, "maximo": 1212.9895303326812, "diasMax": 45.0, "actual": 215.64258317025443}, {"master": "Costilla", "sku": "V305", "producto": "S-COSTILLA AGUJA VG", "total": 9813.013569216002, "minimo": 107.53987473113426, "ideal": 215.07974946226852, "maximo": 1209.8235907252604, "diasMax": 45.0, "actual": 215.07974946226852}, {"master": "Pescuezo", "sku": "N007", "producto": "G-PESCUEZO C/H NOV", "total": 9500.0, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "Chuleton", "sku": "V074", "producto": "G-BACK RIB VG", "total": 9377.879939999999, "minimo": 102.77128701369861, "ideal": 205.54257402739722, "maximo": 1156.1769789041093, "diasMax": 45.0, "actual": 205.54257402739722}, {"master": "Pulpa Blanca", "sku": "N045", "producto": "G-PULPA BLANCA SUPREMO NOV", "total": 6675.0, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "T Bone", "sku": "V150", "producto": "G-FILETE CAÑA INDIVIDUAL 1.3 VG", "total": 6630.1611175800035, "minimo": 72.65929991868497, "ideal": 145.31859983736993, "maximo": 817.4171240852058, "diasMax": 45.0, "actual": 145.31859983736993}, {"master": "Diezmillo", "sku": "N037", "producto": "G-DIEZMILLO C/H SUPREMO NOV", "total": 5775.0, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "Pecho", "sku": "NF149", "producto": "S-PECHO S/H LIMPIO", "total": 5250.0, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "Secundarios", "sku": "S090", "producto": "G-MOLLEJA VG", "total": 5116.120285714285, "minimo": 56.06707162426614, "ideal": 112.13414324853228, "maximo": 294.3521260273972, "diasMax": 21.0, "actual": 112.13414324853228}, {"master": "Paleta", "sku": "N017", "producto": "G-PALETA C/H NOV", "total": 3500.0, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "Diezmillo", "sku": "N030", "producto": "G-DIEZMILLO S/H NOV", "total": 2600.0, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "Valor Agregado", "sku": "N120", "producto": "S-TOMAHAWK NOV 450G", "total": 2400.0, "minimo": 26.301369863013697, "ideal": 52.602739726027394, "maximo": 138.08219178082192, "diasMax": 21.0, "actual": 52.602739726027394}, {"master": "Deshebrada", "sku": "NF82", "producto": "G-SUADERO NOV", "total": 1150.0, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "T Bone", "sku": "N056", "producto": "G-T BONE SUPREMO NOV", "total": 1000.0, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "T Bone", "sku": "NF97", "producto": "G-FILETE CAÑA INDIVIDUAL + 1.6 NOV", "total": 725.0, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "Sirloin", "sku": "N031", "producto": "G-TOP SIRLOIN NOV", "total": 0.0, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "Sirloin", "sku": "N038", "producto": "G-SIRLOIN NOV", "total": 0.0, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "Pulpa Bola", "sku": "N059", "producto": "G-PULPA BOLA SUPREMO NOV", "total": 0.0, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "Pulpa Negra", "sku": "N062", "producto": "G-PULPA NEGRA SUPREMO NOV", "total": 0.0, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "Short Rib", "sku": "N069", "producto": "G-SHORT RIB SUPREMO NOV", "total": 0.0, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "Secundarios", "sku": "S002", "producto": "G-CABEZA RES S/LENGUA", "total": 0.0, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "Diezmillo", "sku": "V010", "producto": "S-DIEZMILLO C/H VG", "total": 0.0, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}, {"master": "Sirloin", "sku": "V020", "producto": "S-TOP SIRLOIN VG", "total": 0.0, "minimo": 0.0, "ideal": 0.0, "maximo": 0.0, "diasMax": 0.0, "actual": 0.0}];
+
+    const CLAVES = {
+      BAJO: "Bajo mínimo",
+      MIN: "Entre mínimo e ideal",
+      OK: "Dentro de rango",
+      SOBRE: "Sobre máximo",
+      SIN: "Sin parámetro"
+    };
+
+    function formatoNumero(valor, decimales = 0) {
+      const n = Number(valor || 0);
+      return n.toLocaleString("es-MX", {
+        minimumFractionDigits: decimales,
+        maximumFractionDigits: decimales
+      });
+    }
+
+    function normalizar(valor) {
+      const n = Number(valor);
+      return Number.isFinite(n) ? n : 0;
+    }
+
+    function getVal(obj, ...keys) {
+      for (const k of keys) {
+        if (obj && obj[k] !== undefined && obj[k] !== null) return obj[k];
+      }
+      return null;
+    }
+
+    function normalizarSku(valor) {
+      return String(valor || "").trim().toUpperCase();
+    }
+
+    function setTextoFuente(texto) {
+      const el = document.getElementById("fuenteDatos");
+      if (el) el.textContent = texto;
+    }
+
+    async function cargarInventarioReal() {
+      try {
+        setTextoFuente("Cargando inventario real desde SIGO...");
+
+        const url = '@Url.Action("InventarioActualMinMax", "ProcesosCg")';
+
+        const resp = await fetch(url, {
+          method: "GET",
+          cache: "no-store",
+          headers: {
+            "Accept": "application/json"
+          }
+        });
+
+        if (!resp.ok) {
+          throw new Error("HTTP " + resp.status);
+        }
+
+        const json = await resp.json();
+
+        if (!json.ok) {
+          throw new Error(json.msg || json.error || "No se pudo consultar inventario real.");
+        }
+
+        const rows = Array.isArray(json.data) ? json.data : [];
+        const invPorSku = new Map();
+
+        rows.forEach(r => {
+          const sku = normalizarSku(getVal(r, "sku", "Sku", "SKU"));
+          if (!sku) return;
+
+          const kgActual = normalizar(getVal(r, "kgActual", "KgActual"));
+          const cajasActuales = normalizar(getVal(r, "cajasActuales", "CajasActuales"));
+          const lotes = normalizar(getVal(r, "lotes", "Lotes"));
+          const articulo = getVal(r, "producto", "Producto", "productoNombre", "ProductoNombre") || "";
+          const fechaActualizacion = getVal(r, "fechaActualizacion", "FechaActualizacion") || "";
+
+          const actual = invPorSku.get(sku) || {
+            sku: sku,
+            kgActual: 0,
+            cajasActuales: 0,
+            lotes: 0,
+            articulo: "",
+            fechaActualizacion: ""
+          };
+
+          actual.kgActual += kgActual;
+          actual.cajasActuales += cajasActuales;
+          actual.lotes += lotes;
+
+          if (!actual.articulo && articulo) {
+            actual.articulo = articulo;
+          }
+
+          if (fechaActualizacion) {
+            actual.fechaActualizacion = fechaActualizacion;
+          }
+
+          invPorSku.set(sku, actual);
+        });
+
+        let skusConInventarioReal = 0;
+
+        datos.forEach(item => {
+          const sku = normalizarSku(item.sku);
+          const real = invPorSku.get(sku);
+
+          if (real) {
+            item.actual = real.kgActual;
+            item.cajasActuales = real.cajasActuales;
+            item.lotes = real.lotes;
+            item.fechaActualizacion = real.fechaActualizacion;
+            skusConInventarioReal++;
+
+            if (real.articulo) {
+              item.producto = real.articulo;
+            }
+          } else {
+            item.actual = 0;
+            item.cajasActuales = 0;
+            item.lotes = 0;
+            item.fechaActualizacion = "";
+          }
+        });
+
+        llenarMasters();
+        renderizar();
+
+        const criterio = json.criterio || "SUM(Kg) agrupado por ProductoCodigo";
+
+        setTextoFuente(
+          `Fuente real: InventarioActualMinMax · Registros recibidos: ${formatoNumero(rows.length)} · SKUs cruzados: ${formatoNumero(skusConInventarioReal)} · Inventario actual: ${criterio}`
+        );
+      } catch (err) {
+        console.error(err);
+        alert("No se pudo cargar inventario real: " + (err.message || err));
+        setTextoFuente("Error al cargar inventario real. Revisa el endpoint InventarioActualMinMax y la consola del navegador.");
+      }
+    }
+
+    function toggleFullscreen() {
+      const el = document.querySelector(".minmax-layout2-root") || document.documentElement;
+
+      if (!document.fullscreenElement) {
+        if (el.requestFullscreen) {
+          el.requestFullscreen().catch(err => console.warn("No se pudo activar pantalla completa", err));
+        }
+      } else if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    }
+
+    function storageKey(sku) {
+      return "cg_minmax_actual_" + sku;
+    }
+
+    function cargarInventariosGuardados() {
+      datos.forEach(item => {
+        const guardado = localStorage.getItem(storageKey(item.sku));
+        if (guardado !== null) {
+          item.actual = normalizar(guardado);
+        }
+      });
+    }
+
+    function guardarInventario(sku, valor) {
+      const item = datos.find(x => x.sku === sku);
+      if (!item) return;
+
+      item.actual = normalizar(valor);
+      localStorage.setItem(storageKey(sku), item.actual);
+      renderizar();
+    }
+
+    function calcular(item) {
+      const actual = normalizar(item.actual);
+      const minimo = normalizar(item.minimo);
+      const ideal = normalizar(item.ideal);
+      const maximo = normalizar(item.maximo);
+      const diasMax = normalizar(item.diasMax);
+
+      let status = "SIN";
+
+      if (maximo <= 0 && ideal <= 0 && minimo <= 0) {
+        status = "SIN";
+      } else if (actual < minimo) {
+        status = "BAJO";
+      } else if (actual >= minimo && actual < ideal) {
+        status = "MIN";
+      } else if (actual >= ideal && actual <= maximo) {
+        status = "OK";
+      } else if (actual > maximo) {
+        status = "SOBRE";
+      }
+
+      const consumoDiario = maximo > 0 && diasMax > 0 ? maximo / diasMax : 0;
+      const diasActual = consumoDiario > 0 ? actual / consumoDiario : 0;
+      const pctMax = maximo > 0 ? (actual / maximo) * 100 : 0;
+
+      return { status, diasActual, pctMax };
+    }
+
+    function claseStatus(status) {
+      if (status === "BAJO") return "status-bajo";
+      if (status === "MIN") return "status-min";
+      if (status === "OK") return "status-ok";
+      if (status === "SOBRE") return "status-sobre";
+      return "status-sin";
+    }
+
+    function claseFill(status) {
+      if (status === "BAJO") return "fill-bajo";
+      if (status === "MIN") return "fill-min";
+      if (status === "OK") return "fill-ok";
+      if (status === "SOBRE") return "fill-sobre";
+      return "fill-sin";
+    }
+
+    function llenarMasters() {
+      const select = document.getElementById("masterSelect");
+      const valorActual = select.value;
+      const masters = [...new Set(datos.map(x => x.master).filter(Boolean))].sort();
+
+      select.innerHTML = `<option value="">Todos</option>`;
+
+      masters.forEach(master => {
+        const opt = document.createElement("option");
+        opt.value = master;
+        opt.textContent = master;
+        select.appendChild(opt);
+      });
+
+      if (masters.includes(valorActual)) {
+        select.value = valorActual;
+      }
+    }
+
+    function obtenerFiltrados() {
+      const buscar = document.getElementById("buscarInput").value.trim().toLowerCase();
+      const master = document.getElementById("masterSelect").value;
+      const estatus = document.getElementById("estatusSelect").value;
+
+      return datos.filter(item => {
+        const calc = calcular(item);
+        const texto = `${item.master} ${item.sku} ${item.producto}`.toLowerCase();
+
+        if (buscar && !texto.includes(buscar)) return false;
+        if (master && item.master !== master) return false;
+        if (estatus && calc.status !== estatus) return false;
+
+        return true;
+      });
+    }
+
+    function renderizar() {
+      const filtrados = obtenerFiltrados();
+      renderizarTabla(filtrados);
+      renderizarKPIs(filtrados);
+      renderizarSemaforo(filtrados);
+      renderizarTop(filtrados);
+    }
+
+    function renderizarTabla(lista) {
+      const tbody = document.getElementById("tablaBody");
+      tbody.innerHTML = "";
+
+      if (!lista.length) {
+        tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; padding:15px;">Sin resultados.</td></tr>`;
+        return;
+      }
+
+      lista.forEach(item => {
+        const calc = calcular(item);
+        const pctBar = Math.min(Math.max(calc.pctMax, 0), 120);
+        const tr = document.createElement("tr");
+
+        tr.innerHTML = `
+          <td class="sticky-master">${item.master}</td>
+          <td class="sticky-sku">${item.sku}</td>
+          <td class="producto" title="${item.producto}">${item.producto}</td>
+          <td class="num">${formatoNumero(item.total, 0)}</td>
+          <td class="num">
+            <input 
+              class="actual-input" 
+              type="number" 
+              value="${Math.round(item.actual)}"
+              readonly
+              title="Inventario actual real desde SIGO / InventarioSigo"
+            />
+          </td>
+          <td class="num">${formatoNumero(item.minimo, 0)}</td>
+          <td class="num">${formatoNumero(item.ideal, 0)}</td>
+          <td class="num">${formatoNumero(item.maximo, 0)}</td>
+          <td class="num">
+            <div class="bar-wrap" title="${formatoNumero(calc.pctMax, 1)}% del máximo">
+              <div class="bar-fill ${claseFill(calc.status)}" style="width:${pctBar}%;"></div>
+            </div>
+            ${formatoNumero(calc.pctMax, 1)}%
+          </td>
+          <td class="num">${formatoNumero(calc.diasActual, 1)}</td>
+          <td class="num">${formatoNumero(item.diasMax, 0)}</td>
+          <td><span class="badge ${claseStatus(calc.status)}">${CLAVES[calc.status]}</span></td>
+        `;
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderizarKPIs(lista) {
+      let bajo = 0;
+      let ok = 0;
+      let sobre = 0;
+      let actual = 0;
+
+      lista.forEach(item => {
+        const calc = calcular(item);
+        actual += normalizar(item.actual);
+
+        if (calc.status === "BAJO") bajo++;
+        if (calc.status === "OK") ok++;
+        if (calc.status === "SOBRE") sobre++;
+      });
+
+      document.getElementById("kpiSkus").textContent = formatoNumero(lista.length);
+      document.getElementById("kpiBajo").textContent = formatoNumero(bajo);
+      document.getElementById("kpiOk").textContent = formatoNumero(ok);
+      document.getElementById("kpiSobre").textContent = formatoNumero(sobre);
+      document.getElementById("kpiActual").textContent = formatoNumero(actual, 0);
+    }
+
+    function renderizarSemaforo(lista) {
+      const cont = document.getElementById("semaforoChart");
+      const conteos = { BAJO: 0, MIN: 0, OK: 0, SOBRE: 0, SIN: 0 };
+
+      lista.forEach(item => {
+        const calc = calcular(item);
+        conteos[calc.status]++;
+      });
+
+      const max = Math.max(...Object.values(conteos), 1);
+
+      cont.innerHTML = Object.keys(conteos).map(key => {
+        const pct = (conteos[key] / max) * 100;
+        return `
+          <div class="sem-row">
+            <div><span class="badge ${claseStatus(key)}">${CLAVES[key]}</span></div>
+            <div class="sem-bar">
+              <div class="sem-fill ${claseFill(key)}" style="width:${pct}%;"></div>
+            </div>
+            <div class="num">${conteos[key]}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderizarTop(lista) {
+      const cont = document.getElementById("topChart");
+      const top = [...lista]
+        .filter(x => normalizar(x.maximo) > 0)
+        .sort((a, b) => normalizar(b.maximo) - normalizar(a.maximo))
+        .slice(0, 20);
+
+      const max = Math.max(...top.map(x => normalizar(x.maximo)), 1);
+
+      cont.innerHTML = top.map(item => {
+        const calc = calcular(item);
+        const pct = (normalizar(item.maximo) / max) * 100;
+
+        return `
+          <div class="top-item">
+            <div><strong>${item.sku}</strong></div>
+            <div>
+              <div class="top-name" title="${item.producto}">${item.producto}</div>
+              <div class="bar-wrap" style="width:100%;">
+                <div class="bar-fill ${claseFill(calc.status)}" style="width:${pct}%;"></div>
+              </div>
+            </div>
+            <div class="num">${formatoNumero(item.maximo, 0)}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function restablecerIdeal() {
+      if (!confirm("¿Deseas restablecer el inventario actual al nivel ideal para todos los SKUs?")) return;
+
+      datos.forEach(item => {
+        item.actual = normalizar(item.ideal);
+        localStorage.setItem(storageKey(item.sku), item.actual);
+      });
+
+      renderizar();
+    }
+
+    function exportarCSV() {
+      const lista = obtenerFiltrados();
+      const encabezados = [
+        "MASTER", "SKU", "PRODUCTO", "TOTAL_BASE", "INVENTARIO_ACTUAL",
+        "MINIMO", "IDEAL", "MAXIMO", "PORCENTAJE_MAXIMO",
+        "DIAS_ACTUAL", "DIAS_INV_MAX", "INDICADOR"
+      ];
+
+      const filas = lista.map(item => {
+        const calc = calcular(item);
+        return [
+          item.master,
+          item.sku,
+          item.producto,
+          item.total,
+          item.actual,
+          item.minimo,
+          item.ideal,
+          item.maximo,
+          calc.pctMax,
+          calc.diasActual,
+          item.diasMax,
+          CLAVES[calc.status]
+        ];
+      });
+
+      const csv = [encabezados, ...filas]
+        .map(row => row.map(v => `"${String(v ?? "").replaceAll('"', '""')}"`).join(","))
+        .join("\n");
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "indicador_inventario_min_max.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    llenarMasters();
+    renderizar();
+    cargarInventarioReal();
+  </script>
+</div>

@@ -1628,6 +1628,22 @@
     </div>
 </div>
 
+<div class="pm-col-1">
+    <label class="form-label">Tipo SKU</label>
+    <div class="dropdown w-100" id="dd-tiposku">
+        <button class="btn-select-like"
+                type="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false">
+            <span class="multi-label">(Todos)</span>
+        </button>
+
+        <ul class="dropdown-menu w-100" id="dd-tiposku-list" style="max-height:220px; overflow-y:auto;">
+            <li class="px-2 text-muted small">Cargando...</li>
+        </ul>
+    </div>
+</div>
+
 
         
 
@@ -1994,6 +2010,7 @@ let MODO_VENDEDOR_CARGADO = false;
   const $txtClientes       = document.getElementById('txt-clientes');
   const $masterList        = document.getElementById('dd-master-list');
   const $clasificacionList = document.getElementById('dd-clasificacion-list');
+  const $tipoSkuList       = document.getElementById('dd-tiposku-list');
   const $skuList           = document.getElementById('dd-sku-list');
   const $tbody             = document.querySelector('#tbl-data tbody');
 
@@ -2405,6 +2422,57 @@ let MODO_VENDEDOR_CARGADO = false;
     initMultiDropdown('dd-clasificacion', 'multi-check-clasificacion');
   }
 
+  function poblarTiposSku(rows) {
+    if (!$tipoSkuList) return;
+
+    const prevSelected = getValoresSeleccionados('.multi-check-tiposku');
+
+    const tipos = Array.from(
+      new Map(
+        rows
+          .filter(r => r._tipoSkuId != null && String(r._tipoSkuId).trim() !== '')
+          .map(r => [
+            String(r._tipoSkuId).trim(),
+            {
+              id: String(r._tipoSkuId).trim(),
+              nombre: String(r._tipoSkuDesc || 'POR DEFINIR').toUpperCase().trim()
+            }
+          ])
+      ).values()
+    ).sort((a, b) => Number(a.id) - Number(b.id));
+
+    $tipoSkuList.innerHTML = `
+      <li class="px-2">
+        <div class="form-check">
+          <input class="form-check-input tiposku-check-all" type="checkbox" id="tiposku_all"/>
+          <label class="form-check-label fw-bold" for="tiposku_all">Seleccionar todo</label>
+        </div>
+      </li>
+      <li><hr class="dropdown-divider my-1"></li>
+    `;
+
+    if (!tipos.length) {
+      $tipoSkuList.innerHTML = `<li class="px-2 text-muted small">Sin tipos SKU.</li>`;
+      initMultiDropdown('dd-tiposku', 'multi-check-tiposku');
+      return;
+    }
+
+    tipos.forEach(t => {
+      const idHtml = 'tiposku_' + t.id.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const texto = `${t.id} - ${t.nombre}`;
+      const li = document.createElement('li');
+      li.className = 'px-2';
+      li.innerHTML = `
+        <div class="form-check">
+          <input class="form-check-input multi-check-tiposku" type="checkbox" value="${t.id}" id="${idHtml}" data-text="${texto}" ${prevSelected.includes(t.id) ? 'checked' : ''}/>
+          <label class="form-check-label" for="${idHtml}">${texto}</label>
+        </div>`;
+      $tipoSkuList.appendChild(li);
+    });
+
+    initMultiDropdown('dd-tiposku', 'multi-check-tiposku');
+  }
+
   function poblarSkus(rows) {
     if (!$skuList) return;
 
@@ -2492,6 +2560,7 @@ let MODO_VENDEDOR_CARGADO = false;
             Buscar: '',
             Masters: getValoresSeleccionados('.multi-check-master'),
             Clasificaciones: getValoresSeleccionados('.multi-check-clasificacion'),
+            TiposSKU: getValoresSeleccionados('.multi-check-tiposku'),
             Skus: getValoresSeleccionados('.multi-check-sku')
             };
             }
@@ -2554,6 +2623,11 @@ if (f.Masters.length) {
   if (f.Clasificaciones.length) {
     const setC = new Set(f.Clasificaciones.map(x => String(x).trim()));
     res = res.filter(r => setC.has(String(r._clasificacionId ?? '').trim()));
+  }
+
+  if (f.TiposSKU.length) {
+    const setT = new Set(f.TiposSKU.map(x => String(x).trim()));
+    res = res.filter(r => setT.has(String(r._tipoSkuId ?? '').trim()));
   }
 
   if (f.Skus.length) {
@@ -3636,6 +3710,28 @@ if (f.Masters.length) {
       ''
     ).toUpperCase().trim();
 
+    const tipoSkuId = String(
+      r.idTipoSKU ??
+      r.IdTipoSKU ??
+      r.tipoSKUId ??
+      r.TipoSKUId ??
+      r.u_TipoporSKU ??
+      r.U_TipoporSKU ??
+      r._tipoSkuId ??
+      ''
+    ).trim();
+
+    const tipoSkuDesc = String(
+      r.tipoSKUDescripcion ??
+      r.TipoSKUDescripcion ??
+      r.descripcionTipoSKU ??
+      r.DescripcionTipoSKU ??
+      r.descripcion ??
+      r.Descripcion ??
+      r._tipoSkuDesc ??
+      'POR DEFINIR'
+    ).toUpperCase().trim();
+
     return {
       ...r,
       _anio: anio,
@@ -3652,6 +3748,8 @@ if (f.Masters.length) {
       _master: master,
       _clasificacionId: clasificacionId,
       _clasificacionNombre: clasificacionNombre,
+      _tipoSkuId: tipoSkuId,
+      _tipoSkuDesc: tipoSkuDesc,
       _pres: presupuesto,
       _kg: pedidos,
       _kgSurtido: surtido,
@@ -3741,6 +3839,7 @@ data = normalizarData(raw, invIniMap, invActMap, ventaRealMap, devolucionesMapGl
       poblarCanales(data);
       poblarMasters(data);
       poblarClasificaciones(data);
+      poblarTiposSku(data);
       poblarSkus(data);
 
       if (!$selAnio.value) $selAnio.value = anioCarga;
@@ -3752,6 +3851,7 @@ data = normalizarData(raw, invIniMap, invActMap, ventaRealMap, devolucionesMapGl
       initMultiDropdown('dd-canal', 'multi-check-canal');
       initMultiDropdown('dd-master', 'multi-check-master');
       initMultiDropdown('dd-clasificacion', 'multi-check-clasificacion');
+      initMultiDropdown('dd-tiposku', 'multi-check-tiposku');
       initMultiDropdown('dd-sku', 'multi-check-sku');
 
       scheduleRender(0);
@@ -3821,6 +3921,14 @@ data = normalizarData(raw, invIniMap, invActMap, ventaRealMap, devolucionesMapGl
       return;
     }
 
+    if (e.target.classList.contains('tiposku-check-all')) {
+      document.querySelectorAll('.multi-check-tiposku').forEach(c => c.checked = e.target.checked);
+      setMultiLabel('dd-tiposku', '.multi-check-tiposku');
+      state.page = 1;
+      scheduleRender(0);
+      return;
+    }
+
     if (e.target.classList.contains('sku-check-all')) {
       document.querySelectorAll('.multi-check-sku').forEach(c => c.checked = e.target.checked);
       setMultiLabel('dd-sku', '.multi-check-sku');
@@ -3834,6 +3942,7 @@ data = normalizarData(raw, invIniMap, invActMap, ventaRealMap, devolucionesMapGl
       e.target.classList.contains('multi-check-canal') ||
       e.target.classList.contains('multi-check-master') ||
       e.target.classList.contains('multi-check-clasificacion') ||
+      e.target.classList.contains('multi-check-tiposku') ||
       e.target.classList.contains('multi-check-sku')
     ) {
       state.page = 1;
@@ -3852,10 +3961,10 @@ data = normalizarData(raw, invIniMap, invActMap, ventaRealMap, devolucionesMapGl
             if ($txtClientes) $txtClientes.value = "";
 
   document.querySelectorAll(
-    '.multi-check-origen,.multi-check-canal,.multi-check-master,.multi-check-clasificacion,.multi-check-sku,.canal-check-all,.master-check-all,.clasificacion-check-all,.sku-check-all'
+    '.multi-check-origen,.multi-check-canal,.multi-check-master,.multi-check-clasificacion,.multi-check-tiposku,.multi-check-sku,.canal-check-all,.master-check-all,.clasificacion-check-all,.tiposku-check-all,.sku-check-all'
   ).forEach(ch => ch.checked = false);
 
-  ['dd-origen', 'dd-canal', 'dd-master', 'dd-clasificacion', 'dd-sku'].forEach(rootId => {
+  ['dd-origen', 'dd-canal', 'dd-master', 'dd-clasificacion', 'dd-tiposku', 'dd-sku'].forEach(rootId => {
     const root = document.getElementById(rootId);
     const label = root?.querySelector('.multi-label');
     const btn = root?.querySelector('button.btn-select-like');

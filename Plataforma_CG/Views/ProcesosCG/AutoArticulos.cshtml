@@ -594,9 +594,6 @@
         }
     }
 
-
-
-
     /* AUTOARTICULOS - ajustes específicos con el estilo del primer código */
     .container-fluid {
         width: min(100%, calc(100vw - 48px)) !important;
@@ -865,6 +862,9 @@
             <p class="mb-0" style="font-size: 0.85rem; opacity: 0.85;">Control de acceso a producción por código QR y categorías permitidas.</p>
         </div>
         <div>
+            <button id="btnNuevoArticulo" class="btn btn-sm btn-outline-light fw-bold px-3 border-2 me-2" onclick="pedirAutorizacion('NUEVO_ARTICULO')">
+                <i class="bi bi-plus-circle-fill me-1"></i> Nuevo Artículo / Categoría
+            </button>
             <button id="btnCambiarPin" class="btn btn-sm btn-outline-light fw-bold px-3 border-2" onclick="abrirModalCambiarPin()">
                 <i class="bi bi-gear-fill me-1"></i> Cambiar PIN
             </button>
@@ -881,6 +881,11 @@
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="bitacora-tab" data-bs-toggle="tab" data-bs-target="#bitacora" type="button" role="tab" onclick="renderTablaBitacora()">
                 Bitácora de Excepciones
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="reportes-tab" data-bs-toggle="tab" data-bs-target="#reportes" type="button" role="tab" onclick="renderTablaReportes()">
+                </i> Reporte de Daños
             </button>
         </li>
     </ul>
@@ -903,7 +908,7 @@
                         </div>
 
                         <div class="input-group input-group-sm mt-auto">
-                            <input type="text" class="form-control text-center fw-bold" id="inputTokenManual" placeholder="Ingreso manual de empleado...">
+                            <input type="text" class="form-control text-center fw-bold" id="inputTokenManual" placeholder="Ingreso manual de empleado..." autocomplete="new-password">
                             <button class="btn btn-outline-secondary" type="button" onclick="simularEscaneo()">Validar</button>
                         </div>
                     </div>
@@ -1000,6 +1005,78 @@
                             <tr><td colspan="5" class="text-center text-muted py-4">Cargando bitácora...</td></tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="reportes" role="tabpanel">
+            <div class="row g-3">
+                <div class="col-12 col-lg-4">
+                    <div class="dashboard-panel p-3 p-md-4 h-100">
+                        <h6 class="fw-bold text-muted mb-3"></i>Registrar Hallazgo</h6>
+
+                        <div class="mb-3">
+                            <label class="form-label text-muted fw-bold small">EQUIPO / ÁREA *</label>
+                            <input type="text" class="form-control" id="inRepEquipo" placeholder="Ej. Lector QR Puerta 1">
+                        </div>
+                        <div class="mb-3">
+                            <select class="form-select border-secondary" id="inRepResponsable" style="width: 100%;">
+                                <option></option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label text-muted fw-bold small">TIPO DE OBSERVACIÓN *</label>
+                            <select class="form-select" id="inRepTipo">
+                                <option value="Dañado">Equipo Dañado</option>
+                                <option value="Estrellado">Pantalla / Cristal Estrellado</option>
+                                <option value="Sucio">Equipo Muy Sucio</option>
+                                <option value="Falla">Falla Eléctrica o de Red</option>
+                                <option value="No Autorizado">Equipo No Autorizado</option>
+                                <option value="Otro">Otro...</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label text-muted fw-bold small">EVIDENCIA FOTOGRÁFICA (Opcional)</label>
+                            <input type="file" class="form-control" id="inRepFoto" accept="image/*" capture="environment">
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label text-muted fw-bold small">DESCRIPCIÓN DEL DETALLE *</label>
+                            <textarea class="form-control" id="inRepDetalle" rows="3" placeholder="Detalle cómo encontró el equipo..."></textarea>
+                        </div>
+
+                        <button class="btn btn-brand w-100 fw-bold shadow-sm" onclick="guardarReporteDano()">Guardar Reporte</button>
+                    </div>
+                </div>
+
+                <div class="col-12 col-lg-8">
+                    <div class="dashboard-panel p-3 p-md-4 h-100">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="fw-bold text-muted mb-0">Historial de Observaciones</h6>
+                            <button class="btn btn-sm btn-outline-secondary fw-bold" onclick="renderTablaReportes()">
+                                <i class="bi bi-arrow-clockwise me-1"></i> Actualizar
+                            </button>
+                        </div>
+
+                        <div class="table-responsive border rounded" style="max-height: 450px;">
+                            <table class="table table-custom align-middle mb-0" style="min-width: 650px;">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Equipo / Área</th>
+                                        <th>Hallazgo y Detalle</th>
+                                        <th>Foto</th>
+                                        <th>Reportó</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbodyReportes">
+                                    <tr><td colspan="5" class="text-center text-muted">Cargando reportes...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1177,70 +1254,113 @@
     </div>
 </div>
 
+<div class="modal fade" id="modalNuevoArticulo" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header text-white" style="background-color: var(--brand-main);">
+                <h5 class="modal-title">Registrar Nuevo Artículo</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3">
+                    <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">NOMBRE DEL ARTÍCULO *</label>
+                    <input type="text" class="form-control border-danger" id="inNuevoArticuloNombre" placeholder="Ej. Laptops, Herramienta...">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">CLASIFICACIÓN (CRITICIDAD) *</label>
+                    <select class="form-select border-danger" id="inNuevoArticuloCriticidad">
+                        <option value="CRITICO">CRÍTICO</option>
+                        <option value="SEMICRITICO">SEMICRÍTICO</option>
+                        <option value="NO_CRITICO">NO CRÍTICO</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-between bg-light">
+                <button type="button" class="btn btn-outline-secondary fw-bold flex-grow-1 me-2" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-brand fw-bold flex-grow-1" onclick="guardarNuevoArticulo()">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalVerFoto" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg bg-dark">
+            <div class="modal-header border-0 pb-0">
+                <h6 class="modal-title text-white fw-bold"><i class="bi bi-camera-fill me-2"></i>Evidencia Fotográfica</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-2 text-center">
+                <img id="imgEvidenciaCompleta" src="" alt="Evidencia" style="max-width: 100%; max-height: 80vh; object-fit: contain; border-radius: 4px;">
+            </div>
+        </div>
+    </div>
+</div>
+
 <template id="plantillaGafete">
     <html>
     <head>
         <title>QR de {{NOMBRE}}</title>
         <style>
-                    body {
-                        font-family: sans-serif;
-                        text-align: center;
-                        padding: 40px;
-                        margin: 0;
-                    }
+            body {
+                font-family: sans-serif;
+                text-align: center;
+                padding: 40px;
+                margin: 0;
+            }
 
-                    .gafete {
-                        border: 3px solid #4a0e0e;
-                        padding: 20px;
-                        border-radius: 15px;
-                        display: inline-block;
-                        max-width: 90%;
-                    }
+            .gafete {
+                border: 3px solid #4a0e0e;
+                padding: 20px;
+                border-radius: 15px;
+                display: inline-block;
+                max-width: 90%;
+            }
 
-                    .empresa {
-                        color: #4a0e0e;
-                        font-weight: bold;
-                        font-size: 1.4rem;
-                        margin-bottom: 15px;
-                    }
+            .empresa {
+                color: #4a0e0e;
+                font-weight: bold;
+                font-size: 1.4rem;
+                margin-bottom: 15px;
+            }
 
-                    .nombre {
-                        font-size: 1.2rem;
-                        margin-top: 15px;
-                        font-weight: bold;
-                        word-wrap: break-word;
-                    }
+            .nombre {
+                font-size: 1.2rem;
+                margin-top: 15px;
+                font-weight: bold;
+                word-wrap: break-word;
+            }
 
-                    .token {
-                        color: #888;
-                        font-size: 0.9rem;
-                        margin-top: 5px;
-                        font-family: monospace;
-                    }
+            .token {
+                color: #888;
+                font-size: 0.9rem;
+                margin-top: 5px;
+                font-family: monospace;
+            }
 
-                    .btn-imprimir {
-                        background-color: #4a0e0e;
-                        color: white;
-                        padding: 12px 25px;
-                        border: none;
-                        border-radius: 6px;
-                        font-size: 1rem;
-                        font-weight: bold;
-                        cursor: pointer;
-                        margin-top: 25px;
-                        width: 100%;
-                        max-width: 300px;
-                    }
+            .btn-imprimir {
+                background-color: #4a0e0e;
+                color: white;
+                padding: 12px 25px;
+                border: none;
+                border-radius: 6px;
+                font-size: 1rem;
+                font-weight: bold;
+                cursor: pointer;
+                margin-top: 25px;
+                width: 100%;
+                max-width: 300px;
+            }
 
-                        .btn-imprimir:hover {
-                            background-color: #6b1515;
-                        }
+                .btn-imprimir:hover {
+                    background-color: #6b1515;
+                }
 
-                    @@media print {
-                        .btn-imprimir {
-                            display: none !important;
-                        }
-                    }
+            @@media print {
+                .btn-imprimir {
+                    display: none !important;
+                }
+            }
         </style>
     </head>
     <body>
@@ -1269,547 +1389,671 @@
 
         let accionSeguraPendiente = null;
         let usuarioEscaneadoId = null;
+        let permisosModulo = { puedeLeer: true, puedeEscribir: true, puedeEliminar: true };
 
         $(document).ready(async function () {
-        modalAsignar = new bootstrap.Modal(document.getElementById('modalAsignarPermiso'));
+            // Inicializar Modales
+            modalAsignar = new bootstrap.Modal(document.getElementById('modalAsignarPermiso'));
 
-        $('#selectUsuario').select2({
-        theme: 'bootstrap-5',
-        dropdownParent: $('#modalAsignarPermiso'),
-        width: '100%'
-        });
+            $('#selectUsuario').select2({
+                theme: 'bootstrap-5',
+                dropdownParent: $('#modalAsignarPermiso'),
+                width: '100%'
+            });
 
-        await cargarDatosBase();
-        await renderTablaPermisos();
-
-        $("#buscadorPermisos").on("keyup", function () {
-        let value = $(this).val().toLowerCase();
-        $("#tbodyPermisos tr").filter(function () {
-        $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
-        });
+            $('#inRepResponsable').select2({
+            theme: 'bootstrap-5',
+            width: '100%',
+            placeholder: "Seleccione o escriba un nombre...",
+            tags: true // Permite escribir texto libre si no existe
         });
 
-        $('#inSupervisorPin').keypress(function (e) {
-        if (e.which == 13) $('#btnConfirmarPin').click();
-        });
-        $('#exPin').keypress(function (e) {
-        if (e.which == 13) procesarAutorizacion();
-        });
+            await cargarPermisosDeSeguridad();
+            await cargarDatosBase();
+            await renderTablaPermisos();
+
+            $("#buscadorPermisos").on("keyup", function () {
+                let value = $(this).val().toLowerCase();
+                $("#tbodyPermisos tr").filter(function () {
+                    $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
+                });
+            });
+
+            $('#inSupervisorPin').keypress(function (e) {
+                if (e.which == 13) $('#btnConfirmarPin').click();
+            });
+            $('#exPin').keypress(function (e) {
+                if (e.which == 13) procesarAutorizacion();
+            });
         });
 
-        // Contraseñas y permisos
+
         function pedirAutorizacion(accion) {
-        accionSeguraPendiente = accion;
-        $('#inSupervisorPin').val('');
-        new bootstrap.Modal(document.getElementById('modalPassword')).show();
-        setTimeout(() => { $('#inSupervisorPin').focus(); }, 500);
+            accionSeguraPendiente = accion;
+            $('#inSupervisorPin').val('');
+            new bootstrap.Modal(document.getElementById('modalPassword')).show();
+            setTimeout(() => { $('#inSupervisorPin').focus(); }, 500);
         }
 
         $('#btnConfirmarPin').click(async function () {
-        let pin = $('#inSupervisorPin').val();
-        if (!pin) return;
+            let pin = $('#inSupervisorPin').val();
+            if (!pin) return;
 
-        let formData = new FormData();
-        formData.append("pin", pin);
+            let formData = new FormData();
+            formData.append("pin", pin);
 
-        try {
-        const res = await fetch('@Url.Action("ValidarPinSupervisor", "ProcesosCG")', {
-        method: 'POST', body: formData
-        });
-        const data = await res.json();
+            try {
+                const res = await fetch('@Url.Action("ValidarPinSupervisor", "ProcesosCG")', {
+                    method: 'POST', body: formData
+                });
+                const data = await res.json();
 
-        if (data.ok) {
-        $('#modalPassword').modal('hide');
-        ejecutarAccionAutorizada();
-        } else {
-        alert("Aviso: " + data.mensaje);
-        $('#inSupervisorPin').val('').focus();
-        }
-        } catch (e) { alert("Error de comunicación."); }
+                if (data.ok) {
+                    $('#modalPassword').modal('hide');
+                    ejecutarAccionAutorizada(); 
+                } else {
+                    alert("Aviso: " + data.mensaje);
+                    $('#inSupervisorPin').val('').focus();
+                }
+            } catch (e) { alert("Error de comunicación."); }
         });
 
         function ejecutarAccionAutorizada() {
-        if (accionSeguraPendiente === 'ASIGNAR') {
-        abrirModalAsignar();
-        } else if (accionSeguraPendiente === 'NUEVO_USUARIO') {
-        abrirModalNuevoUsuario();
-        }
-        accionSeguraPendiente = null;
+            if (accionSeguraPendiente === 'ASIGNAR') {
+                abrirModalAsignar();
+            } else if (accionSeguraPendiente === 'NUEVO_USUARIO') {
+                abrirModalNuevoUsuario();
+            } else if (accionSeguraPendiente === 'NUEVO_ARTICULO') { 
+                $('#inNuevoArticuloNombre').val('');
+                $('#inNuevoArticuloCriticidad').val('NO_CRITICO');
+                new bootstrap.Modal(document.getElementById('modalNuevoArticulo')).show();
+            }
+            accionSeguraPendiente = null;
         }
 
-        // Cambio de PIN
+        function abrirModalAsignar() {
+            $('#selectUsuario').val('').trigger('change');
+            $('#panelEquiposCheckbox').addClass('d-none');
+            modalAsignar.show(); 
+        }
+
+        async function cargarDatosBase() {
+            try {
+                const res = await fetch('@Url.Action("ObtenerDatosBase", "ProcesosCG")');
+                const data = await res.json();
+
+                if (data.ok) {
+                    catalogoCategorias = data.categorias;
+
+                    let options = '<option value="">Seleccione un usuario...</option>';
+                    let optionsResp = '<option></option>';
+
+                    data.usuarios.forEach(u => {
+                        options += `<option value="${u.id}">${u.nombre} - ${u.departamento} (${u.tokenGafete})</option>`;
+                        optionsResp += `<option value="${u.nombre}">${u.nombre} (${u.departamento})</option>`;
+                    });
+
+                    $('#selectUsuario').html(options);
+                    $('#inRepResponsable').html(optionsResp);
+                }
+            } catch (error) { }
+        }
+
+        async function renderTablaPermisos() {
+            try {
+                const res = await fetch('@Url.Action("ObtenerTablaPermisos", "ProcesosCG")');
+                const data = await res.json();
+                if (data.ok) {
+                    usuariosTablaGlobal = data.datos;
+                    let html = '';
+                    data.datos.forEach(row => {
+                        html += `<tr>
+                            <td><div class="fw-bold text-dark">${row.nombre}</div><div class="text-muted small">${row.departamento}</div></td>
+                            <td><button class="btn btn-sm btn-outline-dark fw-bold border-0 bg-transparent text-primary" onclick="imprimirGafete('${row.tokenGafete}', '${row.nombre}')"><i class="bi bi-qr-code me-1"></i> ${row.tokenGafete}</button></td>
+                            <td><span class="badge ${row.categorias.length ? 'bg-success' : 'bg-secondary'}">${row.categorias.length ? 'Activo' : 'Inactivo'}</span></td>
+                            <td class="text-center"><button class="btn-sm-action fw-bold ${row.categorias.length ? 'text-brand border-brand' : 'text-muted'}" onclick="verPermisosUsuario(${row.usuarioId})"><i class="bi bi-eye me-1"></i> Ver Permisos (${row.categorias.length})</button></td>
+                        </tr>`;
+                    });
+                    $('#tbodyPermisos').html(html || '<tr><td colspan="4" class="text-center">No hay datos registrados.</td></tr>');
+                }
+            } catch (e) { }
+        }
+
+
+        async function cargarPermisosDeSeguridad() {
+            try {
+                let response = await fetch('@Url.Action("ObtenerPermisosVistaAutoArticulos", "ProcesosCG")');
+                if (response.ok) {
+                    permisosModulo = await response.json();
+                    aplicarPermisosVisuales();
+                }
+            } catch (error) {}
+        }
+
+        function aplicarPermisosVisuales() {
+            if (!permisosModulo.puedeEscribir) {
+                let bloqueados = ["btnCambiarPin", "btnNuevoArticulo", "btnNuevoColaborador", "btnAsignarPermisos", "btnGuardarUsuario", "btnGuardarPermisos"];
+                bloqueados.forEach(id => {
+                    let btn = document.getElementById(id);
+                    if (btn) btn.style.display = "none";
+                });
+            }
+            if (!permisosModulo.puedeEliminar) {
+                let botonesEliminar = document.querySelectorAll(".btn-eliminar-registro");
+                botonesEliminar.forEach(btn => btn.style.display = "none");
+            }
+        }
+
         function abrirModalCambiarPin() {
-        $('#cpActual').val('');
-        $('#cpNuevo').val('');
-        $('#cpConfirmar').val('');
-        new bootstrap.Modal(document.getElementById('modalCambiarPin')).show();
+            $('#cpActual').val('');
+            $('#cpNuevo').val('');
+            $('#cpConfirmar').val('');
+            new bootstrap.Modal(document.getElementById('modalCambiarPin')).show();
         }
 
         async function procesarCambioPin() {
-        let actual = $('#cpActual').val();
-        let nuevo = $('#cpNuevo').val();
-        let confirmar = $('#cpConfirmar').val();
+            let actual = $('#cpActual').val();
+            let nuevo = $('#cpNuevo').val();
+            let confirmar = $('#cpConfirmar').val();
 
-        if (!actual || !nuevo || !confirmar) {
-        alert("Aviso: Llene todos los campos.");
-        return;
-        }
+            if (!actual || !nuevo || !confirmar) {
+                alert("Aviso: Llene todos los campos.");
+                return;
+            }
 
-        if (nuevo !== confirmar) {
-        alert("Aviso: El nuevo PIN y la confirmación no coinciden.");
-        return;
-        }
+            if (nuevo !== confirmar) {
+                alert("Aviso: El nuevo PIN y la confirmación no coinciden.");
+                return;
+            }
 
-        let formData = new FormData();
-        formData.append("pinActual", actual);
-        formData.append("pinNuevo", nuevo);
+            let formData = new FormData();
+            formData.append("pinActual", actual);
+            formData.append("pinNuevo", nuevo);
 
-        try {
-        const res = await fetch('@Url.Action("CambiarPinSupervisor", "ProcesosCG")', {
-        method: 'POST', body: formData
-        });
-        const data = await res.json();
+            try {
+                const res = await fetch('@Url.Action("CambiarPinSupervisor", "ProcesosCG")', {
+                    method: 'POST', body: formData
+                });
+                const data = await res.json();
 
-        if (data.ok) {
-        alert("Éxito: " + data.mensaje);
-        bootstrap.Modal.getInstance(document.getElementById('modalCambiarPin')).hide();
-        } else {
-        alert("Aviso: " + data.mensaje);
-        }
-        } catch (e) {
-        alert("Error de red al intentar cambiar el PIN.");
-        }
+                if (data.ok) {
+                    alert("Éxito: " + data.mensaje);
+                    bootstrap.Modal.getInstance(document.getElementById('modalCambiarPin')).hide();
+                } else {
+                    alert("Aviso: " + data.mensaje);
+                }
+            } catch (e) {
+                alert("Error de red al intentar cambiar el PIN.");
+            }
         }
 
         // Excepciones y Bitácora
         function abrirModalAutorizacion(uId) {
-        if (!uId || uId === 0) {
-        alert("Atención: El QR escaneado no pertenece a ningún colaborador. Registre al colaborador antes de autorizar.");
-        return;
-        }
+            if (!uId || uId === 0) {
+                alert("Atención: El QR escaneado no pertenece a ningún colaborador. Registre al colaborador antes de autorizar.");
+                return;
+            }
 
-        usuarioEscaneadoId = uId;
-        $('#exMotivo').val('');
-        $('#exPin').val('');
+            usuarioEscaneadoId = uId;
+            $('#exMotivo').val('');
+            $('#exPin').val('');
 
-        let options = '<option value="" style="color:#888;">-- Seleccione Categoría --</option>';
+            let options = '<option value="" style="color:#888;">-- Seleccione Categoría --</option>';
 
-        const niveles = [
-        { id: 'CRITICO', color: '#dc2626', bg: '#fef2f2' },
-        { id: 'SEMICRITICO', color: '#ca8a04', bg: '#fefce8' },
-        { id: 'NO_CRITICO', color: '#4b5563', bg: '#f3f4f6' }
-        ];
+            const niveles = [
+                { id: 'CRITICO', color: '#dc2626', bg: '#fef2f2' },
+                { id: 'SEMICRITICO', color: '#ca8a04', bg: '#fefce8' },
+                { id: 'NO_CRITICO', color: '#4b5563', bg: '#f3f4f6' }
+            ];
 
-        niveles.forEach(nivel => {
-        let filtrados = catalogoCategorias.filter(c => c.criticidad === nivel.id);
-        filtrados.sort((a, b) => a.nombre.localeCompare(b.nombre));
+            niveles.forEach(nivel => {
+                let filtrados = catalogoCategorias.filter(c => c.criticidad === nivel.id);
+                filtrados.sort((a, b) => a.nombre.localeCompare(b.nombre));
 
-        if (filtrados.length > 0) {
+                if (filtrados.length > 0) {
+                    options += `<optgroup label="=== NIVEL: ${nivel.id.replace('_', ' ')} ===" style="background-color: ${nivel.bg}; color: ${nivel.color}; font-weight: bold;">`;
+                    filtrados.forEach(c => {
+                        options += `<option value="${c.id}" style="background-color: #ffffff; color: ${nivel.color}; font-weight: 600;">${c.nombre}</option>`;
+                    });
+                    options += `</optgroup>`;
+                }
+            });
 
-        options += `<optgroup label="=== NIVEL: ${nivel.id.replace('_', ' ')} ===" style="background-color: ${nivel.bg}; color: ${nivel.color}; font-weight: bold;">`;
+            $('#exCategoria').html(options);
 
-        filtrados.forEach(c => {
-        options += `<option value="${c.id}" style="background-color: #ffffff; color: ${nivel.color}; font-weight: 600;">${c.nombre}</option>`;
-        });
-
-        options += `</optgroup>`;
-        }
-        });
-
-        $('#exCategoria').html(options);
-
-        new bootstrap.Modal(document.getElementById('modalAutorizacion')).show();
-        setTimeout(() => { $('#exMotivo').focus(); }, 500);
+            new bootstrap.Modal(document.getElementById('modalAutorizacion')).show();
+            setTimeout(() => { $('#exMotivo').focus(); }, 500);
         }
 
         async function procesarAutorizacion() {
-        const motivo = $('#exMotivo').val().trim();
-        const categoriaId = $('#exCategoria').val();
-        const pin = $('#exPin').val();
+            const motivo = $('#exMotivo').val().trim();
+            const categoriaId = $('#exCategoria').val();
+            const pin = $('#exPin').val();
 
-        if (!motivo || !categoriaId || !pin) {
-        alert("Todos los campos son obligatorios para el registro de seguridad.");
-        return;
-        }
+            if (!motivo || !categoriaId || !pin) {
+                alert("Todos los campos son obligatorios para el registro de seguridad.");
+                return;
+            }
 
-        let formData = new FormData();
-        formData.append("pin", pin);
-        formData.append("usuarioId", usuarioEscaneadoId);
-        formData.append("motivo", motivo);
-        formData.append("categoriaId", categoriaId);
+            let formData = new FormData();
+            formData.append("pin", pin);
+            formData.append("usuarioId", usuarioEscaneadoId);
+            formData.append("motivo", motivo);
+            formData.append("categoriaId", categoriaId);
 
-        try {
-        const res = await fetch('@Url.Action("AutorizarExcepcion", "ProcesosCG")', {
-        method: 'POST', body: formData
-        });
-        const data = await res.json();
+            try {
+                const res = await fetch('@Url.Action("AutorizarExcepcion", "ProcesosCG")', {
+                    method: 'POST', body: formData
+                });
+                const data = await res.json();
 
-        if (data.ok) {
-        bootstrap.Modal.getInstance(document.getElementById('modalAutorizacion')).hide();
+                if (data.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('modalAutorizacion')).hide();
 
-        let panel = $('#panelResultado');
-        panel.removeClass('acceso-denegado').addClass('acceso-concedido');
-        $('#lblMensajeAcceso').text('ACCESO AUTORIZADO (BITÁCORA)').attr('class', 'text-warning fw-bold mb-4');
-        $('#lblDetalleCheck').html(`<strong>MOTIVO AUTORIZADO:</strong> <br> ${motivo}`);
-        $('#btnAutorizarExcepcion').addClass('d-none');
+                    let panel = $('#panelResultado');
+                    panel.removeClass('acceso-denegado').addClass('acceso-concedido');
+                    $('#lblMensajeAcceso').text('ACCESO AUTORIZADO (BITÁCORA)').attr('class', 'text-warning fw-bold mb-4');
+                    $('#lblDetalleCheck').html(`<strong>MOTIVO AUTORIZADO:</strong> <br> ${motivo}`);
+                    $('#btnAutorizarExcepcion').addClass('d-none');
 
-        alert("Registro guardado exitosamente en la bitácora.");
+                    alert("Registro guardado exitosamente en la bitácora.");
 
-        if ($('#bitacora').hasClass('active')) {
-        renderTablaBitacora();
-        }
-        } else {
-        alert("Aviso: " + data.mensaje);
-        $('#exPin').val('').focus();
-        }
-        } catch (e) {
-        alert("Error de red al intentar registrar la autorización.");
-        }
+                    if ($('#bitacora').hasClass('active')) {
+                        renderTablaBitacora();
+                    }
+                } else {
+                    alert("Aviso: " + data.mensaje);
+                    $('#exPin').val('').focus();
+                }
+            } catch (e) {
+                alert("Error de red al intentar registrar la autorización.");
+            }
         }
 
         // Lógica de cámara
         function encenderCamara() {
-        $('#pantallaEsperaCamara').addClass('d-none');
-        $('#reader').removeClass('d-none');
-        $('#btnApagarCamara').removeClass('d-none');
+            $('#pantallaEsperaCamara').addClass('d-none');
+            $('#reader').removeClass('d-none');
+            $('#btnApagarCamara').removeClass('d-none');
 
-        Html5Qrcode.getCameras().then(devices => {
-        if (devices && devices.length) {
-        // Seleccionar la cámara trasera si está en un móvil
-        let cameraId = devices[0].id;
-        let backendCamera = devices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('trasera'));
-        if (backendCamera) {
-        cameraId = backendCamera.id;
-        }
+            Html5Qrcode.getCameras().then(devices => {
+                if (devices && devices.length) {
+                    let cameraId = devices[0].id;
+                    let backendCamera = devices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('trasera'));
+                    if (backendCamera) {
+                        cameraId = backendCamera.id;
+                    }
 
-        html5QrCode = new Html5Qrcode("reader");
+                    html5QrCode = new Html5Qrcode("reader");
 
-        // Configuración responsiva para el escáner
-        let config = { fps: 10, qrbox: { width: 220, height: 220 } };
-        if (window.innerWidth < 768) {
-        config.qrbox = { width: 180, height: 180 };
-        }
+                    let config = { fps: 10, qrbox: { width: 220, height: 220 } };
+                    if (window.innerWidth < 768) {
+                        config.qrbox = { width: 180, height: 180 };
+                    }
 
-        html5QrCode.start(
-        cameraId,
-        config,
-        onScanSuccess, onScanFailure
-        ).catch((err) => {
-        alert("Error al intentar abrir el lente de la cámara."); apagarCamara();
-        });
-        } else {
-        alert("No se detectó cámara en el dispositivo."); apagarCamara();
-        }
-        }).catch(err => { alert("El navegador ha bloqueado el acceso a la cámara."); apagarCamara(); });
+                    html5QrCode.start(
+                        cameraId,
+                        config,
+                        onScanSuccess, onScanFailure
+                    ).catch((err) => {
+                        alert("Error al intentar abrir el lente de la cámara."); apagarCamara();
+                    });
+                } else {
+                    alert("No se detectó cámara en el dispositivo."); apagarCamara();
+                }
+            }).catch(err => { alert("El navegador ha bloqueado el acceso a la cámara."); apagarCamara(); });
         }
 
         function apagarCamara() {
-        if (html5QrCode) {
-        html5QrCode.stop().then(() => {
-        $('#reader').addClass('d-none');
-        $('#btnApagarCamara').addClass('d-none');
-        $('#pantallaEsperaCamara').removeClass('d-none');
-        html5QrCode.clear();
-        }).catch(err => { });
-        }
+            if (html5QrCode) {
+                html5QrCode.stop().then(() => {
+                    $('#reader').addClass('d-none');
+                    $('#btnApagarCamara').addClass('d-none');
+                    $('#pantallaEsperaCamara').removeClass('d-none');
+                    html5QrCode.clear();
+                }).catch(err => { });
+            }
         }
 
         function onScanSuccess(decodedText, decodedResult) {
-        const now = new Date().getTime();
-        if (now - lastScanTime < 3000) return;
-        lastScanTime = now;
-        $('#inputTokenManual').val(decodedText);
-        simularEscaneo();
+            const now = new Date().getTime();
+            if (now - lastScanTime < 3000) return;
+            lastScanTime = now;
+            $('#inputTokenManual').val(decodedText);
+            simularEscaneo();
         }
         function onScanFailure(error) { }
 
-        // Renderizado y obtención de datos
-        async function cargarDatosBase() {
-        try {
-        const res = await fetch('@Url.Action("ObtenerDatosBase", "ProcesosCG")');
-        const data = await res.json();
-        if (data.ok) {
-        catalogoCategorias = data.categorias;
-        let options = '<option value="">Seleccione un usuario...</option>';
-        data.usuarios.forEach(u => options += `<option value="${u.id}">${u.nombre} - ${u.departamento} (${u.tokenGafete})</option>`);
-        $('#selectUsuario').html(options);
-        }
-        } catch (error) { }
-        }
-
-        async function renderTablaPermisos() {
-        try {
-        const res = await fetch('@Url.Action("ObtenerTablaPermisos", "ProcesosCG")');
-        const data = await res.json();
-        if (data.ok) {
-        usuariosTablaGlobal = data.datos;
-        let html = '';
-        data.datos.forEach(row => {
-        html += `<tr>
-        <td><div class="fw-bold text-dark">${row.nombre}</div><div class="text-muted small">${row.departamento}</div></td>
-        <td><button class="btn btn-sm btn-outline-dark fw-bold border-0 bg-transparent text-primary" onclick="imprimirGafete('${row.tokenGafete}', '${row.nombre}')"><i class="bi bi-qr-code me-1"></i> ${row.tokenGafete}</button></td>
-        <td><span class="badge ${row.categorias.length ? 'bg-success' : 'bg-secondary'}">${row.categorias.length ? 'Activo' : 'Inactivo'}</span></td>
-        <td class="text-center"><button class="btn-sm-action fw-bold ${row.categorias.length ? 'text-brand border-brand' : 'text-muted'}" onclick="verPermisosUsuario(${row.usuarioId})"><i class="bi bi-eye me-1"></i> Ver Permisos (${row.categorias.length})</button></td>
-        </tr>`;
-        });
-        $('#tbodyPermisos').html(html || '<tr><td colspan="4" class="text-center">No hay datos registrados.</td></tr>');
-        }
-        } catch (e) { }
-        }
-
         async function renderTablaBitacora() {
-        try {
-        $('#tbodyBitacora').html('<tr><td colspan="5" class="text-center text-muted"><div class="spinner-border spinner-border-sm me-2"></div>Cargando registros...</td></tr>');
+            try {
+                $('#tbodyBitacora').html('<tr><td colspan="5" class="text-center text-muted"><div class="spinner-border spinner-border-sm me-2"></div>Cargando registros...</td></tr>');
 
-        const res = await fetch('@Url.Action("ObtenerBitacoraExcepciones", "ProcesosCG")');
-        const data = await res.json();
+                const res = await fetch('@Url.Action("ObtenerBitacoraExcepciones", "ProcesosCG")');
+                const data = await res.json();
 
-        if (data.ok) {
-        let html = '';
-        if (data.logs.length === 0) {
-        html = '<tr><td colspan="5" class="text-center text-muted">No hay registros de excepciones en la bitácora.</td></tr>';
-        } else {
-        data.logs.forEach(row => {
-        let claseBdg = row.criticidad == 'CRITICO' ? 'crit-critico' : (row.criticidad == 'SEMICRITICO' ? 'crit-semi' : 'crit-no');
-        html += `<tr>
-        <td class="text-nowrap"><span class="badge bg-light text-dark border"><i class="bi bi-calendar-event me-1"></i>${row.fecha}</span></td>
-        <td><div class="fw-bold text-dark">${row.colaborador}</div><div class="text-muted small">${row.departamento}</div></td>
-        <td><span class="fw-bold text-dark">${row.articulo}</span></td>
-        <td><span class="badge-crit ${claseBdg}">${row.categoria}</span></td>
-        <td><span class="text-muted small fw-bold"><i class="bi bi-person-badge me-1"></i>${row.supervisor}</span></td>
-        </tr>`;
-        });
-        }
-        $('#tbodyBitacora').html(html);
-        } else {
-        $('#tbodyBitacora').html(`<tr><td colspan="5" class="text-center text-danger">Error: ${data.mensaje}</td></tr>`);
-        }
-        } catch (e) {
-        $('#tbodyBitacora').html('<tr><td colspan="5" class="text-center text-danger">Error de red al cargar la bitácora.</td></tr>');
-        }
+                if (data.ok) {
+                    let html = '';
+                    if (data.logs.length === 0) {
+                        html = '<tr><td colspan="5" class="text-center text-muted">No hay registros de excepciones en la bitácora.</td></tr>';
+                    } else {
+                        data.logs.forEach(row => {
+                            let claseBdg = row.criticidad == 'CRITICO' ? 'crit-critico' : (row.criticidad == 'SEMICRITICO' ? 'crit-semi' : 'crit-no');
+                            html += `<tr>
+                                <td class="text-nowrap"><span class="badge bg-light text-dark border"><i class="bi bi-calendar-event me-1"></i>${row.fecha}</span></td>
+                                <td><div class="fw-bold text-dark">${row.colaborador}</div><div class="text-muted small">${row.departamento}</div></td>
+                                <td><span class="fw-bold text-dark">${row.articulo}</span></td>
+                                <td><span class="badge-crit ${claseBdg}">${row.categoria}</span></td>
+                                <td><span class="text-muted small fw-bold"><i class="bi bi-person-badge me-1"></i>${row.supervisor}</span></td>
+                            </tr>`;
+                        });
+                    }
+                    $('#tbodyBitacora').html(html);
+                } else {
+                    $('#tbodyBitacora').html(`<tr><td colspan="5" class="text-center text-danger">Error: ${data.mensaje}</td></tr>`);
+                }
+            } catch (e) {
+                $('#tbodyBitacora').html('<tr><td colspan="5" class="text-center text-danger">Error de red al cargar la bitácora.</td></tr>');
+            }
         }
 
         function verPermisosUsuario(id) {
-        let user = usuariosTablaGlobal.find(u => u.usuarioId === id);
-        if (!user) return;
-        $('#vp-nombre').text(user.nombre);
-        $('#vp-depto').text(user.departamento + " | " + user.tokenGafete);
+            let user = usuariosTablaGlobal.find(u => u.usuarioId === id);
+            if (!user) return;
+            $('#vp-nombre').text(user.nombre);
+            $('#vp-depto').text(user.departamento + " | " + user.tokenGafete);
 
-        if (!user.categorias || user.categorias.length === 0) {
-        $('#vp-badges').html('<div class="alert alert-warning text-center mt-3"><i class="bi bi-exclamation-triangle me-2"></i>Este colaborador no tiene permisos asignados.</div>');
-        } else {
-        let htmlBadges = '';
-        ['CRITICO', 'SEMICRITICO', 'NO_CRITICO'].forEach(crit => {
-        let catsCrit = user.categorias.filter(c => c.criticidad === crit);
-        if (catsCrit.length > 0) {
-        let claseHdr = crit == 'CRITICO' ? 'text-danger' : (crit == 'SEMICRITICO' ? 'text-warning' : 'text-secondary');
-        let claseBdg = crit == 'CRITICO' ? 'crit-critico' : (crit == 'SEMICRITICO' ? 'crit-semi' : 'crit-no');
-        htmlBadges += `<div class="text-start mb-3 border border-1 rounded p-3 bg-light"><h6 class="fw-bold border-bottom pb-2 mb-3 ${claseHdr}"><i class="bi bi-tag-fill me-2"></i>NIVEL: ${crit.replace('_', ' ')}</h6><div class="d-flex flex-wrap gap-2">${catsCrit.map(c => `<span class="badge-crit ${claseBdg} px-3 py-2 shadow-sm border-0 bg-white" style="font-size:0.80rem;">${c.nombre}</span>`).join('')}</div></div>`;
-        }
-        });
-        $('#vp-badges').html(htmlBadges);
-        }
-        new bootstrap.Modal(document.getElementById('modalVerPermisos')).show();
+            if (!user.categorias || user.categorias.length === 0) {
+                $('#vp-badges').html('<div class="alert alert-warning text-center mt-3"><i class="bi bi-exclamation-triangle me-2"></i>Este colaborador no tiene permisos asignados.</div>');
+            } else {
+                let htmlBadges = '';
+                ['CRITICO', 'SEMICRITICO', 'NO_CRITICO'].forEach(crit => {
+                    let catsCrit = user.categorias.filter(c => c.criticidad === crit);
+                    if (catsCrit.length > 0) {
+                        let claseHdr = crit == 'CRITICO' ? 'text-danger' : (crit == 'SEMICRITICO' ? 'text-warning' : 'text-secondary');
+                        let claseBdg = crit == 'CRITICO' ? 'crit-critico' : (crit == 'SEMICRITICO' ? 'crit-semi' : 'crit-no');
+                        htmlBadges += `<div class="text-start mb-3 border border-1 rounded p-3 bg-light"><h6 class="fw-bold border-bottom pb-2 mb-3 ${claseHdr}"><i class="bi bi-tag-fill me-2"></i>NIVEL: ${crit.replace('_', ' ')}</h6><div class="d-flex flex-wrap gap-2">${catsCrit.map(c => `<span class="badge-crit ${claseBdg} px-3 py-2 shadow-sm border-0 bg-white" style="font-size:0.80rem;">${c.nombre}</span>`).join('')}</div></div>`;
+                    }
+                });
+                $('#vp-badges').html(htmlBadges);
+            }
+            new bootstrap.Modal(document.getElementById('modalVerPermisos')).show();
         }
 
-        // Usuarios y Asignaciones
         function abrirModalNuevoUsuario() {
-        $('#inNuevoNombre').val('');
-        $('#inNuevoToken').val('');
-        new bootstrap.Modal(document.getElementById('modalNuevoUsuario')).show();
+            $('#inNuevoNombre').val('');
+            $('#inNuevoToken').val('');
+            new bootstrap.Modal(document.getElementById('modalNuevoUsuario')).show();
         }
 
         async function guardarNuevoUsuario() {
-        const nombre = $('#inNuevoNombre').val().trim();
-        const token = $('#inNuevoToken').val().trim();
-        const depto = $('#inNuevoDepto').val();
+            const nombre = $('#inNuevoNombre').val().trim();
+            const token = $('#inNuevoToken').val().trim();
+            const depto = $('#inNuevoDepto').val();
 
-        if (!nombre || !token) { alert("Campos obligatorios incompletos."); return; }
+            if (!nombre || !token) { alert("Campos obligatorios incompletos."); return; }
 
-        try {
-        const res = await fetch('@Url.Action("GuardarUsuario", "ProcesosCG")', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ Nombre: nombre, Departamento: depto, TokenGafete: token })
-        });
-        const data = await res.json();
-        if (data.ok) {
-        bootstrap.Modal.getInstance(document.getElementById('modalNuevoUsuario'))?.hide();
-        await cargarDatosBase();
-        await renderTablaPermisos();
-        } else { alert(data.mensaje); }
-        } catch (e) { }
+            try {
+                const res = await fetch('@Url.Action("GuardarUsuario", "ProcesosCG")', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ Nombre: nombre, Departamento: depto, TokenGafete: token })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('modalNuevoUsuario'))?.hide();
+                    await cargarDatosBase();
+                    await renderTablaPermisos();
+                } else { alert(data.mensaje); }
+            } catch (e) { }
         }
 
         function imprimirGafete(token, nombre) {
-        const qrUrl = `/ProcesosCG/GenerarQrGafete?token=${encodeURIComponent(token)}`;
-        // Ajustar tamaño ventana popup para móviles
-        const width = window.innerWidth > 400 ? 400 : window.innerWidth - 20;
-        const w = window.open('', '_blank', `width=${width},height=550`);
-        let template = document.getElementById('plantillaGafete').innerHTML;
-        template = template.replace(/{{NOMBRE}}/g, nombre).replace('{{QR_URL}}', qrUrl).replace('{{TOKEN}}', token);
-        w.document.write(template); w.document.close();
-        }
-
-        function abrirModalAsignar() {
-        $('#selectUsuario').val('').trigger('change');
-        $('#panelEquiposCheckbox').addClass('d-none');
-        modalAsignar.show();
+            const qrUrl = `/ProcesosCG/GenerarQrGafete?token=${encodeURIComponent(token)}`;
+            const width = window.innerWidth > 400 ? 400 : window.innerWidth - 20;
+            const w = window.open('', '_blank', `width=${width},height=550`);
+            let template = document.getElementById('plantillaGafete').innerHTML;
+            template = template.replace(/{{NOMBRE}}/g, nombre).replace('{{QR_URL}}', qrUrl).replace('{{TOKEN}}', token);
+            w.document.write(template); w.document.close();
         }
 
         async function cargarCategoriasDeUsuario() {
-        let userId = $('#selectUsuario').val();
-        if (!userId) { $('#panelEquiposCheckbox').addClass('d-none'); return; }
-        $('#panelEquiposCheckbox').removeClass('d-none');
-        $('#btnGuardarPermisos').prop('disabled', false);
+            let userId = $('#selectUsuario').val();
+            if (!userId) { $('#panelEquiposCheckbox').addClass('d-none'); return; }
+            $('#panelEquiposCheckbox').removeClass('d-none');
+            $('#btnGuardarPermisos').prop('disabled', false);
 
-        try {
-        const resP = await fetch(`@Url.Action("ObtenerPermisosUsuario", "ProcesosCG")?usuarioId=${userId}`);
-        const dataP = await resP.json();
-        const actuales = dataP.ok ? dataP.permisos : [];
+            try {
+                const resP = await fetch(`@Url.Action("ObtenerPermisosUsuario", "ProcesosCG")?usuarioId=${userId}`);
+                const dataP = await resP.json();
+                const actuales = dataP.ok ? dataP.permisos : [];
 
-        let html = '<div class="accordion accordion-flush" id="accordionCategorias">';
-        ['CRITICO', 'SEMICRITICO', 'NO_CRITICO'].forEach((crit) => {
-        let items = catalogoCategorias.filter(c => c.criticidad == crit);
-        if (items.length) {
-        let idCollapse = `collapse_${crit}`;
-        let colorHdr = crit == 'CRITICO' ? 'text-danger' : (crit == 'SEMICRITICO' ? 'text-warning' : 'text-secondary');
-        html += `<div class="accordion-item border-bottom"><h2 class="accordion-header"><button class="accordion-button collapsed fw-bold py-3 ${colorHdr}" type="button" data-bs-toggle="collapse" data-bs-target="#${idCollapse}">NIVEL: ${crit.replace('_', ' ')} &nbsp;<span class="badge bg-secondary ms-2 rounded-pill">${items.length}</span></button></h2><div id="${idCollapse}" class="accordion-collapse collapse" data-bs-parent="#accordionCategorias"><div class="accordion-body p-0"><div class="grupo-acciones d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2"><span class="text-muted fw-bold">Selección Rápida:</span><div><a href="javascript:void(0)" class="text-decoration-none fw-bold me-3 btn btn-sm btn-outline-secondary py-0" onclick="marcarGrupo('${crit}', true)">Todas</a><a href="javascript:void(0)" class="text-decoration-none fw-bold text-danger btn btn-sm btn-outline-danger py-0" onclick="marcarGrupo('${crit}', false)">Ninguna</a></div></div>`;
-        items.forEach(c => {
-        let isChecked = actuales.includes(c.id) ? 'checked' : '';
-        html += `<div class="eq-checkbox-row chk-item-fila crit-group-${crit}"><span class="ps-3 fw-bold eq-nombre text-dark">${c.nombre}</span><div class="form-check form-switch pe-3"><input class="form-check-input chk-categoria" type="checkbox" value="${c.id}" ${isChecked} onchange="actualizarContador()"></div></div>`;
-        });
-        html += `</div></div></div>`;
-        }
-        });
-        html += '</div>';
-        $('#contenedorCheckboxes').html(html);
-        actualizarContador();
-        } catch (e) { }
+                let html = '<div class="accordion accordion-flush" id="accordionCategorias">';
+                ['CRITICO', 'SEMICRITICO', 'NO_CRITICO'].forEach((crit) => {
+                    let items = catalogoCategorias.filter(c => c.criticidad == crit);
+                    if (items.length) {
+                        let idCollapse = `collapse_${crit}`;
+                        let colorHdr = crit == 'CRITICO' ? 'text-danger' : (crit == 'SEMICRITICO' ? 'text-warning' : 'text-secondary');
+                        html += `<div class="accordion-item border-bottom"><h2 class="accordion-header"><button class="accordion-button collapsed fw-bold py-3 ${colorHdr}" type="button" data-bs-toggle="collapse" data-bs-target="#${idCollapse}">NIVEL: ${crit.replace('_', ' ')} &nbsp;<span class="badge bg-secondary ms-2 rounded-pill">${items.length}</span></button></h2><div id="${idCollapse}" class="accordion-collapse collapse" data-bs-parent="#accordionCategorias"><div class="accordion-body p-0"><div class="grupo-acciones d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2"><span class="text-muted fw-bold">Selección Rápida:</span><div><a href="javascript:void(0)" class="text-decoration-none fw-bold me-3 btn btn-sm btn-outline-secondary py-0" onclick="marcarGrupo('${crit}', true)">Todas</a><a href="javascript:void(0)" class="text-decoration-none fw-bold text-danger btn btn-sm btn-outline-danger py-0" onclick="marcarGrupo('${crit}', false)">Ninguna</a></div></div>`;
+                        items.forEach(c => {
+                            let isChecked = actuales.includes(c.id) ? 'checked' : '';
+                            html += `<div class="eq-checkbox-row chk-item-fila crit-group-${crit}"><span class="ps-3 fw-bold eq-nombre text-dark">${c.nombre}</span><div class="form-check form-switch pe-3"><input class="form-check-input chk-categoria" type="checkbox" value="${c.id}" ${isChecked} onchange="actualizarContador()"></div></div>`;
+                        });
+                        html += `</div></div></div>`;
+                    }
+                });
+                html += '</div>';
+                $('#contenedorCheckboxes').html(html);
+                actualizarContador();
+            } catch (e) { }
         }
 
         function marcarGrupo(crit, check) { $(`.crit-group-${crit} .chk-categoria`).prop('checked', check); actualizarContador(); }
         function actualizarContador() { $('#contadorSeleccionados').text($('.chk-categoria:checked').length); }
         function desmarcarTodos() { $('.chk-categoria').prop('checked', false); actualizarContador(); }
         function filtrarCheckboxes() {
-        let txt = $('#buscarCheckbox').val().toLowerCase();
-        if (txt.length > 0) { $('.accordion-collapse').addClass('show'); }
-        $('.chk-item-fila').each(function () { $(this).toggle($(this).find('.eq-nombre').text().toLowerCase().includes(txt)); });
+            let txt = $('#buscarCheckbox').val().toLowerCase();
+            if (txt.length > 0) { $('.accordion-collapse').addClass('show'); }
+            $('.chk-item-fila').each(function () { $(this).toggle($(this).find('.eq-nombre').text().toLowerCase().includes(txt)); });
         }
 
         async function guardarPermisos() {
-        let userId = $('#selectUsuario').val();
-        let ids = [];
-        $('.chk-categoria:checked').each(function () { ids.push(parseInt($(this).val())); });
-        try {
-        const res = await fetch('@Url.Action("GuardarPermisos", "ProcesosCG")', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ UsuarioId: parseInt(userId), CategoriasIds: ids })
-        });
-        const data = await res.json();
-        if (data.ok) { modalAsignar.hide(); renderTablaPermisos(); }
-        else { alert(data.mensaje); }
-        } catch (e) { }
+            let userId = $('#selectUsuario').val();
+            let ids = [];
+            $('.chk-categoria:checked').each(function () { ids.push(parseInt($(this).val())); });
+            try {
+                const res = await fetch('@Url.Action("GuardarPermisos", "ProcesosCG")', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ UsuarioId: parseInt(userId), CategoriasIds: ids })
+                });
+                const data = await res.json();
+                if (data.ok) { modalAsignar.hide(); renderTablaPermisos(); }
+                else { alert(data.mensaje); }
+            } catch (e) { }
         }
 
         async function simularEscaneo() {
-        let token = $('#inputTokenManual').val().trim();
-        if (!token) return;
-        try {
-        const res = await fetch(`@Url.Action("ValidarEscaneo", "ProcesosCG")?token=${token}`);
-        const data = await res.json();
-        mostrarResultadoPantalla(data);
-        $('#inputTokenManual').val('');
-        } catch (e) { alert("Error al conectar con la base de datos."); }
+            let token = $('#inputTokenManual').val().trim();
+            if (!token) return;
+            try {
+                const res = await fetch(`@Url.Action("ValidarEscaneo", "ProcesosCG")?token=${token}`);
+                const data = await res.json();
+                mostrarResultadoPantalla(data);
+                $('#inputTokenManual').val('');
+            } catch (e) { alert("Error al conectar con la base de datos."); }
         }
 
         function mostrarResultadoPantalla(data) {
-        let panel = $('#panelResultado');
-        $('#resultadoDefault').addClass('d-none');
-        $('#resultadoDatos').removeClass('d-none');
-        panel.removeClass('acceso-concedido acceso-denegado');
+            let panel = $('#panelResultado');
+            $('#resultadoDefault').addClass('d-none');
+            $('#resultadoDatos').removeClass('d-none');
+            panel.removeClass('acceso-concedido acceso-denegado');
 
-        $('#btnAutorizarExcepcion').removeClass('d-none');
-        let uId = data.usuario ? data.usuario.id : 0;
-        $('#btnAutorizarExcepcion').attr('onclick', `abrirModalAutorizacion(${uId})`);
+            $('#btnAutorizarExcepcion').removeClass('d-none');
+            let uId = data.usuario ? data.usuario.id : 0;
+            $('#btnAutorizarExcepcion').attr('onclick', `abrirModalAutorizacion(${uId})`);
 
-        if (data.concedido) {
-        panel.addClass('acceso-concedido');
-        $('#lblMensajeAcceso').text('IDENTIDAD VERIFICADA').attr('class', 'text-success fw-bold mb-4');
-        $('#lblUsuario').text(data.usuario.nombre);
-        $('#lblDepartamento').text(data.usuario.departamento);
-        $('#lblDetalleCheck').text('Verifique físicamente los equipos. Use el botón inferior para autorizar ingreso no listado.');
+            if (data.concedido) {
+                panel.addClass('acceso-concedido');
+                $('#lblMensajeAcceso').text('IDENTIDAD VERIFICADA').attr('class', 'text-success fw-bold mb-4');
+                $('#lblUsuario').text(data.usuario.nombre);
+                $('#lblDepartamento').text(data.usuario.departamento);
+                $('#lblDetalleCheck').text('Verifique físicamente los equipos. Use el botón inferior para autorizar ingreso no listado.');
 
-        $('#lblCategorias').html(data.categorias.map(c => {
-        let clase = c.criticidad == 'CRITICO' ? 'crit-critico' : (c.criticidad == 'SEMICRITICO' ? 'crit-semi' : 'crit-no');
-        return `<span class="badge-crit ${clase}">${c.nombre}</span>`;
-        }).join(''));
-        } else {
-        panel.addClass('acceso-denegado');
-        $('#lblMensajeAcceso').text('ACCESO NO AUTORIZADO').attr('class', 'text-danger fw-bold mb-4');
-        $('#lblUsuario').text(data.usuario ? data.usuario.nombre : 'Gafete Inválido');
-        $('#lblDepartamento').text(data.mensaje);
-        $('#lblCategorias').html('');
-        $('#lblDetalleCheck').text('Si el usuario requiere ingresar, se necesita autorización de supervisor.');
+                $('#lblCategorias').html(data.categorias.map(c => {
+                    let clase = c.criticidad == 'CRITICO' ? 'crit-critico' : (c.criticidad == 'SEMICRITICO' ? 'crit-semi' : 'crit-no');
+                    return `<span class="badge-crit ${clase}">${c.nombre}</span>`;
+                }).join(''));
+            } else {
+                panel.addClass('acceso-denegado');
+                $('#lblMensajeAcceso').text('ACCESO NO AUTORIZADO').attr('class', 'text-danger fw-bold mb-4');
+                $('#lblUsuario').text(data.usuario ? data.usuario.nombre : 'Gafete Inválido');
+                $('#lblDepartamento').text(data.mensaje);
+                $('#lblCategorias').html('');
+                $('#lblDetalleCheck').text('Si el usuario requiere ingresar, se necesita autorización de supervisor.');
+            }
+
+            clearTimeout(timerPantalla);
+            timerPantalla = setTimeout(() => {
+                $('#resultadoDatos').addClass('d-none');
+                $('#resultadoDefault').removeClass('d-none');
+                panel.removeClass('acceso-concedido acceso-denegado');
+                $('#btnAutorizarExcepcion').addClass('d-none');
+            }, 30000);
         }
 
-        clearTimeout(timerPantalla);
-        timerPantalla = setTimeout(() => {
-        $('#resultadoDatos').addClass('d-none');
-        $('#resultadoDefault').removeClass('d-none');
-        panel.removeClass('acceso-concedido acceso-denegado');
-        $('#btnAutorizarExcepcion').addClass('d-none');
-        }, 30000);
+        async function guardarNuevoArticulo() {
+            const nombre = $('#inNuevoArticuloNombre').val().trim();
+            const criticidad = $('#inNuevoArticuloCriticidad').val();
+
+            if (!nombre) { alert("El nombre del artículo es obligatorio."); return; }
+
+            try {
+                const res = await fetch('@Url.Action("GuardarNuevaCategoriaArticulo", "ProcesosCG")', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ Nombre: nombre, Criticidad: criticidad })
+                });
+                const data = await res.json();
+
+                if (data.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('modalNuevoArticulo'))?.hide();
+                    await cargarDatosBase();
+                    alert("Artículo agregado exitosamente.");
+                } else {
+                    alert(data.mensaje);
+                }
+            } catch (e) {
+                alert("Error de red al guardar el artículo.");
+            }
         }
-        let permisosModulo = { puedeLeer: false, puedeEscribir: false, puedeEliminar: false };
 
-        document.addEventListener("DOMContentLoaded", async () => {
-            await cargarPermisosDeSeguridad();
+            async function guardarReporteDano() {
+            const equipo = $('#inRepEquipo').val().trim();
+            const tipo = $('#inRepTipo').val();
+            const detalle = $('#inRepDetalle').val().trim();
+            const responsable = $('#inRepResponsable').val() ? $('#inRepResponsable').val().trim() : '';
+            const fotoInput = document.getElementById('inRepFoto');
 
-            
-        });
+            if (!equipo || !detalle || !responsable) {
+                alert("El equipo, responsable y detalle son obligatorios.");
+                return;
+            }
 
-        async function cargarPermisosDeSeguridad() {
-              try {
-                  // Usamos Url.Action para asegurar que la ruta siempre sea correcta en el servidor
-                  let response = await fetch('@Url.Action("ObtenerPermisosVistaAutoArticulos", "ProcesosCG")');
+            let formData = new FormData();
+            formData.append("Equipo", equipo);
+            formData.append("UsuarioResponsable", responsable);
+            formData.append("TipoHallazgo", tipo);
+            formData.append("Detalle", detalle);
 
-                  if (response.ok) {
-                      permisosModulo = await response.json();
-                      aplicarPermisosVisuales();
-                  }
-              } catch (error) {
-                  console.error("Error al verificar seguridad:", error);
-              }
-          }
+            if (fotoInput.files.length > 0) {
+                formData.append("Foto", fotoInput.files[0]);
+            }
 
-          function aplicarPermisosVisuales() {
-              // Si NO PUEDE ESCRIBIR, ocultamos todos los botones que modifiquen datos
-              if (!permisosModulo.puedeEscribir) {
+            try {
+                const res = await fetch('@Url.Action("GuardarReporteDano", "ProcesosCG")', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
 
-                  // Oculta botones principales
-                  let btnCambiarPin = document.getElementById("btnCambiarPin");
-                  if(btnCambiarPin) btnCambiarPin.style.display = "none";
+                if (data.ok) {
+                    alert("Observación registrada correctamente.");
+                    $('#inRepEquipo').val('');
+                    $('#inRepResponsable').val('').trigger('change');
+                    $('#inRepDetalle').val('');
+                    $('#inRepFoto').val('');
+                    renderTablaReportes();
+                } else {
+                    alert("Error: " + data.mensaje);
+                }
+            } catch (e) {
+                alert("Error de red al intentar guardar.");
+            }
+        }
 
-                  let btnNuevoColaborador = document.getElementById("btnNuevoColaborador");
-                  if(btnNuevoColaborador) btnNuevoColaborador.style.display = "none";
+            async function renderTablaReportes() {
+            $('#tbodyReportes').html('<tr><td colspan="5" class="text-center"><div class="spinner-border spinner-border-sm me-2"></div>Cargando...</td></tr>');
+            try {
+                const res = await fetch('@Url.Action("ObtenerReportesDanos", "ProcesosCG")');
+                const data = await res.json();
 
-                  let btnAsignarPermisos = document.getElementById("btnAsignarPermisos");
-                  if(btnAsignarPermisos) btnAsignarPermisos.style.display = "none";
+                if (data.ok) {
+                    let html = '';
+                    if (data.reportes.length === 0) {
+                        html = '<tr><td colspan="5" class="text-center text-muted">No hay observaciones registradas.</td></tr>';
+                    } else {
+                        data.reportes.forEach(r => {
+                            let badgeClass = 'bg-danger';
+                            if (r.tipoHallazgo === 'Sucio') badgeClass = 'bg-warning text-dark';
+                            if (r.tipoHallazgo === 'Otro') badgeClass = 'bg-secondary';
+                            if (r.tipoHallazgo === 'No Autorizado') badgeClass = 'bg-dark text-white';
 
-                  // Oculta botones dentro de los modales y el escáner
-                  let btnGuardarUsuario = document.getElementById("btnGuardarUsuario");
-                  if(btnGuardarUsuario) btnGuardarUsuario.style.display = "none";
+       
+                            let btnFoto = r.tieneFoto
+                                ? `<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="mostrarFotoModal(${r.id})"><i class="bi bi-camera-fill"></i> Ver</button>`
+                                : '<span class="text-muted small">Sin foto</span>';
 
-                  let btnGuardarPermisos = document.getElementById("btnGuardarPermisos");
-                  if(btnGuardarPermisos) btnGuardarPermisos.style.display = "none";
+                            let txtResponsable = r.responsable ? `<br><small class="text-muted"><i class="bi bi-person"></i> Resp: ${r.responsable}</small>` : '';
 
-                 
-              }
+                            html += `<tr>
+                                <td><span class="badge bg-light text-dark border">${r.fecha}</span></td>
+                                <td><strong class="text-dark">${r.equipo}</strong>${txtResponsable}</td>
+                                <td>
+                                    <span class="badge ${badgeClass} mb-1">${r.tipoHallazgo}</span><br>
+                                    <span class="text-muted small" style="white-space: normal;">${r.detalle}</span>
+                                </td>
+                                <td class="text-center">${btnFoto}</td>
+                                <td><span class="text-muted fw-bold small"><i class="bi bi-person-fill me-1"></i>${r.usuarioRegistro}</span></td>
+                            </tr>`;
+                        });
+                    }
+                    $('#tbodyReportes').html(html);
+                } else {
+                    $('#tbodyReportes').html(`<tr><td colspan="5" class="text-center text-danger">Error: ${data.mensaje}</td></tr>`);
+                }
+            } catch (e) {
+                $('#tbodyReportes').html('<tr><td colspan="5" class="text-center text-danger">Error de conexión.</td></tr>');
+            }
+        }
 
-              if (!permisosModulo.puedeEliminar) {
-                  let botonesEliminar = document.querySelectorAll(".btn-eliminar-registro");
-                  botonesEliminar.forEach(btn => btn.style.display = "none");
-              }
-          }
+        async function mostrarFotoModal(idReporte) {
+            $('#imgEvidenciaCompleta').attr('src', '').attr('alt', 'Cargando imagen...');
+            let myModal = new bootstrap.Modal(document.getElementById('modalVerFoto'));
+            myModal.show();
+
+            try {
+                let res = await fetch(`@Url.Action("ObtenerFotoDano", "ProcesosCG")?id=${idReporte}`);
+                let data = await res.json();
+
+                if (data.ok) {
+                    $('#imgEvidenciaCompleta').attr('src', data.fotoBase64).attr('alt', 'Evidencia');
+                } else {
+                    $('#imgEvidenciaCompleta').attr('alt', 'No se pudo cargar la imagen.');
+                }
+            } catch (e) {
+                alert("Error al descargar la fotografía.");
+            }
+        }
+
+
     </script>
 }

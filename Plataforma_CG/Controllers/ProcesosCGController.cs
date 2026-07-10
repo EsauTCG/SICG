@@ -1,8 +1,6 @@
 using ClosedXML.Excel;
 using Dapper;
-using Dapper;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.SqlClient;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -16,7 +14,6 @@ using QRCoder;
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.Odbc;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -57,6 +54,234 @@ namespace Plataforma_CG.Controllers
             _db = db;
             _logger = logger;
             _autoStore = autoStore;
+        }
+
+        // =======================================================
+        // SAP SERVICE LAYER SQLQUERIES
+        // Reemplazo de consultas directas ODBC/HANA.
+        // Estas consultas deben existir en SAP Business One Service Layer.
+        // Endpoint de ejecución: SQLQueries('<SqlCode>')/List
+        // =======================================================
+        private const string SAP_SQL_INV_LOTE_DISPONIBLE = "CG_INV_LOTE_DISPONIBLE";
+        private const string SAP_SQL_DEV_APLICADAS_PEDIDO = "CG_DEV_APLICADAS_PEDIDO";
+        private const string SAP_SQL_CONCILIACION_INVENTARIO = "CG_CONCILIACION_INVENTARIO";
+        private const string SAP_SQL_CONCILIACION_INVENTARIO_P1 = "CG_CONCILIACION_INVENTARIO_P1";
+        private const string SAP_SQL_CONCILIACION_INVENTARIO_TIF = "CG_CONCILIACION_INVENTARIO_TIF";
+
+        private sealed class SapSqlQueryDefinitionVM
+        {
+            public string SqlCode { get; set; } = "";
+            public string SqlName { get; set; } = "";
+            public string ParamList { get; set; } = "";
+            public string SqlText { get; set; } = "";
+        }
+
+        [HttpGet("SapSqlQueriesRequeridas")]
+        [RevisarPermiso("ENTREGAS_SAP", "LEER")]
+        public IActionResult SapSqlQueriesRequeridas()
+        {
+            return Ok(new
+            {
+                ok = true,
+                msg = "Crea estas SQLQueries en SAP Business One Service Layer para reemplazar la conexión ODBC/HANA.",
+                queries = GetSapSqlQueriesRequeridas()
+            });
+        }
+
+        private static List<SapSqlQueryDefinitionVM> GetSapSqlQueriesRequeridas()
+        {
+            return new List<SapSqlQueryDefinitionVM>
+            {
+                new SapSqlQueryDefinitionVM
+                {
+                    SqlCode = SAP_SQL_INV_LOTE_DISPONIBLE,
+                    SqlName = "CG - Inventario lote disponible",
+                    ParamList = "itemCode,whsCode,lote",
+                    SqlText = @"SELECT
+    T0.""ItemCode"" AS ""Articulo"",
+    T0.""WhsCode"" AS ""Almacen"",
+    T1.""DistNumber"" AS ""Lote"",
+    SUM(IFNULL(T0.""Quantity"", 0)) AS ""CantidadSap"",
+    SUM(IFNULL(T0.""CommitQty"", 0)) AS ""ComprometidoSap"",
+    SUM(IFNULL(T0.""Quantity"", 0) - IFNULL(T0.""CommitQty"", 0)) AS ""DisponibleSap""
+FROM OBTQ T0
+INNER JOIN OBTN T1
+    ON T0.""ItemCode"" = T1.""ItemCode""
+   AND T0.""SysNumber"" = T1.""SysNumber""
+WHERE
+    T0.""ItemCode"" = :itemCode
+    AND T0.""WhsCode"" = :whsCode
+    AND T1.""DistNumber"" = :lote
+GROUP BY
+    T0.""ItemCode"",
+    T0.""WhsCode"",
+    T1.""DistNumber"""
+                },
+                new SapSqlQueryDefinitionVM
+                {
+                    SqlCode = SAP_SQL_DEV_APLICADAS_PEDIDO,
+                    SqlName = "CG - Devoluciones aplicadas por pedido",
+                    ParamList = "pedidoSap",
+                    SqlText = @"WITH P AS (
+    SELECT :pedidoSap AS ""PedidoSap"" FROM DUMMY
+),
+Entrega AS (
+    SELECT
+        T0.""DocEntry"",
+        T0.""DocNum"",
+        T0.""DocDate"",
+        T0.""CardCode"",
+        T0.""CardName"",
+        T0.""NumAtCard""
+    FROM ODLN T0, P
+    WHERE
+        T0.""NumAtCard"" = P.""PedidoSap""
+        OR T0.""Comments"" LIKE '%' || P.""PedidoSap"" || '%'
+),
+Factura AS (
+    SELECT
+        T0.""DocEntry"",
+        T0.""DocNum"",
+        T0.""DocDate"",
+        T0.""CardCode"",
+        T0.""CardName"",
+        T0.""NumAtCard""
+    FROM OINV T0, P
+    WHERE
+        T0.""NumAtCard"" = P.""PedidoSap""
+        OR T0.""Comments"" LIKE '%' || P.""PedidoSap"" || '%'
+),
+DetalleSap AS (
+    SELECT
+        'ORDN/RDN1' AS ""TipoAplicacion"",
+        E.""NumAtCard"" AS ""PedidoSap"",
+        E.""DocNum"" AS ""DocNumOriginal"",
+        E.""DocEntry"" AS ""DocEntryOriginal"",
+        D0.""DocEntry"" AS ""DocEntryDevolucion"",
+        D0.""DocNum"" AS ""DocNumDevolucion"",
+        D0.""DocDate"" AS ""FechaDevolucion"",
+        D1.""ItemCode"",
+        BTN.""DistNumber"" AS ""Lote"",
+        ABS(IFNULL(TLD.""Quantity"", D1.""Quantity"")) AS ""CantidadDevuelta""
+    FROM Entrega E
+    INNER JOIN RDN1 D1
+        ON D1.""BaseType"" = 15
+        AND D1.""BaseEntry"" = E.""DocEntry""
+    INNER JOIN ORDN D0
+        ON D0.""DocEntry"" = D1.""DocEntry""
+    LEFT JOIN OITL TL
+        ON TL.""DocType"" = 16
+        AND TL.""DocEntry"" = D0.""DocEntry""
+        AND TL.""DocLine"" = D1.""LineNum""
+        AND TL.""ItemCode"" = D1.""ItemCode""
+    LEFT JOIN ITL1 TLD
+        ON TLD.""LogEntry"" = TL.""LogEntry""
+    LEFT JOIN OBTN BTN
+        ON BTN.""AbsEntry"" = TLD.""MdAbsEntry""
+    WHERE
+        D0.""CANCELED"" = 'N'
+
+    UNION ALL
+
+    SELECT
+        'ORIN/RIN1' AS ""TipoAplicacion"",
+        F.""NumAtCard"" AS ""PedidoSap"",
+        F.""DocNum"" AS ""DocNumOriginal"",
+        F.""DocEntry"" AS ""DocEntryOriginal"",
+        NC0.""DocEntry"" AS ""DocEntryDevolucion"",
+        NC0.""DocNum"" AS ""DocNumDevolucion"",
+        NC0.""DocDate"" AS ""FechaDevolucion"",
+        NC1.""ItemCode"",
+        BTN.""DistNumber"" AS ""Lote"",
+        ABS(IFNULL(TLD.""Quantity"", NC1.""Quantity"")) AS ""CantidadDevuelta""
+    FROM Factura F
+    INNER JOIN RIN1 NC1
+        ON NC1.""BaseType"" = 13
+        AND NC1.""BaseEntry"" = F.""DocEntry""
+    INNER JOIN ORIN NC0
+        ON NC0.""DocEntry"" = NC1.""DocEntry""
+    LEFT JOIN OITL TL
+        ON TL.""DocType"" = 14
+        AND TL.""DocEntry"" = NC0.""DocEntry""
+        AND TL.""DocLine"" = NC1.""LineNum""
+        AND TL.""ItemCode"" = NC1.""ItemCode""
+    LEFT JOIN ITL1 TLD
+        ON TLD.""LogEntry"" = TL.""LogEntry""
+    LEFT JOIN OBTN BTN
+        ON BTN.""AbsEntry"" = TLD.""MdAbsEntry""
+    WHERE
+        NC0.""CANCELED"" = 'N'
+)
+SELECT
+    UPPER(TRIM(""PedidoSap"")) AS ""PedidoSap"",
+    UPPER(TRIM(""ItemCode"")) AS ""Articulo"",
+    UPPER(TRIM(IFNULL(""Lote"", 'SIN_LOTE'))) AS ""Lote"",
+    SUM(""CantidadDevuelta"") AS ""KgDevueltosSap"",
+    MAX(""DocNumDevolucion"") AS ""DocNumDevolucion"",
+    MAX(""DocEntryDevolucion"") AS ""DocEntryDevolucion"",
+    MAX(""FechaDevolucion"") AS ""FechaDevolucionSap"",
+    STRING_AGG(""TipoAplicacion"", ', ') AS ""TipoAplicacion""
+FROM DetalleSap
+GROUP BY
+    UPPER(TRIM(""PedidoSap"")),
+    UPPER(TRIM(""ItemCode"")),
+    UPPER(TRIM(IFNULL(""Lote"", 'SIN_LOTE')))
+ORDER BY
+    ""Articulo"",
+    ""Lote"""
+                },
+                new SapSqlQueryDefinitionVM
+                {
+                    SqlCode = SAP_SQL_CONCILIACION_INVENTARIO_P1,
+                    SqlName = "CG - Conciliacion inventario SAP P1",
+                    ParamList = "",
+                    SqlText = @"SELECT
+    T0.ItemCode AS ProductoCodigo,
+    T0.WhsCode AS Sucursal,
+    T0.Quantity AS CantidadSap,
+    T0.CommitQty AS ComprometidoSap,
+    T1.ItemName AS DescripcionSap,
+    T2.DistNumber AS Lote
+FROM OBTQ T0
+INNER JOIN OITM T1
+    ON T1.ItemCode = T0.ItemCode
+INNER JOIN OBTN T2
+    ON T2.ItemCode = T0.ItemCode
+   AND T2.SysNumber = T0.SysNumber
+WHERE
+    T0.Quantity > 0
+    AND T0.WhsCode = 'PLAP1GEN'
+ORDER BY
+    T0.WhsCode,
+    T0.ItemCode,
+    T2.DistNumber"
+                },
+                new SapSqlQueryDefinitionVM
+                {
+                    SqlCode = SAP_SQL_CONCILIACION_INVENTARIO_TIF,
+                    SqlName = "CG - Conciliacion inventario SAP TIF",
+                    ParamList = "",
+                    SqlText = @"SELECT
+    T0.ItemCode AS ProductoCodigo,
+    T0.WhsCode AS Sucursal,
+    T0.Quantity AS CantidadSap,
+    T0.CommitQty AS ComprometidoSap,
+    T1.ItemName AS DescripcionSap,
+    T2.DistNumber AS Lote
+FROM OBTQ T0
+INNER JOIN OITM T1
+    ON T1.ItemCode = T0.ItemCode
+INNER JOIN OBTN T2
+    ON T2.ItemCode = T0.ItemCode
+   AND T2.SysNumber = T0.SysNumber
+WHERE
+    T0.Quantity > 0
+    AND T0.WhsCode = 'PLATIFGE'
+ORDER BY
+    T0.WhsCode,
+    T0.ItemCode,
+    T2.DistNumber"
+                }            };
         }
         [HttpGet]
         public async Task<IActionResult> ObtenerPermisosVistaEntregas()
@@ -648,154 +873,30 @@ ORDER BY
 
         private async Task<List<DevolucionSapAplicadaRow>> ObtenerDevolucionesAplicadasSapAsync(string pedidoSap)
         {
-            var cs = _configuration.GetConnectionString("SapHana");
+            pedidoSap = (pedidoSap ?? "").Trim();
 
-            if (string.IsNullOrWhiteSpace(cs))
-                throw new Exception("No existe la cadena de conexión 'SapHana'.");
+            if (string.IsNullOrWhiteSpace(pedidoSap))
+                return new List<DevolucionSapAplicadaRow>();
 
-            var pedido = SqlText(pedidoSap);
-
-            var sql = $@"
-WITH P AS (
-    SELECT '{pedido}' AS ""PedidoSap"" FROM DUMMY
-),
-
-Entrega AS (
-    SELECT
-        T0.""DocEntry"",
-        T0.""DocNum"",
-        T0.""DocDate"",
-        T0.""CardCode"",
-        T0.""CardName"",
-        T0.""NumAtCard""
-    FROM ""PROD_CARNESG"".""ODLN"" T0, P
-    WHERE
-        T0.""NumAtCard"" = P.""PedidoSap""
-        OR T0.""Comments"" LIKE '%' || P.""PedidoSap"" || '%'
-),
-
-Factura AS (
-    SELECT
-        T0.""DocEntry"",
-        T0.""DocNum"",
-        T0.""DocDate"",
-        T0.""CardCode"",
-        T0.""CardName"",
-        T0.""NumAtCard""
-    FROM ""PROD_CARNESG"".""OINV"" T0, P
-    WHERE
-        T0.""NumAtCard"" = P.""PedidoSap""
-        OR T0.""Comments"" LIKE '%' || P.""PedidoSap"" || '%'
-),
-
-DetalleSap AS (
-    SELECT
-        'ORDN/RDN1' AS ""TipoAplicacion"",
-        E.""NumAtCard"" AS ""PedidoSap"",
-        E.""DocNum"" AS ""DocNumOriginal"",
-        E.""DocEntry"" AS ""DocEntryOriginal"",
-        D0.""DocEntry"" AS ""DocEntryDevolucion"",
-        D0.""DocNum"" AS ""DocNumDevolucion"",
-        D0.""DocDate"" AS ""FechaDevolucion"",
-        D1.""ItemCode"",
-        BTN.""DistNumber"" AS ""Lote"",
-        ABS(IFNULL(TLD.""Quantity"", D1.""Quantity"")) AS ""CantidadDevuelta""
-    FROM Entrega E
-    INNER JOIN ""PROD_CARNESG"".""RDN1"" D1
-        ON D1.""BaseType"" = 15
-        AND D1.""BaseEntry"" = E.""DocEntry""
-    INNER JOIN ""PROD_CARNESG"".""ORDN"" D0
-        ON D0.""DocEntry"" = D1.""DocEntry""
-    LEFT JOIN ""PROD_CARNESG"".""OITL"" TL
-        ON TL.""DocType"" = 16
-        AND TL.""DocEntry"" = D0.""DocEntry""
-        AND TL.""DocLine"" = D1.""LineNum""
-        AND TL.""ItemCode"" = D1.""ItemCode""
-    LEFT JOIN ""PROD_CARNESG"".""ITL1"" TLD
-        ON TLD.""LogEntry"" = TL.""LogEntry""
-    LEFT JOIN ""PROD_CARNESG"".""OBTN"" BTN
-        ON BTN.""AbsEntry"" = TLD.""MdAbsEntry""
-    WHERE
-        D0.""CANCELED"" = 'N'
-
-    UNION ALL
-
-    SELECT
-        'ORIN/RIN1' AS ""TipoAplicacion"",
-        F.""NumAtCard"" AS ""PedidoSap"",
-        F.""DocNum"" AS ""DocNumOriginal"",
-        F.""DocEntry"" AS ""DocEntryOriginal"",
-        NC0.""DocEntry"" AS ""DocEntryDevolucion"",
-        NC0.""DocNum"" AS ""DocNumDevolucion"",
-        NC0.""DocDate"" AS ""FechaDevolucion"",
-        NC1.""ItemCode"",
-        BTN.""DistNumber"" AS ""Lote"",
-        ABS(IFNULL(TLD.""Quantity"", NC1.""Quantity"")) AS ""CantidadDevuelta""
-    FROM Factura F
-    INNER JOIN ""PROD_CARNESG"".""RIN1"" NC1
-        ON NC1.""BaseType"" = 13
-        AND NC1.""BaseEntry"" = F.""DocEntry""
-    INNER JOIN ""PROD_CARNESG"".""ORIN"" NC0
-        ON NC0.""DocEntry"" = NC1.""DocEntry""
-    LEFT JOIN ""PROD_CARNESG"".""OITL"" TL
-        ON TL.""DocType"" = 14
-        AND TL.""DocEntry"" = NC0.""DocEntry""
-        AND TL.""DocLine"" = NC1.""LineNum""
-        AND TL.""ItemCode"" = NC1.""ItemCode""
-    LEFT JOIN ""PROD_CARNESG"".""ITL1"" TLD
-        ON TLD.""LogEntry"" = TL.""LogEntry""
-    LEFT JOIN ""PROD_CARNESG"".""OBTN"" BTN
-        ON BTN.""AbsEntry"" = TLD.""MdAbsEntry""
-    WHERE
-        NC0.""CANCELED"" = 'N'
-)
-
-SELECT
-    UPPER(TRIM(""PedidoSap"")) AS ""PedidoSap"",
-    UPPER(TRIM(""ItemCode"")) AS ""Articulo"",
-    UPPER(TRIM(IFNULL(""Lote"", 'SIN_LOTE'))) AS ""Lote"",
-    SUM(""CantidadDevuelta"") AS ""KgDevueltosSap"",
-    MAX(""DocNumDevolucion"") AS ""DocNumDevolucion"",
-    MAX(""DocEntryDevolucion"") AS ""DocEntryDevolucion"",
-    MAX(""FechaDevolucion"") AS ""FechaDevolucionSap"",
-    STRING_AGG(""TipoAplicacion"", ', ') AS ""TipoAplicacion""
-FROM DetalleSap
-GROUP BY
-    UPPER(TRIM(""PedidoSap"")),
-    UPPER(TRIM(""ItemCode"")),
-    UPPER(TRIM(IFNULL(""Lote"", 'SIN_LOTE')))
-ORDER BY
-    ""Articulo"",
-    ""Lote"";
-";
-
-            var lista = new List<DevolucionSapAplicadaRow>();
-
-            using var cn = new OdbcConnection(cs);
-            await cn.OpenAsync();
-
-            using var cmd = cn.CreateCommand();
-            cmd.CommandText = sql;
-            cmd.CommandTimeout = 180;
-
-            using var rd = await cmd.ExecuteReaderAsync();
-
-            while (await rd.ReadAsync())
-            {
-                lista.Add(new DevolucionSapAplicadaRow
+            var rows = await EjecutarSapSqlQueryListAsync(
+                SAP_SQL_DEV_APLICADAS_PEDIDO,
+                new Dictionary<string, string>
                 {
-                    PedidoSap = rd["PedidoSap"]?.ToString() ?? "",
-                    Articulo = rd["Articulo"]?.ToString() ?? "",
-                    Lote = rd["Lote"]?.ToString() ?? "",
-                    KgDevueltosSap = ToDecimalSafe(rd["KgDevueltosSap"]),
-                    DocNumDevolucion = ToIntSafe(rd["DocNumDevolucion"]),
-                    DocEntryDevolucion = ToIntSafe(rd["DocEntryDevolucion"]),
-                    FechaDevolucionSap = ToDateTimeSafe(rd["FechaDevolucionSap"]),
-                    TipoAplicacion = rd["TipoAplicacion"]?.ToString() ?? ""
-                });
-            }
+                    ["pedidoSap"] = pedidoSap
+                }
+            );
 
-            return lista;
+            return rows.Select(x => new DevolucionSapAplicadaRow
+            {
+                PedidoSap = JsonStr(x, "PedidoSap"),
+                Articulo = JsonStr(x, "Articulo"),
+                Lote = JsonStr(x, "Lote"),
+                KgDevueltosSap = JsonDecimal(x, "KgDevueltosSap"),
+                DocNumDevolucion = JsonIntNullable(x, "DocNumDevolucion"),
+                DocEntryDevolucion = JsonIntNullable(x, "DocEntryDevolucion"),
+                FechaDevolucionSap = JsonDateNullable(x, "FechaDevolucionSap"),
+                TipoAplicacion = JsonStr(x, "TipoAplicacion")
+            }).ToList();
         }
 
         private static string ExtraerNumAtCardDesdeJson(string json)
@@ -892,19 +993,24 @@ ORDER BY
                             !string.IsNullOrWhiteSpace(lote) &&
                             kg > 0)
                         {
-                            lotesReq.Add((itemCode, whsCode, lote, kg));
+                            lotesReq.Add((itemCode.Trim(), whsCode.Trim(), lote.Trim(), kg));
                         }
                     }
                 }
             }
 
             var agrupado = lotesReq
-                .GroupBy(x => new { x.ItemCode, x.WhsCode, x.Lote })
+                .GroupBy(x => new
+                {
+                    ItemCode = NormalizeKey(x.ItemCode),
+                    WhsCode = NormalizeKey(x.WhsCode),
+                    Lote = NormalizeKey(x.Lote)
+                })
                 .Select(g => new
                 {
-                    g.Key.ItemCode,
-                    g.Key.WhsCode,
-                    g.Key.Lote,
+                    ItemCode = g.First().ItemCode,
+                    WhsCode = g.First().WhsCode,
+                    Lote = g.First().Lote,
                     Kg = g.Sum(x => x.Kg)
                 })
                 .ToList();
@@ -920,102 +1026,87 @@ ORDER BY
                 };
             }
 
-            var sapSchema = "PROD_CARNESG";
+            var resultado = new List<TrazabilidadSapVM>();
 
-            var selects = agrupado.Select(x => $@"
-        SELECT
-            '{SqlText(x.ItemCode)}' AS ""ItemCode"",
-            '{SqlText(x.WhsCode)}' AS ""WhsCode"",
-            '{SqlText(x.Lote)}' AS ""DistNumber"",
-            {x.Kg.ToString(System.Globalization.CultureInfo.InvariantCulture)} AS ""KgJson""
-        FROM DUMMY
-    ");
+            foreach (var x in agrupado)
+            {
+                // Reutilizamos la conciliación SAP por almacén fijo y filtramos en C#.
+                // Esto evita usar parámetros string en SQLQueries, que en tu Service Layer está regresando "Parameter error".
+                var sapInv = await ObtenerInventarioSapConciliacionAsync(x.WhsCode, x.ItemCode, x.Lote);
 
-            var reqRawSql = string.Join(" UNION ALL ", selects);
+                var sap = sapInv
+                    .Where(r =>
+                        NormalizeKey(r.ProductoCodigo) == NormalizeKey(x.ItemCode) &&
+                        NormLoteInv(r.Lote) == NormLoteInv(x.Lote))
+                    .GroupBy(r => KeyInv(r.Sucursal, r.ProductoCodigo, r.Lote))
+                    .Select(g => new InventarioSapConciliacionRow
+                    {
+                        Sucursal = g.First().Sucursal,
+                        ProductoCodigo = g.First().ProductoCodigo,
+                        DescripcionSap = g.First().DescripcionSap,
+                        Lote = g.First().Lote,
+                        CantidadSap = g.Sum(r => r.CantidadSap),
+                        ComprometidoSap = g.Sum(r => r.ComprometidoSap),
+                        DisponibleSap = g.Sum(r => r.DisponibleSap)
+                    })
+                    .FirstOrDefault();
 
-            var sql = $@"
-WITH ReqRaw AS
-(
-    {reqRawSql}
-),
-Req AS
-(
-    SELECT
-        ""ItemCode"",
-        ""WhsCode"",
-        ""DistNumber"",
-        SUM(""KgJson"") AS ""KgJson""
-    FROM ReqRaw
-    GROUP BY
-        ""ItemCode"",
-        ""WhsCode"",
-        ""DistNumber""
-),
-Sap AS
-(
-    SELECT
-        T0.""ItemCode"",
-        T0.""WhsCode"",
-        T1.""DistNumber"",
-        SUM(IFNULL(T0.""Quantity"", 0)) AS ""CantidadSap"",
-        SUM(IFNULL(T0.""CommitQty"", 0)) AS ""ComprometidoSap"",
-        SUM(IFNULL(T0.""Quantity"", 0) - IFNULL(T0.""CommitQty"", 0)) AS ""DisponibleSap""
-    FROM ""{sapSchema}"".""OBTQ"" T0
-    INNER JOIN ""{sapSchema}"".""OBTN"" T1
-        ON T0.""ItemCode"" = T1.""ItemCode""
-       AND T0.""SysNumber"" = T1.""SysNumber""
-    INNER JOIN Req R
-        ON R.""ItemCode"" = T0.""ItemCode""
-       AND R.""WhsCode"" = T0.""WhsCode""
-       AND R.""DistNumber"" = T1.""DistNumber""
-    GROUP BY
-        T0.""ItemCode"",
-        T0.""WhsCode"",
-        T1.""DistNumber""
-)
-SELECT
-    COALESCE(R.""ItemCode"", '') AS ""Articulo"",
-    COALESCE(R.""WhsCode"", '') AS ""Almacen"",
-    COALESCE(R.""DistNumber"", '') AS ""Lote"",
-    COALESCE(R.""KgJson"", 0) AS ""KgSolicitadosJson"",
+                decimal cantidadSap = sap?.CantidadSap ?? 0m;
+                decimal comprometidoSap = sap?.ComprometidoSap ?? 0m;
+                decimal disponibleSap = sap?.DisponibleSap ?? 0m;
 
-    COALESCE(S.""CantidadSap"", 0) AS ""CantidadSap"",
-    COALESCE(S.""ComprometidoSap"", 0) AS ""ComprometidoSap"",
-    COALESCE(S.""DisponibleSap"", 0) AS ""DisponibleSap"",
+                decimal kgFaltantes = 0m;
+                decimal kgSobrantes = 0m;
+                string estatus;
 
-    CASE
-        WHEN S.""DistNumber"" IS NULL THEN COALESCE(R.""KgJson"", 0)
-        WHEN COALESCE(S.""DisponibleSap"", 0) + 0.01 < COALESCE(R.""KgJson"", 0)
-            THEN COALESCE(R.""KgJson"", 0) - COALESCE(S.""DisponibleSap"", 0)
-        ELSE 0
-    END AS ""KgFaltantes"",
+                if (sap == null)
+                {
+                    kgFaltantes = x.Kg;
+                    estatus = "NO EXISTE LOTE EN SAP";
+                }
+                else if (disponibleSap <= 0)
+                {
+                    kgFaltantes = x.Kg;
+                    estatus = "SIN DISPONIBLE";
+                }
+                else if (disponibleSap + 0.01m < x.Kg)
+                {
+                    kgFaltantes = x.Kg - disponibleSap;
+                    estatus = "FALTAN KG";
+                }
+                else if (Math.Abs(disponibleSap - x.Kg) <= 0.01m)
+                {
+                    estatus = "OK EXACTO";
+                }
+                else if (disponibleSap > x.Kg)
+                {
+                    kgSobrantes = disponibleSap - x.Kg;
+                    estatus = "OK CON SOBRANTE";
+                }
+                else
+                {
+                    estatus = "REVISAR";
+                }
 
-    CASE
-        WHEN S.""DistNumber"" IS NULL THEN 0
-        WHEN COALESCE(S.""DisponibleSap"", 0) > COALESCE(R.""KgJson"", 0)
-            THEN COALESCE(S.""DisponibleSap"", 0) - COALESCE(R.""KgJson"", 0)
-        ELSE 0
-    END AS ""KgSobrantes"",
+                resultado.Add(new TrazabilidadSapVM
+                {
+                    Articulo = sap?.ProductoCodigo ?? x.ItemCode,
+                    Almacen = sap?.Sucursal ?? x.WhsCode,
+                    Lote = sap?.Lote ?? x.Lote,
+                    KgSolicitadosJson = x.Kg,
+                    CantidadSap = cantidadSap,
+                    ComprometidoSap = comprometidoSap,
+                    DisponibleSap = disponibleSap,
+                    KgFaltantes = kgFaltantes,
+                    KgSobrantes = kgSobrantes,
+                    Estatus = estatus
+                });
+            }
 
-    CASE
-        WHEN S.""DistNumber"" IS NULL THEN 'NO EXISTE LOTE EN SAP'
-        WHEN COALESCE(S.""DisponibleSap"", 0) <= 0 THEN 'SIN DISPONIBLE'
-        WHEN COALESCE(S.""DisponibleSap"", 0) + 0.01 < COALESCE(R.""KgJson"", 0) THEN 'FALTAN KG'
-        WHEN ABS(COALESCE(S.""DisponibleSap"", 0) - COALESCE(R.""KgJson"", 0)) <= 0.01 THEN 'OK EXACTO'
-        WHEN COALESCE(S.""DisponibleSap"", 0) > COALESCE(R.""KgJson"", 0) THEN 'OK CON SOBRANTE'
-        ELSE 'REVISAR'
-    END AS ""Estatus""
-FROM Req R
-LEFT JOIN Sap S
-    ON S.""ItemCode"" = R.""ItemCode""
-   AND S.""WhsCode"" = R.""WhsCode""
-   AND S.""DistNumber"" = R.""DistNumber""
-ORDER BY
-    R.""ItemCode"",
-    R.""DistNumber"";
-";
-
-            return await EjecutarConsultaTrazabilidadSapAsync(sql);
+            return resultado
+                .OrderBy(x => x.Articulo)
+                .ThenBy(x => x.Lote)
+                .ToList();
         }
 
         private static string SqlText(string value)
@@ -1023,46 +1114,225 @@ ORDER BY
             return (value ?? "").Replace("'", "''");
         }
 
-        private async Task<List<TrazabilidadSapVM>> EjecutarConsultaTrazabilidadSapAsync(string sql)
+        private async Task<List<JsonElement>> EjecutarSapSqlQueryListAsync(
+            string sqlCode,
+            Dictionary<string, string>? parameters = null)
         {
-            var lista = new List<TrazabilidadSapVM>();
+            if (string.IsNullOrWhiteSpace(sqlCode))
+                throw new Exception("Código de SQLQuery SAP vacío.");
 
-            var cs = _configuration.GetConnectionString("SapHana");
+            parameters ??= new Dictionary<string, string>();
 
-            if (string.IsNullOrWhiteSpace(cs))
+            var endpoint = $"SQLQueries('{ODataEscape(sqlCode)}')/List";
+            var rows = new List<JsonElement>();
+
+            (bool ok, string? response, string? error) r;
+
+            // Para SQLQueries sin parámetros, usar GET.
+            // Esto evita errores de "Parameter error" en Service Layer cuando el body va vacío.
+            if (parameters.Count == 0)
             {
-                throw new Exception("No existe la cadena de conexión 'SapHana' dentro de ConnectionStrings.");
+                var g = await _sap.GetAsync(endpoint);
+                r = (g.ok, g.response, g.error);
+            }
+            else
+            {
+                var paramList = string.Join(",", parameters.Select(x =>
+                    $"{x.Key}={SapSqlParamValue(x.Value)}"));
+
+                var body = JsonSerializer.Serialize(new { ParamList = paramList });
+                var p = await _sap.PostJsonAsync(endpoint, body);
+                r = (p.ok, p.response, p.error);
             }
 
-            using var cn = new OdbcConnection(cs);
-            await cn.OpenAsync();
-
-            using var cmd = cn.CreateCommand();
-            cmd.CommandText = sql;
-            cmd.CommandTimeout = 180;
-
-            using var rd = await cmd.ExecuteReaderAsync();
-
-            while (await rd.ReadAsync())
+            if (!r.ok)
             {
-                lista.Add(new TrazabilidadSapVM
+                throw new Exception(
+                    $"No se pudo ejecutar SQLQuery SAP '{sqlCode}'. " +
+                    $"Verifica que exista en Service Layer y que el usuario tenga permisos. " +
+                    $"Error: {r.error}. Respuesta: {r.response}");
+            }
+
+            string? nextLink = LeerRowsSqlQueryResponse(r.response, rows);
+
+            var guard = 0;
+            while (!string.IsNullOrWhiteSpace(nextLink) && guard < 200)
+            {
+                guard++;
+
+                var nextEndpoint = NormalizarSapEndpoint(nextLink);
+                var next = await _sap.GetAsync(nextEndpoint);
+
+                if (!next.ok)
                 {
-                    Articulo = rd["Articulo"]?.ToString() ?? "",
-                    Almacen = rd["Almacen"]?.ToString() ?? "",
-                    Lote = rd["Lote"]?.ToString() ?? "",
+                    throw new Exception(
+                        $"No se pudo leer la siguiente página de SQLQuery SAP '{sqlCode}'. " +
+                        $"Error: {next.error}. Respuesta: {next.response}");
+                }
 
-                    KgSolicitadosJson = ToDecimalSafe(rd["KgSolicitadosJson"]),
-                    CantidadSap = ToDecimalSafe(rd["CantidadSap"]),
-                    ComprometidoSap = ToDecimalSafe(rd["ComprometidoSap"]),
-                    DisponibleSap = ToDecimalSafe(rd["DisponibleSap"]),
-                    KgFaltantes = ToDecimalSafe(rd["KgFaltantes"]),
-                    KgSobrantes = ToDecimalSafe(rd["KgSobrantes"]),
-
-                    Estatus = rd["Estatus"]?.ToString() ?? ""
-                });
+                nextLink = LeerRowsSqlQueryResponse(next.response, rows);
             }
 
-            return lista;
+            return rows;
+        }
+
+        private static string? LeerRowsSqlQueryResponse(string? response, List<JsonElement> rows)
+        {
+            if (string.IsNullOrWhiteSpace(response))
+                return null;
+
+            using var doc = JsonDocument.Parse(response);
+            var root = doc.RootElement;
+
+            if (root.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in root.EnumerateArray())
+                    rows.Add(item.Clone());
+
+                return null;
+            }
+
+            if (root.TryGetProperty("value", out var value) && value.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in value.EnumerateArray())
+                    rows.Add(item.Clone());
+            }
+
+            if (root.TryGetProperty("@odata.nextLink", out var next1) && next1.ValueKind == JsonValueKind.String)
+                return next1.GetString();
+
+            if (root.TryGetProperty("odata.nextLink", out var next2) && next2.ValueKind == JsonValueKind.String)
+                return next2.GetString();
+
+            return null;
+        }
+
+        private static string NormalizarSapEndpoint(string endpointOrUrl)
+        {
+            var s = (endpointOrUrl ?? "").Trim();
+
+            if (string.IsNullOrWhiteSpace(s))
+                return s;
+
+            var idx = s.IndexOf("/b1s/v1/", StringComparison.OrdinalIgnoreCase);
+            if (idx >= 0)
+                return s.Substring(idx + "/b1s/v1/".Length);
+
+            idx = s.IndexOf("/b1s/v2/", StringComparison.OrdinalIgnoreCase);
+            if (idx >= 0)
+                return s.Substring(idx + "/b1s/v2/".Length);
+
+            return s.TrimStart('/');
+        }
+
+        //PARA VER QUERYS REQUERIDAS
+        //http://localhost:5019/ProcesosCG/SapSqlQueriesRequeridas
+
+
+        //pra enviar los endpoint o querys a service layer
+        //POST https://TU_SERVIDOR:50000/b1s/v2/SQLQueries
+
+        //BODY
+        //        {
+        //  "SqlCode": "CG_CONCILIACION_INVENTARIO",
+        //  "SqlName": "CG - Conciliacion inventario SAP",
+        //  "ParamList": "sucursal,articulo,lote",
+        //  "SqlText": "SELECT T0."WhsCode" AS "Sucursal", T0."ItemCode" AS "ProductoCodigo", IFNULL(T1."ItemName", '') AS "DescripcionSap", IFNULL(NULLIF(T2."DistNumber", ''), '-') AS "Lote", SUM(IFNULL(T0."Quantity", 0)) AS "CantidadSap", SUM(IFNULL(T0."CommitQty", 0)) AS "ComprometidoSap", SUM(IFNULL(T0."Quantity", 0) - IFNULL(T0."CommitQty", 0)) AS "DisponibleSap" FROM OBTQ T0 INNER JOIN OITM T1 ON T1."ItemCode" = T0."ItemCode" INNER JOIN OBTN T2 ON T2."ItemCode" = T0."ItemCode" AND T2."SysNumber" = T0."SysNumber" WHERE T0."Quantity" > 0 AND (:sucursal = '' OR T0."WhsCode" = :sucursal) AND (:articulo = '' OR UPPER(T0."ItemCode") LIKE '%' || UPPER(:articulo) || '%') AND (:lote = '' OR UPPER(T2."DistNumber") LIKE '%' || UPPER(:lote) || '%') GROUP BY T0."WhsCode", T0."ItemCode", T1."ItemName", T2."DistNumber" ORDER BY T0."WhsCode", T0."ItemCode", T2."DistNumber""
+        //}
+        private static string SapSqlParamValue(string value)
+        {
+            return (value ?? string.Empty)
+                .Trim()
+                .Replace(",", " ")
+                .Replace("\r", " ")
+                .Replace("\n", " ");
+        }
+
+        private static bool TryGetJsonProperty(JsonElement row, string name, out JsonElement value)
+        {
+            if (row.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var p in row.EnumerateObject())
+                {
+                    if (p.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        value = p.Value;
+                        return true;
+                    }
+                }
+            }
+
+            value = default;
+            return false;
+        }
+
+        private static string JsonStr(JsonElement row, string name)
+        {
+            if (!TryGetJsonProperty(row, name, out var value))
+                return "";
+
+            return value.ValueKind switch
+            {
+                JsonValueKind.String => value.GetString() ?? "",
+                JsonValueKind.Number => value.ToString(),
+                JsonValueKind.True => "true",
+                JsonValueKind.False => "false",
+                _ => value.ToString() ?? ""
+            };
+        }
+
+        private static decimal JsonDecimal(JsonElement row, string name)
+        {
+            if (!TryGetJsonProperty(row, name, out var value))
+                return 0m;
+
+            try
+            {
+                if (value.ValueKind == JsonValueKind.Number)
+                    return value.GetDecimal();
+
+                if (value.ValueKind == JsonValueKind.String &&
+                    decimal.TryParse(value.GetString(), System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out var d))
+                    return d;
+            }
+            catch { }
+
+            return 0m;
+        }
+
+        private static int? JsonIntNullable(JsonElement row, string name)
+        {
+            if (!TryGetJsonProperty(row, name, out var value))
+                return null;
+
+            try
+            {
+                if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var n))
+                    return n;
+
+                if (value.ValueKind == JsonValueKind.String && int.TryParse(value.GetString(), out var s))
+                    return s;
+            }
+            catch { }
+
+            return null;
+        }
+
+        private static DateTime? JsonDateNullable(JsonElement row, string name)
+        {
+            if (!TryGetJsonProperty(row, name, out var value))
+                return null;
+
+            if (value.ValueKind == JsonValueKind.String)
+            {
+                var s = value.GetString() ?? "";
+
+                if (DateTime.TryParse(s, out var d))
+                    return d;
+            }
+
+            return null;
         }
 
         private static decimal ToDecimalSafe(object value)
@@ -1464,85 +1734,74 @@ ORDER BY
             string articulo,
             string lote)
         {
-            var lista = new List<InventarioSapConciliacionRow>();
+            sucursal = (sucursal ?? "").Trim().ToUpperInvariant();
+            articulo = (articulo ?? "").Trim().ToUpperInvariant();
+            lote = (lote ?? "").Trim().ToUpperInvariant();
 
-            var cs = _configuration.GetConnectionString("SapHana");
+            var sqlCodes = new List<string>();
 
-            if (string.IsNullOrWhiteSpace(cs))
-                throw new Exception("No existe la cadena de conexión 'SapHana' dentro de ConnectionStrings.");
-
-            var sapSchema = _configuration["SapHana:Schema"];
-
-            if (string.IsNullOrWhiteSpace(sapSchema))
-                sapSchema = "PROD_CARNESG";
-
-            var where = new List<string>
-    {
-        @"T0.""Quantity"" > 0"
-    };
-
-            if (!string.IsNullOrWhiteSpace(sucursal))
-                where.Add($@"T0.""WhsCode"" = '{SqlTextInv(sucursal.Trim())}'");
-
-            if (!string.IsNullOrWhiteSpace(articulo))
-                where.Add($@"UPPER(T0.""ItemCode"") LIKE '%{SqlTextInv(articulo.Trim().ToUpperInvariant())}%'");
-
-            if (!string.IsNullOrWhiteSpace(lote))
-                where.Add($@"UPPER(T2.""DistNumber"") LIKE '%{SqlTextInv(lote.Trim().ToUpperInvariant())}%'");
-
-            var sql = $@"
-SELECT
-    T0.""WhsCode"" AS ""Sucursal"",
-    T0.""ItemCode"" AS ""ProductoCodigo"",
-    IFNULL(T1.""ItemName"", '') AS ""DescripcionSap"",
-    IFNULL(NULLIF(T2.""DistNumber"", ''), '-') AS ""Lote"",
-
-    SUM(IFNULL(T0.""Quantity"", 0)) AS ""CantidadSap"",
-    SUM(IFNULL(T0.""CommitQty"", 0)) AS ""ComprometidoSap"",
-    SUM(IFNULL(T0.""Quantity"", 0) - IFNULL(T0.""CommitQty"", 0)) AS ""DisponibleSap""
-FROM ""{sapSchema}"".""OBTQ"" T0
-INNER JOIN ""{sapSchema}"".""OITM"" T1
-    ON T1.""ItemCode"" = T0.""ItemCode""
-INNER JOIN ""{sapSchema}"".""OBTN"" T2
-    ON T2.""ItemCode"" = T0.""ItemCode""
-   AND T2.""SysNumber"" = T0.""SysNumber""
-WHERE {string.Join(" AND ", where)}
-GROUP BY
-    T0.""WhsCode"",
-    T0.""ItemCode"",
-    T1.""ItemName"",
-    T2.""DistNumber""
-ORDER BY
-    T0.""WhsCode"",
-    T0.""ItemCode"",
-    T2.""DistNumber"";
-";
-
-            using var cn = new OdbcConnection(cs);
-            await cn.OpenAsync();
-
-            using var cmd = cn.CreateCommand();
-            cmd.CommandText = sql;
-            cmd.CommandTimeout = 180;
-
-            using var rd = await cmd.ExecuteReaderAsync();
-
-            while (await rd.ReadAsync())
+            if (string.IsNullOrWhiteSpace(sucursal))
             {
-                lista.Add(new InventarioSapConciliacionRow
-                {
-                    Sucursal = rd["Sucursal"]?.ToString() ?? "",
-                    ProductoCodigo = rd["ProductoCodigo"]?.ToString() ?? "",
-                    DescripcionSap = rd["DescripcionSap"]?.ToString() ?? "",
-                    Lote = rd["Lote"]?.ToString() ?? "",
-
-                    CantidadSap = ToDecimalInv(rd["CantidadSap"]),
-                    ComprometidoSap = ToDecimalInv(rd["ComprometidoSap"]),
-                    DisponibleSap = ToDecimalInv(rd["DisponibleSap"])
-                });
+                // Cuando la pantalla está en "Todos", consultamos las dos SQLQueries fijas
+                // para evitar parámetros string en Service Layer.
+                sqlCodes.Add(SAP_SQL_CONCILIACION_INVENTARIO_P1);
+                sqlCodes.Add(SAP_SQL_CONCILIACION_INVENTARIO_TIF);
+            }
+            else if (sucursal == "PLAP1GEN")
+            {
+                sqlCodes.Add(SAP_SQL_CONCILIACION_INVENTARIO_P1);
+            }
+            else if (sucursal == "PLATIFGE")
+            {
+                sqlCodes.Add(SAP_SQL_CONCILIACION_INVENTARIO_TIF);
+            }
+            else
+            {
+                return new List<InventarioSapConciliacionRow>();
             }
 
-            return lista;
+            var salida = new List<InventarioSapConciliacionRow>();
+
+            foreach (var sqlCode in sqlCodes)
+            {
+                // Estas consultas ya tienen el almacén fijo dentro del SQLText,
+                // por eso no mandamos ParamList.
+                var rows = await EjecutarSapSqlQueryListAsync(sqlCode);
+
+                foreach (var x in rows)
+                {
+                    var item = JsonStr(x, "ProductoCodigo").Trim();
+                    var loteSap = JsonStr(x, "Lote").Trim();
+
+                    if (!string.IsNullOrWhiteSpace(articulo) &&
+                        !item.ToUpperInvariant().Contains(articulo))
+                    {
+                        continue;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(lote) &&
+                        !loteSap.ToUpperInvariant().Contains(lote))
+                    {
+                        continue;
+                    }
+
+                    var cantidad = JsonDecimal(x, "CantidadSap");
+                    var comprometido = JsonDecimal(x, "ComprometidoSap");
+
+                    salida.Add(new InventarioSapConciliacionRow
+                    {
+                        Sucursal = JsonStr(x, "Sucursal"),
+                        ProductoCodigo = item,
+                        DescripcionSap = JsonStr(x, "DescripcionSap"),
+                        Lote = string.IsNullOrWhiteSpace(loteSap) ? "-" : loteSap,
+                        CantidadSap = cantidad,
+                        ComprometidoSap = comprometido,
+                        DisponibleSap = cantidad - comprometido
+                    });
+                }
+            }
+
+            return salida;
         }
 
         private static string KeyInv(string sucursal, string producto, string lote)
@@ -3546,15 +3805,26 @@ ORDER BY
             public decimal TotalKg => Rows.Sum(x => x.Suma_De_Kg);
         }
 
+
         [HttpGet("AvisosMovilizacionPdf")]
-        [RevisarPermiso("ENTREGAS_SAP", "LEER")]
+        [RevisarPermiso("AVISOS_PDF", "LEER")]
         public async Task<IActionResult> AvisosMovilizacionPdf(
-       [FromQuery] string ids,
-       [FromQuery] string comentarios = "")
+            [FromQuery] string ids,
+            [FromQuery] string comentarios = "",
+            [FromQuery] DateTime? desde = null,
+            [FromQuery] DateTime? hasta = null,
+            [FromQuery] string cliente = "",
+            [FromQuery] string venta = "",
+            [FromQuery] string lote = "",
+            [FromQuery] string source = "TIF",
+            [FromQuery] string planta = "",
+            [FromQuery] string origen = "")
         {
+            source = ResolveAvisosSource(source, planta, origen);
+
             try
             {
-                var solicitudes = ParseSolicitudesAvisoInt(ids);
+                var solicitudes = ParseSolicitudesAvisos(ids);
 
                 if (!solicitudes.Any())
                     return BadRequest("No se recibieron solicitudes válidas para generar el aviso.");
@@ -3562,14 +3832,10 @@ ORDER BY
                 if (solicitudes.Count > 50)
                     return BadRequest("Selecciona máximo 50 solicitudes por PDF para evitar tiempo de espera.");
 
-                var solicitudesTxt = solicitudes
-                    .Select(x => x.ToString())
-                    .ToList();
-
-                var rows = await ObtenerDetalleAvisosMovilizacionTifAsync(solicitudesTxt);
+                var rows = await ObtenerDetalleAvisosMovilizacionAsync(solicitudes, source, desde, hasta, cliente, venta, lote);
 
                 if (rows == null || !rows.Any())
-                    return NotFound("No se encontró información para las solicitudes seleccionadas en CadenaMeatTIF.");
+                    return NotFound($"No se encontró información para las solicitudes seleccionadas en {GetAvisosSourceLabel(source)}.");
 
                 var vm = new Plataforma_CG.ViewModels.AvisosMovilizacionPdfVM
                 {
@@ -3579,18 +3845,21 @@ ORDER BY
                     Rows = rows
                 };
 
+                ViewBag.Source = source;
+                ViewBag.Planta = GetAvisosSourceLabel(source);
+
                 return View("~/Views/ProcesosCG/AvisosMovilizacionPdf.cshtml", vm);
             }
             catch (SqlException ex) when (ex.Number == -2)
             {
-                _logger.LogError(ex, "Timeout SQL al generar AvisosMovilizacionPdf. Ids={Ids}", ids);
+                _logger.LogError(ex, "Timeout SQL al generar AvisosMovilizacionPdf. Ids={Ids} Source={Source}", ids, source);
 
                 return StatusCode(504,
-                    "Timeout SQL al consultar avisos de movilización. Revisa índice de solicitud_surtido_id o la vista vw_AvisosMovilizacion_TIF.");
+                    $"Timeout SQL al consultar avisos de movilización para {GetAvisosSourceLabel(source)}.");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al generar AvisosMovilizacionPdf. Ids={Ids}", ids);
+                _logger.LogError(ex, "Error al generar AvisosMovilizacionPdf. Ids={Ids} Source={Source}", ids, source);
                 return StatusCode(500, "Error al generar el aviso de movilización: " + ex.Message);
             }
         }
@@ -3672,6 +3941,7 @@ OPTION (RECOMPILE);";
             var totalSolicitudes = rows.Select(x => x.Solicitud_Surtido_Id).Distinct().Count();
             var totalCajas = rows.Sum(x => x.Cuenta_De_Etiqueta);
             var totalKg = rows.Sum(x => x.Suma_De_Kg);
+            var plantaTitulo = rows.FirstOrDefault()?.Planta ?? "Planta TIF";
 
             var sb = new System.Text.StringBuilder();
 
@@ -3691,7 +3961,7 @@ OPTION (RECOMPILE);";
 </style>
 </head>
 <body>
-    <h2>Avisos de movilización TIF</h2>
+    <h2>Avisos de movilización {H(plantaTitulo)}</h2>
     <div class=""muted"">Generado: {DateTime.Now:dd/MM/yyyy HH:mm} | Usuario: {H(usuario)}</div>
 
     <div class=""summary"">
@@ -4426,15 +4696,28 @@ OPTION (RECOMPILE);";
             return View("~/Views/ProcesosCG/AutoArticulos.cshtml");
         }
 
-        // Consultas de Lectura
         [HttpGet("ObtenerDatosBase")]
         [RevisarPermiso("AUTO_ARTICULOS", "LEER")]
         public async Task<IActionResult> ObtenerDatosBase()
         {
             try
             {
-                var usuarios = await _db.UsuariosAutoArticulos.ToListAsync();
-                var categorias = await _db.CategoriasAutoArticulos.ToListAsync();
+                // El Select crea un objeto anónimo limpio para evitar que el JSON explote
+                var usuarios = await _db.UsuariosAutoArticulos
+                    .Select(u => new {
+                        id = u.Id,
+                        nombre = u.Nombre,
+                        departamento = u.Departamento,
+                        tokenGafete = u.TokenGafete
+                    }).ToListAsync();
+
+                var categorias = await _db.CategoriasAutoArticulos
+                    .Select(c => new {
+                        id = c.Id,
+                        nombre = c.Nombre,
+                        criticidad = c.Criticidad
+                    }).ToListAsync();
+
                 return Json(new { ok = true, usuarios, categorias });
             }
             catch (Exception ex)
@@ -4442,26 +4725,31 @@ OPTION (RECOMPILE);";
                 return Json(new { ok = false, mensaje = ex.Message });
             }
         }
-
         [HttpGet("ObtenerTablaPermisos")]
         [RevisarPermiso("AUTO_ARTICULOS", "LEER")]
         public async Task<IActionResult> ObtenerTablaPermisos()
         {
             try
             {
-                var datos = await _db.UsuariosAutoArticulos
-                    .Select(u => new
-                    {
-                        UsuarioId = u.Id,
-                        Nombre = u.Nombre,
-                        Departamento = u.Departamento,
-                        TokenGafete = u.TokenGafete,
-                        Categorias = _db.PermisosAutoArticulos
-                                        .Where(p => p.UsuarioId == u.Id)
-                                        .Select(p => p.Categoria)
-                                        .ToList()
-                    })
-                    .ToListAsync();
+                // 1. Traemos todos los usuarios a memoria
+                var usuarios = await _db.UsuariosAutoArticulos.ToListAsync();
+
+                // 2. Traemos todos los permisos incluyendo la información de la categoría
+                var permisos = await _db.PermisosAutoArticulos
+                                        .Include(p => p.Categoria)
+                                        .ToListAsync();
+
+                // 3. Cruzamos los datos en memoria (Esto ya no falla en EF Core)
+                var datos = usuarios.Select(u => new
+                {
+                    UsuarioId = u.Id,
+                    Nombre = u.Nombre,
+                    Departamento = u.Departamento,
+                    TokenGafete = u.TokenGafete,
+                    Categorias = permisos.Where(p => p.UsuarioId == u.Id)
+                                         .Select(p => p.Categoria)
+                                         .ToList()
+                }).ToList();
 
                 return Json(new { ok = true, datos });
             }
@@ -4526,7 +4814,7 @@ OPTION (RECOMPILE);";
                 return File(qrCode.GetGraphic(10), "image/png");
             }
         }
-
+         
         [HttpGet("ObtenerBitacoraExcepciones")]
         [RevisarPermiso("AUTO_ARTICULOS", "LEER")]
         public async Task<IActionResult> ObtenerBitacoraExcepciones()
@@ -4682,9 +4970,120 @@ OPTION (RECOMPILE);";
 
             return Json(new { ok = true, mensaje = "PIN actualizado correctamente." });
         }
-        // =======================================================
-        // MÉTODOS INTERNOS DE SEGURIDAD
-        // =======================================================
+
+        [HttpPost("GuardarNuevaCategoriaArticulo")]
+        [RevisarPermiso("AUTO_ARTICULOS", "ESCRIBIR")]
+        public async Task<IActionResult> GuardarNuevaCategoriaArticulo([FromBody] CategoriaModel nuevaCategoria)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(nuevaCategoria.Nombre))
+                    return Json(new { ok = false, mensaje = "El nombre de la categoría es obligatorio." });
+
+                bool existe = await _db.CategoriasAutoArticulos.AnyAsync(c => c.Nombre.ToLower() == nuevaCategoria.Nombre.ToLower());
+
+                if (existe)
+                    return Json(new { ok = false, mensaje = "Esta categoría o artículo ya existe." });
+
+                _db.CategoriasAutoArticulos.Add(nuevaCategoria);
+                await _db.SaveChangesAsync();
+
+                return Json(new { ok = true, mensaje = "Registrado correctamente." });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+        [HttpPost("GuardarReporteDano")]
+        [RevisarPermiso("AUTO_ARTICULOS", "ESCRIBIR")]
+        public async Task<IActionResult> GuardarReporteDano([FromForm] string Equipo, [FromForm] string UsuarioResponsable, [FromForm] string TipoHallazgo, [FromForm] string Detalle, [FromForm] IFormFile Foto)
+        {
+            try
+            {
+                var usuarioActivo = User?.Identity?.Name ?? "SISTEMA";
+                string fotoBase64 = null;
+
+                if (Foto != null && Foto.Length > 0)
+                {
+                    using (var ms = new MemoryStream())
+                    {
+                        await Foto.CopyToAsync(ms);
+                        var fileBytes = ms.ToArray();
+                        string base64String = Convert.ToBase64String(fileBytes);
+
+                        fotoBase64 = $"data:{Foto.ContentType};base64,{base64String}";
+                    }
+                }
+
+                var nuevoReporte = new LogDanoEquipoModel
+                {
+                    Equipo = Equipo,
+                    UsuarioResponsable = UsuarioResponsable,
+                    TipoHallazgo = TipoHallazgo,
+                    Detalle = Detalle,
+                    RutaFoto = fotoBase64, 
+                    UsuarioRegistro = usuarioActivo,
+                    FechaHora = DateTime.Now
+                };
+
+                _db.LogsDanosEquipos.Add(nuevoReporte);
+                await _db.SaveChangesAsync();
+
+                return Json(new { ok = true, mensaje = "Guardado con éxito" });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+        [HttpGet("ObtenerReportesDanos")]
+        [RevisarPermiso("AUTO_ARTICULOS", "LEER")]
+        public async Task<IActionResult> ObtenerReportesDanos()
+        {
+            try
+            {
+                var reportes = await _db.LogsDanosEquipos
+                    .OrderByDescending(r => r.FechaHora)
+                    .Take(100)
+                    .Select(r => new {
+                        id = r.Id, 
+                        fecha = r.FechaHora.ToString("dd/MM/yyyy HH:mm"),
+                        equipo = r.Equipo,
+                        responsable = r.UsuarioResponsable ?? "",
+                        tipoHallazgo = r.TipoHallazgo,
+                        detalle = r.Detalle,
+                        tieneFoto = !string.IsNullOrEmpty(r.RutaFoto), 
+                        usuarioRegistro = r.UsuarioRegistro
+                    })
+                    .ToListAsync();
+
+                return Json(new { ok = true, reportes });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+        [HttpGet("ObtenerFotoDano")]
+        public async Task<IActionResult> ObtenerFotoDano(int id)
+        {
+            try
+            {
+                var reporte = await _db.LogsDanosEquipos.FindAsync(id);
+                if (reporte != null && !string.IsNullOrEmpty(reporte.RutaFoto))
+                {
+                    return Json(new { ok = true, fotoBase64 = reporte.RutaFoto });
+                }
+                return Json(new { ok = false, mensaje = "Sin foto" });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
 
         private string ObtenerPinSupervisor()
         {
@@ -5184,7 +5583,7 @@ OPTION (RECOMPILE);";
                 List<string> errores = new List<string>();
 
                 char separador = lineas[0].Contains(";") ? ';' : ',';
-                string CleanCsv(string val) => val?.Replace("\"", "").Trim() ?? "";
+                string CleanCsv(string val) => (val ?? "").Replace("\"", "").Trim();
                 var culture = System.Globalization.CultureInfo.InvariantCulture;
                 var usuario = User?.Identity?.Name ?? "Sistema";
 
@@ -5404,24 +5803,20 @@ ORDER BY u.CodigoEtiqueta;
 
         [HttpGet("AvisosMovilizacion")]
         [RevisarPermiso("AVISOS_MOVILIZACION", "LEER")]
-        public async Task<IActionResult> AvisosMovilizacion(
-     DateTime? desde,
-     DateTime? hasta,
-     string cliente = "",
-     string venta = "",
-     string lote = "")
+        public IActionResult AvisosMovilizacion(
+            DateTime? desde,
+            DateTime? hasta,
+            string cliente = "",
+            string venta = "",
+            string lote = "",
+            string source = "TIF",
+            string planta = "",
+            string origen = "")
         {
+            source = ResolveAvisosSource(source, planta, origen);
+
             var d1 = (desde ?? DateTime.Today).Date;
             var d2Visible = (hasta ?? DateTime.Today).Date;
-            var d2Exclusive = d2Visible.AddDays(1);
-
-            var rows = await ObtenerResumenAvisosMovilizacionTifAsync(
-                d1,
-                d2Exclusive,
-                cliente ?? "",
-                venta ?? "",
-                lote ?? ""
-            );
 
             var vm = new AvisosMovilizacionPageVM
             {
@@ -5430,16 +5825,129 @@ ORDER BY u.CodigoEtiqueta;
                 Cliente = cliente ?? "",
                 Venta = venta ?? "",
                 Lote = lote ?? "",
-                Rows = rows
+
+                // Importante: aquí NO se cargan datos pesados.
+                // La vista se abre rápido y después llama AvisosMovilizacionData por AJAX.
+                Rows = new List<AvisoMovilizacionResumenVM>()
             };
+
+            ViewBag.Source = source;
+            ViewBag.Planta = GetAvisosSourceLabel(source);
 
             return View("~/Views/ProcesosCG/AvisosMovilizacion.cshtml", vm);
         }
 
+        [HttpGet("AvisosMovilizacionData")]
+        [RevisarPermiso("AVISOS_MOVILIZACION", "LEER")]
+        public async Task<IActionResult> AvisosMovilizacionData(
+            DateTime? desde,
+            DateTime? hasta,
+            string cliente = "",
+            string venta = "",
+            string lote = "",
+            string source = "TIF",
+            string planta = "",
+            string origen = "",
+            CancellationToken ct = default)
+        {
+            source = ResolveAvisosSource(source, planta, origen);
+
+            try
+            {
+                var d1 = (desde ?? DateTime.Today).Date;
+                var d2Visible = (hasta ?? DateTime.Today).Date;
+                var d2Exclusive = d2Visible.AddDays(1);
+
+                List<AvisoMovilizacionResumenVM> rows;
+
+                if (source == "P1")
+                {
+                    // Planta 1: ahora sale del SP de órdenes de venta.
+                    // TIF se mantiene con la vista original que ya funcionaba.
+                    rows = await ObtenerResumenAvisosMovilizacionP1SpAsync(
+                        d1,
+                        d2Exclusive,
+                        cliente ?? "",
+                        venta ?? "",
+                        lote ?? ""
+                    );
+                }
+                else
+                {
+                    // Planta TIF: se deja exactamente con la lógica original que ya funcionaba.
+                    rows = await ObtenerResumenAvisosMovilizacionTifAsync(
+                        d1,
+                        d2Exclusive,
+                        cliente ?? "",
+                        venta ?? "",
+                        lote ?? ""
+                    );
+                }
+
+                return Ok(new
+                {
+                    ok = true,
+                    source,
+                    planta = GetAvisosSourceLabel(source),
+                    desde = d1.ToString("yyyy-MM-dd"),
+                    hasta = d2Visible.ToString("yyyy-MM-dd"),
+                    totalSolicitudes = rows.Count,
+                    totalCajas = rows.Sum(x => x.TotalCajas),
+                    totalKg = rows.Sum(x => x.TotalKg),
+                    rows
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                return StatusCode(499, new
+                {
+                    ok = false,
+                    source,
+                    msg = "Consulta cancelada por cambio de filtro."
+                });
+            }
+            catch (SqlException ex) when (ex.Number == -2)
+            {
+                _logger.LogError(ex, "Timeout SQL en AvisosMovilizacionData. Source={Source}", source);
+
+                return StatusCode(504, new
+                {
+                    ok = false,
+                    source,
+                    msg = $"Timeout SQL al cargar avisos de movilización para {GetAvisosSourceLabel(source)}.",
+                    error = ex.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error en AvisosMovilizacionData. Source={Source}", source);
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    source,
+                    msg = $"Error al cargar avisos de movilización para {GetAvisosSourceLabel(source)}.",
+                    error = ex.Message,
+                    inner = ex.InnerException?.Message
+                });
+            }
+        }
+
         [HttpGet("AvisosMovilizacionDetalle")]
         [RevisarPermiso("AVISOS_MOVILIZACION", "LEER")]
-        public async Task<IActionResult> AvisosMovilizacionDetalle([FromQuery] string id)
+        public async Task<IActionResult> AvisosMovilizacionDetalle(
+            [FromQuery] string id,
+            [FromQuery] DateTime? desde = null,
+            [FromQuery] DateTime? hasta = null,
+            [FromQuery] string cliente = "",
+            [FromQuery] string venta = "",
+            [FromQuery] string lote = "",
+            [FromQuery] string source = "TIF",
+            [FromQuery] string planta = "",
+            [FromQuery] string origen = "")
         {
+            source = ResolveAvisosSource(source, planta, origen);
+
             try
             {
                 var ids = ParseSolicitudesAvisos(id);
@@ -5447,11 +5955,13 @@ ORDER BY u.CodigoEtiqueta;
                 if (!ids.Any())
                     return BadRequest(new { ok = false, msg = "Solicitud requerida." });
 
-                var rows = await ObtenerDetalleAvisosMovilizacionTifAsync(ids);
+                var rows = await ObtenerDetalleAvisosMovilizacionAsync(ids, source, desde, hasta, cliente, venta, lote);
 
                 return Ok(new
                 {
                     ok = true,
+                    source,
+                    planta = GetAvisosSourceLabel(source),
                     solicitud = ids.FirstOrDefault() ?? "",
                     totalPartidas = rows.Count,
                     totalCajas = rows.Sum(x => x.CuentaDeEtiqueta),
@@ -5461,23 +5971,86 @@ ORDER BY u.CodigoEtiqueta;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al consultar detalle de aviso de movilización. Id={Id}", id);
+                _logger.LogError(ex, "Error al consultar detalle de aviso de movilización. Id={Id} Source={Source}", id, source);
 
                 return StatusCode(500, new
                 {
                     ok = false,
-                    msg = "Error al consultar detalle.",
+                    source,
+                    msg = $"Error al consultar detalle para {GetAvisosSourceLabel(source)}.",
                     error = ex.Message
                 });
             }
         }
 
+        [HttpGet("AvisosMovilizacionExcel")]
+        [RevisarPermiso("AVISOS_MOVILIZACION", "LEER")]
+        public async Task<IActionResult> AvisosMovilizacionExcel(
+            [FromQuery] string ids = "",
+            [FromQuery] string solicitudes = "",
+            [FromQuery] DateTime? desde = null,
+            [FromQuery] DateTime? hasta = null,
+            [FromQuery] string cliente = "",
+            [FromQuery] string venta = "",
+            [FromQuery] string lote = "",
+            [FromQuery] string source = "TIF",
+            [FromQuery] string planta = "",
+            [FromQuery] string origen = "")
+        {
+            source = ResolveAvisosSource(source, planta, origen);
+
+            try
+            {
+                var rawIds = !string.IsNullOrWhiteSpace(ids) ? ids : solicitudes;
+                var solicitudesList = ParseSolicitudesAvisos(rawIds);
+
+                if (!solicitudesList.Any())
+                    return BadRequest("Selecciona al menos una solicitud para generar el Aviso de Movilización.");
+
+                if (solicitudesList.Count > 250)
+                    return BadRequest("Selecciona máximo 250 solicitudes por Excel para evitar tiempo de espera.");
+
+                var rows = await ObtenerDetalleAvisosMovilizacionAsync(solicitudesList, source, desde, hasta, cliente, venta, lote);
+
+                if (rows == null || !rows.Any())
+                    return NotFound($"No se encontró información para las solicitudes seleccionadas en {GetAvisosSourceLabel(source)}.");
+
+                var excelBytes = CrearExcelAvisosMovilizacion(rows);
+                var fileName = $"Avisos_Movilizacion_{source}_{DateTime.Now:yyyyMMdd_HHmm}.xlsx";
+
+                return File(
+                    excelBytes,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    fileName
+                );
+            }
+            catch (SqlException ex) when (ex.Number == -2)
+            {
+                _logger.LogError(ex, "Timeout SQL al generar AvisosMovilizacionExcel. Source={Source} Ids={Ids}", source, ids);
+                return StatusCode(504, "Timeout SQL al consultar avisos de movilización.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al generar AvisosMovilizacionExcel. Source={Source} Ids={Ids}", source, ids);
+                return StatusCode(500, "Error al generar Excel de avisos de movilización: " + ex.Message);
+            }
+        }
 
         [HttpPost("EnviarAvisosMovilizacionSenasica")]
         [RevisarPermiso("AVISOS_MOVILIZACION", "ESCRIBIR")]
         public async Task<IActionResult> EnviarAvisosMovilizacionSenasica(
-            [FromBody] EnviarAvisosMovilizacionRequest req)
+            [FromBody] EnviarAvisosMovilizacionRequest req,
+            [FromQuery] DateTime? desde = null,
+            [FromQuery] DateTime? hasta = null,
+            [FromQuery] string cliente = "",
+            [FromQuery] string venta = "",
+            [FromQuery] string lote = "",
+            [FromQuery] string source = "TIF",
+            [FromQuery] string planta = "",
+            [FromQuery] string origen = "")
         {
+            source = ResolveAvisosSource(source, planta, origen);
+
             try
             {
                 if (req == null)
@@ -5506,22 +6079,23 @@ ORDER BY u.CodigoEtiqueta;
                     });
                 }
 
-                var rows = await ObtenerDetalleAvisosMovilizacionTifAsync(solicitudes);
+                var rows = await ObtenerDetalleAvisosMovilizacionAsync(solicitudes, source, desde, hasta, cliente, venta, lote);
 
                 if (!rows.Any())
                 {
                     return NotFound(new
                     {
                         ok = false,
-                        msg = "No se encontró información para las solicitudes seleccionadas en CadenaMeatTIF."
+                        source,
+                        msg = $"No se encontró información para las solicitudes seleccionadas en {GetAvisosSourceLabel(source)}."
                     });
                 }
 
                 var usuario = User?.Identity?.Name ?? "";
-                var asunto = string.Format("Avisos de movilización TIF - {0:dd/MM/yyyy HH:mm}", DateTime.Now);
+                var asunto = string.Format("Avisos de movilización {0} - {1:dd/MM/yyyy HH:mm}", GetAvisosSourceLabel(source), DateTime.Now);
                 var html = BuildAvisosMovilizacionHtml(rows, req.Comentarios ?? "", usuario);
                 var excelBytes = CrearExcelAvisosMovilizacion(rows);
-                var excelName = string.Format("Avisos_Movilizacion_TIF_{0:yyyyMMdd_HHmm}.xlsx", DateTime.Now);
+                var excelName = string.Format("Avisos_Movilizacion_{0}_{1:yyyyMMdd_HHmm}.xlsx", source, DateTime.Now);
 
                 await EnviarCorreoAvisosMovilizacionAsync(
                     correoMedico,
@@ -5534,7 +6108,9 @@ ORDER BY u.CodigoEtiqueta;
                 return Ok(new
                 {
                     ok = true,
-                    msg = "Aviso(s) de movilización enviados al médico SENASICA.",
+                    source,
+                    planta = GetAvisosSourceLabel(source),
+                    msg = $"Aviso(s) de movilización enviados al médico SENASICA para {GetAvisosSourceLabel(source)}.",
                     totalSolicitudes = rows.Select(x => x.SolicitudSurtidoId).Distinct().Count(),
                     totalPartidas = rows.Count,
                     totalCajas = rows.Sum(x => x.CuentaDeEtiqueta),
@@ -5544,11 +6120,12 @@ ORDER BY u.CodigoEtiqueta;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al enviar avisos de movilización SENASICA.");
+                _logger.LogError(ex, "Error al enviar avisos de movilización SENASICA. Source={Source}", source);
 
                 return StatusCode(500, new
                 {
                     ok = false,
+                    source,
                     msg = "Error interno al enviar avisos de movilización SENASICA.",
                     error = ex.Message,
                     inner = ex.InnerException?.Message,
@@ -5557,14 +6134,549 @@ ORDER BY u.CodigoEtiqueta;
             }
         }
 
+        private static string ResolveAvisosSource(string source, string planta = "", string origen = "")
+        {
+            var raw = !string.IsNullOrWhiteSpace(source)
+                ? source
+                : (!string.IsNullOrWhiteSpace(planta) ? planta : origen);
 
-        private async Task<List<AvisoMovilizacionResumenVM>> ObtenerResumenAvisosMovilizacionTifAsync(
+            return NormalizeSource(raw);
+        }
+
+        private static string GetAvisosSourceLabel(string source)
+        {
+            return NormalizeSource(source) == "P1" ? "Planta 1" : "Planta TIF";
+        }
+
+        private string GetAvisosMovilizacionConnectionString(string source)
+        {
+            source = NormalizeSource(source);
+            var key = source == "P1" ? "CadenaMeatP1" : "CadenaMeatTIF";
+            var cs = _configuration.GetConnectionString(key);
+
+            if (string.IsNullOrWhiteSpace(cs))
+                throw new Exception($"No existe la cadena de conexión '{key}' en appsettings.");
+
+            return cs;
+        }
+
+        private static string GetAvisosMovilizacionViewName(string source)
+        {
+            // Solo TIF usa vista. Planta 1 se resuelve desde Transferencias + Meat_P1.
+            return "dbo.vw_AvisosMovilizacion_TIF";
+        }
+
+
+        private sealed class AvisoMovilizacionP1SpRow
+        {
+            public string planta { get; set; } = "";
+            public string solicitud_surtido_id { get; set; } = "";
+            public string venta { get; set; } = "";
+            public string cliente { get; set; } = "";
+            public DateTime? fecha_venta { get; set; }
+            public string fecha_venta_txt { get; set; } = "";
+            public string sku { get; set; } = "";
+            public string producto { get; set; } = "";
+            public string lote { get; set; } = "";
+            public DateTime? fecha_sacrificio { get; set; }
+            public string fecha_sacrificio_txt { get; set; } = "";
+            public DateTime? fecha_produccion { get; set; }
+            public string fecha_produccion_txt { get; set; } = "";
+            public DateTime? fecha_caducidad { get; set; }
+            public string fecha_caducidad_txt { get; set; } = "";
+            public int cuenta_de_etiqueta { get; set; }
+            public decimal suma_de_kg { get; set; }
+        }
+
+        private static DateTime? MinDateOrNull(IEnumerable<DateTime?> values)
+        {
+            var list = values
+                .Where(x => x.HasValue)
+                .Select(x => x.Value)
+                .ToList();
+
+            return list.Any() ? list.Min() : null;
+        }
+
+        private static DateTime? MaxDateOrNull(IEnumerable<DateTime?> values)
+        {
+            var list = values
+                .Where(x => x.HasValue)
+                .Select(x => x.Value)
+                .ToList();
+
+            return list.Any() ? list.Max() : null;
+        }
+
+        private async Task<List<AvisoMovilizacionDetalleVM>> ObtenerDetalleAvisosMovilizacionP1SpAsync(
             DateTime desde,
             DateTime hasta,
             string cliente,
             string venta,
             string lote)
         {
+            var cs = _configuration.GetConnectionString("CadenaMeatP1");
+
+            if (string.IsNullOrWhiteSpace(cs))
+                throw new Exception("No existe la cadena de conexión 'CadenaMeatP1' en appsettings.");
+
+            using var cn = new SqlConnection(cs);
+
+            var rows = await cn.QueryAsync<AvisoMovilizacionP1SpRow>(
+                new CommandDefinition(
+                    "dbo.sp_AvisosMovilizacion_P1",
+                    new
+                    {
+                        Desde = desde,
+                        Hasta = hasta,
+                        Cliente = (cliente ?? "").Trim(),
+                        Venta = (venta ?? "").Trim(),
+                        Lote = (lote ?? "").Trim()
+                    },
+                    commandType: CommandType.StoredProcedure,
+                    commandTimeout: 300
+                )
+            );
+
+            return rows.Select(x => new AvisoMovilizacionDetalleVM
+            {
+                Planta = "Planta 1",
+                SolicitudSurtidoId = (x.solicitud_surtido_id ?? "").Trim(),
+                Venta = x.venta ?? "",
+                Cliente = x.cliente ?? "",
+                FechaVenta = x.fecha_venta,
+                Sku = x.sku ?? "",
+                Producto = x.producto ?? "",
+                Lote = x.lote ?? "",
+                FechaSacrificio = x.fecha_sacrificio,
+                FechaProduccion = x.fecha_produccion,
+                FechaCaducidad = x.fecha_caducidad,
+                CuentaDeEtiqueta = x.cuenta_de_etiqueta,
+                SumaDeKg = x.suma_de_kg
+            }).ToList();
+        }
+
+        private async Task<List<AvisoMovilizacionResumenVM>> ObtenerResumenAvisosMovilizacionP1SpAsync(
+            DateTime desde,
+            DateTime hasta,
+            string cliente,
+            string venta,
+            string lote)
+        {
+            var detalle = await ObtenerDetalleAvisosMovilizacionP1SpAsync(
+                desde,
+                hasta,
+                cliente,
+                venta,
+                lote
+            );
+
+            return detalle
+                .GroupBy(x => new
+                {
+                    x.SolicitudSurtidoId,
+                    FechaVenta = x.FechaVenta?.Date
+                })
+                .Select(g => new AvisoMovilizacionResumenVM
+                {
+                    SolicitudSurtidoId = g.Key.SolicitudSurtidoId,
+                    Venta = g.Select(x => x.Venta).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
+                    Cliente = g.Select(x => x.Cliente).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
+                    FechaVenta = g.Key.FechaVenta,
+
+                    Lotes = string.Join(", ",
+                        g.Select(x => x.Lote)
+                         .Where(x => !string.IsNullOrWhiteSpace(x))
+                         .Distinct()
+                         .OrderBy(x => x)
+                    ),
+
+                    TotalPartidas = g.Count(),
+                    TotalCajas = g.Sum(x => x.CuentaDeEtiqueta),
+                    TotalKg = g.Sum(x => x.SumaDeKg),
+
+                    FechaSacrificioMin = MinDateOrNull(g.Select(x => x.FechaSacrificio)),
+                    FechaSacrificioMax = MaxDateOrNull(g.Select(x => x.FechaSacrificio)),
+
+                    FechaProduccionMin = MinDateOrNull(g.Select(x => x.FechaProduccion)),
+                    FechaProduccionMax = MaxDateOrNull(g.Select(x => x.FechaProduccion)),
+
+                    FechaCaducidadMin = MinDateOrNull(g.Select(x => x.FechaCaducidad)),
+                    FechaCaducidadMax = MaxDateOrNull(g.Select(x => x.FechaCaducidad))
+                })
+                .OrderBy(x => x.FechaVenta)
+                .ThenBy(x => x.Venta)
+                .ThenBy(x => x.Cliente)
+                .ThenBy(x => x.SolicitudSurtidoId)
+                .ToList();
+        }
+
+
+        private async Task<List<AvisoMovilizacionResumenVM>> ObtenerResumenAvisosMovilizacionP1RapidoAsync(
+            DateTime desde,
+            DateTime hasta,
+            string cliente,
+            string venta,
+            string lote,
+            CancellationToken ct)
+        {
+            const string sql = @"
+;WITH Base AS
+(
+    SELECT
+        TransferenciaId = a.TransferenciaId,
+        Pedido = LTRIM(RTRIM(CONVERT(nvarchar(50), a.Pedido))) COLLATE Modern_Spanish_CI_AS,
+        Destino = CONVERT(nvarchar(200), ISNULL(a.Destino, N'')) COLLATE Modern_Spanish_CI_AS,
+        FechaVenta = CONVERT(date, a.Fecha),
+        ProductoCodigo = CONVERT(nvarchar(50), ISNULL(a.ProductoCodigo, N'')) COLLATE Modern_Spanish_CI_AS,
+        Cajas = ISNULL(a.Cajas, 0),
+        Peso = CAST(ISNULL(a.Peso, 0) AS decimal(18,3))
+    FROM dbo.RomaneoTransferencias a
+    WHERE a.Fecha >= @Desde
+      AND a.Fecha <  @Hasta
+      AND (@Cliente = '' OR CONVERT(nvarchar(200), ISNULL(a.Destino, N'')) LIKE '%' + @Cliente + '%')
+      AND (@Venta   = '' OR LTRIM(RTRIM(CONVERT(nvarchar(50), a.Pedido))) LIKE '%' + @Venta + '%')
+      AND
+      (
+            @Lote = ''
+         OR EXISTS
+            (
+                SELECT 1
+                FROM dbo.TransferenciaScanEtiqueta te
+                WHERE te.TransferenciaId = a.TransferenciaId
+                  AND
+                  (
+                        CONVERT(nvarchar(200), ISNULL(te.CodigoEtiqueta, N'')) LIKE '%' + @Lote + '%'
+                     OR CONVERT(nvarchar(50),  ISNULL(te.Sku, N''))            LIKE '%' + @Lote + '%'
+                  )
+            )
+      )
+)
+SELECT TOP (500)
+    SolicitudSurtidoId = Pedido,
+    Venta = Pedido,
+    Cliente = MAX(Destino),
+    FechaVenta = FechaVenta,
+    Lotes = CONVERT(nvarchar(max), N''),
+    TotalPartidas = COUNT(DISTINCT NULLIF(ProductoCodigo, N'')),
+    TotalCajas = SUM(Cajas),
+    TotalKg = CAST(SUM(Peso) AS decimal(18,3)),
+    FechaSacrificioMin = CONVERT(date, NULL),
+    FechaSacrificioMax = CONVERT(date, NULL),
+    FechaProduccionMin = CONVERT(date, NULL),
+    FechaProduccionMax = CONVERT(date, NULL),
+    FechaCaducidadMin = CONVERT(date, NULL),
+    FechaCaducidadMax = CONVERT(date, NULL)
+FROM Base
+WHERE Pedido <> N''
+GROUP BY
+    Pedido,
+    FechaVenta
+ORDER BY
+    FechaVenta DESC,
+    Pedido DESC
+OPTION (RECOMPILE);";
+
+            var cn = _db.Database.GetDbConnection();
+            var shouldClose = cn.State == ConnectionState.Closed;
+
+            if (shouldClose)
+                await cn.OpenAsync(ct);
+
+            try
+            {
+                var rows = await cn.QueryAsync<AvisoMovilizacionResumenVM>(
+                    new CommandDefinition(
+                        sql,
+                        new
+                        {
+                            Desde = desde,
+                            Hasta = hasta,
+                            Cliente = (cliente ?? "").Trim(),
+                            Venta = (venta ?? "").Trim(),
+                            Lote = (lote ?? "").Trim()
+                        },
+                        cancellationToken: ct,
+                        commandTimeout: 30
+                    )
+                );
+
+                return rows.ToList();
+            }
+            finally
+            {
+                if (shouldClose)
+                    await cn.CloseAsync();
+            }
+        }
+
+        private async Task<List<AvisoMovilizacionDetalleVM>> ObtenerDetalleAvisosMovilizacionAsync(
+            IEnumerable<string> solicitudes,
+            string source,
+            DateTime? desde = null,
+            DateTime? hasta = null,
+            string cliente = "",
+            string venta = "",
+            string lote = "")
+        {
+            source = ResolveAvisosSource(source);
+
+            if (source != "P1")
+                return await ObtenerDetalleAvisosMovilizacionTifAsync(solicitudes);
+
+            var ids = (solicitudes ?? Array.Empty<string>())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (!ids.Any())
+                return new List<AvisoMovilizacionDetalleVM>();
+
+            var d1 = (desde ?? DateTime.Today).Date;
+            var d2Visible = (hasta ?? DateTime.Today).Date;
+            var d2Exclusive = d2Visible.AddDays(1);
+
+            var rows = await ObtenerDetalleAvisosMovilizacionP1SpAsync(
+                d1,
+                d2Exclusive,
+                cliente ?? "",
+                venta ?? "",
+                lote ?? ""
+            );
+
+            var set = ids.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            return rows
+                .Where(x => set.Contains((x.SolicitudSurtidoId ?? "").Trim()))
+                .ToList();
+        }
+
+        private async Task<List<AvisoMovilizacionDetalleVM>> ObtenerDetalleAvisosMovilizacionP1Async(IEnumerable<string> solicitudes)
+        {
+            var pedidos = (solicitudes ?? Array.Empty<string>())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (!pedidos.Any())
+                return new List<AvisoMovilizacionDetalleVM>();
+
+            const string sql = @"
+/* ============================================================
+   AVISO DE MOVILIZACION PLANTA 1
+   Basado en la misma lógica del Excel de Transferencias.
+   ============================================================ */
+;WITH BaseEtiquetas AS (
+    SELECT
+        a.TransferenciaId,
+        Pedido = LTRIM(RTRIM(CONVERT(nvarchar(50), a.Consecutivo))) COLLATE Modern_Spanish_CI_AS,
+        Destino = CONVERT(nvarchar(200), ISNULL(a.Destino, N'')) COLLATE Modern_Spanish_CI_AS,
+        FechaSolicitud = CONVERT(date, a.FechaSolicitud),
+        ProductoCodigo = CONVERT(nvarchar(50), ISNULL(d.ProductoCodigo, c.Sku)) COLLATE Modern_Spanish_CI_AS,
+        ProductoNombre = CONVERT(nvarchar(200), ISNULL(d.ProductoNombre, c.Sku)) COLLATE Modern_Spanish_CI_AS,
+        Sku = CONVERT(nvarchar(50), c.Sku) COLLATE Modern_Spanish_CI_AS,
+        CodigoEtiqueta = CONVERT(nvarchar(200), LTRIM(RTRIM(c.CodigoEtiqueta))) COLLATE Modern_Spanish_CI_AS,
+        Kg = CAST(COALESCE(c.Kg, 0) AS decimal(18,4))
+    FROM dbo.PedidosTransferencia a
+    INNER JOIN dbo.TransferenciaScanEtiqueta c
+        ON a.TransferenciaId = c.TransferenciaId
+    LEFT JOIN dbo.ArticuloSap d
+        ON c.Sku = d.ProductoCodigo
+    WHERE
+        LTRIM(RTRIM(CONVERT(nvarchar(50), a.Consecutivo))) IN @Solicitudes
+        OR LTRIM(RTRIM(CONVERT(nvarchar(50), a.TransferenciaId))) IN @Solicitudes
+),
+
+EtiquetasPedido AS (
+    SELECT DISTINCT CodigoEtiqueta
+    FROM BaseEtiquetas
+),
+
+LogP1 AS (
+    SELECT
+        CodigoEtiqueta,
+        ProduccionId,
+        EtiquetacionId,
+        FechaHoraEvento,
+        rn = ROW_NUMBER() OVER (PARTITION BY CodigoEtiqueta ORDER BY FechaHoraEvento DESC)
+    FROM (
+        SELECT
+            CodigoEtiqueta = CONVERT(nvarchar(200), LTRIM(RTRIM(pel.CodigoEtiqueta))) COLLATE Modern_Spanish_CI_AS,
+            pel.ProduccionId,
+            pel.EtiquetacionId,
+            pel.FechaHoraEvento
+        FROM [Meat_P1].Meat.dbo.ProduccionEtiquetacionLog pel
+        INNER JOIN EtiquetasPedido ep
+            ON CONVERT(nvarchar(200), LTRIM(RTRIM(pel.CodigoEtiqueta))) COLLATE Modern_Spanish_CI_AS
+             = ep.CodigoEtiqueta
+    ) x
+),
+
+ConLog AS (
+    SELECT
+        b.Pedido,
+        b.Destino,
+        b.FechaSolicitud,
+        b.ProductoCodigo,
+        b.ProductoNombre,
+        b.Sku,
+        b.CodigoEtiqueta,
+        b.Kg,
+        ProduccionId = lp.ProduccionId,
+        EtiquetacionId = lp.EtiquetacionId
+    FROM BaseEtiquetas b
+    LEFT JOIN LogP1 lp
+        ON lp.CodigoEtiqueta = b.CodigoEtiqueta
+       AND lp.rn = 1
+),
+
+ProdP1 AS (
+    SELECT
+        pr.ProduccionId,
+        SKU = CONVERT(nvarchar(50), pr.Articulo) COLLATE Modern_Spanish_CI_AS,
+        FechaProduccion = CONVERT(date, pr.FechaProduccion),
+        PesoKg = CAST(pr.PesoNeto AS decimal(18,4)),
+        pr.LoteId
+    FROM [Meat_P1].Meat.dbo.Produccion pr
+),
+
+LoteP1 AS (
+    SELECT
+        l.LoteId,
+        Lote = CONVERT(nvarchar(200), LTRIM(RTRIM(l.Nombre))) COLLATE Modern_Spanish_CI_AS
+    FROM [Meat_P1].Meat.dbo.Lote l
+),
+
+ColP1 AS (
+    SELECT
+        ColectorId,
+        DiasVida = TRY_CONVERT(int, Interface)
+    FROM [Meat_P1].CommerciaNet.dbo.colector
+    WHERE SistemaId = 'ETI'
+),
+
+Detalle AS (
+    SELECT
+        c.Pedido,
+        c.Destino,
+        c.FechaSolicitud,
+        c.CodigoEtiqueta,
+
+        SKU = COALESCE(
+            NULLIF(c.Sku, N''),
+            NULLIF(c.ProductoCodigo, N''),
+            N'SIN SKU'
+        ) COLLATE Modern_Spanish_CI_AS,
+
+        Producto = COALESCE(
+            NULLIF(c.ProductoNombre, N''),
+            N'SIN PRODUCTO'
+        ) COLLATE Modern_Spanish_CI_AS,
+
+        Lote = COALESCE(
+            lp.Lote,
+            N'SIN LOTE'
+        ) COLLATE Modern_Spanish_CI_AS,
+
+        FechaProduccion = pp.FechaProduccion,
+
+        PesoKg = COALESCE(
+            pp.PesoKg,
+            c.Kg,
+            CAST(0 AS decimal(18,4))
+        ),
+
+        DiasVida = COALESCE(cp.DiasVida, 0),
+
+        FechaCaducidad = CASE
+            WHEN pp.FechaProduccion IS NULL THEN NULL
+            ELSE DATEADD(day, COALESCE(cp.DiasVida, 0), pp.FechaProduccion)
+        END,
+
+        FechaSacrificio = TRY_CONVERT(date, sr.Referencia, 103)
+    FROM ConLog c
+    LEFT JOIN ProdP1 pp
+        ON pp.ProduccionId = c.ProduccionId
+    LEFT JOIN LoteP1 lp
+        ON lp.LoteId = pp.LoteId
+    LEFT JOIN ColP1 cp
+        ON cp.ColectorId = c.EtiquetacionId
+    LEFT JOIN [Meat_TIF].TIF_MEAT.dbo.LOTE ltf
+        ON CONVERT(nvarchar(200), LTRIM(RTRIM(ltf.nombre))) COLLATE Modern_Spanish_CI_AS
+         = COALESCE(lp.Lote, N'') COLLATE Modern_Spanish_CI_AS
+    LEFT JOIN [Meat_TIF].TIF_MEAT.dbo.SolicitudReferencia sr
+        ON sr.solicitudProduccionid = ltf.loteid
+       AND sr.tiporeferenciaId = 47
+)
+
+SELECT
+    Planta = N'Planta 1',
+    SolicitudSurtidoId = d.Pedido,
+    Venta = d.Pedido,
+    Cliente = MAX(d.Destino),
+    FechaVenta = MAX(d.FechaSolicitud),
+    Sku = d.SKU,
+    Producto = d.Producto,
+    Lote = d.Lote,
+    FechaSacrificio = d.FechaSacrificio,
+    FechaProduccion = d.FechaProduccion,
+    FechaCaducidad = d.FechaCaducidad,
+    CuentaDeEtiqueta = COUNT(1),
+    SumaDeKg = CAST(SUM(d.PesoKg) AS decimal(18,3))
+FROM Detalle d
+GROUP BY
+    d.Pedido,
+    d.SKU,
+    d.Producto,
+    d.Lote,
+    d.FechaSacrificio,
+    d.FechaProduccion,
+    d.FechaCaducidad
+ORDER BY
+    d.Pedido,
+    d.SKU,
+    d.Producto,
+    d.Lote,
+    d.FechaProduccion,
+    d.FechaCaducidad
+OPTION (RECOMPILE);";
+
+            var cn = _db.Database.GetDbConnection();
+            var shouldClose = cn.State == ConnectionState.Closed;
+
+            if (shouldClose)
+                await cn.OpenAsync();
+
+            try
+            {
+                var rows = await cn.QueryAsync<AvisoMovilizacionDetalleVM>(
+                    new CommandDefinition(
+                        sql,
+                        new { Solicitudes = pedidos },
+                        commandTimeout: 180
+                    )
+                );
+
+                return rows.ToList();
+            }
+            finally
+            {
+                if (shouldClose)
+                    await cn.CloseAsync();
+            }
+        }
+
+        private async Task<List<AvisoMovilizacionResumenVM>> ObtenerResumenAvisosMovilizacionTifAsync(
+            DateTime desde,
+            DateTime hasta,
+            string cliente,
+            string venta,
+            string lote,
+            string source = "TIF")
+        {
+            // NO mover esta lógica: TIF se queda con la vista original.
             var cs = _configuration.GetConnectionString("CadenaMeatTIF");
 
             if (string.IsNullOrWhiteSpace(cs))
@@ -5722,13 +6834,10 @@ OPTION (RECOMPILE);";
 
             using var cn = new SqlConnection(cs);
 
-            var rows = await cn.QueryAsync<AvisoMovilizacionDetalleVM>(
-                new CommandDefinition(
-                    sql,
-                    new { Solicitudes = ids },
-                    commandTimeout: 180
-                )
-            );
+            var rows = await cn.QueryAsync<AvisoMovilizacionDetalleVM>(sql, new
+            {
+                Solicitudes = ids
+            });
 
             return rows.ToList();
         }
@@ -5756,6 +6865,7 @@ OPTION (RECOMPILE);";
             var totalSolicitudes = rows.Select(x => x.SolicitudSurtidoId).Distinct().Count();
             var totalCajas = rows.Sum(x => x.CuentaDeEtiqueta);
             var totalKg = rows.Sum(x => x.SumaDeKg);
+            var plantaTitulo = rows.FirstOrDefault()?.Planta ?? "Planta TIF";
 
             var sb = new System.Text.StringBuilder();
 
@@ -5775,7 +6885,7 @@ OPTION (RECOMPILE);";
 </style>
 </head>
 <body>
-    <h2>Avisos de movilización TIF</h2>
+    <h2>Avisos de movilización {H(plantaTitulo)}</h2>
     <div class=""muted"">Generado: {DateTime.Now:dd/MM/yyyy HH:mm} | Usuario: {H(usuario)}</div>
 
     <div class=""summary"">
@@ -6028,33 +7138,89 @@ OPTION (RECOMPILE);";
         }
 
         [HttpGet("InventarioInicialFiltros")]
-        public async Task<IActionResult> InventarioInicialFiltros()
+        public async Task<IActionResult> InventarioInicialFiltros(
+           DateTime? fechaInicio = null,
+           DateTime? fechaFin = null,
+           DateTime? fechaInventarioInicial = null,
+           int dias = 23,
+           bool soloSkuMovimiento = true)
         {
             try
             {
-                const string sqlMasters = @"
-SELECT
-    MasterProducto,
-    COUNT(DISTINCT Sku) AS TotalSkus
-FROM dbo.InventarioInicialCatalogo WITH (NOLOCK)
-WHERE Activo = 1
-GROUP BY
-    MasterProducto
-ORDER BY
-    CASE WHEN MasterProducto = 'SIN MASTER' THEN 1 ELSE 0 END,
-    MasterProducto;
-";
+                var fechaInicioReal = (fechaInicio ?? DateTime.Today).Date;
+                var fechaFinReal = (fechaFin ?? fechaInicioReal.AddDays(dias)).Date;
+                var fechaInventarioReal = (fechaInventarioInicial ?? fechaInicioReal.AddDays(-1)).Date;
 
+                if (fechaFinReal < fechaInicioReal)
+                {
+                    var temp = fechaInicioReal;
+                    fechaInicioReal = fechaFinReal;
+                    fechaFinReal = temp;
+                }
+
+                /*
+                 * Criterio:
+                 * Si soloSkuMovimiento = true, se muestran solo SKU que tengan:
+                 *   - inventario del día anterior mayor a 0
+                 *     O
+                 *   - producción planeada mayor a 0 dentro del rango.
+                 *
+                 * Esto es OR, no AND.
+                 */
                 const string sqlSkus = @"
+;WITH SkusMovimiento AS
+(
+    SELECT DISTINCT
+        UPPER(LTRIM(RTRIM(i.SkuNorm))) AS Sku
+    FROM dbo.InventarioAlmacenado_Meat i WITH (NOLOCK)
+    WHERE
+        i.SkuNorm IS NOT NULL
+        AND LTRIM(RTRIM(i.SkuNorm)) <> ''
+        AND i.FechaInventario >= @FechaInventarioInicial
+        AND i.FechaInventario < DATEADD(DAY, 1, @FechaInventarioInicial)
+        AND ISNULL(i.PesoNeto, 0) > 0
+
+    UNION
+
+    SELECT DISTINCT
+        UPPER(LTRIM(RTRIM(b.ProductoCodigoConvertidoNorm))) AS Sku
+    FROM dbo.PlaneacionProduccion a WITH (NOLOCK)
+    INNER JOIN dbo.PlanDiario b WITH (NOLOCK)
+        ON b.PlaneacionId = a.PlaneacionId
+    WHERE
+        b.ProductoCodigoConvertidoNorm IS NOT NULL
+        AND LTRIM(RTRIM(b.ProductoCodigoConvertidoNorm)) <> ''
+        AND a.FechaPlan >= @FechaInicio
+        AND a.FechaPlan < DATEADD(DAY, 1, @FechaFin)
+        AND ISNULL(b.KgInyeccion, 0) > 0
+)
 SELECT
-    Sku,
-    Articulo,
-    MasterProducto
-FROM dbo.InventarioInicialCatalogo WITH (NOLOCK)
-WHERE Activo = 1
+    UPPER(LTRIM(RTRIM(c.Sku))) AS Sku,
+    c.Articulo,
+    CASE
+        WHEN NULLIF(LTRIM(RTRIM(c.MasterProducto)), '') IS NULL THEN 'SIN MASTER'
+        ELSE UPPER(LTRIM(RTRIM(c.MasterProducto)))
+    END AS MasterProducto
+FROM dbo.InventarioInicialCatalogo c WITH (NOLOCK)
+WHERE
+    c.Activo = 1
+    AND NULLIF(LTRIM(RTRIM(c.Sku)), '') IS NOT NULL
+    AND
+    (
+        @SoloSkuMovimiento = 0
+        OR EXISTS
+        (
+            SELECT 1
+            FROM SkusMovimiento sm
+            WHERE sm.Sku = UPPER(LTRIM(RTRIM(c.Sku)))
+        )
+    )
 ORDER BY
-    MasterProducto,
-    Sku;
+    CASE
+        WHEN NULLIF(LTRIM(RTRIM(c.MasterProducto)), '') IS NULL THEN 'SIN MASTER'
+        ELSE UPPER(LTRIM(RTRIM(c.MasterProducto)))
+    END,
+    UPPER(LTRIM(RTRIM(c.Sku)));
 ";
 
                 var cn = _db.Database.GetDbConnection();
@@ -6065,33 +7231,17 @@ ORDER BY
 
                 try
                 {
-                    var mastersRaw = (await cn.QueryAsync<InventarioInicialMasterFiltroVM>(
-                        sqlMasters,
-                        commandTimeout: 60
-                    )).ToList();
-
                     var skusRaw = (await cn.QueryAsync<InventarioInicialSkuFiltroVM>(
                         sqlSkus,
-                        commandTimeout: 60
-                    )).ToList();
-
-                    var masters = mastersRaw
-                        .Select(x => new
+                        new
                         {
-                            value = string.IsNullOrWhiteSpace(x.MasterProducto)
-                                ? "SIN MASTER"
-                                : x.MasterProducto.Trim().ToUpper(),
-
-                            text = string.IsNullOrWhiteSpace(x.MasterProducto)
-                                ? "SIN MASTER"
-                                : x.MasterProducto.Trim().ToUpper(),
-
-                            totalSkus = x.TotalSkus
-                        })
-                        .Where(x => !string.IsNullOrWhiteSpace(x.value))
-                        .OrderBy(x => x.text == "SIN MASTER" ? 1 : 0)
-                        .ThenBy(x => x.text)
-                        .ToList();
+                            FechaInicio = fechaInicioReal,
+                            FechaFin = fechaFinReal,
+                            FechaInventarioInicial = fechaInventarioReal,
+                            SoloSkuMovimiento = soloSkuMovimiento
+                        },
+                        commandTimeout: 120
+                    )).ToList();
 
                     var skus = skusRaw
                         .Select(x => new
@@ -6109,8 +7259,21 @@ ORDER BY
                                 : x.MasterProducto.Trim().ToUpper()
                         })
                         .Where(x => !string.IsNullOrWhiteSpace(x.value))
-                        .OrderBy(x => x.master)
+                        .OrderBy(x => x.master == "SIN MASTER" ? 1 : 0)
+                        .ThenBy(x => x.master)
                         .ThenBy(x => x.value)
+                        .ToList();
+
+                    var masters = skus
+                        .GroupBy(x => x.master)
+                        .Select(g => new
+                        {
+                            value = g.Key,
+                            text = g.Key,
+                            totalSkus = g.Select(x => x.value).Distinct().Count()
+                        })
+                        .OrderBy(x => x.text == "SIN MASTER" ? 1 : 0)
+                        .ThenBy(x => x.text)
                         .ToList();
 
                     return Ok(new
@@ -6118,6 +7281,12 @@ ORDER BY
                         ok = true,
                         totalMasters = masters.Count,
                         totalSkus = skus.Count,
+                        fechaInicio = fechaInicioReal,
+                        fechaFin = fechaFinReal,
+                        fechaInventarioInicial = fechaInventarioReal,
+                        criterio = soloSkuMovimiento
+                            ? "SKU con inventario > 0 OR producción > 0"
+                            : "Todos los SKU activos del catálogo",
                         masters,
                         skus
                     });
@@ -6149,13 +7318,29 @@ ORDER BY
             string mastersCsv = "",
             DateTime? fechaInicio = null,
             DateTime? fechaFin = null,
-            int dias = 23)
+            DateTime? fechaInventarioInicial = null,
+            int dias = 23,
+            bool soloSkuMovimiento = true)
         {
             try
             {
                 sku = (sku ?? "").Trim().ToUpper();
                 skusCsv = (skusCsv ?? "").Trim().ToUpper();
                 mastersCsv = (mastersCsv ?? "").Trim().ToUpper();
+
+                var fechaInicioReal = (fechaInicio ?? DateTime.Today).Date;
+                var fechaFinReal = (fechaFin ?? fechaInicioReal.AddDays(dias)).Date;
+
+                if (fechaFinReal < fechaInicioReal)
+                {
+                    var temp = fechaInicioReal;
+                    fechaInicioReal = fechaFinReal;
+                    fechaFinReal = temp;
+                }
+
+                // Regla operativa confirmada:
+                // si la vista inicia el día 3, el inventario inicial debe ser el cierre/captura del día 2.
+                var fechaInventarioReal = (fechaInventarioInicial ?? fechaInicioReal.AddDays(-1)).Date;
 
                 const string sql = @"
 EXEC dbo.sp_InventarioInicial
@@ -6164,7 +7349,9 @@ EXEC dbo.sp_InventarioInicial
     @MastersCsv = @MastersCsv,
     @FechaInicio = @FechaInicio,
     @FechaFin = @FechaFin,
-    @Dias = @Dias;
+    @FechaInventarioInicial = @FechaInventarioInicial,
+    @Dias = @Dias,
+    @SoloSkuMovimiento = @SoloSkuMovimiento;
 ";
 
                 var cn = _db.Database.GetDbConnection();
@@ -6182,9 +7369,11 @@ EXEC dbo.sp_InventarioInicial
                             Sku = string.IsNullOrWhiteSpace(sku) ? null : sku,
                             SkusCsv = string.IsNullOrWhiteSpace(skusCsv) ? null : skusCsv,
                             MastersCsv = string.IsNullOrWhiteSpace(mastersCsv) ? null : mastersCsv,
-                            FechaInicio = fechaInicio,
-                            FechaFin = fechaFin,
-                            Dias = dias
+                            FechaInicio = fechaInicioReal,
+                            FechaFin = fechaFinReal,
+                            FechaInventarioInicial = fechaInventarioReal,
+                            Dias = dias,
+                            SoloSkuMovimiento = soloSkuMovimiento
                         },
                         commandTimeout: 180
                     )).ToList();
@@ -6193,6 +7382,8 @@ EXEC dbo.sp_InventarioInicial
                     {
                         ok = true,
                         total = rows.Count,
+                        fechaInicio = fechaInicioReal,
+                        fechaInventarioInicial = fechaInventarioReal,
                         data = rows
                     });
                 }
@@ -6218,9 +7409,118 @@ EXEC dbo.sp_InventarioInicial
 
 
 
+        // ========================= INVENTARIO MIN Y MAX / DIRECCIÓN GENERAL =========================
 
+        [HttpGet("Min_Max")]
+        public IActionResult Min_Max()
+        {
+            return View("~/Views/ProcesosCG/Min_Max.cshtml");
+        }
+
+        private sealed class InventarioActualMinMaxRowVM
+        {
+            public string Sku { get; set; } = "";
+            public string Producto { get; set; } = "";
+            public decimal KgActual { get; set; }
+            public int CajasActuales { get; set; }
+            public int Lotes { get; set; }
+            public DateTime? FechaActualizacion { get; set; }
+        }
+
+        [HttpGet("InventarioActualMinMax")]
+        public async Task<IActionResult> InventarioActualMinMax(
+            string sucursal = "",
+            string almacen = "")
+        {
+            try
+            {
+                sucursal = (sucursal ?? "").Trim();
+                almacen = (almacen ?? "").Trim();
+
+                const string sql = @"
+DECLARE @FechaUltima DATETIME;
+
+SELECT @FechaUltima = MAX(FechaActualizacion)
+FROM dbo.InventarioSigo
+WHERE ISNULL(Kg, 0) <> 0;
+
+;WITH Inv AS
+(
+    SELECT
+        UPPER(LTRIM(RTRIM(ProductoCodigo))) AS Sku,
+        MAX(LTRIM(RTRIM(ProductoNombre))) AS Producto,
+        SUM(ISNULL(Kg, 0)) AS KgActual,
+        SUM(ISNULL(Cajas, 0)) AS CajasActuales,
+        COUNT(DISTINCT ISNULL(NULLIF(LTRIM(RTRIM(Lote)), ''), '-')) AS Lotes,
+        MAX(FechaActualizacion) AS FechaActualizacion
+    FROM dbo.InventarioSigo
+    WHERE
+        FechaActualizacion = @FechaUltima
+        AND ISNULL(Kg, 0) <> 0
+        AND (@Sucursal = '' OR UPPER(LTRIM(RTRIM(Sucursal))) = UPPER(LTRIM(RTRIM(@Sucursal))))
+        AND (@Almacen = '' OR UPPER(LTRIM(RTRIM(Almacen))) = UPPER(LTRIM(RTRIM(@Almacen))))
+    GROUP BY
+        UPPER(LTRIM(RTRIM(ProductoCodigo)))
+)
+SELECT
+    Sku,
+    Producto,
+    KgActual,
+    CajasActuales,
+    Lotes,
+    FechaActualizacion
+FROM Inv
+ORDER BY
+    Sku;
+";
+
+                var cn = _db.Database.GetDbConnection();
+                var shouldClose = cn.State == ConnectionState.Closed;
+
+                if (shouldClose)
+                    await cn.OpenAsync();
+
+                try
+                {
+                    var rows = (await cn.QueryAsync<InventarioActualMinMaxRowVM>(
+                        sql,
+                        new
+                        {
+                            Sucursal = sucursal,
+                            Almacen = almacen
+                        },
+                        commandTimeout: 180
+                    )).ToList();
+
+                    return Ok(new
+                    {
+                        ok = true,
+                        total = rows.Count,
+                        data = rows,
+                        fuente = "dbo.InventarioSigo",
+                        criterio = "Última FechaActualizacion, suma de Kg por ProductoCodigo"
+                    });
+                }
+                finally
+                {
+                    if (shouldClose)
+                        await cn.CloseAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al consultar InventarioActualMinMax");
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = "Error al consultar inventario actual min/max.",
+                    error = ex.Message,
+                    inner = ex.InnerException?.Message
+                });
+            }
+        }
 
 
     }
 }
-

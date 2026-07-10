@@ -25,6 +25,7 @@ namespace Plataforma_CG.Controllers
 
         private static readonly List<BasculaMovimientoDto> _movimientos = new();
         private static readonly List<BasculaBitacoraDto> _bitacora = new();
+        private static readonly List<BasculaPreRegistroDto> _preRegistrosDemo = new();
 
         public BasculaCamioneraController(
             ILogger<BasculaCamioneraController> logger,
@@ -40,6 +41,14 @@ namespace Plataforma_CG.Controllers
         public IActionResult BasculaCamionera()
         {
             return View("~/Views/BasculaCamionera/BasculaCamionera.cshtml");
+        }
+
+
+        [HttpGet("PreRegistro")]
+        [HttpGet("PreRegistro/Index")]
+        public IActionResult PreRegistro()
+        {
+            return View("~/Views/BasculaCamionera/PreRegistro.cshtml");
         }
 
         [HttpGet("Ping")]
@@ -68,9 +77,380 @@ namespace Plataforma_CG.Controllers
             });
         }
 
+        [HttpGet("PreRegistro/Listar")]
+        public async Task<IActionResult> ListarPreRegistros(string? estatus = "PENDIENTE_CASETA", string? q = "", int take = 100)
+        {
+            try
+            {
+                take = Math.Max(1, Math.Min(take, 500));
+
+                using var cn = new SqlConnection(GetConnectionString());
+                await cn.OpenAsync();
+
+                var rows = new List<BasculaPreRegistroDto>();
+                var query = (q ?? "").Trim();
+                var status = (estatus ?? "").Trim();
+
+                var sql = @"
+SELECT TOP (@take)
+    PreRegistroId,
+    PreRegistroGuid,
+    Token,
+    FolioPreRegistro,
+    Estatus,
+    TipoMovimiento,
+    Clasificacion,
+    Tercero,
+    CodigoSap,
+    Placas,
+    Producto,
+    Sku,
+    Documento,
+    Chofer,
+    Origen,
+    Destino,
+    Condicion,
+    Observaciones,
+    AreaOrigen,
+    UsuarioCaptura,
+    FechaCaptura,
+    MovimientoGuid,
+    FolioMovimiento,
+    FechaEscaneoCaseta,
+    UsuarioCaseta
+FROM dbo.BasculaPreRegistro
+WHERE
+    (@estatus = '' OR Estatus = @estatus)
+    AND (
+        @q = ''
+        OR FolioPreRegistro LIKE @like
+        OR Tercero LIKE @like
+        OR Producto LIKE @like
+        OR Placas LIKE @like
+        OR Documento LIKE @like
+        OR Origen LIKE @like
+        OR Destino LIKE @like
+    )
+ORDER BY FechaCaptura DESC;";
+
+                using var cmd = new SqlCommand(sql, cn);
+                cmd.Parameters.AddWithValue("@take", take);
+                cmd.Parameters.AddWithValue("@estatus", status);
+                cmd.Parameters.AddWithValue("@q", query);
+                cmd.Parameters.AddWithValue("@like", "%" + query + "%");
+
+                using var rd = await cmd.ExecuteReaderAsync();
+
+                while (await rd.ReadAsync())
+                {
+                    rows.Add(MapPreRegistro(rd));
+                }
+
+                return Ok(new
+                {
+                    ok = true,
+                    total = rows.Count,
+                    rows
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error listando pre-registros de báscula");
+
+                return BadRequest(new
+                {
+                    ok = false,
+                    msg = "No se pudieron cargar los pre-registros. Verifique que exista dbo.BasculaPreRegistro. Detalle: " + ex.Message
+                });
+            }
+        }
+
+        [HttpPost("PreRegistro/Crear")]
+        [IgnoreAntiforgeryToken]
+        public async Task<IActionResult> CrearPreRegistro([FromBody] BasculaPreRegistroDto dto)
+        {
+            if (dto == null)
+                return BadRequest(new { ok = false, msg = "Solicitud vacía." });
+
+            var error = ValidarPreRegistro(dto);
+
+            if (!string.IsNullOrWhiteSpace(error))
+                return BadRequest(new { ok = false, msg = error });
+
+            dto.PreRegistroGuid = dto.PreRegistroGuid == Guid.Empty ? Guid.NewGuid() : dto.PreRegistroGuid;
+            dto.Token = string.IsNullOrWhiteSpace(dto.Token) ? NuevoTokenPreRegistro() : NormalizarTokenEscaneo(dto.Token);
+            dto.FolioPreRegistro = string.IsNullOrWhiteSpace(dto.FolioPreRegistro) ? NuevoFolioPreRegistro() : dto.FolioPreRegistro.Trim().ToUpperInvariant();
+            dto.Estatus = string.IsNullOrWhiteSpace(dto.Estatus) ? "PENDIENTE_CASETA" : dto.Estatus.Trim().ToUpperInvariant();
+            dto.UsuarioCaptura = User?.Identity?.Name ?? dto.UsuarioCaptura ?? "Usuario SIGO";
+            dto.FechaCaptura = dto.FechaCaptura == default ? DateTime.Now : dto.FechaCaptura;
+
+            try
+            {
+                using var cn = new SqlConnection(GetConnectionString());
+                await cn.OpenAsync();
+
+                var sql = @"
+INSERT INTO dbo.BasculaPreRegistro
+(
+    PreRegistroGuid,
+    Token,
+    FolioPreRegistro,
+    Estatus,
+    TipoMovimiento,
+    Clasificacion,
+    Tercero,
+    CodigoSap,
+    Placas,
+    Producto,
+    Sku,
+    Documento,
+    Chofer,
+    Origen,
+    Destino,
+    Condicion,
+    Observaciones,
+    AreaOrigen,
+    UsuarioCaptura,
+    FechaCaptura
+)
+OUTPUT
+    inserted.PreRegistroId,
+    inserted.PreRegistroGuid,
+    inserted.Token,
+    inserted.FolioPreRegistro,
+    inserted.Estatus,
+    inserted.TipoMovimiento,
+    inserted.Clasificacion,
+    inserted.Tercero,
+    inserted.CodigoSap,
+    inserted.Placas,
+    inserted.Producto,
+    inserted.Sku,
+    inserted.Documento,
+    inserted.Chofer,
+    inserted.Origen,
+    inserted.Destino,
+    inserted.Condicion,
+    inserted.Observaciones,
+    inserted.AreaOrigen,
+    inserted.UsuarioCaptura,
+    inserted.FechaCaptura,
+    inserted.MovimientoGuid,
+    inserted.FolioMovimiento,
+    inserted.FechaEscaneoCaseta,
+    inserted.UsuarioCaseta
+VALUES
+(
+    @PreRegistroGuid,
+    @Token,
+    @FolioPreRegistro,
+    @Estatus,
+    @TipoMovimiento,
+    @Clasificacion,
+    @Tercero,
+    @CodigoSap,
+    @Placas,
+    @Producto,
+    @Sku,
+    @Documento,
+    @Chofer,
+    @Origen,
+    @Destino,
+    @Condicion,
+    @Observaciones,
+    @AreaOrigen,
+    @UsuarioCaptura,
+    @FechaCaptura
+);";
+
+                using var cmd = new SqlCommand(sql, cn);
+                AddPreRegistroParams(cmd, dto);
+
+                using var rd = await cmd.ExecuteReaderAsync();
+
+                if (await rd.ReadAsync())
+                    dto = MapPreRegistro(rd);
+
+                var scanPayload = BuildScanPayload(dto.Token);
+
+                RegistrarBitacora(dto.FolioPreRegistro, "Creó pre-registro de báscula");
+
+                return Ok(new
+                {
+                    ok = true,
+                    msg = "Pre-registro creado correctamente.",
+                    preRegistro = dto,
+                    token = dto.Token,
+                    scanPayload,
+                    qrPayload = scanPayload,
+                    hojaUrl = Url.Action("HojaPreRegistro", "BasculaCamionera", new { token = dto.Token })
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creando pre-registro de báscula");
+
+                return BadRequest(new
+                {
+                    ok = false,
+                    msg = "No se pudo crear el pre-registro. Verifique que exista dbo.BasculaPreRegistro. Detalle: " + ex.Message
+                });
+            }
+        }
+
+        [HttpGet("PreRegistroPorToken")]
+        public async Task<IActionResult> PreRegistroPorToken(string token)
+        {
+            var cleanToken = NormalizarTokenEscaneo(token);
+
+            if (string.IsNullOrWhiteSpace(cleanToken))
+                return BadRequest(new { ok = false, msg = "Token / QR vacío o inválido." });
+
+            try
+            {
+                using var cn = new SqlConnection(GetConnectionString());
+                await cn.OpenAsync();
+
+                var dto = await LeerPreRegistroPorTokenAsync(cn, cleanToken);
+
+                if (dto == null)
+                    return NotFound(new { ok = false, msg = "No se encontró un pre-registro con ese QR / código." });
+
+                var estatus = (dto.Estatus ?? "").Trim().ToUpperInvariant();
+
+                if (estatus == "CANCELADO" || estatus == "VENCIDO")
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = $"El pre-registro {dto.FolioPreRegistro} está {estatus.ToLowerInvariant()}."
+                    });
+                }
+
+                if (estatus == "CERRADO")
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = $"El pre-registro {dto.FolioPreRegistro} ya fue cerrado y no puede volver a usarse."
+                    });
+                }
+
+                if (estatus == "PENDIENTE_CASETA")
+                {
+                    await MarcarPreRegistroEscaneadoAsync(cn, dto.Token);
+                    dto.Estatus = "ESCANEADO_CASETA";
+                    dto.UsuarioCaseta = User?.Identity?.Name ?? "Usuario SIGO";
+                    dto.FechaEscaneoCaseta = DateTime.Now;
+                }
+
+                RegistrarBitacora(dto.FolioPreRegistro, "Escaneó pre-registro en caseta");
+
+                return Ok(new
+                {
+                    ok = true,
+                    msg = "Pre-registro cargado.",
+                    preRegistro = dto,
+                    token = dto.Token,
+                    scanPayload = BuildScanPayload(dto.Token)
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error consultando pre-registro por token");
+
+                return BadRequest(new
+                {
+                    ok = false,
+                    msg = "No se pudo consultar el pre-registro: " + ex.Message
+                });
+            }
+        }
+
+        [HttpPost("PreRegistro/Cancelar")]
+        [IgnoreAntiforgeryToken]
+        public async Task<IActionResult> CancelarPreRegistro([FromBody] BasculaPreRegistroCancelarDto dto)
+        {
+            if (dto == null || string.IsNullOrWhiteSpace(dto.Token))
+                return BadRequest(new { ok = false, msg = "Token inválido." });
+
+            var token = NormalizarTokenEscaneo(dto.Token);
+            var usuario = User?.Identity?.Name ?? "Usuario SIGO";
+
+            try
+            {
+                using var cn = new SqlConnection(GetConnectionString());
+                await cn.OpenAsync();
+
+                var sql = @"
+UPDATE dbo.BasculaPreRegistro
+SET
+    Estatus = 'CANCELADO',
+    Observaciones = CONCAT(ISNULL(Observaciones, ''), CASE WHEN ISNULL(Observaciones, '') = '' THEN '' ELSE CHAR(13) + CHAR(10) END, @Motivo),
+    UsuarioCaseta = @UsuarioCaseta
+WHERE Token = @Token
+  AND Estatus NOT IN ('CERRADO', 'CANCELADO');";
+
+                using var cmd = new SqlCommand(sql, cn);
+                cmd.Parameters.AddWithValue("@Token", token);
+                cmd.Parameters.AddWithValue("@Motivo", DbValue("Cancelado: " + (dto.Motivo ?? "")));
+                cmd.Parameters.AddWithValue("@UsuarioCaseta", usuario);
+
+                var rows = await cmd.ExecuteNonQueryAsync();
+
+                if (rows <= 0)
+                    return NotFound(new { ok = false, msg = "No se encontró el pre-registro o ya estaba cerrado/cancelado." });
+
+                RegistrarBitacora(token, "Canceló pre-registro de báscula");
+
+                return Ok(new { ok = true, msg = "Pre-registro cancelado." });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error cancelando pre-registro");
+
+                return BadRequest(new
+                {
+                    ok = false,
+                    msg = "No se pudo cancelar el pre-registro: " + ex.Message
+                });
+            }
+        }
+
+        [HttpGet("PreRegistro/Hoja")]
+        public async Task<IActionResult> HojaPreRegistro(string token)
+        {
+            var cleanToken = NormalizarTokenEscaneo(token);
+
+            if (string.IsNullOrWhiteSpace(cleanToken))
+                return BadRequest("Token inválido.");
+
+            try
+            {
+                using var cn = new SqlConnection(GetConnectionString());
+                await cn.OpenAsync();
+
+                var dto = await LeerPreRegistroPorTokenAsync(cn, cleanToken);
+
+                if (dto == null)
+                    return NotFound("No se encontró el pre-registro.");
+
+                var payload = BuildScanPayload(dto.Token);
+                var html = BuildHojaPreRegistroHtml(dto, payload);
+
+                return Content(html, "text/html", Encoding.UTF8);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generando hoja de pre-registro");
+                return BadRequest("No se pudo generar la hoja: " + ex.Message);
+            }
+        }
+
+
         [HttpPost("GuardarEntrada")]
         [ValidateAntiForgeryToken]
-        public IActionResult GuardarEntrada([FromBody] BasculaMovimientoDto dto)
+        public async Task<IActionResult> GuardarEntrada([FromBody] BasculaMovimientoDto dto)
         {
             if (dto == null)
                 return BadRequest(new { ok = false, msg = "Solicitud vacía." });
@@ -97,6 +477,7 @@ namespace Plataforma_CG.Controllers
             dto.FechaEntrada = dto.FechaEntrada == default ? DateTime.Now : dto.FechaEntrada;
             dto.FechaSalida = null;
             dto.Usuario = User?.Identity?.Name ?? dto.Usuario ?? "Usuario SIGO";
+            dto.OrigenCaptura = ResolverOrigenCaptura(dto);
 
             var existente = _movimientos.FirstOrDefault(x => x.Folio == dto.Folio);
 
@@ -105,19 +486,25 @@ namespace Plataforma_CG.Controllers
             else
                 Copiar(dto, existente);
 
-            RegistrarBitacora(dto.Folio, "Guardó entrada de báscula");
+            RegistrarBitacora(dto.Folio, dto.OrigenCaptura == "PRE_REGISTRO_QR"
+                ? "Guardó entrada desde pre-registro QR"
+                : "Guardó entrada de báscula");
+
+            await MarcarPreRegistroMovimientoSiAplicaAsync(dto, "PESADO_ENTRADA");
 
             return Ok(new
             {
                 ok = true,
                 msg = "Entrada guardada.",
-                folio = dto.Folio
+                folio = dto.Folio,
+                origenCaptura = dto.OrigenCaptura,
+                folioPreRegistro = dto.FolioPreRegistro
             });
         }
 
         [HttpPost("CerrarSalida")]
         [ValidateAntiForgeryToken]
-        public IActionResult CerrarSalida([FromBody] BasculaMovimientoDto dto)
+        public async Task<IActionResult> CerrarSalida([FromBody] BasculaMovimientoDto dto)
         {
             if (dto == null)
                 return BadRequest(new { ok = false, msg = "Solicitud vacía." });
@@ -138,16 +525,23 @@ namespace Plataforma_CG.Controllers
             dto.FechaEntrada = existente.FechaEntrada;
             dto.FechaSalida = DateTime.Now;
             dto.Usuario = User?.Identity?.Name ?? dto.Usuario ?? "Usuario SIGO";
+            dto.OrigenCaptura = ResolverOrigenCaptura(dto);
 
             Copiar(dto, existente);
-            RegistrarBitacora(dto.Folio, "Cerró salida y calculó peso neto");
+            RegistrarBitacora(dto.Folio, dto.OrigenCaptura == "PRE_REGISTRO_QR"
+                ? "Cerró salida desde pre-registro QR"
+                : "Cerró salida y calculó peso neto");
+
+            await MarcarPreRegistroMovimientoSiAplicaAsync(dto, "CERRADO");
 
             return Ok(new
             {
                 ok = true,
                 msg = "Salida cerrada.",
                 folio = dto.Folio,
-                neto = dto.PesoNeto
+                neto = dto.PesoNeto,
+                origenCaptura = dto.OrigenCaptura,
+                folioPreRegistro = dto.FolioPreRegistro
             });
         }
 
@@ -166,11 +560,11 @@ namespace Plataforma_CG.Controllers
         [HttpGet("Exportar")]
         public IActionResult Exportar()
         {
-            var csv = "Folio,Estatus,TipoMovimiento,Clasificacion,Tercero,CodigoSap,Placas,Producto,Sku,Documento,PesoEntrada,PesoSalida,PesoNeto,FechaEntrada,FechaSalida,Usuario\r\n";
+            var csv = "Folio,Estatus,OrigenCaptura,FolioPreRegistro,TipoMovimiento,Clasificacion,Tercero,CodigoSap,Placas,Producto,Sku,Documento,PesoEntrada,PesoSalida,PesoNeto,FechaEntrada,FechaSalida,Usuario\r\n";
 
             foreach (var r in _movimientos.OrderByDescending(x => x.FechaEntrada))
             {
-                csv += $"{Csv(r.Folio)},{Csv(r.Estatus)},{Csv(r.TipoMovimiento)},{Csv(r.Clasificacion)},{Csv(r.Tercero)},{Csv(r.CodigoSap)},{Csv(r.Placas)},{Csv(r.Producto)},{Csv(r.Sku)},{Csv(r.Documento)},{r.PesoEntrada},{r.PesoSalida},{r.PesoNeto},{Csv(r.FechaEntrada.ToString("yyyy-MM-dd HH:mm:ss"))},{Csv(r.FechaSalida?.ToString("yyyy-MM-dd HH:mm:ss") ?? "")},{Csv(r.Usuario)}\r\n";
+                csv += $"{Csv(r.Folio)},{Csv(r.Estatus)},{Csv(r.OrigenCaptura)},{Csv(r.FolioPreRegistro)},{Csv(r.TipoMovimiento)},{Csv(r.Clasificacion)},{Csv(r.Tercero)},{Csv(r.CodigoSap)},{Csv(r.Placas)},{Csv(r.Producto)},{Csv(r.Sku)},{Csv(r.Documento)},{r.PesoEntrada},{r.PesoSalida},{r.PesoNeto},{Csv(r.FechaEntrada.ToString("yyyy-MM-dd HH:mm:ss"))},{Csv(r.FechaSalida?.ToString("yyyy-MM-dd HH:mm:ss") ?? "")},{Csv(r.Usuario)}\r\n";
             }
 
             var bytes = Encoding.UTF8.GetBytes(csv);
@@ -217,6 +611,8 @@ namespace Plataforma_CG.Controllers
             if (estatus == "CERRADO" && !dto.FechaSalida.HasValue)
                 dto.FechaSalida = DateTime.Now;
 
+            dto.OrigenCaptura = ResolverOrigenCaptura(dto);
+
             using var cn = new SqlConnection(GetConnectionString());
             await cn.OpenAsync();
 
@@ -257,31 +653,44 @@ namespace Plataforma_CG.Controllers
             cmd.Parameters.AddWithValue("@CreadoOffline", dto.CreadoOffline);
             cmd.Parameters.AddWithValue("@FechaCreacionLocal", dto.FechaCreacionLocal.HasValue ? (object)dto.FechaCreacionLocal.Value : DateTime.Now);
 
-            using var rd = await cmd.ExecuteReaderAsync();
+            object result;
 
-            if (await rd.ReadAsync())
+            using (var rd = await cmd.ExecuteReaderAsync())
             {
-                return Ok(new
+                if (await rd.ReadAsync())
                 {
-                    ok = true,
-                    msg = "Movimiento sincronizado correctamente.",
-                    movimientoId = rd["MovimientoId"],
-                    movimientoGuid = rd["MovimientoGuid"],
-                    folioLocal = rd["FolioLocal"],
-                    folioServidor = rd["FolioServidor"],
-                    estatus = rd["Estatus"],
-                    fechaSyncServidor = rd["FechaSyncServidor"]
-                });
+                    result = new
+                    {
+                        ok = true,
+                        msg = "Movimiento sincronizado correctamente.",
+                        movimientoId = rd["MovimientoId"],
+                        movimientoGuid = rd["MovimientoGuid"],
+                        folioLocal = rd["FolioLocal"],
+                        folioServidor = rd["FolioServidor"],
+                        estatus = rd["Estatus"],
+                        fechaSyncServidor = rd["FechaSyncServidor"],
+                        origenCaptura = dto.OrigenCaptura,
+                        folioPreRegistro = dto.FolioPreRegistro
+                    };
+                }
+                else
+                {
+                    result = new
+                    {
+                        ok = true,
+                        msg = "Movimiento enviado al servidor.",
+                        movimientoGuid = dto.MovimientoGuid,
+                        folioLocal = dto.Folio,
+                        estatus,
+                        origenCaptura = dto.OrigenCaptura,
+                        folioPreRegistro = dto.FolioPreRegistro
+                    };
+                }
             }
 
-            return Ok(new
-            {
-                ok = true,
-                msg = "Movimiento enviado al servidor.",
-                movimientoGuid = dto.MovimientoGuid,
-                folioLocal = dto.Folio,
-                estatus
-            });
+            await MarcarPreRegistroMovimientoSiAplicaAsync(dto, estatus == "CERRADO" ? "CERRADO" : "PESADO_ENTRADA");
+
+            return Ok(result);
         }
 
         [HttpGet("BuscarClientes")]
@@ -769,6 +1178,352 @@ ORDER BY NombreProveedor;";
             }
         }
 
+
+        private static string NuevoFolioPreRegistro()
+        {
+            return $"PRE-BAS-{DateTime.Now:yyyyMMdd-HHmmssfff}";
+        }
+
+        private static string NuevoTokenPreRegistro()
+        {
+            return Guid.NewGuid().ToString("N");
+        }
+
+        private static string BuildScanPayload(string? token)
+        {
+            return "BASPRE|" + NormalizarTokenEscaneo(token);
+        }
+
+        private static string NormalizarTokenEscaneo(string? value)
+        {
+            var txt = (value ?? "").Trim();
+
+            if (string.IsNullOrWhiteSpace(txt))
+                return "";
+
+            if (txt.StartsWith("BASPRE|", StringComparison.OrdinalIgnoreCase))
+                return txt.Split('|').LastOrDefault()?.Trim() ?? "";
+
+            if (Uri.TryCreate(txt, UriKind.Absolute, out var absoluteUri))
+            {
+                var token = ExtraerQueryString(absoluteUri.Query, "token");
+
+                if (!string.IsNullOrWhiteSpace(token))
+                    return token.Trim();
+            }
+
+            if (Uri.TryCreate("http://local/" + txt.TrimStart('/'), UriKind.Absolute, out var relativeUri))
+            {
+                var token = ExtraerQueryString(relativeUri.Query, "token");
+
+                if (!string.IsNullOrWhiteSpace(token))
+                    return token.Trim();
+            }
+
+            return txt;
+        }
+
+        private static string ExtraerQueryString(string query, string key)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+                return "";
+
+            var parts = query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (var part in parts)
+            {
+                var kv = part.Split('=', 2);
+
+                if (kv.Length == 2 && string.Equals(Uri.UnescapeDataString(kv[0]), key, StringComparison.OrdinalIgnoreCase))
+                    return Uri.UnescapeDataString(kv[1]);
+            }
+
+            return "";
+        }
+
+        private static string ValidarPreRegistro(BasculaPreRegistroDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.TipoMovimiento))
+                return "Seleccione tipo de movimiento.";
+
+            if (string.IsNullOrWhiteSpace(dto.Tercero))
+                return "Capture proveedor / cliente.";
+
+            if (string.IsNullOrWhiteSpace(dto.Producto))
+                return "Capture producto.";
+
+            return "";
+        }
+
+        private static string ResolverOrigenCaptura(BasculaMovimientoDto dto)
+        {
+            if (!string.IsNullOrWhiteSpace(dto.TokenPreRegistro) ||
+                !string.IsNullOrWhiteSpace(dto.FolioPreRegistro) ||
+                dto.PreRegistroGuid.HasValue ||
+                dto.PreRegistroId.HasValue)
+            {
+                return "PRE_REGISTRO_QR";
+            }
+
+            return "CAPTURA_CASETA";
+        }
+
+        private async Task MarcarPreRegistroMovimientoSiAplicaAsync(BasculaMovimientoDto dto, string estatusPreRegistro)
+        {
+            var token = NormalizarTokenEscaneo(dto.TokenPreRegistro);
+
+            if (string.IsNullOrWhiteSpace(token) &&
+                string.IsNullOrWhiteSpace(dto.FolioPreRegistro) &&
+                !dto.PreRegistroGuid.HasValue &&
+                !dto.PreRegistroId.HasValue)
+            {
+                return;
+            }
+
+            try
+            {
+                using var cn = new SqlConnection(GetConnectionString());
+                await cn.OpenAsync();
+
+                var sql = @"
+UPDATE dbo.BasculaPreRegistro
+SET
+    Estatus = @Estatus,
+    MovimientoGuid = @MovimientoGuid,
+    FolioMovimiento = @FolioMovimiento,
+    FechaEscaneoCaseta = ISNULL(FechaEscaneoCaseta, SYSDATETIME()),
+    UsuarioCaseta = @UsuarioCaseta
+WHERE
+    (@Token <> '' AND Token = @Token)
+    OR (@FolioPreRegistro <> '' AND FolioPreRegistro = @FolioPreRegistro)
+    OR (@PreRegistroGuid IS NOT NULL AND PreRegistroGuid = @PreRegistroGuid)
+    OR (@PreRegistroId IS NOT NULL AND PreRegistroId = @PreRegistroId);";
+
+                using var cmd = new SqlCommand(sql, cn);
+                cmd.Parameters.AddWithValue("@Estatus", DbValue(estatusPreRegistro));
+                cmd.Parameters.AddWithValue("@MovimientoGuid", dto.MovimientoGuid == Guid.Empty ? (object)DBNull.Value : dto.MovimientoGuid);
+                cmd.Parameters.AddWithValue("@FolioMovimiento", DbValue(dto.Folio));
+                cmd.Parameters.AddWithValue("@UsuarioCaseta", DbValue(User?.Identity?.Name ?? dto.UsuarioEntrada ?? "Usuario SIGO"));
+                cmd.Parameters.AddWithValue("@Token", token);
+                cmd.Parameters.AddWithValue("@FolioPreRegistro", DbValue(dto.FolioPreRegistro));
+                cmd.Parameters.AddWithValue("@PreRegistroGuid", dto.PreRegistroGuid.HasValue ? (object)dto.PreRegistroGuid.Value : DBNull.Value);
+                cmd.Parameters.AddWithValue("@PreRegistroId", dto.PreRegistroId.HasValue ? (object)dto.PreRegistroId.Value : DBNull.Value);
+
+                await cmd.ExecuteNonQueryAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "No se pudo marcar el pre-registro como usado. El movimiento principal no se revierte.");
+            }
+        }
+
+        private static void AddPreRegistroParams(SqlCommand cmd, BasculaPreRegistroDto dto)
+        {
+            cmd.Parameters.AddWithValue("@PreRegistroGuid", dto.PreRegistroGuid == Guid.Empty ? Guid.NewGuid() : dto.PreRegistroGuid);
+            cmd.Parameters.AddWithValue("@Token", DbValue(dto.Token));
+            cmd.Parameters.AddWithValue("@FolioPreRegistro", DbValue(dto.FolioPreRegistro));
+            cmd.Parameters.AddWithValue("@Estatus", DbValue(dto.Estatus));
+            cmd.Parameters.AddWithValue("@TipoMovimiento", DbValue(dto.TipoMovimiento));
+            cmd.Parameters.AddWithValue("@Clasificacion", DbValue(dto.Clasificacion));
+            cmd.Parameters.AddWithValue("@Tercero", DbValue(dto.Tercero));
+            cmd.Parameters.AddWithValue("@CodigoSap", DbValue(dto.CodigoSap));
+            cmd.Parameters.AddWithValue("@Placas", DbValue(dto.Placas));
+            cmd.Parameters.AddWithValue("@Producto", DbValue(dto.Producto));
+            cmd.Parameters.AddWithValue("@Sku", DbValue(dto.Sku));
+            cmd.Parameters.AddWithValue("@Documento", DbValue(dto.Documento));
+            cmd.Parameters.AddWithValue("@Chofer", DbValue(dto.Chofer));
+            cmd.Parameters.AddWithValue("@Origen", DbValue(dto.Origen));
+            cmd.Parameters.AddWithValue("@Destino", DbValue(dto.Destino));
+            cmd.Parameters.AddWithValue("@Condicion", DbValue(dto.Condicion));
+            cmd.Parameters.AddWithValue("@Observaciones", DbValue(dto.Observaciones));
+            cmd.Parameters.AddWithValue("@AreaOrigen", DbValue(dto.AreaOrigen));
+            cmd.Parameters.AddWithValue("@UsuarioCaptura", DbValue(dto.UsuarioCaptura));
+            cmd.Parameters.AddWithValue("@FechaCaptura", dto.FechaCaptura == default ? DateTime.Now : dto.FechaCaptura);
+        }
+
+        private static BasculaPreRegistroDto MapPreRegistro(SqlDataReader rd)
+        {
+            return new BasculaPreRegistroDto
+            {
+                PreRegistroId = GetLongNullable(rd, "PreRegistroId"),
+                PreRegistroGuid = GetGuid(rd, "PreRegistroGuid"),
+                Token = GetString(rd, "Token"),
+                FolioPreRegistro = GetString(rd, "FolioPreRegistro"),
+                Estatus = GetString(rd, "Estatus"),
+                TipoMovimiento = GetString(rd, "TipoMovimiento"),
+                Clasificacion = GetString(rd, "Clasificacion"),
+                Tercero = GetString(rd, "Tercero"),
+                CodigoSap = GetString(rd, "CodigoSap"),
+                Placas = GetString(rd, "Placas"),
+                Producto = GetString(rd, "Producto"),
+                Sku = GetString(rd, "Sku"),
+                Documento = GetString(rd, "Documento"),
+                Chofer = GetString(rd, "Chofer"),
+                Origen = GetString(rd, "Origen"),
+                Destino = GetString(rd, "Destino"),
+                Condicion = GetString(rd, "Condicion"),
+                Observaciones = GetString(rd, "Observaciones"),
+                AreaOrigen = GetString(rd, "AreaOrigen"),
+                UsuarioCaptura = GetString(rd, "UsuarioCaptura"),
+                FechaCaptura = GetDateTime(rd, "FechaCaptura") ?? DateTime.MinValue,
+                MovimientoGuid = GetGuidNullable(rd, "MovimientoGuid"),
+                FolioMovimiento = GetString(rd, "FolioMovimiento"),
+                FechaEscaneoCaseta = GetDateTime(rd, "FechaEscaneoCaseta"),
+                UsuarioCaseta = GetString(rd, "UsuarioCaseta")
+            };
+        }
+
+        private static async Task<BasculaPreRegistroDto?> LeerPreRegistroPorTokenAsync(SqlConnection cn, string token)
+        {
+            var sql = @"
+SELECT TOP (1)
+    PreRegistroId,
+    PreRegistroGuid,
+    Token,
+    FolioPreRegistro,
+    Estatus,
+    TipoMovimiento,
+    Clasificacion,
+    Tercero,
+    CodigoSap,
+    Placas,
+    Producto,
+    Sku,
+    Documento,
+    Chofer,
+    Origen,
+    Destino,
+    Condicion,
+    Observaciones,
+    AreaOrigen,
+    UsuarioCaptura,
+    FechaCaptura,
+    MovimientoGuid,
+    FolioMovimiento,
+    FechaEscaneoCaseta,
+    UsuarioCaseta
+FROM dbo.BasculaPreRegistro
+WHERE Token = @Token
+ORDER BY FechaCaptura DESC;";
+
+            using var cmd = new SqlCommand(sql, cn);
+            cmd.Parameters.AddWithValue("@Token", token);
+
+            using var rd = await cmd.ExecuteReaderAsync();
+
+            if (await rd.ReadAsync())
+                return MapPreRegistro(rd);
+
+            return null;
+        }
+
+        private async Task MarcarPreRegistroEscaneadoAsync(SqlConnection cn, string token)
+        {
+            var sql = @"
+UPDATE dbo.BasculaPreRegistro
+SET
+    Estatus = 'ESCANEADO_CASETA',
+    FechaEscaneoCaseta = ISNULL(FechaEscaneoCaseta, SYSDATETIME()),
+    UsuarioCaseta = @UsuarioCaseta
+WHERE Token = @Token
+  AND Estatus = 'PENDIENTE_CASETA';";
+
+            using var cmd = new SqlCommand(sql, cn);
+            cmd.Parameters.AddWithValue("@Token", token);
+            cmd.Parameters.AddWithValue("@UsuarioCaseta", DbValue(User?.Identity?.Name ?? "Usuario SIGO"));
+
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        private static string BuildHojaPreRegistroHtml(BasculaPreRegistroDto p, string payload)
+        {
+            var safePayload = Html(payload);
+            var html = $@"<!doctype html>
+<html lang=""es"">
+<head>
+<meta charset=""utf-8"">
+<title>{Html(p.FolioPreRegistro)} - Pre-registro báscula</title>
+<meta name=""viewport"" content=""width=device-width, initial-scale=1"">
+<style>
+body {{ font-family: Arial, Helvetica, sans-serif; margin: 0; background: #f4eeee; color: #1f1111; }}
+.sheet {{ width: 210mm; min-height: 280mm; margin: 0 auto; padding: 14mm; background: #fff; box-sizing: border-box; }}
+.header {{ display:flex; justify-content:space-between; align-items:flex-start; border-bottom:4px solid #7b1113; padding-bottom:10px; }}
+.brand {{ font-size:26px; font-weight:900; color:#7b1113; }}
+.sub {{ font-size:12px; color:#6b4b4b; margin-top:3px; }}
+.folio {{ text-align:right; font-size:22px; font-weight:900; }}
+.qrbox {{ margin:16px auto 12px; width:74mm; height:74mm; border:2px solid #111; display:flex; align-items:center; justify-content:center; }}
+.qrhelp {{ text-align:center; font-size:11px; color:#555; }}
+.payload {{ margin:10px auto; width:90%; padding:8px; border:1px dashed #555; text-align:center; font-family:Consolas, monospace; font-size:14px; word-break:break-all; }}
+.grid {{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:16px; }}
+.box {{ border:1px solid #cdb4b4; padding:8px 10px; min-height:44px; }}
+.box label {{ display:block; font-size:10px; color:#7b1113; font-weight:800; text-transform:uppercase; }}
+.box strong {{ display:block; font-size:16px; margin-top:3px; }}
+.full {{ grid-column:1/-1; }}
+.signs {{ display:grid; grid-template-columns:1fr 1fr; gap:24mm; margin-top:28mm; }}
+.sign {{ border-top:1px solid #111; text-align:center; padding-top:5px; font-size:11px; }}
+.actions {{ text-align:center; margin:14px; }}
+button {{ padding:10px 16px; font-weight:800; }}
+@media print {{ .actions {{ display:none; }} body {{ background:#fff; }} .sheet {{ margin:0; }} }}
+</style>
+</head>
+<body>
+<div class=""actions""><button onclick=""window.print()"">Imprimir hoja</button></div>
+<div class=""sheet"">
+    <div class=""header"">
+        <div>
+            <div class=""brand"">CARNES G · BÁSCULA</div>
+            <div class=""sub"">Hoja de pre-registro para caseta. Escanee el QR antes de pesar.</div>
+        </div>
+        <div class=""folio"">{Html(p.FolioPreRegistro)}<div class=""sub"">{Html(p.Estatus)}</div></div>
+    </div>
+
+    <div id=""qr"" class=""qrbox""></div>
+    <div class=""qrhelp"">Escanear este QR/código en la pantalla de caseta</div>
+    <div class=""payload"">{safePayload}</div>
+
+    <div class=""grid"">
+        <div class=""box""><label>Tipo movimiento</label><strong>{Html(p.TipoMovimiento)}</strong></div>
+        <div class=""box""><label>Clasificación</label><strong>{Html(p.Clasificacion)}</strong></div>
+        <div class=""box""><label>Proveedor / Cliente</label><strong>{Html(p.Tercero)}</strong></div>
+        <div class=""box""><label>Código SAP</label><strong>{Html(p.CodigoSap)}</strong></div>
+        <div class=""box""><label>Producto</label><strong>{Html(p.Producto)}</strong></div>
+        <div class=""box""><label>SKU</label><strong>{Html(p.Sku)}</strong></div>
+        <div class=""box""><label>Placas</label><strong>{Html(p.Placas)}</strong></div>
+        <div class=""box""><label>Chofer</label><strong>{Html(p.Chofer)}</strong></div>
+        <div class=""box""><label>Origen</label><strong>{Html(p.Origen)}</strong></div>
+        <div class=""box""><label>Destino</label><strong>{Html(p.Destino)}</strong></div>
+        <div class=""box""><label>Documento</label><strong>{Html(p.Documento)}</strong></div>
+        <div class=""box""><label>Área origen</label><strong>{Html(p.AreaOrigen)}</strong></div>
+        <div class=""box full""><label>Observaciones</label><strong>{Html(p.Observaciones)}</strong></div>
+    </div>
+
+    <div class=""signs"">
+        <div class=""sign"">Entrega área origen</div>
+        <div class=""sign"">Recibe caseta</div>
+    </div>
+</div>
+<script src=""/lib/qrcode/qrcode.min.js""></script>
+<script>
+(function(){{
+    var payload = {System.Text.Json.JsonSerializer.Serialize(payload)};
+    var box = document.getElementById('qr');
+    if (window.QRCode) {{
+        new QRCode(box, {{ text: payload, width: 260, height: 260, correctLevel: QRCode.CorrectLevel.M }});
+    }} else {{
+        box.innerHTML = '<div style=""font-size:18px;font-weight:900;text-align:center;padding:10px;"">QR LIB NO INSTALADA<br><small>Use el código impreso abajo</small></div>';
+    }}
+}})();
+</script>
+</body>
+</html>";
+            return html;
+        }
+
+        private static string Html(string? value)
+        {
+            return System.Net.WebUtility.HtmlEncode(value ?? "");
+        }
+
         private string GetConnectionString()
         {
             var cs = _configuration.GetConnectionString("DefaultConnection");
@@ -818,6 +1573,13 @@ ORDER BY NombreProveedor;";
             dst.Estatus = src.Estatus;
             dst.FechaEntrada = src.FechaEntrada;
             dst.FechaSalida = src.FechaSalida;
+            dst.PreRegistroId = src.PreRegistroId;
+            dst.PreRegistroGuid = src.PreRegistroGuid;
+            dst.TokenPreRegistro = src.TokenPreRegistro;
+            dst.FolioPreRegistro = src.FolioPreRegistro;
+            dst.OrigenCaptura = src.OrigenCaptura;
+            dst.AreaOrigenPreRegistro = src.AreaOrigenPreRegistro;
+            dst.UsuarioCapturaPreRegistro = src.UsuarioCapturaPreRegistro;
             dst.Usuario = src.Usuario;
         }
 
@@ -845,6 +1607,44 @@ ORDER BY NombreProveedor;";
                 return null;
 
             return Convert.ToDecimal(rd[column]);
+        }
+
+        private static long? GetLongNullable(SqlDataReader rd, string column)
+        {
+            if (rd[column] == DBNull.Value)
+                return null;
+
+            return Convert.ToInt64(rd[column]);
+        }
+
+        private static Guid GetGuid(SqlDataReader rd, string column)
+        {
+            if (rd[column] == DBNull.Value)
+                return Guid.Empty;
+
+            if (rd[column] is Guid guid)
+                return guid;
+
+            return Guid.TryParse(rd[column]?.ToString(), out var parsed) ? parsed : Guid.Empty;
+        }
+
+        private static Guid? GetGuidNullable(SqlDataReader rd, string column)
+        {
+            if (rd[column] == DBNull.Value)
+                return null;
+
+            if (rd[column] is Guid guid)
+                return guid;
+
+            return Guid.TryParse(rd[column]?.ToString(), out var parsed) ? parsed : (Guid?)null;
+        }
+
+        private static DateTime? GetDateTime(SqlDataReader rd, string column)
+        {
+            if (rd[column] == DBNull.Value)
+                return null;
+
+            return Convert.ToDateTime(rd[column]);
         }
 
 
@@ -939,6 +1739,45 @@ ORDER BY NombreProveedor;";
         }
     }
 
+
+    public class BasculaPreRegistroDto
+    {
+        public long? PreRegistroId { get; set; }
+        public Guid PreRegistroGuid { get; set; }
+        public string Token { get; set; } = "";
+        public string FolioPreRegistro { get; set; } = "";
+        public string Estatus { get; set; } = "PENDIENTE_CASETA";
+
+        public string TipoMovimiento { get; set; } = "";
+        public string Clasificacion { get; set; } = "";
+        public string Tercero { get; set; } = "";
+        public string CodigoSap { get; set; } = "";
+        public string Placas { get; set; } = "";
+        public string Producto { get; set; } = "";
+        public string Sku { get; set; } = "";
+        public string Documento { get; set; } = "";
+        public string Chofer { get; set; } = "";
+        public string Origen { get; set; } = "";
+        public string Destino { get; set; } = "";
+        public string Condicion { get; set; } = "";
+        public string Observaciones { get; set; } = "";
+
+        public string AreaOrigen { get; set; } = "";
+        public string UsuarioCaptura { get; set; } = "";
+        public DateTime FechaCaptura { get; set; }
+
+        public Guid? MovimientoGuid { get; set; }
+        public string FolioMovimiento { get; set; } = "";
+        public DateTime? FechaEscaneoCaseta { get; set; }
+        public string UsuarioCaseta { get; set; } = "";
+    }
+
+    public class BasculaPreRegistroCancelarDto
+    {
+        public string Token { get; set; } = "";
+        public string Motivo { get; set; } = "";
+    }
+
     public class BasculaMovimientoDto
     {
         public Guid MovimientoGuid { get; set; }
@@ -974,6 +1813,14 @@ ORDER BY NombreProveedor;";
         public bool PesoSalidaEstable { get; set; }
         public bool CreadoOffline { get; set; } = true;
         public DateTime? FechaCreacionLocal { get; set; }
+
+        public long? PreRegistroId { get; set; }
+        public Guid? PreRegistroGuid { get; set; }
+        public string TokenPreRegistro { get; set; } = "";
+        public string FolioPreRegistro { get; set; } = "";
+        public string OrigenCaptura { get; set; } = "CAPTURA_CASETA";
+        public string AreaOrigenPreRegistro { get; set; } = "";
+        public string UsuarioCapturaPreRegistro { get; set; } = "";
     }
 
     public class BasculaBitacoraDto
