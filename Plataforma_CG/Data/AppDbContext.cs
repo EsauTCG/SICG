@@ -120,6 +120,9 @@ namespace Plataforma_CG.Data
         public DbSet<PinArticulosModel> PinArticulos { get; set; }
         public DbSet<LogDanoEquipoModel> LogsDanosEquipos { get; set; }
 
+        public DbSet<OrdenVentaMuestra> OrdenVentaMuestra { get; set; }
+
+
         public DbSet<ListaPreciosSap> ListaPreciosSap { get; set; }
 
         //==================================
