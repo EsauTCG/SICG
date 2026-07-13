@@ -1636,7 +1636,7 @@ ORDER BY
 
 
         [HttpPost]
-        public async Task<IActionResult> GuardarPedido(PedidoViewModel model, string accion, CancellationToken ct)
+        public async Task<IActionResult> GuardarPedido(PedidoViewModel model, string accion, bool esMuestra = false, CancellationToken ct = default)
         {
             if (!model.FechaEntrega.HasValue)
             {
@@ -1934,6 +1934,19 @@ ORDER BY
                 await _context.SaveChangesAsync(ct);
             }
 
+            // 4) Si es muestra, crear registro en tabla puente 
+            if (esMuestra)
+            {
+                var ovMuestra = new OrdenVentaMuestra
+                {
+                    OrdenVentaId = pedido.Id,
+                    EsMuestra = true,
+                    FechaCreacion = DateTime.Now
+                };
+                _context.OrdenVentaMuestra.Add(ovMuestra);
+                await _context.SaveChangesAsync(ct);
+            }
+
             await tx.CommitAsync(ct);
 
             TempData["Success"] = sapDisponible
@@ -1945,6 +1958,94 @@ ORDER BY
             return RedirectToAction("Index", "Pedidos");
         }
 
+        [HttpPost("Comercial/CrearSolicitudDesdeOV")]
+        public async Task<IActionResult> CrearSolicitudDesdeOV(int ordenVentaId)
+        {
+            try
+            {
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+
+                // 1. Obtener datos de la OV
+                var ov = await conn.QueryFirstOrDefaultAsync(
+                    "SELECT * FROM OrdenVenta WHERE Id = @Id",
+                    new { Id = ordenVentaId });
+
+                if (ov == null)
+                    return Json(new { ok = false, mensaje = "OV no encontrada" });
+
+                // 2. Obtener productos de la OV
+                var productos = await conn.QueryAsync(
+                    "SELECT * FROM OrdenVentaProducto WHERE PedidoId = @PedidoId AND Eliminado = 0",
+                    new { PedidoId = ordenVentaId })  ;
+
+                // 3. Calcular folio SM
+                var anioActual = DateTime.Now.Year.ToString();
+                var sqlFolio = @"SELECT ISNULL(MAX(CAST(SUBSTRING(Id, 9, 4) AS INT)), 0) + 1 
+                         FROM SolicitudMuestras WHERE Id LIKE 'SM-' + @Anio + '-%'";
+                var siguienteNum = await conn.ExecuteScalarAsync<int>(sqlFolio, new { Anio = anioActual });
+                var folioDefinitivo = $"SM-{anioActual}-{siguienteNum:D4}";
+
+                // 4. Crear solicitud de muestra con TODA la info de la OV
+                var sqlSolicitud = @"
+            INSERT INTO SolicitudMuestras 
+                (Id, CreatedAt, CreatedBy, Seller, Client, Species, RequestedDate, 
+                 Route, Destination, Priority, Notes, Stage, Location)
+            VALUES 
+                (@Id, @CreatedAt, @CreatedBy, @Seller, @Client, @Species, @RequestedDate,
+                 @Route, @Destination, @Priority, @Notes, @Stage, @Location)";
+
+                await conn.ExecuteAsync(sqlSolicitud, new
+                {
+                    Id = folioDefinitivo,
+                    CreatedAt = DateTime.Now,
+                    CreatedBy = ov.Vendedor ?? "Sistema",
+                    Seller = ov.Vendedor ?? "",
+                    Client = ov.Cliente ?? "",
+                    Species = ov.Presentacion ?? "",
+                    RequestedDate = ov.FechaEntrega ?? DateTime.Now.AddDays(3),
+                    Route = ov.Ruta ?? "",
+                    Destination = ov.Ruta ?? "",
+                    Priority = "Normal",
+                    Notes = ov.Observacion ?? $"Generada desde OV: {ov.Consecutivo}",
+                    Stage = "Planeación pendiente",
+                    Location = "Comercial"
+                });
+
+                // 5. Insertar items/productos
+                var sqlItem = @"
+            INSERT INTO SolicitudMuestras_Items 
+                (Uid, SolicitudId, Sku, WorkSku, Product, Spec, Boxes, Temp)
+            VALUES 
+                (@Uid, @SolicitudId, @Sku, @WorkSku, @Product, @Spec, @Boxes, @Temp)";
+
+                foreach (var p in productos)
+                {
+                    await conn.ExecuteAsync(sqlItem, new
+                    {
+                        Uid = Guid.NewGuid().ToString("N").Substring(0, 10),
+                        SolicitudId = folioDefinitivo,
+                        Sku = p.ProductoCodigo ?? "SD",
+                        WorkSku = (string)null,
+                        Product = p.ProductoNombre ?? "SD",
+                        Spec = "",
+                        Boxes = p.Cajas > 0 ? p.Cajas : 1,
+                        Temp = "Refrigerado"
+                    });
+                }
+
+                // 6. Actualizar tabla puente con el folio
+                await conn.ExecuteAsync(
+                    "UPDATE OrdenVentaMuestra SET SolicitudMuestraId = @SolicitudId WHERE OrdenVentaId = @OrdenVentaId",
+                    new { SolicitudId = folioDefinitivo, OrdenVentaId = ordenVentaId });
+
+                return Json(new { ok = true, mensaje = $"Solicitud {folioDefinitivo} creada correctamente" });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
 
 
 
@@ -18600,14 +18701,12 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
                     var sql = @"
                SELECT TOP 1 
                    CASE 
-                       WHEN Rol = 'Admin' OR PerfilId = 1 THEN 'Admin'
-                       WHEN EsVendedor = 1 OR PerfilId = 5 THEN 'Vendedor'
-                       WHEN PerfilId = 1005 THEN 'Planeador'
-                       WHEN PerfilId = 3 THEN 'Produccion'
-                       ELSE 'Vendedor'
+                       WHEN u.Rol = 'Admin' OR u.PerfilId = 1 THEN 'Admin'
+                       ELSE ISNULL(p.Nombre, 'Vendedor')
                    END
-               FROM UsuarioSQL 
-               WHERE Usuario = @User OR Nombre = @User";
+               FROM UsuarioSQL u
+               LEFT JOIN Perfiles p ON u.PerfilId = p.Id
+               WHERE u.Usuario = @User OR u.Nombre = @User";
 
                     var resultado = await conn.ExecuteScalarAsync<string>(sql, new { User = nombreUsuario });
 
@@ -18629,27 +18728,136 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
             ViewData["Perfil"] = perfilCalculado;
             return View();
         }
-
-        [HttpGet("Comercial/ObtenerSolicitudes")]
-        public async Task<IActionResult> ObtenerSolicitudes()
+        [HttpGet("Comercial/ObtenerOVMuestras")]
+        public async Task<IActionResult> ObtenerOVMuestras()
         {
             try
             {
                 using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
                 await conn.OpenAsync();
 
+                var esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
+                string vendedorNombre = null;
+
+                if (!esAdmin)
+                {
+                    var login = User.Identity?.Name ?? "";
+                    vendedorNombre = await conn.ExecuteScalarAsync<string>(@"
+                        SELECT TOP 1 cs.VendedorNombre 
+                        FROM UsuarioSQL u 
+                        INNER JOIN ClienteSap cs ON u.VendedorId = cs.VendedorId 
+                        WHERE u.Usuario = @Login", new { Login = login });
+
+                    if (string.IsNullOrEmpty(vendedorNombre))
+                        return Json(Array.Empty<object>());
+                }
+
+                var sql = @"
+            SELECT 
+                ov.Id AS id, ov.Consecutivo AS consecutivo, ov.Cliente AS cliente, 
+                cs.Nombrecliente AS clienteNombre,
+                ov.Vendedor AS vendedor, ov.Ruta AS ruta, 
+                ov.Presentacion AS presentacion, ov.FechaEntrega AS fechaEntrega, 
+                ov.Observacion AS observacion,
+                ovm.SolicitudMuestraId AS solicitudMuestraId
+            FROM OrdenVenta ov
+            INNER JOIN OrdenVentaMuestra ovm ON ov.Id = ovm.OrdenVentaId
+            LEFT JOIN ClienteSap cs ON ov.Cliente = cs.Cliente
+            WHERE ovm.EsMuestra = 1 
+              AND ovm.SolicitudMuestraId IS NULL
+              AND (@Vendedor IS NULL OR ov.Vendedor = @Vendedor)
+            ORDER BY ov.FechaRegistro DESC";
+
+                var ovMuestras = await conn.QueryAsync(sql, new { Vendedor = vendedorNombre });
+
+                return Json(ovMuestras);
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+        [HttpGet("Comercial/ObtenerProductosOV")]
+        public async Task<IActionResult> ObtenerProductosOV(int ovId)
+        {
+            try
+            {
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+
+                var sql = "SELECT ProductoCodigo AS productoCodigo, ProductoNombre AS productoNombre, Cajas AS cajas, Peso AS peso, Precio AS precio FROM OrdenVentaProducto WHERE PedidoId = @PedidoId AND Eliminado = 0";
+                var productos = await conn.QueryAsync(sql, new { PedidoId = ovId });
+
+                return Json(productos);
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+
+        [HttpPost("Comercial/ActualizarStageSolicitud")]
+        public async Task<IActionResult> ActualizarStageSolicitud(string solicitudId, string stage)
+        {
+            try
+            {
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+                await conn.ExecuteAsync(
+                    "UPDATE SolicitudMuestras SET Stage = @Stage WHERE Id = @Id",
+                    new { Stage = stage, Id = solicitudId });
+                return Json(new { ok = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+
+        [HttpGet("Comercial/ObtenerSolicitudes")]
+        public async Task<IActionResult> ObtenerSolicitudes(string vendedor = null)
+
+        {
+            try
+            {
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+
+                var esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
+
+                string vendedorNombre = null;
+                if (!esAdmin && !string.IsNullOrWhiteSpace(vendedor))
+                {
+                    vendedorNombre = await conn.ExecuteScalarAsync<string>(@"
+                        SELECT TOP 1 cs.VendedorNombre 
+                        FROM UsuarioSQL u 
+                        INNER JOIN ClienteSap cs ON u.VendedorId = cs.VendedorId 
+                        WHERE u.Usuario = @Login", new { Login = vendedor });
+
+                    if (string.IsNullOrEmpty(vendedorNombre))
+                        return Json(Array.Empty<object>());
+                }
+
                 var sql = @"
 SELECT 
-    s.Id, s.CreatedAt, s.CreatedBy, s.Seller, s.Client, s.Species,
+    s.Id, s.CreatedAt, s.CreatedBy, s.Seller,
+    COALESCE(NULLIF(LTRIM(RTRIM(cs.Nombrecliente)), ''), s.Client) AS Client,
+    s.Species,
     s.RequestedDate, s.[Route], s.Destination, s.Priority, s.Notes,
     s.Stage, s.Location,
     s.Plan_ProcessDate AS ProcessDate, s.Plan_Shift AS Shift,
     s.Plan_Line AS Line, s.Plan_Planner AS Planner, s.Plan_ReleasedAt AS ReleasedAt
 FROM SolicitudMuestras s
+LEFT JOIN OrdenVentaMuestra ovm ON s.Id = ovm.SolicitudMuestraId
+LEFT JOIN OrdenVenta ov ON ovm.OrdenVentaId = ov.Id
+LEFT JOIN ClienteSap cs ON s.Client = cs.Cliente
 WHERE s.Activo = 1 AND s.CreatedAt >= DATEADD(day, -60, GETDATE())
+AND (@vendedor IS NULL OR ov.Vendedor = @vendedor OR s.Seller = @vendedor)
 ORDER BY s.CreatedAt DESC";
 
-                var solicitudes = await conn.QueryAsync(sql);
+                var solicitudes = await conn.QueryAsync(sql, new { vendedor = vendedorNombre });
 
                 var lista = new List<Plataforma_CG.Models.SolicitudMuestraVM>();
                 foreach (var s in solicitudes)
@@ -18839,6 +19047,13 @@ ORDER BY s.CreatedAt DESC";
                     }
                 }
 
+                if (nuevaSolicitud.OrdenVentaId.HasValue)
+                {
+                    await conn.ExecuteAsync(
+                        "UPDATE OrdenVentaMuestra SET SolicitudMuestraId = @SolicitudId WHERE OrdenVentaId = @OrdenVentaId",
+                        new { SolicitudId = nuevaSolicitud.Id, OrdenVentaId = nuevaSolicitud.OrdenVentaId.Value });
+                }
+
                 return Json(new { ok = true, mensaje = "Solicitud creada correctamente." });
             }
             catch (Exception ex)
@@ -18937,7 +19152,7 @@ ORDER BY s.CreatedAt DESC";
         }
 
         [HttpPost("Comercial/ActualizarUbicacion")]
-        [RevisarPermiso("SOLICITUD_MUESTRAS_TRACKING", "ESCRIBIR")]
+        [RevisarPermiso("SOLICITUD_MUESTRAS_PRODUCCION", "ESCRIBIR")]
         public async Task<IActionResult> ActualizarUbicacion(string solicitudId, string ubicacion)
         {
             try

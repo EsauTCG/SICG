@@ -20,6 +20,7 @@ namespace Plataforma_CG.Models
         public string Notes { get; set; }
         public string Stage { get; set; }
         public string Location { get; set; }
+        public int? OrdenVentaId { get; set; }
 
         public PlaneacionVM Planning { get; set; }
         public List<ItemMuestraVM> Items { get; set; } = new List<ItemMuestraVM>();

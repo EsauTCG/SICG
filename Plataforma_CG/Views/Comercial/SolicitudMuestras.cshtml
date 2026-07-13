@@ -921,6 +921,24 @@
             .custom-select-options li.hidden {
                 display: none;
             }
+
+            .form-locked-overlay {
+                position: relative;
+            }
+            .form-locked-overlay::after {
+                content: 'Selecciona una OV de muestra para comenzar';
+                position: absolute;
+                top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(255,255,255,0.7);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 14px;
+                font-weight: bold;
+                color: #888;
+                z-index: 5;
+                pointer-events: none;
+            }
 </style>
 
 <div class="app-shell" id="appShellMain">
@@ -957,7 +975,21 @@
         <section id="solicitud" class="section active">
             <div class="card">
                 <form id="requestForm">
+                    <div class="form-subtitle" style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px 15px; margin-bottom: 15px; border-radius: 4px;">
+                        <i class="bi bi-link-45deg"></i> <strong>Cargar desde Orden de Venta (muestra) *</strong>
+                        <div style="display:flex; gap:10px; align-items:center; margin-top:8px;">
+                            <select id="ovMuestraSelect" required style="flex:1; padding:6px 10px; border:1px solid #ccc; border-radius:4px;">
+                                <option value="">Selecciona una OV de muestra...</option>
+                            </select>
+                            <button type="button" id="btnCargarOV" class="btn btn-sm btn-outline-primary" disabled>
+                                <i class="bi bi-download"></i> Cargar datos
+                            </button>
+                        </div>
+                        <small class="text-muted">Debes seleccionar una OV para crear la solicitud.</small>
+                    </div>
+
                     <div class="form-subtitle">1. Datos Generales de la Solicitud</div>
+                    <div id="formContentLocked" class="form-locked-overlay">
                     <div class="form-grid">
                         <div>
                             <label>Solicita / Vendedor</label>
@@ -965,14 +997,7 @@
                         </div>
                         <div>
                             <label>Cliente</label>
-                            <div class="custom-select-wrapper" id="clienteWrapper">
-                                <div class="custom-select-display" id="clienteDisplay">Cargando clientes...</div>
-                                <div class="custom-select-dropdown" id="clienteDropdown">
-                                    <input type="text" class="custom-select-search" id="clienteSearch" placeholder="Buscar..." autocomplete="off">
-                                    <ul class="custom-select-options" id="clienteOptions"></ul>
-                                </div>
-                                <input type="hidden" name="client" id="clientHidden" required>
-                            </div>
+                            <input required name="client" id="clientHidden" readonly placeholder="Se carga desde la OV" style="background-color: #f0f0f0; color: #666; cursor: not-allowed; width: 100%;" />
                         </div>
                         <div>
                             <label>Especie / clasificación</label>
@@ -1015,7 +1040,6 @@
                         <div>
                             <h3>3. Artículos (SKUs) solicitados</h3>
                         </div>
-                        <button type="button" class="ghost" id="addItemBtn">+ Agregar SKU</button>
                     </div>
 
                     <div class="table-wrap">
@@ -1034,8 +1058,10 @@
                         </table>
                     </div>
 
+                    </div>
+
                     <div class="header-actions" style="margin-top:10px; justify-content: flex-end;">
-                        <button type="submit" class="success">Crear solicitud de muestra</button>
+                        <button type="submit" class="success" id="btnSubmitSolicitud" disabled>Crear solicitud de muestra</button>
                     </div>
                 </form>
             </div>
@@ -1125,6 +1151,14 @@
                             <option>En almacén</option>
                         </select>
                     </div>
+                    <div>
+                        <label>Fecha desde</label>
+                        <input type="date" id="trackDateFrom" />
+                    </div>
+                    <div>
+                        <label>Fecha hasta</label>
+                        <input type="date" id="trackDateTo" />
+                    </div>
                 </div>
             </div>
 
@@ -1208,6 +1242,7 @@
         let histTracking = [];
         let articulosSap = [];
         let articulosOptionsHTML = '';
+        let selectedOVId = null;
 
         async function loadArticulos() {
             try {
@@ -1235,37 +1270,18 @@
             }
         }
 
-        async function loadClientes() {
-            const display = qs('#clienteDisplay');
-            const optionsList = qs('#clienteOptions');
-            if(!display) return;
-
+               async function loadData() {
             try {
-                const userName = '@usuarioLogueado';
-                const response = await fetch(`@Url.Action("ObtenerClientesVendedor", "Comercial")?usuario=${encodeURIComponent(userName)}`);
-                const data = await response.json();
+                const perfil = '@perfilUsuario';
+                const usuario = '@User.Identity?.Name';
+                let url = '@Url.Action("ObtenerSolicitudes", "Comercial")';
 
-                if (data && data.length > 0) {
-                    display.textContent = 'SELECCIONE UN CLIENTE...';
-                    optionsList.innerHTML = data.map(c => {
-                        const id = c.Id || c.id || c.Cliente || '';
-                        const nom = c.Nombre || c.nombre || c.Nombrecliente || '';
-                        return `<li data-value="${nom}">${id} - ${nom}</li>`;
-                    }).join('');
-                } else {
-                    display.textContent = 'No tiene clientes activos asignados';
-                    display.style.backgroundColor = '#f0f0f0';
-                    display.style.cursor = 'not-allowed';
+                // Si es vendedor, solo mostrar sus propias solicitudes
+                if (perfil === 'Vendedor') {
+                    url += '?vendedor=' + encodeURIComponent(usuario);
                 }
-            } catch(e) {
-                console.error("Error al cargar clientes", e);
-                display.textContent = 'Error al conectar con servidor';
-            }
-        }
 
-        async function loadData() {
-            try {
-                const response = await fetch('@Url.Action("ObtenerSolicitudes", "Comercial")');
+                const response = await fetch(url);
                 if (response.ok) {
                     const data = await response.json();
                     requests = Array.isArray(data) ? data : [];
@@ -1278,6 +1294,138 @@
                 toast('Sin conexion al backend.');
             }
         }
+                // Cargar OV de muestra disponibles para el vendedor
+        async function loadOVMuestras() {
+            try {
+                const response = await fetch('@Url.Action("ObtenerOVMuestras", "Comercial")');
+                if (!response.ok) return;
+                const data = await response.json();
+                const select = document.getElementById('ovMuestraSelect');
+                const btn = document.getElementById('btnCargarOV');
+
+                if (!Array.isArray(data) || data.length === 0) {
+                    select.innerHTML = '<option value="">No hay OV de muestra disponibles</option>';
+                    return;
+                }
+
+                select.innerHTML = '<option value="">Selecciona una OV de muestra (opcional)...</option>';
+                data.forEach(ov => {
+                    const opt = document.createElement('option');
+                    opt.value = JSON.stringify(ov);
+                    opt.textContent = `${ov.consecutivo} - ${ov.clienteNombre || ov.cliente} - ${ov.ruta || 'Sin ruta'}`;
+                    select.appendChild(opt);
+                });
+
+                select.addEventListener('change', function() {
+                    btn.disabled = !this.value;
+                });
+
+                btn.addEventListener('click', function() {
+                    if (!select.value) return;
+                    const ov = JSON.parse(select.value);
+                    selectedOVId = ov.id;
+
+                    // Desbloquear formulario
+                    const lockedDiv = document.getElementById('formContentLocked');
+                    if (lockedDiv) lockedDiv.classList.remove('form-locked-overlay');
+                    const btnSubmit = document.getElementById('btnSubmitSolicitud');
+                    if (btnSubmit) btnSubmit.disabled = false;
+
+                    // Llenar cliente
+                    document.getElementById('clientHidden').value = ov.clienteNombre ? `${ov.cliente} - ${ov.clienteNombre}` : ov.cliente || '';
+
+                    // Ruta y destino se dejan en blanco para que el usuario los llen
+                    const routeInput = document.querySelector('[name="route"]');
+                    if (routeInput) routeInput.value = '';
+
+                    const destInput = document.querySelector('[name="destination"]');
+                    if (destInput) destInput.value = '';
+
+                    // Llenar observaciones
+                    const notesInput = document.querySelector('[name="notes"]');
+                    if (notesInput) notesInput.value = ov.observacion ? `OV ${ov.consecutivo}: ${ov.observacion}` : `OV ${ov.consecutivo}`;
+
+                    // Llenar fecha requerida
+                    const fechaInput = document.querySelector('[name="requestedDate"]');
+                    if (fechaInput && ov.fechaEntrega) {
+                        fechaInput.value = ov.fechaEntrega.slice(0, 10);
+                    }
+
+                    // Bloquear campos que no se deben editar
+                    const lockStyle = 'background-color: #f0f0f0; color: #666; cursor: not-allowed;';
+                    if (notesInput) { notesInput.readOnly = false; notesInput.style.cssText = ''; }
+                    if (fechaInput) { fechaInput.readOnly = true; fechaInput.style.cssText = lockStyle; }
+                    const priorityInput = document.querySelector('[name="priority"]');
+                    if (priorityInput) { priorityInput.disabled = false; priorityInput.style.cssText = ''; }
+
+                    // Bloquear botones de eliminar y campos en la tabla de items
+                    setTimeout(() => {
+                        document.querySelectorAll('#itemsBody input:not(.item-temp), #itemsBody textarea:not(.item-spec), #itemsBody select:not(.item-temp)').forEach(el => {
+                            el.readOnly = true;
+                            el.disabled = true;
+                            el.style.cssText = lockStyle;
+                        });
+                        document.querySelectorAll('#itemsBody .btn-ghost, #itemsBody .btn-danger, #itemsBody button').forEach(el => {
+                            el.disabled = true;
+                            el.style.display = 'none';
+                        });
+                    }, 500);
+
+                    // Cargar productos de la OV
+                    cargarProductosOV(ov.id);
+
+                    toast('Datos de OV cargados en el formulario.');
+                });
+            } catch (error) {
+                console.error('Error cargando OV de muestra', error);
+            }
+        }
+
+        // Cargar productos de una OV específica
+        async function cargarProductosOV(ovId) {
+            try {
+                const response = await fetch('@Url.Action("ObtenerProductosOV", "Comercial")?ovId=' + ovId);
+                if (!response.ok) return;
+                const productos = await response.json();
+
+                // Limpiar tabla actual
+                const tbody = document.getElementById('itemsBody');
+                if (tbody) tbody.innerHTML = '';
+
+                const lockStyle = 'background-color: #f0f0f0; color: #666; cursor: not-allowed;';
+
+                if (Array.isArray(productos)) {
+                    productos.forEach(p => {
+                        addItem({
+                            sku: p.productoCodigo || '',
+                            product: p.productoNombre || '',
+                            spec: '',
+                            boxes: p.cajas || 1,
+                            temp: 'Refrigerado 0-4 °C'
+                        });
+                    });
+
+                    // Bloquear todos los campos de la tabla de items
+                    setTimeout(() => {
+                        document.querySelectorAll('#itemsBody input:not(.item-temp), #itemsBody textarea:not(.item-spec), #itemsBody select:not(.item-temp)').forEach(el => {
+                            el.readOnly = true;
+                            el.disabled = true;
+                            el.style.cssText = lockStyle;
+                        });
+                        document.querySelectorAll('#itemsBody .btn-ghost, #itemsBody .btn-danger, #itemsBody button').forEach(el => {
+                            el.disabled = true;
+                            el.style.display = 'none';
+                        });
+                    }, 300);
+                }
+            } catch (error) {
+                console.error('Error cargando productos OV', error);
+            }
+        }
+
+        // Ejecutar al cargar la página
+        loadOVMuestras();
+
 
         function uid(){ return 'it-' + crypto.randomUUID().slice(0,8); }
         function todayPlus(days){ const d = new Date(); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); }
@@ -1325,18 +1473,10 @@
         function setDefaultDates(){ if(qs('[name="requestedDate"]')) qs('[name="requestedDate"]').value = todayPlus(5); }
 
         function itemRowTemplate(item={sku:'', product:'', spec:'', boxes:1, temp:'Refrigerado 0-4 °C'}){
-            const displayCode = item.sku || 'Seleccione SKU...';
             return `
             <tr>
-                <td style="min-width: 250px;">
-                    <div class="custom-select-wrapper sku-wrapper">
-                        <div class="custom-select-display sku-display">${displayCode}</div>
-                        <div class="custom-select-dropdown sku-dropdown">
-                            <input type="text" class="custom-select-search sku-search" placeholder="Buscar código o nombre..." autocomplete="off">
-                            <ul class="custom-select-options sku-options">${articulosOptionsHTML}</ul>
-                        </div>
-                        <input type="hidden" class="item-sku" required value="${item.sku||''}">
-                    </div>
+                <td style="min-width: 120px;">
+                    <input class="item-sku" required value="${item.sku||''}" readonly style="background-color: #f0f0f0; color: #666; cursor: not-allowed; width:100%;" />
                 </td>
                 <td><input class="item-product" required value="${item.product||''}" placeholder="Se llena solo" readonly style="background-color: #f0f0f0; color: #666; cursor: not-allowed;" /></td>
                 <td><textarea class="item-spec" required placeholder="Ej. Caja 12 kg...">${item.spec||''}</textarea></td>
@@ -1387,6 +1527,7 @@
 
         function createRequestCard(req) {
             const status = requestStatus(req), total = totalBoxes(req), linked = linkedLabels(req), pct = total ? Math.round(linked/total*100) : 0;
+            let btnEnviar = '';
             let btnCancelar = '';
             if (!req.planning && status === 'Pendiente') {
                 btnCancelar = `<button type="button" class="ghost" style="margin-top:10px; width:100%;" onclick="cancelarSolicitud('${req.id}')">Cancelar solicitud</button>`;
@@ -1409,7 +1550,7 @@
                         </div>
                     `).join('')}
                     </div>
-                    ${btnCancelar}
+                    ${btnEnviar}${btnCancelar}
                 </div>
                 <div>
                     <b style="color: #5c1a1a; font-size: 11px;">Cumplimiento</b>
@@ -1888,7 +2029,8 @@
         function renderRequestList(){
             const pendientes = requests.filter(r => requestStatus(r) === 'Pendiente');
             histSolicitud = requests.filter(r => requestStatus(r) !== 'Pendiente');
-            if(qs('#requestList')) qs('#requestList').innerHTML = pendientes.length ? pendientes.map(r => createRequestCard(r)).join('') : '<div class="empty">No hay solicitudes nuevas (pendientes de planeacion).</div>';
+            let html = pendientes.map(r => createRequestCard(r)).join('');
+            if(qs('#requestList')) qs('#requestList').innerHTML = html || '<div class="empty">No hay solicitudes nuevas.</div>';
             if(qs('#btnHistSolicitudes')) qs('#btnHistSolicitudes').innerHTML = `Ver historial (${histSolicitud.length})`;
         }
 
@@ -1916,12 +2058,18 @@
         function renderTracking(){
             const q = (qs('#trackSearch')?.value || '').toLowerCase();
             const filter = qs('#trackStatus')?.value || '';
+            const dateFrom = qs('#trackDateFrom')?.value || '';
+            const dateTo = qs('#trackDateTo')?.value || '';
 
             let list = requests.filter(req => {
                 if(requestStatus(req) === 'Cancelada') return false;
                 const hay = [req.id,req.client,req.seller,req.species,req.route,req.destination, ...req.items.flatMap(i=>[i.sku,i.workSku,i.product,i.spec,...(i.labels||[]).map(l=>l.code)])].join(' ').toLowerCase();
                 const status = requestStatus(req);
-                return (!q || hay.includes(q)) && (!filter || status === filter);
+                const reqDate = (req.createdAt || '').substring(0, 10);
+                return (!q || hay.includes(q))
+                    && (!filter || status === filter)
+                    && (!dateFrom || reqDate >= dateFrom)
+                    && (!dateTo || reqDate <= dateTo);
             });
 
             const activos = list.filter(r => requestStatus(r) !== 'Surtido al cliente' && r.location !== 'Entregado a cliente');
@@ -2072,49 +2220,15 @@
             if(e.target.id === 'modalAdminPermisos') qs('#modalAdminPermisos').classList.remove('show');
 
 
-            if (!e.target.closest('.sku-wrapper') && !e.target.closest('#clienteWrapper')) {
+            if (!e.target.closest('.sku-wrapper')) {
                 qsa('.sku-dropdown.show').forEach(d => d.classList.remove('show'));
-                qsa('#clienteDropdown.show').forEach(d => d.classList.remove('show'));
             }
-
-
-            const cliDisplay = e.target.closest('#clienteDisplay');
-            if (cliDisplay) {
-                e.stopPropagation();
-                qsa('.sku-dropdown.show').forEach(d => {
-                    d.classList.remove('show');
-                    d.style.position = 'absolute';
-                    d.style.top = ''; d.style.left = ''; d.style.width = ''; d.style.zIndex = '';
-                });
-
-                const wrapper = cliDisplay.closest('#clienteWrapper');
-                const dropdown = wrapper.querySelector('#clienteDropdown');
-                const search = wrapper.querySelector('#clienteSearch');
-                const items = wrapper.querySelectorAll('#clienteOptions li');
-
-                dropdown.classList.toggle('show');
-                if (dropdown.classList.contains('show')) {
-                    search.value = '';
-                    items.forEach(li => li.classList.remove('hidden'));
-                    search.focus();
-                }
-            }
-
-            // Seleccionar opcion de CLIENTE
-            const cliLi = e.target.closest('#clienteOptions li');
-            if (cliLi) {
-                const wrapper = cliLi.closest('#clienteWrapper');
-                wrapper.querySelector('#clienteDisplay').textContent = cliLi.textContent;
-                wrapper.querySelector('#clientHidden').value = cliLi.dataset.value;
-                wrapper.querySelector('#clienteDropdown').classList.remove('show');
-            }
-
 
             // Abrir/Cerrar buscador de SKU
             const skuDisplay = e.target.closest('.sku-display');
             if (skuDisplay) {
                 e.stopPropagation();
-                qsa('.sku-dropdown.show, #clienteDropdown.show').forEach(d => d.classList.remove('show'));
+                qsa('.sku-dropdown.show').forEach(d => d.classList.remove('show'));
 
                 const wrapper = skuDisplay.closest('.sku-wrapper');
                 const dropdown = wrapper.querySelector('.sku-dropdown');
@@ -2155,12 +2269,6 @@
         });
 
         document.addEventListener('input', e => {
-            if (e.target.id === 'clienteSearch') {
-                const term = e.target.value.toLowerCase();
-                qsa('#clienteOptions li').forEach(li => {
-                    li.classList.toggle('hidden', !li.textContent.toLowerCase().includes(term));
-                });
-            }
             // Filtro para los buscadores de SKU
             if (e.target.classList.contains('sku-search')) {
                 const term = e.target.value.toLowerCase();
@@ -2206,6 +2314,8 @@
 
         if(qs('#trackSearch')) qs('#trackSearch').addEventListener('input', renderTracking);
         if(qs('#trackStatus')) qs('#trackStatus').addEventListener('change', renderTracking);
+        if(qs('#trackDateFrom')) qs('#trackDateFrom').addEventListener('change', renderTracking);
+        if(qs('#trackDateTo')) qs('#trackDateTo').addEventListener('change', renderTracking);
 
         if(qs('#requestForm')) {
             qs('#requestForm').addEventListener('submit', async e => {
@@ -2214,6 +2324,7 @@
                 const fd = new FormData(e.target);
                 const items = collectItems();
 
+                if(!selectedOVId){ toast('Debes seleccionar una Orden de Venta de muestra primero.'); return; }
                 if(!items.length){ toast('Agrega al menos un SKU con cajas solicitadas.'); return; }
                 if(!fd.get('client')){ toast('Selecciona un cliente válido de la lista.'); return; }
 
@@ -2231,7 +2342,8 @@
                     priority: fd.get('priority'),
                     notes: fd.get('notes'),
                     createdBy: '@User.Identity?.Name',
-                    planning: null, stage: 'Planeación pendiente', location: 'Comercial', items: items
+                    planning: null, stage: 'Planeación pendiente', location: 'Comercial', items: items,
+                    ordenVentaId: selectedOVId
                 };
 
                 try {
@@ -2240,11 +2352,19 @@
                     });
                     const data = await response.json();
                     if(data.ok) {
-                        toast(`Solicitud creada.`); e.target.reset(); setDefaultDates(); clearItems(); qs('#clienteDisplay').textContent = 'SELECCIONE UN CLIENTE...'; loadData();
+                        selectedOVId = null;
+                        const ovSelect = document.getElementById('ovMuestraSelect');
+                        if(ovSelect) ovSelect.value = '';
+                        // Re-lock form
+                        const lockedDiv = document.getElementById('formContentLocked');
+                        if (lockedDiv) lockedDiv.classList.add('form-locked-overlay');
+                        const btnSubmit = document.getElementById('btnSubmitSolicitud');
+                        if (btnSubmit) btnSubmit.disabled = true;
+                        toast(`Solicitud creada.`); e.target.reset(); setDefaultDates(); clearItems(); loadData(); loadOVMuestras();
                     } else { toast("Error: " + data.mensaje); }
                 } catch(err) {
                     console.warn("Backend no disponible...");
-                    requests.unshift(req); e.target.reset(); setDefaultDates(); clearItems(); qs('#clienteDisplay').textContent = 'SELECCIONE UN CLIENTE...'; renderAll(); toast(`Creada localmente.`);
+                    requests.unshift(req); e.target.reset(); setDefaultDates(); clearItems(); renderAll(); toast(`Creada localmente.`);
                 } finally { btn.disabled = false; btn.textContent = 'Crear solicitud de muestra'; }
             });
         }
@@ -2312,7 +2432,7 @@
         }
 
         document.addEventListener('scroll', e => {
-            if (e.target.closest('.sku-dropdown') || e.target.closest('#clienteDropdown')) return;
+            if (e.target.closest('.sku-dropdown')) return;
             qsa('.sku-dropdown.show').forEach(d => d.classList.remove('show'));
         }, true);
 
@@ -2413,7 +2533,6 @@
             try { await fetch('@Url.Action("AsegurarModulosMuestras", "Comercial")'); } catch (e) {}
             await aplicarPermisos();
             setDefaultDates();
-            await loadClientes();
             await loadArticulos();
             await loadData();
         }
