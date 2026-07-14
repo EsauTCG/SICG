@@ -122,6 +122,10 @@ namespace Plataforma_CG.Data
 
         public DbSet<ListaPreciosSap> ListaPreciosSap { get; set; }
 
+        // Surtido (BD SIGO - solo lectura)
+        public DbSet<SurtidoEncabezado> SurtidoEncabezado { get; set; }
+        public DbSet<SurtidoDetalleTarima> SurtidoDetalleTarimas { get; set; }
+
         //==================================
         // Reporteador(Reportes)
         //Desmadre Diego
@@ -401,6 +405,10 @@ namespace Plataforma_CG.Data
             });
 
             modelBuilder.Entity<VentaRealRow>().HasNoKey();
+
+            // Surtido (BD SIGO - solo lectura, keyless)
+            modelBuilder.Entity<SurtidoEncabezado>().HasNoKey();
+            modelBuilder.Entity<SurtidoDetalleTarima>().HasNoKey();
 
             modelBuilder.Entity<PermisoModel>()
             .HasKey(p => new { p.UsuarioId, p.CategoriaId });
