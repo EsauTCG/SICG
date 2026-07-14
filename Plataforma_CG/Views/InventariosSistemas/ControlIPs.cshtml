@@ -1100,6 +1100,7 @@ body[data-theme="dark"] .modal-body::-webkit-scrollbar-thumb {
                     <input type="text" class="form-control border-start-0 ps-0" id="buscadorIP" placeholder="Buscar IP o equipo..." onkeyup="renderTabla()">
                 </div>
 
+                <button class="btn btn-outline-secondary btn-sm px-3 fw-bold" onclick="imprimirReportePlanta()"><i class="bi bi-printer me-1"></i> Imprimir Reporte</button>
                 <button class="btn btn-outline-secondary btn-sm px-3 fw-bold" onclick="abrirModalVlan()"><i class="bi bi-diagram-3 me-1"></i> Nueva VLAN</button>
                 <button class="btn btn-brand btn-sm px-3" onclick="abrirNuevaIP()"><i class="bi bi-plus-lg me-1"></i> Agregar IP</button>
             </div>
@@ -1119,7 +1120,7 @@ body[data-theme="dark"] .modal-body::-webkit-scrollbar-thumb {
                     <thead>
                         <tr>
                             <th style="width: 15%;">Dirección IP</th>
-                            <th style="width: 20%;">Equipo Asignado</th>
+                            <th style="width: 20%;">Equipo / Observaciones</th>
                             <th style="width: 15%;">Usuario / Área</th>
                             <th style="width: 10%;">Tipo</th>
                             <th style="width: 15%;">Fechas (Alta / Modif)</th>
@@ -1641,19 +1642,27 @@ body[data-theme="dark"] .modal-body::-webkit-scrollbar-thumb {
                         return;
                     }
 
-                    filtrados.forEach(i => {
-                let estaLibre = !i.equipo || i.equipo.trim() === '';
-                let equipoDisplay = estaLibre ? '<span class="badge-disponible">DISPONIBLE</span>' : `<b>${i.equipo}</b>`;
+                        filtrados.forEach(i => {
+        let estaLibre = !i.equipo || i.equipo.trim() === '';
+        let equipoDisplay = estaLibre ? '<span class="badge-disponible">DISPONIBLE</span>' : `<b>${i.equipo}</b>`;
 
-                let usuarioAreaDisplay = '<span class="text-muted small">-</span>';
-                if (i.usuario || i.area) {
-                    let extraInfo = [];
-                    if (i.usuario) extraInfo.push(`<div class="text-dark fw-bold" style="font-size:0.8rem;"><i class="bi bi-person text-muted"></i> ${i.usuario}</div>`);
-                    if (i.area) extraInfo.push(`<div class="text-muted" style="font-size:0.75rem;"><i class="bi bi-building"></i> ${i.area}</div>`);
-                    usuarioAreaDisplay = extraInfo.join('');
-                }
+        // Extraemos las observaciones de la BD y las formateamos
+        let obsText = i.observaciones || i.Observaciones || '';
+        if (obsText.trim() !== '') {
+            // text-wrap evita que la tabla se estire infinitamente hacia la derecha
+            equipoDisplay += `<div class="text-muted mt-1 text-wrap" style="font-size: 0.7rem; max-width: 220px; line-height: 1.25;"><i class="bi bi-chat-left-text me-1"></i>${obsText}</div>`;
+        }
 
-                let badgeTipo = '-';
+        let usuarioAreaDisplay = '<span class="text-muted small">-</span>';
+        if (i.usuario || i.area) {
+            let extraInfo = [];
+            if (i.usuario) extraInfo.push(`<div class="text-dark fw-bold" style="font-size:0.8rem;"><i class="bi bi-person text-muted"></i> ${i.usuario}</div>`);
+            if (i.area) extraInfo.push(`<div class="text-muted" style="font-size:0.75rem;"><i class="bi bi-building"></i> ${i.area}</div>`);
+            usuarioAreaDisplay = extraInfo.join('');
+        }
+
+        let badgeTipo = '-';
+        // ... el resto de tu codigo sigue igual ...
                 if(i.tipo === 'Cable') badgeTipo = '<span class="tipo-cable"><i class="bi bi-ethernet"></i> Cable</span>';
                 if(i.tipo === 'WiFi') badgeTipo = '<span class="tipo-wifi"><i class="bi bi-wifi"></i> WiFi</span>';
 
@@ -1924,5 +1933,120 @@ body[data-theme="dark"] .modal-body::-webkit-scrollbar-thumb {
                        document.body.style.cursor = 'default';
                    }
                }
+
+         function imprimirReportePlanta() {
+                let pActiva = $('#selectPlanta').val();
+                let pNombre = $('#selectPlanta option:selected').text().trim();
+
+                // Filtramos VLANs e IPs de la planta actual
+                let vlansPlanta = baseVlans.filter(v => v.planta === pActiva);
+                let ipsPlanta = baseIPs.filter(i => i.planta === pActiva);
+
+                // Ordenamos las VLANs por ID numérico
+                vlansPlanta.sort((a, b) => parseInt(a.id) - parseInt(b.id));
+
+                let html = `
+                    <html>
+                    <head>
+                        <title>Reporte de IPs - Planta ${pNombre}</title>
+                        <style>
+                            body { font-family: Arial, sans-serif; font-size: 12px; color: #000; padding: 20px; }
+                            h2 { text-align: center; margin-bottom: 5px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+                            h3 { background-color: #eee; padding: 6px; margin-top: 25px; border: 1px solid #ccc; font-size: 14px; }
+                            .fecha { text-align: right; font-size: 11px; margin-bottom: 20px; font-style: italic; }
+                            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                            th, td { border: 1px solid #aaa; padding: 6px; text-align: left; }
+                            th { background-color: #f2f2f2; font-weight: bold; }
+                            .disponible { color: #555; font-style: italic; }
+                            .asignado { font-weight: bold; }
+                            .obs { font-size: 10px; color: #444; }
+                            @@media print {
+                                body { padding: 0; }
+                                table { page-break-inside: auto; }
+                                tr { page-break-inside: avoid; page-break-after: auto; }
+                                h3 { page-break-after: avoid; }
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <h2>CONTROL DE DIRECCIONES IP - PLANTA ${pNombre}</h2>
+                        <div class="fecha">Reporte generado el: ${new Date().toLocaleString('es-MX')}</div>
+                `;
+
+                if (vlansPlanta.length === 0) {
+                    html += `<p style="text-align:center;">No hay VLANs configuradas para esta planta.</p>`;
+                }
+
+                // Generamos una tabla por cada VLAN
+                vlansPlanta.forEach(vlan => {
+                    html += `<h3>VLAN ${vlan.id} - ${vlan.nombre}</h3>`;
+
+                    let ipsVlan = ipsPlanta.filter(i => i.vlan === vlan.id);
+
+                    // Ordenamos las IPs numéricamente (10.1.1.2 antes que 10.1.1.10)
+                    ipsVlan.sort((a, b) => {
+                        let numA = (a.ip || "0.0.0.0").split('.').reduce((acc, oct) => acc * 256 + parseInt(oct || 0), 0);
+                        let numB = (b.ip || "0.0.0.0").split('.').reduce((acc, oct) => acc * 256 + parseInt(oct || 0), 0);
+                        return numA - numB;
+                    });
+
+                    if (ipsVlan.length === 0) {
+                        html += `<p>No hay IPs registradas en esta VLAN.</p>`;
+                    } else {
+                        html += `
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="width:12%">Dirección IP</th>
+                                        <th style="width:23%">Equipo Asignado</th>
+                                        <th style="width:20%">Usuario / Área</th>
+                                        <th style="width:10%">Conexión</th>
+                                        <th style="width:35%">Observaciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                        `;
+
+                        ipsVlan.forEach(i => {
+                            let estaLibre = !i.equipo || i.equipo.trim() === '';
+                            let equipoDisplay = estaLibre ? '<span class="disponible">Libre / Disponible</span>' : `<span class="asignado">${i.equipo}</span>`;
+
+                            let usrArea = [];
+                            if (i.usuario) usrArea.push(i.usuario);
+                            if (i.area) usrArea.push(i.area);
+                            let usrAreaText = usrArea.join(' / ');
+
+                            let obs = i.observaciones || i.Observaciones || '';
+
+                            html += `
+                                <tr>
+                                    <td><strong>${i.ip}</strong></td>
+                                    <td>${equipoDisplay}</td>
+                                    <td>${usrAreaText}</td>
+                                    <td>${i.tipo}</td>
+                                    <td class="obs">${obs}</td>
+                                </tr>
+                            `;
+                        });
+
+                        html += `</tbody></table>`;
+                    }
+                });
+
+                html += `
+                    </body>
+                    </html>
+                `;
+
+                let printWindow = window.open('', '_blank', 'width=900,height=600');
+                printWindow.document.open();
+                printWindow.document.write(html);
+                printWindow.document.close();
+
+                setTimeout(() => {
+                    printWindow.focus();
+                    printWindow.print();
+                }, 250);
+            }
         </script>
 }
