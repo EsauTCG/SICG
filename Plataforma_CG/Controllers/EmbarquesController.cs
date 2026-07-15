@@ -3643,40 +3643,70 @@ public class EmbarquesController : Controller
         }
 
         // ============================================================
-        // TRANSFERENCIAS: usar PedidosTransferencia + Detalles
-        // Igual que en Mapa de Carga
+        // TRANSFERENCIAS: usar TransferenciaScanEtiqueta
+        // Agrupar por TransferenciaId + Sku + TarimaCodigo
+        // Cada grupo = 1 fila en calidad (misma tarima = misma temperatura)
         // ============================================================
-        var pedidosTransferencia = await _ovContext.PedidosTransferencia
-            .AsNoTracking()
-            .Include(p => p.Detalles)
-            .Where(p => transferenciasIds.Contains(p.TransferenciaId))
-            .ToListAsync();
+        var scanEtiquetas = transferenciasIds.Any()
+            ? await _ovContext.TransferenciaScanEtiquetas
+                .AsNoTracking()
+                .Where(s => transferenciasIds.Contains(s.TransferenciaId))
+                .ToListAsync()
+            : new List<TransferenciaScanEtiqueta>();
 
-        foreach (var tr in pedidosTransferencia)
-        {
-            transferenciasMeta.TryGetValue(tr.TransferenciaId, out var metaTr);
+        // Lookup de nombres de producto desde ArticuloSap
+        var skusTr = scanEtiquetas
+            .Select(s => (s.Sku ?? "").Trim())
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Distinct()
+            .ToList();
 
-            foreach (var detalle in tr.Detalles
-                .Where(d => !string.IsNullOrWhiteSpace(d.ProductoCodigo))
-                .OrderBy(d => d.Orden)
-                .ThenBy(d => d.Id))
+        var nombresArticuloTr = skusTr.Any()
+            ? await _ovContext.ArticuloSap
+                .AsNoTracking()
+                .Where(a => skusTr.Contains(a.ProductoCodigo))
+                .ToDictionaryAsync(a => a.ProductoCodigo, a => a.ProductoNombre)
+            : new Dictionary<string, string>();
+
+        // Agrupar por TransferenciaId + Sku + TarimaCodigo
+        var trGroups = scanEtiquetas
+            .Where(s => !string.IsNullOrWhiteSpace(s.TarimaCodigo))
+            .GroupBy(s => new
             {
-                productos.Add(new EmbarqueProductoTemperaturaItemVm
-                {
-                    TipoDocumento = "TRANSFERENCIA",
-                    DocumentoId = tr.TransferenciaId,
-                    DocumentoConsecutivo = metaTr?.Consecutivo ?? tr.Consecutivo ?? "",
-                    DocumentoCliente = metaTr?.Cliente ?? "",
-                    OrigenDetalleId = detalle.Id,
+                s.TransferenciaId,
+                Sku = (s.Sku ?? "").Trim(),
+                Tarima = (s.TarimaCodigo ?? "").Trim()
+            });
 
-                    ProductoCodigo = detalle.ProductoCodigo ?? "",
-                    ProductoNombre = detalle.ProductoCodigo ?? "",
-                    Almacen = "",
+        foreach (var g in trGroups)
+        {
+            var key = g.Key;
+            transferenciasMeta.TryGetValue(key.TransferenciaId, out var metaTr);
 
-                    Cajas = detalle.Cajas,
-                    Kilos = detalle.CantidadKg
-                });
-            }
+            var skuCodigo = key.Sku;
+            var nombreProducto = nombresArticuloTr.TryGetValue(skuCodigo, out var nombre)
+                ? nombre
+                : skuCodigo;
+
+            // min(Id) como OrigenDetalleId estable para la clave
+            var minId = g.Min(s => s.Id);
+
+            productos.Add(new EmbarqueProductoTemperaturaItemVm
+            {
+                TipoDocumento = "TRANSFERENCIA",
+                DocumentoId = key.TransferenciaId,
+                DocumentoConsecutivo = metaTr?.Consecutivo ?? "",
+                DocumentoCliente = metaTr?.Cliente ?? "",
+                OrigenDetalleId = minId,
+
+                ProductoCodigo = skuCodigo,
+                ProductoNombre = nombreProducto,
+                Almacen = "",
+
+                Cajas = g.Count(),
+                Kilos = g.Sum(s => s.Kg),
+                Tarima = key.Tarima
+            });
         }
 
         var guardadas = await _qrContext.EmbarqueProductoTemperaturas

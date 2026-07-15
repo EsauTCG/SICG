@@ -56,6 +56,7 @@ namespace Plataforma_CG.Data
         public DbSet<PresupuestoLineaHistorico> PresupuestoLineasHistorico { get; set; }
         public DbSet<EntregaSapLog> EntregaSapLogs { get; set; } = null!;
         public DbSet<InventarioScanEtiqueta> InventarioScanEtiquetas { get; set; } = null!;
+        public DbSet<TransferenciaScanEtiqueta> TransferenciaScanEtiquetas { get; set; } = null!;
         public DbSet<PlanDeshueseKpiRow> PlanDeshueseKpiRows { get; set; } = null!;
         public DbSet<Plataforma_CG.Models.SkuConversion> SkuConversion { get; set; } = null!;
 
@@ -271,6 +272,20 @@ namespace Plataforma_CG.Data
                 e.Property(x => x.Sku).HasMaxLength(60).IsRequired();
                 e.Property(x => x.Origen).HasMaxLength(10).IsRequired();
                 e.Property(x => x.Usuario).HasMaxLength(120);
+            });
+
+            // =========================
+            // TransferenciaScanEtiqueta
+            // =========================
+            modelBuilder.Entity<TransferenciaScanEtiqueta>(e =>
+            {
+                e.ToTable("TransferenciaScanEtiqueta");
+                e.HasKey(x => x.Id);
+
+                e.Property(x => x.Sku).HasMaxLength(30).IsRequired();
+                e.Property(x => x.CodigoEtiqueta).HasMaxLength(80).IsRequired();
+                e.Property(x => x.Usuario).HasMaxLength(120);
+                e.Property(x => x.TarimaCodigo).HasMaxLength(50).IsRequired();
             });
 
             // =========================
