@@ -3548,76 +3548,165 @@ public class EmbarquesController : Controller
         var productos = new List<EmbarqueProductoTemperaturaItemVm>();
 
         // ============================================================
-        // OV: usar PedidoVenta + PedidoVentaProducto
-        // Igual que en Mapa de Carga
+        // OV: usar Subpedido → U_DocMeat → SurtidoEncabezado → SurtidoDetalleTarimas
+        // SKUs realmente surtidos en vez de los generales de PedidoVentaProducto
         // ============================================================
-        var pedidosVenta = await _ovContext.PedidoVenta
+
+        // 1. Obtener Subpedidos de las OVs del embarque
+        var subpedidos = await _ovContext.Subpedidos
             .AsNoTracking()
-            .Include(p => p.Productos)
-            .Where(p => ordenesIds.Contains(p.OrdenVentaId))
+            .Where(s => ordenesIds.Contains(s.OrdenVentaId))
             .ToListAsync();
 
-        foreach (var pedido in pedidosVenta)
+        // 2. Mapear OrdenVentaId → U_DocMeat (tomar el primero por OV)
+        var docMeatPorOV = subpedidos
+            .Where(s => !string.IsNullOrWhiteSpace(s.U_DocMeat))
+            .GroupBy(s => s.OrdenVentaId)
+            .ToDictionary(g => g.Key, g => g.First().U_DocMeat!.Trim());
+
+        // 3. Consultar SurtidoEncabezado usando los U_DocMeat
+        //    SolicitudSurtidoId es int pero U_DocMeat es string, convertir a int para la query
+        var docMeatInts = docMeatPorOV.Values
+            .Distinct()
+            .Select(v => int.TryParse(v, out var n) ? n : (int?)null)
+            .Where(n => n.HasValue)
+            .Select(n => n!.Value)
+            .ToList();
+
+        var surtidoEncabezados = docMeatInts.Any()
+            ? await _ovContext.SurtidoEncabezado
+                .AsNoTracking()
+                .Where(se => docMeatInts.Contains(se.SolicitudSurtidoId))
+                .ToListAsync()
+            : new List<SurtidoEncabezado>();
+
+        // 4. Consultar SurtidoDetalleTarimas para estos encabezados
+        var surtidoDetalle = docMeatInts.Any()
+            ? await _ovContext.SurtidoDetalleTarimas
+                .AsNoTracking()
+                .Where(sd => docMeatInts.Contains(sd.SolicitudSurtidoId))
+                .OrderBy(sd => sd.Articulo)
+                .ThenBy(sd => sd.Tarima)
+                .ToListAsync()
+            : new List<SurtidoDetalleTarima>();
+
+        // 5. Lookup de nombres de producto desde ArticuloSap
+        var skusUnicos = surtidoDetalle
+            .Select(sd => sd.Articulo)
+            .Where(a => !string.IsNullOrWhiteSpace(a))
+            .Select(a => a!.Trim())
+            .Distinct()
+            .ToList();
+
+        var nombresArticulo = skusUnicos.Any()
+            ? await _ovContext.ArticuloSap
+                .AsNoTracking()
+                .Where(a => skusUnicos.Contains(a.ProductoCodigo))
+                .ToDictionaryAsync(a => a.ProductoCodigo, a => a.ProductoNombre)
+            : new Dictionary<string, string>();
+
+        // 6. Construir productos desde SurtidoDetalleTarimas
+        //    Crear diccionario inverso: SolicitudSurtidoId (int) → OrdenVentaId
+        var ovPorSurtidoId = docMeatPorOV
+            .Where(x => int.TryParse(x.Value, out _))
+            .ToDictionary(
+                x => int.Parse(x.Value),
+                x => x.Key);
+
+        foreach (var detalle in surtidoDetalle)
         {
-            ordenesMeta.TryGetValue(pedido.OrdenVentaId, out var metaOv);
+            // Encontrar a qué OV pertenece este surtido
+            ovPorSurtidoId.TryGetValue(detalle.SolicitudSurtidoId, out var ordenVentaId);
+            ordenesMeta.TryGetValue(ordenVentaId, out var metaOv);
 
-            foreach (var detalle in pedido.Productos
-                .Where(d => !string.IsNullOrWhiteSpace(d.ProductoCodigo))
-                .OrderBy(d => d.Id))
+            var skuCodigo = (detalle.Articulo ?? "").Trim();
+            var nombreProducto = nombresArticulo.TryGetValue(skuCodigo, out var nombre)
+                ? nombre
+                : skuCodigo;
+
+            productos.Add(new EmbarqueProductoTemperaturaItemVm
             {
-                productos.Add(new EmbarqueProductoTemperaturaItemVm
-                {
-                    TipoDocumento = "OV",
-                    DocumentoId = pedido.OrdenVentaId,
-                    DocumentoConsecutivo = metaOv?.Consecutivo ?? pedido.OrdenVentaConsecutivo ?? "",
-                    DocumentoCliente = metaOv?.Cliente ?? "",
-                    OrigenDetalleId = detalle.Id,
+                TipoDocumento = "OV",
+                DocumentoId = ordenVentaId,
+                DocumentoConsecutivo = metaOv?.Consecutivo ?? "",
+                DocumentoCliente = metaOv?.Cliente ?? "",
+                OrigenDetalleId = detalle.SurtidoDetalleTarimaId,
 
-                    ProductoCodigo = detalle.ProductoCodigo ?? "",
-                    ProductoNombre = detalle.ProductoNombre ?? "",
-                    Almacen = detalle.Almacen ?? "",
+                ProductoCodigo = skuCodigo,
+                ProductoNombre = nombre,
+                Almacen = (detalle.Sucursal ?? "").Trim(),
 
-                    Cajas = detalle.Cajas,
-                    Kilos = detalle.KilosCaja
-                });
-            }
+                Cajas = detalle.Cajas,
+                Kilos = detalle.Kg,
+                Tarima = (detalle.Tarima ?? "").Trim()
+            });
         }
 
         // ============================================================
-        // TRANSFERENCIAS: usar PedidosTransferencia + Detalles
-        // Igual que en Mapa de Carga
+        // TRANSFERENCIAS: usar TransferenciaScanEtiqueta
+        // Agrupar por TransferenciaId + Sku + TarimaCodigo
+        // Cada grupo = 1 fila en calidad (misma tarima = misma temperatura)
         // ============================================================
-        var pedidosTransferencia = await _ovContext.PedidosTransferencia
-            .AsNoTracking()
-            .Include(p => p.Detalles)
-            .Where(p => transferenciasIds.Contains(p.TransferenciaId))
-            .ToListAsync();
+        var scanEtiquetas = transferenciasIds.Any()
+            ? await _ovContext.TransferenciaScanEtiquetas
+                .AsNoTracking()
+                .Where(s => transferenciasIds.Contains(s.TransferenciaId))
+                .ToListAsync()
+            : new List<TransferenciaScanEtiqueta>();
 
-        foreach (var tr in pedidosTransferencia)
-        {
-            transferenciasMeta.TryGetValue(tr.TransferenciaId, out var metaTr);
+        // Lookup de nombres de producto desde ArticuloSap
+        var skusTr = scanEtiquetas
+            .Select(s => (s.Sku ?? "").Trim())
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Distinct()
+            .ToList();
 
-            foreach (var detalle in tr.Detalles
-                .Where(d => !string.IsNullOrWhiteSpace(d.ProductoCodigo))
-                .OrderBy(d => d.Orden)
-                .ThenBy(d => d.Id))
+        var nombresArticuloTr = skusTr.Any()
+            ? await _ovContext.ArticuloSap
+                .AsNoTracking()
+                .Where(a => skusTr.Contains(a.ProductoCodigo))
+                .ToDictionaryAsync(a => a.ProductoCodigo, a => a.ProductoNombre)
+            : new Dictionary<string, string>();
+
+        // Agrupar por TransferenciaId + Sku + TarimaCodigo
+        var trGroups = scanEtiquetas
+            .Where(s => !string.IsNullOrWhiteSpace(s.TarimaCodigo))
+            .GroupBy(s => new
             {
-                productos.Add(new EmbarqueProductoTemperaturaItemVm
-                {
-                    TipoDocumento = "TRANSFERENCIA",
-                    DocumentoId = tr.TransferenciaId,
-                    DocumentoConsecutivo = metaTr?.Consecutivo ?? tr.Consecutivo ?? "",
-                    DocumentoCliente = metaTr?.Cliente ?? "",
-                    OrigenDetalleId = detalle.Id,
+                s.TransferenciaId,
+                Sku = (s.Sku ?? "").Trim(),
+                Tarima = (s.TarimaCodigo ?? "").Trim()
+            });
 
-                    ProductoCodigo = detalle.ProductoCodigo ?? "",
-                    ProductoNombre = detalle.ProductoCodigo ?? "",
-                    Almacen = "",
+        foreach (var g in trGroups)
+        {
+            var key = g.Key;
+            transferenciasMeta.TryGetValue(key.TransferenciaId, out var metaTr);
 
-                    Cajas = detalle.Cajas,
-                    Kilos = detalle.CantidadKg
-                });
-            }
+            var skuCodigo = key.Sku;
+            var nombreProducto = nombresArticuloTr.TryGetValue(skuCodigo, out var nombre)
+                ? nombre
+                : skuCodigo;
+
+            // min(Id) como OrigenDetalleId estable para la clave
+            var minId = g.Min(s => s.Id);
+
+            productos.Add(new EmbarqueProductoTemperaturaItemVm
+            {
+                TipoDocumento = "TRANSFERENCIA",
+                DocumentoId = key.TransferenciaId,
+                DocumentoConsecutivo = metaTr?.Consecutivo ?? "",
+                DocumentoCliente = metaTr?.Cliente ?? "",
+                OrigenDetalleId = minId,
+
+                ProductoCodigo = skuCodigo,
+                ProductoNombre = nombreProducto,
+                Almacen = "",
+
+                Cajas = g.Count(),
+                Kilos = g.Sum(s => s.Kg),
+                Tarima = key.Tarima
+            });
         }
 
         var guardadas = await _qrContext.EmbarqueProductoTemperaturas
