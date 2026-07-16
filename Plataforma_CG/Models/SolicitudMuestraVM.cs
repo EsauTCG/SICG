@@ -33,6 +33,7 @@ namespace Plataforma_CG.Models
         public string Shift { get; set; }
         public string Line { get; set; }
         public string Planner { get; set; }
+        public string Especificacion { get; set; }
         public DateTime ReleasedAt { get; set; }
 
     }
