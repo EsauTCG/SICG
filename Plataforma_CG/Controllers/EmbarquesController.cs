@@ -9,6 +9,8 @@ using System.IO;
 using Microsoft.AspNetCore.Authorization;
 using ClosedXML.Excel;
 using System.Text.Json;
+using Plataforma_CG.ViewModels;
+using System.Globalization;
 using static Plataforma_CG.Models.Embarque;
 
 public class EmbarquesController : Controller
@@ -143,125 +145,395 @@ public class EmbarquesController : Controller
         return View(embarques);
     }
 
-    // ============================================================ 
-    // 2. CREAR EMBARQUE – Listar órdenes autorizadas 
-    // ============================================================ 
-    [Authorize(Roles = "Administracion de Ventas,Administrador")]
-    public async Task<IActionResult> Crear()
+    // ============================================================
+// CREAR EMBARQUE - PÁGINA INICIAL LIGERA
+// ============================================================
+[HttpGet]
+[Authorize(Roles = "Administracion de Ventas,Administrador")]
+public async Task<IActionResult> Crear(CancellationToken cancellationToken)
+{
+    // Solo obtenemos los conteos.
+    // Ya no cargamos miles de registros al abrir la página.
+    var totalOrdenes = await _ovContext.OrdenVenta
+        .AsNoTracking()
+        .CountAsync(o => o.Estatus == 5, cancellationToken);
+
+    var totalTransferencias = await _ovContext.Transferencias
+        .AsNoTracking()
+        .CountAsync(t => t.Estatus == 5, cancellationToken);
+
+    var viewModel = new CrearEmbarqueViewModel
     {
-        var ordenes = await _ovContext.OrdenVenta
-            .Where(o => o.Estatus == 5)
-            .Select(o => new OrdenVenta
+        TotalOrdenes = totalOrdenes,
+        TotalTransferencias = totalTransferencias
+    };
+
+    return View(viewModel);
+}
+
+    // ============================================================
+    // CONSULTAR OV DISPONIBLES CON FILTROS Y PAGINACIÓN
+    // ============================================================
+    [HttpGet]
+    [Authorize(Roles = "Administracion de Ventas,Administrador")]
+    public async Task<IActionResult> ObtenerOrdenesDisponibles(
+        string? busqueda,
+        string? cliente,
+        string? consecutivo,
+        string? ruta,
+        int pagina = 1,
+        int tamanoPagina = 50,
+        CancellationToken cancellationToken = default)
+    {
+        pagina = Math.Max(pagina, 1);
+        tamanoPagina = Math.Clamp(tamanoPagina, 10, 100);
+
+        busqueda = busqueda?.Trim();
+        cliente = cliente?.Trim();
+        consecutivo = consecutivo?.Trim();
+        ruta = ruta?.Trim();
+
+        // Agrupamos para evitar duplicados en caso de que ClienteSap
+        // tenga más de un registro para el mismo código.
+        var clientesSapQuery = _ovContext.ClienteSap
+            .AsNoTracking()
+            .GroupBy(c => c.Cliente)
+            .Select(g => new
+            {
+                Cliente = g.Key,
+                NombreCliente = g.Max(x => x.Nombrecliente)
+            });
+
+        var query =
+            from o in _ovContext.OrdenVenta.AsNoTracking()
+            join c in clientesSapQuery
+                on o.Cliente equals c.Cliente into clientes
+            from c in clientes.DefaultIfEmpty()
+            where o.Estatus == 5
+            select new OrdenDisponibleViewModel
             {
                 Id = o.Id,
-                Cliente = o.Cliente,
-                NombreCliente = _ovContext.ClienteSap
-                    .Where(c => c.Cliente == o.Cliente)
-                    .Select(c => c.Nombrecliente)
-                    .FirstOrDefault() ?? o.Cliente,
-                Consecutivo = o.Consecutivo,
-                Ruta = o.Ruta
+                Cliente = o.Cliente ?? "",
+                NombreCliente =
+                    c != null && c.NombreCliente != null
+                        ? c.NombreCliente
+                        : o.Cliente ?? "",
+                Consecutivo = o.Consecutivo ?? "",
+                Ruta = o.Ruta ?? ""
+            };
+
+        if (!string.IsNullOrWhiteSpace(busqueda))
+        {
+            query = query.Where(x =>
+                x.Id.ToString().Contains(busqueda) ||
+                x.Cliente.Contains(busqueda) ||
+                x.NombreCliente.Contains(busqueda) ||
+                x.Consecutivo.Contains(busqueda) ||
+                x.Ruta.Contains(busqueda));
+        }
+
+        if (!string.IsNullOrWhiteSpace(cliente))
+        {
+            query = query.Where(x =>
+                x.Cliente.Contains(cliente) ||
+                x.NombreCliente.Contains(cliente));
+        }
+
+        if (!string.IsNullOrWhiteSpace(consecutivo))
+        {
+            query = query.Where(x => x.Consecutivo.Contains(consecutivo));
+        }
+
+        if (!string.IsNullOrWhiteSpace(ruta))
+        {
+            query = query.Where(x => x.Ruta.Contains(ruta));
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderByDescending(x => x.Id)
+            .Skip((pagina - 1) * tamanoPagina)
+            .Take(tamanoPagina)
+            .ToListAsync(cancellationToken);
+
+        return Json(new
+        {
+            items,
+            total,
+            pagina,
+            tamanoPagina,
+            hayMas = pagina * tamanoPagina < total
+        });
+    }
+
+    // ============================================================
+    // CONSULTAR TRANSFERENCIAS CON FILTROS Y PAGINACIÓN
+    // ============================================================
+    [HttpGet]
+    [Authorize(Roles = "Administracion de Ventas,Administrador")]
+    public async Task<IActionResult> ObtenerTransferenciasDisponibles(
+        string? busqueda,
+        string? sucursal,
+        string? consecutivo,
+        string? fecha,
+        int pagina = 1,
+        int tamanoPagina = 50,
+        CancellationToken cancellationToken = default)
+    {
+        pagina = Math.Max(pagina, 1);
+        tamanoPagina = Math.Clamp(tamanoPagina, 10, 100);
+
+        busqueda = busqueda?.Trim();
+        sucursal = sucursal?.Trim();
+        consecutivo = consecutivo?.Trim();
+        fecha = fecha?.Trim();
+
+        var query = _ovContext.Transferencias
+            .AsNoTracking()
+            .Where(t => t.Estatus == 5);
+
+        if (!string.IsNullOrWhiteSpace(busqueda))
+        {
+            query = query.Where(t =>
+                t.Id.ToString().Contains(busqueda) ||
+                (t.Sucursal != null && t.Sucursal.Contains(busqueda)) ||
+                (t.Consecutivo != null && t.Consecutivo.Contains(busqueda)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(sucursal))
+        {
+            query = query.Where(t =>
+                t.Sucursal != null &&
+                t.Sucursal.Contains(sucursal));
+        }
+
+        if (!string.IsNullOrWhiteSpace(consecutivo))
+        {
+            query = query.Where(t =>
+                t.Consecutivo != null &&
+                t.Consecutivo.Contains(consecutivo));
+        }
+
+        if (!string.IsNullOrWhiteSpace(fecha))
+        {
+            var culturaMexico = CultureInfo.GetCultureInfo("es-MX");
+
+            if (DateTime.TryParse(
+                fecha,
+                culturaMexico,
+                DateTimeStyles.None,
+                out var fechaFiltro))
+            {
+                var fechaInicio = fechaFiltro.Date;
+                var fechaFin = fechaInicio.AddDays(1);
+
+                query = query.Where(t =>
+                    t.FechaSolicitud >= fechaInicio &&
+                    t.FechaSolicitud < fechaFin);
+            }
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+
+        var datos = await query
+            .OrderByDescending(t => t.FechaSolicitud)
+            .ThenByDescending(t => t.Id)
+            .Skip((pagina - 1) * tamanoPagina)
+            .Take(tamanoPagina)
+            .Select(t => new
+            {
+                t.Id,
+                Sucursal = t.Sucursal ?? "",
+                Consecutivo = t.Consecutivo ?? "",
+                t.FechaSolicitud
             })
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
-        var transferencias = await _ovContext.Transferencias
-            .Where(t => t.Estatus == 5)
-            .ToListAsync();
+        var items = datos.Select(t => new TransferenciaDisponibleViewModel
+        {
+            Id = t.Id,
+            Sucursal = t.Sucursal,
+            Consecutivo = t.Consecutivo,
+            FechaSolicitud = t.FechaSolicitud,
+            FechaSolicitudTexto =
+                t.FechaSolicitud?.ToString("dd/MM/yyyy") ?? ""
+        }).ToList();
 
-        ViewBag.Transferencias = transferencias;
-
-        return View(ordenes);
+        return Json(new
+        {
+            items,
+            total,
+            pagina,
+            tamanoPagina,
+            hayMas = pagina * tamanoPagina < total
+        });
     }
 
 
-    // ============================================================ 
-    // 3. GUARDAR EMBARQUE NUEVO 
-    // ============================================================ 
+
+
+    // ============================================================
+    // GUARDAR EMBARQUE NUEVO - OPTIMIZADO
+    // ============================================================
     [HttpPost]
+    [ValidateAntiForgeryToken]
     [Authorize(Roles = "Administracion de Ventas,Administrador")]
     public async Task<IActionResult> Crear(
-    List<int> ordenesSeleccionadas,
-    List<int> transferenciasSeleccionadas,
-    string? nombreEmbarque,
-    string? observaciones)
+        List<int>? ordenesSeleccionadas,
+        List<int>? transferenciasSeleccionadas,
+        string? nombreEmbarque,
+        string? observaciones,
+        CancellationToken cancellationToken)
     {
-        if ((ordenesSeleccionadas == null || !ordenesSeleccionadas.Any()) &&
-            (transferenciasSeleccionadas == null || !transferenciasSeleccionadas.Any()))
+        ordenesSeleccionadas = ordenesSeleccionadas?
+            .Where(id => id > 0)
+            .Distinct()
+            .ToList() ?? new List<int>();
+
+        transferenciasSeleccionadas = transferenciasSeleccionadas?
+            .Where(id => id > 0)
+            .Distinct()
+            .ToList() ?? new List<int>();
+
+        if (!ordenesSeleccionadas.Any() &&
+            !transferenciasSeleccionadas.Any())
         {
-            TempData["Error"] = "Debes seleccionar al menos una orden o transferencia.";
-            return RedirectToAction("Crear");
+            TempData["Error"] =
+                "Debes seleccionar al menos una orden o transferencia.";
+
+            return RedirectToAction(nameof(Crear));
         }
 
         nombreEmbarque = nombreEmbarque?.Trim();
         observaciones = observaciones?.Trim();
 
-        if (!string.IsNullOrWhiteSpace(nombreEmbarque) && nombreEmbarque.Length > 150)
+        if (!string.IsNullOrWhiteSpace(nombreEmbarque) &&
+            nombreEmbarque.Length > 150)
         {
-            TempData["Error"] = "El nombre del embarque no puede tener más de 150 caracteres.";
-            return RedirectToAction("Crear");
+            TempData["Error"] =
+                "El nombre del embarque no puede tener más de 150 caracteres.";
+
+            return RedirectToAction(nameof(Crear));
         }
 
-        var embarque = new Embarque
+        // Una sola consulta para todas las órdenes.
+        var ordenes = ordenesSeleccionadas.Any()
+            ? await _ovContext.OrdenVenta
+                .Where(o =>
+                    ordenesSeleccionadas.Contains(o.Id) &&
+                    o.Estatus == 5)
+                .ToListAsync(cancellationToken)
+            : new List<OrdenVenta>();
+
+        // Una sola consulta para todas las transferencias.
+        var transferencias = transferenciasSeleccionadas.Any()
+            ? await _ovContext.Transferencias
+                .Where(t =>
+                    transferenciasSeleccionadas.Contains(t.Id) &&
+                    t.Estatus == 5)
+                .ToListAsync(cancellationToken)
+            : new List<Transferencia>();
+
+        // Evita crear el embarque si algún registro ya fue utilizado
+        // por otro usuario mientras esta pantalla estaba abierta.
+        if (ordenes.Count != ordenesSeleccionadas.Count)
         {
-            FechaCreacion = DateTime.Now,
-            UsuarioGenera = User.Identity?.Name ?? "Sistema",
-            Estatus = 1,
+            TempData["Error"] =
+                "Una o más órdenes seleccionadas ya no están disponibles. Actualiza la página e intenta nuevamente.";
 
-            // NUEVO
-            NombreEmbarque = string.IsNullOrWhiteSpace(nombreEmbarque) ? null : nombreEmbarque,
+            return RedirectToAction(nameof(Crear));
+        }
 
-            Observaciones = observaciones,
-            CalidadAprobada = false,
-            DocumentacionAprobada = false,
-            DocumentacionCalidadAprobada = false
-        };
-
-        _qrContext.Embarque.Add(embarque);
-        await _qrContext.SaveChangesAsync();
-
-        if (ordenesSeleccionadas != null)
+        if (transferencias.Count != transferenciasSeleccionadas.Count)
         {
-            foreach (var ovId in ordenesSeleccionadas)
+            TempData["Error"] =
+                "Una o más transferencias seleccionadas ya no están disponibles. Actualiza la página e intenta nuevamente.";
+
+            return RedirectToAction(nameof(Crear));
+        }
+
+        var ahora = DateTime.Now;
+
+        await using var transaccionQr =
+            await _qrContext.Database.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            var embarque = new Embarque
             {
-                _qrContext.EmbarqueDocumento.Add(new EmbarqueDocumento
+                FechaCreacion = ahora,
+                UsuarioGenera = User.Identity?.Name ?? "Sistema",
+                Estatus = 1,
+                NombreEmbarque = string.IsNullOrWhiteSpace(nombreEmbarque)
+                    ? null
+                    : nombreEmbarque,
+                Observaciones = observaciones,
+                CalidadAprobada = false,
+                DocumentacionAprobada = false,
+                DocumentacionCalidadAprobada = false
+            };
+
+            _qrContext.Embarque.Add(embarque);
+
+            // Necesitamos este guardado para obtener embarque.Id.
+            await _qrContext.SaveChangesAsync(cancellationToken);
+
+            var documentos = new List<EmbarqueDocumento>(
+                ordenes.Count + transferencias.Count);
+
+            documentos.AddRange(
+                ordenes.Select(o => new EmbarqueDocumento
                 {
                     EmbarqueId = embarque.Id,
-                    DocumentoId = ovId,
+                    DocumentoId = o.Id,
                     TipoDocumento = "OV"
-                });
+                }));
 
-                var orden = await _ovContext.OrdenVenta.FindAsync(ovId);
-                if (orden != null)
-                {
-                    orden.Estatus = 6;
-                    orden.FechaEmbarque = DateTime.Now;
-                }
-            }
-        }
-
-        if (transferenciasSeleccionadas != null)
-        {
-            foreach (var trId in transferenciasSeleccionadas)
-            {
-                _qrContext.EmbarqueDocumento.Add(new EmbarqueDocumento
+            documentos.AddRange(
+                transferencias.Select(t => new EmbarqueDocumento
                 {
                     EmbarqueId = embarque.Id,
-                    DocumentoId = trId,
+                    DocumentoId = t.Id,
                     TipoDocumento = "TRANSFERENCIA"
-                });
+                }));
 
-                var transferencia = await _ovContext.Transferencias.FindAsync(trId);
-                if (transferencia != null)
-                {
-                    transferencia.Estatus = 6;
-                }
+            // Una sola llamada AddRange.
+            _qrContext.EmbarqueDocumento.AddRange(documentos);
+
+            // Actualización en memoria de todos los registros recuperados
+            // en las dos consultas anteriores.
+            foreach (var orden in ordenes)
+            {
+                orden.Estatus = 6;
+                orden.FechaEmbarque = ahora;
             }
+
+            foreach (var transferencia in transferencias)
+            {
+                transferencia.Estatus = 6;
+            }
+
+            // Un guardado por DbContext.
+            await _qrContext.SaveChangesAsync(cancellationToken);
+            await _ovContext.SaveChangesAsync(cancellationToken);
+
+            await transaccionQr.CommitAsync(cancellationToken);
+
+            return RedirectToAction("Detalle", new
+            {
+                id = embarque.Id
+            });
         }
+        catch
+        {
+            await transaccionQr.RollbackAsync(cancellationToken);
 
-        await _qrContext.SaveChangesAsync();
-        await _ovContext.SaveChangesAsync();
+            TempData["Error"] =
+                "No fue posible crear el embarque. Ningún cambio del embarque fue confirmado.";
 
-        return RedirectToAction("Detalle", new { id = embarque.Id });
+            return RedirectToAction(nameof(Crear));
+        }
     }
 
 
