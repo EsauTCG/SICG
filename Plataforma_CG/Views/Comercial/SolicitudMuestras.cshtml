@@ -5,6 +5,21 @@
 }
 
 <style>
+    /* FORZAR PANTALLA COMPLETA SIN DAÑAR EL MENÚ PRINCIPAL */
+    html, body {
+        background: #f0dede !important;
+        overflow-x: hidden;
+    }
+
+    .container,
+    .container-fluid,
+    .pb-3,
+    main {
+        max-width: 100% !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        padding-bottom: 0 !important;
+    }
 
     :root {
         --bg: #f0dede;
@@ -27,7 +42,7 @@
         font-size: 11px;
         color: var(--text);
         background: var(--bg) !important;
-        min-height: 80vh;
+        min-height: calc(100vh - 60px);
         display: flex;
         flex-direction: column;
     }
@@ -744,6 +759,146 @@
         display: none;
     }
 
+
+    /* VALIDACIÓN DE ETIQUETAS CONTRA MEAT */
+    .scan-validation-box {
+        min-height: 54px;
+        padding: 8px 9px;
+        border: 1px solid var(--line);
+        background: #fffafa;
+        color: #5c1a1a;
+        font-size: 10px;
+        line-height: 1.45;
+    }
+
+        .scan-validation-box strong {
+            display: block;
+            margin-bottom: 2px;
+            font-size: 11px;
+        }
+
+        .scan-validation-box.idle {
+            border-left: 4px solid #9a5a5a;
+        }
+
+        .scan-validation-box.loading {
+            border-left: 4px solid #d39b20;
+            background: #fff8e8;
+            color: #765000;
+        }
+
+        .scan-validation-box.ok {
+            border-left: 4px solid #198754;
+            background: #ecf9f1;
+            color: #145c36;
+        }
+
+        .scan-validation-box.error {
+            border-left: 4px solid #bd2130;
+            background: #fff0f1;
+            color: #8b101c;
+        }
+
+    #scanLabel {
+        text-transform: uppercase;
+        font-family: Consolas, "Courier New", monospace;
+        font-weight: bold;
+        letter-spacing: .03em;
+    }
+
+        #scanLabel.scan-invalid {
+            border-color: #bd2130 !important;
+            background: #fff0f1 !important;
+        }
+
+        #scanLabel.scan-valid {
+            border-color: #198754 !important;
+            background: #ecf9f1 !important;
+        }
+
+
+    /* =========================================================
+           TRACKING AUTOMÁTICO DE ETIQUETAS EN MEAT: TIF + P1
+           ========================================================= */
+    .meat-location-list {
+        display: grid;
+        gap: 5px;
+        min-width: 245px;
+    }
+
+    .meat-location-card {
+        padding: 7px 8px;
+        border: 1px solid #c79d9d;
+        background: #fffdfd;
+        text-align: left;
+        line-height: 1.28;
+    }
+
+        .meat-location-card strong,
+        .meat-location-card span,
+        .meat-location-card small {
+            display: block;
+        }
+
+        .meat-location-card strong {
+            color: #5c1a1a;
+            font-size: 10px;
+            overflow-wrap: anywhere;
+        }
+
+        .meat-location-card span {
+            margin-top: 2px;
+            color: #222;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .meat-location-card small {
+            margin-top: 3px;
+            color: #555;
+            font-size: 9px;
+            overflow-wrap: anywhere;
+        }
+
+        .meat-location-card.sold {
+            border-left: 4px solid #198754;
+            background: #eefbf4;
+        }
+
+        .meat-location-card.stock {
+            border-left: 4px solid #0d6efd;
+            background: #f0f6ff;
+        }
+
+        .meat-location-card.warning {
+            border-left: 4px solid #d97706;
+            background: #fff8eb;
+        }
+
+        .meat-location-card.missing {
+            border-left: 4px solid #b42318;
+            background: #fff1f0;
+        }
+
+        .meat-location-card.loading {
+            border-left: 4px solid #777;
+            background: #f4f4f4;
+        }
+
+    .tracking-refresh-btn {
+        width: 100%;
+        min-width: 86px;
+    }
+
+    .tracking-summary-line {
+        display: block;
+        margin-top: 3px;
+        color: #5c1a1a;
+        font-size: 9px;
+        font-weight: bold;
+        overflow-wrap: anywhere;
+    }
+
     /* RESPONSIVE */
     @@media (max-width: 900px) {
         .header-top {
@@ -871,6 +1026,24 @@
             color: #666;
         }
 
+
+    /* SKU obligatorio en Planeación */
+    .planning-form .sku-wrapper.sku-required-error .sku-display {
+        border-color: #c1121f !important;
+        background: #fff1f2 !important;
+        color: #8b0000 !important;
+        box-shadow: 0 0 0 2px rgba(193, 18, 31, .10);
+    }
+
+    .planning-form .sku-wrapper.sku-required-error::after {
+        content: 'Seleccione un artículo antes de liberar a producción.';
+        display: block;
+        margin-top: 3px;
+        color: #a00000;
+        font-size: 9px;
+        font-weight: bold;
+    }
+
     .custom-select-dropdown {
         position: absolute;
         top: 100%;
@@ -922,23 +1095,29 @@
                 display: none;
             }
 
-            .form-locked-overlay {
-                position: relative;
-            }
-            .form-locked-overlay::after {
-                content: 'Selecciona una OV de muestra para comenzar';
-                position: absolute;
-                top: 0; left: 0; right: 0; bottom: 0;
-                background: rgba(255,255,255,0.7);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 14px;
-                font-weight: bold;
-                color: #888;
-                z-index: 5;
-                pointer-events: none;
-            }
+    .form-locked-overlay {
+        position: relative;
+    }
+
+        .form-locked-overlay::after {
+            content: 'Selecciona una OV de muestra para comenzar';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+            color: #888;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+
 </style>
 
 <div class="app-shell" id="appShellMain">
@@ -990,73 +1169,74 @@
 
                     <div class="form-subtitle">1. Datos Generales de la Solicitud</div>
                     <div id="formContentLocked" class="form-locked-overlay">
-                    <div class="form-grid">
-                        <div>
-                            <label>Solicita / Vendedor</label>
-                            <input required name="seller" readonly value="@User.Identity?.Name" style="background-color: #f0f0f0; color: #666; cursor: not-allowed;" />
+                        <div class="form-grid">
+                            <div>
+                                <label>Solicita / Vendedor</label>
+                                <input required name="seller" readonly value="@User.Identity?.Name" style="background-color: #f0f0f0; color: #666; cursor: not-allowed;" />
+                            </div>
+                            <div>
+                                <label>Cliente</label>
+                                <input required name="client" id="clientHidden" readonly placeholder="Se carga desde la OV" style="background-color: #f0f0f0; color: #666; cursor: not-allowed; width: 100%;" />
+                            </div>
+                            <div>
+                                <label>Especie / clasificación</label>
+                                <select required name="species">
+                                    <option value="NOV">NOV</option>
+                                    <option value="VG">VG</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label>Fecha requerida</label>
+                                <input required type="date" name="requestedDate" />
+                            </div>
                         </div>
-                        <div>
-                            <label>Cliente</label>
-                            <input required name="client" id="clientHidden" readonly placeholder="Se carga desde la OV" style="background-color: #f0f0f0; color: #666; cursor: not-allowed; width: 100%;" />
-                        </div>
-                        <div>
-                            <label>Especie / clasificación</label>
-                            <select required name="species">
-                                <option value="NOV">NOV</option>
-                                <option value="VG">VG</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label>Fecha requerida</label>
-                            <input required type="date" name="requestedDate" />
-                        </div>
-                    </div>
 
-                    <div class="form-subtitle">2. Información Logística y Observaciones</div>
-                    <div class="form-grid">
-                        <div>
-                            <label>Ruta logística</label>
-                            <input required name="route" placeholder="Ej. Ruta Altos Norte, Ruta Guadalajara, etc." />
+                        <div class="form-subtitle">2. Información Logística y Observaciones</div>
+                        <div class="form-grid">
+                            <div>
+                                <label>Ruta logística</label>
+                                <input required name="route" placeholder="Ej. Ruta Altos Norte, Ruta Guadalajara, etc." />
+                            </div>
+                            <div>
+                                <label>Destino</label>
+                                <input required name="destination" placeholder="Ej. CEDIS Zapopan" />
+                            </div>
+                            <div>
+                                <label>Prioridad</label>
+                                <select name="priority">
+                                    <option>Me dijo Lalo</option>
+                                    <option>Alta</option>
+                                    <option>Media</option>
+                                    <option>Baja</option>
+                                </select>
+                            </div>
+                            <div class="full">
+                                <label>Requerimiento general / observaciones</label>
+                                <textarea name="notes" placeholder="Ej. Cliente pidió muestras para evaluación de empaque, color, marmoleo y gramaje."></textarea>
+                            </div>
                         </div>
-                        <div>
-                            <label>Destino</label>
-                            <input required name="destination" placeholder="Ej. CEDIS Zapopan" />
-                        </div>
-                        <div>
-                            <label>Prioridad</label>
-                            <select name="priority">
-                                <option>Alta</option>
-                                <option>Media</option>
-                                <option>Baja</option>
-                            </select>
-                        </div>
-                        <div class="full">
-                            <label>Requerimiento general / observaciones</label>
-                            <textarea name="notes" placeholder="Ej. Cliente pidió muestras para evaluación de empaque, color, marmoleo y gramaje."></textarea>
-                        </div>
-                    </div>
 
-                    <div class="section-header">
-                        <div>
-                            <h3>3. Artículos (SKUs) solicitados</h3>
+                        <div class="section-header">
+                            <div>
+                                <h3>3. Artículos (SKUs) solicitados</h3>
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="table-wrap">
-                        <table id="itemsTable">
-                            <thead>
-                                <tr>
-                                    <th>SKU</th>
-                                    <th>Producto</th>
-                                    <th>Especificación / requerimiento</th>
-                                    <th>Cajas</th>
-                                    <th>Temperatura</th>
-                                    <th>Acción</th>
-                                </tr>
-                            </thead>
-                            <tbody id="itemsBody"></tbody>
-                        </table>
-                    </div>
+                        <div class="table-wrap">
+                            <table id="itemsTable">
+                                <thead>
+                                    <tr>
+                                        <th>SKU</th>
+                                        <th>Producto</th>
+                                        <th>Especificación / requerimiento</th>
+                                        <th>Cajas</th>
+                                        <th>Temperatura</th>
+                                        <th>Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="itemsBody"></tbody>
+                            </table>
+                        </div>
 
                     </div>
 
@@ -1098,7 +1278,8 @@
                 </div>
                 <div class="header-actions no-print">
                     <button class="secondary" type="button" id="btnHistProduccion" onclick="abrirHistorial('produccion')">Ver historial (0)</button>
-                    <button class="secondary" type="button" onclick="imprimirEtiquetas()">Imprimir etiquetas generadas</button>
+                    <input type="text" id="printerIp" placeholder="IP impresora" style="width:140px; height:26px; font-size:11px; padding:2px 6px; border:1px solid #b48787; background:#fffdfd;" />
+                    <button class="secondary" type="button" onclick="imprimirEtiquetas()">Imprimir etiquetas</button>
                 </div>
             </div>
             <div class="split-panel">
@@ -1114,14 +1295,32 @@
                             <select id="scanItem" required></select>
                         </div>
                         <div>
-                            <label>Etiqueta DEST escaneada</label>
-                            <input id="scanLabel" required placeholder="Ej. DEST000001" />
+                            <label>Planta de Producción</label>
+                            <select id="scanPlant" required>
+                                <option value="">Seleccione la planta...</option>
+                                <option value="P1">Planta P1</option>
+                                <option value="TIF">Planta TIF</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>Etiqueta DEST / RETT escaneada</label>
+                            <input id="scanLabel"
+                                   required
+                                   maxlength="100"
+                                   autocomplete="off"
+                                   autocapitalize="characters"
+                                   spellcheck="false"
+                                   placeholder="Escanee una etiqueta DEST o RETT" />
                         </div>
                         <div>
                             <label>Operario</label>
                             <input id="operatorName" readonly required value="@usuarioLogueado" style="background-color: #f0f0f0; color: #666; cursor: not-allowed;" />
                         </div>
-                        <button class="success" type="submit" style="margin-top: 5px;">Ligar etiqueta</button>
+                        <div id="scanValidationBox" class="scan-validation-box idle">
+                            <strong>Validación pendiente</strong>
+                            Seleccione solicitud, SKU y planta; después escanee la etiqueta.
+                        </div>
+                        <button class="success" type="submit" style="margin-top: 5px;">Validar y ligar etiqueta</button>
                     </form>
                 </div>
                 <div>
@@ -1138,7 +1337,7 @@
                 <div class="form-grid two" style="margin-bottom:0; border:none; padding:0; background:transparent;">
                     <div>
                         <label>Buscar folio, cliente, vendedor, SKU o etiqueta</label>
-                        <input id="trackSearch" placeholder="Ej. SM-2026-0001, RD021, DEST000001" />
+                        <input id="trackSearch" placeholder="Ej. SM-2026-0001, RD021, DEST000001 o RETT000001" />
                     </div>
                     <div>
                         <label>Filtrar por estatus</label>
@@ -1149,6 +1348,7 @@
                             <option>Producción parcial</option>
                             <option>Cumplido producción</option>
                             <option>En almacén</option>
+                            <option>Surtido parcial</option>
                         </select>
                     </div>
                     <div>
@@ -1230,1313 +1430,1923 @@
 
 @section Scripts {
     <script>
-        const qs = selector => document.querySelector(selector);
-        const qsa = selector => Array.from(document.querySelectorAll(selector));
-
-        console.log("Modulo de muestras cargado y blindado.");
-
-        let requests = [];
-        let histSolicitud = [];
-        let histPlaneacion = [];
-        let histProduccion = [];
-        let histTracking = [];
-        let articulosSap = [];
-        let articulosOptionsHTML = '';
-        let selectedOVId = null;
-
-        async function loadArticulos() {
-            try {
-                const response = await fetch('@Url.Action("ObtenerArticulosSap", "Comercial")');
-                if (!response.ok) {
-                    console.error("Error HTTP al cargar artículos SAP:", response.status);
-                    return;
-                }
-                const data = await response.json();
-
-                if (Array.isArray(data) && data.length > 0) {
-                    articulosSap = data;
-                    articulosOptionsHTML = articulosSap.map(a => {
-                        const cod = a.Codigo || a.codigo || a.ProductoCodigo || a.productoCodigo || 'SC';
-                        const nom = a.Nombre || a.nombre || a.ProductoNombre || a.productoNombre || 'Sin nombre';
-                        return `<li data-codigo="${cod}" data-nombre="${nom}">${cod} - ${nom}</li>`;
-                    }).join('');
-
-                    if(qs('.sku-options')) qsa('.sku-options').forEach(ul => ul.innerHTML = articulosOptionsHTML);
-                } else {
-                    console.warn("La respuesta de artículos SAP está vacía o no es un arreglo.", data);
-                }
-            } catch (e) {
-                console.error("Error al cargar artículos SAP", e);
-            }
-        }
-
-               async function loadData() {
-            try {
-                const perfil = '@perfilUsuario';
-                const usuario = '@User.Identity?.Name';
-                let url = '@Url.Action("ObtenerSolicitudes", "Comercial")';
-
-                // Si es vendedor, solo mostrar sus propias solicitudes
-                if (perfil === 'Vendedor') {
-                    url += '?vendedor=' + encodeURIComponent(usuario);
-                }
-
-                const response = await fetch(url);
-                if (response.ok) {
-                    const data = await response.json();
-                    requests = Array.isArray(data) ? data : [];
-                    renderAll();
-                } else {
-                    toast('Error al leer datos del servidor.');
-                }
-            } catch (error) {
-                console.error(error);
-                toast('Sin conexion al backend.');
-            }
-        }
-                // Cargar OV de muestra disponibles para el vendedor
-        async function loadOVMuestras() {
-            try {
-                const response = await fetch('@Url.Action("ObtenerOVMuestras", "Comercial")');
-                if (!response.ok) return;
-                const data = await response.json();
-                const select = document.getElementById('ovMuestraSelect');
-                const btn = document.getElementById('btnCargarOV');
-
-                if (!Array.isArray(data) || data.length === 0) {
-                    select.innerHTML = '<option value="">No hay OV de muestra disponibles</option>';
-                    return;
-                }
-
-                select.innerHTML = '<option value="">Selecciona una OV de muestra (opcional)...</option>';
-                data.forEach(ov => {
-                    const opt = document.createElement('option');
-                    opt.value = JSON.stringify(ov);
-                    opt.textContent = `${ov.consecutivo} - ${ov.clienteNombre || ov.cliente} - ${ov.ruta || 'Sin ruta'}`;
-                    select.appendChild(opt);
-                });
-
-                select.addEventListener('change', function() {
-                    btn.disabled = !this.value;
-                });
-
-                btn.addEventListener('click', function() {
-                    if (!select.value) return;
-                    const ov = JSON.parse(select.value);
-                    selectedOVId = ov.id;
-
-                    // Desbloquear formulario
-                    const lockedDiv = document.getElementById('formContentLocked');
-                    if (lockedDiv) lockedDiv.classList.remove('form-locked-overlay');
-                    const btnSubmit = document.getElementById('btnSubmitSolicitud');
-                    if (btnSubmit) btnSubmit.disabled = false;
-
-                    // Llenar cliente
-                    document.getElementById('clientHidden').value = ov.clienteNombre ? `${ov.cliente} - ${ov.clienteNombre}` : ov.cliente || '';
-
-                    // Ruta y destino se dejan en blanco para que el usuario los llen
-                    const routeInput = document.querySelector('[name="route"]');
-                    if (routeInput) routeInput.value = '';
-
-                    const destInput = document.querySelector('[name="destination"]');
-                    if (destInput) destInput.value = '';
-
-                    // Llenar observaciones
-                    const notesInput = document.querySelector('[name="notes"]');
-                    if (notesInput) notesInput.value = ov.observacion ? `OV ${ov.consecutivo}: ${ov.observacion}` : `OV ${ov.consecutivo}`;
-
-                    // Llenar fecha requerida
-                    const fechaInput = document.querySelector('[name="requestedDate"]');
-                    if (fechaInput && ov.fechaEntrega) {
-                        fechaInput.value = ov.fechaEntrega.slice(0, 10);
-                    }
-
-                    // Bloquear campos que no se deben editar
-                    const lockStyle = 'background-color: #f0f0f0; color: #666; cursor: not-allowed;';
-                    if (notesInput) { notesInput.readOnly = false; notesInput.style.cssText = ''; }
-                    if (fechaInput) { fechaInput.readOnly = true; fechaInput.style.cssText = lockStyle; }
-                    const priorityInput = document.querySelector('[name="priority"]');
-                    if (priorityInput) { priorityInput.disabled = false; priorityInput.style.cssText = ''; }
-
-                    // Bloquear botones de eliminar y campos en la tabla de items
-                    setTimeout(() => {
-                        document.querySelectorAll('#itemsBody input:not(.item-temp), #itemsBody textarea:not(.item-spec), #itemsBody select:not(.item-temp)').forEach(el => {
-                            el.readOnly = true;
-                            el.disabled = true;
-                            el.style.cssText = lockStyle;
-                        });
-                        document.querySelectorAll('#itemsBody .btn-ghost, #itemsBody .btn-danger, #itemsBody button').forEach(el => {
-                            el.disabled = true;
-                            el.style.display = 'none';
-                        });
-                    }, 500);
-
-                    // Cargar productos de la OV
-                    cargarProductosOV(ov.id);
-
-                    toast('Datos de OV cargados en el formulario.');
-                });
-            } catch (error) {
-                console.error('Error cargando OV de muestra', error);
-            }
-        }
-
-        // Cargar productos de una OV específica
-        async function cargarProductosOV(ovId) {
-            try {
-                const response = await fetch('@Url.Action("ObtenerProductosOV", "Comercial")?ovId=' + ovId);
-                if (!response.ok) return;
-                const productos = await response.json();
-
-                // Limpiar tabla actual
-                const tbody = document.getElementById('itemsBody');
-                if (tbody) tbody.innerHTML = '';
-
-                const lockStyle = 'background-color: #f0f0f0; color: #666; cursor: not-allowed;';
-
-                if (Array.isArray(productos)) {
-                    productos.forEach(p => {
-                        addItem({
-                            sku: p.productoCodigo || '',
-                            product: p.productoNombre || '',
-                            spec: '',
-                            boxes: p.cajas || 1,
-                            temp: 'Refrigerado 0-4 °C'
-                        });
-                    });
-
-                    // Bloquear todos los campos de la tabla de items
-                    setTimeout(() => {
-                        document.querySelectorAll('#itemsBody input:not(.item-temp), #itemsBody textarea:not(.item-spec), #itemsBody select:not(.item-temp)').forEach(el => {
-                            el.readOnly = true;
-                            el.disabled = true;
-                            el.style.cssText = lockStyle;
-                        });
-                        document.querySelectorAll('#itemsBody .btn-ghost, #itemsBody .btn-danger, #itemsBody button').forEach(el => {
-                            el.disabled = true;
-                            el.style.display = 'none';
-                        });
-                    }, 300);
-                }
-            } catch (error) {
-                console.error('Error cargando productos OV', error);
-            }
-        }
-
-        // Ejecutar al cargar la página
-        loadOVMuestras();
-
-
-        function uid(){ return 'it-' + crypto.randomUUID().slice(0,8); }
-        function todayPlus(days){ const d = new Date(); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); }
-        function formatDate(value){ if(!value) return 'Sin definir'; const d = new Date(value); return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString('es-MX', {year:'numeric', month:'short', day:'2-digit'}); }
-        function formatDateTime(value){ if(!value) return 'Sin definir'; const d = new Date(value); return Number.isNaN(d.getTime()) ? value : d.toLocaleString('es-MX', {dateStyle:'medium', timeStyle:'short'}); }
-        function totalBoxes(req){ return req.items.reduce((sum,item)=>sum+Number(item.boxes||0),0); }
-        function linkedLabels(req){ return req.items.reduce((sum,item)=>sum+(item.labels?.length||0),0); }
-
-        function requestStatus(req){
-            const total = totalBoxes(req), linked = linkedLabels(req);
-            if(req.stage === 'Surtido al cliente' || req.location === 'Surtido al cliente') return 'Surtido al cliente';
-            if(req.location === 'Almacén Refrigerado' && linked === total && total>0) return 'En almacén';
-            if(req.stage === 'Cancelada') return 'Cancelada';
-            if(linked === total && total>0) return 'Cumplido producción';
-            if(linked > 0) return 'Producción parcial';
-            if(req.planning) return 'Planeada';
-            return 'Pendiente';
-        }
-
-        function statusClass(status){
-            if(status.includes('Cumplido') || status.includes('Surtido')) return 'done';
-            if(status.includes('parcial')) return 'progress';
-            if(status.includes('Planeada') || status.includes('almacén')) return 'planned';
-            if(status.includes('Cancelada')) return 'danger';
-            return 'pending';
-        }
-
-        function nextRequestId(){
-            const max = requests.map(r => Number((r.id?.match(/(\d+)$/)||[0,0])[1])).reduce((a,b)=>Math.max(a,b),0);
-            return `SM-${new Date().getFullYear()}-${String(max+1).padStart(4,'0')}`;
-        }
-
-        function nextDestCode(){
-            const all = requests.flatMap(r => r.items.flatMap(i => i.labels || [])).map(l => Number((l.code?.match(/(\d+)$/)||[0,0])[1]));
-            const max = all.length ? Math.max(...all) : 0;
-            return 'DEST' + String(max+1).padStart(6,'0');
-        }
-
-        function toast(message){
-            const box = qs('#toast'); box.textContent = message; box.classList.add('show');
-            setTimeout(()=>box.classList.remove('show'), 2600);
-        }
-
-        function badge(text){ return `<span class="badge ${statusClass(text)}">${text}</span>`; }
-        function setDefaultDates(){ if(qs('[name="requestedDate"]')) qs('[name="requestedDate"]').value = todayPlus(5); }
-
-        function itemRowTemplate(item={sku:'', product:'', spec:'', boxes:1, temp:'Refrigerado 0-4 °C'}){
-            return `
-            <tr>
-                <td style="min-width: 120px;">
-                    <input class="item-sku" required value="${item.sku||''}" readonly style="background-color: #f0f0f0; color: #666; cursor: not-allowed; width:100%;" />
-                </td>
-                <td><input class="item-product" required value="${item.product||''}" placeholder="Se llena solo" readonly style="background-color: #f0f0f0; color: #666; cursor: not-allowed;" /></td>
-                <td><textarea class="item-spec" required placeholder="Ej. Caja 12 kg...">${item.spec||''}</textarea></td>
-                <td><input type="number" min="1" class="item-boxes" required value="${item.boxes||1}" /></td>
-                <td>
-                    <select class="item-temp">
-                        <option ${item.temp==='Refrigerado 0-4 °C'?'selected':''}>Refrigerado 0-4 °C</option>
-                        <option ${item.temp==='Congelado -18 °C'?'selected':''}>Congelado -18 °C</option>
-                        <option ${item.temp==='Ambiente'?'selected':''}>Ambiente</option>
-                    </select>
-                </td>
-                <td style="text-align:center;">
-                    <button type="button" class="danger remove-item">Eliminar</button>
-                </td>
-            </tr>
-            `;
-        }
-
-        function addItem(item){ if(qs('#itemsBody')) qs('#itemsBody').insertAdjacentHTML('beforeend', itemRowTemplate(item)); }
-
-        function clearItems(){
-            if(qs('#itemsBody')){
-                qs('#itemsBody').innerHTML = '';
-                addItem();
-            }
-        }
-
-        function collectItems(){
-            return qsa('#itemsBody tr').map(row => ({
-                uid:uid(), sku:row.querySelector('.item-sku').value.trim(), product:row.querySelector('.item-product').value.trim(),
-                spec:row.querySelector('.item-spec').value.trim(), boxes:Number(row.querySelector('.item-boxes').value), temp:row.querySelector('.item-temp').value, labels:[]
-            })).filter(i => i.sku && i.spec && i.boxes>0);
-        }
-
-        function renderKpis(){
-            const total = requests.length;
-            const pendingPlan = requests.filter(r=>!r.planning && requestStatus(r) !== 'Cancelada').length;
-            const boxes = requests.reduce((s,r)=>s+totalBoxes(r),0);
-            const linked = requests.reduce((s,r)=>s+linkedLabels(r),0);
-
-            if(qs('#kpis')) qs('#kpis').innerHTML = `
-            <div class="kpi"><small>Solicitudes Totales</small><strong>${total}</strong><span class="hint">folios en sistema</span></div>
-            <div class="kpi"><small>Pendientes Planeacion</small><strong>${pendingPlan}</strong><span class="hint">por asignar a produccion</span></div>
-            <div class="kpi"><small>Cajas Muestras</small><strong>${boxes}</strong><span class="hint">cajas solicitadas</span></div>
-            <div class="kpi"><small>Etiquetas Generadas</small><strong>${linked}/${boxes}</strong><span class="hint">avance total produccion</span></div>
-            `;
-        }
-
-        function createRequestCard(req) {
-            const status = requestStatus(req), total = totalBoxes(req), linked = linkedLabels(req), pct = total ? Math.round(linked/total*100) : 0;
-            let btnEnviar = '';
-            let btnCancelar = '';
-            if (!req.planning && status === 'Pendiente') {
-                btnCancelar = `<button type="button" class="ghost" style="margin-top:10px; width:100%;" onclick="cancelarSolicitud('${req.id}')">Cancelar solicitud</button>`;
-            }
-            return `
-                <div class="card request-card">
-                <div>
-                    <div class="request-title">
-                    <div><h4>${req.id} · ${req.client}</h4><span class="mini">Solicito: ${req.seller} · Creada: ${formatDate(req.createdAt)}</span></div>
-                    ${badge(status)}
-                    </div>
-                    <div class="meta">
-                    <span>Especie: ${req.species || 'Sin definir'}</span><span>Ruta: ${req.route}</span>
-                    <span>Destino: ${req.destination}</span><span>Req: ${formatDate(req.requestedDate)}</span>
-                    </div>
-                    <div class="items-list">
-                    ${req.items.map(item=>`
-                        <div class="item-line">
-                            <strong>${item.sku} · ${item.product} · ${item.boxes} caja(s)</strong><small>${item.spec}<br>${item.temp}</small>
-                        </div>
-                    `).join('')}
-                    </div>
-                    ${btnEnviar}${btnCancelar}
-                </div>
-                <div>
-                    <b style="color: #5c1a1a; font-size: 11px;">Cumplimiento</b>
-                    <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-                    <p class="mini">${linked} de ${total} cajas ligadas.</p>
-                    <p class="mini" style="margin-top: 10px;"><b>Observaciones:</b><br>${req.notes || 'Ninguna'}</p>
-                </div>
-                </div>
-            `;
-        }
-
-        function createPlanningCard(req, isHistory = false) {
-            const dis = isHistory ? 'disabled' : '';
-            const btnHtml = isHistory ? '' : `<button class="success" type="submit" style="margin-top: 5px;">Guardar SKU y liberar a produccion</button>`;
-            return `
-                <div class="card request-card">
-                <div>
-                    <div class="request-title">
-                    <div><h4>${req.id} · ${req.client}</h4><span class="mini">Especie ${req.species || 'Sin definir'} · Destino ${req.destination}</span></div>
-                    ${badge(requestStatus(req))}
-                    </div>
-                    <div class="items-list">
-                    ${req.items.map(item=>`
-                        <div class="item-line"><strong>Solicitado: ${item.sku} · ${item.product}</strong><small>${item.boxes} caja(s) · ${item.spec}</small></div>
-                    `).join('')}
-                    </div>
-                </div>
-                <form class="planning-form grid" data-id="${req.id}" style="background: var(--panel-2); padding: 8px; border: 1px solid var(--line);">
-                    <div>
-                    <label>SKU asignado para producir</label>
-                    <div class="items-list" style="margin-top:0;">
-                        ${req.items.map(item=>`
-                        <div class="item-line" style="background: var(--white);">
-                            <small><b>Pedido:</b> ${item.sku} · <b>Cajas:</b> ${item.boxes}<br>${item.spec}</small>
-                            ${isHistory
-                                ? `<input style="margin-top:5px" disabled value="${item.workSku || ''}">`
-                                : `<div class="custom-select-wrapper sku-wrapper" style="margin-top:5px;">
-                                    <div class="custom-select-display sku-display">${item.workSku || 'Seleccione SKU...'}</div>
-                                    <div class="custom-select-dropdown sku-dropdown">
-                                        <input type="text" class="custom-select-search sku-search" placeholder="Buscar código o nombre..." autocomplete="off">
-                                        <ul class="custom-select-options sku-options">${articulosOptionsHTML}</ul>
-                                    </div>
-                                    <input type="hidden" class="item-sku" name="workSku-${item.uid}" value="${item.workSku || ''}">
-                                </div>`}
-                        </div>
-                        `).join('')}
-                    </div>
-                    </div>
-                    <div class="form-grid two" style="margin-bottom:0; background:transparent; padding:0; border:none;">
-                    <div><label>Proceso</label><input type="date" name="processDate" ${dis} required value="${req.planning?.processDate || todayPlus(2)}"></div>
-                    <div><label>Turno</label><select name="shift" ${dis}><option ${req.planning?.shift==='Turno 1'?'selected':''}>Turno 1</option><option ${req.planning?.shift==='Turno 2'?'selected':''}>Turno 2</option></select></div>
-                    <div><label>Linea</label><select name="line" ${dis}><option ${req.planning?.line==='Linea Empaque 01'?'selected':''}>Linea Empaque 01</option><option ${req.planning?.line==='Linea Corte 01'?'selected':''}>Linea Corte 01</option></select></div>
-                    <div><label>Planeador</label><input name="planner" ${dis} readonly required value="${req.planning?.planner || '@usuarioLogueado'}" style="background-color: #f0f0f0; color: #666; cursor: not-allowed;"></div>
-                    </div>
-                    ${btnHtml}
-                </form>
-                </div>
-            `;
-        }
-
-                function createProductionCard(req, isHistory = false) {
-            const total = totalBoxes(req), linked = linkedLabels(req), pct = total ? Math.round(linked/total*100) : 0;
-            let btnLiberar = '';
-            if (!isHistory && linked === total && total > 0) {
-                btnLiberar = `<div style="margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 10px; text-align: right;">
-                                <button type="button" class="success" onclick="liberarProduccion('${req.id}')">Finalizar Produccion (Enviar a Almacen)</button>
-                              </div>`;
-            }
-            return `
-                <div class="card" style="margin-bottom: 10px;">
-                <div class="request-title" style="border:none;">
-                    <div><h4>${req.id} · ${req.client}</h4><span class="mini">Proceso: ${formatDate(req.planning.processDate)} · ${req.planning.shift} · ${req.planning.line}</span></div>
-                    ${badge(requestStatus(req))}
-                </div>
-                <div class="timeline">
-                    <span class="step on"><i class="dot"></i>Solicitud</span>
-                    <span class="step on"><i class="dot"></i>Planeada</span>
-                    <span class="step ${linked>0?'on':''}"><i class="dot"></i>Produccion</span>
-                    <span class="step ${linked===total?'on':''}"><i class="dot"></i>Completa</span>
-                </div>
-                <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-                <p class="mini">${linked}/${total} etiquetas ligadas.</p>
-                <div class="items-list">
-                    ${req.items.map(item => `
-                        <div class="item-line">
-                            <strong>Trabajar: ${item.workSku || item.sku} · ${item.product}</strong>
-                            <small>Pedido: ${item.sku} · Cajas: ${item.boxes} · Ligadas: ${(item.labels||[]).length}<br>${item.spec}</small>
-                        </div>
-                    `).join('')}
-                </div>
-                <div class="label-grid" style="margin-top:10px;">
-                    ${req.items.flatMap(item => (item.labels||[]).map((label,idx)=>labelCard(req,item,label,idx, isHistory))).join('') || '<div class="empty" style="grid-column: 1/-1;">Sin etiquetas ligadas aun.</div>'}
-                </div>
-                ${btnLiberar}
-                </div>
-            `;
-        }
-        
-
-        function createTrackingRow(req, isHistory = false) {
-            const total = totalBoxes(req), linked = linkedLabels(req), pct = total ? Math.round(linked/total*100) : 0;
-            const labels = req.items.map(item=>`
-                <b>Trabaja: ${item.workSku || item.sku}</b> ${item.product}<br>
-                <span class="mini">Pide: ${item.sku} · ${item.spec}</span><br>
-                <div style="margin-top:2px;">
-                    ${(item.labels||[]).map(l=>`<span class="badge gray" style="margin-bottom:2px;">${l.code}</span>`).join(' ') || '<span class="badge pending">Sin etiqueta</span>'}
-                </div>
-            `).join('<hr style="border:0;border-top:1px solid #d8bcbc; margin: 4px 0;">');
-
-            const selectHtml = isHistory
-                ? `<b>${req.location}</b>`
-                : `<select class="location-select" data-id="${req.id}">
-                    ${['Comercial','Planeación','Producción','Almacén Refrigerado','Embarques','Surtido al cliente','Entregado a cliente'].map(loc=>`<option ${req.location===loc?'selected':''}>${loc}</option>`).join('')}
-                    </select>`;
-
-            return `
-                <tr>
-                <td><b>${req.id}</b><br><span class="mini">${formatDate(req.createdAt)}</span></td>
-                <td>${req.client}<br><span class="mini">Vende: ${req.seller}</span></td>
-                <td>${req.route}<br><span class="mini">${req.destination}</span></td>
-                <td style="text-align:left;">${labels}</td>
-                <td><b style="font-size:12px; color: #8b0000;">${linked}/${total}</b><div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div></td>
-                <td>${selectHtml}</td>
-                <td>${badge(requestStatus(req))}</td>
-                </tr>
-            `;
-        }
-
-               function labelCard(req, item, label, index, isHistory = false) {
-            const fechaProc = formatDateTime(label.processedAt);
-            const especie = req.species || 'Sin definir';
-            const temp = item.temp || 'REFRIGERADO';
-
-            const safeClient = (req.client || '').replace(/"/g, '&quot;');
-            const safeProduct = (item.product || '').replace(/"/g, '&quot;');
-            const safeSpec = (item.spec || '').replace(/"/g, '&quot;');
-            const safeSeller = (req.seller || '').replace(/"/g, '&quot;');
-
-            // Si es historial, no dibujamos el checkbox
-            const checkboxHtml = isHistory ? '' : `
-                <input type="checkbox" class="print-cb no-print" value="${label.code}" checked title="Seleccionar para imprimir"
-                    data-req="${req.id}"
-                    data-client="${safeClient}"
-                    data-seller="${safeSeller}"
-                    data-skureq="${item.sku}"
-                    data-skuwork="${item.workSku || item.sku}"
-                    data-product="${safeProduct}"
-                    data-species="${especie}"
-                    data-spec="${safeSpec}"
-                    data-date="${fechaProc}"
-                    data-op="${label.operator || ''}"
-                    data-chain="${label.code}"
-                    data-temp="${temp}"
-                    style="position: absolute; top: 12px; right: 12px; width: 18px; height: 18px; cursor: pointer; z-index: 10;">
-            `;
-
-            return `
-                <div class="label-card" style="position: relative; background: var(--panel-2); border: 1px solid var(--line); padding: 10px;">
-
-                    ${checkboxHtml}
-
-                    <div style="border-bottom: 2px solid var(--line); padding-bottom: 6px; margin-bottom: 8px; padding-right: 30px;">
-                        <h4 style="margin: 0; font-size: 15px; color: #5c1a1a; font-weight: bold;">${label.code}</h4>
-                    </div>
-
-                    <div class="lc-body" style="background: #fff; padding: 8px; border: 1px solid var(--line); font-size: 11px; line-height: 1.5; text-align: left; color: #111;">
-                        <b>Solicitud:</b> ${req.id}<br>
-                        <b>Cliente:</b> ${req.client}<br>
-                        <b>Especie:</b> ${especie}<br>
-                        <b>SKU solicitado:</b> ${item.sku} · ${item.product}<br>
-                        <b>SKU a trabajar:</b> <span style="font-weight: 900; color: #8b0000; font-size: 13px;">${item.workSku || item.sku}</span><br>
-                        <b>Especificación:</b> ${item.spec}<br>
-                        <b>Procesado:</b> ${fechaProc}<br>
-                        <b>Operario:</b> ${label.operator || ''}<br>
-                        <b>Etiqueta:</b> ${label.code}
-                    </div>
-                </div>
-            `;
-        }
-
-        window.generarReporteGeneral = function() {
-            if (!requests.length) { toast('No hay datos para generar el reporte.'); return; }
-
-            const cargarImagen = (src) => new Promise((resolve) => {
-                const img = new Image();
-                img.crossOrigin = 'Anonymous';
-                img.onload = () => resolve(img);
-                img.onerror = () => resolve(null);
-                img.src = src;
-            });
-
-            async function descargarPDF() {
-                toast('Generando reporte PDF...');
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF('landscape', 'mm', 'letter');
-                const pageW = doc.internal.pageSize.getWidth();
-                const pageH = doc.internal.pageSize.getHeight();
-                const mg = 12;
-                let y = mg;
-
-                const logoCG = await cargarImagen('/images/LOGO_CARNESG.jpg');
-                const logoTIF = await cargarImagen('/images/logoTIF.png');
-
-                function header() {
-                    if (logoCG) doc.addImage(logoCG, 'JPEG', mg, 8, 30, 12);
-                    if (logoTIF) doc.addImage(logoTIF, 'PNG', pageW - mg - 16, 8, 16, 12);
-
-                    doc.setFontSize(16);
-                    doc.setTextColor(139, 0, 0);
-                    doc.setFont('helvetica', 'bold');
-                    doc.text('REPORTE GENERAL DE MUESTRAS', pageW / 2, 14, { align: 'center' });
-
-                    doc.setFontSize(8);
-                    doc.setTextColor(100);
-                    doc.setFont('helvetica', 'normal');
-                    doc.text('Sistema Integral de Gestión Operativa (SIGO) - Comercial', pageW / 2, 18, { align: 'center' });
-                    doc.text('Generado: ' + new Date().toLocaleString('es-MX'), pageW / 2, 22, { align: 'center' });
-
-                    doc.setDrawColor(139, 0, 0);
-                    doc.setLineWidth(0.5);
-                    doc.line(mg, 26, pageW - mg, 26);
-                    y = 32;
-                }
-
-                function footer() {
-                    doc.setFontSize(7);
-                    doc.setTextColor(120);
-                    doc.setFont('helvetica', 'normal');
-                    doc.text('CARNES G S.A. DE C.V. - TIF 776 | Carretera Estatal N212 San Juan de los Lagos, Jal.', pageW / 2, pageH - 6, { align: 'center' });
-                }
-
-                header();
-
-                // Cálculos del resumen
-                const total = requests.length;
-                const pendientes = requests.filter(r => requestStatus(r) === 'Pendiente').length;
-                const planeadas = requests.filter(r => requestStatus(r) === 'Planeada').length;
-                const produccion = requests.filter(r => r.planning && requestStatus(r) !== 'Pendiente' && requestStatus(r) !== 'Planeada' && requestStatus(r) !== 'Cancelada').length;
-                const completadas = requests.filter(r => requestStatus(r) === 'En almacén' || requestStatus(r) === 'Surtido al cliente').length;
-                const totalCajas = requests.reduce((s, r) => s + totalBoxes(r), 0);
-                const totalEtqs = requests.reduce((s, r) => s + linkedLabels(r), 0);
-
-                doc.setFontSize(10);
-                doc.setTextColor(139, 0, 0);
-                doc.setFont('helvetica', 'bold');
-                doc.text('Resumen Operativo', mg, y);
-                y += 4;
-
-                const resumen = [
-                    ['Total Solicitudes', '' + total, 'En Producción', '' + produccion],
-                    ['Pendientes de Planeación', '' + pendientes, 'Completadas / Surtidas', '' + completadas],
-                    ['Planeadas (Espera)', '' + planeadas, 'Cajas Totales / Etiquetas', totalEtqs + ' / ' + totalCajas]
-                ];
-
-                doc.autoTable({
-                    startY: y,
-                    body: resumen,
-                    theme: 'plain',
-                    styles: { fontSize: 8, cellPadding: 1.5 },
-                    columnStyles: {
-                        0: { fontStyle: 'bold', textColor: [0, 0, 0], cellWidth: 40 },
-                        1: { cellWidth: 20, textColor: [139, 0, 0], fontStyle: 'bold' },
-                        2: { fontStyle: 'bold', textColor: [0, 0, 0], cellWidth: 40 },
-                        3: { cellWidth: 30, textColor: [139, 0, 0], fontStyle: 'bold' }
-                    },
-                    margin: { left: mg }
-                });
-                y = doc.lastAutoTable.finalY + 8;
-
-                const estados = [
-                    { label: 'PENDIENTES', filter: r => requestStatus(r) === 'Pendiente' },
-                    { label: 'PLANEADAS', filter: r => requestStatus(r) === 'Planeada' },
-                    { label: 'EN PRODUCCIÓN', filter: r => r.planning && (requestStatus(r) === 'Producción parcial' || requestStatus(r) === 'Cumplido producción') },
-                    { label: 'EN ALMACÉN', filter: r => requestStatus(r) === 'En almacén' },
-                    { label: 'SURTIDAS / ENTREGADAS', filter: r => requestStatus(r) === 'Surtido al cliente' },
-                    { label: 'CANCELADAS', filter: r => requestStatus(r) === 'Cancelada' }
-                ];
-
-                estados.forEach(e => {
-                    const items = requests.filter(e.filter);
-                    if (!items.length) return;
-
-                    if (y > pageH - 40) { doc.addPage(); y = mg + 5; header(); }
-
-                    const rows = items.map(r => [
-                        r.id,
-                        r.client,
-                        r.seller,
-                        r.species || '-',
-                        r.route + ' / ' + r.destination,
-                        formatDate(r.requestedDate),
-                        r.items.map(i => i.sku + ' (' + i.boxes + ' cjs)' + (i.workSku && i.workSku !== i.sku ? ' -> Trab: ' + i.workSku : '')).join('\n'),
-                        linkedLabels(r) + '/' + totalBoxes(r)
-                    ]);
-
-                    doc.autoTable({
-                        startY: y,
-                        head: [[e.label, 'Cliente', 'Vendedor', 'Esp.', 'Ruta / Destino', 'Fecha Req.', 'Artículos (Cajas)', 'Avance']],
-                        body: rows,
-                        theme: 'grid',
-                        tableLineColor: [200, 200, 200],
-                        tableLineWidth: 0.1,
-                        headStyles: { fillColor: [139, 0, 0], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7, halign: 'center' },
-                        bodyStyles: { fontSize: 7, cellPadding: 2, textColor: [30, 30, 30], valign: 'middle' },
-                        alternateRowStyles: { fillColor: [249, 245, 245] },
-                        columnStyles: {
-                            0: { cellWidth: 20, fontStyle: 'bold', textColor: [139, 0, 0] },
-                            1: { cellWidth: 42 },
-                            2: { cellWidth: 26 },
-                            3: { cellWidth: 10, halign: 'center' },
-                            4: { cellWidth: 38 },
-                            5: { cellWidth: 18, halign: 'center' },
-                            6: { cellWidth: 50 },
-                            7: { cellWidth: 14, halign: 'center', fontStyle: 'bold' }
-                        },
-                        margin: { left: mg, right: mg },
-                        didParseCell: function(data) {
-                            if (data.section === 'head' && data.row.index === 0 && data.column.index === 0) {
-                                data.cell.styles.halign = 'left';
-                            }
+                const qs = selector => document.querySelector(selector);
+                const qsa = selector => Array.from(document.querySelectorAll(selector));
+
+                console.log("Modulo de muestras cargado y blindado.");
+
+                let requests = [];
+                let histSolicitud = [];
+                let histPlaneacion = [];
+                let histProduccion = [];
+                let histTracking = [];
+                let articulosSap = [];
+                let articulosOptionsHTML = '';
+                let selectedOVId = null;
+
+                // Tracking real consultado en CadenaMeatTIF y CadenaMeatP1.
+                let trackingMeat = new Map();
+                let trackingMeatCargando = false;
+
+                async function loadArticulos() {
+                    try {
+                        const response = await fetch('@Url.Action("ObtenerArticulosSap", "Comercial")');
+                        if (!response.ok) {
+                            console.error("Error HTTP al cargar artículos SAP:", response.status);
+                            return;
                         }
-                    });
-                    y = doc.lastAutoTable.finalY + 8;
-                });
+                        const data = await response.json();
 
-                const totalPages = doc.internal.getNumberOfPages();
-                for (let j = 1; j <= totalPages; j++) {
-                    doc.setPage(j);
-                    footer();
-                    doc.setFontSize(7);
-                    doc.setTextColor(120);
-                    doc.text('Página ' + j + ' de ' + totalPages, pageW - mg, pageH - 6, { align: 'right' });
-                }
+                        if (Array.isArray(data) && data.length > 0) {
+                            articulosSap = data;
+                            articulosOptionsHTML = articulosSap.map(a => {
+                                const cod = a.Codigo || a.codigo || a.ProductoCodigo || a.productoCodigo || 'SC';
+                                const nom = a.Nombre || a.nombre || a.ProductoNombre || a.productoNombre || 'Sin nombre';
+                                return `<li data-codigo="${cod}" data-nombre="${nom}">${cod} - ${nom}</li>`;
+                            }).join('');
 
-                doc.save('Reporte_Muestras_' + new Date().toISOString().slice(0, 10) + '.pdf');
-            }
-
-            // Descarga o usa la librería jsPDF
-            if (typeof window.jspdf === 'undefined' || typeof window.jspdf.jsPDF === 'undefined') {
-                toast('Preparando motor PDF...');
-                const s1 = document.createElement('script');
-                s1.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-                s1.onload = function() {
-                    const s2 = document.createElement('script');
-                    s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
-                    s2.onload = descargarPDF;
-                    document.head.appendChild(s2);
-                };
-                document.head.appendChild(s1);
-            } else {
-                descargarPDF();
-            }
-        }
-
-        window.imprimirEtiquetas = function() {
-            const checkboxes = document.querySelectorAll('.print-cb:checked');
-            if (checkboxes.length === 0) {
-                toast('Selecciona al menos una etiqueta marcando su casilla.');
-                return;
-            }
-
-            let printWindow = window.open('', '_blank');
-
-            let htmlContent = '<ti' + 'tle>Impresión de Etiquetas</ti' + 'tle>' +
-                '<sty' + 'le>' + `
-                    body {
-                        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-                        margin: 0; padding: 10px; color: #000; background: #fff;
-                        -webkit-print-color-adjust: exact; print-color-adjust: exact;
-                    }
-                    .print-container { display: flex; flex-direction: column; align-items: center; }
-
-                    .label-print {
-                        width: 400px; min-height: 250px; border: 2px solid #000; padding: 15px;
-                        margin-bottom: 20px; border-radius: 8px; page-break-after: always;
-                        position: relative; box-sizing: border-box;
-                    }
-                    .label-print:last-child { page-break-after: auto; margin-bottom: 0; }
-
-                    .lp-header { font-size: 9px; line-height: 1.2; text-transform: uppercase; margin-bottom: 12px; font-weight: bold; }
-                    .lp-sku-title { font-size: 11px; font-weight: bold; color: #444; text-transform: uppercase; margin-bottom: 2px; }
-                    .lp-sku-value { font-size: 18px; font-weight: 900; text-transform: uppercase; margin-bottom: 8px; }
-
-                    .lp-top-info { border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 12px; font-size: 11px; line-height: 1.4; }
-                    .lp-top-row { display: flex; justify-content: space-between; }
-                    .lp-top-info b { font-size: 12px; text-transform: uppercase; color: #000; }
-
-                    .lp-details-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 10px; font-size: 11px; margin-bottom: 15px; line-height: 1.4; }
-                    .lp-lote { font-size: 16px; font-weight: 900; margin-bottom: 5px; }
-
-                    .lp-sku-small { margin-top: 6px; font-size: 10px; font-weight: bold; text-transform: uppercase; color: #333; }
-                    .lp-sku-small div { margin-bottom: 2px; }
-                    .lp-sku-small span { background: #000; color: #fff; padding: 1px 4px; border-radius: 2px; font-size: 11px; }
-
-                    .lp-spec { font-size: 10px; font-style: italic; margin-top: 5px; }
-                    .lp-temp { font-size: 11px; font-weight: bold; text-transform: uppercase; }
-
-                    .lp-footer { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 15px; }
-                    .lp-logos { display: flex; gap: 15px; align-items: center; }
-                    .lp-logos img { height: 45px; object-fit: contain; }
-
-                    .lp-barcode-container { text-align: right; }
-                    .lp-barcode-lines {
-                        display: inline-block; width: 140px; height: 35px;
-                        background: repeating-linear-gradient(90deg, #000, #000 2px, #fff 2px, #fff 4px, #000 4px, #000 5px, #fff 5px, #fff 7px);
-                        margin-bottom: 5px;
-                    }
-                    .lp-chain { font-size: 9px; font-family: monospace; display: block; }
-                ` + '</sty' + 'le><div class="print-container">';
-
-            checkboxes.forEach(cb => {
-                const d = cb.dataset;
-                htmlContent += `
-                    <div class="label-print">
-                        <div class="lp-header">
-                            Elaborado por: CARNES G S.A. DE C.V. TIF 776<br>
-                            CARRETERA ESTATAL N212 A SAN SEBASTIAN EL ALAMO KILOMETRO 21+540<br>
-                            MARGEN DERECHO. SAN JUAN DE LOS LAGOS JAL CP 47000
-                        </div>
-
-                        <div class="lp-sku-title">Producto / Clasificación:</div>
-                        <div class="lp-sku-value">${d.product} ${d.species}</div>
-
-                        <div class="lp-top-info">
-                            <div class="lp-top-row">
-                                <div>Solicitud: <b>${d.req}</b></div>
-                                <div>Vendedor: <b>${d.seller}</b></div>
-                            </div>
-                            <div>Cliente: <b>${d.client}</b></div>
-                        </div>
-
-                        <div class="lp-details-grid">
-                            <div>
-                                <div class="lp-lote">Lote: ${cb.value}</div>
-                                <div class="lp-sku-small">
-                                    <div>SKU REQ: ${d.skureq}</div>
-                                    <div>SKU TRAB: <span>${d.skuwork}</span></div>
-                                </div>
-                            </div>
-                            <div>
-                                <div>Fecha Prod: <b>${d.date}</b></div>
-                                <div>Operario: <b>${d.op}</b></div>
-                                <div class="lp-spec">Esp: ${d.spec}</div>
-                            </div>
-                        </div>
-
-                        <div class="lp-temp">Producto ${d.temp}</div>
-
-                        <div class="lp-footer">
-                            <div class="lp-logos">
-                                <img src="/images/LOGO_CARNESG.jpg" alt="CARNES G" onerror="this.style.display='none'">
-                                <img src="/images/logoTIF.png" alt="TIF 776" onerror="this.style.display='none'">
-                            </div>
-                            <div class="lp-barcode-container">
-                                <div class="lp-barcode-lines"></div>
-                                <span class="lp-chain">${cb.value}</span>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-
-            htmlContent += '</div>';
-
-            printWindow.document.write(htmlContent);
-            printWindow.document.close();
-            printWindow.focus();
-
-            setTimeout(() => {
-                printWindow.print();
-                printWindow.close();
-            }, 1000);
-        }
-
-        // FUNCIONES DE ACTUALIZACION DE PANTALLA
-        function renderRequestList(){
-            const pendientes = requests.filter(r => requestStatus(r) === 'Pendiente');
-            histSolicitud = requests.filter(r => requestStatus(r) !== 'Pendiente');
-            let html = pendientes.map(r => createRequestCard(r)).join('');
-            if(qs('#requestList')) qs('#requestList').innerHTML = html || '<div class="empty">No hay solicitudes nuevas.</div>';
-            if(qs('#btnHistSolicitudes')) qs('#btnHistSolicitudes').innerHTML = `Ver historial (${histSolicitud.length})`;
-        }
-
-        function renderPlanning(){
-            const pendientes = requests.filter(r => requestStatus(r) === 'Pendiente');
-            histPlaneacion = requests.filter(r => requestStatus(r) !== 'Pendiente' && requestStatus(r) !== 'Cancelada');
-            if(qs('#planningList')) qs('#planningList').innerHTML = pendientes.length ? pendientes.map(r => createPlanningCard(r, false)).join('') : '<div class="empty">No hay solicitudes pendientes de planeacion.</div>';
-            if(qs('#btnHistPlaneacion')) qs('#btnHistPlaneacion').innerHTML = `Ver historial (${histPlaneacion.length})`;
-        }
-
-        function renderProduction() {
-            const prodList = requests.filter(r => r.planning);
-            const activos = prodList.filter(r => {
-                const st = requestStatus(r);
-                return st === 'Planeada' || st === 'Producción parcial' || st === 'Cumplido producción';
-            });
-            histProduccion = prodList.filter(r => {
-                const st = requestStatus(r);
-                return st === 'En almacén' || st === 'Surtido al cliente';
-            });
-            if(qs('#productionList')) qs('#productionList').innerHTML = activos.length ? activos.map(r => createProductionCard(r, false)).join('') : '<div class="empty">No hay muestras en produccion activa.</div>';
-            if(qs('#btnHistProduccion')) qs('#btnHistProduccion').innerHTML = `Ver historial (${histProduccion.length})`;
-        }
-
-        function renderTracking(){
-            const q = (qs('#trackSearch')?.value || '').toLowerCase();
-            const filter = qs('#trackStatus')?.value || '';
-            const dateFrom = qs('#trackDateFrom')?.value || '';
-            const dateTo = qs('#trackDateTo')?.value || '';
-
-            let list = requests.filter(req => {
-                if(requestStatus(req) === 'Cancelada') return false;
-                const hay = [req.id,req.client,req.seller,req.species,req.route,req.destination, ...req.items.flatMap(i=>[i.sku,i.workSku,i.product,i.spec,...(i.labels||[]).map(l=>l.code)])].join(' ').toLowerCase();
-                const status = requestStatus(req);
-                const reqDate = (req.createdAt || '').substring(0, 10);
-                return (!q || hay.includes(q))
-                    && (!filter || status === filter)
-                    && (!dateFrom || reqDate >= dateFrom)
-                    && (!dateTo || reqDate <= dateTo);
-            });
-
-            const activos = list.filter(r => requestStatus(r) !== 'Surtido al cliente' && r.location !== 'Entregado a cliente');
-            histTracking = list.filter(r => requestStatus(r) === 'Surtido al cliente' || r.location === 'Entregado a cliente');
-
-            if(qs('#trackingBody')) qs('#trackingBody').innerHTML = activos.length ? activos.map(r => createTrackingRow(r, false)).join('') : '<tr><td colspan="8" class="empty">No hay resultados activos con esos filtros.</td></tr>';
-            if(qs('#btnHistTracking')) qs('#btnHistTracking').innerHTML = `Ver Entregadas (${histTracking.length})`;
-        }
-
-        window.abrirHistorial = function(tab) {
-            const limite = 100;
-            const container = qs('#historialContentContainer');
-            const title = qs('#historialTitle');
-            container.className = 'grid cols-1';
-
-            if(tab === 'solicitud') {
-                title.textContent = 'Historial de Solicitudes (últimos ' + limite + ')';
-                const lista = histSolicitud.slice(0, limite);
-                container.innerHTML = lista.length ? lista.map(req => createRequestCard(req)).join('') : '<div class="empty">No hay historial.</div>';
-            }
-            else if(tab === 'planeacion') {
-                title.textContent = 'Historial de Planeacion (últimos ' + limite + ')';
-                const lista = histPlaneacion.slice(0, limite);
-                container.innerHTML = lista.length ? lista.map(req => createPlanningCard(req, true)).join('') : '<div class="empty">No hay historial.</div>';
-            }
-            else if(tab === 'produccion') {
-                title.textContent = 'Historial de Produccion (últimos ' + limite + ')';
-                const lista = histProduccion.slice(0, limite);
-                container.innerHTML = lista.length ? lista.map(req => createProductionCard(req, true)).join('') : '<div class="empty">No hay historial.</div>';
-            }
-            else if(tab === 'tracking') {
-                title.textContent = 'Historial de Tracking (últimos ' + limite + ')';
-                container.className = 'table-wrap card';
-                const lista = histTracking.slice(0, limite);
-                let html = `<table style="margin:0; width:100%; border:none;">
-                    <thead><tr><th>Folio</th><th>Cliente</th><th>Ruta / destino</th><th>SKU y etiquetas</th><th>Cumplimiento</th><th>Ubicacion</th><th>Estatus</th></tr></thead><tbody>`;
-                html += lista.length ? lista.map(req => createTrackingRow(req, true)).join('') : '<tr><td colspan="7" class="empty">No hay historial.</td></tr>';
-                html += `</tbody></table>`;
-                container.innerHTML = html;
-            }
-            qs('#modalHistorial').classList.add('show');
-        }
-
-        function renderScanSelectors() {
-            const reqSelect = qs('#scanRequest');
-            if(!reqSelect) return;
-
-            const planned = requests.filter(r => {
-                if (!r.planning || requestStatus(r) === 'Surtido al cliente' || requestStatus(r) === 'En almacén') return false;
-                return linkedLabels(r) < totalBoxes(r);
-            });
-
-            if (planned.length === 0) {
-                reqSelect.innerHTML = '<option value="">No hay muestras pendientes de etiquetas</option>';
-            } else {
-                reqSelect.innerHTML = planned.map(r => `<option value="${r.id}">${r.id} · ${r.client}</option>`).join('');
-            }
-
-            updateItemSelector();
-            if(qs('#scanLabel')) qs('#scanLabel').value = nextDestCode();
-        }
-
-        function updateItemSelector() {
-            const reqSelect = qs('#scanRequest');
-            const itemSelect = qs('#scanItem');
-            if(!reqSelect || !itemSelect) return;
-
-            const req = requests.find(r => r.id === reqSelect.value);
-            if (!req) { itemSelect.innerHTML = '<option value="">Seleccione una solicitud...</option>'; return; }
-
-            const validItems = req.items.filter(item => {
-                const left = Number(item.boxes) - (item.labels?.length || 0);
-                return left > 0;
-            });
-
-            if (validItems.length === 0) {
-                itemSelect.innerHTML = '<option value="" disabled>✓ Todos los SKUs completados</option>';
-            } else {
-                itemSelect.innerHTML = validItems.map(item => {
-                    const left = Number(item.boxes) - (item.labels?.length || 0);
-                    return `<option value="${item.uid}">Trabajar ${item.workSku || item.sku} · faltan ${left} caja(s)</option>`;
-                }).join('');
-            }
-        }
-
-        window.cancelarSolicitud = async function(id) {
-            const motivo = prompt(`Escriba el motivo de cancelacion para ${id}:`);
-            if (!motivo) return;
-
-            try {
-                const response = await fetch(`@Url.Action("CancelarSolicitud", "Comercial")?id=${id}&motivo=${encodeURIComponent(motivo)}`, { method: 'POST' });
-                const data = await response.json();
-                if (data.ok) {
-                    toast('Solicitud cancelada.');
-                    loadData();
-                } else {
-                    toast('Error: ' + data.mensaje);
-                }
-            } catch (err) {
-                toast('No hay conexion al servidor.');
-            }
-        };
-
-        window.liberarProduccion = async function(reqId) {
-            const req = requests.find(r => r.id === reqId);
-            if (!req) return;
-
-            try {
-                const response = await fetch(`@Url.Action("ActualizarUbicacion", "Comercial")?solicitudId=${reqId}&ubicacion=Almacén Refrigerado`, { method: 'POST' });
-                const data = await response.json();
-                if (data.ok) {
-                    toast(`Produccion finalizada. Enviado a almacen.`);
-                    loadData();
-                } else {
-                    toast("Error del servidor: " + data.mensaje);
-                }
-            } catch(err) {
-                console.warn("Backend no disponible...");
-                req.location = 'Almacén Refrigerado';
-                renderAll();
-                toast(`Finalizado en modo local.`);
-            }
-        };
-
-        function renderAll(){
-            renderKpis();
-            renderRequestList();
-            renderPlanning();
-            renderScanSelectors();
-            renderProduction();
-            renderTracking();
-        }
-
-        document.addEventListener('click', e => {
-            const nav = e.target.closest('.nav-btn');
-            if (nav && nav.style.display !== 'none') {
-                qsa('.nav-btn').forEach(b=>b.classList.remove('active')); nav.classList.add('active');
-                qsa('.section').forEach(s=>s.classList.remove('active')); qs('#'+nav.dataset.section).classList.add('active');
-                if(nav.dataset.section === 'produccion') renderProduction();
-            }
-
-            if(e.target.classList.contains('remove-item')){
-                e.target.closest('tr').remove();
-                if(!qs('#itemsBody tr')) addItem();
-            }
-
-            if(e.target.id === 'modalHistorial') qs('#modalHistorial').classList.remove('show');
-            if(e.target.id === 'modalAdminPermisos') qs('#modalAdminPermisos').classList.remove('show');
-
-
-            if (!e.target.closest('.sku-wrapper')) {
-                qsa('.sku-dropdown.show').forEach(d => d.classList.remove('show'));
-            }
-
-            // Abrir/Cerrar buscador de SKU
-            const skuDisplay = e.target.closest('.sku-display');
-            if (skuDisplay) {
-                e.stopPropagation();
-                qsa('.sku-dropdown.show').forEach(d => d.classList.remove('show'));
-
-                const wrapper = skuDisplay.closest('.sku-wrapper');
-                const dropdown = wrapper.querySelector('.sku-dropdown');
-                const search = wrapper.querySelector('.sku-search');
-                const items = wrapper.querySelectorAll('.sku-options li');
-
-                dropdown.classList.toggle('show');
-                if (dropdown.classList.contains('show')) {
-                    search.value = '';
-                    const esPlaneacion = !!wrapper.closest('.planning-form');
-                    items.forEach(li => {
-                        if (esPlaneacion) {
-                            const codigo = (li.dataset.codigo || '').toUpperCase();
-                            li.classList.toggle('hidden', !codigo.includes('PR'));
+                            if(qs('.sku-options')) qsa('.sku-options').forEach(ul => ul.innerHTML = articulosOptionsHTML);
                         } else {
-                            li.classList.remove('hidden');
+                            console.warn("La respuesta de artículos SAP está vacía o no es un arreglo.", data);
                         }
-                    });
-                    search.focus();
-                }
-            }
-
-            // Seleccionar opcion de SKU
-            const skuLi = e.target.closest('.sku-options li');
-            if (skuLi) {
-                const wrapper = skuLi.closest('.sku-wrapper');
-                wrapper.querySelector('.sku-display').textContent = skuLi.dataset.codigo;
-                wrapper.querySelector('.item-sku').value = skuLi.dataset.codigo;
-
-                const fila = wrapper.closest('tr');
-                if (fila) {
-                    const productInput = fila.querySelector('.item-product');
-                    if(productInput) productInput.value = skuLi.dataset.nombre;
+                    } catch (e) {
+                        console.error("Error al cargar artículos SAP", e);
+                    }
                 }
 
-                wrapper.querySelector('.sku-dropdown').classList.remove('show');
-            }
-        });
+                async function loadData() {
+                    try {
+                        const perfil = '@perfilUsuario';
+                        const usuario = '@User.Identity?.Name';
+                        let url = '@Url.Action("ObtenerSolicitudes", "Comercial")';
 
-        document.addEventListener('input', e => {
-            // Filtro para los buscadores de SKU
-            if (e.target.classList.contains('sku-search')) {
-                const term = e.target.value.toLowerCase();
-                const wrapper = e.target.closest('.sku-wrapper');
-                wrapper.querySelectorAll('.sku-options li').forEach(li => {
-                    li.classList.toggle('hidden', !li.textContent.toLowerCase().includes(term));
-                });
-            }
-        });
+                        if (perfil === 'Vendedor') {
+                            url += '?vendedor=' + encodeURIComponent(usuario);
+                        }
 
-        //  EVENTOS AISLADOS Y FORMULARIOS
-        if(qs('#addItemBtn')) qs('#addItemBtn').addEventListener('click', ()=>{ addItem(); });
-        if(qs('#scanRequest')) qs('#scanRequest').addEventListener('change', updateItemSelector);
+                        const response = await fetch(url);
+
+                        if (!response.ok) {
+                            toast('Error al leer datos del servidor.');
+                            return;
+                        }
+
+                        const data = await response.json();
+                        requests = Array.isArray(data) ? data : [];
+
+                        // La ubicación, almacén y venta se resuelven desde MEAT.
+                        // Si una planta no responde, el endpoint devuelve la información
+                        // disponible de la otra planta y una advertencia.
+                        await cargarTrackingMeat();
+
+                        renderAll();
+                    } catch (error) {
+                        console.error(error);
+                        toast('Sin conexión al backend.');
+                    }
+                }
+
+                        // Cargar OV de muestra disponibles para el vendedor
+                async function loadOVMuestras() {
+                    try {
+                        const response = await fetch('@Url.Action("ObtenerOVMuestras", "Comercial")');
+                        if (!response.ok) return;
+                        const data = await response.json();
+                        const select = document.getElementById('ovMuestraSelect');
+                        const btn = document.getElementById('btnCargarOV');
+
+                        if (!Array.isArray(data) || data.length === 0) {
+                            select.innerHTML = '<option value="">No hay OV de muestra disponibles</option>';
+                            return;
+                        }
+
+                        select.innerHTML = '<option value="">Selecciona una OV de muestra (opcional)...</option>';
+                        data.forEach(ov => {
+                            const opt = document.createElement('option');
+                            opt.value = JSON.stringify(ov);
+                            opt.textContent = `${ov.consecutivo} - ${ov.clienteNombre || ov.cliente} - ${ov.ruta || 'Sin ruta'}`;
+                            select.appendChild(opt);
+                        });
+
+                        select.addEventListener('change', function() {
+                            btn.disabled = !this.value;
+                        });
+
+                        btn.addEventListener('click', function() {
+                            if (!select.value) return;
+                            const ov = JSON.parse(select.value);
+                            selectedOVId = ov.id;
+
+                            // Desbloquear formulario
+                            const lockedDiv = document.getElementById('formContentLocked');
+                            if (lockedDiv) lockedDiv.classList.remove('form-locked-overlay');
+                            const btnSubmit = document.getElementById('btnSubmitSolicitud');
+                            if (btnSubmit) btnSubmit.disabled = false;
+
+                            // Llenar cliente
+                            document.getElementById('clientHidden').value = ov.clienteNombre ? `${ov.cliente} - ${ov.clienteNombre}` : ov.cliente || '';
+
+                            // Ruta y destino se dejan en blanco para que el usuario los llen
+                            const routeInput = document.querySelector('[name="route"]');
+                            if (routeInput) routeInput.value = '';
+
+                            const destInput = document.querySelector('[name="destination"]');
+                            if (destInput) destInput.value = '';
+
+                            // Llenar observaciones
+                            const notesInput = document.querySelector('[name="notes"]');
+                            if (notesInput) notesInput.value = ov.observacion ? `OV ${ov.consecutivo}: ${ov.observacion}` : `OV ${ov.consecutivo}`;
+
+                            // Llenar fecha requerida
+                            const fechaInput = document.querySelector('[name="requestedDate"]');
+                            if (fechaInput && ov.fechaEntrega) {
+                                fechaInput.value = ov.fechaEntrega.slice(0, 10);
+                            }
+
+                            // Bloquear campos que no se deben editar
+                            const lockStyle = 'background-color: #f0f0f0; color: #666; cursor: not-allowed;';
+                            if (notesInput) { notesInput.readOnly = false; notesInput.style.cssText = ''; }
+                            if (fechaInput) { fechaInput.readOnly = true; fechaInput.style.cssText = lockStyle; }
+                            const priorityInput = document.querySelector('[name="priority"]');
+                            if (priorityInput) { priorityInput.disabled = false; priorityInput.style.cssText = ''; }
+
+                            // Bloquear botones de eliminar y campos en la tabla de items
+                            setTimeout(() => {
+                                document.querySelectorAll('#itemsBody input:not(.item-temp), #itemsBody textarea:not(.item-spec), #itemsBody select:not(.item-temp)').forEach(el => {
+                                    el.readOnly = true;
+                                    el.disabled = true;
+                                    el.style.cssText = lockStyle;
+                                });
+                                document.querySelectorAll('#itemsBody .btn-ghost, #itemsBody .btn-danger, #itemsBody button').forEach(el => {
+                                    el.disabled = true;
+                                    el.style.display = 'none';
+                                });
+                            }, 500);
+
+                            // Cargar productos de la OV
+                            cargarProductosOV(ov.id);
+
+                            toast('Datos de OV cargados en el formulario.');
+                        });
+                    } catch (error) {
+                        console.error('Error cargando OV de muestra', error);
+                    }
+                }
+
+                // Cargar productos de una OV específica
+                async function cargarProductosOV(ovId) {
+                    try {
+                        const response = await fetch('@Url.Action("ObtenerProductosOV", "Comercial")?ovId=' + ovId);
+                        if (!response.ok) return;
+                        const productos = await response.json();
+
+                        // Limpiar tabla actual
+                        const tbody = document.getElementById('itemsBody');
+                        if (tbody) tbody.innerHTML = '';
+
+                        const lockStyle = 'background-color: #f0f0f0; color: #666; cursor: not-allowed;';
+
+                        if (Array.isArray(productos)) {
+                            productos.forEach(p => {
+                                addItem({
+                                    sku: p.productoCodigo || '',
+                                    product: p.productoNombre || '',
+                                    spec: '',
+                                    boxes: p.cajas || 1,
+                                    temp: 'Refrigerado 0-4 °C'
+                                });
+                            });
+
+                            // Bloquear todos los campos de la tabla de items
+                            setTimeout(() => {
+                                document.querySelectorAll('#itemsBody input:not(.item-temp), #itemsBody textarea:not(.item-spec), #itemsBody select:not(.item-temp)').forEach(el => {
+                                    el.readOnly = true;
+                                    el.disabled = true;
+                                    el.style.cssText = lockStyle;
+                                });
+                                document.querySelectorAll('#itemsBody .btn-ghost, #itemsBody .btn-danger, #itemsBody button').forEach(el => {
+                                    el.disabled = true;
+                                    el.style.display = 'none';
+                                });
+                            }, 300);
+                        }
+                    } catch (error) {
+                        console.error('Error cargando productos OV', error);
+                    }
+                }
+
+                // Ejecutar al cargar la página
+                loadOVMuestras();
 
 
-        if(qs('#trackingBody')){
-            qs('#trackingBody').addEventListener('change', async e => {
-                if(e.target.classList.contains('location-select')){
-                    const req = requests.find(r=>r.id===e.target.dataset.id); if(!req) return;
-                    const nuevaLoc = e.target.value;
+                function uid(){ return 'it-' + crypto.randomUUID().slice(0,8); }
+                function todayPlus(days){ const d = new Date(); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); }
+                function formatDate(value){ if(!value) return 'Sin definir'; const d = new Date(value); return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString('es-MX', {year:'numeric', month:'short', day:'2-digit'}); }
+                function formatDateTime(value){ if(!value) return 'Sin definir'; const d = new Date(value); return Number.isNaN(d.getTime()) ? value : d.toLocaleString('es-MX', {dateStyle:'medium', timeStyle:'short'}); }
+                function totalBoxes(req){ return req.items.reduce((sum,item)=>sum+Number(item.boxes||0),0); }
+                function linkedLabels(req){ return req.items.reduce((sum,item)=>sum+(item.labels?.length||0),0); }
+
+                function normalizarEtiquetaTracking(valor) {
+                    return String(valor || '')
+                        .replace(/\u0000/g, '')
+                        .replace(/\s+/g, '')
+                        .trim()
+                        .toUpperCase();
+                }
+
+                function escapeTrackingHtml(valor) {
+                    return String(valor ?? '')
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#039;');
+                }
+
+                function obtenerCodigoEtiquetaTracking(label) {
+                    return normalizarEtiquetaTracking(
+                        label?.externalChain ||
+                        label?.ExternalChain ||
+                        label?.code ||
+                        label?.Code
+                    );
+                }
+
+                function obtenerEtiquetasSolicitud(req) {
+                    return (req?.items || [])
+                        .flatMap(item => item?.labels || [])
+                        .filter(Boolean);
+                }
+
+                function obtenerTodosLosCodigosTracking() {
+                    return Array.from(new Set(
+                        requests
+                            .flatMap(req => obtenerEtiquetasSolicitud(req))
+                            .map(obtenerCodigoEtiquetaTracking)
+                            .filter(Boolean)
+                    ));
+                }
+
+                function obtenerTrackingEtiqueta(label) {
+                    const codigo = obtenerCodigoEtiquetaTracking(label);
+                    return codigo ? trackingMeat.get(codigo) || null : null;
+                }
+
+                async function cargarTrackingMeat(etiquetasForzadas = null) {
+                    const esRecargaParcial = Array.isArray(etiquetasForzadas);
+
+                    const etiquetas = Array.from(new Set(
+                        (esRecargaParcial ? etiquetasForzadas : obtenerTodosLosCodigosTracking())
+                            .map(normalizarEtiquetaTracking)
+                            .filter(Boolean)
+                    ));
+
+                    if (!etiquetas.length) {
+                        if (!esRecargaParcial) trackingMeat.clear();
+                        return;
+                    }
+
+                    trackingMeatCargando = true;
 
                     try {
-                        const response = await fetch(`@Url.Action("ActualizarUbicacion", "Comercial")?solicitudId=${req.id}&ubicacion=${encodeURIComponent(nuevaLoc)}`, { method: 'POST' });
+                       const parametros = new URLSearchParams();
+
+        etiquetas.forEach(etiqueta => {
+            parametros.append('etiquetas', etiqueta);
+        });
+
+        const urlTracking =
+            '@Url.Action("ObtenerTrackingEtiquetasMeat", "Comercial")'
+            + '?'
+            + parametros.toString();
+
+        const response = await fetch(urlTracking, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json'
+            },
+            cache: 'no-store'
+        });
+
+                        let data = null;
+                        try {
+                            data = await response.json();
+                        } catch {
+                            data = {
+                                ok: false,
+                                mensaje: `El servidor respondió HTTP ${response.status} sin JSON válido.`
+                            };
+                        }
+
+                        if (!response.ok || !data?.ok) {
+                            throw new Error(data?.mensaje || 'No fue posible consultar MEAT.');
+                        }
+
+                        if (!esRecargaParcial)
+                            trackingMeat.clear();
+
+                        const resultados = Array.isArray(data.etiquetas)
+                            ? data.etiquetas
+                            : [];
+
+                        resultados.forEach(info => {
+                            const codigo = normalizarEtiquetaTracking(info.etiqueta);
+                            if (codigo) trackingMeat.set(codigo, info);
+                        });
+
+                        if (Array.isArray(data.advertencias) && data.advertencias.length) {
+                            console.warn('Advertencias del tracking MEAT:', data.advertencias);
+                            toast(data.advertencias.join(' '));
+                        }
+                    } catch (error) {
+                        console.error('Error consultando tracking MEAT:', error);
+                        toast('No fue posible actualizar la ubicación real de las etiquetas.');
+                    } finally {
+                        trackingMeatCargando = false;
+                    }
+                }
+
+                function requestStatusBase(req) {
+                    const total = totalBoxes(req);
+                    const linked = linkedLabels(req);
+
+                    if (req.stage === 'Surtido al cliente'
+                        || req.location === 'Surtido al cliente'
+                        || req.location === 'Entregado a cliente') {
+                        return 'Surtido al cliente';
+                    }
+
+                    if (req.location === 'Almacén Refrigerado'
+                        && linked === total
+                        && total > 0) {
+                        return 'En almacén';
+                    }
+
+                    if (req.stage === 'Cancelada')
+                        return 'Cancelada';
+
+                    if (linked === total && total > 0)
+                        return 'Cumplido producción';
+
+                    if (linked > 0)
+                        return 'Producción parcial';
+
+                    if (req.planning)
+                        return 'Planeada';
+
+                    return 'Pendiente';
+                }
+
+                function estadoTrackingSolicitud(req) {
+                    const labels = obtenerEtiquetasSolicitud(req);
+
+                    if (!labels.length)
+                        return requestStatusBase(req);
+
+                    const datos = labels
+                        .map(obtenerTrackingEtiqueta)
+                        .filter(Boolean);
+
+                    // No se cambia el estado si todavía no existe una respuesta
+                    // para todas las etiquetas de la solicitud.
+                    if (datos.length !== labels.length)
+                        return requestStatusBase(req);
+
+                    const vendidas = datos.filter(x => x.estado === 'VENDIDA').length;
+                    const enAlmacen = datos.filter(x => x.estado === 'EN_ALMACEN').length;
+
+                    if (vendidas === labels.length)
+                        return 'Surtido al cliente';
+
+                    if (vendidas > 0)
+                        return 'Surtido parcial';
+
+                    if (enAlmacen === labels.length)
+                        return 'En almacén';
+
+                    return requestStatusBase(req);
+                }
+
+                function requestStatus(req) {
+                    return estadoTrackingSolicitud(req);
+                }
+
+                function renderUbicacionEtiquetaTracking(label) {
+                    const codigo = obtenerCodigoEtiquetaTracking(label);
+                    const info = obtenerTrackingEtiqueta(label);
+
+                    if (trackingMeatCargando && !info) {
+                        return `
+                            <div class="meat-location-card loading">
+                                <strong>${escapeTrackingHtml(codigo)}</strong>
+                                <span>Consultando MEAT...</span>
+                            </div>`;
+                    }
+
+                    if (!info || !info.encontrado) {
+                        return `
+                            <div class="meat-location-card missing">
+                                <strong>${escapeTrackingHtml(codigo)}</strong>
+                                <span>No encontrada</span>
+                                <small>No existe coincidencia en TIF ni en P1.</small>
+                            </div>`;
+                    }
+
+                    if (info.estado === 'VENDIDA') {
+                        return `
+                            <div class="meat-location-card sold">
+                                <strong>${escapeTrackingHtml(codigo)}</strong>
+                                <span>VENDIDA · Planta ${escapeTrackingHtml(info.planta || '')}</span>
+                                <small>
+                                    Almacén: ${escapeTrackingHtml(info.almacen || 'No identificado')}<br>
+                                    Cliente: ${escapeTrackingHtml(info.cliente || 'No identificado')}<br>
+                                    Folio: ${escapeTrackingHtml(info.folio || 'No identificado')}
+                                    ${info.transferida ? '<br>La etiqueta tiene antecedente en ambas plantas.' : ''}
+                                </small>
+                            </div>`;
+                    }
+
+                    if (info.estado === 'EN_ALMACEN') {
+                        return `
+                            <div class="meat-location-card stock">
+                                <strong>${escapeTrackingHtml(codigo)}</strong>
+                                <span>${escapeTrackingHtml(info.almacen || 'Almacén no identificado')}</span>
+                                <small>
+                                    Planta ${escapeTrackingHtml(info.planta || '')}
+                                    ${info.transferida ? '<br>Transferida entre TIF y P1.' : ''}
+                                </small>
+                            </div>`;
+                    }
+
+                    return `
+                        <div class="meat-location-card warning">
+                            <strong>${escapeTrackingHtml(codigo)}</strong>
+                            <span>Registro inactivo sin venta comprobada</span>
+                            <small>
+                                ${escapeTrackingHtml(info.almacen || 'Sin almacén identificado')} ·
+                                Planta ${escapeTrackingHtml(info.planta || '')}
+                                ${info.transferida ? '<br>Aparece en ambas plantas.' : ''}
+                            </small>
+                        </div>`;
+                }
+
+                window.refrescarTrackingSolicitud = async function (solicitudId, boton) {
+                    const req = requests.find(x => x.id === solicitudId);
+                    if (!req) return;
+
+                    const etiquetas = obtenerEtiquetasSolicitud(req)
+                        .map(obtenerCodigoEtiquetaTracking)
+                        .filter(Boolean);
+
+                    if (!etiquetas.length) {
+                        toast('Esta solicitud todavía no tiene etiquetas ligadas.');
+                        return;
+                    }
+
+                    const textoOriginal = boton?.textContent || 'Actualizar';
+
+                    try {
+                        if (boton) {
+                            boton.disabled = true;
+                            boton.textContent = 'Consultando...';
+                        }
+
+                        await cargarTrackingMeat(etiquetas);
+                        renderTracking();
+                        toast(`Tracking de ${solicitudId} actualizado.`);
+                    } finally {
+                        if (boton) {
+                            boton.disabled = false;
+                            boton.textContent = textoOriginal;
+                        }
+                    }
+                };
+
+                function statusClass(status) {
+                    if (status.includes('Surtido parcial'))
+                        return 'progress';
+
+                    if (status.includes('Cumplido')
+                        || status.includes('Surtido al cliente')) {
+                        return 'done';
+                    }
+
+                    if (status.includes('parcial'))
+                        return 'progress';
+
+                    if (status.includes('Planeada')
+                        || status.includes('almacén')) {
+                        return 'planned';
+                    }
+
+                    if (status.includes('Cancelada'))
+                        return 'danger';
+
+                    return 'pending';
+                }
+
+                function nextRequestId(){
+                    const max = requests.map(r => Number((r.id?.match(/(\d+)$/)||[0,0])[1])).reduce((a,b)=>Math.max(a,b),0);
+                    return `SM-${new Date().getFullYear()}-${String(max+1).padStart(4,'0')}`;
+                }
+
+                function normalizeMeatLabelCode(value) {
+                    return String(value || '')
+                        .replace(/\u0000/g, '')
+                        .replace(/\s+/g, '')
+                        .trim()
+                        .toUpperCase();
+                }
+
+                function setScanValidation(message, state = 'idle', title = '') {
+                    const box = qs('#scanValidationBox');
+                    if (!box) return;
+
+                    box.classList.remove('idle', 'loading', 'ok', 'error');
+                    box.classList.add(state || 'idle');
+                    box.innerHTML = `<strong>${title || (state === 'ok' ? 'Etiqueta validada' : state === 'error' ? 'Etiqueta rechazada' : state === 'loading' ? 'Validando etiqueta' : 'Validación pendiente')}</strong>${message || ''}`;
+                }
+
+                function clearScanLabel(focus = false) {
+                    const input = qs('#scanLabel');
+                    if (!input) return;
+
+                    input.value = '';
+                    input.classList.remove('scan-invalid', 'scan-valid');
+
+                    if (focus) {
+                        setTimeout(() => input.focus(), 80);
+                    }
+                }
+
+                function updateScanContext(clearLabel = true) {
+                    const req = requests.find(r => r.id === qs('#scanRequest')?.value);
+                    const item = req?.items.find(i => i.uid === qs('#scanItem')?.value);
+                    const plant = qs('#scanPlant')?.value || '';
+
+                    if (clearLabel) clearScanLabel(false);
+
+                    if (!req || !item) {
+                        setScanValidation(
+                            'Seleccione una solicitud y un SKU pendiente de etiquetas.',
+                            'idle'
+                        );
+                        return;
+                    }
+
+                    const sku = String(item.workSku || '').trim().toUpperCase();
+                    const faltantes = Math.max(0, Number(item.boxes || 0) - (item.labels?.length || 0));
+                    const origen = plant
+                        ? (plant === 'P1' ? 'CadenaMeatP1' : 'CadenaMeatTIF')
+                        : 'seleccione P1 o TIF';
+
+                    setScanValidation(
+                        `SKU planeado: <b>${sku || 'SIN SKU PLANEADO'}</b><br>` +
+                        `Cajas pendientes: <b>${faltantes}</b><br>` +
+                        `Origen de validación: <b>${origen}</b>`,
+                        sku ? 'idle' : 'error',
+                        sku ? 'Listo para escanear' : 'Planeación incompleta'
+                    );
+                }
+
+                function toast(message){
+                    const box = qs('#toast'); box.textContent = message; box.classList.add('show');
+                    setTimeout(()=>box.classList.remove('show'), 2600);
+                }
+
+                function badge(text){ return `<span class="badge ${statusClass(text)}">${text}</span>`; }
+                function setDefaultDates(){ if(qs('[name="requestedDate"]')) qs('[name="requestedDate"]').value = todayPlus(5); }
+
+                function itemRowTemplate(item={sku:'', product:'', spec:'', boxes:1, temp:'Refrigerado 0-4 °C'}){
+                    return `
+                    <tr>
+                        <td style="min-width: 120px;">
+                            <input class="item-sku" required value="${item.sku||''}" readonly style="background-color: #f0f0f0; color: #666; cursor: not-allowed; width:100%;" />
+                        </td>
+                        <td><input class="item-product" required value="${item.product||''}" placeholder="Se llena solo" readonly style="background-color: #f0f0f0; color: #666; cursor: not-allowed;" /></td>
+                        <td><textarea class="item-spec" required placeholder="Ej. Caja 12 kg...">${item.spec||''}</textarea></td>
+                        <td><input type="number" min="1" class="item-boxes" required value="${item.boxes||1}" /></td>
+                        <td>
+                            <select class="item-temp">
+                                <option ${item.temp==='Refrigerado 0-4 °C'?'selected':''}>Refrigerado 0-4 °C</option>
+                                <option ${item.temp==='Congelado -18 °C'?'selected':''}>Congelado -18 °C</option>
+                                <option ${item.temp==='Ambiente'?'selected':''}>Ambiente</option>
+                            </select>
+                        </td>
+                        <td style="text-align:center;">
+                            <button type="button" class="danger remove-item">Eliminar</button>
+                        </td>
+                    </tr>
+                    `;
+                }
+
+                function addItem(item){ if(qs('#itemsBody')) qs('#itemsBody').insertAdjacentHTML('beforeend', itemRowTemplate(item)); }
+
+                function clearItems(){
+                    if(qs('#itemsBody')){
+                        qs('#itemsBody').innerHTML = '';
+                        addItem();
+                    }
+                }
+
+                function collectItems(){
+                    return qsa('#itemsBody tr').map(row => ({
+                        uid:uid(), sku:row.querySelector('.item-sku').value.trim(), product:row.querySelector('.item-product').value.trim(),
+                        spec:row.querySelector('.item-spec').value.trim(), boxes:Number(row.querySelector('.item-boxes').value), temp:row.querySelector('.item-temp').value, labels:[]
+                    })).filter(i => i.sku && i.spec && i.boxes>0);
+                }
+
+                function renderKpis(){
+                    const total = requests.length;
+                    const pendingPlan = requests.filter(r=>!r.planning && requestStatus(r) !== 'Cancelada').length;
+                    const boxes = requests.reduce((s,r)=>s+totalBoxes(r),0);
+                    const linked = requests.reduce((s,r)=>s+linkedLabels(r),0);
+
+                    if(qs('#kpis')) qs('#kpis').innerHTML = `
+                    <div class="kpi"><small>Solicitudes Totales</small><strong>${total}</strong><span class="hint">folios en sistema</span></div>
+                    <div class="kpi"><small>Pendientes Planeacion</small><strong>${pendingPlan}</strong><span class="hint">por asignar a produccion</span></div>
+                    <div class="kpi"><small>Cajas Muestras</small><strong>${boxes}</strong><span class="hint">cajas solicitadas</span></div>
+                    <div class="kpi"><small>Etiquetas Generadas</small><strong>${linked}/${boxes}</strong><span class="hint">avance total produccion</span></div>
+                    `;
+                }
+
+                function createRequestCard(req) {
+                    const status = requestStatus(req), total = totalBoxes(req), linked = linkedLabels(req), pct = total ? Math.round(linked/total*100) : 0;
+                    let btnEnviar = '';
+                    let btnCancelar = '';
+                    if (!req.planning && status === 'Pendiente') {
+                        btnCancelar = `<button type="button" class="ghost" style="margin-top:10px; width:100%;" onclick="cancelarSolicitud('${req.id}')">Cancelar solicitud</button>`;
+                    }
+                    return `
+                        <div class="card request-card">
+                        <div>
+                            <div class="request-title">
+                            <div><h4>${req.id} · ${req.client}</h4><span class="mini">Solicito: ${req.seller} · Creada: ${formatDate(req.createdAt)}</span></div>
+                            ${badge(status)}
+                            </div>
+                            <div class="meta">
+                            <span>Especie: ${req.species || 'Sin definir'}</span><span>Ruta: ${req.route}</span>
+                            <span>Destino: ${req.destination}</span><span>Req: ${formatDate(req.requestedDate)}</span>
+                            </div>
+                            <div class="items-list">
+                            ${req.items.map(item=>`
+                                <div class="item-line">
+                                    <strong>${item.sku} · ${item.product} · ${item.boxes} caja(s)</strong><small>${item.spec}<br>${item.temp}</small>
+                                </div>
+                            `).join('')}
+                            </div>
+                            ${btnEnviar}${btnCancelar}
+                        </div>
+                        <div>
+                            <b style="color: #5c1a1a; font-size: 11px;">Cumplimiento</b>
+                            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+                            <p class="mini">${linked} de ${total} cajas ligadas.</p>
+                            <p class="mini" style="margin-top: 10px;"><b>Observaciones:</b><br>${req.notes || 'Ninguna'}</p>
+                        </div>
+                        </div>
+                    `;
+                }
+
+                function createPlanningCard(req, isHistory = false) {
+                    const dis = isHistory ? 'disabled' : '';
+                    const btnHtml = isHistory ? '' : `<button class="success" type="submit" style="margin-top: 5px;">Guardar SKU y liberar a produccion</button>`;
+                    return `
+                        <div class="card request-card">
+                        <div>
+                            <div class="request-title">
+                            <div><h4>${req.id} · ${req.client}</h4><span class="mini">Especie ${req.species || 'Sin definir'} · Destino ${req.destination}</span></div>
+                            ${badge(requestStatus(req))}
+                            </div>
+                            <div class="items-list">
+                            ${req.items.map(item=>`
+                                <div class="item-line"><strong>Solicitado: ${item.sku} · ${item.product}</strong><small>${item.boxes} caja(s) · ${item.spec}</small></div>
+                            `).join('')}
+                            </div>
+                        </div>
+                        <form class="planning-form grid" data-id="${req.id}" style="background: var(--panel-2); padding: 8px; border: 1px solid var(--line);">
+                            <div>
+                            <label>SKU asignado para producir <span style="color:#b30000;">*</span></label>
+                            <div class="items-list" style="margin-top:0;">
+                                ${req.items.map(item=>`
+                                <div class="item-line" style="background: var(--white);">
+                                    <small><b>Pedido:</b> ${item.sku} · <b>Cajas:</b> ${item.boxes}<br>${item.spec}</small>
+                                    ${isHistory
+                                        ? `<input style="margin-top:5px" disabled value="${item.workSku || ''}">`
+                                        : `<div class="custom-select-wrapper sku-wrapper" style="margin-top:5px;">
+                                            <div class="custom-select-display sku-display">${item.workSku || 'Seleccione un artículo obligatorio...'}</div>
+                                            <div class="custom-select-dropdown sku-dropdown">
+                                                <input type="text" class="custom-select-search sku-search" placeholder="Buscar código o nombre..." autocomplete="off">
+                                                <ul class="custom-select-options sku-options">${articulosOptionsHTML}</ul>
+                                            </div>
+                                            <input type="hidden" class="item-sku" data-required-sku="true" name="workSku-${item.uid}" value="${item.workSku || ''}">
+                                        </div>`}
+                                </div>
+                                `).join('')}
+                            </div>
+                            </div>
+                            <div class="form-grid two" style="margin-bottom:0; background:transparent; padding:0; border:none;">
+                            <div><label>Proceso</label><input type="date" name="processDate" ${dis} required value="${req.planning?.processDate || todayPlus(2)}"></div>
+                            <div><label>Turno</label><select name="shift" ${dis}><option ${req.planning?.shift==='Turno 1'?'selected':''}>Turno 1</option><option ${req.planning?.shift==='Turno 2'?'selected':''}>Turno 2</option></select></div>
+                            <div><label>Linea</label><select name="line" ${dis}><option ${req.planning?.line==='Linea Empaque 01'?'selected':''}>Linea Empaque 01</option><option ${req.planning?.line==='Linea Corte 01'?'selected':''}>Linea Corte 01</option></select></div>
+                            <div><label>Especificacion</label><select name="especificacion" ${dis}><option value="" ${!req.planning?.especificacion?'selected':''}>Seleccionar...</option><option value="Producto de linea" ${req.planning?.especificacion==='Producto de linea'?'selected':''}>Producto de linea</option><option value="Nuevo" ${req.planning?.especificacion==='Nuevo'?'selected':''}>Nuevo</option></select></div>
+                            <div><label>Planeador</label><input name="planner" ${dis} readonly required value="${req.planning?.planner || '@usuarioLogueado'}" style="background-color: #f0f0f0; color: #666; cursor: not-allowed;"></div>
+                            </div>
+                            ${btnHtml}
+                        </form>
+                        </div>
+                    `;
+                }
+
+                        function createProductionCard(req, isHistory = false) {
+                    const total = totalBoxes(req), linked = linkedLabels(req), pct = total ? Math.round(linked/total*100) : 0;
+                    let btnLiberar = '';
+                    if (!isHistory && linked === total && total > 0) {
+                        btnLiberar = `<div style="margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 10px; text-align: right;">
+                                        <button type="button" class="success" onclick="liberarProduccion('${req.id}')">Finalizar Produccion (Enviar a Almacen)</button>
+                                      </div>`;
+                    }
+                    return `
+                        <div class="card" style="margin-bottom: 10px;">
+                        <div class="request-title" style="border:none;">
+                            <div><h4>${req.id} · ${req.client}</h4><span class="mini">Proceso: ${formatDate(req.planning.processDate)} · ${req.planning.shift} · ${req.planning.line}</span></div>
+                            ${badge(requestStatus(req))}
+                        </div>
+                        <div class="timeline">
+                            <span class="step on"><i class="dot"></i>Solicitud</span>
+                            <span class="step on"><i class="dot"></i>Planeada</span>
+                            <span class="step ${linked>0?'on':''}"><i class="dot"></i>Produccion</span>
+                            <span class="step ${linked===total?'on':''}"><i class="dot"></i>Completa</span>
+                        </div>
+                        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+                        <p class="mini">${linked}/${total} etiquetas ligadas.</p>
+                        <div class="items-list">
+                            ${req.items.map(item => `
+                                <div class="item-line">
+                                    <strong>Trabajar: ${item.workSku || item.sku} · ${item.product}</strong>
+                                    <small>Pedido: ${item.sku} · Cajas: ${item.boxes} · Ligadas: ${(item.labels||[]).length}<br>${item.spec}</small>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="label-grid" style="margin-top:10px;">
+                            ${req.items.flatMap(item => (item.labels||[]).map((label,idx)=>labelCard(req,item,label,idx, isHistory))).join('') || '<div class="empty" style="grid-column: 1/-1;">Sin etiquetas ligadas aun.</div>'}
+                        </div>
+                        ${btnLiberar}
+                        </div>
+                    `;
+                }
+
+
+                function createTrackingRow(req, isHistory = false) {
+                    const total = totalBoxes(req);
+                    const linked = linkedLabels(req);
+                    const pct = total ? Math.round(linked / total * 100) : 0;
+
+                    const labelsHtml = req.items.map(item => `
+                        <b>Trabaja: ${escapeTrackingHtml(item.workSku || item.sku)}</b>
+                        ${escapeTrackingHtml(item.product || '')}<br>
+                        <span class="mini">
+                            Pide: ${escapeTrackingHtml(item.sku || '')} ·
+                            ${escapeTrackingHtml(item.spec || '')}
+                        </span><br>
+                        <div style="margin-top:3px;">
+                            ${(item.labels || []).map(label => {
+                                const codigo = obtenerCodigoEtiquetaTracking(label);
+                                const info = obtenerTrackingEtiqueta(label);
+
+                                let detalle = '';
+                                if (info?.estado === 'VENDIDA') {
+                                    detalle =
+                                        `Vendida en ${info.planta || ''} · ` +
+                                        `${info.cliente || 'Cliente no identificado'}`;
+                                } else if (info?.estado === 'EN_ALMACEN') {
+                                    detalle =
+                                        `${info.almacen || 'Almacén no identificado'} ` +
+                                        `(${info.planta || ''})`;
+                                } else if (info?.estado === 'INACTIVA_SIN_VENTA') {
+                                    detalle = `Inactiva sin venta comprobada · ${info.planta || ''}`;
+                                }
+
+                                return `
+                                    <span class="badge gray" style="margin-bottom:2px;">
+                                        ${escapeTrackingHtml(codigo)}
+                                    </span>
+                                    ${detalle
+                                        ? `<span class="tracking-summary-line">${escapeTrackingHtml(detalle)}</span>`
+                                        : ''}
+                                `;
+                            }).join('') || '<span class="badge pending">Sin etiqueta</span>'}
+                        </div>
+                    `).join(
+                        '<hr style="border:0;border-top:1px solid #d8bcbc;margin:4px 0;">'
+                    );
+
+                    const etiquetas = obtenerEtiquetasSolicitud(req);
+
+                    const ubicacionesHtml = etiquetas.length
+                        ? `<div class="meat-location-list">
+                                ${etiquetas.map(renderUbicacionEtiquetaTracking).join('')}
+                           </div>`
+                        : '<span class="badge pending">Sin etiquetas</span>';
+
+                    const estatus = estadoTrackingSolicitud(req);
+
+                    const accionHtml = isHistory
+                        ? ''
+                        : `
+                            <td>
+                                <button type="button"
+                                        class="secondary tracking-refresh-btn"
+                                        onclick="refrescarTrackingSolicitud('${escapeTrackingHtml(req.id)}', this)">
+                                    Actualizar
+                                </button>
+                            </td>`;
+
+                    return `
+                        <tr>
+                            <td>
+                                <b>${escapeTrackingHtml(req.id)}</b><br>
+                                <span class="mini">${formatDate(req.createdAt)}</span>
+                            </td>
+                            <td>
+                                ${escapeTrackingHtml(req.client)}<br>
+                                <span class="mini">
+                                    Vende: ${escapeTrackingHtml(req.seller)}
+                                </span>
+                            </td>
+                            <td>
+                                ${escapeTrackingHtml(req.route)}<br>
+                                <span class="mini">
+                                    ${escapeTrackingHtml(req.destination)}
+                                </span>
+                            </td>
+                            <td style="text-align:left;">${labelsHtml}</td>
+                            <td>
+                                <b style="font-size:12px;color:#8b0000;">
+                                    ${linked}/${total}
+                                </b>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width:${pct}%"></div>
+                                </div>
+                            </td>
+                            <td>${ubicacionesHtml}</td>
+                            <td>${badge(estatus)}</td>
+                            ${accionHtml}
+                        </tr>`;
+                }
+
+                       function labelCard(req, item, label, index, isHistory = false) {
+                    const fechaProc = formatDateTime(label.processedAt);
+                    const especie = req.species || 'Sin definir';
+                    const temp = item.temp || 'REFRIGERADO';
+
+                    const safeClient = (req.client || '').replace(/"/g, '&quot;');
+                    const safeProduct = (item.product || '').replace(/"/g, '&quot;');
+                    const safeSpec = (item.spec || '').replace(/"/g, '&quot;');
+                    const safeSeller = (req.seller || '').replace(/"/g, '&quot;');
+
+                    // Si es historial, no dibujamos el checkbox
+                    const checkboxHtml = isHistory ? '' : `
+                        <input type="checkbox" class="print-cb no-print" value="${label.code}" checked title="Seleccionar para imprimir"
+                            data-req="${req.id}"
+                            data-client="${safeClient}"
+                            data-seller="${safeSeller}"
+                            data-skureq="${item.sku}"
+                            data-skuwork="${item.workSku || item.sku}"
+                            data-product="${safeProduct}"
+                            data-species="${especie}"
+                            data-spec="${safeSpec}"
+                            data-date="${fechaProc}"
+                            data-op="${label.operator || ''}"
+                            data-chain="${label.code}"
+                            data-temp="${temp}"
+                            style="position: absolute; top: 12px; right: 12px; width: 18px; height: 18px; cursor: pointer; z-index: 10;">
+                    `;
+
+                    return `
+                        <div class="label-card" style="position: relative; background: var(--panel-2); border: 1px solid var(--line); padding: 10px;">
+
+                            ${checkboxHtml}
+
+                            <div style="border-bottom: 2px solid var(--line); padding-bottom: 6px; margin-bottom: 8px; padding-right: 30px;">
+                                <h4 style="margin: 0; font-size: 15px; color: #5c1a1a; font-weight: bold;">${label.code}</h4>
+                            </div>
+
+                            <div class="lc-body" style="background: #fff; padding: 8px; border: 1px solid var(--line); font-size: 11px; line-height: 1.5; text-align: left; color: #111;">
+                                <b>Solicitud:</b> ${req.id}<br>
+                                <b>Cliente:</b> ${req.client}<br>
+                                <b>Especie:</b> ${especie}<br>
+                                <b>SKU solicitado:</b> ${item.sku} · ${item.product}<br>
+                                <b>SKU a trabajar:</b> <span style="font-weight: 900; color: #8b0000; font-size: 13px;">${item.workSku || item.sku}</span><br>
+                                <b>Especificación:</b> ${item.spec}<br>
+                                <b>Procesado:</b> ${fechaProc}<br>
+                                <b>Operario:</b> ${label.operator || ''}<br>
+                                <b>Etiqueta:</b> ${label.code}
+                            </div>
+                        </div>
+                    `;
+                }
+
+                window.generarReporteGeneral = function() {
+                    if (!requests.length) { toast('No hay datos para generar el reporte.'); return; }
+
+                    const cargarImagen = (src) => new Promise((resolve) => {
+                        const img = new Image();
+                        img.crossOrigin = 'Anonymous';
+                        img.onload = () => resolve(img);
+                        img.onerror = () => resolve(null);
+                        img.src = src;
+                    });
+
+                    async function descargarPDF() {
+                        toast('Generando reporte PDF...');
+                        const { jsPDF } = window.jspdf;
+                        const doc = new jsPDF('landscape', 'mm', 'letter');
+                        const pageW = doc.internal.pageSize.getWidth();
+                        const pageH = doc.internal.pageSize.getHeight();
+                        const mg = 12;
+                        let y = mg;
+
+                        const logoCG = await cargarImagen('/images/LOGO_CARNESG.jpg');
+                        const logoTIF = await cargarImagen('/images/logoTIF.png');
+
+                        function header() {
+                            if (logoCG) doc.addImage(logoCG, 'JPEG', mg, 8, 30, 12);
+                            if (logoTIF) doc.addImage(logoTIF, 'PNG', pageW - mg - 16, 8, 16, 12);
+
+                            doc.setFontSize(16);
+                            doc.setTextColor(139, 0, 0);
+                            doc.setFont('helvetica', 'bold');
+                            doc.text('REPORTE GENERAL DE MUESTRAS', pageW / 2, 14, { align: 'center' });
+
+                            doc.setFontSize(8);
+                            doc.setTextColor(100);
+                            doc.setFont('helvetica', 'normal');
+                            doc.text('Sistema Integral de Gestión Operativa (SIGO) - Comercial', pageW / 2, 18, { align: 'center' });
+                            doc.text('Generado: ' + new Date().toLocaleString('es-MX'), pageW / 2, 22, { align: 'center' });
+
+                            doc.setDrawColor(139, 0, 0);
+                            doc.setLineWidth(0.5);
+                            doc.line(mg, 26, pageW - mg, 26);
+                            y = 32;
+                        }
+
+                        function footer() {
+                            doc.setFontSize(7);
+                            doc.setTextColor(120);
+                            doc.setFont('helvetica', 'normal');
+                            doc.text('CARNES G S.A. DE C.V. - TIF 776 | Carretera Estatal N212 San Juan de los Lagos, Jal.', pageW / 2, pageH - 6, { align: 'center' });
+                        }
+
+                        header();
+
+                        // Cálculos del resumen
+                        const total = requests.length;
+                        const pendientes = requests.filter(r => requestStatus(r) === 'Pendiente').length;
+                        const planeadas = requests.filter(r => requestStatus(r) === 'Planeada').length;
+                        const produccion = requests.filter(r => r.planning && requestStatus(r) !== 'Pendiente' && requestStatus(r) !== 'Planeada' && requestStatus(r) !== 'Cancelada').length;
+                        const completadas = requests.filter(r => requestStatus(r) === 'En almacén' || requestStatus(r) === 'Surtido al cliente').length;
+                        const totalCajas = requests.reduce((s, r) => s + totalBoxes(r), 0);
+                        const totalEtqs = requests.reduce((s, r) => s + linkedLabels(r), 0);
+
+                        doc.setFontSize(10);
+                        doc.setTextColor(139, 0, 0);
+                        doc.setFont('helvetica', 'bold');
+                        doc.text('Resumen Operativo', mg, y);
+                        y += 4;
+
+                        const resumen = [
+                            ['Total Solicitudes', '' + total, 'En Producción', '' + produccion],
+                            ['Pendientes de Planeación', '' + pendientes, 'Completadas / Surtidas', '' + completadas],
+                            ['Planeadas (Espera)', '' + planeadas, 'Cajas Totales / Etiquetas', totalEtqs + ' / ' + totalCajas]
+                        ];
+
+                        doc.autoTable({
+                            startY: y,
+                            body: resumen,
+                            theme: 'plain',
+                            styles: { fontSize: 8, cellPadding: 1.5 },
+                            columnStyles: {
+                                0: { fontStyle: 'bold', textColor: [0, 0, 0], cellWidth: 40 },
+                                1: { cellWidth: 20, textColor: [139, 0, 0], fontStyle: 'bold' },
+                                2: { fontStyle: 'bold', textColor: [0, 0, 0], cellWidth: 40 },
+                                3: { cellWidth: 30, textColor: [139, 0, 0], fontStyle: 'bold' }
+                            },
+                            margin: { left: mg }
+                        });
+                        y = doc.lastAutoTable.finalY + 8;
+
+                        const estados = [
+                            { label: 'PENDIENTES', filter: r => requestStatus(r) === 'Pendiente' },
+                            { label: 'PLANEADAS', filter: r => requestStatus(r) === 'Planeada' },
+                            { label: 'EN PRODUCCIÓN', filter: r => r.planning && (requestStatus(r) === 'Producción parcial' || requestStatus(r) === 'Cumplido producción') },
+                            { label: 'EN ALMACÉN', filter: r => requestStatus(r) === 'En almacén' },
+                            { label: 'SURTIDAS / ENTREGADAS', filter: r => requestStatus(r) === 'Surtido al cliente' },
+                            { label: 'CANCELADAS', filter: r => requestStatus(r) === 'Cancelada' }
+                        ];
+
+                        estados.forEach(e => {
+                            const items = requests.filter(e.filter);
+                            if (!items.length) return;
+
+                            if (y > pageH - 40) { doc.addPage(); y = mg + 5; header(); }
+
+                            const rows = items.map(r => [
+                                r.id,
+                                r.client,
+                                r.seller,
+                                r.species || '-',
+                                r.route + ' / ' + r.destination,
+                                formatDate(r.requestedDate),
+                                r.items.map(i => i.sku + ' (' + i.boxes + ' cjs)' + (i.workSku && i.workSku !== i.sku ? ' -> Trab: ' + i.workSku : '')).join('\n'),
+                                linkedLabels(r) + '/' + totalBoxes(r)
+                            ]);
+
+                            doc.autoTable({
+                                startY: y,
+                                head: [[e.label, 'Cliente', 'Vendedor', 'Esp.', 'Ruta / Destino', 'Fecha Req.', 'Artículos (Cajas)', 'Avance']],
+                                body: rows,
+                                theme: 'grid',
+                                tableLineColor: [200, 200, 200],
+                                tableLineWidth: 0.1,
+                                headStyles: { fillColor: [139, 0, 0], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7, halign: 'center' },
+                                bodyStyles: { fontSize: 7, cellPadding: 2, textColor: [30, 30, 30], valign: 'middle' },
+                                alternateRowStyles: { fillColor: [249, 245, 245] },
+                                columnStyles: {
+                                    0: { cellWidth: 20, fontStyle: 'bold', textColor: [139, 0, 0] },
+                                    1: { cellWidth: 42 },
+                                    2: { cellWidth: 26 },
+                                    3: { cellWidth: 10, halign: 'center' },
+                                    4: { cellWidth: 38 },
+                                    5: { cellWidth: 18, halign: 'center' },
+                                    6: { cellWidth: 50 },
+                                    7: { cellWidth: 14, halign: 'center', fontStyle: 'bold' }
+                                },
+                                margin: { left: mg, right: mg },
+                                didParseCell: function(data) {
+                                    if (data.section === 'head' && data.row.index === 0 && data.column.index === 0) {
+                                        data.cell.styles.halign = 'left';
+                                    }
+                                }
+                            });
+                            y = doc.lastAutoTable.finalY + 8;
+                        });
+
+                        const totalPages = doc.internal.getNumberOfPages();
+                        for (let j = 1; j <= totalPages; j++) {
+                            doc.setPage(j);
+                            footer();
+                            doc.setFontSize(7);
+                            doc.setTextColor(120);
+                            doc.text('Página ' + j + ' de ' + totalPages, pageW - mg, pageH - 6, { align: 'right' });
+                        }
+
+                        doc.save('Reporte_Muestras_' + new Date().toISOString().slice(0, 10) + '.pdf');
+                    }
+
+                    // Descarga o usa la librería jsPDF
+                    if (typeof window.jspdf === 'undefined' || typeof window.jspdf.jsPDF === 'undefined') {
+                        toast('Preparando motor PDF...');
+                        const s1 = document.createElement('script');
+                        s1.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+                        s1.onload = function() {
+                            const s2 = document.createElement('script');
+                            s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+                            s2.onload = descargarPDF;
+                            document.head.appendChild(s2);
+                        };
+                        document.head.appendChild(s1);
+                    } else {
+                        descargarPDF();
+                    }
+                }
+
+                        window.imprimirEtiquetas = async function() {
+                    const checkboxes = document.querySelectorAll('.print-cb:checked');
+                    if (checkboxes.length === 0) {
+                        toast('Selecciona al menos una etiqueta marcando su casilla.');
+                        return;
+                    }
+
+                    const ip = (document.getElementById('printerIp')?.value || '').trim();
+                    if (!ip) {
+                        toast('Ingresa la IP de la impresora Zebra.');
+                        return;
+                    }
+                    localStorage.setItem('printerIpMuestras', ip);
+
+                    const etiquetas = [];
+                    checkboxes.forEach(cb => {
+                        const d = cb.dataset;
+                        etiquetas.push({
+                            solicitudId: d.req || '',
+                            seller: d.seller || '',
+                            client: d.client || '',
+                            product: d.product || '',
+                            species: d.species || '',
+                            spec: d.spec || '',
+                            lote: cb.value || '',
+                            skuRequerido: d.skureq || '',
+                            skuTrabajo: d.skuwork || '',
+                            fechaProduccion: d.date || '',
+                            operario: d.op || '',
+                            temperatura: d.temp || ''
+                        });
+                    });
+
+                    try {
+                        const resp = await fetch(`@Url.Action("ImprimirEtiquetaMuestra", "Comercial")?ip=${encodeURIComponent(ip)}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(etiquetas)
+                        });
+                        const data = await resp.json();
+                        toast(data.mensaje || (data.ok ? 'Impreso correctamente.' : 'Error al imprimir.'));
+                    } catch (err) {
+                        toast('Error al conectar con el servidor: ' + err.message);
+                    }
+                }
+                // FUNCIONES DE ACTUALIZACION DE PANTALLA
+                function renderRequestList(){
+                    const pendientes = requests.filter(r => requestStatus(r) === 'Pendiente');
+                    histSolicitud = requests.filter(r => requestStatus(r) !== 'Pendiente');
+                    let html = pendientes.map(r => createRequestCard(r)).join('');
+                    if(qs('#requestList')) qs('#requestList').innerHTML = html || '<div class="empty">No hay solicitudes nuevas.</div>';
+                    if(qs('#btnHistSolicitudes')) qs('#btnHistSolicitudes').innerHTML = `Ver historial (${histSolicitud.length})`;
+                }
+
+                function renderPlanning(){
+                    const pendientes = requests.filter(r => requestStatus(r) === 'Pendiente');
+                    histPlaneacion = requests.filter(r => requestStatus(r) !== 'Pendiente' && requestStatus(r) !== 'Cancelada');
+                    if(qs('#planningList')) qs('#planningList').innerHTML = pendientes.length ? pendientes.map(r => createPlanningCard(r, false)).join('') : '<div class="empty">No hay solicitudes pendientes de planeacion.</div>';
+                    if(qs('#btnHistPlaneacion')) qs('#btnHistPlaneacion').innerHTML = `Ver historial (${histPlaneacion.length})`;
+                }
+
+                function renderProduction() {
+                    const prodList = requests.filter(r => r.planning);
+                    const activos = prodList.filter(r => {
+                        const st = requestStatus(r);
+                        return st === 'Planeada' || st === 'Producción parcial' || st === 'Cumplido producción';
+                    });
+                    histProduccion = prodList.filter(r => {
+                        const st = requestStatus(r);
+                        return st === 'En almacén'
+                            || st === 'Surtido parcial'
+                            || st === 'Surtido al cliente';
+                    });
+                    if(qs('#productionList')) qs('#productionList').innerHTML = activos.length ? activos.map(r => createProductionCard(r, false)).join('') : '<div class="empty">No hay muestras en produccion activa.</div>';
+                    if(qs('#btnHistProduccion')) qs('#btnHistProduccion').innerHTML = `Ver historial (${histProduccion.length})`;
+                }
+
+                function renderTracking() {
+                    const q = (qs('#trackSearch')?.value || '').toLowerCase();
+                    const filter = qs('#trackStatus')?.value || '';
+                    const dateFrom = qs('#trackDateFrom')?.value || '';
+                    const dateTo = qs('#trackDateTo')?.value || '';
+
+                    const list = requests.filter(req => {
+                        const status = estadoTrackingSolicitud(req);
+
+                        if (status === 'Cancelada')
+                            return false;
+
+                        const textoEtiquetas = obtenerEtiquetasSolicitud(req)
+                            .map(label => {
+                                const codigo = obtenerCodigoEtiquetaTracking(label);
+                                const info = obtenerTrackingEtiqueta(label);
+
+                                return [
+                                    codigo,
+                                    info?.almacen,
+                                    info?.planta,
+                                    info?.cliente,
+                                    info?.folio,
+                                    info?.estado
+                                ].filter(Boolean).join(' ');
+                            });
+
+                        const hay = [
+                            req.id,
+                            req.client,
+                            req.seller,
+                            req.species,
+                            req.route,
+                            req.destination,
+                            ...req.items.flatMap(item => [
+                                item.sku,
+                                item.workSku,
+                                item.product,
+                                item.spec
+                            ]),
+                            ...textoEtiquetas
+                        ].join(' ').toLowerCase();
+
+                        const reqDate = (req.createdAt || '').substring(0, 10);
+
+                        return (!q || hay.includes(q))
+                            && (!filter || status === filter)
+                            && (!dateFrom || reqDate >= dateFrom)
+                            && (!dateTo || reqDate <= dateTo);
+                    });
+
+                    const activos = list.filter(req =>
+                        estadoTrackingSolicitud(req) !== 'Surtido al cliente'
+                    );
+
+                    histTracking = list.filter(req =>
+                        estadoTrackingSolicitud(req) === 'Surtido al cliente'
+                    );
+
+                    if (qs('#trackingBody')) {
+                        qs('#trackingBody').innerHTML = activos.length
+                            ? activos.map(req => createTrackingRow(req, false)).join('')
+                            : '<tr><td colspan="8" class="empty">No hay resultados activos con esos filtros.</td></tr>';
+                    }
+
+                    if (qs('#btnHistTracking')) {
+                        qs('#btnHistTracking').innerHTML =
+                            `Ver Entregadas (${histTracking.length})`;
+                    }
+                }
+
+                window.abrirHistorial = function(tab) {
+                    const limite = 100;
+                    const container = qs('#historialContentContainer');
+                    const title = qs('#historialTitle');
+                    container.className = 'grid cols-1';
+
+                    if(tab === 'solicitud') {
+                        title.textContent = 'Historial de Solicitudes (últimos ' + limite + ')';
+                        const lista = histSolicitud.slice(0, limite);
+                        container.innerHTML = lista.length ? lista.map(req => createRequestCard(req)).join('') : '<div class="empty">No hay historial.</div>';
+                    }
+                    else if(tab === 'planeacion') {
+                        title.textContent = 'Historial de Planeacion (últimos ' + limite + ')';
+                        const lista = histPlaneacion.slice(0, limite);
+                        container.innerHTML = lista.length ? lista.map(req => createPlanningCard(req, true)).join('') : '<div class="empty">No hay historial.</div>';
+                    }
+                    else if(tab === 'produccion') {
+                        title.textContent = 'Historial de Produccion (últimos ' + limite + ')';
+                        const lista = histProduccion.slice(0, limite);
+                        container.innerHTML = lista.length ? lista.map(req => createProductionCard(req, true)).join('') : '<div class="empty">No hay historial.</div>';
+                    }
+                    else if(tab === 'tracking') {
+                        title.textContent = 'Historial de Tracking (últimos ' + limite + ')';
+                        container.className = 'table-wrap card';
+                        const lista = histTracking.slice(0, limite);
+                        let html = `<table style="margin:0; width:100%; border:none;">
+                            <thead><tr><th>Folio</th><th>Cliente</th><th>Ruta / destino</th><th>SKU y etiquetas</th><th>Cumplimiento</th><th>Ubicacion</th><th>Estatus</th></tr></thead><tbody>`;
+                        html += lista.length ? lista.map(req => createTrackingRow(req, true)).join('') : '<tr><td colspan="7" class="empty">No hay historial.</td></tr>';
+                        html += `</tbody></table>`;
+                        container.innerHTML = html;
+                    }
+                    qs('#modalHistorial').classList.add('show');
+                }
+
+                function renderScanSelectors() {
+                    const reqSelect = qs('#scanRequest');
+                    if(!reqSelect) return;
+
+                    const planned = requests.filter(r => {
+                        if (!r.planning || requestStatus(r) === 'Surtido al cliente' || requestStatus(r) === 'En almacén') return false;
+                        return linkedLabels(r) < totalBoxes(r);
+                    });
+
+                    if (planned.length === 0) {
+                        reqSelect.innerHTML = '<option value="">No hay muestras pendientes de etiquetas</option>';
+                    } else {
+                        reqSelect.innerHTML = planned.map(r => `<option value="${r.id}">${r.id} · ${r.client}</option>`).join('');
+                    }
+
+                    updateItemSelector();
+                    clearScanLabel(false);
+                    updateScanContext(false);
+                }
+
+                function updateItemSelector() {
+                    const reqSelect = qs('#scanRequest');
+                    const itemSelect = qs('#scanItem');
+                    if(!reqSelect || !itemSelect) return;
+
+                    const req = requests.find(r => r.id === reqSelect.value);
+                    if (!req) { itemSelect.innerHTML = '<option value="">Seleccione una solicitud...</option>'; return; }
+
+                    const validItems = req.items.filter(item => {
+                        const left = Number(item.boxes) - (item.labels?.length || 0);
+                        return left > 0;
+                    });
+
+                    if (validItems.length === 0) {
+                        itemSelect.innerHTML = '<option value="" disabled>✓ Todos los SKUs completados</option>';
+                    } else {
+                        itemSelect.innerHTML = validItems.map(item => {
+                            const left = Number(item.boxes) - (item.labels?.length || 0);
+                            return `<option value="${item.uid}">Trabajar ${item.workSku || item.sku} · faltan ${left} caja(s)</option>`;
+                        }).join('');
+                    }
+
+                    updateScanContext(true);
+                }
+
+                window.cancelarSolicitud = async function(id) {
+                    const motivo = prompt(`Escriba el motivo de cancelacion para ${id}:`);
+                    if (!motivo) return;
+
+                    try {
+                        const response = await fetch(`@Url.Action("CancelarSolicitud", "Comercial")?id=${id}&motivo=${encodeURIComponent(motivo)}`, { method: 'POST' });
                         const data = await response.json();
-                        if(data.ok) {
-                            toast(`${req.id} actualizado a: ${nuevaLoc}.`);
+                        if (data.ok) {
+                            toast('Solicitud cancelada.');
+                            loadData();
+                        } else {
+                            toast('Error: ' + data.mensaje);
+                        }
+                    } catch (err) {
+                        toast('No hay conexion al servidor.');
+                    }
+                };
+
+                window.liberarProduccion = async function(reqId) {
+                    const req = requests.find(r => r.id === reqId);
+                    if (!req) return;
+
+                    try {
+                        const response = await fetch(`@Url.Action("ActualizarUbicacion", "Comercial")?solicitudId=${reqId}&ubicacion=Almacén Refrigerado`, { method: 'POST' });
+                        const data = await response.json();
+                        if (data.ok) {
+                            toast(`Produccion finalizada. Enviado a almacen.`);
                             loadData();
                         } else {
                             toast("Error del servidor: " + data.mensaje);
-                            e.target.value = req.location;
                         }
                     } catch(err) {
                         console.warn("Backend no disponible...");
-                        req.location = nuevaLoc;
-                        req.items.forEach(item => (item.labels||[]).forEach(label => label.location = nuevaLoc));
-                        req.stage = requestStatus(req);
+                        req.location = 'Almacén Refrigerado';
                         renderAll();
-                        toast(`Actualizado localmente.`);
+                        toast(`Finalizado en modo local.`);
                     }
+                };
+
+                function renderAll(){
+                    renderKpis();
+                    renderRequestList();
+                    renderPlanning();
+                    renderScanSelectors();
+                    renderProduction();
+                    renderTracking();
                 }
-            });
-        }
 
-        if(qs('#trackSearch')) qs('#trackSearch').addEventListener('input', renderTracking);
-        if(qs('#trackStatus')) qs('#trackStatus').addEventListener('change', renderTracking);
-        if(qs('#trackDateFrom')) qs('#trackDateFrom').addEventListener('change', renderTracking);
-        if(qs('#trackDateTo')) qs('#trackDateTo').addEventListener('change', renderTracking);
+                document.addEventListener('click', e => {
+                    const nav = e.target.closest('.nav-btn');
+                    if (nav && nav.style.display !== 'none') {
+                        qsa('.nav-btn').forEach(b=>b.classList.remove('active')); nav.classList.add('active');
+                        qsa('.section').forEach(s=>s.classList.remove('active')); qs('#'+nav.dataset.section).classList.add('active');
+                        if(nav.dataset.section === 'produccion') renderProduction();
+                        if(nav.dataset.section === 'tracking') {
+                            cargarTrackingMeat().then(renderTracking);
+                        }
+                    }
 
-        if(qs('#requestForm')) {
-            qs('#requestForm').addEventListener('submit', async e => {
-                e.preventDefault();
-                const btn = e.target.querySelector('button[type="submit"]');
-                const fd = new FormData(e.target);
-                const items = collectItems();
+                    if(e.target.classList.contains('remove-item')){
+                        e.target.closest('tr').remove();
+                        if(!qs('#itemsBody tr')) addItem();
+                    }
 
-                if(!selectedOVId){ toast('Debes seleccionar una Orden de Venta de muestra primero.'); return; }
-                if(!items.length){ toast('Agrega al menos un SKU con cajas solicitadas.'); return; }
-                if(!fd.get('client')){ toast('Selecciona un cliente válido de la lista.'); return; }
-
-                btn.disabled = true; btn.textContent = 'Guardando...';
-
-                const req = {
-                    id: "",
-                    createdAt: new Date().toISOString(),
-                    seller: fd.get('seller'),
-                    client: fd.get('client'),
-                    species: fd.get('species'),
-                    requestedDate: fd.get('requestedDate'),
-                    route: fd.get('route'),
-                    destination: fd.get('destination'),
-                    priority: fd.get('priority'),
-                    notes: fd.get('notes'),
-                    createdBy: '@User.Identity?.Name',
-                    planning: null, stage: 'Planeación pendiente', location: 'Comercial', items: items,
-                    ordenVentaId: selectedOVId
-                };
-
-                try {
-                    const response = await fetch('@Url.Action("CrearSolicitud", "Comercial")', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req)
-                    });
-                    const data = await response.json();
-                    if(data.ok) {
-                        selectedOVId = null;
-                        const ovSelect = document.getElementById('ovMuestraSelect');
-                        if(ovSelect) ovSelect.value = '';
-                        // Re-lock form
-                        const lockedDiv = document.getElementById('formContentLocked');
-                        if (lockedDiv) lockedDiv.classList.add('form-locked-overlay');
-                        const btnSubmit = document.getElementById('btnSubmitSolicitud');
-                        if (btnSubmit) btnSubmit.disabled = true;
-                        toast(`Solicitud creada.`); e.target.reset(); setDefaultDates(); clearItems(); loadData(); loadOVMuestras();
-                    } else { toast("Error: " + data.mensaje); }
-                } catch(err) {
-                    console.warn("Backend no disponible...");
-                    requests.unshift(req); e.target.reset(); setDefaultDates(); clearItems(); renderAll(); toast(`Creada localmente.`);
-                } finally { btn.disabled = false; btn.textContent = 'Crear solicitud de muestra'; }
-            });
-        }
-
-        document.addEventListener('submit', async e => {
-            const form = e.target.closest('.planning-form');
-            if(form){
-                e.preventDefault();
-                const req = requests.find(r=>r.id === form.dataset.id); if(!req) return;
-                const fd = new FormData(form);
-
-                const btn = form.querySelector('button[type="submit"]');
-                if(btn){ btn.disabled = true; btn.textContent = 'Procesando...'; }
-
-                req.items.forEach(item => { item.workSku = (fd.get(`workSku-${item.uid}`) || '').trim(); });
-                req.planning = {processDate:fd.get('processDate'), shift:fd.get('shift'), line:fd.get('line'), planner:fd.get('planner'), releasedAt:new Date().toISOString()};
-                req.stage = 'Planeada'; req.location = 'Planeación';
-
-                try {
-                    const response = await fetch('@Url.Action("GuardarPlaneacion", "Comercial")', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req)
-                    });
-                    const data = await response.json();
-                    if(data.ok) { toast(`Liberada a produccion.`); loadData(); } else { toast("Error: " + data.mensaje); }
-                } catch(err) {
-                    console.warn("Backend no disponible..."); renderAll(); toast(`Liberada localmente.`);
-                } finally { if(btn){ btn.disabled = false; btn.textContent = 'Guardar SKU y liberar a produccion'; } }
-            }
-        });
-
-        if(qs('#scanForm')) {
-            qs('#scanForm').addEventListener('submit', async e => {
-                e.preventDefault();
-                const btn = e.target.querySelector('button[type="submit"]');
-                const req = requests.find(r=>r.id === qs('#scanRequest').value);
-                const item = req?.items.find(i=>i.uid === qs('#scanItem').value);
-
-                if(!req || !item){ toast('Selecciona solicitud y SKU valido.'); return; }
-                if((item.labels||[]).length >= Number(item.boxes)){ toast('SKU ya completado.'); return; }
-
-                const code = qs('#scanLabel').value.trim().toUpperCase();
-
-                const duplicadoCode = requests.some(r=>r.items.some(i=>(i.labels||[]).some(l=>l.code===code)));
-                if(duplicadoCode){ toast('Etiqueta DEST ya usada.'); return; }
-
-                btn.disabled = true; btn.textContent = 'Ligando...';
-
-                const nuevaEtiqueta = {
-                    code: code, externalChain: code,
-                    operator: qs('#operatorName').value.trim(), processedAt: new Date().toISOString(), location: 'Producción'
-                };
-
-                try {
-                    const response = await fetch(`@Url.Action("LigarEtiqueta", "Comercial")?solicitudId=${req.id}&itemUid=${item.uid}`, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(nuevaEtiqueta)
-                    });
-                    const data = await response.json();
-                    if(data.ok) { toast(`Ligada.`); loadData(); } else { toast("Error: " + data.mensaje); }
-                } catch(err) {
-                    console.warn("Backend no disponible...");
-                    item.labels = item.labels || []; item.labels.push(nuevaEtiqueta);
-                    req.location = 'Producción'; req.stage = requestStatus(req); renderAll(); toast(`Ligada localmente.`);
-                } finally { btn.disabled = false; btn.textContent = 'Ligar etiqueta'; }
-            });
-        }
-
-        document.addEventListener('scroll', e => {
-            if (e.target.closest('.sku-dropdown')) return;
-            qsa('.sku-dropdown.show').forEach(d => d.classList.remove('show'));
-        }, true);
+                    if(e.target.id === 'modalHistorial') qs('#modalHistorial').classList.remove('show');
+                    if(e.target.id === 'modalAdminPermisos') qs('#modalAdminPermisos').classList.remove('show');
 
 
-        async function aplicarPermisos() {
-            const nav = qs('#mainTabs');
-            if (!nav) return;
+                    if (!e.target.closest('.sku-wrapper')) {
+                        qsa('.sku-dropdown.show').forEach(d => d.classList.remove('show'));
+                    }
 
-            const userRole = (nav.dataset.userRole || 'Vendedor').trim();
-            if (userRole === 'Admin') {
-                const btnPermisos = qs('#btnAdminPermisos');
-                if (btnPermisos) btnPermisos.style.display = 'inline-flex';
-            }
+                    // Abrir/Cerrar buscador de SKU
+                    const skuDisplay = e.target.closest('.sku-display');
+                    if (skuDisplay) {
+                        e.stopPropagation();
+                        qsa('.sku-dropdown.show').forEach(d => d.classList.remove('show'));
 
-            await aplicarPermisosDinamicos();
-        }
+                        const wrapper = skuDisplay.closest('.sku-wrapper');
+                        const dropdown = wrapper.querySelector('.sku-dropdown');
+                        const search = wrapper.querySelector('.sku-search');
+                        const items = wrapper.querySelectorAll('.sku-options li');
 
-        async function aplicarPermisosDinamicos() {
-            try {
-                const nav = qs('#mainTabs');
-                const rol = nav ? nav.dataset.userRole : '';
-                const r = await fetch('@Url.Action("ObtenerPermisosVistaSolicitudMuestras", "Comercial")?perfil=' + encodeURIComponent(rol));
-                const permisos = await r.json();
-                if (!permisos || typeof permisos !== 'object') return;
+                        dropdown.classList.toggle('show');
+                        if (dropdown.classList.contains('show')) {
+                            search.value = '';
+                            const esPlaneacion = !!wrapper.closest('.planning-form');
+                            items.forEach(li => {
+                                if (esPlaneacion) {
+                                    const codigo = (li.dataset.codigo || '').toUpperCase();
+                                    li.classList.toggle('hidden', !codigo.includes('PR'));
+                                } else {
+                                    li.classList.remove('hidden');
+                                }
+                            });
+                            search.focus();
+                        }
+                    }
 
-                const map = { solicitud: 'vendedor', planeacion: 'planeacion', produccion: 'produccion', tracking: 'tracking' };
-                const tabs = qsa('.nav-btn');
+                    // Seleccionar opcion de SKU
+                    const skuLi = e.target.closest('.sku-options li');
+                    if (skuLi) {
+                        const wrapper = skuLi.closest('.sku-wrapper');
+                        wrapper.querySelector('.sku-display').textContent = skuLi.dataset.codigo;
+                        wrapper.querySelector('.item-sku').value = skuLi.dataset.codigo;
+                        wrapper.classList.remove('sku-required-error');
 
-                tabs.forEach(tab => {
-                    const section = tab.dataset.section;
-                    const key = map[section];
-                    if (!key || permisos[key] === undefined) return;
+                        const fila = wrapper.closest('tr');
+                        if (fila) {
+                            const productInput = fila.querySelector('.item-product');
+                            if(productInput) productInput.value = skuLi.dataset.nombre;
+                        }
 
-                    if (permisos[key] === true) {
-                        tab.style.display = 'inline-flex';
-                    } else {
-                        tab.style.display = 'none';
+                        wrapper.querySelector('.sku-dropdown').classList.remove('show');
                     }
                 });
 
-                const visible = qsa('.nav-btn').filter(t => t.style.display !== 'none');
-                const active = qs('.nav-btn.active');
-                if (visible.length > 0 && (!active || active.style.display === 'none')) {
-                    visible[0].click();
-                }
-                if (visible.length === 0) {
-                    qsa('.section').forEach(s => s.classList.remove('active'));
-                }
-            } catch (e) {
-                console.warn('Permisos dinámicos no disponibles', e);
-            }
-        }
-
-        async function abrirAdminPermisos() {
-            try {
-                const res = await fetch('@Url.Action("ObtenerPerfilesMuestras", "Comercial")');
-                const data = await res.json();
-                if (!data.ok) { toast('Error al cargar perfiles'); return; }
-
-                const perfiles = data.data || [];
-                const tbody = qs('#tbodyPermisosMuestras');
-                if (!tbody) return;
-
-                let html = '';
-                perfiles.forEach(p => {
-                    html += `<tr>
-                        <td><strong>${p.nombre}</strong></td>
-                        <td class="text-center"><input type="checkbox" class="chk-permiso-muestra" data-perfil="${p.id}" data-modulo="SOLICITUD_MUESTRAS_VENDEDOR" ${p.vendedor ? 'checked' : ''}></td>
-                        <td class="text-center"><input type="checkbox" class="chk-permiso-muestra" data-perfil="${p.id}" data-modulo="SOLICITUD_MUESTRAS_PLANEACION" ${p.planeacion ? 'checked' : ''}></td>
-                        <td class="text-center"><input type="checkbox" class="chk-permiso-muestra" data-perfil="${p.id}" data-modulo="SOLICITUD_MUESTRAS_PRODUCCION" ${p.produccion ? 'checked' : ''}></td>
-                    </tr>`;
+                document.addEventListener('input', e => {
+                    // Filtro para los buscadores de SKU
+                    if (e.target.classList.contains('sku-search')) {
+                        const term = e.target.value.toLowerCase();
+                        const wrapper = e.target.closest('.sku-wrapper');
+                        wrapper.querySelectorAll('.sku-options li').forEach(li => {
+                            li.classList.toggle('hidden', !li.textContent.toLowerCase().includes(term));
+                        });
+                    }
                 });
-                tbody.innerHTML = html;
 
-                qsa('.chk-permiso-muestra').forEach(chk => {
-                    chk.addEventListener('change', async function() {
-                        const perfilId = this.dataset.perfil;
-                        const claveModulo = this.dataset.modulo;
-                        const activo = this.checked;
+                //  EVENTOS AISLADOS Y FORMULARIOS
+                if(qs('#addItemBtn')) qs('#addItemBtn').addEventListener('click', ()=>{ addItem(); });
+                if(qs('#scanRequest')) qs('#scanRequest').addEventListener('change', updateItemSelector);
+                if(qs('#scanItem')) qs('#scanItem').addEventListener('change', () => updateScanContext(true));
+                if(qs('#scanPlant')) qs('#scanPlant').addEventListener('change', () => {
+                    localStorage.setItem('solicitud_muestras_meat_plant', qs('#scanPlant').value || '');
+                    updateScanContext(true);
+                    clearScanLabel(true);
+                });
+                if(qs('#scanLabel')) {
+                    qs('#scanLabel').addEventListener('input', e => {
+                        const normalized = normalizeMeatLabelCode(e.target.value);
+                        if (e.target.value !== normalized) e.target.value = normalized;
+                        e.target.classList.remove('scan-invalid', 'scan-valid');
+                    });
+
+                    qs('#scanLabel').addEventListener('keydown', e => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            qs('#scanForm')?.requestSubmit();
+                        }
+                    });
+                }
+
+                const savedMeatPlant = localStorage.getItem('solicitud_muestras_meat_plant') || '';
+                if (qs('#scanPlant') && ['P1', 'TIF'].includes(savedMeatPlant)) {
+                    qs('#scanPlant').value = savedMeatPlant;
+                }
+
+
+                // La ubicación del tracking ya no se edita manualmente.
+                // Se obtiene directamente de TIF/P1 mediante ObtenerTrackingEtiquetasMeat.
+
+                if(qs('#trackSearch')) qs('#trackSearch').addEventListener('input', renderTracking);
+                if(qs('#trackStatus')) qs('#trackStatus').addEventListener('change', renderTracking);
+                if(qs('#trackDateFrom')) qs('#trackDateFrom').addEventListener('change', renderTracking);
+                if(qs('#trackDateTo')) qs('#trackDateTo').addEventListener('change', renderTracking);
+
+                if(qs('#requestForm')) {
+                    qs('#requestForm').addEventListener('submit', async e => {
+                        e.preventDefault();
+                        const btn = e.target.querySelector('button[type="submit"]');
+                        const fd = new FormData(e.target);
+                        const items = collectItems();
+
+                        if(!selectedOVId){ toast('Debes seleccionar una Orden de Venta de muestra primero.'); return; }
+                        if(!items.length){ toast('Agrega al menos un SKU con cajas solicitadas.'); return; }
+                        if(!fd.get('client')){ toast('Selecciona un cliente válido de la lista.'); return; }
+
+                        btn.disabled = true; btn.textContent = 'Guardando...';
+
+                        const req = {
+                            id: "",
+                            createdAt: new Date().toISOString(),
+                            seller: fd.get('seller'),
+                            client: fd.get('client'),
+                            species: fd.get('species'),
+                            requestedDate: fd.get('requestedDate'),
+                            route: fd.get('route'),
+                            destination: fd.get('destination'),
+                            priority: fd.get('priority'),
+                            notes: fd.get('notes'),
+                            createdBy: '@User.Identity?.Name',
+                            planning: null, stage: 'Planeación pendiente', location: 'Comercial', items: items,
+                            ordenVentaId: selectedOVId
+                        };
 
                         try {
-                            const r = await fetch('@Url.Action("GuardarPermisoMuestras", "Comercial")', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ perfilId: parseInt(perfilId), claveModulo, activo })
+                            const response = await fetch('@Url.Action("CrearSolicitud", "Comercial")', {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req)
                             });
-                            const result = await r.json();
-                            if (!result.ok) { toast('Error: ' + result.mensaje); this.checked = !activo; }
-                        } catch (e) { toast('Error de conexión'); this.checked = !activo; }
+                            const data = await response.json();
+                            if(data.ok) {
+                                selectedOVId = null;
+                                const ovSelect = document.getElementById('ovMuestraSelect');
+                                if(ovSelect) ovSelect.value = '';
+                                // Re-lock form
+                                const lockedDiv = document.getElementById('formContentLocked');
+                                if (lockedDiv) lockedDiv.classList.add('form-locked-overlay');
+                                const btnSubmit = document.getElementById('btnSubmitSolicitud');
+                                if (btnSubmit) btnSubmit.disabled = true;
+                                toast(`Solicitud creada.`); e.target.reset(); setDefaultDates(); clearItems(); loadData(); loadOVMuestras();
+                            } else { toast("Error: " + data.mensaje); }
+                        } catch(err) {
+                            console.warn("Backend no disponible...");
+                            requests.unshift(req); e.target.reset(); setDefaultDates(); clearItems(); renderAll(); toast(`Creada localmente.`);
+                        } finally { btn.disabled = false; btn.textContent = 'Crear solicitud de muestra'; }
                     });
+                }
+
+                document.addEventListener('submit', async e => {
+                    const form = e.target.closest('.planning-form');
+                    if (!form) return;
+
+                    e.preventDefault();
+
+                    const req = requests.find(r => r.id === form.dataset.id);
+                    if (!req) {
+                        toast('No se encontró la solicitud seleccionada.');
+                        return;
+                    }
+
+                    // Valida los campos HTML normales: fecha, planeador, etc.
+                    if (!form.checkValidity()) {
+                        form.reportValidity();
+                        return;
+                    }
+
+                    const fd = new FormData(form);
+                    const itemsPlaneados = req.items.map((item, index) => {
+                        const input = form.elements.namedItem(`workSku-${item.uid}`);
+                        const workSku = String(input?.value || '').trim().toUpperCase();
+                        const wrapper = input?.closest('.sku-wrapper');
+
+                        wrapper?.classList.toggle('sku-required-error', !workSku);
+
+                        return {
+                            ...item,
+                            workSku,
+                            _numero: index + 1
+                        };
+                    });
+
+                    const faltantes = itemsPlaneados.filter(item => !item.workSku);
+                    if (faltantes.length > 0) {
+                        const primero = faltantes[0];
+                        const input = form.elements.namedItem(`workSku-${primero.uid}`);
+                        const wrapper = input?.closest('.sku-wrapper');
+
+                        toast(
+                            faltantes.length === 1
+                                ? `Debes asignar un artículo al renglón ${primero._numero} antes de liberar.`
+                                : `Debes asignar un artículo a los ${faltantes.length} renglones pendientes.`
+                        );
+
+                        wrapper?.querySelector('.sku-display')?.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center'
+                        });
+
+                        setTimeout(() => wrapper?.querySelector('.sku-display')?.click(), 180);
+                        return;
+                    }
+
+                    const payload = {
+                        ...req,
+                        items: itemsPlaneados.map(({ _numero, ...item }) => item),
+                        planning: {
+                            processDate: fd.get('processDate'),
+                            shift: fd.get('shift'),
+                            line: fd.get('line'),
+                            planner: fd.get('planner'),
+                            especificacion: fd.get('especificacion'),
+                            releasedAt: new Date().toISOString()
+                        },
+                        stage: 'Liberado a producción',
+                        location: 'Producción'
+                    };
+
+                    const btn = form.querySelector('button[type="submit"]');
+                    if (btn) {
+                        btn.disabled = true;
+                        btn.textContent = 'Validando y guardando...';
+                    }
+
+                    try {
+                        const response = await fetch('@Url.Action("GuardarPlaneacion", "Comercial")', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        let data;
+                        try {
+                            data = await response.json();
+                        } catch {
+                            data = {
+                                ok: false,
+                                mensaje: `El servidor respondió HTTP ${response.status} sin JSON válido.`
+                            };
+                        }
+
+                        if (!response.ok || !data.ok) {
+                            toast('No se liberó: ' + (data.mensaje || 'Error del servidor.'));
+                            return;
+                        }
+
+                        toast(data.mensaje || 'Solicitud liberada a producción.');
+                        await loadData();
+                    } catch (err) {
+                        console.error('Error guardando Planeación:', err);
+                        toast('No fue posible conectar con el servidor. La planeación NO fue guardada.');
+                    } finally {
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.textContent = 'Guardar SKU y liberar a producción';
+                        }
+                    }
                 });
 
-                qs('#modalAdminPermisos').classList.add('show');
-            } catch (e) { toast('Error al cargar'); }
-        }
+                if(qs('#scanForm')) {
+                    qs('#scanForm').addEventListener('submit', async e => {
+                        e.preventDefault();
 
-        async function arrancarSistema() {
-            try { await fetch('@Url.Action("AsegurarModulosMuestras", "Comercial")'); } catch (e) {}
-            await aplicarPermisos();
-            setDefaultDates();
-            await loadArticulos();
-            await loadData();
-        }
-        arrancarSistema();
+                        const btn = e.target.querySelector('button[type="submit"]');
+                        const req = requests.find(r => r.id === qs('#scanRequest')?.value);
+                        const item = req?.items.find(i => i.uid === qs('#scanItem')?.value);
+                        const plant = String(qs('#scanPlant')?.value || '').trim().toUpperCase();
+                        const input = qs('#scanLabel');
+                        const code = normalizeMeatLabelCode(input?.value);
+
+                        if (!req || !item) {
+                            setScanValidation('Seleccione una solicitud y un SKU válido.', 'error');
+                            toast('Selecciona solicitud y SKU válido.');
+                            return;
+                        }
+
+                        const skuPlaneado = String(item.workSku || '').trim().toUpperCase();
+                        if (!skuPlaneado) {
+                            setScanValidation(
+                                'El artículo no tiene SKU de trabajo definido por Planeación.',
+                                'error'
+                            );
+                            toast('No existe un SKU planeado para este artículo.');
+                            return;
+                        }
+
+                        if (!['P1', 'TIF'].includes(plant)) {
+                            setScanValidation(
+                                'Seleccione la planta donde fue generada la etiqueta: P1 o TIF.',
+                                'error'
+                            );
+                            toast('Selecciona la base MEAT de origen.');
+                            qs('#scanPlant')?.focus();
+                            return;
+                        }
+
+                        if (!code) {
+                            setScanValidation('Escanee o capture una etiqueta DEST o RETT.', 'error');
+                            input?.classList.add('scan-invalid');
+                            input?.focus();
+                            return;
+                        }
+
+                        if (!/^(?:DEST|RETT)[0-9A-Z_-]+$/i.test(code)) {
+                            setScanValidation(
+                                `El valor <b>${code}</b> no tiene un formato DEST o RETT válido.`,
+                                'error'
+                            );
+                            input?.classList.add('scan-invalid');
+                            input?.focus();
+                            return;
+                        }
+
+                        if ((item.labels || []).length >= Number(item.boxes)) {
+                            setScanValidation('El SKU ya tiene todas sus cajas ligadas.', 'error');
+                            toast('SKU ya completado.');
+                            return;
+                        }
+
+                        const duplicadoLocal = requests.some(r =>
+                            r.items.some(i =>
+                                (i.labels || []).some(l =>
+                                    normalizeMeatLabelCode(l.externalChain || l.code) === code
+                                )
+                            )
+                        );
+
+                        if (duplicadoLocal) {
+                            setScanValidation(
+                                `La etiqueta <b>${code}</b> ya aparece ligada en la información cargada.`,
+                                'error'
+                            );
+                            input?.classList.add('scan-invalid');
+                            toast('Etiqueta DEST/RETT ya utilizada.');
+                            return;
+                        }
+
+                        btn.disabled = true;
+                        btn.textContent = 'Validando en MEAT...';
+                        input?.classList.remove('scan-invalid', 'scan-valid');
+
+                        setScanValidation(
+                            `Consultando <b>${plant === 'P1' ? 'CadenaMeatP1' : 'CadenaMeatTIF'}</b> y comparando contra el SKU planeado <b>${skuPlaneado}</b>.`,
+                            'loading'
+                        );
+
+                        const nuevaEtiqueta = {
+                            code: code,
+                            externalChain: code,
+                            operator: qs('#operatorName')?.value.trim() || '',
+                            processedAt: new Date().toISOString(),
+                            location: 'Producción'
+                        };
+
+                        try {
+                            const url =
+                                `@Url.Action("LigarEtiqueta", "Comercial")` +
+                                `?solicitudId=${encodeURIComponent(req.id)}` +
+                                `&itemUid=${encodeURIComponent(item.uid)}` +
+                                `&planta=${encodeURIComponent(plant)}`;
+
+                            const response = await fetch(url, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(nuevaEtiqueta)
+                            });
+
+                            let data = null;
+                            try {
+                                data = await response.json();
+                            } catch {
+                                data = {
+                                    ok: false,
+                                    mensaje: `El servidor respondió HTTP ${response.status} sin un JSON válido.`
+                                };
+                            }
+
+                            if (!response.ok || !data?.ok) {
+                                const mensaje = data?.mensaje || 'La etiqueta fue rechazada por el servidor.';
+                                setScanValidation(mensaje, 'error');
+                                input?.classList.add('scan-invalid');
+                                toast('Etiqueta rechazada: ' + mensaje);
+                                input?.focus();
+                                return;
+                            }
+
+                            const pesoTexto = data.pesoNeto == null
+                                ? 'Sin peso'
+                                : `${Number(data.pesoNeto).toLocaleString('es-MX', {
+                                    minimumFractionDigits: 3,
+                                    maximumFractionDigits: 3
+                                })} kg`;
+
+                            toast(data.mensaje || `Etiqueta ${code} validada y ligada.`);
+
+                            await loadData();
+                            clearScanLabel(true);
+
+                            setScanValidation(
+                                `Etiqueta: <b>${data.etiqueta || code}</b><br>` +
+                                `SKU MEAT: <b>${data.skuMeat || skuPlaneado}</b><br>` +
+                                `Peso: <b>${pesoTexto}</b><br>` +
+                                `Origen: <b>${data.cadena || (plant === 'P1' ? 'CadenaMeatP1' : 'CadenaMeatTIF')}</b>`,
+                                'ok'
+                            );
+                        } catch (err) {
+                            console.error('Error validando etiqueta contra MEAT:', err);
+
+                            setScanValidation(
+                                'No fue posible comunicarse con el servidor. La etiqueta NO fue ligada.',
+                                'error'
+                            );
+
+                            input?.classList.add('scan-invalid');
+                            toast('Sin conexión. La etiqueta no fue ligada.');
+                            input?.focus();
+                        } finally {
+                            btn.disabled = false;
+                            btn.textContent = 'Validar y ligar etiqueta';
+                        }
+                    });
+                }
+
+                document.addEventListener('scroll', e => {
+                    if (e.target.closest('.sku-dropdown')) return;
+                    qsa('.sku-dropdown.show').forEach(d => d.classList.remove('show'));
+                }, true);
+
+
+                async function aplicarPermisos() {
+                    const nav = qs('#mainTabs');
+                    if (!nav) return;
+
+                    const userRole = (nav.dataset.userRole || 'Vendedor').trim();
+                    if (userRole === 'Admin') {
+                        const btnPermisos = qs('#btnAdminPermisos');
+                        if (btnPermisos) btnPermisos.style.display = 'inline-flex';
+                    }
+
+                    await aplicarPermisosDinamicos();
+                }
+
+                async function aplicarPermisosDinamicos() {
+                    try {
+                        const nav = qs('#mainTabs');
+                        const rol = nav ? nav.dataset.userRole : '';
+                        const r = await fetch('@Url.Action("ObtenerPermisosVistaSolicitudMuestras", "Comercial")?perfil=' + encodeURIComponent(rol));
+                        const permisos = await r.json();
+                        if (!permisos || typeof permisos !== 'object') return;
+
+                        const map = { solicitud: 'vendedor', planeacion: 'planeacion', produccion: 'produccion', tracking: 'tracking' };
+                        const tabs = qsa('.nav-btn');
+
+                        tabs.forEach(tab => {
+                            const section = tab.dataset.section;
+                            const key = map[section];
+                            if (!key || permisos[key] === undefined) return;
+
+                            if (permisos[key] === true) {
+                                tab.style.display = 'inline-flex';
+                            } else {
+                                tab.style.display = 'none';
+                            }
+                        });
+
+                        const visible = qsa('.nav-btn').filter(t => t.style.display !== 'none');
+                        const active = qs('.nav-btn.active');
+                        if (visible.length > 0 && (!active || active.style.display === 'none')) {
+                            visible[0].click();
+                        }
+                        if (visible.length === 0) {
+                            qsa('.section').forEach(s => s.classList.remove('active'));
+                        }
+                    } catch (e) {
+                        console.warn('Permisos dinámicos no disponibles', e);
+                    }
+                }
+
+                async function abrirAdminPermisos() {
+                    try {
+                        const res = await fetch('@Url.Action("ObtenerPerfilesMuestras", "Comercial")');
+                        const data = await res.json();
+                        if (!data.ok) { toast('Error al cargar perfiles'); return; }
+
+                        const perfiles = data.data || [];
+                        const tbody = qs('#tbodyPermisosMuestras');
+                        if (!tbody) return;
+
+                        let html = '';
+                        perfiles.forEach(p => {
+                            html += `<tr>
+                                <td><strong>${p.nombre}</strong></td>
+                                <td class="text-center"><input type="checkbox" class="chk-permiso-muestra" data-perfil="${p.id}" data-modulo="SOLICITUD_MUESTRAS_VENDEDOR" ${p.vendedor ? 'checked' : ''}></td>
+                                <td class="text-center"><input type="checkbox" class="chk-permiso-muestra" data-perfil="${p.id}" data-modulo="SOLICITUD_MUESTRAS_PLANEACION" ${p.planeacion ? 'checked' : ''}></td>
+                                <td class="text-center"><input type="checkbox" class="chk-permiso-muestra" data-perfil="${p.id}" data-modulo="SOLICITUD_MUESTRAS_PRODUCCION" ${p.produccion ? 'checked' : ''}></td>
+                            </tr>`;
+                        });
+                        tbody.innerHTML = html;
+
+                        qsa('.chk-permiso-muestra').forEach(chk => {
+                            chk.addEventListener('change', async function() {
+                                const perfilId = this.dataset.perfil;
+                                const claveModulo = this.dataset.modulo;
+                                const activo = this.checked;
+
+                                try {
+                                    const r = await fetch('@Url.Action("GuardarPermisoMuestras", "Comercial")', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ perfilId: parseInt(perfilId), claveModulo, activo })
+                                    });
+                                    const result = await r.json();
+                                    if (!result.ok) { toast('Error: ' + result.mensaje); this.checked = !activo; }
+                                } catch (e) { toast('Error de conexión'); this.checked = !activo; }
+                            });
+                        });
+
+                        qs('#modalAdminPermisos').classList.add('show');
+                    } catch (e) { toast('Error al cargar'); }
+                }
+
+                async function arrancarSistema() {
+                    try { await fetch('@Url.Action("AsegurarModulosMuestras", "Comercial")'); } catch (e) {}
+                    await aplicarPermisos();
+                    setDefaultDates();
+                    await loadArticulos();
+                    await loadData();
+                    const ipGuardada = localStorage.getItem('printerIpMuestras');
+                    if (ipGuardada) { const el = document.getElementById('printerIp'); if (el) el.value = ipGuardada; }
+                }
+                arrancarSistema();
 
     </script>
 }
