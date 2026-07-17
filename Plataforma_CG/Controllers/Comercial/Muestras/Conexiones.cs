@@ -3,6 +3,8 @@ using System.Net.Sockets;
 using System.Text;
 using System.Drawing;
 
+using System.Text.RegularExpressions;
+
 namespace Plataforma_CG.Controllers.Comercial.Muestras
 {
     public class Conexiones
@@ -32,7 +34,7 @@ namespace Plataforma_CG.Controllers.Comercial.Muestras
                 string fecha = LimpiarTextoZpl(model.FechaProduccion);
                 string operario = LimpiarTextoZpl(model.Operario);
                 string spec = LimpiarTextoZpl(model.Spec);
-                string temp = LimpiarTextoZpl(model.Temperatura);
+                string temp = ExtraerTemperatura(model.Temperatura);
 
                 string datos = $@"^XA
 ^CI28
@@ -61,7 +63,7 @@ namespace Plataforma_CG.Controllers.Comercial.Muestras
 ^FO30,560^GB740,4,4^FS
 
 ^FX --- Cuadricula de Detalles (Izquierda) ---
-^FO30,610^A0N,35,35^FDLote: {lote}^FS
+^FO30,610^FB360,2,0,L^A0N,26,26^FDLote: {lote}^FS
 ^FO30,670^A0N,28,28^FDSKU REQ: {skuReq}^FS
 
 ^FX --- SKU Trabajado con fondo invertido ---
@@ -72,13 +74,13 @@ namespace Plataforma_CG.Controllers.Comercial.Muestras
 ^FX --- Cuadricula de Detalles (Derecha) ---
 ^FO400,610^A0N,22,22^FDFecha Prod: {fecha}^FS
 ^FO400,650^A0N,22,22^FDOperario: {operario}^FS
-^FO400,690^FB380,2,0,L^A0N,22,22^FDEsp: {spec}^FS
+^FO400,690^FB380,5,2,L^A0N,20,20^FDEsp: {spec}^FS
 
 ^FX --- Temperatura ---
 ^FO30,830^A0N,32,32^FDProducto {temp}^FS
 
 ^FX --- Codigo de Barras centrado abajo ---
-^FO120,930^BY3^BCN,180,Y,N,N^FD{lote}^FS
+^FO70,910^BY3^BCN,150,Y,N,N^FD{lote}^FS
 
 ^XZ";
 
@@ -101,6 +103,21 @@ namespace Plataforma_CG.Controllers.Comercial.Muestras
                 .Replace("\r", " ")
                 .Replace("\n", " ")
                 .Trim();
+        }
+
+        private static string ExtraerTemperatura(string texto)
+        {
+            if (string.IsNullOrWhiteSpace(texto))
+                return "";
+
+            if (texto.Equals("Ambiente", StringComparison.OrdinalIgnoreCase))
+                return "Ambiente";
+
+            var m = Regex.Match(texto, @"(-?\d[\d\s]*)\s*°?\s*C");
+            if (m.Success)
+                return m.Groups[1].Value.Trim() + " C";
+
+            return LimpiarTextoZpl(texto);
         }
 
         private static string ConvertirImagenAGFA(string ruta, int anchoPx, int altoPx)

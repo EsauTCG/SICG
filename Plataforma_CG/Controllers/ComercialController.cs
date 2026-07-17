@@ -18703,7 +18703,9 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
            "SOLICITUD_MUESTRAS_VENDEDOR",
            "SOLICITUD_MUESTRAS_PLANEACION",
            "SOLICITUD_MUESTRAS_PRODUCCION",
-           "SOLICITUD_MUESTRAS_TRACKING"
+           "SOLICITUD_MUESTRAS_TRACKING",
+                "SOLICITUD_MUESTRAS_PROD_LINEA",
+                "SOLICITUD_MUESTRAS_PROD_NUEVO"
        };
 
         [HttpGet("Comercial/AsegurarModulosMuestras")]
@@ -18744,7 +18746,10 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
                     ["vendedor"] = true,
                     ["planeacion"] = true,
                     ["produccion"] = true,
-                    ["tracking"] = true
+                    ["tracking"] = true,
+                    ["prod_linea"] = true,
+                    ["prod_nuevo"] = true
+
                 };
                 return Json(allTrue);
             }
@@ -18756,7 +18761,9 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
                 ["vendedor"] = null,
                 ["planeacion"] = null,
                 ["produccion"] = null,
-                ["tracking"] = null
+                ["tracking"] = null,
+                ["prod_linea"] = null,
+                ["prod_nuevo"] = null
             };
 
             var clavesPermisos = new (string tab, string clave)[]
@@ -18764,7 +18771,9 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
                ("vendedor",   "SOLICITUD_MUESTRAS_VENDEDOR"),
                ("planeacion", "SOLICITUD_MUESTRAS_PLANEACION"),
                ("produccion", "SOLICITUD_MUESTRAS_PRODUCCION"),
-               ("tracking",   "SOLICITUD_MUESTRAS_TRACKING")
+               ("tracking",   "SOLICITUD_MUESTRAS_TRACKING"),
+               ("prod_linea", "SOLICITUD_MUESTRAS_PROD_LINEA"), 
+               ("prod_nuevo", "SOLICITUD_MUESTRAS_PROD_NUEVO")
             };
 
             foreach (var (tab, clave) in clavesPermisos)
@@ -18829,7 +18838,9 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
                     vendedor = permisos.Any(x => x.PerfilId == p.Id && x.ModuloId == modulos.FirstOrDefault(m => m.Clave == "SOLICITUD_MUESTRAS_VENDEDOR")?.Id && x.PuedeLeer),
                     planeacion = permisos.Any(x => x.PerfilId == p.Id && x.ModuloId == modulos.FirstOrDefault(m => m.Clave == "SOLICITUD_MUESTRAS_PLANEACION")?.Id && x.PuedeLeer),
                     produccion = permisos.Any(x => x.PerfilId == p.Id && x.ModuloId == modulos.FirstOrDefault(m => m.Clave == "SOLICITUD_MUESTRAS_PRODUCCION")?.Id && x.PuedeLeer),
-                    tracking = permisos.Any(x => x.PerfilId == p.Id && x.ModuloId == modulos.FirstOrDefault(m => m.Clave == "SOLICITUD_MUESTRAS_TRACKING")?.Id && x.PuedeLeer)
+                    tracking = permisos.Any(x => x.PerfilId == p.Id && x.ModuloId == modulos.FirstOrDefault(m => m.Clave == "SOLICITUD_MUESTRAS_TRACKING")?.Id && x.PuedeLeer),
+                    prodLinea = permisos.Any(x => x.PerfilId == p.Id && x.ModuloId == modulos.FirstOrDefault(m => m.Clave == "SOLICITUD_MUESTRAS_PROD_LINEA")?.Id && x.PuedeLeer), // Agregado
+                    prodNuevo = permisos.Any(x => x.PerfilId == p.Id && x.ModuloId == modulos.FirstOrDefault(m => m.Clave == "SOLICITUD_MUESTRAS_PROD_NUEVO")?.Id && x.PuedeLeer)  // Agregado
                 }).ToList();
 
                 return Json(new { ok = true, data });
@@ -18954,6 +18965,19 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
                         return Json(Array.Empty<object>());
                 }
 
+                var idsBusqueda = new List<int>();
+                if (vendedorId.HasValue)
+                {
+                    var idStr = vendedorId.Value.ToString();
+                    for (int i = 0; i + 1 < idStr.Length; i += 2)
+                    {
+                        if (int.TryParse(idStr.Substring(i, 2), out var partial))
+                            idsBusqueda.Add(partial);
+                    }
+                    if (idsBusqueda.Count == 0)
+                        idsBusqueda.Add(vendedorId.Value);
+                }
+
                 var sql = @"
     SELECT 
         ov.Id AS id, ov.Consecutivo AS consecutivo, ov.Cliente AS cliente, 
@@ -18967,10 +18991,11 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
     LEFT JOIN ClienteSap cs ON ov.Cliente = cs.Cliente
     WHERE ovm.EsMuestra = 1 
       AND ovm.SolicitudMuestraId IS NULL
-      AND (@VendedorId IS NULL OR ov.VendedorId = @VendedorId)
+      AND ov.Estatus <> 0
+      AND (@VendedorId IS NULL OR ov.VendedorId IN @IdsBusqueda)
     ORDER BY ov.FechaRegistro DESC";
 
-                var ovMuestras = await conn.QueryAsync(sql, new { VendedorId = vendedorId });
+                var ovMuestras = await conn.QueryAsync(sql, new { VendedorId = vendedorId, IdsBusqueda = idsBusqueda });
 
                 return Json(ovMuestras);
             }
@@ -19019,7 +19044,7 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
 
 
         [HttpGet("Comercial/ObtenerSolicitudes")]
-        public async Task<IActionResult> ObtenerSolicitudes(string vendedor = null)
+        public async Task<IActionResult> ObtenerSolicitudes(string vendedor = null, bool soloMias = false)
 
         {
             try
@@ -19030,7 +19055,7 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
                 var esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
 
                 int? vendedorId = null;
-                if (!esAdmin)
+                if (!esAdmin && soloMias)
                 {
                     var login = !string.IsNullOrWhiteSpace(vendedor) ? vendedor : (User.Identity?.Name ?? "");
                     vendedorId = await conn.ExecuteScalarAsync<int?>(@"
@@ -19042,6 +19067,19 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
                         return Json(Array.Empty<object>());
                 }
 
+                var idsBusqueda = new List<int>();
+                if (vendedorId.HasValue)
+                {
+                    var idStr = vendedorId.Value.ToString();
+                    for (int i = 0; i + 1 < idStr.Length; i += 2)
+                    {
+                        if (int.TryParse(idStr.Substring(i, 2), out var partial))
+                            idsBusqueda.Add(partial);
+                    }
+                    if (idsBusqueda.Count == 0)
+                        idsBusqueda.Add(vendedorId.Value);
+                }
+
                 var sql = @"
 SELECT 
     s.Id, s.CreatedAt, s.CreatedBy, s.Seller,
@@ -19050,16 +19088,17 @@ SELECT
     s.RequestedDate, s.[Route], s.Destination, s.Priority, s.Notes,
     s.Stage, s.Location,
     s.Plan_ProcessDate AS ProcessDate, s.Plan_Shift AS Shift,
-    s.Plan_Line AS Line, s.Plan_Planner AS Planner, s.Plan_ReleasedAt AS ReleasedAt
+    s.Plan_Line AS Line, s.Plan_Planner AS Planner, s.Plan_Especificacion AS Especificacion,
+    s.Plan_ReleasedAt AS ReleasedAt
 FROM SolicitudMuestras s
 LEFT JOIN OrdenVentaMuestra ovm ON s.Id = ovm.SolicitudMuestraId
 LEFT JOIN OrdenVenta ov ON ovm.OrdenVentaId = ov.Id
 LEFT JOIN ClienteSap cs ON s.Client = cs.Cliente
 WHERE s.Activo = 1 AND s.CreatedAt >= DATEADD(day, -60, GETDATE())
-AND (@VendedorId IS NULL OR ov.VendedorId = @VendedorId)
+AND (@VendedorId IS NULL OR ov.VendedorId IN @IdsBusqueda)
 ORDER BY s.CreatedAt DESC";
 
-                var solicitudes = await conn.QueryAsync(sql, new { VendedorId = vendedorId });
+                var solicitudes = await conn.QueryAsync(sql, new { VendedorId = vendedorId, IdsBusqueda = idsBusqueda });
 
                 var lista = new List<Plataforma_CG.Models.SolicitudMuestraVM>();
                 foreach (var s in solicitudes)
@@ -19085,6 +19124,7 @@ ORDER BY s.CreatedAt DESC";
                             Shift = s.Shift,
                             Line = s.Line,
                             Planner = s.Planner,
+                            Especificacion = s.Especificacion ?? "",
                             ReleasedAt = s.ReleasedAt
                         } : null
                     };
@@ -19390,6 +19430,64 @@ ORDER BY s.CreatedAt DESC";
                 await conn.ExecuteAsync(sql, new { Id = id, Motivo = motivo });
 
                 return Json(new { ok = true, mensaje = "Solicitud cancelada correctamente." });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+
+        [HttpPost("Comercial/EditarSolicitud")]
+        public async Task<IActionResult> EditarSolicitud([FromBody] EditarSolicitudModel model)
+        {
+            try
+            {
+                if (model == null || string.IsNullOrWhiteSpace(model.Id))
+                    return Json(new { ok = false, mensaje = "Solicitud inválida." });
+
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+
+                var sql = @"UPDATE SolicitudMuestras
+                    SET Species = @Species,
+                        RequestedDate = @RequestedDate,
+                        [Route] = @Route,
+                        Destination = @Destination,
+                        Priority = @Priority,
+                        Notes = @Notes
+                    WHERE Id = @Id AND Activo = 1";
+
+                var rows = await conn.ExecuteAsync(sql, new
+                {
+                    model.Id,
+                    model.Species,
+                    model.RequestedDate,
+                    model.Route,
+                    model.Destination,
+                    model.Priority,
+                    model.Notes
+                });
+
+                if (rows == 0)
+                    return Json(new { ok = false, mensaje = "Solicitud no encontrada o inactiva." });
+
+                if (model.Items != null && model.Items.Count > 0)
+                {
+                    foreach (var item in model.Items)
+                    {
+                        if (!string.IsNullOrWhiteSpace(item.Uid))
+                        {
+                            await conn.ExecuteAsync(
+                                @"UPDATE SolicitudMuestras_Items 
+                                  SET Spec = @Spec 
+                                  WHERE Uid = @Uid AND SolicitudId = @SolicitudId",
+                                new { Uid = item.Uid, Spec = item.Spec ?? "", SolicitudId = model.Id });
+                        }
+                    }
+                }
+
+                return Json(new { ok = true, mensaje = "Solicitud actualizada correctamente." });
             }
             catch (Exception ex)
             {
@@ -19852,6 +19950,7 @@ VALUES (@Sku, @PrecioAnterior, @PrecioNuevo, @Usuario, GETDATE(), @Planta)";
                       Plan_Shift = @Shift,
                       Plan_Line = @Line,
                       Plan_Planner = @Planner,
+                      Plan_Especificacion = @Especificacion,
                       Plan_ReleasedAt = @ReleasedAt
                   WHERE Id = @Id
                     AND ISNULL(Activo, 0) = 1;",
@@ -19862,6 +19961,7 @@ VALUES (@Sku, @PrecioAnterior, @PrecioNuevo, @Usuario, GETDATE(), @Planta)";
                             Shift = shift,
                             Line = line,
                             Planner = planner,
+                            Especificacion = especificacion,
                             ReleasedAt = DateTime.Now
                         },
                         tx);
