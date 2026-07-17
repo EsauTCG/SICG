@@ -62,4 +62,22 @@ namespace Plataforma_CG.Models
         public string Location { get; set; }
     }
 
+    public class EditarSolicitudModel
+    {
+        public string Id { get; set; }
+        public string Species { get; set; }
+        public DateTime RequestedDate { get; set; }
+        public string Route { get; set; }
+        public string Destination { get; set; }
+        public string Priority { get; set; }
+        public string Notes { get; set; }
+        public List<EditarItemSpecModel> Items { get; set; } = new List<EditarItemSpecModel>();
+    }
+
+    public class EditarItemSpecModel
+    {
+        public string Uid { get; set; }
+        public string Spec { get; set; }
+    }
+
 }
