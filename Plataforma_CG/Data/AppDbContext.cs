@@ -140,6 +140,8 @@ namespace Plataforma_CG.Data
 
         public DbSet<UsuarioSerie> UsuarioSeries { get; set; }
 
+        public DbSet<ProveedorSap> ProveedorSap { get; set; }
+
         // =========================
         // ======= MODEL CONFIG =====
         // =========================
@@ -477,6 +479,31 @@ namespace Plataforma_CG.Data
                     .HasForeignKey(x => x.SerieId)
                     .OnDelete(DeleteBehavior.Restrict);
             });
+
+
+            modelBuilder.Entity<ProveedorSap>(entity =>
+            {
+                entity.ToTable("ProveedorSap");
+                entity.HasKey(x => x.Proveedor);
+
+                entity.Property(x => x.Proveedor).HasMaxLength(30);
+                entity.Property(x => x.NombreProveedor).HasMaxLength(200);
+                entity.Property(x => x.NombreExtranjero).HasMaxLength(200);
+                entity.Property(x => x.RFC).HasMaxLength(30);
+                entity.Property(x => x.Telefono).HasMaxLength(50);
+                entity.Property(x => x.Celular).HasMaxLength(50);
+                entity.Property(x => x.Correo).HasMaxLength(150);
+                entity.Property(x => x.Moneda).HasMaxLength(10);
+                entity.Property(x => x.GrupoNombre).HasMaxLength(150);
+                entity.Property(x => x.CondicionPagoNombre).HasMaxLength(150);
+                entity.Property(x => x.SaldoCuenta).HasColumnType("decimal(19,6)");
+                entity.Property(x => x.Direccion).HasMaxLength(250);
+                entity.Property(x => x.Ciudad).HasMaxLength(100);
+                entity.Property(x => x.Estado).HasMaxLength(100);
+                entity.Property(x => x.Pais).HasMaxLength(100);
+                entity.Property(x => x.CodigoPostal).HasMaxLength(20);
+            });
+
 
 
         }

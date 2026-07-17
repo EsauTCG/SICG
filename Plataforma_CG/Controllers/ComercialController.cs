@@ -1,4 +1,4 @@
-﻿using ClosedXML.Excel;
+using ClosedXML.Excel;
 using Dapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -20939,6 +20939,415 @@ WHERE rn = 1;";
                 return Json(new { ok = false, mensaje = $"Error: {ex.Message}" });
             }
         }
+
+        // ============================================================================
+        // CATÁLOGO DE PROVEEDORES
+        // Pegar DENTRO de ComercialController.
+        // ============================================================================
+
+
+        [HttpGet("Comercial/Proveedores")]
+        public IActionResult Proveedores()
+        {
+            return View("~/Views/Comercial/Proveedores.cshtml");
+        }
+
+        [HttpGet]
+        [Route("Comercial/GetProveedoresJsonPaged")]
+        public async Task<IActionResult> GetProveedoresJsonPaged(
+            int page = 1,
+            int pageSize = 50,
+            string search = "",
+            string estatus = "todos",
+            int? grupoId = null,
+            string moneda = "")
+        {
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 50;
+            if (pageSize > 200) pageSize = 200;
+
+            IQueryable<ProveedorSap> query =
+                _context.ProveedorSap.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLower();
+
+                query = query.Where(x =>
+                    (x.Proveedor ?? "").ToLower().Contains(term) ||
+                    (x.NombreProveedor ?? "").ToLower().Contains(term) ||
+                    (x.NombreExtranjero ?? "").ToLower().Contains(term) ||
+                    (x.RFC ?? "").ToLower().Contains(term) ||
+                    (x.Telefono ?? "").ToLower().Contains(term) ||
+                    (x.Celular ?? "").ToLower().Contains(term) ||
+                    (x.Correo ?? "").ToLower().Contains(term) ||
+                    (x.GrupoNombre ?? "").ToLower().Contains(term) ||
+                    (x.CondicionPagoNombre ?? "").ToLower().Contains(term) ||
+                    (x.Ciudad ?? "").ToLower().Contains(term) ||
+                    (x.Estado ?? "").ToLower().Contains(term));
+            }
+
+            estatus = (estatus ?? "todos").Trim().ToLowerInvariant();
+
+            if (estatus == "activos")
+                query = query.Where(x => x.Activo && x.ExisteEnSap);
+            else if (estatus == "inactivos")
+                query = query.Where(x => !x.Activo || !x.ExisteEnSap);
+            else if (estatus == "congelados")
+                query = query.Where(x => x.Congelado);
+
+            if (grupoId.HasValue)
+                query = query.Where(x => x.GrupoId == grupoId.Value);
+
+            if (!string.IsNullOrWhiteSpace(moneda))
+            {
+                var monedaNormalizada = moneda.Trim().ToUpper();
+                query = query.Where(x =>
+                    (x.Moneda ?? "").ToUpper() == monedaNormalizada);
+            }
+
+            var total = await query.CountAsync();
+
+            var proveedores = await query
+                .OrderBy(x => x.NombreProveedor)
+                .ThenBy(x => x.Proveedor)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(x => new
+                {
+                    proveedor = x.Proveedor,
+                    nombreProveedor = x.NombreProveedor,
+                    nombreExtranjero = x.NombreExtranjero,
+                    rfc = x.RFC,
+                    telefono = x.Telefono,
+                    celular = x.Celular,
+                    correo = x.Correo,
+                    moneda = x.Moneda,
+                    grupoId = x.GrupoId,
+                    grupoNombre = x.GrupoNombre,
+                    condicionPagoId = x.CondicionPagoId,
+                    condicionPagoNombre = x.CondicionPagoNombre,
+                    saldoCuenta = x.SaldoCuenta,
+                    direccion = x.Direccion,
+                    ciudad = x.Ciudad,
+                    estado = x.Estado,
+                    pais = x.Pais,
+                    codigoPostal = x.CodigoPostal,
+                    activo = x.Activo,
+                    congelado = x.Congelado,
+                    existeEnSap = x.ExisteEnSap,
+                    fechaModificacion = x.FechaModificacion
+                })
+                .ToListAsync();
+
+            return Json(new
+            {
+                total,
+                page,
+                pageSize,
+                proveedores
+            });
+        }
+
+        [HttpGet]
+        [Route("Comercial/GetFiltrosProveedores")]
+        public async Task<IActionResult> GetFiltrosProveedores()
+        {
+            var grupos = await _context.ProveedorSap
+                .AsNoTracking()
+                .Where(x =>
+                    x.GrupoId.HasValue &&
+                    x.GrupoNombre != null &&
+                    x.GrupoNombre != "")
+                .GroupBy(x => new { x.GrupoId, x.GrupoNombre })
+                .Select(group => new
+                {
+                    id = group.Key.GrupoId,
+                    nombre = group.Key.GrupoNombre,
+                    total = group.Count()
+                })
+                .OrderBy(x => x.nombre)
+                .ToListAsync();
+
+            var monedas = await _context.ProveedorSap
+                .AsNoTracking()
+                .Where(x => x.Moneda != null && x.Moneda != "")
+                .Select(x => x.Moneda)
+                .Distinct()
+                .OrderBy(x => x)
+                .ToListAsync();
+
+            var resumen = new
+            {
+                total = await _context.ProveedorSap.CountAsync(),
+                activos = await _context.ProveedorSap.CountAsync(
+                    x => x.Activo && x.ExisteEnSap),
+                inactivos = await _context.ProveedorSap.CountAsync(
+                    x => !x.Activo || !x.ExisteEnSap),
+                congelados = await _context.ProveedorSap.CountAsync(
+                    x => x.Congelado),
+                saldoTotal = await _context.ProveedorSap.SumAsync(
+                    x => (decimal?)x.SaldoCuenta) ?? 0m
+            };
+
+            return Json(new
+            {
+                grupos,
+                monedas,
+                resumen
+            });
+        }
+
+        [HttpGet]
+        [Route("Comercial/GetProveedorDetalle")]
+        public async Task<IActionResult> GetProveedorDetalle(string proveedor)
+        {
+            proveedor = (proveedor ?? string.Empty).Trim();
+
+            if (string.IsNullOrWhiteSpace(proveedor))
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "Proveedor no válido."
+                });
+
+            var item = await _context.ProveedorSap
+                .AsNoTracking()
+                .Where(x => x.Proveedor == proveedor)
+                .Select(x => new
+                {
+                    x.Proveedor,
+                    x.NombreProveedor,
+                    x.NombreExtranjero,
+                    x.RFC,
+                    x.Telefono,
+                    x.Celular,
+                    x.Correo,
+                    x.Moneda,
+                    x.GrupoId,
+                    x.GrupoNombre,
+                    x.CondicionPagoId,
+                    x.CondicionPagoNombre,
+                    x.SaldoCuenta,
+                    x.Direccion,
+                    x.Ciudad,
+                    x.Estado,
+                    x.Pais,
+                    x.CodigoPostal,
+                    x.Activo,
+                    x.Congelado,
+                    x.ExisteEnSap,
+                    x.FechaModificacion
+                })
+                .FirstOrDefaultAsync();
+
+            if (item == null)
+                return NotFound(new
+                {
+                    ok = false,
+                    mensaje = "Proveedor no encontrado."
+                });
+
+            return Json(new
+            {
+                ok = true,
+                proveedor = item
+            });
+        }
+
+        [HttpPost]
+        [Route("Comercial/SincronizarProveedoresSap")]
+        public async Task<IActionResult> SincronizarProveedoresSap(
+            CancellationToken ct = default)
+        {
+            try
+            {
+                var resultado = await _sap.SincronizarProveedoresAsync(ct);
+
+                return Json(new
+                {
+                    ok = true,
+                    mensaje = "Catálogo de proveedores sincronizado correctamente.",
+                    totalSap = resultado.totalSap,
+                    insertados = resultado.insertados,
+                    actualizados = resultado.actualizados,
+                    fueraDeSap = resultado.fueraDeSap,
+                    fecha = DateTime.Now
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error sincronizando proveedores desde SAP.");
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    mensaje = ex.GetBaseException().Message
+                });
+            }
+        }
+
+        [HttpGet]
+        [Route("Comercial/ObtenerProveedoresAutocomplete")]
+        public async Task<IActionResult> ObtenerProveedoresAutocomplete(
+            string term = "")
+        {
+            term = (term ?? string.Empty).Trim().ToLower();
+
+            var query = _context.ProveedorSap
+                .AsNoTracking()
+                .Where(x => x.Activo && x.ExisteEnSap);
+
+            if (!string.IsNullOrWhiteSpace(term))
+            {
+                query = query.Where(x =>
+                    (x.Proveedor ?? "").ToLower().Contains(term) ||
+                    (x.NombreProveedor ?? "").ToLower().Contains(term) ||
+                    (x.RFC ?? "").ToLower().Contains(term));
+            }
+
+            var result = await query
+                .OrderBy(x => x.NombreProveedor)
+                .Take(50)
+                .Select(x => new
+                {
+                    id = x.Proveedor,
+                    text = x.NombreProveedor + " (" + x.Proveedor + ")",
+                    rfc = x.RFC,
+                    moneda = x.Moneda,
+                    condicionPago = x.CondicionPagoNombre
+                })
+                .ToListAsync();
+
+            return Json(result);
+        }
+
+        [HttpGet]
+        [Route("Comercial/DescargarProveedoresExcel")]
+        public IActionResult DescargarProveedoresExcel(
+            string search = "",
+            string estatus = "todos",
+            int? grupoId = null,
+            string moneda = "")
+        {
+            IQueryable<ProveedorSap> query =
+                _context.ProveedorSap.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLower();
+
+                query = query.Where(x =>
+                    (x.Proveedor ?? "").ToLower().Contains(term) ||
+                    (x.NombreProveedor ?? "").ToLower().Contains(term) ||
+                    (x.RFC ?? "").ToLower().Contains(term) ||
+                    (x.GrupoNombre ?? "").ToLower().Contains(term));
+            }
+
+            estatus = (estatus ?? "todos").Trim().ToLowerInvariant();
+
+            if (estatus == "activos")
+                query = query.Where(x => x.Activo && x.ExisteEnSap);
+            else if (estatus == "inactivos")
+                query = query.Where(x => !x.Activo || !x.ExisteEnSap);
+            else if (estatus == "congelados")
+                query = query.Where(x => x.Congelado);
+
+            if (grupoId.HasValue)
+                query = query.Where(x => x.GrupoId == grupoId.Value);
+
+            if (!string.IsNullOrWhiteSpace(moneda))
+            {
+                var monedaNormalizada = moneda.Trim().ToUpper();
+                query = query.Where(x =>
+                    (x.Moneda ?? "").ToUpper() == monedaNormalizada);
+            }
+
+            var rows = query
+                .OrderBy(x => x.NombreProveedor)
+                .ThenBy(x => x.Proveedor)
+                .ToList();
+
+            using var workbook = new XLWorkbook();
+            var sheet = workbook.Worksheets.Add("ProveedoresSAP");
+
+            string[] headers =
+            {
+        "ProveedorId",
+        "Proveedor",
+        "Nombre extranjero",
+        "RFC",
+        "Grupo",
+        "Moneda",
+        "Condición de pago",
+        "Saldo cuenta",
+        "Teléfono",
+        "Celular",
+        "Correo",
+        "Dirección",
+        "Ciudad",
+        "Estado",
+        "País",
+        "CP",
+        "Activo",
+        "Congelado",
+        "Existe en SAP",
+        "Última modificación"
+    };
+
+            for (int column = 0; column < headers.Length; column++)
+                sheet.Cell(1, column + 1).Value = headers[column];
+
+            int row = 2;
+
+            foreach (var item in rows)
+            {
+                sheet.Cell(row, 1).Value = item.Proveedor;
+                sheet.Cell(row, 2).Value = item.NombreProveedor;
+                sheet.Cell(row, 3).Value = item.NombreExtranjero;
+                sheet.Cell(row, 4).Value = item.RFC;
+                sheet.Cell(row, 5).Value = item.GrupoNombre;
+                sheet.Cell(row, 6).Value = item.Moneda;
+                sheet.Cell(row, 7).Value = item.CondicionPagoNombre;
+                sheet.Cell(row, 8).Value = item.SaldoCuenta;
+                sheet.Cell(row, 9).Value = item.Telefono;
+                sheet.Cell(row, 10).Value = item.Celular;
+                sheet.Cell(row, 11).Value = item.Correo;
+                sheet.Cell(row, 12).Value = item.Direccion;
+                sheet.Cell(row, 13).Value = item.Ciudad;
+                sheet.Cell(row, 14).Value = item.Estado;
+                sheet.Cell(row, 15).Value = item.Pais;
+                sheet.Cell(row, 16).Value = item.CodigoPostal;
+                sheet.Cell(row, 17).Value = item.Activo ? "Sí" : "No";
+                sheet.Cell(row, 18).Value = item.Congelado ? "Sí" : "No";
+                sheet.Cell(row, 19).Value = item.ExisteEnSap ? "Sí" : "No";
+                sheet.Cell(row, 20).Value = item.FechaModificacion;
+                row++;
+            }
+
+            var header = sheet.Range(1, 1, 1, headers.Length);
+            header.Style.Font.Bold = true;
+            header.Style.Fill.BackgroundColor = XLColor.DarkRed;
+            header.Style.Font.FontColor = XLColor.White;
+
+            sheet.Column(8).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Column(20).Style.NumberFormat.Format = "dd/MM/yyyy HH:mm";
+            sheet.SheetView.FreezeRows(1);
+            sheet.RangeUsed()?.SetAutoFilter();
+            sheet.Columns().AdjustToContents();
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+
+            return File(
+                stream.ToArray(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                $"Catalogo_Proveedores_SAP_{DateTime.Now:yyyy-MM-dd}.xlsx");
+        }
+
+
 
     }
 

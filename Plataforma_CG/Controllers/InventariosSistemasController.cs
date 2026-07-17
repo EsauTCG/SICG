@@ -1383,5 +1383,540 @@ namespace Plataforma_CG.Controllers
 
             return ".bin";
         }
+
+
+        // =============================================================
+        // PEGAR DENTRO DE LA CLASE InventariosSistemasController
+        // Requiere: using Microsoft.EntityFrameworkCore;
+        // =============================================================
+
+        public sealed class GuardarTopologiaRedDto
+        {
+            public string Planta { get; set; } = "";
+            public string ConfiguracionJson { get; set; } = "{}";
+            public string PosicionesJson { get; set; } = "{}";
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ObtenerTopologiaRed(string planta)
+        {
+            planta = (planta ?? "").Trim().ToUpperInvariant();
+
+            if (string.IsNullOrWhiteSpace(planta))
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "La planta es obligatoria."
+                });
+            }
+
+            var cn = _context.Database.GetDbConnection();
+            var cerrarConexion = cn.State != System.Data.ConnectionState.Open;
+
+            try
+            {
+                if (cerrarConexion)
+                    await cn.OpenAsync();
+
+                await using var cmd = cn.CreateCommand();
+
+                cmd.CommandText = @"
+SELECT TOP (1)
+    ConfiguracionJson,
+    PosicionesJson,
+    FechaModificacion,
+    ModificadoPor
+FROM dbo.TopologiaRedConfiguracion
+WHERE Planta = @Planta;";
+
+                var pPlanta = cmd.CreateParameter();
+                pPlanta.ParameterName = "@Planta";
+                pPlanta.Value = planta;
+                cmd.Parameters.Add(pPlanta);
+
+                await using var rd = await cmd.ExecuteReaderAsync();
+
+                if (!await rd.ReadAsync())
+                {
+                    return Json(new
+                    {
+                        ok = true,
+                        existe = false,
+                        configuracionJson = "{}",
+                        posicionesJson = "{}",
+                        fechaModificacion = (DateTime?)null,
+                        modificadoPor = ""
+                    });
+                }
+
+                return Json(new
+                {
+                    ok = true,
+                    existe = true,
+                    configuracionJson =
+                        rd.IsDBNull(0) ? "{}" : rd.GetString(0),
+                    posicionesJson =
+                        rd.IsDBNull(1) ? "{}" : rd.GetString(1),
+                    fechaModificacion =
+                        rd.IsDBNull(2) ? (DateTime?)null : rd.GetDateTime(2),
+                    modificadoPor =
+                        rd.IsDBNull(3) ? "" : rd.GetString(3)
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    mensaje =
+                        "No se pudo consultar la configuración de topología: "
+                        + ex.Message
+                });
+            }
+            finally
+            {
+                if (cerrarConexion &&
+                    cn.State == System.Data.ConnectionState.Open)
+                {
+                    await cn.CloseAsync();
+                }
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> GuardarTopologiaRed(
+            [FromBody] GuardarTopologiaRedDto dto)
+        {
+            if (dto == null)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "La solicitud está vacía."
+                });
+            }
+
+            var planta = (dto.Planta ?? "").Trim().ToUpperInvariant();
+            var configuracionJson =
+                string.IsNullOrWhiteSpace(dto.ConfiguracionJson)
+                    ? "{}"
+                    : dto.ConfiguracionJson;
+            var posicionesJson =
+                string.IsNullOrWhiteSpace(dto.PosicionesJson)
+                    ? "{}"
+                    : dto.PosicionesJson;
+
+            if (string.IsNullOrWhiteSpace(planta))
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "La planta es obligatoria."
+                });
+            }
+
+            if (planta.Length > 50)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "El nombre de la planta excede 50 caracteres."
+                });
+            }
+
+            try
+            {
+                using var configDoc =
+                    System.Text.Json.JsonDocument.Parse(configuracionJson);
+                using var positionsDoc =
+                    System.Text.Json.JsonDocument.Parse(posicionesJson);
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "La configuración o las posiciones contienen JSON inválido."
+                });
+            }
+
+            var usuario =
+                User?.Identity?.Name
+                ?? HttpContext?.User?.Identity?.Name
+                ?? "SISTEMA";
+
+            if (usuario.Length > 150)
+                usuario = usuario.Substring(0, 150);
+
+            var cn = _context.Database.GetDbConnection();
+            var cerrarConexion = cn.State != System.Data.ConnectionState.Open;
+
+            try
+            {
+                if (cerrarConexion)
+                    await cn.OpenAsync();
+
+                await using var tx = await cn.BeginTransactionAsync();
+                await using var cmd = cn.CreateCommand();
+
+                cmd.Transaction = tx;
+
+                cmd.CommandText = @"
+UPDATE dbo.TopologiaRedConfiguracion
+SET
+    ConfiguracionJson = @ConfiguracionJson,
+    PosicionesJson = @PosicionesJson,
+    FechaModificacion = SYSDATETIME(),
+    ModificadoPor = @ModificadoPor
+WHERE Planta = @Planta;
+
+IF @@ROWCOUNT = 0
+BEGIN
+    INSERT INTO dbo.TopologiaRedConfiguracion
+    (
+        Planta,
+        ConfiguracionJson,
+        PosicionesJson,
+        FechaModificacion,
+        ModificadoPor
+    )
+    VALUES
+    (
+        @Planta,
+        @ConfiguracionJson,
+        @PosicionesJson,
+        SYSDATETIME(),
+        @ModificadoPor
+    );
+END;";
+
+                void AddParameter(string name, object value)
+                {
+                    var parameter = cmd.CreateParameter();
+                    parameter.ParameterName = name;
+                    parameter.Value = value;
+                    cmd.Parameters.Add(parameter);
+                }
+
+                AddParameter("@Planta", planta);
+                AddParameter("@ConfiguracionJson", configuracionJson);
+                AddParameter("@PosicionesJson", posicionesJson);
+                AddParameter("@ModificadoPor", usuario);
+
+                await cmd.ExecuteNonQueryAsync();
+                await tx.CommitAsync();
+
+                return Json(new
+                {
+                    ok = true,
+                    mensaje = "Topología guardada correctamente.",
+                    planta,
+                    fechaModificacion = DateTime.Now,
+                    modificadoPor = usuario
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    mensaje =
+                        "No se pudo guardar la configuración de topología: "
+                        + ex.Message
+                });
+            }
+            finally
+            {
+                if (cerrarConexion &&
+                    cn.State == System.Data.ConnectionState.Open)
+                {
+                    await cn.CloseAsync();
+                }
+            }
+        }
+
+        // =============================================================
+        // PEGAR DENTRO DE LA CLASE InventariosSistemasController
+        //
+        // Requiere:
+        // using Microsoft.EntityFrameworkCore;
+        // =============================================================
+
+        public sealed class GuardarMapaTiIndustrialDto
+        {
+            public string ClaveMapa { get; set; } =
+                "MAPA_TI_INDUSTRIAL_GLOBAL";
+
+            public string MapaJson { get; set; } = "{}";
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ObtenerMapaTiIndustrial(
+            string claveMapa = "MAPA_TI_INDUSTRIAL_GLOBAL")
+        {
+            claveMapa = (claveMapa ?? "")
+                .Trim()
+                .ToUpperInvariant();
+
+            if (string.IsNullOrWhiteSpace(claveMapa))
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "La clave del mapa es obligatoria."
+                });
+            }
+
+            var cn = _context.Database.GetDbConnection();
+            var cerrarConexion =
+                cn.State != System.Data.ConnectionState.Open;
+
+            try
+            {
+                if (cerrarConexion)
+                    await cn.OpenAsync();
+
+                await using var cmd = cn.CreateCommand();
+
+                cmd.CommandText = @"
+SELECT TOP (1)
+    MapaJson,
+    FechaModificacion,
+    ModificadoPor
+FROM dbo.MapaTiIndustrialConfiguracion
+WHERE ClaveMapa = @ClaveMapa;";
+
+                var pClave = cmd.CreateParameter();
+                pClave.ParameterName = "@ClaveMapa";
+                pClave.Value = claveMapa;
+                cmd.Parameters.Add(pClave);
+
+                await using var rd = await cmd.ExecuteReaderAsync();
+
+                if (!await rd.ReadAsync())
+                {
+                    return Json(new
+                    {
+                        ok = true,
+                        existe = false,
+                        mapaJson = "",
+                        fechaModificacion = (DateTime?)null,
+                        modificadoPor = ""
+                    });
+                }
+
+                return Json(new
+                {
+                    ok = true,
+                    existe = true,
+                    mapaJson =
+                        rd.IsDBNull(0) ? "{}" : rd.GetString(0),
+                    fechaModificacion =
+                        rd.IsDBNull(1)
+                            ? (DateTime?)null
+                            : rd.GetDateTime(1),
+                    modificadoPor =
+                        rd.IsDBNull(2) ? "" : rd.GetString(2)
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    mensaje =
+                        "No se pudo consultar el Mapa TI: "
+                        + ex.Message
+                });
+            }
+            finally
+            {
+                if (cerrarConexion &&
+                    cn.State == System.Data.ConnectionState.Open)
+                {
+                    await cn.CloseAsync();
+                }
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RequestSizeLimit(15_000_000)]
+        public async Task<IActionResult> GuardarMapaTiIndustrial(
+            [FromBody] GuardarMapaTiIndustrialDto dto)
+        {
+            if (dto == null)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "La solicitud está vacía."
+                });
+            }
+
+            var claveMapa = (dto.ClaveMapa ?? "")
+                .Trim()
+                .ToUpperInvariant();
+
+            var mapaJson = string.IsNullOrWhiteSpace(dto.MapaJson)
+                ? "{}"
+                : dto.MapaJson;
+
+            if (string.IsNullOrWhiteSpace(claveMapa))
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "La clave del mapa es obligatoria."
+                });
+            }
+
+            if (claveMapa.Length > 100)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje =
+                        "La clave del mapa excede 100 caracteres."
+                });
+            }
+
+            /*
+             * Protege el servidor contra estados excesivamente grandes.
+             * El plano cargado desde la vista ya está limitado a 3 MB.
+             */
+            if (System.Text.Encoding.UTF8.GetByteCount(mapaJson)
+                > 12_000_000)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje =
+                        "El mapa excede el tamaño máximo permitido."
+                });
+            }
+
+            try
+            {
+                using var json =
+                    System.Text.Json.JsonDocument.Parse(mapaJson);
+
+                if (json.RootElement.ValueKind
+                    != System.Text.Json.JsonValueKind.Object)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        mensaje =
+                            "El contenido del mapa debe ser un objeto JSON."
+                    });
+                }
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "El mapa contiene JSON inválido."
+                });
+            }
+
+            var usuario =
+                User?.Identity?.Name
+                ?? HttpContext?.User?.Identity?.Name
+                ?? "SISTEMA";
+
+            if (usuario.Length > 150)
+                usuario = usuario.Substring(0, 150);
+
+            var cn = _context.Database.GetDbConnection();
+            var cerrarConexion =
+                cn.State != System.Data.ConnectionState.Open;
+
+            try
+            {
+                if (cerrarConexion)
+                    await cn.OpenAsync();
+
+                await using var tx =
+                    await cn.BeginTransactionAsync();
+
+                await using var cmd = cn.CreateCommand();
+                cmd.Transaction = tx;
+
+                cmd.CommandText = @"
+UPDATE dbo.MapaTiIndustrialConfiguracion
+SET
+    MapaJson = @MapaJson,
+    FechaModificacion = SYSDATETIME(),
+    ModificadoPor = @ModificadoPor
+WHERE ClaveMapa = @ClaveMapa;
+
+IF @@ROWCOUNT = 0
+BEGIN
+    INSERT INTO dbo.MapaTiIndustrialConfiguracion
+    (
+        ClaveMapa,
+        MapaJson,
+        FechaModificacion,
+        ModificadoPor
+    )
+    VALUES
+    (
+        @ClaveMapa,
+        @MapaJson,
+        SYSDATETIME(),
+        @ModificadoPor
+    );
+END;";
+
+                void AddParameter(string name, object value)
+                {
+                    var parameter = cmd.CreateParameter();
+                    parameter.ParameterName = name;
+                    parameter.Value = value;
+                    cmd.Parameters.Add(parameter);
+                }
+
+                AddParameter("@ClaveMapa", claveMapa);
+                AddParameter("@MapaJson", mapaJson);
+                AddParameter("@ModificadoPor", usuario);
+
+                await cmd.ExecuteNonQueryAsync();
+                await tx.CommitAsync();
+
+                return Json(new
+                {
+                    ok = true,
+                    mensaje = "Mapa TI guardado correctamente.",
+                    claveMapa,
+                    fechaModificacion = DateTime.Now,
+                    modificadoPor = usuario
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    mensaje =
+                        "No se pudo guardar el Mapa TI: "
+                        + ex.Message
+                });
+            }
+            finally
+            {
+                if (cerrarConexion &&
+                    cn.State == System.Data.ConnectionState.Open)
+                {
+                    await cn.CloseAsync();
+                }
+            }
+        }
+
+
+
     }
 }

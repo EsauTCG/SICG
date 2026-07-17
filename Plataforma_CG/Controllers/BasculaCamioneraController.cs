@@ -23,9 +23,7 @@ namespace Plataforma_CG.Controllers
         private readonly ILogger<BasculaCamioneraController> _logger;
         private readonly IConfiguration _configuration;
 
-        private static readonly List<BasculaMovimientoDto> _movimientos = new();
-        private static readonly List<BasculaBitacoraDto> _bitacora = new();
-        private static readonly List<BasculaPreRegistroDto> _preRegistrosDemo = new();
+        private const string DefaultTerminalId = "CASETA-01";
 
         public BasculaCamioneraController(
             ILogger<BasculaCamioneraController> logger,
@@ -63,18 +61,29 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpGet("Listar")]
-        public IActionResult Listar()
+        public async Task<IActionResult> Listar(int take = 500, string? estatus = "", string? q = "")
         {
-            var rows = _movimientos
-                .OrderByDescending(x => x.FechaEntrada)
-                .ToList();
-
-            return Ok(new
+            try
             {
-                ok = true,
-                total = rows.Count,
-                rows
-            });
+                take = Math.Max(1, Math.Min(take, 5000));
+                var rows = await LeerMovimientosAsync(take, estatus, q);
+
+                return Ok(new
+                {
+                    ok = true,
+                    total = rows.Count,
+                    rows
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error listando movimientos de báscula desde SQL");
+                return BadRequest(new
+                {
+                    ok = false,
+                    msg = "No se pudieron consultar los movimientos de báscula: " + ex.Message
+                });
+            }
         }
 
         [HttpGet("PreRegistro/Listar")]
@@ -273,7 +282,7 @@ VALUES
 
                 var scanPayload = BuildScanPayload(dto.Token);
 
-                RegistrarBitacora(dto.FolioPreRegistro, "Creó pre-registro de báscula");
+                await RegistrarBitacoraAsync(dto.FolioPreRegistro, "Creó pre-registro de báscula");
 
                 return Ok(new
                 {
@@ -344,7 +353,7 @@ VALUES
                     dto.FechaEscaneoCaseta = DateTime.Now;
                 }
 
-                RegistrarBitacora(dto.FolioPreRegistro, "Escaneó pre-registro en caseta");
+                await RegistrarBitacoraAsync(dto.FolioPreRegistro, "Escaneó pre-registro en caseta");
 
                 return Ok(new
                 {
@@ -401,7 +410,7 @@ WHERE Token = @Token
                 if (rows <= 0)
                     return NotFound(new { ok = false, msg = "No se encontró el pre-registro o ya estaba cerrado/cancelado." });
 
-                RegistrarBitacora(token, "Canceló pre-registro de báscula");
+                await RegistrarBitacoraAsync(token, "Canceló pre-registro de báscula");
 
                 return Ok(new { ok = true, msg = "Pre-registro cancelado." });
             }
@@ -455,51 +464,52 @@ WHERE Token = @Token
             if (dto == null)
                 return BadRequest(new { ok = false, msg = "Solicitud vacía." });
 
-            if (string.IsNullOrWhiteSpace(dto.Tercero))
-                return BadRequest(new { ok = false, msg = "Capture proveedor / cliente." });
+            var validation = ValidarMovimiento(dto, requiereSalida: false);
+            if (!string.IsNullOrWhiteSpace(validation))
+                return BadRequest(new { ok = false, msg = validation });
 
-            if (string.IsNullOrWhiteSpace(dto.Producto))
-                return BadRequest(new { ok = false, msg = "Capture producto." });
-
-            if (string.IsNullOrWhiteSpace(dto.Placas))
-                return BadRequest(new { ok = false, msg = "Capture placas." });
-
-            if (dto.PesoEntrada <= 0)
-                return BadRequest(new { ok = false, msg = "El peso de entrada debe ser mayor a cero." });
-
-            dto.Folio = string.IsNullOrWhiteSpace(dto.Folio)
-                ? NuevoFolio()
-                : dto.Folio.Trim();
-
+            dto.MovimientoGuid = dto.MovimientoGuid == Guid.Empty ? Guid.NewGuid() : dto.MovimientoGuid;
+            dto.TerminalId = string.IsNullOrWhiteSpace(dto.TerminalId) ? DefaultTerminalId : dto.TerminalId.Trim().ToUpperInvariant();
+            dto.Folio = string.IsNullOrWhiteSpace(dto.Folio) ? NuevoFolioLocal(dto.TerminalId) : dto.Folio.Trim().ToUpperInvariant();
             dto.Estatus = "PENDIENTE";
             dto.PesoSalida = 0;
             dto.PesoNeto = 0;
             dto.FechaEntrada = dto.FechaEntrada == default ? DateTime.Now : dto.FechaEntrada;
             dto.FechaSalida = null;
-            dto.Usuario = User?.Identity?.Name ?? dto.Usuario ?? "Usuario SIGO";
+            dto.UsuarioEntrada = string.IsNullOrWhiteSpace(dto.UsuarioEntrada)
+                ? (User?.Identity?.Name ?? dto.Usuario ?? "Usuario SIGO")
+                : dto.UsuarioEntrada;
+            dto.UsuarioSalida = "";
+            dto.Usuario = dto.UsuarioEntrada;
             dto.OrigenCaptura = ResolverOrigenCaptura(dto);
 
-            var existente = _movimientos.FirstOrDefault(x => x.Folio == dto.Folio);
-
-            if (existente == null)
-                _movimientos.Add(dto);
-            else
-                Copiar(dto, existente);
-
-            RegistrarBitacora(dto.Folio, dto.OrigenCaptura == "PRE_REGISTRO_QR"
-                ? "Guardó entrada desde pre-registro QR"
-                : "Guardó entrada de báscula");
-
-            await MarcarPreRegistroMovimientoSiAplicaAsync(dto, "PESADO_ENTRADA");
-
-            return Ok(new
+            try
             {
-                ok = true,
-                msg = "Entrada guardada.",
-                folio = dto.Folio,
-                origenCaptura = dto.OrigenCaptura,
-                folioPreRegistro = dto.FolioPreRegistro
-            });
+                var result = await UpsertMovimientoAsync(dto, "PENDIENTE");
+                dto.FolioServidor = result.FolioServidor;
+
+                await MarcarPreRegistroMovimientoSiAplicaAsync(dto, "PESADO_ENTRADA", result.FolioServidor);
+
+                return Ok(new
+                {
+                    ok = true,
+                    msg = "Entrada guardada correctamente en SQL Server.",
+                    movimientoId = result.MovimientoId,
+                    movimientoGuid = result.MovimientoGuid,
+                    folioLocal = result.FolioLocal,
+                    folioServidor = result.FolioServidor,
+                    folio = result.FolioServidor,
+                    estatus = result.Estatus,
+                    fechaSyncServidor = result.FechaSyncServidor,
+                    origenCaptura = dto.OrigenCaptura,
+                    folioPreRegistro = dto.FolioPreRegistro
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error guardando entrada de báscula en SQL");
+                return BadRequest(new { ok = false, msg = "No se pudo guardar la entrada: " + ex.Message });
+            }
         }
 
         [HttpPost("CerrarSalida")]
@@ -509,67 +519,155 @@ WHERE Token = @Token
             if (dto == null)
                 return BadRequest(new { ok = false, msg = "Solicitud vacía." });
 
-            if (string.IsNullOrWhiteSpace(dto.Folio))
-                return BadRequest(new { ok = false, msg = "Folio inválido." });
+            var validation = ValidarMovimiento(dto, requiereSalida: true);
+            if (!string.IsNullOrWhiteSpace(validation))
+                return BadRequest(new { ok = false, msg = validation });
 
-            if (dto.PesoEntrada <= 0 || dto.PesoSalida <= 0)
-                return BadRequest(new { ok = false, msg = "Capture peso de entrada y peso de salida." });
+            if (dto.MovimientoGuid == Guid.Empty)
+                return BadRequest(new { ok = false, msg = "MovimientoGuid requerido para cerrar la misma entrada sin duplicarla." });
 
-            var existente = _movimientos.FirstOrDefault(x => x.Folio == dto.Folio);
-
-            if (existente == null)
-                return NotFound(new { ok = false, msg = "No existe la entrada pendiente." });
-
+            dto.TerminalId = string.IsNullOrWhiteSpace(dto.TerminalId) ? DefaultTerminalId : dto.TerminalId.Trim().ToUpperInvariant();
+            dto.Folio = string.IsNullOrWhiteSpace(dto.Folio) ? NuevoFolioLocal(dto.TerminalId) : dto.Folio.Trim().ToUpperInvariant();
             dto.Estatus = "CERRADO";
             dto.PesoNeto = Math.Abs(dto.PesoEntrada - dto.PesoSalida);
-            dto.FechaEntrada = existente.FechaEntrada;
-            dto.FechaSalida = DateTime.Now;
-            dto.Usuario = User?.Identity?.Name ?? dto.Usuario ?? "Usuario SIGO";
+            dto.FechaEntrada = dto.FechaEntrada == default ? DateTime.Now : dto.FechaEntrada;
+            dto.FechaSalida ??= DateTime.Now;
+            dto.UsuarioEntrada = string.IsNullOrWhiteSpace(dto.UsuarioEntrada)
+                ? (User?.Identity?.Name ?? dto.Usuario ?? "Usuario SIGO")
+                : dto.UsuarioEntrada;
+            dto.UsuarioSalida = string.IsNullOrWhiteSpace(dto.UsuarioSalida)
+                ? (User?.Identity?.Name ?? dto.Usuario ?? "Usuario SIGO")
+                : dto.UsuarioSalida;
+            dto.Usuario = dto.UsuarioSalida;
             dto.OrigenCaptura = ResolverOrigenCaptura(dto);
 
-            Copiar(dto, existente);
-            RegistrarBitacora(dto.Folio, dto.OrigenCaptura == "PRE_REGISTRO_QR"
-                ? "Cerró salida desde pre-registro QR"
-                : "Cerró salida y calculó peso neto");
-
-            await MarcarPreRegistroMovimientoSiAplicaAsync(dto, "CERRADO");
-
-            return Ok(new
+            try
             {
-                ok = true,
-                msg = "Salida cerrada.",
-                folio = dto.Folio,
-                neto = dto.PesoNeto,
-                origenCaptura = dto.OrigenCaptura,
-                folioPreRegistro = dto.FolioPreRegistro
-            });
+                var result = await UpsertMovimientoAsync(dto, "CERRADO");
+                dto.FolioServidor = result.FolioServidor;
+
+                await MarcarPreRegistroMovimientoSiAplicaAsync(dto, "CERRADO", result.FolioServidor);
+
+                return Ok(new
+                {
+                    ok = true,
+                    msg = "Salida cerrada correctamente en SQL Server.",
+                    movimientoId = result.MovimientoId,
+                    movimientoGuid = result.MovimientoGuid,
+                    folioLocal = result.FolioLocal,
+                    folioServidor = result.FolioServidor,
+                    folio = result.FolioServidor,
+                    estatus = result.Estatus,
+                    neto = dto.PesoNeto,
+                    fechaSyncServidor = result.FechaSyncServidor,
+                    origenCaptura = dto.OrigenCaptura,
+                    folioPreRegistro = dto.FolioPreRegistro
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error cerrando salida de báscula en SQL");
+                return BadRequest(new { ok = false, msg = "No se pudo cerrar la salida: " + ex.Message });
+            }
         }
 
         [HttpGet("Bitacora")]
-        public IActionResult Bitacora()
+        public async Task<IActionResult> Bitacora(int take = 500)
         {
-            return Ok(new
+            try
             {
-                ok = true,
-                rows = _bitacora
-                    .OrderByDescending(x => x.Fecha)
-                    .ToList()
-            });
+                take = Math.Max(1, Math.Min(take, 5000));
+                var rows = new List<BasculaBitacoraDto>();
+
+                using var cn = new SqlConnection(GetConnectionString());
+                await cn.OpenAsync();
+
+                var sql = @"
+SELECT TOP (@take)
+    Fecha,
+    Usuario,
+    Accion,
+    FolioLocal,
+    TerminalId,
+    Detalle
+FROM dbo.BasculaBitacora
+ORDER BY Fecha DESC, BitacoraId DESC;";
+
+                using var cmd = new SqlCommand(sql, cn);
+                cmd.Parameters.Add("@take", SqlDbType.Int).Value = take;
+
+                using var rd = await cmd.ExecuteReaderAsync();
+                while (await rd.ReadAsync())
+                {
+                    rows.Add(new BasculaBitacoraDto
+                    {
+                        Fecha = GetDateTime(rd, "Fecha") ?? DateTime.MinValue,
+                        Usuario = GetString(rd, "Usuario"),
+                        Accion = GetString(rd, "Accion"),
+                        Folio = GetString(rd, "FolioLocal"),
+                        TerminalId = GetString(rd, "TerminalId"),
+                        Detalle = GetString(rd, "Detalle")
+                    });
+                }
+
+                return Ok(new { ok = true, total = rows.Count, rows });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error consultando bitácora de báscula");
+                return BadRequest(new { ok = false, msg = "No se pudo consultar la bitácora: " + ex.Message });
+            }
         }
 
         [HttpGet("Exportar")]
-        public IActionResult Exportar()
+        public async Task<IActionResult> Exportar()
         {
-            var csv = "Folio,Estatus,OrigenCaptura,FolioPreRegistro,TipoMovimiento,Clasificacion,Tercero,CodigoSap,Placas,Producto,Sku,Documento,PesoEntrada,PesoSalida,PesoNeto,FechaEntrada,FechaSalida,Usuario\r\n";
-
-            foreach (var r in _movimientos.OrderByDescending(x => x.FechaEntrada))
+            try
             {
-                csv += $"{Csv(r.Folio)},{Csv(r.Estatus)},{Csv(r.OrigenCaptura)},{Csv(r.FolioPreRegistro)},{Csv(r.TipoMovimiento)},{Csv(r.Clasificacion)},{Csv(r.Tercero)},{Csv(r.CodigoSap)},{Csv(r.Placas)},{Csv(r.Producto)},{Csv(r.Sku)},{Csv(r.Documento)},{r.PesoEntrada},{r.PesoSalida},{r.PesoNeto},{Csv(r.FechaEntrada.ToString("yyyy-MM-dd HH:mm:ss"))},{Csv(r.FechaSalida?.ToString("yyyy-MM-dd HH:mm:ss") ?? "")},{Csv(r.Usuario)}\r\n";
+                var rows = await LeerMovimientosAsync(50000, "", "");
+                var csv = new StringBuilder();
+                csv.AppendLine("FolioServidor,FolioLocal,Estatus,Terminal,TipoMovimiento,Clasificacion,Tercero,CodigoSap,Placas,Producto,Sku,Documento,Chofer,Origen,Destino,Condicion,PesoEntrada,PesoSalida,PesoNeto,FechaEntrada,FechaSalida,UsuarioEntrada,UsuarioSalida,OrigenCaptura,FolioPreRegistro");
+
+                foreach (var r in rows)
+                {
+                    csv.Append(Csv(r.FolioServidor)).Append(',')
+                       .Append(Csv(r.Folio)).Append(',')
+                       .Append(Csv(r.Estatus)).Append(',')
+                       .Append(Csv(r.TerminalId)).Append(',')
+                       .Append(Csv(r.TipoMovimiento)).Append(',')
+                       .Append(Csv(r.Clasificacion)).Append(',')
+                       .Append(Csv(r.Tercero)).Append(',')
+                       .Append(Csv(r.CodigoSap)).Append(',')
+                       .Append(Csv(r.Placas)).Append(',')
+                       .Append(Csv(r.Producto)).Append(',')
+                       .Append(Csv(r.Sku)).Append(',')
+                       .Append(Csv(r.Documento)).Append(',')
+                       .Append(Csv(r.Chofer)).Append(',')
+                       .Append(Csv(r.Origen)).Append(',')
+                       .Append(Csv(r.Destino)).Append(',')
+                       .Append(Csv(r.Condicion)).Append(',')
+                       .Append(r.PesoEntrada.ToString(CultureInfo.InvariantCulture)).Append(',')
+                       .Append(r.PesoSalida.ToString(CultureInfo.InvariantCulture)).Append(',')
+                       .Append(r.PesoNeto.ToString(CultureInfo.InvariantCulture)).Append(',')
+                       .Append(Csv(r.FechaEntrada.ToString("yyyy-MM-dd HH:mm:ss"))).Append(',')
+                       .Append(Csv(r.FechaSalida?.ToString("yyyy-MM-dd HH:mm:ss") ?? "")).Append(',')
+                       .Append(Csv(r.UsuarioEntrada)).Append(',')
+                       .Append(Csv(r.UsuarioSalida)).Append(',')
+                       .Append(Csv(r.OrigenCaptura)).Append(',')
+                       .Append(Csv(r.FolioPreRegistro))
+                       .AppendLine();
+                }
+
+                return File(
+                    Encoding.UTF8.GetBytes(csv.ToString()),
+                    "text/csv; charset=utf-8",
+                    $"BasculaCamionera_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
             }
-
-            var bytes = Encoding.UTF8.GetBytes(csv);
-
-            return File(bytes, "text/csv", $"BasculaCamionera_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error exportando movimientos de báscula");
+                return BadRequest(new { ok = false, msg = "No se pudo exportar el historial: " + ex.Message });
+            }
         }
 
         [HttpPost("Sync/Movimiento")]
@@ -579,122 +677,83 @@ WHERE Token = @Token
             if (dto == null)
                 return BadRequest(new { ok = false, msg = "Solicitud vacía." });
 
-            if (dto.MovimientoGuid == Guid.Empty)
-                dto.MovimientoGuid = Guid.NewGuid();
+            var estatus = string.IsNullOrWhiteSpace(dto.Estatus)
+                ? "PENDIENTE"
+                : dto.Estatus.Trim().ToUpperInvariant();
 
-            if (string.IsNullOrWhiteSpace(dto.TerminalId))
-                dto.TerminalId = "CASETA-01";
+            var validation = ValidarMovimiento(dto, requiereSalida: estatus == "CERRADO");
+            if (!string.IsNullOrWhiteSpace(validation))
+                return BadRequest(new { ok = false, msg = validation });
 
-            if (string.IsNullOrWhiteSpace(dto.Folio))
-                dto.Folio = $"BAS-{dto.TerminalId}-{DateTime.Now:yyyyMMddHHmmss}";
+            dto.MovimientoGuid = dto.MovimientoGuid == Guid.Empty ? Guid.NewGuid() : dto.MovimientoGuid;
+            dto.TerminalId = string.IsNullOrWhiteSpace(dto.TerminalId) ? DefaultTerminalId : dto.TerminalId.Trim().ToUpperInvariant();
+            dto.Folio = string.IsNullOrWhiteSpace(dto.Folio) ? NuevoFolioLocal(dto.TerminalId) : dto.Folio.Trim().ToUpperInvariant();
+            dto.Estatus = estatus;
+            dto.FechaEntrada = dto.FechaEntrada == default ? DateTime.Now : dto.FechaEntrada;
+            dto.FechaCreacionLocal ??= DateTime.Now;
 
-            if (string.IsNullOrWhiteSpace(dto.Tercero))
-                return BadRequest(new { ok = false, msg = "Capture proveedor / cliente." });
+            if (estatus == "PENDIENTE")
+            {
+                dto.PesoSalida = 0;
+                dto.FechaSalida = null;
+                dto.UsuarioSalida = "";
+            }
+            else if (estatus == "CERRADO")
+            {
+                dto.FechaSalida ??= DateTime.Now;
+                dto.PesoNeto = Math.Abs(dto.PesoEntrada - dto.PesoSalida);
+            }
 
-            if (string.IsNullOrWhiteSpace(dto.Producto))
-                return BadRequest(new { ok = false, msg = "Capture producto." });
+            dto.UsuarioEntrada = string.IsNullOrWhiteSpace(dto.UsuarioEntrada)
+                ? (User?.Identity?.Name ?? dto.Usuario ?? "Usuario SIGO")
+                : dto.UsuarioEntrada;
 
-            if (string.IsNullOrWhiteSpace(dto.Placas))
-                return BadRequest(new { ok = false, msg = "Capture placas." });
-
-            if (dto.PesoEntrada <= 0)
-                return BadRequest(new { ok = false, msg = "El peso de entrada debe ser mayor a cero." });
-
-            var estatus = string.IsNullOrWhiteSpace(dto.Estatus) ? "PENDIENTE" : dto.Estatus.Trim().ToUpperInvariant();
-
-            if (estatus == "CERRADO" && dto.PesoSalida <= 0)
-                return BadRequest(new { ok = false, msg = "El peso de salida debe ser mayor a cero." });
-
-            if (dto.FechaEntrada == default)
-                dto.FechaEntrada = DateTime.Now;
-
-            if (estatus == "CERRADO" && !dto.FechaSalida.HasValue)
-                dto.FechaSalida = DateTime.Now;
+            if (estatus == "CERRADO" && string.IsNullOrWhiteSpace(dto.UsuarioSalida))
+                dto.UsuarioSalida = User?.Identity?.Name ?? dto.Usuario ?? "Usuario SIGO";
 
             dto.OrigenCaptura = ResolverOrigenCaptura(dto);
 
-            using var cn = new SqlConnection(GetConnectionString());
-            await cn.OpenAsync();
-
-            using var cmd = new SqlCommand("dbo.sp_Bascula_UpsertMovimiento", cn)
+            try
             {
-                CommandType = CommandType.StoredProcedure
-            };
+                var result = await UpsertMovimientoAsync(dto, estatus);
+                dto.FolioServidor = result.FolioServidor;
 
-            cmd.Parameters.AddWithValue("@MovimientoGuid", dto.MovimientoGuid);
-            cmd.Parameters.AddWithValue("@TerminalId", dto.TerminalId);
-            cmd.Parameters.AddWithValue("@FolioLocal", dto.Folio);
-            cmd.Parameters.AddWithValue("@Estatus", estatus);
-            cmd.Parameters.AddWithValue("@TipoMovimiento", DbValue(dto.TipoMovimiento));
-            cmd.Parameters.AddWithValue("@Clasificacion", DbValue(dto.Clasificacion));
-            cmd.Parameters.AddWithValue("@Tercero", DbValue(dto.Tercero));
-            cmd.Parameters.AddWithValue("@CodigoSap", DbValue(dto.CodigoSap));
-            cmd.Parameters.AddWithValue("@Placas", DbValue(dto.Placas));
-            cmd.Parameters.AddWithValue("@Producto", DbValue(dto.Producto));
-            cmd.Parameters.AddWithValue("@Sku", DbValue(dto.Sku));
-            cmd.Parameters.AddWithValue("@Documento", DbValue(dto.Documento));
-            cmd.Parameters.AddWithValue("@Chofer", DbValue(dto.Chofer));
-            cmd.Parameters.AddWithValue("@Origen", DbValue(dto.Origen));
-            cmd.Parameters.AddWithValue("@Destino", DbValue(dto.Destino));
-            cmd.Parameters.AddWithValue("@Condicion", DbValue(dto.Condicion));
-            cmd.Parameters.AddWithValue("@PesoEntrada", dto.PesoEntrada);
-            cmd.Parameters.AddWithValue("@PesoSalida", dto.PesoSalida > 0 ? (object)dto.PesoSalida : DBNull.Value);
-            cmd.Parameters.AddWithValue("@CapturaManual", EsManual(dto.CapturaManual));
-            cmd.Parameters.AddWithValue("@MotivoManual", DbValue(dto.MotivoManual));
-            cmd.Parameters.AddWithValue("@Observaciones", DbValue(dto.Observaciones));
-            cmd.Parameters.AddWithValue("@FechaEntrada", dto.FechaEntrada);
-            cmd.Parameters.AddWithValue("@FechaSalida", dto.FechaSalida.HasValue ? (object)dto.FechaSalida.Value : DBNull.Value);
-            cmd.Parameters.AddWithValue("@UsuarioEntrada", DbValue(dto.UsuarioEntrada));
-            cmd.Parameters.AddWithValue("@UsuarioSalida", DbValue(dto.UsuarioSalida));
-            cmd.Parameters.AddWithValue("@RawEntrada", DbValue(dto.RawEntrada));
-            cmd.Parameters.AddWithValue("@RawSalida", DbValue(dto.RawSalida));
-            cmd.Parameters.AddWithValue("@PesoEntradaEstable", dto.PesoEntradaEstable);
-            cmd.Parameters.AddWithValue("@PesoSalidaEstable", dto.PesoSalidaEstable);
-            cmd.Parameters.AddWithValue("@CreadoOffline", dto.CreadoOffline);
-            cmd.Parameters.AddWithValue("@FechaCreacionLocal", dto.FechaCreacionLocal.HasValue ? (object)dto.FechaCreacionLocal.Value : DateTime.Now);
+                await MarcarPreRegistroMovimientoSiAplicaAsync(
+                    dto,
+                    estatus == "CERRADO" ? "CERRADO" : "PESADO_ENTRADA",
+                    result.FolioServidor);
 
-            object result;
-
-            using (var rd = await cmd.ExecuteReaderAsync())
-            {
-                if (await rd.ReadAsync())
+                return Ok(new
                 {
-                    result = new
-                    {
-                        ok = true,
-                        msg = "Movimiento sincronizado correctamente.",
-                        movimientoId = rd["MovimientoId"],
-                        movimientoGuid = rd["MovimientoGuid"],
-                        folioLocal = rd["FolioLocal"],
-                        folioServidor = rd["FolioServidor"],
-                        estatus = rd["Estatus"],
-                        fechaSyncServidor = rd["FechaSyncServidor"],
-                        origenCaptura = dto.OrigenCaptura,
-                        folioPreRegistro = dto.FolioPreRegistro
-                    };
-                }
-                else
-                {
-                    result = new
-                    {
-                        ok = true,
-                        msg = "Movimiento enviado al servidor.",
-                        movimientoGuid = dto.MovimientoGuid,
-                        folioLocal = dto.Folio,
-                        estatus,
-                        origenCaptura = dto.OrigenCaptura,
-                        folioPreRegistro = dto.FolioPreRegistro
-                    };
-                }
+                    ok = true,
+                    msg = estatus == "CERRADO"
+                        ? "Salida sincronizada correctamente con SQL Server."
+                        : "Entrada sincronizada correctamente con SQL Server.",
+                    movimientoId = result.MovimientoId,
+                    movimientoGuid = result.MovimientoGuid,
+                    folioLocal = result.FolioLocal,
+                    folioServidor = result.FolioServidor,
+                    folio = result.FolioServidor,
+                    estatus = result.Estatus,
+                    fechaSyncServidor = result.FechaSyncServidor,
+                    origenCaptura = dto.OrigenCaptura,
+                    folioPreRegistro = dto.FolioPreRegistro
+                });
             }
-
-            await MarcarPreRegistroMovimientoSiAplicaAsync(dto, estatus == "CERRADO" ? "CERRADO" : "PESADO_ENTRADA");
-
-            return Ok(result);
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sincronizando movimiento de báscula");
+                return BadRequest(new
+                {
+                    ok = false,
+                    msg = "No se pudo guardar el movimiento en SQL Server: " + ex.Message
+                });
+            }
         }
-
         [HttpGet("BuscarClientes")]
-        public async Task<IActionResult> BuscarClientes(string? q = "", int take = 30)
+        public async Task<IActionResult> BuscarClientes(
+            string? q = "",
+            int take = 30)
         {
             try
             {
@@ -708,24 +767,78 @@ WHERE Token = @Token
 
                 var sql = @"
 SELECT TOP (@take)
-    Cliente,
-    Nombrecliente,
-    U_MT_Clasificacion,
-    U_CANAL,
-    VendedorId,
-    VendedorNombre,
-    PriceListNum,
-    PriceListName,
-    AplicaPresupuesto
-FROM ClienteSap
-WHERE
-    (@q = '' OR Cliente LIKE @like OR Nombrecliente LIKE @like)
-ORDER BY Nombrecliente;";
+    X.CodigoSap,
+    X.Nombre,
+    X.Clasificacion,
+    X.Canal,
+    X.VendedorId,
+    X.VendedorNombre,
+    X.PriceListNum,
+    X.PriceListName,
+    X.AplicaPresupuesto
+FROM
+(
+    /* ============================================
+       CLIENTES
+       ============================================ */
+    SELECT
+        CAST(c.Cliente AS NVARCHAR(80)) AS CodigoSap,
+        CAST(c.Nombrecliente AS NVARCHAR(250)) AS Nombre,
+        CAST(ISNULL(c.U_MT_Clasificacion, 'CLIENTE') AS NVARCHAR(80))
+            AS Clasificacion,
+        CAST(ISNULL(c.U_CANAL, 'Cliente') AS NVARCHAR(100))
+            AS Canal,
+        c.VendedorId,
+        CAST(c.VendedorNombre AS NVARCHAR(200))
+            AS VendedorNombre,
+        c.PriceListNum,
+        CAST(c.PriceListName AS NVARCHAR(200))
+            AS PriceListName,
+        c.AplicaPresupuesto
+    FROM dbo.ClienteSap c
+    WHERE
+        @q = ''
+        OR c.Cliente LIKE @like
+        OR c.Nombrecliente LIKE @like
+
+    UNION ALL
+
+    /* ============================================
+       PROVEEDORES
+       ============================================ */
+    SELECT
+        CAST(p.Proveedor AS NVARCHAR(80)) AS CodigoSap,
+        CAST(p.NombreProveedor AS NVARCHAR(250)) AS Nombre,
+        CAST('PROVEEDOR' AS NVARCHAR(80)) AS Clasificacion,
+        CAST(
+            ISNULL(NULLIF(p.GrupoNombre, ''), 'Proveedor')
+            AS NVARCHAR(100)
+        ) AS Canal,
+        CAST(NULL AS INT) AS VendedorId,
+        CAST(NULL AS NVARCHAR(200)) AS VendedorNombre,
+        CAST(NULL AS INT) AS PriceListNum,
+        CAST(NULL AS NVARCHAR(200)) AS PriceListName,
+        CAST(0 AS INT) AS AplicaPresupuesto
+    FROM dbo.ProveedorSap p
+    WHERE
+        @q = ''
+        OR p.Proveedor LIKE @like
+        OR p.NombreProveedor LIKE @like
+        OR p.RFC LIKE @like
+) X
+ORDER BY
+    CASE
+        WHEN X.Clasificacion = 'PROVEEDOR' THEN 1
+        ELSE 0
+    END,
+    X.Nombre;";
 
                 using var cmd = new SqlCommand(sql, cn);
-                cmd.Parameters.AddWithValue("@take", take);
-                cmd.Parameters.AddWithValue("@q", query);
-                cmd.Parameters.AddWithValue("@like", "%" + query + "%");
+
+                cmd.Parameters.Add("@take", SqlDbType.Int).Value = take;
+                cmd.Parameters.Add("@q", SqlDbType.NVarChar, 250).Value = query;
+                cmd.Parameters.Add("@like", SqlDbType.NVarChar, 260).Value =
+                    "%" + query + "%";
 
                 using var rd = await cmd.ExecuteReaderAsync();
 
@@ -733,10 +846,10 @@ ORDER BY Nombrecliente;";
                 {
                     rows.Add(new ClienteSapLookupDto
                     {
-                        CodigoSap = GetString(rd, "Cliente"),
-                        Nombre = GetString(rd, "Nombrecliente"),
-                        Clasificacion = GetString(rd, "U_MT_Clasificacion"),
-                        Canal = GetString(rd, "U_CANAL"),
+                        CodigoSap = GetString(rd, "CodigoSap"),
+                        Nombre = GetString(rd, "Nombre"),
+                        Clasificacion = GetString(rd, "Clasificacion"),
+                        Canal = GetString(rd, "Canal"),
                         VendedorId = GetInt(rd, "VendedorId"),
                         VendedorNombre = GetString(rd, "VendedorNombre"),
                         PriceListNum = GetInt(rd, "PriceListNum"),
@@ -754,15 +867,104 @@ ORDER BY Nombrecliente;";
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error buscando clientes SAP");
+                _logger.LogError(
+                    ex,
+                    "Error buscando clientes y proveedores SAP");
 
                 return BadRequest(new
                 {
                     ok = false,
-                    msg = "No se pudieron cargar clientes: " + ex.Message
+                    msg = "No se pudieron cargar clientes y proveedores: "
+                        + ex.Message
                 });
             }
         }
+
+        [HttpGet("BuscarProveedores")]
+        public async Task<IActionResult> BuscarProveedores(
+    string? q = "",
+    int take = 30)
+        {
+            try
+            {
+                take = Math.Max(1, Math.Min(take, 100));
+
+                var query = (q ?? "").Trim();
+
+                var rows = new List<ClienteSapLookupDto>();
+
+                using var cn = new SqlConnection(GetConnectionString());
+                await cn.OpenAsync();
+
+                var sql = @"
+SELECT TOP (@take)
+    CAST(Proveedor AS NVARCHAR(80)) AS CodigoSap,
+    CAST(NombreProveedor AS NVARCHAR(250)) AS Nombre,
+    CAST('PROVEEDOR' AS NVARCHAR(80)) AS Clasificacion,
+    CAST(
+        ISNULL(NULLIF(GrupoNombre, ''), 'Proveedor')
+        AS NVARCHAR(100)
+    ) AS Canal
+FROM dbo.ProveedorSap
+WHERE
+    (
+        @q = ''
+        OR Proveedor LIKE @like
+        OR NombreProveedor LIKE @like
+        OR RFC LIKE @like
+        OR GrupoNombre LIKE @like
+    )
+    AND ISNULL(Activo, 1) = 1
+    AND ISNULL(ExisteEnSap, 1) = 1
+ORDER BY NombreProveedor;";
+
+                using var cmd = new SqlCommand(sql, cn);
+
+                cmd.Parameters.Add("@take", SqlDbType.Int).Value = take;
+                cmd.Parameters.Add("@q", SqlDbType.NVarChar, 250).Value = query;
+                cmd.Parameters.Add("@like", SqlDbType.NVarChar, 260).Value =
+                    "%" + query + "%";
+
+                using var rd = await cmd.ExecuteReaderAsync();
+
+                while (await rd.ReadAsync())
+                {
+                    rows.Add(new ClienteSapLookupDto
+                    {
+                        CodigoSap = GetString(rd, "CodigoSap"),
+                        Nombre = GetString(rd, "Nombre"),
+                        Clasificacion = GetString(rd, "Clasificacion"),
+                        Canal = GetString(rd, "Canal"),
+                        VendedorId = null,
+                        VendedorNombre = "",
+                        PriceListNum = null,
+                        PriceListName = "",
+                        AplicaPresupuesto = 0
+                    });
+                }
+
+                return Ok(new
+                {
+                    ok = true,
+                    total = rows.Count,
+                    rows
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error buscando proveedores SAP");
+
+                return BadRequest(new
+                {
+                    ok = false,
+                    msg = "No se pudieron cargar proveedores: "
+                        + ex.Message
+                });
+            }
+        }
+
 
         [HttpGet("BuscarArticulos")]
         public async Task<IActionResult> BuscarArticulos(string? q = "", int take = 30)
@@ -1268,7 +1470,7 @@ ORDER BY NombreProveedor;";
             return "CAPTURA_CASETA";
         }
 
-        private async Task MarcarPreRegistroMovimientoSiAplicaAsync(BasculaMovimientoDto dto, string estatusPreRegistro)
+        private async Task MarcarPreRegistroMovimientoSiAplicaAsync(BasculaMovimientoDto dto, string estatusPreRegistro, string? folioServidor = null)
         {
             var token = NormalizarTokenEscaneo(dto.TokenPreRegistro);
 
@@ -1302,7 +1504,7 @@ WHERE
                 using var cmd = new SqlCommand(sql, cn);
                 cmd.Parameters.AddWithValue("@Estatus", DbValue(estatusPreRegistro));
                 cmd.Parameters.AddWithValue("@MovimientoGuid", dto.MovimientoGuid == Guid.Empty ? (object)DBNull.Value : dto.MovimientoGuid);
-                cmd.Parameters.AddWithValue("@FolioMovimiento", DbValue(dto.Folio));
+                cmd.Parameters.AddWithValue("@FolioMovimiento", DbValue(!string.IsNullOrWhiteSpace(folioServidor) ? folioServidor : dto.Folio));
                 cmd.Parameters.AddWithValue("@UsuarioCaseta", DbValue(User?.Identity?.Name ?? dto.UsuarioEntrada ?? "Usuario SIGO"));
                 cmd.Parameters.AddWithValue("@Token", token);
                 cmd.Parameters.AddWithValue("@FolioPreRegistro", DbValue(dto.FolioPreRegistro));
@@ -1534,20 +1736,241 @@ button {{ padding:10px 16px; font-weight:800; }}
             return cs;
         }
 
-        private static string NuevoFolio()
+        private static string NuevoFolioLocal(string terminalId)
         {
-            return $"BAS-{DateTime.Now:yyyyMMdd}-{(_movimientos.Count + 1):00000}";
+            var terminal = Regex.Replace((terminalId ?? DefaultTerminalId).ToUpperInvariant(), "[^A-Z0-9]", "");
+            if (terminal.Length > 16) terminal = terminal.Substring(0, 16);
+            if (string.IsNullOrWhiteSpace(terminal)) terminal = "CASETA01";
+
+            var value = $"LOCAL-{terminal}-{DateTime.Now:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}";
+            return value.Length <= 60 ? value : value.Substring(0, 60);
         }
 
-        private void RegistrarBitacora(string folio, string accion)
+        private static string ValidarMovimiento(BasculaMovimientoDto dto, bool requiereSalida)
         {
-            _bitacora.Add(new BasculaBitacoraDto
+            if (string.IsNullOrWhiteSpace(dto.Tercero))
+                return "Capture proveedor / cliente.";
+
+            if (string.IsNullOrWhiteSpace(dto.Producto))
+                return "Capture producto.";
+
+            if (string.IsNullOrWhiteSpace(dto.Placas))
+                return "Capture placas.";
+
+            if (string.IsNullOrWhiteSpace(dto.TipoMovimiento))
+                return "Seleccione tipo de movimiento.";
+
+            if (dto.PesoEntrada <= 0)
+                return "El peso de entrada debe ser mayor a cero.";
+
+            if (requiereSalida && dto.PesoSalida <= 0)
+                return "El peso de salida debe ser mayor a cero.";
+
+            return "";
+        }
+
+        private async Task<BasculaSyncResult> UpsertMovimientoAsync(BasculaMovimientoDto dto, string estatus)
+        {
+            using var cn = new SqlConnection(GetConnectionString());
+            await cn.OpenAsync();
+
+            using var cmd = new SqlCommand("dbo.sp_Bascula_UpsertMovimiento", cn)
             {
-                Fecha = DateTime.Now,
-                Usuario = User?.Identity?.Name ?? "Usuario SIGO",
-                Accion = accion,
-                Folio = folio
-            });
+                CommandType = CommandType.StoredProcedure,
+                CommandTimeout = 120
+            };
+
+            cmd.Parameters.Add("@MovimientoGuid", SqlDbType.UniqueIdentifier).Value = dto.MovimientoGuid;
+            cmd.Parameters.Add("@TerminalId", SqlDbType.NVarChar, 60).Value = dto.TerminalId;
+            cmd.Parameters.Add("@FolioLocal", SqlDbType.NVarChar, 60).Value = dto.Folio;
+            cmd.Parameters.Add("@Estatus", SqlDbType.NVarChar, 20).Value = estatus;
+            cmd.Parameters.Add("@TipoMovimiento", SqlDbType.NVarChar, 60).Value = dto.TipoMovimiento;
+            cmd.Parameters.Add("@Clasificacion", SqlDbType.NVarChar, 80).Value = DbValue(dto.Clasificacion);
+            cmd.Parameters.Add("@Tercero", SqlDbType.NVarChar, 250).Value = dto.Tercero.Trim();
+            cmd.Parameters.Add("@CodigoSap", SqlDbType.NVarChar, 60).Value = DbValue(dto.CodigoSap);
+            cmd.Parameters.Add("@Placas", SqlDbType.NVarChar, 40).Value = dto.Placas.Trim().ToUpperInvariant();
+            cmd.Parameters.Add("@Producto", SqlDbType.NVarChar, 250).Value = dto.Producto.Trim();
+            cmd.Parameters.Add("@Sku", SqlDbType.NVarChar, 80).Value = DbValue(dto.Sku);
+            cmd.Parameters.Add("@Documento", SqlDbType.NVarChar, 120).Value = DbValue(dto.Documento);
+            cmd.Parameters.Add("@Chofer", SqlDbType.NVarChar, 160).Value = DbValue(dto.Chofer);
+            cmd.Parameters.Add("@Origen", SqlDbType.NVarChar, 180).Value = DbValue(dto.Origen);
+            cmd.Parameters.Add("@Destino", SqlDbType.NVarChar, 180).Value = DbValue(dto.Destino);
+            cmd.Parameters.Add("@Condicion", SqlDbType.NVarChar, 120).Value = DbValue(dto.Condicion);
+
+            var pEntrada = cmd.Parameters.Add("@PesoEntrada", SqlDbType.Decimal);
+            pEntrada.Precision = 18;
+            pEntrada.Scale = 2;
+            pEntrada.Value = dto.PesoEntrada;
+
+            var pSalida = cmd.Parameters.Add("@PesoSalida", SqlDbType.Decimal);
+            pSalida.Precision = 18;
+            pSalida.Scale = 2;
+            pSalida.Value = dto.PesoSalida > 0 ? (object)dto.PesoSalida : DBNull.Value;
+
+            cmd.Parameters.Add("@CapturaManual", SqlDbType.Bit).Value = EsManual(dto.CapturaManual);
+            cmd.Parameters.Add("@MotivoManual", SqlDbType.NVarChar, 300).Value = DbValue(dto.MotivoManual);
+            cmd.Parameters.Add("@Observaciones", SqlDbType.NVarChar, 1000).Value = DbValue(dto.Observaciones);
+            cmd.Parameters.Add("@FechaEntrada", SqlDbType.DateTime2).Value = dto.FechaEntrada == default ? DateTime.Now : dto.FechaEntrada;
+            cmd.Parameters.Add("@FechaSalida", SqlDbType.DateTime2).Value = dto.FechaSalida.HasValue ? (object)dto.FechaSalida.Value : DBNull.Value;
+            cmd.Parameters.Add("@UsuarioEntrada", SqlDbType.NVarChar, 160).Value = DbValue(dto.UsuarioEntrada);
+            cmd.Parameters.Add("@UsuarioSalida", SqlDbType.NVarChar, 160).Value = DbValue(dto.UsuarioSalida);
+            cmd.Parameters.Add("@RawEntrada", SqlDbType.NVarChar, 1000).Value = DbValue(dto.RawEntrada);
+            cmd.Parameters.Add("@RawSalida", SqlDbType.NVarChar, 1000).Value = DbValue(dto.RawSalida);
+            cmd.Parameters.Add("@PesoEntradaEstable", SqlDbType.Bit).Value = dto.PesoEntradaEstable;
+            cmd.Parameters.Add("@PesoSalidaEstable", SqlDbType.Bit).Value = dto.PesoSalidaEstable;
+            cmd.Parameters.Add("@CreadoOffline", SqlDbType.Bit).Value = dto.CreadoOffline;
+            cmd.Parameters.Add("@FechaCreacionLocal", SqlDbType.DateTime2).Value = dto.FechaCreacionLocal ?? DateTime.Now;
+
+            using var rd = await cmd.ExecuteReaderAsync();
+            if (!await rd.ReadAsync())
+                throw new InvalidOperationException("El procedimiento no devolvió el movimiento guardado.");
+
+            return new BasculaSyncResult
+            {
+                MovimientoId = Convert.ToInt64(rd["MovimientoId"]),
+                MovimientoGuid = rd["MovimientoGuid"] is Guid guid ? guid : Guid.Parse(rd["MovimientoGuid"].ToString()!),
+                FolioLocal = rd["FolioLocal"]?.ToString() ?? dto.Folio,
+                FolioServidor = rd["FolioServidor"]?.ToString() ?? "",
+                Estatus = rd["Estatus"]?.ToString() ?? estatus,
+                FechaSyncServidor = Convert.ToDateTime(rd["FechaSyncServidor"])
+            };
+        }
+
+        private async Task<List<BasculaMovimientoDto>> LeerMovimientosAsync(int take, string? estatus, string? q)
+        {
+            var rows = new List<BasculaMovimientoDto>();
+            var status = (estatus ?? "").Trim().ToUpperInvariant();
+            var query = (q ?? "").Trim();
+
+            using var cn = new SqlConnection(GetConnectionString());
+            await cn.OpenAsync();
+
+            var sql = @"
+SELECT TOP (@take)
+    MovimientoId, MovimientoGuid, TerminalId, FolioLocal, FolioServidor,
+    Estatus, TipoMovimiento, Clasificacion, Tercero, CodigoSap, Placas,
+    Producto, Sku, Documento, Chofer, Origen, Destino, Condicion,
+    PesoEntrada, PesoSalida, PesoNeto,
+    CapturaManual, MotivoManual, Observaciones,
+    FechaEntrada, FechaSalida, UsuarioEntrada, UsuarioSalida,
+    RawEntrada, RawSalida, PesoEntradaEstable, PesoSalidaEstable,
+    CreadoOffline, FechaCreacionLocal, FechaSyncServidor
+FROM dbo.BasculaMovimiento
+WHERE
+    (@estatus = '' OR Estatus = @estatus)
+    AND
+    (
+        @q = ''
+        OR FolioServidor LIKE @like
+        OR FolioLocal LIKE @like
+        OR Tercero LIKE @like
+        OR Producto LIKE @like
+        OR Placas LIKE @like
+        OR Documento LIKE @like
+        OR Chofer LIKE @like
+    )
+ORDER BY FechaEntrada DESC, MovimientoId DESC;";
+
+            using var cmd = new SqlCommand(sql, cn) { CommandTimeout = 120 };
+            cmd.Parameters.Add("@take", SqlDbType.Int).Value = take;
+            cmd.Parameters.Add("@estatus", SqlDbType.NVarChar, 20).Value = status;
+            cmd.Parameters.Add("@q", SqlDbType.NVarChar, 250).Value = query;
+            cmd.Parameters.Add("@like", SqlDbType.NVarChar, 260).Value = "%" + query + "%";
+
+            using var rd = await cmd.ExecuteReaderAsync();
+            while (await rd.ReadAsync())
+                rows.Add(MapMovimiento(rd));
+
+            return rows;
+        }
+
+        private static BasculaMovimientoDto MapMovimiento(SqlDataReader rd)
+        {
+            var usuarioEntrada = GetString(rd, "UsuarioEntrada");
+            var usuarioSalida = GetString(rd, "UsuarioSalida");
+
+            return new BasculaMovimientoDto
+            {
+                MovimientoId = GetLongNullable(rd, "MovimientoId"),
+                MovimientoGuid = GetGuid(rd, "MovimientoGuid"),
+                TerminalId = GetString(rd, "TerminalId"),
+                Folio = GetString(rd, "FolioLocal"),
+                FolioServidor = GetString(rd, "FolioServidor"),
+                Estatus = GetString(rd, "Estatus"),
+                TipoMovimiento = GetString(rd, "TipoMovimiento"),
+                Clasificacion = GetString(rd, "Clasificacion"),
+                Tercero = GetString(rd, "Tercero"),
+                CodigoSap = GetString(rd, "CodigoSap"),
+                Placas = GetString(rd, "Placas"),
+                Producto = GetString(rd, "Producto"),
+                Sku = GetString(rd, "Sku"),
+                Documento = GetString(rd, "Documento"),
+                Chofer = GetString(rd, "Chofer"),
+                Origen = GetString(rd, "Origen"),
+                Destino = GetString(rd, "Destino"),
+                Condicion = GetString(rd, "Condicion"),
+                PesoEntrada = GetDecimal(rd, "PesoEntrada") ?? 0,
+                PesoSalida = GetDecimal(rd, "PesoSalida") ?? 0,
+                PesoNeto = GetDecimal(rd, "PesoNeto") ?? 0,
+                CapturaManual = GetBool(rd, "CapturaManual") ? "Sí" : "No",
+                MotivoManual = GetString(rd, "MotivoManual"),
+                Observaciones = GetString(rd, "Observaciones"),
+                FechaEntrada = GetDateTime(rd, "FechaEntrada") ?? DateTime.MinValue,
+                FechaSalida = GetDateTime(rd, "FechaSalida"),
+                UsuarioEntrada = usuarioEntrada,
+                UsuarioSalida = usuarioSalida,
+                Usuario = !string.IsNullOrWhiteSpace(usuarioSalida) ? usuarioSalida : usuarioEntrada,
+                RawEntrada = GetString(rd, "RawEntrada"),
+                RawSalida = GetString(rd, "RawSalida"),
+                PesoEntradaEstable = GetBool(rd, "PesoEntradaEstable"),
+                PesoSalidaEstable = GetBool(rd, "PesoSalidaEstable"),
+                CreadoOffline = GetBool(rd, "CreadoOffline"),
+                FechaCreacionLocal = GetDateTime(rd, "FechaCreacionLocal")
+            };
+        }
+
+        private async Task RegistrarBitacoraAsync(string folio, string accion, string? detalle = null)
+        {
+            try
+            {
+                using var cn = new SqlConnection(GetConnectionString());
+                await cn.OpenAsync();
+
+                var sql = @"
+IF NOT EXISTS (SELECT 1 FROM dbo.BasculaTerminal WHERE TerminalId = @TerminalId)
+BEGIN
+    INSERT INTO dbo.BasculaTerminal(TerminalId, Nombre, Sitio, Activa, UltimaConexion, FechaModificacion)
+    VALUES(@TerminalId, @TerminalId, 'Sin clasificar', 1, SYSDATETIME(), SYSDATETIME());
+END;
+
+INSERT INTO dbo.BasculaBitacora
+(
+    BitacoraGuid, MovimientoGuid, TerminalId, FolioLocal,
+    Fecha, Usuario, Accion, Detalle, CreadoOffline, FechaSyncServidor
+)
+VALUES
+(
+    NEWID(), NULL, @TerminalId, @Folio,
+    SYSDATETIME(), @Usuario, @Accion, @Detalle, 0, SYSDATETIME()
+);";
+
+                using var cmd = new SqlCommand(sql, cn);
+                cmd.Parameters.Add("@TerminalId", SqlDbType.NVarChar, 60).Value = DefaultTerminalId;
+                cmd.Parameters.Add("@Folio", SqlDbType.NVarChar, 60).Value = DbValue(folio);
+                cmd.Parameters.Add("@Usuario", SqlDbType.NVarChar, 160).Value = DbValue(User?.Identity?.Name ?? "Usuario SIGO");
+                cmd.Parameters.Add("@Accion", SqlDbType.NVarChar, 250).Value = accion;
+                cmd.Parameters.Add("@Detalle", SqlDbType.NVarChar, 1000).Value = DbValue(detalle);
+                await cmd.ExecuteNonQueryAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "No se pudo registrar la bitácora de báscula en SQL");
+            }
+        }
+
+        private static bool GetBool(SqlDataReader rd, string column)
+        {
+            return rd[column] != DBNull.Value && Convert.ToBoolean(rd[column]);
         }
 
         private static void Copiar(BasculaMovimientoDto src, BasculaMovimientoDto dst)
@@ -1780,9 +2203,11 @@ button {{ padding:10px 16px; font-weight:800; }}
 
     public class BasculaMovimientoDto
     {
+        public long? MovimientoId { get; set; }
         public Guid MovimientoGuid { get; set; }
         public string TerminalId { get; set; } = "CASETA-01";
         public string Folio { get; set; } = "";
+        public string FolioServidor { get; set; } = "";
         public string TipoMovimiento { get; set; } = "";
         public string Clasificacion { get; set; } = "";
         public string Tercero { get; set; } = "";
@@ -1829,6 +2254,18 @@ button {{ padding:10px 16px; font-weight:800; }}
         public string Usuario { get; set; } = "";
         public string Accion { get; set; } = "";
         public string Folio { get; set; } = "";
+        public string TerminalId { get; set; } = "";
+        public string Detalle { get; set; } = "";
+    }
+
+    internal sealed class BasculaSyncResult
+    {
+        public long MovimientoId { get; set; }
+        public Guid MovimientoGuid { get; set; }
+        public string FolioLocal { get; set; } = "";
+        public string FolioServidor { get; set; } = "";
+        public string Estatus { get; set; } = "";
+        public DateTime FechaSyncServidor { get; set; }
     }
 
     public class ClienteSapLookupDto
@@ -1843,6 +2280,7 @@ button {{ padding:10px 16px; font-weight:800; }}
         public string PriceListName { get; set; } = "";
         public int? AplicaPresupuesto { get; set; }
     }
+
 
     public class ArticuloSapLookupDto
     {

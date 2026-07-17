@@ -3843,6 +3843,11 @@ body[data-theme="dark"] .ov-products-tip {
         return pickBool(v);
         }
 
+        // Una orden marcada como muestra entra libre, sin presupuesto ni disponible.
+        function esOrdenMuestra() {
+        return $("#chkEsMuestra").is(":checked");
+        }
+
         function isCanalCedis() {
         return pickBool($("#EsCanalCedis").val());
         }
@@ -3864,12 +3869,16 @@ body[data-theme="dark"] .ov-products-tip {
 
         // ✅ Si es Canal CEDIS y Serie NO es MATRIZ => NO aplica presupuesto/disponible
         function aplicaPresupuesto() {
+        // Regla prioritaria: las órdenes de muestra nunca aplican presupuesto.
+        if (esOrdenMuestra()) return false;
+
         const clienteAplica = pickBoolDefaultTrue($("#ClienteAplicaPresupuesto").val());
         const matriz = esSerieMatriz();
 
         // Solo aplica presupuesto cuando:
-        // 1. El cliente aplica presupuesto
-        // 2. La serie seleccionada es de matriz
+        // 1. NO es orden de muestra
+        // 2. El cliente aplica presupuesto
+        // 3. La serie seleccionada es de matriz
         return clienteAplica && matriz;
         }
 
@@ -3919,6 +3928,37 @@ body[data-theme="dark"] .ov-products-tip {
         toggleColumnasPresupuesto();
         actualizarTotales();
         }
+
+        // Al marcar Muestra, limpia y desactiva inmediatamente toda la lógica de presupuesto.
+        // Al desmarcarla, vuelve a cargar presupuesto solamente cuando corresponda.
+        $(document).on("change", "#chkEsMuestra", async function () {
+        clearDisponiblesCache();
+        setHeadersPresupuesto();
+
+        if (esOrdenMuestra()) {
+        syncNoAplicaState();
+        if (typeof showToast === "function") {
+        showToast("Orden de muestra activada: no requiere presupuesto ni disponible.", "success", 5000);
+        }
+        return;
+        }
+
+        if (!aplicaPresupuesto()) {
+        syncNoAplicaState();
+        return;
+        }
+
+        const cardCode = $("#clienteHidden").val();
+        const fecha = $("#FechaEntrega").val();
+        if (!cardCode || !fecha) {
+        toggleColumnasPresupuesto();
+        return;
+        }
+
+        // Reutiliza el recálculo existente del modo seleccionado.
+        if ($("#modoCli").is(":checked")) $("#modoCli").trigger("change");
+        else $("#modoVend").trigger("change");
+        });
 
         // ===========================
         // ✅ MODO PRESUPUESTO (Vendedor/Cliente)
@@ -4444,7 +4484,7 @@ body[data-theme="dark"] .ov-products-tip {
 
 
         function recalcularDisponibleFila($row) {
-        if (!clienteRequierePresupuesto()) {
+        if (!aplicaPresupuesto()) {
         $row.removeClass("table-danger");
         return;
         }
@@ -5160,10 +5200,9 @@ $(document).on("blur", ".productoInput", function () {
 
         presVal = presupuestoAsignadoDe(presObj);
 
-                var esMuestraChk = document.getElementById('chkEsMuestra') && document.getElementById('chkEsMuestra').checked;
-        if (presVal <= 0 && !esMuestraChk) {
-            showToast(`SKU ${codigoUpper} omitido: no tiene presupuesto asignado (${owner.label}).`, "warning", 7000);
-            return null;
+        if (presVal <= 0) {
+        showToast(`SKU ${codigoUpper} omitido: no tiene presupuesto asignado (${owner.label}).`, "warning", 7000);
+        return null;
         }
 
         }
@@ -6086,6 +6125,9 @@ $(document).on("blur", ".productoInput", function () {
 
 
 function clienteRequierePresupuesto() {
+        // La muestra tiene prioridad y entra libre aunque el cliente normalmente requiera presupuesto.
+        if (esOrdenMuestra()) return false;
+
         // Valor directo del catálogo:
         // 1 / true  = requiere presupuesto y debe mantener filtro.
         // 0 / false = no requiere presupuesto y puede capturar libre.
@@ -6169,7 +6211,8 @@ function clienteRequierePresupuesto() {
             }
 
 
-        // ✅ Bloqueo por filas sin presupuesto (solo si aplica)
+        // Las muestras avanzan sin validar presupuesto ni disponible.
+        if (!esMuestra) {
         const sinPres = filasSinPresupuesto();
         if (sinPres.length > 0) {
         e.preventDefault();
@@ -6177,12 +6220,12 @@ function clienteRequierePresupuesto() {
         return false;
         }
 
-        // ✅ NUEVO: Bloqueo por Disponible <= 0 (solo si aplica)
         const sinDisp = filasConDisponibleNoPositivo();
         if (sinDisp.length > 0) {
         e.preventDefault();
         alert(`No puedes guardar: el Disponible quedó en 0 o menor en las filas: ${sinDisp.join(', ')}.\n\nAjusta KG/Cajas o quita el producto.`);
         return false;
+        }
         }
 
         const malas = filasConPrecioCero();

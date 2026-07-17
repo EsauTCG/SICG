@@ -1,4 +1,4 @@
-﻿@{
+@{
     Layout = "~/Views/Shared/_Layout2.cshtml";
     ViewData["Title"] = "Solicitud y Trazabilidad de Muestras";
     var usuarioLogueado = User.Identity?.Name ?? "";
@@ -818,8 +818,8 @@
 
 
     /* =========================================================
-           TRACKING AUTOMÁTICO DE ETIQUETAS EN MEAT: TIF + P1
-           ========================================================= */
+                   TRACKING AUTOMÁTICO DE ETIQUETAS EN MEAT: TIF + P1
+                   ========================================================= */
     .meat-location-list {
         display: grid;
         gap: 5px;
@@ -1099,14 +1099,16 @@
         position: relative;
     }
 
+        .form-locked-overlay > * {
+            pointer-events: none;
+            user-select: none;
+        }
+
         .form-locked-overlay::after {
             content: 'Selecciona una OV de muestra para comenzar';
             position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(255,255,255,0.7);
+            inset: 0;
+            background: rgba(255,255,255,0.78);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1114,10 +1116,371 @@
             font-weight: bold;
             color: #888;
             z-index: 5;
-            pointer-events: none;
+            pointer-events: auto;
         }
 
 
+    /* =========================================================
+           FULLSCREEN RESPONSIVE
+           Elimina el marco blanco del Layout sin alterar el menú.
+           ========================================================= */
+
+    html {
+        width: 100%;
+        min-height: 100%;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: var(--bg) !important;
+    }
+
+    body {
+        width: 100%;
+        min-width: 0;
+        min-height: 100%;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: var(--bg) !important;
+        overflow-x: hidden !important;
+    }
+
+        /*
+           Contenedores comunes del Layout2 y Bootstrap.
+           Se elimina exclusivamente el panel exterior blanco.
+        */
+        body > .container,
+        body > .container-fluid,
+        main.container,
+        main.container-fluid,
+        main[role="main"],
+        .container,
+        .container-fluid,
+        .pb-3,
+        .content-wrapper,
+        .main-content,
+        .page-content,
+        .content,
+        .content-body {
+            width: 100% !important;
+            max-width: none !important;
+            min-width: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: transparent !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+        }
+
+    /*
+           Evita que un wrapper generado por el layout dibuje
+           un rectángulo blanco alrededor de la vista.
+        */
+    main,
+    main::before,
+    main::after {
+        background: transparent !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    #appShellMain,
+    .app-shell {
+        position: relative;
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        min-height: calc(100vh - 56px);
+        min-height: calc(100dvh - 56px);
+        margin: 0 !important;
+        padding: 0 !important;
+        background: var(--bg) !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        overflow-x: clip;
+    }
+
+    .module-header {
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+    }
+
+    .module-main {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        margin: 0;
+        padding: clamp(6px, 0.8vw, 12px);
+        overflow-x: hidden;
+    }
+
+    .section,
+    .section.active,
+    .grid,
+    .card,
+    .form-grid,
+    .table-wrap,
+    .split-panel,
+    .request-card {
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    /*
+           Las tablas se adaptan al ancho disponible.
+           Cuando realmente no caben, aparece desplazamiento horizontal
+           dentro de la tabla y no en toda la pantalla.
+        */
+    .app-shell .table-wrap {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto !important;
+        overflow-y: visible;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .app-shell table {
+        width: 100%;
+        min-width: 760px;
+    }
+
+    #itemsTable {
+        min-width: 820px;
+    }
+
+    #trackingTable {
+        min-width: 980px;
+    }
+
+    /*
+           El formulario superior usa el espacio disponible y evita
+           que el selector y el botón se salgan de la pantalla.
+        */
+    #requestForm > .form-subtitle:first-child {
+        width: 100%;
+        max-width: 100%;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+        #requestForm > .form-subtitle:first-child > div {
+            display: flex !important;
+            width: 100%;
+            min-width: 0;
+            flex-wrap: wrap;
+        }
+
+    #ovMuestraSelect {
+        flex: 1 1 420px !important;
+        min-width: 220px;
+    }
+
+    #btnCargarOV {
+        flex: 0 0 auto;
+    }
+
+    /*
+           Monitores medianos y laptops.
+        */
+    @@media (max-width: 1400px) {
+        .grid.cols-4 {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .split-panel {
+            grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+        }
+
+        .request-card {
+            grid-template-columns: minmax(0, 1.35fr) minmax(260px, .8fr);
+        }
+    }
+
+    @@media (max-width: 1100px) {
+        .header-top {
+            align-items: flex-start;
+        }
+
+        .split-panel,
+        .request-card {
+            grid-template-columns: 1fr;
+        }
+
+        .scan-panel {
+            position: static;
+        }
+
+        .form-grid,
+        .form-grid.two {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    /*
+           Tablet y móvil.
+        */
+    @@media (max-width: 768px) {
+        #appShellMain,
+        .app-shell {
+            min-height: 100dvh;
+        }
+
+        .module-header {
+            position: relative;
+            top: auto;
+            padding: 8px 6px 0;
+        }
+
+        .module-main {
+            padding: 6px;
+        }
+
+        .header-top {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 8px;
+        }
+
+        .header-actions {
+            width: 100%;
+        }
+
+            .header-actions > button,
+            .header-actions > .btn {
+                flex: 1 1 auto;
+            }
+
+        .module-tabs {
+            width: 100%;
+            padding: 0;
+            gap: 3px;
+        }
+
+        .nav-btn {
+            flex: 0 0 auto;
+            min-width: max-content;
+            padding: 8px 10px;
+        }
+
+        .grid.cols-4,
+        .grid.cols-3,
+        .grid.cols-2,
+        .form-grid,
+        .form-grid.two {
+            grid-template-columns: 1fr !important;
+        }
+
+        .app-shell .card {
+            padding: 8px;
+        }
+
+        #requestForm > .form-subtitle:first-child > div {
+            align-items: stretch !important;
+        }
+
+        #ovMuestraSelect,
+        #btnCargarOV {
+            width: 100% !important;
+            flex: 1 1 100% !important;
+        }
+
+        .section-header {
+            align-items: stretch;
+        }
+
+            .section-header > button {
+                width: 100%;
+            }
+
+        .modal-backdrop-custom {
+            padding: 0;
+        }
+
+        .modal-custom {
+            width: 100vw;
+            max-width: 100vw;
+            min-height: 100dvh;
+            max-height: 100dvh;
+            border-left: 0;
+            border-right: 0;
+        }
+    }
+
+    @@media (max-width: 480px) {
+        .module-main {
+            padding: 4px;
+        }
+
+        .brand h1 {
+            font-size: 13px;
+        }
+
+        .brand small {
+            font-size: 9px;
+        }
+
+        .grid.cols-4 {
+            grid-template-columns: 1fr !important;
+        }
+
+        .kpi {
+            min-height: 62px;
+            padding: 8px;
+        }
+
+            .kpi strong {
+                font-size: 16px;
+            }
+
+        .app-shell button:not(.nav-btn),
+        .app-shell .btn {
+            min-height: 30px;
+            height: auto;
+            padding: 6px 9px;
+            white-space: normal;
+        }
+    }
+
+
+
+    /* =========================================================
+           SEPARACIÓN VISUAL DEL MENÚ DE MÓDULOS
+           ========================================================= */
+    .module-header {
+        padding-top: 12px !important;
+    }
+
+    .header-top {
+        margin-bottom: 14px !important;
+    }
+
+    .module-tabs {
+        margin-top: 0 !important;
+        padding-top: 6px !important;
+        padding-bottom: 0 !important;
+        border-top: 1px solid rgba(255,255,255,.16);
+    }
+
+    .nav-btn {
+        margin-top: 2px;
+    }
+
+    @@media (max-width: 768px) {
+        .module-header {
+            padding-top: 10px !important;
+        }
+
+        .header-top {
+            margin-bottom: 10px !important;
+        }
+
+        .module-tabs {
+            padding-top: 5px !important;
+        }
+    }
 </style>
 
 <div class="app-shell" id="appShellMain">
@@ -1176,7 +1539,12 @@
                             </div>
                             <div>
                                 <label>Cliente</label>
-                                <input required name="client" id="clientHidden" readonly placeholder="Se carga desde la OV" style="background-color: #f0f0f0; color: #666; cursor: not-allowed; width: 100%;" />
+                                <input type="hidden" required name="client" id="clientHidden" />
+                                <input id="clientDisplay"
+                                       type="text"
+                                       readonly
+                                       placeholder="Se carga desde la OV"
+                                       style="background-color:#f0f0f0; color:#666; cursor:not-allowed; width:100%;" />
                             </div>
                             <div>
                                 <label>Especie / clasificación</label>
@@ -1443,6 +1811,7 @@
                 let articulosSap = [];
                 let articulosOptionsHTML = '';
                 let selectedOVId = null;
+                const ovMuestrasDisponibles = new Map();
 
                 // Tracking real consultado en CadenaMeatTIF y CadenaMeatP1.
                 let trackingMeat = new Map();
@@ -1507,132 +1876,301 @@
                 }
 
                         // Cargar OV de muestra disponibles para el vendedor
-                async function loadOVMuestras() {
-                    try {
-                        const response = await fetch('@Url.Action("ObtenerOVMuestras", "Comercial")');
-                        if (!response.ok) return;
-                        const data = await response.json();
-                        const select = document.getElementById('ovMuestraSelect');
-                        const btn = document.getElementById('btnCargarOV');
+                function bloquearProductosCargadosDesdeOV() {
+                    const lockStyle =
+                        'background-color:#f0f0f0; color:#666; cursor:not-allowed;';
 
-                        if (!Array.isArray(data) || data.length === 0) {
-                            select.innerHTML = '<option value="">No hay OV de muestra disponibles</option>';
-                            return;
+                    document.querySelectorAll(
+                        '#itemsBody .item-sku, #itemsBody .item-product, #itemsBody .item-boxes'
+                    ).forEach(el => {
+                        el.readOnly = true;
+                        el.disabled = true;
+                        el.style.cssText = lockStyle;
+                    });
+
+                    document.querySelectorAll('#itemsBody .remove-item').forEach(el => {
+                        el.disabled = true;
+                        el.style.display = 'none';
+                    });
+
+                    // Estos dos campos sí quedan disponibles para completar la muestra.
+                    document.querySelectorAll('#itemsBody .item-spec, #itemsBody .item-temp')
+                        .forEach(el => {
+                            el.disabled = false;
+                            el.readOnly = false;
+                        });
+                }
+
+                function resetEstadoOVMuestra() {
+                    selectedOVId = null;
+
+                    const select = document.getElementById('ovMuestraSelect');
+                    const btnCargar = document.getElementById('btnCargarOV');
+                    const clientHidden = document.getElementById('clientHidden');
+                    const clientDisplay = document.getElementById('clientDisplay');
+                    const lockedDiv = document.getElementById('formContentLocked');
+                    const btnSubmit = document.getElementById('btnSubmitSolicitud');
+
+                    if (select) select.value = '';
+                    if (btnCargar) btnCargar.disabled = true;
+                    if (clientHidden) clientHidden.value = '';
+                    if (clientDisplay) clientDisplay.value = '';
+                    if (lockedDiv) lockedDiv.classList.add('form-locked-overlay');
+                    if (btnSubmit) btnSubmit.disabled = true;
+                }
+
+                async function cargarProductosOV(ovId) {
+                    const response = await fetch(
+                        '@Url.Action("ObtenerProductosOV", "Comercial")'
+                        + '?ovId='
+                        + encodeURIComponent(ovId),
+                        {
+                            method: 'GET',
+                            headers: { 'Accept': 'application/json' },
+                            cache: 'no-store'
+                        }
+                    );
+
+                    let productos = null;
+
+                    try {
+                        productos = await response.json();
+                    } catch {
+                        throw new Error(
+                            `El servidor respondió HTTP ${response.status} sin JSON válido.`
+                        );
+                    }
+
+                    if (!response.ok) {
+                        throw new Error(
+                            productos?.mensaje || `Error HTTP ${response.status} al consultar productos.`
+                        );
+                    }
+
+                    if (!Array.isArray(productos)) {
+                        throw new Error(
+                            productos?.mensaje || 'La respuesta de productos de la OV no es válida.'
+                        );
+                    }
+
+                    if (productos.length === 0) {
+                        throw new Error('La Orden de Venta seleccionada no contiene productos activos.');
+                    }
+
+                    const tbody = document.getElementById('itemsBody');
+                    if (tbody) tbody.innerHTML = '';
+
+                    productos.forEach(p => {
+                        addItem({
+                            sku: p.productoCodigo || p.ProductoCodigo || '',
+                            product: p.productoNombre || p.ProductoNombre || '',
+                            spec: '',
+                            boxes: Number(p.cajas ?? p.Cajas ?? 1) || 1,
+                            temp: 'Refrigerado 0-4 °C'
+                        });
+                    });
+
+                    bloquearProductosCargadosDesdeOV();
+                    return true;
+                }
+
+                async function loadOVMuestras() {
+                    const select = document.getElementById('ovMuestraSelect');
+                    const btn = document.getElementById('btnCargarOV');
+
+                    if (!select || !btn) return;
+
+                    selectedOVId = null;
+                    ovMuestrasDisponibles.clear();
+                    btn.disabled = true;
+                    select.disabled = true;
+                    select.innerHTML = '<option value="">Cargando OV de muestra...</option>';
+
+                    try {
+                        const response = await fetch(
+                            '@Url.Action("ObtenerOVMuestras", "Comercial")',
+                            {
+                                method: 'GET',
+                                headers: { 'Accept': 'application/json' },
+                                cache: 'no-store'
+                            }
+                        );
+
+                        let data = null;
+
+                        try {
+                            data = await response.json();
+                        } catch {
+                            throw new Error(
+                                `El servidor respondió HTTP ${response.status} sin JSON válido.`
+                            );
                         }
 
-                        select.innerHTML = '<option value="">Selecciona una OV de muestra (opcional)...</option>';
+                        if (!response.ok) {
+                            throw new Error(
+                                data?.mensaje || `Error HTTP ${response.status} al consultar las OV.`
+                            );
+                        }
+
+                        if (!Array.isArray(data)) {
+                            throw new Error(
+                                data?.mensaje || 'La respuesta de OV de muestra no es válida.'
+                            );
+                        }
+
+                        select.innerHTML =
+                            '<option value="">Selecciona una OV de muestra...</option>';
+
                         data.forEach(ov => {
+                            const id = String(ov.id ?? ov.Id ?? '').trim();
+                            if (!id) return;
+
+                            ovMuestrasDisponibles.set(id, ov);
+
+                            const consecutivo = ov.consecutivo ?? ov.Consecutivo ?? 'SIN FOLIO';
+                            const cliente = ov.cliente ?? ov.Cliente ?? '';
+                            const clienteNombre =
+                                ov.clienteNombre ?? ov.ClienteNombre ?? cliente;
+                            const ruta = ov.ruta ?? ov.Ruta ?? 'Sin ruta';
+
                             const opt = document.createElement('option');
-                            opt.value = JSON.stringify(ov);
-                            opt.textContent = `${ov.consecutivo} - ${ov.clienteNombre || ov.cliente} - ${ov.ruta || 'Sin ruta'}`;
+                            opt.value = id;
+                            opt.textContent =
+                                `${consecutivo} - ${clienteNombre || cliente} - ${ruta}`;
+
                             select.appendChild(opt);
                         });
 
-                        select.addEventListener('change', function() {
-                            btn.disabled = !this.value;
-                        });
-
-                        btn.addEventListener('click', function() {
-                            if (!select.value) return;
-                            const ov = JSON.parse(select.value);
-                            selectedOVId = ov.id;
-
-                            // Desbloquear formulario
-                            const lockedDiv = document.getElementById('formContentLocked');
-                            if (lockedDiv) lockedDiv.classList.remove('form-locked-overlay');
-                            const btnSubmit = document.getElementById('btnSubmitSolicitud');
-                            if (btnSubmit) btnSubmit.disabled = false;
-
-                            // Llenar cliente
-                            document.getElementById('clientHidden').value = ov.clienteNombre ? `${ov.cliente} - ${ov.clienteNombre}` : ov.cliente || '';
-
-                            // Ruta y destino se dejan en blanco para que el usuario los llen
-                            const routeInput = document.querySelector('[name="route"]');
-                            if (routeInput) routeInput.value = '';
-
-                            const destInput = document.querySelector('[name="destination"]');
-                            if (destInput) destInput.value = '';
-
-                            // Llenar observaciones
-                            const notesInput = document.querySelector('[name="notes"]');
-                            if (notesInput) notesInput.value = ov.observacion ? `OV ${ov.consecutivo}: ${ov.observacion}` : `OV ${ov.consecutivo}`;
-
-                            // Llenar fecha requerida
-                            const fechaInput = document.querySelector('[name="requestedDate"]');
-                            if (fechaInput && ov.fechaEntrega) {
-                                fechaInput.value = ov.fechaEntrega.slice(0, 10);
-                            }
-
-                            // Bloquear campos que no se deben editar
-                            const lockStyle = 'background-color: #f0f0f0; color: #666; cursor: not-allowed;';
-                            if (notesInput) { notesInput.readOnly = false; notesInput.style.cssText = ''; }
-                            if (fechaInput) { fechaInput.readOnly = true; fechaInput.style.cssText = lockStyle; }
-                            const priorityInput = document.querySelector('[name="priority"]');
-                            if (priorityInput) { priorityInput.disabled = false; priorityInput.style.cssText = ''; }
-
-                            // Bloquear botones de eliminar y campos en la tabla de items
-                            setTimeout(() => {
-                                document.querySelectorAll('#itemsBody input:not(.item-temp), #itemsBody textarea:not(.item-spec), #itemsBody select:not(.item-temp)').forEach(el => {
-                                    el.readOnly = true;
-                                    el.disabled = true;
-                                    el.style.cssText = lockStyle;
-                                });
-                                document.querySelectorAll('#itemsBody .btn-ghost, #itemsBody .btn-danger, #itemsBody button').forEach(el => {
-                                    el.disabled = true;
-                                    el.style.display = 'none';
-                                });
-                            }, 500);
-
-                            // Cargar productos de la OV
-                            cargarProductosOV(ov.id);
-
-                            toast('Datos de OV cargados en el formulario.');
-                        });
-                    } catch (error) {
-                        console.error('Error cargando OV de muestra', error);
-                    }
-                }
-
-                // Cargar productos de una OV específica
-                async function cargarProductosOV(ovId) {
-                    try {
-                        const response = await fetch('@Url.Action("ObtenerProductosOV", "Comercial")?ovId=' + ovId);
-                        if (!response.ok) return;
-                        const productos = await response.json();
-
-                        // Limpiar tabla actual
-                        const tbody = document.getElementById('itemsBody');
-                        if (tbody) tbody.innerHTML = '';
-
-                        const lockStyle = 'background-color: #f0f0f0; color: #666; cursor: not-allowed;';
-
-                        if (Array.isArray(productos)) {
-                            productos.forEach(p => {
-                                addItem({
-                                    sku: p.productoCodigo || '',
-                                    product: p.productoNombre || '',
-                                    spec: '',
-                                    boxes: p.cajas || 1,
-                                    temp: 'Refrigerado 0-4 °C'
-                                });
-                            });
-
-                            // Bloquear todos los campos de la tabla de items
-                            setTimeout(() => {
-                                document.querySelectorAll('#itemsBody input:not(.item-temp), #itemsBody textarea:not(.item-spec), #itemsBody select:not(.item-temp)').forEach(el => {
-                                    el.readOnly = true;
-                                    el.disabled = true;
-                                    el.style.cssText = lockStyle;
-                                });
-                                document.querySelectorAll('#itemsBody .btn-ghost, #itemsBody .btn-danger, #itemsBody button').forEach(el => {
-                                    el.disabled = true;
-                                    el.style.display = 'none';
-                                });
-                            }, 300);
+                        if (ovMuestrasDisponibles.size === 0) {
+                            select.innerHTML =
+                                '<option value="">No hay OV de muestra disponibles</option>';
                         }
                     } catch (error) {
-                        console.error('Error cargando productos OV', error);
+                        console.error('Error cargando OV de muestra:', error);
+                        select.innerHTML =
+                            '<option value="">No fue posible cargar las OV de muestra</option>';
+                        toast(error.message || 'No fue posible cargar las OV de muestra.');
+                    } finally {
+                        select.disabled = false;
                     }
+
+                    // Asignación directa: reemplaza el manejador anterior y evita duplicados.
+                    select.onchange = function () {
+                        selectedOVId = null;
+                        btn.disabled = !this.value;
+                    };
+
+                    btn.onclick = async function () {
+                        const ovId = String(select.value || '').trim();
+                        const ov = ovMuestrasDisponibles.get(ovId);
+
+                        if (!ovId || !ov) {
+                            toast('Selecciona una OV de muestra válida.');
+                            return;
+                        }
+
+                        const originalText = btn.innerHTML;
+
+                        try {
+                            btn.disabled = true;
+                            btn.innerHTML =
+                                '<i class="bi bi-hourglass-split"></i> Cargando...';
+
+                            // Primero validamos y cargamos productos.
+                            await cargarProductosOV(ovId);
+
+                            selectedOVId = Number(ovId);
+
+                            const clienteCodigo =
+                                String(ov.cliente ?? ov.Cliente ?? '').trim();
+                            const clienteNombre =
+                                String(
+                                    ov.clienteNombre
+                                    ?? ov.ClienteNombre
+                                    ?? clienteCodigo
+                                ).trim();
+
+                            const clientHidden =
+                                document.getElementById('clientHidden');
+                            const clientDisplay =
+                                document.getElementById('clientDisplay');
+
+                            if (clientHidden) {
+                                // Al backend se envía únicamente el código SAP.
+                                clientHidden.value = clienteCodigo;
+                            }
+
+                            if (clientDisplay) {
+                                clientDisplay.value = clienteNombre
+                                    ? `${clienteCodigo} - ${clienteNombre}`
+                                    : clienteCodigo;
+                            }
+
+                            const routeInput =
+                                document.querySelector('[name="route"]');
+                            if (routeInput) routeInput.value = '';
+
+                            const destInput =
+                                document.querySelector('[name="destination"]');
+                            if (destInput) destInput.value = '';
+
+                            const notesInput =
+                                document.querySelector('[name="notes"]');
+                            const consecutivo =
+                                ov.consecutivo ?? ov.Consecutivo ?? '';
+
+                            if (notesInput) {
+                                const observacion =
+                                    ov.observacion ?? ov.Observacion ?? '';
+
+                                notesInput.value = observacion
+                                    ? `OV ${consecutivo}: ${observacion}`
+                                    : `OV ${consecutivo}`;
+
+                                notesInput.readOnly = false;
+                                notesInput.style.cssText = '';
+                            }
+
+                            const fechaInput =
+                                document.querySelector('[name="requestedDate"]');
+                            const fechaEntrega =
+                                ov.fechaEntrega ?? ov.FechaEntrega ?? '';
+
+                            if (fechaInput && fechaEntrega) {
+                                fechaInput.value =
+                                    String(fechaEntrega).slice(0, 10);
+                                fechaInput.readOnly = true;
+                                fechaInput.style.cssText =
+                                    'background-color:#f0f0f0; color:#666; cursor:not-allowed;';
+                            }
+
+                            const priorityInput =
+                                document.querySelector('[name="priority"]');
+                            if (priorityInput) {
+                                priorityInput.disabled = false;
+                                priorityInput.style.cssText = '';
+                            }
+
+                            const lockedDiv =
+                                document.getElementById('formContentLocked');
+                            if (lockedDiv) {
+                                lockedDiv.classList.remove('form-locked-overlay');
+                            }
+
+                            const btnSubmit =
+                                document.getElementById('btnSubmitSolicitud');
+                            if (btnSubmit) btnSubmit.disabled = false;
+
+                            toast('Datos y productos de la OV cargados correctamente.');
+                        } catch (error) {
+                            console.error('Error cargando datos de la OV:', error);
+                            resetEstadoOVMuestra();
+                            toast(error.message || 'No fue posible cargar la OV.');
+                        } finally {
+                            btn.innerHTML = originalText;
+                            btn.disabled = !select.value;
+                        }
+                    };
                 }
 
                 // Ejecutar al cargar la página
@@ -2943,25 +3481,55 @@
                         };
 
                         try {
-                            const response = await fetch('@Url.Action("CrearSolicitud", "Comercial")', {
-                                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req)
-                            });
-                            const data = await response.json();
+                            const response = await fetch(
+                                '@Url.Action("CrearSolicitud", "Comercial")',
+                                {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Accept': 'application/json'
+                                    },
+                                    body: JSON.stringify(req)
+                                }
+                            );
+
+                            let data = null;
+                            try {
+                                data = await response.json();
+                            } catch {
+                                throw new Error(
+                                    `El servidor respondió HTTP ${response.status} sin JSON válido.`
+                                );
+                            }
+
+                            if (!response.ok) {
+                                throw new Error(
+                                    data?.mensaje || `Error HTTP ${response.status} al crear la solicitud.`
+                                );
+                            }
                             if(data.ok) {
-                                selectedOVId = null;
-                                const ovSelect = document.getElementById('ovMuestraSelect');
-                                if(ovSelect) ovSelect.value = '';
-                                // Re-lock form
-                                const lockedDiv = document.getElementById('formContentLocked');
-                                if (lockedDiv) lockedDiv.classList.add('form-locked-overlay');
-                                const btnSubmit = document.getElementById('btnSubmitSolicitud');
-                                if (btnSubmit) btnSubmit.disabled = true;
-                                toast(`Solicitud creada.`); e.target.reset(); setDefaultDates(); clearItems(); loadData(); loadOVMuestras();
-                            } else { toast("Error: " + data.mensaje); }
+                                e.target.reset();
+                                resetEstadoOVMuestra();
+                                setDefaultDates();
+                                clearItems();
+
+                                toast(data.mensaje || 'Solicitud creada correctamente.');
+
+                                await loadData();
+                                await loadOVMuestras();
+                            } else {
+                                toast("Error: " + (data.mensaje || 'No fue posible crear la solicitud.'));
+                            }
                         } catch(err) {
-                            console.warn("Backend no disponible...");
-                            requests.unshift(req); e.target.reset(); setDefaultDates(); clearItems(); renderAll(); toast(`Creada localmente.`);
-                        } finally { btn.disabled = false; btn.textContent = 'Crear solicitud de muestra'; }
+                            console.error('Error creando solicitud:', err);
+                            toast(
+                                err?.message
+                                || 'No fue posible crear la solicitud. No se guardó ningún cambio.'
+                            );
+                        } finally {
+                            btn.disabled = false;
+                            btn.textContent = 'Crear solicitud de muestra';
+                        }
                     });
                 }
 

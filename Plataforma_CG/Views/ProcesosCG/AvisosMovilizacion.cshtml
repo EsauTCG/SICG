@@ -386,6 +386,87 @@
             white-space: nowrap;
         }
 
+
+    .detalle-fecha {
+        min-width: 130px;
+    }
+
+    .detalle-fecha-wrap {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 20px;
+    }
+
+    .detalle-fecha-local {
+        color: #4b1d1d;
+    }
+
+    .detalle-fecha-tif {
+        color: #0f6b3d;
+        font-weight: 800;
+    }
+
+    .detalle-row-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        margin-left: 5px;
+        font-size: 10px;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+        .detalle-row-status.is-pending {
+            color: #8a5700;
+        }
+
+        .detalle-row-status.is-complete {
+            color: #157347;
+        }
+
+        .detalle-row-status.is-error {
+            color: #b00000;
+        }
+
+    .detalle-mini-spinner {
+        display: inline-block;
+        width: 11px;
+        height: 11px;
+        border: 2px solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        animation: tif-spin .75s linear infinite;
+    }
+
+    .detalle-progress {
+        margin: 0 0 10px 0;
+        padding: 8px 10px;
+        border: 1px solid #d8bcbc;
+        background: #fffafa;
+        color: #5c1a1a;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+        .detalle-progress.is-loading {
+            background: #e8f4fd;
+            border-color: #7ab8d4;
+            color: #064b6b;
+        }
+
+        .detalle-progress.is-success {
+            background: #dff3e2;
+            border-color: #6aa84f;
+            color: #2f6b1f;
+        }
+
+        .detalle-progress.is-warning {
+            background: #fff3cd;
+            border-color: #e0a800;
+            color: #765500;
+        }
+
     #logBox {
         margin-top: 8px;
         display: none;
@@ -415,6 +496,58 @@
         background: #fde2e2;
         border-color: #d9534f;
         color: #b00000;
+    }
+
+
+    .tif-status {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        min-height: 36px;
+        padding: 8px 12px;
+        border-top: 1px solid #ead6d6;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+        .tif-status.is-hidden {
+            display: none;
+        }
+
+        .tif-status.status-loading {
+            color: #064b6b;
+            background: #e8f4fd;
+        }
+
+        .tif-status.status-success {
+            color: #21652b;
+            background: #e2f4e5;
+        }
+
+        .tif-status.status-warning {
+            color: #7a4a00;
+            background: #fff3cd;
+        }
+
+        .tif-status.status-danger {
+            color: #9d1111;
+            background: #fde2e2;
+        }
+
+    .tif-spinner {
+        width: 15px;
+        height: 15px;
+        border: 2px solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        animation: tif-spin .75s linear infinite;
+        flex: 0 0 auto;
+    }
+
+    @@keyframes tif-spin {
+        to {
+            transform: rotate(360deg);
+        }
     }
 
     @@media(max-width: 992px) {
@@ -516,7 +649,7 @@
                                 <button class="pm-btn pm-btn-secondary" type="button" onclick="selectAllAvisos(false)">☐ Ninguno</button>
                                 <button class="pm-btn pm-btn-success" type="button" onclick="abrirEnvioMedico()">📧 Enviar médico</button>
                                 <button class="pm-btn pm-btn-primary" type="button" onclick="abrirPdfSeleccionados()">📄 PDF</button>
-                               @*  <button class="pm-btn pm-btn-success" type="button" onclick="descargarExcelAvisoMovilizacion()">📊 Aviso de Movilización</button> *@
+                                @*  <button class="pm-btn pm-btn-success" type="button" onclick="descargarExcelAvisoMovilizacion()">📊 Aviso de Movilización</button> *@
                             </div>
                         </div>
 
@@ -547,6 +680,14 @@
                         <div class="value" id="kpiSeleccionadas">0</div>
                         <div class="hint">Para PDF / envío médico</div>
                     </div>
+                </div>
+
+                <div id="estadoCargaTif"
+                     class="tif-status is-hidden"
+                     role="status"
+                     aria-live="polite">
+                    <span id="estadoCargaTifIcono"></span>
+                    <span id="estadoCargaTifTexto"></span>
                 </div>
             </div>
 
@@ -597,6 +738,12 @@
                     &nbsp; | &nbsp; Cajas: <strong id="detalleCajas">0</strong>
                     &nbsp; | &nbsp; Kg: <strong id="detalleKg">0</strong>
                 </div>
+
+                <div id="detalleTifProgress"
+                     class="detalle-progress"
+                     style="display:none;"
+                     role="status"
+                     aria-live="polite"></div>
 
                 <div class="detalle-wrap">
                     <table class="detalle-table">
@@ -670,6 +817,12 @@
     const URL_PDF = '@Url.Action("AvisosMovilizacionPdf", "ProcesosCg")';
     const URL_ENVIAR = '@Url.Action("EnviarAvisosMovilizacionSenasica", "ProcesosCg")';
     const URL_EXCEL_AVISO = '@Url.Action("AvisosMovilizacionExcel", "ProcesosCg")';
+
+    let avisosAbortController = null;
+    let avisosRequestVersion = 0;
+
+    let detalleAbortController = null;
+    let detalleRequestVersion = 0;
 
     function normalizePlanta(value) {
         const v = String(value || '').trim().toUpperCase();
@@ -782,12 +935,42 @@
         `;
     }
 
-    function setBuscando(on) {
+    function setBuscando(on, text = '') {
         const btn = document.getElementById('btnBuscarAvisos');
         if (!btn) return;
 
         btn.disabled = !!on;
-        btn.textContent = on ? '⏳ Cargando...' : '🔎 Buscar';
+        btn.textContent = on
+            ? (text || '⏳ Cargando...')
+            : '🔎 Buscar';
+    }
+
+    function setEstadoTif(tipo, texto, mostrarSpinner = false) {
+        const box = document.getElementById('estadoCargaTif');
+        const icono = document.getElementById('estadoCargaTifIcono');
+        const label = document.getElementById('estadoCargaTifTexto');
+
+        if (!box || !icono || !label) return;
+
+        if (!texto) {
+            box.className = 'tif-status is-hidden';
+            icono.innerHTML = '';
+            label.textContent = '';
+            return;
+        }
+
+        const tipoSeguro = ['loading', 'success', 'warning', 'danger'].includes(tipo)
+            ? tipo
+            : 'loading';
+
+        box.className = 'tif-status status-' + tipoSeguro;
+        icono.innerHTML = mostrarSpinner
+            ? '<span class="tif-spinner" aria-hidden="true"></span>'
+            : (tipoSeguro === 'success'
+                ? '✓'
+                : (tipoSeguro === 'warning' ? '⚠' : (tipoSeguro === 'danger' ? '✕' : 'ℹ')));
+
+        label.textContent = texto;
     }
 
     function renderResumen(data, rows) {
@@ -804,9 +987,13 @@
         if (kpiKg) kpiKg.textContent = formatKg(totalKg);
     }
 
-    function renderAvisos(rows) {
+    function renderAvisos(rows, seleccionadasPrevias = []) {
         const body = document.getElementById('avisosBody');
         if (!body) return;
+
+        const seleccionSet = new Set(
+            (seleccionadasPrevias || []).map(x => String(x || '').trim())
+        );
 
         if (!rows || !rows.length) {
             setTableMessage('Sin avisos para el rango seleccionado.');
@@ -824,11 +1011,12 @@
             const totalKg = pick(x, 'totalKg', 'TotalKg');
             const planta = pick(x, 'planta', 'Planta', 'origen', 'Origen') || getPlantaActual();
             const plantaNombre = getNombrePlanta(planta);
+            const checked = seleccionSet.has(String(id || '').trim()) ? ' checked' : '';
 
             return `
                 <tr data-id="${escapeHtml(id)}" data-venta="${escapeHtml(venta)}" data-planta="${escapeHtml(normalizePlanta(planta))}">
                     <td class="text-center">
-                        <input type="checkbox" class="ck-aviso" value="${escapeHtml(id)}" />
+                        <input type="checkbox" class="ck-aviso" value="${escapeHtml(id)}"${checked} />
                     </td>
                     <td title="${escapeHtml(plantaNombre)}">${escapeHtml(plantaNombre)}</td>
                     <td title="${escapeHtml(fechaVenta)}">${escapeHtml(fechaVenta)}</td>
@@ -878,24 +1066,53 @@
 
     async function cargarAvisos() {
         const form = document.getElementById('filtrosAvisosForm');
+        if (!form) return;
+
+        avisosAbortController?.abort();
+        avisosAbortController = new AbortController();
+
+        const requestVersion = ++avisosRequestVersion;
+        const signal = avisosAbortController.signal;
         const params = appendOrigenParams(new URLSearchParams(new FormData(form)));
+        const sourceActual = getPlantaActual();
+
+        /*
+         * La tabla principal no muestra fechas de sacrificio, producción o
+         * caducidad. Por eso P1 carga únicamente datos locales aquí.
+         * Las fechas TIF se consultan progresivamente al abrir Detalle.
+         */
+        params.set('cargarTif', 'false');
+        params.set('tamanoLote', '50');
 
         hideLog();
-        setBuscando(true);
-        setTableMessage('Cargando avisos...');
+        setEstadoTif('', '');
+        setBuscando(true, sourceActual === 'P1'
+            ? '⏳ Cargando local...'
+            : '⏳ Cargando...');
+        setTableMessage(sourceActual === 'P1'
+            ? 'Cargando información local de Planta 1...'
+            : 'Cargando avisos de Planta TIF...');
         renderResumen({ totalSolicitudes: 0, totalCajas: 0, totalKg: 0 }, []);
 
         try {
             const res = await fetch(URL_DATA + '?' + params.toString(), {
                 method: 'GET',
                 headers: { 'Accept': 'application/json' },
-                cache: 'no-store'
+                cache: 'no-store',
+                signal
             });
 
             const data = await readResponse(res);
 
+            if (requestVersion !== avisosRequestVersion) return;
+
             if (!res.ok || data.ok === false) {
-                throw new Error(data.msg || data.error || data.detalle || 'No se pudieron cargar los avisos.');
+                throw new Error(
+                    data.msg ||
+                    data.error ||
+                    data.detalle ||
+                    'No se pudieron cargar los avisos.'
+                );
             }
 
             const rows = Array.isArray(data)
@@ -905,11 +1122,30 @@
             renderResumen(data, rows);
             renderAvisos(rows);
 
-        } catch (e) {
+            if (sourceActual === 'P1') {
+                setEstadoTif(
+                    'success',
+                    ''
+                );
+            } else {
+                setEstadoTif(
+                    'success',
+                    ''
+                );
+            }
+        }
+        catch (e) {
+            if (e?.name === 'AbortError') return;
+            if (requestVersion !== avisosRequestVersion) return;
+
             setTableMessage('No se pudieron cargar los avisos.');
-            showLog('danger', 'Error al cargar avisos: ' + e.message);
-        } finally {
-            setBuscando(false);
+            setEstadoTif('danger', 'No fue posible cargar la información.');
+            showLog('danger', 'Error al cargar avisos: ' + (e?.message || e));
+        }
+        finally {
+            if (requestVersion === avisosRequestVersion) {
+                setBuscando(false);
+            }
         }
     }
 
@@ -938,60 +1174,392 @@
         actualizarKpiSeleccionadas();
     }
 
+    function setDetalleProgress(tipo, texto) {
+        const box = document.getElementById('detalleTifProgress');
+        if (!box) return;
+
+        if (!texto) {
+            box.style.display = 'none';
+            box.className = 'detalle-progress';
+            box.textContent = '';
+            return;
+        }
+
+        box.style.display = 'block';
+        box.className = 'detalle-progress ' + (
+            tipo === 'loading'
+                ? 'is-loading'
+                : (tipo === 'success'
+                    ? 'is-success'
+                    : (tipo === 'warning' ? 'is-warning' : ''))
+        );
+        box.textContent = texto;
+    }
+
+    function detalleBool(value) {
+        return value === true ||
+               value === 1 ||
+               String(value || '').trim().toLowerCase() === 'true' ||
+               String(value || '').trim() === '1';
+    }
+
+    function getDetalleKey(x, index = 0) {
+        const serverKey = pick(x, 'detalleKey', 'DetalleKey');
+        if (serverKey) return String(serverKey);
+
+        return [
+            pick(x, 'solicitudSurtidoId', 'SolicitudSurtidoId'),
+            pick(x, 'sku', 'Sku'),
+            pick(x, 'lote', 'Lote'),
+            pick(x, 'fechaProduccionTxt', 'FechaProduccionTxt'),
+            index
+        ].join('|');
+    }
+
+    function getDetalleLote(x) {
+        return String(pick(x, 'lote', 'Lote') || '').trim();
+    }
+
+    function getDetalleSku(x) {
+        return String(pick(x, 'sku', 'Sku') || '').trim();
+    }
+
+    function renderDetalleRows(rows) {
+        const body = document.getElementById('detalleBody');
+
+        if (!rows || !rows.length) {
+            body.innerHTML =
+                '<tr><td colspan="8" class="text-center">Sin detalle.</td></tr>';
+            return;
+        }
+
+        body.innerHTML = rows.map((x, index) => {
+            const key = getDetalleKey(x, index);
+            const lote = getDetalleLote(x);
+            const requiereTif = detalleBool(pick(x, 'requiereTif', 'RequiereTif'));
+            const estadoTif = String(pick(x, 'estadoTif', 'EstadoTif') || '');
+            const statusHtml = requiereTif
+                ? `<span class="detalle-row-status is-pending"
+                         data-role="estado-tif">
+                       <span class="detalle-mini-spinner"></span>
+                       TIF pendiente
+                   </span>`
+                : `<span class="detalle-row-status is-complete"
+                         data-role="estado-tif"></span>`;
+
+            return `
+                <tr data-detalle-key="${escapeHtml(key)}"
+                    data-lote="${escapeHtml(lote)}"
+                    data-sku="${escapeHtml(getDetalleSku(x))}"
+                    data-requiere-tif="${requiereTif ? '1' : '0'}">
+                    <td>${escapeHtml(pick(x, 'sku', 'Sku'))}</td>
+                    <td>${escapeHtml(pick(x, 'producto', 'Producto'))}</td>
+                    <td>${escapeHtml(lote)}</td>
+
+                    <td class="detalle-fecha" data-role="fecha-sacrificio">
+                        <div class="detalle-fecha-wrap">
+                            <span class="detalle-fecha-local"
+                                  data-role="valor">${escapeHtml(pick(x, 'fechaSacrificioTxt', 'FechaSacrificioTxt')) || '-'}</span>
+                            ${statusHtml}
+                        </div>
+                    </td>
+
+                    <td class="detalle-fecha" data-role="fecha-produccion">
+                        <span class="detalle-fecha-local"
+                              data-role="valor">${escapeHtml(pick(x, 'fechaProduccionTxt', 'FechaProduccionTxt')) || '-'}</span>
+                    </td>
+
+                    <td class="detalle-fecha" data-role="fecha-caducidad">
+                        <span class="detalle-fecha-local"
+                              data-role="valor">${escapeHtml(pick(x, 'fechaCaducidadTxt', 'FechaCaducidadTxt')) || '-'}</span>
+                    </td>
+
+                    <td class="text-end">${formatInt(pick(x, 'cuentaDeEtiqueta', 'CuentaDeEtiqueta'))}</td>
+                    <td class="text-end">${formatKg(pick(x, 'sumaDeKg', 'SumaDeKg'))}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function setDetalleLoteEstado(lote, tipo, texto) {
+        const rows = Array.from(document.querySelectorAll('#detalleBody tr[data-lote]'))
+            .filter(tr => (tr.dataset.lote || '') === lote);
+
+        rows.forEach(tr => {
+            const badge = tr.querySelector('[data-role="estado-tif"]');
+            if (!badge) return;
+
+            badge.className = 'detalle-row-status ' + (
+                tipo === 'complete'
+                    ? 'is-complete'
+                    : (tipo === 'error' ? 'is-error' : 'is-pending')
+            );
+
+            badge.innerHTML = tipo === 'pending'
+                ? '<span class="detalle-mini-spinner"></span>' + escapeHtml(texto || 'Consultando TIF')
+                : escapeHtml(texto || '');
+        });
+    }
+
+    function actualizarFilaDetalleDesdeTif(x, index = 0) {
+        const key = getDetalleKey(x, index);
+        const selector = `#detalleBody tr[data-detalle-key="${CSS.escape(key)}"]`;
+        let tr = document.querySelector(selector);
+
+        /*
+         * El registro_key es la coincidencia principal. Como respaldo,
+         * intenta SKU + lote cuando una base antigua todavía no lo devuelve.
+         */
+        if (!tr) {
+            const lote = getDetalleLote(x);
+            const sku = getDetalleSku(x);
+
+            tr = Array.from(document.querySelectorAll('#detalleBody tr[data-lote][data-sku]'))
+                .find(row =>
+                    (row.dataset.lote || '') === lote &&
+                    (row.dataset.sku || '') === sku &&
+                    row.dataset.tifActualizado !== '1'
+                );
+        }
+
+        if (!tr) return false;
+
+        const values = [
+            ['fecha-sacrificio', pick(x, 'fechaSacrificioTxt', 'FechaSacrificioTxt')],
+            ['fecha-produccion', pick(x, 'fechaProduccionTxt', 'FechaProduccionTxt')],
+            ['fecha-caducidad', pick(x, 'fechaCaducidadTxt', 'FechaCaducidadTxt')]
+        ];
+
+        values.forEach(([role, value]) => {
+            const target = tr.querySelector(`[data-role="${role}"] [data-role="valor"]`);
+            if (!target) return;
+
+            target.textContent = value || '-';
+            target.className = 'detalle-fecha-tif';
+        });
+
+        const estado = String(pick(x, 'estadoTif', 'EstadoTif') || '').toUpperCase();
+        const mensaje = String(pick(x, 'mensajeTif', 'MensajeTif') || '');
+
+        const badge = tr.querySelector('[data-role="estado-tif"]');
+        if (badge) {
+            if (estado === 'ERROR TIF') {
+                badge.className = 'detalle-row-status is-error';
+                badge.textContent = 'Error TIF';
+                badge.title = mensaje;
+            } else if (estado === 'SIN COINCIDENCIA') {
+                badge.className = 'detalle-row-status is-error';
+                badge.textContent = 'Sin coincidencia';
+                badge.title = mensaje;
+            } else {
+                badge.className = 'detalle-row-status is-complete';
+                // badge.textContent = 'TIF actualizado';
+                badge.textContent = '';
+                badge.title = mensaje;
+            }
+        }
+
+        tr.dataset.tifActualizado = '1';
+        return true;
+    }
+
+    async function enriquecerDetalleTifPorLotes(
+        id,
+        rowsLocales,
+        paramsBase,
+        requestVersion,
+        signal
+    ) {
+        const pendientes = rowsLocales.filter(x =>
+            detalleBool(pick(x, 'requiereTif', 'RequiereTif'))
+        );
+
+        const lotes = Array.from(new Set(
+            pendientes
+                .map(getDetalleLote)
+                .filter(x => x && x.toUpperCase() !== 'SIN LOTE')
+        ));
+
+        if (!lotes.length) {
+            setDetalleProgress(
+                'success',
+                'El detalle local está completo; no hay lotes pendientes de consultar en TIF.'
+            );
+            return;
+        }
+
+        let completados = 0;
+        let errores = 0;
+
+        for (const loteActual of lotes) {
+            if (requestVersion !== detalleRequestVersion || signal.aborted) return;
+
+            setDetalleLoteEstado(loteActual, 'pending', 'Consultando TIF');
+            // setDetalleProgress(
+            //     'loading',
+            //     `Mostrando datos locales. Consultando TIF lote ${completados + 1} de ${lotes.length}: ${loteActual}`
+            // );
+
+            const paramsTif = new URLSearchParams(paramsBase);
+            paramsTif.set('id', id);
+            paramsTif.set('lote', loteActual);
+            paramsTif.set('cargarTif', 'true');
+            paramsTif.set('tamanoLote', '50');
+
+            try {
+                const res = await fetch(URL_DETALLE + '?' + paramsTif.toString(), {
+                    headers: { 'Accept': 'application/json' },
+                    cache: 'no-store',
+                    signal
+                });
+
+                const data = await readResponse(res);
+
+                if (requestVersion !== detalleRequestVersion || signal.aborted) return;
+
+                if (!res.ok || !data.ok) {
+                    throw new Error(
+                        data.msg ||
+                        data.error ||
+                        `No se pudo consultar TIF para el lote ${loteActual}.`
+                    );
+                }
+
+                const rowsTif = data.rows || data.Rows || [];
+
+                if (!rowsTif.length) {
+                    errores++;
+                    setDetalleLoteEstado(loteActual, 'error', 'Sin coincidencia TIF');
+                    continue;
+                }
+
+                rowsTif.forEach((x, index) => {
+                    actualizarFilaDetalleDesdeTif(x, index);
+                });
+
+                // setDetalleLoteEstado(loteActual, 'complete', 'TIF actualizado');
+                 setDetalleLoteEstado(loteActual, 'complete', '');
+                completados++;
+            }
+            catch (e) {
+                if (e?.name === 'AbortError') return;
+
+                errores++;
+                setDetalleLoteEstado(loteActual, 'error', 'Error TIF');
+
+                console.error(
+                    `Error al enriquecer lote ${loteActual}:`,
+                    e
+                );
+            }
+        }
+
+        if (requestVersion !== detalleRequestVersion || signal.aborted) return;
+
+        if (errores > 0) {
+            setDetalleProgress(
+                'warning',
+                `Detalle local visible. TIF completó ${completados} lote(s) y no pudo completar ${errores}.`
+            );
+        } else {
+            // setDetalleProgress(
+            //     'success',
+            //     `Fechas TIF actualizadas progresivamente para ${completados} lote(s).`
+            // );
+        }
+    }
+
     async function verDetalleAviso(id) {
         if (!id) return;
+
+        detalleAbortController?.abort();
+        detalleAbortController = new AbortController();
+
+        const requestVersion = ++detalleRequestVersion;
+        const signal = detalleAbortController.signal;
 
         document.getElementById('detalleSolicitud').textContent = id;
         document.getElementById('detalleCajas').textContent = '0';
         document.getElementById('detalleKg').textContent = '0';
         document.getElementById('detalleBody').innerHTML =
-            '<tr><td colspan="8" class="text-center">Cargando detalle...</td></tr>';
+            '<tr><td colspan="8" class="text-center">Cargando información local...</td></tr>';
 
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('detalleAvisoModal')).show();
+        // setDetalleProgress(
+        //     'loading',
+        //     'Cargando partidas locales. No se está esperando a TIF.'
+        // );
+
+        bootstrap.Modal
+            .getOrCreateInstance(document.getElementById('detalleAvisoModal'))
+            .show();
 
         try {
-            const params = getFiltroAvisosParams();
-            params.set('id', id);
+            const paramsLocal = getFiltroAvisosParams();
+            paramsLocal.set('id', id);
+            paramsLocal.set('cargarTif', 'false');
+            paramsLocal.set('tamanoLote', '50');
 
-            const res = await fetch(URL_DETALLE + '?' + params.toString(), {
+            const res = await fetch(URL_DETALLE + '?' + paramsLocal.toString(), {
                 headers: { 'Accept': 'application/json' },
-                cache: 'no-store'
+                cache: 'no-store',
+                signal
             });
+
             const data = await readResponse(res);
 
+            if (requestVersion !== detalleRequestVersion) return;
+
             if (!res.ok || !data.ok) {
-                document.getElementById('detalleBody').innerHTML =
-                    '<tr><td colspan="8" class="text-center">No se pudo cargar el detalle.</td></tr>';
+                throw new Error(
+                    data.msg ||
+                    data.error ||
+                    'No se pudo cargar el detalle local.'
+                );
+            }
+
+            document.getElementById('detalleCajas').textContent =
+                formatInt(data.totalCajas ?? data.TotalCajas);
+
+            document.getElementById('detalleKg').textContent =
+                formatKg(data.totalKg ?? data.TotalKg);
+
+            const rowsLocal = data.rows || data.Rows || [];
+
+            renderDetalleRows(rowsLocal);
+
+            if (!rowsLocal.length) {
+                setDetalleProgress('warning', 'No se encontraron partidas locales.');
                 return;
             }
 
-            document.getElementById('detalleCajas').textContent = formatInt(data.totalCajas ?? data.TotalCajas);
-            document.getElementById('detalleKg').textContent = formatKg(data.totalKg ?? data.TotalKg);
-
-            const rows = data.rows || data.Rows || [];
-
-            if (!rows.length) {
-                document.getElementById('detalleBody').innerHTML =
-                    '<tr><td colspan="8" class="text-center">Sin detalle.</td></tr>';
+            if (getPlantaActual() !== 'P1') {
+                setDetalleProgress(
+                    'success',
+                    ''
+                );
                 return;
             }
 
-            document.getElementById('detalleBody').innerHTML = rows.map(x => `
-                <tr>
-                    <td>${escapeHtml(x.sku ?? x.Sku ?? '')}</td>
-                    <td>${escapeHtml(x.producto ?? x.Producto ?? '')}</td>
-                    <td>${escapeHtml(x.lote ?? x.Lote ?? '')}</td>
-                    <td>${escapeHtml(x.fechaSacrificioTxt ?? x.FechaSacrificioTxt ?? '')}</td>
-                    <td>${escapeHtml(x.fechaProduccionTxt ?? x.FechaProduccionTxt ?? '')}</td>
-                    <td>${escapeHtml(x.fechaCaducidadTxt ?? x.FechaCaducidadTxt ?? '')}</td>
-                    <td class="text-end">${formatInt(x.cuentaDeEtiqueta ?? x.CuentaDeEtiqueta)}</td>
-                    <td class="text-end">${formatKg(x.sumaDeKg ?? x.SumaDeKg)}</td>
-                </tr>
-            `).join('');
+            // No se bloquea el modal: las filas locales ya están visibles.
+            await enriquecerDetalleTifPorLotes(
+                id,
+                rowsLocal,
+                paramsLocal,
+                requestVersion,
+                signal
+            );
+        }
+        catch (e) {
+            if (e?.name === 'AbortError') return;
+            if (requestVersion !== detalleRequestVersion) return;
 
-        } catch (e) {
             document.getElementById('detalleBody').innerHTML =
-                '<tr><td colspan="8" class="text-center">Error de red: ' + escapeHtml(e.message) + '</td></tr>';
+                '<tr><td colspan="8" class="text-center">No se pudo cargar el detalle local.</td></tr>';
+
+            setDetalleProgress(
+                'warning',
+                'No fue posible cargar las partidas locales: ' + (e?.message || e)
+            );
         }
     }
 
@@ -1174,6 +1742,13 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('detalleAvisoModal')?.addEventListener('hidden.bs.modal', () => {
+            detalleAbortController?.abort();
+            detalleAbortController = null;
+            detalleRequestVersion++;
+            setDetalleProgress('', '');
+        });
+
         document.getElementById('filtrosAvisosForm')?.addEventListener('submit', e => {
             e.preventDefault();
             cargarAvisos();

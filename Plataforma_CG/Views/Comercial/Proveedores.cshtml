@@ -1,0 +1,1224 @@
+@model IEnumerable<Plataforma_CG.Models.ProveedorSap>
+
+@{
+    ViewData["Title"] = "Catálogo de Proveedores";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<style>
+    :root {
+        --sap-bg: #f0dede;
+        --sap-panel: #f8eeee;
+        --sap-panel-2: #f1dede;
+        --sap-surface: #fffafa;
+        --sap-soft: #fff7f7;
+        --sap-soft-2: #f4dddd;
+        --sap-line: #c79d9d;
+        --sap-line-dark: #8f4c4c;
+        --sap-text: #3b1717;
+        --sap-muted: #6a3a3a;
+        --sap-brand: #8b0000;
+        --sap-header: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%);
+        --sap-toolbar: linear-gradient(#fff6f6,#ecd8d8);
+        --sap-shadow: 0 0 0 1px rgba(255,255,255,.45) inset,
+                      0 8px 18px rgba(70,12,12,.14);
+    }
+
+    body[data-theme="dark"] {
+        --sap-bg: #0b1120;
+        --sap-panel: #111827;
+        --sap-panel-2: #182235;
+        --sap-surface: #111827;
+        --sap-soft: #1f2937;
+        --sap-soft-2: #243044;
+        --sap-line: #374151;
+        --sap-line-dark: #4b5563;
+        --sap-text: #f9fafb;
+        --sap-muted: #9ca3af;
+        --sap-header: linear-gradient(180deg,#7f1d1d 0%,#5f1212 55%,#2b0505 100%);
+        --sap-toolbar: linear-gradient(180deg,#1f2937 0%,#111827 100%);
+        --sap-shadow: 0 10px 24px rgba(0,0,0,.35);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: transparent !important;
+        color: var(--sap-text);
+        font-family: Tahoma,Verdana,Arial,sans-serif;
+    }
+
+    .container,
+    .container-fluid {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .supplier-window {
+        width: 100%;
+        min-height: calc(100vh - 60px);
+        border: 1px solid var(--sap-line-dark);
+        background: var(--sap-panel);
+        box-shadow: var(--sap-shadow);
+        color: var(--sap-text);
+    }
+
+    .supplier-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 12px;
+        background: var(--sap-header);
+        color: #fff;
+        border-bottom: 1px solid #4a0000;
+        flex-wrap: wrap;
+    }
+
+    .supplier-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .supplier-title-icon {
+        width: 38px;
+        height: 38px;
+        display: grid;
+        place-items: center;
+        border: 1px solid rgba(255,255,255,.3);
+        background: rgba(255,255,255,.12);
+        font-size: 18px;
+    }
+
+    .supplier-title h1 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 800;
+    }
+
+    .supplier-title small {
+        display: block;
+        margin-top: 2px;
+        color: #f4d7d7;
+        font-size: 10px;
+    }
+
+    .header-source {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 9px;
+        border: 1px solid rgba(255,255,255,.35);
+        background: rgba(0,0,0,.15);
+        font-size: 10px;
+        font-weight: 700;
+    }
+
+    .toolbar {
+        display: grid;
+        grid-template-columns: minmax(250px,2fr) 150px minmax(180px,1fr) 120px auto;
+        gap: 7px;
+        align-items: end;
+        padding: 8px;
+        background: var(--sap-toolbar);
+        border-bottom: 1px solid var(--sap-line);
+    }
+
+    .field label {
+        display: block;
+        margin-bottom: 3px;
+        color: var(--sap-text);
+        font-size: 10px;
+        font-weight: 800;
+    }
+
+    .field input,
+    .field select {
+        width: 100%;
+        height: 30px;
+        padding: 3px 7px;
+        border: 1px solid var(--sap-line-dark);
+        border-radius: 0;
+        background: var(--sap-surface);
+        color: var(--sap-text);
+        font-family: inherit;
+        font-size: 11px;
+        outline: none;
+    }
+
+    .field input:focus,
+    .field select:focus {
+        border-color: var(--sap-brand);
+        box-shadow: 0 0 0 1px rgba(139,0,0,.20);
+    }
+
+    .toolbar-actions {
+        display: flex;
+        gap: 6px;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+    }
+
+    .tool-btn {
+        height: 30px;
+        min-width: 90px;
+        padding: 0 10px;
+        border: 1px solid var(--sap-line-dark);
+        border-radius: 0;
+        background: linear-gradient(#fffefe,#ecd7d7);
+        color: #4a1111;
+        font-family: inherit;
+        font-size: 11px;
+        font-weight: 800;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        white-space: nowrap;
+    }
+
+    .tool-btn:hover { filter: brightness(1.05); }
+
+    .tool-btn.primary {
+        color: #fff;
+        border-color: #7f0a0a;
+        background: linear-gradient(180deg,#b40000 0%,#8f0000 55%,#6e0000 100%);
+    }
+
+    .tool-btn.success {
+        color: #fff;
+        border-color: #157347;
+        background: linear-gradient(180deg,#27ae60 0%,#1f9a54 55%,#198754 100%);
+    }
+
+    .tool-btn:disabled {
+        cursor: not-allowed;
+        opacity: .6;
+    }
+
+    .content {
+        padding: 8px;
+        background: var(--sap-bg);
+    }
+
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(5,minmax(0,1fr));
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .kpi {
+        min-height: 70px;
+        padding: 9px;
+        border: 1px solid var(--sap-line);
+        background: var(--sap-surface);
+    }
+
+    .kpi small {
+        display: block;
+        color: var(--sap-muted);
+        font-size: 9px;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .kpi strong {
+        display: block;
+        margin-top: 5px;
+        color: var(--sap-brand);
+        font-size: 20px;
+        line-height: 1;
+    }
+
+    .kpi span {
+        display: block;
+        margin-top: 5px;
+        color: var(--sap-muted);
+        font-size: 9px;
+    }
+
+    .section {
+        border: 1px solid var(--sap-line);
+        background: var(--sap-surface);
+    }
+
+    .section-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 6px 8px;
+        background: var(--sap-header);
+        color: #fff;
+        font-size: 11px;
+        font-weight: 800;
+    }
+
+    .section-title .status {
+        padding: 3px 7px;
+        border: 1px solid rgba(255,255,255,.35);
+        background: rgba(0,0,0,.15);
+        font-size: 9px;
+    }
+
+    .table-wrap {
+        width: 100%;
+        max-height: calc(100vh - 315px);
+        overflow: auto;
+        background: var(--sap-surface);
+    }
+
+    table {
+        width: 100%;
+        min-width: 1780px;
+        table-layout: fixed;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        color: var(--sap-text);
+        font-size: 10px;
+    }
+
+    thead th {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        padding: 6px 5px;
+        border-right: 1px solid rgba(0,0,0,.35);
+        border-bottom: 1px solid rgba(0,0,0,.45);
+        background: var(--sap-header) !important;
+        color: #fff !important;
+        text-align: left;
+        white-space: nowrap;
+        font-weight: 800;
+    }
+
+    tbody td {
+        padding: 5px;
+        border-right: 1px solid var(--sap-line);
+        border-bottom: 1px solid var(--sap-line);
+        background: var(--sap-surface);
+        color: var(--sap-text);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+
+    tbody tr:nth-child(even) td {
+        background: var(--sap-panel-2);
+    }
+
+    tbody tr:hover td {
+        background: var(--sap-soft-2);
+    }
+
+    .num {
+        text-align: right !important;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .provider-code {
+        color: var(--sap-brand);
+        font-weight: 800;
+    }
+
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 6px;
+        border: 1px solid transparent;
+        font-size: 9px;
+        font-weight: 800;
+    }
+
+    .status-badge.active {
+        color: #166534;
+        border-color: #86efac;
+        background: #dcfce7;
+    }
+
+    .status-badge.inactive {
+        color: #991b1b;
+        border-color: #fecaca;
+        background: #fee2e2;
+    }
+
+    .status-badge.frozen {
+        color: #854d0e;
+        border-color: #fde68a;
+        background: #fef9c3;
+    }
+
+    .detail-btn {
+        width: 100%;
+        height: 24px;
+        padding: 0 7px;
+        border: 1px solid var(--sap-line-dark);
+        background: linear-gradient(#fffefe,#ecd7d7);
+        color: #4a1111;
+        font-size: 9px;
+        font-weight: 800;
+        cursor: pointer;
+    }
+
+    .pager {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 8px;
+        border-top: 1px solid var(--sap-line);
+        background: var(--sap-surface);
+        flex-wrap: wrap;
+    }
+
+    .page-info {
+        color: var(--sap-muted);
+        font-size: 10px;
+        font-weight: 700;
+    }
+
+    .pager-actions {
+        display: flex;
+        gap: 6px;
+    }
+
+    .empty-row {
+        padding: 30px !important;
+        text-align: center;
+        color: var(--sap-muted);
+        font-weight: 800;
+    }
+
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 2500;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        background: rgba(0,0,0,.65);
+    }
+
+    .modal-overlay.show {
+        display: flex;
+    }
+
+    .provider-modal {
+        width: min(900px,96vw);
+        max-height: 90vh;
+        overflow: auto;
+        border: 1px solid #5c0000;
+        background: var(--sap-bg);
+        box-shadow: 0 20px 55px rgba(0,0,0,.35);
+    }
+
+    .modal-head {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 8px 10px;
+        background: var(--sap-header);
+        color: #fff;
+    }
+
+    .modal-head h3 {
+        margin: 0;
+        font-size: 13px;
+    }
+
+    .modal-body {
+        padding: 10px;
+    }
+
+    .detail-grid {
+        display: grid;
+        grid-template-columns: repeat(3,minmax(0,1fr));
+        gap: 8px;
+    }
+
+    .detail-field {
+        min-height: 62px;
+        padding: 7px;
+        border: 1px solid var(--sap-line);
+        background: var(--sap-surface);
+    }
+
+    .detail-field.full {
+        grid-column: 1 / -1;
+    }
+
+    .detail-field label {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--sap-muted);
+        font-size: 9px;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .detail-field div {
+        color: var(--sap-text);
+        font-size: 11px;
+        font-weight: 700;
+        overflow-wrap: anywhere;
+    }
+
+    .loading-inline {
+        display: none;
+        color: var(--sap-muted);
+        font-size: 10px;
+        font-weight: 700;
+    }
+
+    @@media (max-width: 1100px) {
+        .toolbar {
+            grid-template-columns: repeat(2,minmax(0,1fr));
+        }
+
+        .toolbar-actions {
+            grid-column: 1 / -1;
+            justify-content: stretch;
+        }
+
+        .toolbar-actions .tool-btn {
+            flex: 1;
+        }
+
+        .kpi-grid {
+            grid-template-columns: repeat(3,minmax(0,1fr));
+        }
+    }
+
+    @@media (max-width: 700px) {
+        .toolbar,
+        .kpi-grid,
+        .detail-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .detail-field.full {
+            grid-column: auto;
+        }
+
+        .table-wrap {
+            max-height: 62vh;
+        }
+    }
+</style>
+
+<div class="supplier-window">
+    <header class="supplier-header">
+        <div class="supplier-title">
+            <div class="supplier-title-icon">
+                <i class="bi bi-truck"></i>
+            </div>
+            <div>
+                <h1>Catálogo de Proveedores</h1>
+                <small>Maestro local sincronizado desde SAP Business One Service Layer</small>
+            </div>
+        </div>
+
+        <div class="header-source">
+            <i class="bi bi-database-check"></i>
+            BusinessPartners · Proveedores
+        </div>
+    </header>
+
+    <div class="toolbar">
+        <div class="field">
+            <label>Buscar proveedor</label>
+            <input id="searchInput"
+                   autocomplete="off"
+                   placeholder="Código, nombre, RFC, correo, grupo, ciudad..." />
+        </div>
+
+        <div class="field">
+            <label>Estatus</label>
+            <select id="statusFilter">
+                <option value="todos">Todos</option>
+                <option value="activos">Activos</option>
+                <option value="inactivos">Inactivos</option>
+                <option value="congelados">Congelados</option>
+            </select>
+        </div>
+
+        <div class="field">
+            <label>Grupo de proveedor</label>
+            <select id="groupFilter">
+                <option value="">Todos los grupos</option>
+            </select>
+        </div>
+
+        <div class="field">
+            <label>Moneda</label>
+            <select id="currencyFilter">
+                <option value="">Todas</option>
+            </select>
+        </div>
+
+        <div class="toolbar-actions">
+            <button type="button" class="tool-btn" id="btnReload">
+                <i class="bi bi-arrow-clockwise"></i>
+                Actualizar
+            </button>
+
+            <button type="button" class="tool-btn success" id="btnExcel">
+                <i class="bi bi-file-earmark-excel"></i>
+                Excel
+            </button>
+
+            <button type="button" class="tool-btn primary" id="btnSync">
+                <i class="bi bi-cloud-arrow-down"></i>
+                Sincronizar SAP
+            </button>
+
+            <span class="loading-inline" id="loader">
+                Consultando...
+            </span>
+        </div>
+    </div>
+
+    <main class="content">
+        <div class="kpi-grid">
+            <div class="kpi">
+                <small>Total local</small>
+                <strong id="kpiTotal">0</strong>
+                <span>proveedores registrados</span>
+            </div>
+
+            <div class="kpi">
+                <small>Activos</small>
+                <strong id="kpiActive">0</strong>
+                <span>vigentes en SAP</span>
+            </div>
+
+            <div class="kpi">
+                <small>Inactivos</small>
+                <strong id="kpiInactive">0</strong>
+                <span>inactivos o fuera de SAP</span>
+            </div>
+
+            <div class="kpi">
+                <small>Congelados</small>
+                <strong id="kpiFrozen">0</strong>
+                <span>bloqueados en SAP</span>
+            </div>
+
+            <div class="kpi">
+                <small>Saldo acumulado</small>
+                <strong id="kpiBalance">$0.00</strong>
+                <span>saldo del maestro de proveedores</span>
+            </div>
+        </div>
+
+        <section class="section">
+            <div class="section-title">
+                <span>
+                    <i class="bi bi-building"></i>
+                    Proveedores sincronizados
+                </span>
+
+                <span class="status" id="resultStatus">
+                    Sin consultar
+                </span>
+            </div>
+
+            <div class="table-wrap">
+                <table id="supplierTable">
+                    <thead>
+                        <tr>
+                            <th style="width:110px;">ProveedorId</th>
+                            <th style="width:280px;">Proveedor</th>
+                            <th style="width:130px;">RFC</th>
+                            <th style="width:190px;">Grupo</th>
+                            <th style="width:85px;">Moneda</th>
+                            <th style="width:210px;">Condición de pago</th>
+                            <th style="width:120px;" class="num">Saldo</th>
+                            <th style="width:120px;">Teléfono</th>
+                            <th style="width:210px;">Correo</th>
+                            <th style="width:120px;">Ciudad</th>
+                            <th style="width:105px;">Estatus</th>
+                            <th style="width:140px;">Actualización</th>
+                            <th style="width:90px;">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="13" class="empty-row">
+                                Cargando catálogo...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pager">
+                <div class="page-info" id="pageInfo">
+                    Página 1
+                </div>
+
+                <div class="pager-actions">
+                    <button type="button" class="tool-btn" id="prevPage">
+                        <i class="bi bi-chevron-left"></i>
+                        Anterior
+                    </button>
+
+                    <button type="button" class="tool-btn" id="nextPage">
+                        Siguiente
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<div class="modal-overlay" id="detailModal">
+    <div class="provider-modal">
+        <div class="modal-head">
+            <h3 id="detailTitle">Detalle del proveedor</h3>
+            <button type="button"
+                    class="tool-btn"
+                    onclick="cerrarDetalleProveedor()">
+                Cerrar
+            </button>
+        </div>
+
+        <div class="modal-body">
+            <div class="detail-grid" id="detailContent">
+                <div class="detail-field full">
+                    Consultando...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let currentPage = 1;
+    const pageSize = 50;
+    let totalPages = 1;
+    let debounceTimer = null;
+
+    const moneyFormatter = new Intl.NumberFormat('es-MX', {
+        style: 'currency',
+        currency: 'MXN',
+        maximumFractionDigits: 2
+    });
+
+    const numberFormatter = new Intl.NumberFormat('es-MX');
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function formatDate(value) {
+        if (!value) return '';
+
+        const date = new Date(value);
+
+        return Number.isNaN(date.getTime())
+            ? escapeHtml(value)
+            : date.toLocaleString('es-MX', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+    }
+
+    function currentFilters() {
+        return {
+            search: document.getElementById('searchInput').value || '',
+            estatus: document.getElementById('statusFilter').value || 'todos',
+            grupoId: document.getElementById('groupFilter').value || '',
+            moneda: document.getElementById('currencyFilter').value || ''
+        };
+    }
+
+    function buildQuery(page) {
+        const filters = currentFilters();
+        const query = new URLSearchParams();
+
+        query.set('page', page);
+        query.set('pageSize', pageSize);
+        query.set('search', filters.search);
+        query.set('estatus', filters.estatus);
+
+        if (filters.grupoId)
+            query.set('grupoId', filters.grupoId);
+
+        if (filters.moneda)
+            query.set('moneda', filters.moneda);
+
+        return query;
+    }
+
+    function statusBadge(row) {
+        if (row.congelado) {
+            return `
+                <span class="status-badge frozen">
+                    <i class="bi bi-snow"></i>
+                    Congelado
+                </span>`;
+        }
+
+        if (row.activo && row.existeEnSap) {
+            return `
+                <span class="status-badge active">
+                    <i class="bi bi-check-circle"></i>
+                    Activo
+                </span>`;
+        }
+
+        return `
+            <span class="status-badge inactive">
+                <i class="bi bi-x-circle"></i>
+                Inactivo
+            </span>`;
+    }
+
+    async function cargarProveedores(page = 1) {
+        const tbody = document.querySelector('#supplierTable tbody');
+        const loader = document.getElementById('loader');
+
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="13" class="empty-row">
+                    Consultando proveedores...
+                </td>
+            </tr>`;
+
+        loader.style.display = 'inline';
+        document.getElementById('prevPage').disabled = true;
+        document.getElementById('nextPage').disabled = true;
+
+        try {
+            const response = await fetch(
+                `/Comercial/GetProveedoresJsonPaged?${buildQuery(page).toString()}`,
+                {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' },
+                    cache: 'no-store'
+                });
+
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(text || 'No fue posible cargar proveedores.');
+            }
+
+            const data = await response.json();
+            const rows = Array.isArray(data.proveedores)
+                ? data.proveedores
+                : [];
+
+            currentPage = Number(data.page || page);
+            totalPages = Math.max(
+                1,
+                Math.ceil(
+                    Number(data.total || 0) /
+                    Number(data.pageSize || pageSize)));
+
+            if (!rows.length) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="13" class="empty-row">
+                            No existen proveedores con los filtros seleccionados.
+                        </td>
+                    </tr>`;
+            } else {
+                tbody.innerHTML = rows.map(row => `
+                    <tr>
+                        <td class="provider-code"
+                            title="${escapeHtml(row.proveedor)}">
+                            ${escapeHtml(row.proveedor)}
+                        </td>
+
+                        <td title="${escapeHtml(row.nombreProveedor)}">
+                            <strong>${escapeHtml(row.nombreProveedor)}</strong>
+                            ${row.nombreExtranjero
+                                ? `<br><small>${escapeHtml(row.nombreExtranjero)}</small>`
+                                : ''}
+                        </td>
+
+                        <td title="${escapeHtml(row.rfc)}">
+                            ${escapeHtml(row.rfc)}
+                        </td>
+
+                        <td title="${escapeHtml(row.grupoNombre)}">
+                            ${escapeHtml(row.grupoNombre || row.grupoId || '')}
+                        </td>
+
+                        <td>
+                            ${escapeHtml(row.moneda)}
+                        </td>
+
+                        <td title="${escapeHtml(row.condicionPagoNombre)}">
+                            ${escapeHtml(
+                                row.condicionPagoNombre ||
+                                row.condicionPagoId ||
+                                '')}
+                        </td>
+
+                        <td class="num">
+                            ${moneyFormatter.format(Number(row.saldoCuenta || 0))}
+                        </td>
+
+                        <td title="${escapeHtml(row.telefono)}">
+                            ${escapeHtml(row.telefono || row.celular || '')}
+                        </td>
+
+                        <td title="${escapeHtml(row.correo)}">
+                            ${row.correo
+                                ? `<a href="mailto:${escapeHtml(row.correo)}">${escapeHtml(row.correo)}</a>`
+                                : ''}
+                        </td>
+
+                        <td title="${escapeHtml(row.ciudad)}">
+                            ${escapeHtml(row.ciudad)}
+                        </td>
+
+                        <td>
+                            ${statusBadge(row)}
+                        </td>
+
+                        <td>
+                            ${formatDate(row.fechaModificacion)}
+                        </td>
+
+                        <td>
+                            <button type="button"
+                                    class="detail-btn"
+                                    onclick="abrirDetalleProveedor('${escapeHtml(row.proveedor)}')">
+                                Ver detalle
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            document.getElementById('resultStatus').textContent =
+                `${numberFormatter.format(Number(data.total || 0))} resultado(s)`;
+
+            document.getElementById('pageInfo').textContent =
+                `Página ${currentPage} de ${totalPages} · ` +
+                `${numberFormatter.format(Number(data.total || 0))} registro(s)`;
+
+            document.getElementById('prevPage').disabled =
+                currentPage <= 1;
+
+            document.getElementById('nextPage').disabled =
+                currentPage >= totalPages;
+        } catch (error) {
+            console.error(error);
+
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="13" class="empty-row">
+                        Error: ${escapeHtml(error.message)}
+                    </td>
+                </tr>`;
+
+            document.getElementById('resultStatus').textContent =
+                'Error de consulta';
+        } finally {
+            loader.style.display = 'none';
+        }
+    }
+
+    async function cargarFiltros() {
+        try {
+            const response = await fetch(
+                '/Comercial/GetFiltrosProveedores',
+                {
+                    headers: { 'Accept': 'application/json' },
+                    cache: 'no-store'
+                });
+
+            if (!response.ok)
+                throw new Error('No fue posible cargar los filtros.');
+
+            const data = await response.json();
+
+            const groupSelect = document.getElementById('groupFilter');
+            const selectedGroup = groupSelect.value;
+
+            groupSelect.innerHTML =
+                '<option value="">Todos los grupos</option>' +
+                (Array.isArray(data.grupos) ? data.grupos : [])
+                    .map(group => `
+                        <option value="${escapeHtml(group.id)}">
+                            ${escapeHtml(group.nombre)}
+                            (${numberFormatter.format(Number(group.total || 0))})
+                        </option>`)
+                    .join('');
+
+            groupSelect.value = selectedGroup;
+
+            const currencySelect =
+                document.getElementById('currencyFilter');
+
+            const selectedCurrency = currencySelect.value;
+
+            currencySelect.innerHTML =
+                '<option value="">Todas</option>' +
+                (Array.isArray(data.monedas) ? data.monedas : [])
+                    .map(currency => `
+                        <option value="${escapeHtml(currency)}">
+                            ${escapeHtml(currency)}
+                        </option>`)
+                    .join('');
+
+            currencySelect.value = selectedCurrency;
+
+            const resumen = data.resumen || {};
+
+            document.getElementById('kpiTotal').textContent =
+                numberFormatter.format(Number(resumen.total || 0));
+
+            document.getElementById('kpiActive').textContent =
+                numberFormatter.format(Number(resumen.activos || 0));
+
+            document.getElementById('kpiInactive').textContent =
+                numberFormatter.format(Number(resumen.inactivos || 0));
+
+            document.getElementById('kpiFrozen').textContent =
+                numberFormatter.format(Number(resumen.congelados || 0));
+
+            document.getElementById('kpiBalance').textContent =
+                moneyFormatter.format(Number(resumen.saldoTotal || 0));
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    async function abrirDetalleProveedor(codigo) {
+        const modal = document.getElementById('detailModal');
+        const content = document.getElementById('detailContent');
+
+        modal.classList.add('show');
+        content.innerHTML = `
+            <div class="detail-field full">
+                Consultando proveedor ${escapeHtml(codigo)}...
+            </div>`;
+
+        try {
+            const response = await fetch(
+                `/Comercial/GetProveedorDetalle?proveedor=${encodeURIComponent(codigo)}`,
+                {
+                    headers: { 'Accept': 'application/json' },
+                    cache: 'no-store'
+                });
+
+            const data = await response.json();
+
+            if (!response.ok || !data.ok)
+                throw new Error(
+                    data.mensaje || 'No fue posible cargar el detalle.');
+
+            const item = data.proveedor || {};
+
+            document.getElementById('detailTitle').textContent =
+                `${item.proveedor || ''} · ${item.nombreProveedor || ''}`;
+
+            content.innerHTML = `
+                ${detailField('Código', item.proveedor)}
+                ${detailField('Proveedor', item.nombreProveedor)}
+                ${detailField('Nombre extranjero', item.nombreExtranjero)}
+                ${detailField('RFC', item.rfc)}
+                ${detailField('Grupo', item.grupoNombre || item.grupoId)}
+                ${detailField('Moneda', item.moneda)}
+                ${detailField(
+                    'Condición de pago',
+                    item.condicionPagoNombre || item.condicionPagoId)}
+                ${detailField(
+                    'Saldo de cuenta',
+                    moneyFormatter.format(Number(item.saldoCuenta || 0)))}
+                ${detailField('Teléfono', item.telefono)}
+                ${detailField('Celular', item.celular)}
+                ${detailField('Correo', item.correo)}
+                ${detailField(
+                    'Estatus',
+                    item.congelado
+                        ? 'Congelado'
+                        : item.activo && item.existeEnSap
+                            ? 'Activo'
+                            : 'Inactivo')}
+                ${detailField(
+                    'Dirección',
+                    [
+                        item.direccion,
+                        item.ciudad,
+                        item.estado,
+                        item.codigoPostal,
+                        item.pais
+                    ].filter(Boolean).join(', '),
+                    true)}
+                ${detailField(
+                    'Última sincronización',
+                    formatDate(item.fechaModificacion),
+                    true)}
+            `;
+        } catch (error) {
+            content.innerHTML = `
+                <div class="detail-field full">
+                    Error: ${escapeHtml(error.message)}
+                </div>`;
+        }
+    }
+
+    function detailField(label, value, full = false) {
+        return `
+            <div class="detail-field ${full ? 'full' : ''}">
+                <label>${escapeHtml(label)}</label>
+                <div>${escapeHtml(value || 'Sin información')}</div>
+            </div>`;
+    }
+
+    function cerrarDetalleProveedor() {
+        document.getElementById('detailModal')
+            .classList.remove('show');
+    }
+
+    async function sincronizarProveedores() {
+        if (!confirm(
+            '¿Deseas sincronizar el catálogo completo de proveedores desde SAP?'))
+            return;
+
+        const button = document.getElementById('btnSync');
+        const original = button.innerHTML;
+
+        button.disabled = true;
+        button.innerHTML =
+            '<span class="spinner-border spinner-border-sm"></span> Sincronizando...';
+
+        try {
+            const response = await fetch(
+                '/Comercial/SincronizarProveedoresSap',
+                {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json' }
+                });
+
+            const text = await response.text();
+
+            let data;
+
+            try {
+                data = JSON.parse(text);
+            } catch {
+                throw new Error(text || 'El servidor no devolvió JSON.');
+            }
+
+            if (!response.ok || !data.ok)
+                throw new Error(
+                    data.mensaje || 'Error al sincronizar proveedores.');
+
+            alert(
+                `Sincronización completada.\n\n` +
+                `Proveedores SAP: ${data.totalSap}\n` +
+                `Insertados: ${data.insertados}\n` +
+                `Actualizados: ${data.actualizados}\n` +
+                `Fuera de SAP: ${data.fueraDeSap}`);
+
+            await cargarFiltros();
+            await cargarProveedores(1);
+        } catch (error) {
+            alert(`Error: ${error.message}`);
+        } finally {
+            button.disabled = false;
+            button.innerHTML = original;
+        }
+    }
+
+    function descargarExcel() {
+        const query = buildQuery(1);
+
+        query.delete('page');
+        query.delete('pageSize');
+
+        window.location.href =
+            `/Comercial/DescargarProveedoresExcel?${query.toString()}`;
+    }
+
+    document.getElementById('searchInput')
+        .addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+
+            debounceTimer = setTimeout(() => {
+                currentPage = 1;
+                cargarProveedores(1);
+            }, 350);
+        });
+
+    ['statusFilter', 'groupFilter', 'currencyFilter']
+        .forEach(id => {
+            document.getElementById(id)
+                .addEventListener('change', () => {
+                    currentPage = 1;
+                    cargarProveedores(1);
+                });
+        });
+
+    document.getElementById('prevPage')
+        .addEventListener('click', () => {
+            if (currentPage > 1)
+                cargarProveedores(currentPage - 1);
+        });
+
+    document.getElementById('nextPage')
+        .addEventListener('click', () => {
+            if (currentPage < totalPages)
+                cargarProveedores(currentPage + 1);
+        });
+
+    document.getElementById('btnReload')
+        .addEventListener('click', async () => {
+            await cargarFiltros();
+            await cargarProveedores(currentPage);
+        });
+
+    document.getElementById('btnExcel')
+        .addEventListener('click', descargarExcel);
+
+    document.getElementById('btnSync')
+        .addEventListener('click', sincronizarProveedores);
+
+    document.getElementById('detailModal')
+        .addEventListener('click', event => {
+            if (event.target.id === 'detailModal')
+                cerrarDetalleProveedor();
+        });
+
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape')
+            cerrarDetalleProveedor();
+    });
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        await cargarFiltros();
+        await cargarProveedores(1);
+    });
+</script>
+}
