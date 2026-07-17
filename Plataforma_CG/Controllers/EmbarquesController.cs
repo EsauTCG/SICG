@@ -204,12 +204,20 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
                 NombreCliente = g.Max(x => x.Nombrecliente)
             });
 
+        // IDs de OV que ya están ligados a un embarque.
+        var ovLigadasIds = await _qrContext.EmbarqueDocumento
+            .Where(d => d.TipoDocumento == "OV")
+            .Select(d => d.DocumentoId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
         var query =
             from o in _ovContext.OrdenVenta.AsNoTracking()
             join c in clientesSapQuery
                 on o.Cliente equals c.Cliente into clientes
             from c in clientes.DefaultIfEmpty()
             where o.Estatus == 5
+               || (o.Estatus == 4 && !ovLigadasIds.Contains(o.Id))
             select new OrdenDisponibleViewModel
             {
                 Id = o.Id,
@@ -219,7 +227,8 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
                         ? c.NombreCliente
                         : o.Cliente ?? "",
                 Consecutivo = o.Consecutivo ?? "",
-                Ruta = o.Ruta ?? ""
+                Ruta = o.Ruta ?? "",
+                Estatus = o.Estatus
             };
 
         if (!string.IsNullOrWhiteSpace(busqueda))
@@ -289,9 +298,17 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
         consecutivo = consecutivo?.Trim();
         fecha = fecha?.Trim();
 
+        // IDs de Transferencias que ya están ligadas a un embarque.
+        var trLigadasIds = await _qrContext.EmbarqueDocumento
+            .Where(d => d.TipoDocumento == "TRANSFERENCIA")
+            .Select(d => d.DocumentoId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
         var query = _ovContext.Transferencias
             .AsNoTracking()
-            .Where(t => t.Estatus == 5);
+            .Where(t => t.Estatus == 5
+                || (t.Estatus == 4 && !trLigadasIds.Contains(t.Id)));
 
         if (!string.IsNullOrWhiteSpace(busqueda))
         {
@@ -344,6 +361,7 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
             .Select(t => new
             {
                 t.Id,
+                t.Estatus,
                 Sucursal = t.Sucursal ?? "",
                 Consecutivo = t.Consecutivo ?? "",
                 t.FechaSolicitud
@@ -357,7 +375,8 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
             Consecutivo = t.Consecutivo,
             FechaSolicitud = t.FechaSolicitud,
             FechaSolicitudTexto =
-                t.FechaSolicitud?.ToString("dd/MM/yyyy") ?? ""
+                t.FechaSolicitud?.ToString("dd/MM/yyyy") ?? "",
+            Estatus = t.Estatus
         }).ToList();
 
         return Json(new
@@ -422,7 +441,7 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
             ? await _ovContext.OrdenVenta
                 .Where(o =>
                     ordenesSeleccionadas.Contains(o.Id) &&
-                    o.Estatus == 5)
+                    (o.Estatus == 5 || o.Estatus == 4))
                 .ToListAsync(cancellationToken)
             : new List<OrdenVenta>();
 
@@ -431,7 +450,7 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
             ? await _ovContext.Transferencias
                 .Where(t =>
                     transferenciasSeleccionadas.Contains(t.Id) &&
-                    t.Estatus == 5)
+                    (t.Estatus == 5 || t.Estatus == 4))
                 .ToListAsync(cancellationToken)
             : new List<Transferencia>();
 
@@ -505,13 +524,19 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
             // en las dos consultas anteriores.
             foreach (var orden in ordenes)
             {
-                orden.Estatus = 6;
+                if (orden.Estatus == 5)
+                {
+                    orden.Estatus = 6;
+                }
                 orden.FechaEmbarque = ahora;
             }
 
             foreach (var transferencia in transferencias)
             {
-                transferencia.Estatus = 6;
+                if (transferencia.Estatus == 5)
+                {
+                    transferencia.Estatus = 6;
+                }
             }
 
             // Un guardado por DbContext.
@@ -3281,7 +3306,12 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
 
             if (orden != null)
             {
-                orden.Estatus = 5;
+                // Si estaba en 6 (5→6) revertir a 5.
+                // Si estaba en 4 (solo ligado) no cambiar estatus.
+                if (orden.Estatus == 6)
+                {
+                    orden.Estatus = 5;
+                }
                 orden.FechaEmbarque = null;
             }
         }
@@ -3292,7 +3322,10 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
 
             if (transferencia != null)
             {
-                transferencia.Estatus = 5;
+                if (transferencia.Estatus == 6)
+                {
+                    transferencia.Estatus = 5;
+                }
             }
         }
 
@@ -3346,8 +3379,25 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
             .Select(d => d.DocumentoId)
             .ToList();
 
+        // IDs de OV y Transferencias que ya están ligados a cualquier embarque.
+        var todosOvLigadasIds = await _qrContext.EmbarqueDocumento
+            .Where(d => d.TipoDocumento == "OV")
+            .Select(d => d.DocumentoId)
+            .Distinct()
+            .ToListAsync();
+
+        var todosTrLigadasIds = await _qrContext.EmbarqueDocumento
+            .Where(d => d.TipoDocumento == "TRANSFERENCIA")
+            .Select(d => d.DocumentoId)
+            .Distinct()
+            .ToListAsync();
+
         var ordenesDisponibles = await _ovContext.OrdenVenta
-            .Where(o => o.Estatus == 5 && !ordenesYaAgregadas.Contains(o.Id))
+            .Where(o =>
+                (o.Estatus == 5
+                    || (o.Estatus == 4
+                        && !todosOvLigadasIds.Contains(o.Id)))
+                && !ordenesYaAgregadas.Contains(o.Id))
             .Select(o => new OrdenVenta
             {
                 Id = o.Id,
@@ -3363,7 +3413,11 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
             .ToListAsync();
 
         var transferenciasDisponibles = await _ovContext.Transferencias
-            .Where(t => t.Estatus == 5 && !transferenciasYaAgregadas.Contains(t.Id))
+            .Where(t =>
+                (t.Estatus == 5
+                    || (t.Estatus == 4
+                        && !todosTrLigadasIds.Contains(t.Id)))
+                && !transferenciasYaAgregadas.Contains(t.Id))
             .ToListAsync();
 
         ViewBag.OrdenesDisponibles = ordenesDisponibles;
@@ -3437,7 +3491,9 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
                 continue;
 
             var orden = await _ovContext.OrdenVenta
-                .FirstOrDefaultAsync(o => o.Id == ovId && o.Estatus == 5);
+                .FirstOrDefaultAsync(o =>
+                    o.Id == ovId
+                    && (o.Estatus == 5 || o.Estatus == 4));
 
             if (orden == null)
                 continue;
@@ -3449,7 +3505,10 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
                 TipoDocumento = "OV"
             });
 
-            orden.Estatus = 6;
+            if (orden.Estatus == 5)
+            {
+                orden.Estatus = 6;
+            }
             orden.FechaEmbarque = DateTime.Now;
 
             agregadosOV++;
@@ -3465,7 +3524,9 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
                 continue;
 
             var transferencia = await _ovContext.Transferencias
-                .FirstOrDefaultAsync(t => t.Id == trId && t.Estatus == 5);
+                .FirstOrDefaultAsync(t =>
+                    t.Id == trId
+                    && (t.Estatus == 5 || t.Estatus == 4));
 
             if (transferencia == null)
                 continue;
@@ -3477,7 +3538,10 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
                 TipoDocumento = "TRANSFERENCIA"
             });
 
-            transferencia.Estatus = 6;
+            if (transferencia.Estatus == 5)
+            {
+                transferencia.Estatus = 6;
+            }
 
             agregadosTR++;
         }

@@ -15,6 +15,7 @@ namespace Plataforma_CG.ViewModels
         public string NombreCliente { get; set; } = "";
         public string Consecutivo { get; set; } = "";
         public string Ruta { get; set; } = "";
+        public int Estatus { get; set; }
     }
 
     public class TransferenciaDisponibleViewModel
@@ -24,5 +25,6 @@ namespace Plataforma_CG.ViewModels
         public string Consecutivo { get; set; } = "";
         public DateTime? FechaSolicitud { get; set; }
         public string FechaSolicitudTexto { get; set; } = "";
+        public int Estatus { get; set; }
     }
 }
