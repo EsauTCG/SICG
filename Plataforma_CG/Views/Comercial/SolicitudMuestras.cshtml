@@ -1681,14 +1681,17 @@
                             </select>
                         </div>
                         <div>
-                            <label>Etiqueta DEST / RETT escaneada</label>
+                            <label id="scanLabelTitle">Etiqueta de producción escaneada</label>
                             <input id="scanLabel"
                                    required
                                    maxlength="100"
                                    autocomplete="off"
                                    autocapitalize="characters"
                                    spellcheck="false"
-                                   placeholder="Escanee una etiqueta DEST o RETT" />
+                                   placeholder="Seleccione la planta y escanee la etiqueta" />
+                            <small id="scanLabelHelp" style="display:block; margin-top:3px; color:#666;">
+                                P1: DEST, RETT, RETR, DESH, COMP · TIF: DEST, RETT, COMT
+                            </small>
                         </div>
                         <div>
                             <label>Operario</label>
@@ -1715,7 +1718,7 @@
                 <div class="form-grid two" style="margin-bottom:0; border:none; padding:0; background:transparent;">
                     <div>
                         <label>Buscar folio, cliente, vendedor, SKU o etiqueta</label>
-                        <input id="trackSearch" placeholder="Ej. SM-2026-0001, RD021, DEST000001 o RETT000001" />
+                        <input id="trackSearch" placeholder="Ej. SM-2026-0001, RD021, DEST000001, RETR000001 o COMT000001" />
                     </div>
                     <div>
                         <label>Filtrar por estatus</label>
@@ -2515,6 +2518,110 @@
                         .replace(/\s+/g, '')
                         .trim()
                         .toUpperCase();
+                }
+
+                const nomenclaturasEtiquetaPorPlanta = Object.freeze({
+                    P1: Object.freeze(['DEST', 'RETT', 'RETR', 'DESH', 'COMP']),
+                    TIF: Object.freeze(['DEST', 'RETT', 'COMT'])
+                });
+
+                function obtenerNomenclaturasPermitidas(planta) {
+                    const plantaNormalizada = String(planta || '').trim().toUpperCase();
+                    return nomenclaturasEtiquetaPorPlanta[plantaNormalizada] || [];
+                }
+
+                function obtenerTipoEtiqueta(codigo, planta) {
+                    const codigoNormalizado = normalizeMeatLabelCode(codigo);
+                    const nomenclaturas = obtenerNomenclaturasPermitidas(planta);
+
+                    return nomenclaturas.find(prefijo =>
+                        codigoNormalizado.startsWith(prefijo)
+                    ) || '';
+                }
+
+                function validarFormatoEtiquetaPorPlanta(codigo, planta) {
+                    const codigoNormalizado = normalizeMeatLabelCode(codigo);
+                    const plantaNormalizada = String(planta || '').trim().toUpperCase();
+                    const nomenclaturas = obtenerNomenclaturasPermitidas(plantaNormalizada);
+                    const tipoEtiqueta = obtenerTipoEtiqueta(codigoNormalizado, plantaNormalizada);
+
+                    if (!nomenclaturas.length) {
+                        return {
+                            valido: false,
+                            tipoEtiqueta: '',
+                            mensaje: 'Seleccione una planta válida: P1 o TIF.'
+                        };
+                    }
+
+                    if (!tipoEtiqueta) {
+                        return {
+                            valido: false,
+                            tipoEtiqueta: '',
+                            mensaje:
+                                `La etiqueta ${codigoNormalizado} no pertenece a una nomenclatura válida ` +
+                                `para ${plantaNormalizada}.`
+                        };
+                    }
+
+                    const contenidoEtiqueta = codigoNormalizado.substring(tipoEtiqueta.length);
+
+                    if (!contenidoEtiqueta || !/^[0-9A-Z_-]+$/i.test(contenidoEtiqueta)) {
+                        return {
+                            valido: false,
+                            tipoEtiqueta,
+                            mensaje:
+                                `La etiqueta ${codigoNormalizado} debe contener letras, números, ` +
+                                `guion o guion bajo después de ${tipoEtiqueta}.`
+                        };
+                    }
+
+                    return {
+                        valido: true,
+                        tipoEtiqueta,
+                        mensaje: ''
+                    };
+                }
+
+                function actualizarAyudaEtiquetaPorPlanta() {
+                    const planta = String(qs('#scanPlant')?.value || '')
+                        .trim()
+                        .toUpperCase();
+
+                    const input = qs('#scanLabel');
+                    const titulo = qs('#scanLabelTitle');
+                    const ayuda = qs('#scanLabelHelp');
+                    const nomenclaturas = obtenerNomenclaturasPermitidas(planta);
+
+                    if (!planta || !nomenclaturas.length) {
+                        if (titulo) titulo.textContent = 'Etiqueta de producción escaneada';
+
+                        if (input) {
+                            input.placeholder =
+                                'Seleccione la planta y escanee la etiqueta';
+                        }
+
+                        if (ayuda) {
+                            ayuda.textContent =
+                                'P1: DEST, RETT, RETR, DESH, COMP · TIF: DEST, RETT, COMT';
+                        }
+
+                        return;
+                    }
+
+                    const textoNomenclaturas = nomenclaturas.join(', ');
+
+                    if (titulo) {
+                        titulo.textContent = `Etiqueta de ${planta} escaneada`;
+                    }
+
+                    if (input) {
+                        input.placeholder = `Permitidas: ${textoNomenclaturas}`;
+                    }
+
+                    if (ayuda) {
+                        ayuda.textContent =
+                            `Nomenclaturas permitidas para ${planta}: ${textoNomenclaturas}`;
+                    }
                 }
 
                 function setScanValidation(message, state = 'idle', title = '') {
@@ -3579,11 +3686,20 @@
                 if(qs('#addItemBtn')) qs('#addItemBtn').addEventListener('click', ()=>{ addItem(); });
                 if(qs('#scanRequest')) qs('#scanRequest').addEventListener('change', updateItemSelector);
                 if(qs('#scanItem')) qs('#scanItem').addEventListener('change', () => updateScanContext(true));
-                if(qs('#scanPlant')) qs('#scanPlant').addEventListener('change', () => {
-                    localStorage.setItem('solicitud_muestras_meat_plant', qs('#scanPlant').value || '');
-                    updateScanContext(true);
-                    clearScanLabel(true);
-                });
+                if (qs('#scanPlant')) {
+                    qs('#scanPlant').addEventListener('change', () => {
+                        const planta = qs('#scanPlant').value || '';
+
+                        localStorage.setItem(
+                            'solicitud_muestras_meat_plant',
+                            planta
+                        );
+
+                        actualizarAyudaEtiquetaPorPlanta();
+                        updateScanContext(true);
+                        clearScanLabel(true);
+                    });
+                }
                 if(qs('#scanLabel')) {
                     qs('#scanLabel').addEventListener('input', e => {
                         const normalized = normalizeMeatLabelCode(e.target.value);
@@ -3603,6 +3719,8 @@
                 if (qs('#scanPlant') && ['P1', 'TIF'].includes(savedMeatPlant)) {
                     qs('#scanPlant').value = savedMeatPlant;
                 }
+
+                actualizarAyudaEtiquetaPorPlanta();
 
 
                 // La ubicación del tracking ya no se edita manualmente.
@@ -3875,22 +3993,39 @@
                             return;
                         }
 
-                        if (!code) {
-                            setScanValidation('Escanee o capture una etiqueta DEST o RETT.', 'error');
-                            input?.classList.add('scan-invalid');
-                            input?.focus();
-                            return;
-                        }
+                        const nomenclaturasPermitidas =
+                            obtenerNomenclaturasPermitidas(plant);
 
-                        if (!/^(?:DEST|RETT)[0-9A-Z_-]+$/i.test(code)) {
+                        const textoNomenclaturas =
+                            nomenclaturasPermitidas.join(', ');
+
+                        if (!code) {
                             setScanValidation(
-                                `El valor <b>${code}</b> no tiene un formato DEST o RETT válido.`,
+                                `Escanee o capture una etiqueta válida de ${plant}. ` +
+                                `Permitidas: <b>${textoNomenclaturas}</b>.`,
                                 'error'
                             );
                             input?.classList.add('scan-invalid');
                             input?.focus();
                             return;
                         }
+
+                        const validacionEtiqueta =
+                            validarFormatoEtiquetaPorPlanta(code, plant);
+
+                        if (!validacionEtiqueta.valido) {
+                            setScanValidation(
+                                `${validacionEtiqueta.mensaje}<br>` +
+                                `Nomenclaturas permitidas para ${plant}: ` +
+                                `<b>${textoNomenclaturas}</b>.`,
+                                'error'
+                            );
+                            input?.classList.add('scan-invalid');
+                            input?.focus();
+                            return;
+                        }
+
+                        const tipoEtiqueta = validacionEtiqueta.tipoEtiqueta;
 
                         if ((item.labels || []).length >= Number(item.boxes)) {
                             setScanValidation('El SKU ya tiene todas sus cajas ligadas.', 'error');
@@ -3912,7 +4047,7 @@
                                 'error'
                             );
                             input?.classList.add('scan-invalid');
-                            toast('Etiqueta DEST/RETT ya utilizada.');
+                            toast(`La etiqueta ${code} ya fue utilizada.`);
                             return;
                         }
 
@@ -3979,6 +4114,7 @@
 
                             setScanValidation(
                                 `Etiqueta: <b>${data.etiqueta || code}</b><br>` +
+                                `Tipo: <b>${data.tipoEtiqueta || tipoEtiqueta}</b><br>` +
                                 `SKU MEAT: <b>${data.skuMeat || skuPlaneado}</b><br>` +
                                 `Peso: <b>${pesoTexto}</b><br>` +
                                 `Origen: <b>${data.cadena || (plant === 'P1' ? 'CadenaMeatP1' : 'CadenaMeatTIF')}</b>`,

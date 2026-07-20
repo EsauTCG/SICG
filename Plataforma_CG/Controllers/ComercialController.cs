@@ -20016,7 +20016,6 @@ VALUES (@Sku, @PrecioAnterior, @PrecioNuevo, @Usuario, GETDATE(), @Planta)";
                 });
             }
         }
-
         [HttpPost("Comercial/LigarEtiqueta")]
         [RevisarPermiso("SOLICITUD_MUESTRAS_PRODUCCION", "ESCRIBIR")]
         public async Task<IActionResult> LigarEtiqueta(
@@ -20038,29 +20037,22 @@ VALUES (@Sku, @PrecioAnterior, @PrecioNuevo, @Usuario, GETDATE(), @Planta)";
             planta = Normalizar(planta);
 
             if (string.IsNullOrWhiteSpace(solicitudId))
-                return Json(new { ok = false, mensaje = "La solicitud es obligatoria." });
-
-            if (string.IsNullOrWhiteSpace(itemUid))
-                return Json(new { ok = false, mensaje = "El artículo de la solicitud es obligatorio." });
-
-            if (string.IsNullOrWhiteSpace(etiqueta))
-                return Json(new { ok = false, mensaje = "La etiqueta DEST o RETT es obligatoria." });
-
-            if (etiqueta.Length > 100)
-                return Json(new { ok = false, mensaje = "La etiqueta excede la longitud permitida." });
-
-            if (!Regex.IsMatch(etiqueta, @"^(?:DEST|RETT)[0-9A-Z_-]+$", RegexOptions.IgnoreCase))
             {
                 return Json(new
                 {
                     ok = false,
-                    mensaje = $"La etiqueta {etiqueta} no tiene un formato DEST o RETT válido."
+                    mensaje = "La solicitud es obligatoria."
                 });
             }
 
-            var tipoEtiqueta = etiqueta.StartsWith("RETT", StringComparison.OrdinalIgnoreCase)
-                ? "RETT"
-                : "DEST";
+            if (string.IsNullOrWhiteSpace(itemUid))
+            {
+                return Json(new
+                {
+                    ok = false,
+                    mensaje = "El artículo de la solicitud es obligatorio."
+                });
+            }
 
             if (planta != "P1" && planta != "TIF")
             {
@@ -20071,38 +20063,132 @@ VALUES (@Sku, @PrecioAnterior, @PrecioNuevo, @Usuario, GETDATE(), @Planta)";
                 });
             }
 
+            if (string.IsNullOrWhiteSpace(etiqueta))
+            {
+                return Json(new
+                {
+                    ok = false,
+                    mensaje = "La etiqueta es obligatoria."
+                });
+            }
+
+            if (etiqueta.Length > 100)
+            {
+                return Json(new
+                {
+                    ok = false,
+                    mensaje = "La etiqueta excede la longitud permitida."
+                });
+            }
+
+            // --------------------------------------------------------------------
+            // Nomenclaturas permitidas por planta
+            // --------------------------------------------------------------------
+            var prefijosPermitidos = planta switch
+            {
+                "P1" => new[]
+                {
+            "DEST",
+            "RETT",
+            "RETR",
+            "DESH",
+            "COMP"
+        },
+
+                "TIF" => new[]
+                {
+            "DEST",
+            "RETT",
+            "COMT"
+        },
+
+                _ => Array.Empty<string>()
+            };
+
+            var nomenclaturasPermitidas = string.Join(", ", prefijosPermitidos);
+
+            var tipoEtiqueta = prefijosPermitidos.FirstOrDefault(
+                prefijo => etiqueta.StartsWith(
+                    prefijo,
+                    StringComparison.OrdinalIgnoreCase));
+
+            if (string.IsNullOrWhiteSpace(tipoEtiqueta))
+            {
+                return Json(new
+                {
+                    ok = false,
+                    mensaje =
+                        $"La etiqueta {etiqueta} no tiene una nomenclatura válida " +
+                        $"para la planta {planta}. " +
+                        $"Nomenclaturas permitidas: {nomenclaturasPermitidas}."
+                });
+            }
+
+            // Se valida la parte posterior a la nomenclatura.
+            // Debe contener únicamente letras, números, guion o guion bajo.
+            var contenidoEtiqueta = etiqueta[tipoEtiqueta.Length..];
+
+            if (string.IsNullOrWhiteSpace(contenidoEtiqueta) ||
+                !Regex.IsMatch(
+                    contenidoEtiqueta,
+                    @"^[0-9A-Z_-]+$",
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+            {
+                return Json(new
+                {
+                    ok = false,
+                    mensaje =
+                        $"La etiqueta {etiqueta} no tiene un formato válido. " +
+                        $"Para la planta {planta} se permiten las nomenclaturas " +
+                        $"{nomenclaturasPermitidas}, seguidas de letras, números, " +
+                        "guion o guion bajo."
+                });
+            }
+
             var nombreCadena = planta == "P1"
                 ? "CadenaMeatP1"
                 : "CadenaMeatTIF";
 
-            var cadenaSigo = _configuration.GetConnectionString("DefaultConnection");
-            var cadenaMeat = _configuration.GetConnectionString(nombreCadena);
+            var cadenaSigo =
+                _configuration.GetConnectionString("DefaultConnection");
+
+            var cadenaMeat =
+                _configuration.GetConnectionString(nombreCadena);
 
             if (string.IsNullOrWhiteSpace(cadenaSigo))
             {
-                _logger.LogError("No se encontró la cadena DefaultConnection.");
+                _logger.LogError(
+                    "No se encontró la cadena DefaultConnection.");
+
                 return Json(new
                 {
                     ok = false,
-                    mensaje = "No está configurada la conexión de SIGO. La etiqueta no fue ligada."
+                    mensaje =
+                        "No está configurada la conexión de SIGO. " +
+                        "La etiqueta no fue ligada."
                 });
             }
 
             if (string.IsNullOrWhiteSpace(cadenaMeat))
             {
-                _logger.LogError("No se encontró la cadena {CadenaMeat}.", nombreCadena);
+                _logger.LogError(
+                    "No se encontró la cadena {CadenaMeat}.",
+                    nombreCadena);
+
                 return Json(new
                 {
                     ok = false,
-                    mensaje = $"No está configurada la conexión {nombreCadena}. La etiqueta no fue ligada."
+                    mensaje =
+                        $"No está configurada la conexión {nombreCadena}. " +
+                        "La etiqueta no fue ligada."
                 });
             }
 
             try
             {
-                // --------------------------------------------------------------------
-                // 1. Obtener la solicitud, el SKU planeado y el avance actual desde SIGO
-                // --------------------------------------------------------------------
+                // ----------------------------------------------------------------
+                // 1. Obtener solicitud, SKU planeado y avance desde SIGO
+                // ----------------------------------------------------------------
                 using var connSigo = new SqlConnection(cadenaSigo);
                 await connSigo.OpenAsync();
 
@@ -20128,20 +20214,23 @@ INNER JOIN dbo.SolicitudMuestras s
 WHERE i.Uid = @ItemUid
   AND i.SolicitudId = @SolicitudId;";
 
-                var item = await connSigo.QuerySingleOrDefaultAsync<SolicitudItemEtiquetaValidacionRow>(
-                    sqlItem,
-                    new
-                    {
-                        ItemUid = itemUid,
-                        SolicitudId = solicitudId
-                    });
+                var item =
+                    await connSigo
+                        .QuerySingleOrDefaultAsync<SolicitudItemEtiquetaValidacionRow>(
+                            sqlItem,
+                            new
+                            {
+                                ItemUid = itemUid,
+                                SolicitudId = solicitudId
+                            });
 
                 if (item == null)
                 {
                     return Json(new
                     {
                         ok = false,
-                        mensaje = "No se encontró el SKU dentro de la solicitud seleccionada."
+                        mensaje =
+                            "No se encontró el SKU dentro de la solicitud seleccionada."
                     });
                 }
 
@@ -20150,7 +20239,9 @@ WHERE i.Uid = @ItemUid
                     return Json(new
                     {
                         ok = false,
-                        mensaje = "La solicitud está cancelada o inactiva. No se pueden ligar etiquetas."
+                        mensaje =
+                            "La solicitud está cancelada o inactiva. " +
+                            "No se pueden ligar etiquetas."
                     });
                 }
 
@@ -20159,7 +20250,8 @@ WHERE i.Uid = @ItemUid
                     return Json(new
                     {
                         ok = false,
-                        mensaje = "La solicitud todavía no ha sido liberada por Planeación."
+                        mensaje =
+                            "La solicitud todavía no ha sido liberada por Planeación."
                     });
                 }
 
@@ -20170,7 +20262,8 @@ WHERE i.Uid = @ItemUid
                     return Json(new
                     {
                         ok = false,
-                        mensaje = "El artículo no tiene un SKU de trabajo definido en Planeación."
+                        mensaje =
+                            "El artículo no tiene un SKU de trabajo definido en Planeación."
                     });
                 }
 
@@ -20179,7 +20272,8 @@ WHERE i.Uid = @ItemUid
                     return Json(new
                     {
                         ok = false,
-                        mensaje = "El artículo no tiene una cantidad válida de cajas."
+                        mensaje =
+                            "El artículo no tiene una cantidad válida de cajas."
                     });
                 }
 
@@ -20188,29 +20282,35 @@ WHERE i.Uid = @ItemUid
                     return Json(new
                     {
                         ok = false,
-                        mensaje = $"El SKU {skuPlaneado} ya tiene todas sus cajas ligadas."
+                        mensaje =
+                            $"El SKU {skuPlaneado} ya tiene todas sus cajas ligadas."
                     });
                 }
 
                 var yaExiste = await connSigo.ExecuteScalarAsync<int>(
-                    @"SELECT COUNT(1)
-              FROM dbo.SolicitudMuestras_Etiquetas
-              WHERE UPPER(LTRIM(RTRIM(ISNULL(ExternalChain, '')))) = @Etiqueta
-                 OR UPPER(LTRIM(RTRIM(ISNULL(Code, '')))) = @Etiqueta;",
-                    new { Etiqueta = etiqueta });
+                    @"
+SELECT COUNT(1)
+FROM dbo.SolicitudMuestras_Etiquetas
+WHERE UPPER(LTRIM(RTRIM(ISNULL(ExternalChain, '')))) = @Etiqueta
+   OR UPPER(LTRIM(RTRIM(ISNULL(Code, '')))) = @Etiqueta;",
+                    new
+                    {
+                        Etiqueta = etiqueta
+                    });
 
                 if (yaExiste > 0)
                 {
                     return Json(new
                     {
                         ok = false,
-                        mensaje = $"La etiqueta {etiqueta} ya fue ligada anteriormente."
+                        mensaje =
+                            $"La etiqueta {etiqueta} ya fue ligada anteriormente."
                     });
                 }
 
-                // --------------------------------------------------------------------
-                // 2. Consultar la etiqueta exacta en Produccion de la planta seleccionada
-                // --------------------------------------------------------------------
+                // ----------------------------------------------------------------
+                // 2. Consultar etiqueta exacta en Producción
+                // ----------------------------------------------------------------
                 using var connMeat = new SqlConnection(cadenaMeat);
                 await connMeat.OpenAsync();
 
@@ -20229,9 +20329,13 @@ FROM dbo.Produccion
 WHERE UPPER(LTRIM(RTRIM(ISNULL(CodigoEtiqueta, '')))) = @Etiqueta
 ORDER BY FechaHora DESC, ProduccionId DESC;";
 
-                var coincidencias = (await connMeat.QueryAsync<ProduccionEtiquetaMeatRow>(
-                    sqlMeat,
-                    new { Etiqueta = etiqueta }))
+                var coincidencias =
+                    (await connMeat.QueryAsync<ProduccionEtiquetaMeatRow>(
+                        sqlMeat,
+                        new
+                        {
+                            Etiqueta = etiqueta
+                        }))
                     .ToList();
 
                 if (coincidencias.Count == 0)
@@ -20251,8 +20355,8 @@ ORDER BY FechaHora DESC, ProduccionId DESC;";
                     {
                         ok = false,
                         mensaje =
-                            $"La etiqueta {etiqueta} tiene más de un registro en {nombreCadena}. " +
-                            "Debe revisarse antes de ligarla."
+                            $"La etiqueta {etiqueta} tiene más de un registro " +
+                            $"en {nombreCadena}. Debe revisarse antes de ligarla."
                     });
                 }
 
@@ -20266,7 +20370,8 @@ ORDER BY FechaHora DESC, ProduccionId DESC;";
                         ok = false,
                         mensaje =
                             $"La etiqueta {etiqueta} existe en {nombreCadena}, " +
-                            $"pero no está activa. Estatus encontrado: {produccion.Estatus}."
+                            $"pero no está activa. " +
+                            $"Estatus encontrado: {produccion.Estatus}."
                     });
                 }
 
@@ -20276,19 +20381,24 @@ ORDER BY FechaHora DESC, ProduccionId DESC;";
                     {
                         ok = false,
                         mensaje =
-                            $"La etiqueta {etiqueta} no tiene un artículo válido registrado en MEAT."
+                            $"La etiqueta {etiqueta} no tiene un artículo válido " +
+                            "registrado en MEAT."
                     });
                 }
 
-                if (!string.Equals(skuMeat, skuPlaneado, StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(
+                        skuMeat,
+                        skuPlaneado,
+                        StringComparison.OrdinalIgnoreCase))
                 {
                     return Json(new
                     {
                         ok = false,
                         mensaje =
-                            $"Etiqueta rechazada. La etiqueta {etiqueta} pertenece al SKU " +
-                            $"{skuMeat}, pero Planeación indicó {skuPlaneado}.",
+                            $"Etiqueta rechazada. La etiqueta {etiqueta} pertenece " +
+                            $"al SKU {skuMeat}, pero Planeación indicó {skuPlaneado}.",
                         etiqueta,
+                        tipoEtiqueta,
                         skuPlaneado,
                         skuMeat,
                         estatus = produccion.Estatus,
@@ -20297,21 +20407,26 @@ ORDER BY FechaHora DESC, ProduccionId DESC;";
                     });
                 }
 
-                // --------------------------------------------------------------------
-                // 3. Insertar en SIGO con una transacción serializable.
-                //    Se repiten las validaciones críticas para evitar doble escaneo.
-                // --------------------------------------------------------------------
-                using var tx = connSigo.BeginTransaction(IsolationLevel.Serializable);
+                // ----------------------------------------------------------------
+                // 3. Insertar en SIGO dentro de transacción serializable
+                // ----------------------------------------------------------------
+                using var tx =
+                    connSigo.BeginTransaction(IsolationLevel.Serializable);
 
                 try
                 {
-                    var duplicadoBloqueado = await connSigo.ExecuteScalarAsync<int>(
-                        @"SELECT COUNT(1)
-                  FROM dbo.SolicitudMuestras_Etiquetas WITH (UPDLOCK, HOLDLOCK)
-                  WHERE UPPER(LTRIM(RTRIM(ISNULL(ExternalChain, '')))) = @Etiqueta
-                     OR UPPER(LTRIM(RTRIM(ISNULL(Code, '')))) = @Etiqueta;",
-                        new { Etiqueta = etiqueta },
-                        tx);
+                    var duplicadoBloqueado =
+                        await connSigo.ExecuteScalarAsync<int>(
+                            @"
+SELECT COUNT(1)
+FROM dbo.SolicitudMuestras_Etiquetas WITH (UPDLOCK, HOLDLOCK)
+WHERE UPPER(LTRIM(RTRIM(ISNULL(ExternalChain, '')))) = @Etiqueta
+   OR UPPER(LTRIM(RTRIM(ISNULL(Code, '')))) = @Etiqueta;",
+                            new
+                            {
+                                Etiqueta = etiqueta
+                            },
+                            tx);
 
                     if (duplicadoBloqueado > 0)
                     {
@@ -20320,16 +20435,22 @@ ORDER BY FechaHora DESC, ProduccionId DESC;";
                         return Json(new
                         {
                             ok = false,
-                            mensaje = $"La etiqueta {etiqueta} ya fue ligada por otro usuario."
+                            mensaje =
+                                $"La etiqueta {etiqueta} ya fue ligada por otro usuario."
                         });
                     }
 
-                    var ligadasActuales = await connSigo.ExecuteScalarAsync<int>(
-                        @"SELECT COUNT(1)
-                  FROM dbo.SolicitudMuestras_Etiquetas WITH (UPDLOCK, HOLDLOCK)
-                  WHERE ItemUid = @ItemUid;",
-                        new { ItemUid = itemUid },
-                        tx);
+                    var ligadasActuales =
+                        await connSigo.ExecuteScalarAsync<int>(
+                            @"
+SELECT COUNT(1)
+FROM dbo.SolicitudMuestras_Etiquetas WITH (UPDLOCK, HOLDLOCK)
+WHERE ItemUid = @ItemUid;",
+                            new
+                            {
+                                ItemUid = itemUid
+                            },
+                            tx);
 
                     if (ligadasActuales >= item.Boxes)
                     {
@@ -20338,7 +20459,8 @@ ORDER BY FechaHora DESC, ProduccionId DESC;";
                         return Json(new
                         {
                             ok = false,
-                            mensaje = $"El SKU {skuPlaneado} ya tiene todas sus cajas ligadas."
+                            mensaje =
+                                $"El SKU {skuPlaneado} ya tiene todas sus cajas ligadas."
                         });
                     }
 
@@ -20364,10 +20486,14 @@ VALUES
     @PesoReal
 );";
 
-                    var operador = (User?.Identity?.Name ?? string.Empty).Trim();
+                    var operador =
+                        (User?.Identity?.Name ?? string.Empty).Trim();
 
                     if (string.IsNullOrWhiteSpace(operador))
-                        operador = (nuevaEtiqueta?.Operator ?? "Sistema").Trim();
+                    {
+                        operador =
+                            (nuevaEtiqueta?.Operator ?? "Sistema").Trim();
+                    }
 
                     await connSigo.ExecuteAsync(
                         sqlInsert,
@@ -20417,7 +20543,10 @@ WHERE s.Id = @SolicitudId;";
 
                     await connSigo.ExecuteAsync(
                         sqlActualizarSolicitud,
-                        new { SolicitudId = solicitudId },
+                        new
+                        {
+                            SolicitudId = solicitudId
+                        },
                         tx);
 
                     tx.Commit();
@@ -20433,7 +20562,8 @@ WHERE s.Id = @SolicitudId;";
                     ok = true,
                     mensaje =
                         $"Etiqueta {etiqueta} validada y ligada correctamente. " +
-                        $"SKU {skuMeat}, estatus activo, origen {nombreCadena}.",
+                        $"Tipo {tipoEtiqueta}, SKU {skuMeat}, estatus activo, " +
+                        $"origen {nombreCadena}.",
                     etiqueta,
                     tipoEtiqueta,
                     skuPlaneado,
@@ -20447,25 +20577,32 @@ WHERE s.Id = @SolicitudId;";
                     cadena = nombreCadena
                 });
             }
-            catch (SqlException ex) when (ex.Number == 2601 || ex.Number == 2627)
+            catch (SqlException ex)
+                when (ex.Number == 2601 || ex.Number == 2627)
             {
                 _logger.LogWarning(
                     ex,
-                    "Intento de ligar una etiqueta MEAT DEST/RETT duplicada: {Etiqueta}.",
-                    etiqueta);
+                    "Intento de ligar una etiqueta MEAT duplicada. " +
+                    "Etiqueta: {Etiqueta}, tipo: {TipoEtiqueta}, planta: {Planta}.",
+                    etiqueta,
+                    tipoEtiqueta,
+                    planta);
 
                 return Json(new
                 {
                     ok = false,
-                    mensaje = $"La etiqueta {etiqueta} ya fue ligada anteriormente."
+                    mensaje =
+                        $"La etiqueta {etiqueta} ya fue ligada anteriormente."
                 });
             }
             catch (SqlException ex)
             {
                 _logger.LogError(
                     ex,
-                    "Error SQL al validar la etiqueta {Etiqueta} en la planta {Planta}.",
+                    "Error SQL al validar la etiqueta {Etiqueta} " +
+                    "de tipo {TipoEtiqueta} en la planta {Planta}.",
                     etiqueta,
+                    tipoEtiqueta,
                     planta);
 
                 return Json(new
@@ -20480,17 +20617,21 @@ WHERE s.Id = @SolicitudId;";
             {
                 _logger.LogError(
                     ex,
-                    "Error inesperado al ligar la etiqueta {Etiqueta}.",
-                    etiqueta);
+                    "Error inesperado al ligar la etiqueta {Etiqueta}. " +
+                    "Tipo: {TipoEtiqueta}, planta: {Planta}.",
+                    etiqueta,
+                    tipoEtiqueta,
+                    planta);
 
                 return Json(new
                 {
                     ok = false,
-                    mensaje = "Ocurrió un error inesperado. La etiqueta NO fue ligada."
+                    mensaje =
+                        "Ocurrió un error inesperado. " +
+                        "La etiqueta NO fue ligada."
                 });
             }
         }
-
 
         // ============================================================================
         // REEMPLAZO ROBUSTO DEL TRACKING MEAT
@@ -20781,21 +20922,50 @@ WHERE rn = 1;";
         [HttpGet("~/Comercial/ObtenerTrackingEtiquetasMeat")]
         //[RevisarPermiso("SOLICITUD_MUESTRAS_TRACKING", "LEER")]
         public async Task<IActionResult> ObtenerTrackingEtiquetasMeat(
-    [FromQuery] List<string> etiquetas,
-    CancellationToken ct = default)
+      [FromQuery] List<string> etiquetas,
+      CancellationToken ct = default)
         {
-            static string Normalizar(string? valor) =>
-                (valor ?? string.Empty)
+            static string Normalizar(string? valor)
+            {
+                var normalizado = (valor ?? string.Empty)
                     .Replace("\0", string.Empty)
                     .Trim()
                     .ToUpperInvariant();
 
+                // El lector puede enviar espacios o saltos de línea.
+                return Regex.Replace(normalizado, @"\s+", string.Empty);
+            }
+
+            static bool EsNomenclaturaPermitida(string etiqueta)
+            {
+                if (string.IsNullOrWhiteSpace(etiqueta))
+                    return false;
+
+                return
+                    etiqueta.StartsWith("DEST", StringComparison.OrdinalIgnoreCase) ||
+                    etiqueta.StartsWith("RETT", StringComparison.OrdinalIgnoreCase) ||
+                    etiqueta.StartsWith("RETR", StringComparison.OrdinalIgnoreCase) ||
+                    etiqueta.StartsWith("DESH", StringComparison.OrdinalIgnoreCase) ||
+                    etiqueta.StartsWith("COMP", StringComparison.OrdinalIgnoreCase) ||
+                    etiqueta.StartsWith("COMT", StringComparison.OrdinalIgnoreCase);
+            }
+
+            // --------------------------------------------------------------------
+            // 1. Normalizar y conservar todas las nomenclaturas válidas.
+            //
+            // P1:
+            // DEST, RETT, RETR, DESH, COMP
+            //
+            // TIF:
+            // DEST, RETT, COMT
+            //
+            // Para tracking se consultan ambas bases porque una etiqueta puede
+            // tener antecedentes o movimientos entre plantas.
+            // --------------------------------------------------------------------
             etiquetas = (etiquetas ?? new List<string>())
                 .Select(Normalizar)
                 .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Where(x =>
-                    x.StartsWith("DEST", StringComparison.OrdinalIgnoreCase) ||
-                    x.StartsWith("RETT", StringComparison.OrdinalIgnoreCase))
+                .Where(EsNomenclaturaPermitida)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Take(500)
                 .ToList();
@@ -20805,13 +20975,19 @@ WHERE rn = 1;";
                 return BadRequest(new
                 {
                     ok = false,
-                    mensaje = "Debe proporcionar al menos una etiqueta DEST o RETT."
+                    mensaje =
+                        "Debe proporcionar al menos una etiqueta válida. " +
+                        "Nomenclaturas permitidas: DEST, RETT, RETR, DESH, COMP o COMT."
                 });
             }
 
             var filas = new List<TrackingEtiquetaMeatRow>();
             var advertencias = new List<string>();
+            var consultasFallidas = 0;
 
+            // --------------------------------------------------------------------
+            // 2. Consultar TIF
+            // --------------------------------------------------------------------
             try
             {
                 var tif = await ConsultarTrackingEtiquetasEnPlantaAsync(
@@ -20825,6 +21001,8 @@ WHERE rn = 1;";
             }
             catch (Exception ex)
             {
+                consultasFallidas++;
+
                 advertencias.Add(
                     $"Error consultando TIF: {ex.GetBaseException().Message}");
 
@@ -20833,6 +21011,9 @@ WHERE rn = 1;";
                     "Error consultando tracking MEAT TIF.");
             }
 
+            // --------------------------------------------------------------------
+            // 3. Consultar Planta 1
+            // --------------------------------------------------------------------
             try
             {
                 var p1 = await ConsultarTrackingEtiquetasEnPlantaAsync(
@@ -20846,6 +21027,8 @@ WHERE rn = 1;";
             }
             catch (Exception ex)
             {
+                consultasFallidas++;
+
                 advertencias.Add(
                     $"Error consultando P1: {ex.GetBaseException().Message}");
 
@@ -20854,7 +21037,7 @@ WHERE rn = 1;";
                     "Error consultando tracking MEAT P1.");
             }
 
-            if (advertencias.Count == 2)
+            if (consultasFallidas >= 2)
             {
                 return StatusCode(503, new
                 {
@@ -20864,18 +21047,24 @@ WHERE rn = 1;";
                 });
             }
 
+            // --------------------------------------------------------------------
+            // 4. Agrupar coincidencias encontradas en ambas plantas
+            // --------------------------------------------------------------------
             var filasPorEtiqueta = filas
+                .Where(x => !string.IsNullOrWhiteSpace(x.CodigoEtiqueta))
                 .GroupBy(x => Normalizar(x.CodigoEtiqueta))
                 .ToDictionary(
-                    x => x.Key,
-                    x => x.ToList(),
+                    grupo => grupo.Key,
+                    grupo => grupo.ToList(),
                     StringComparer.OrdinalIgnoreCase);
 
             var resultado = new List<object>();
 
             foreach (var etiqueta in etiquetas)
             {
-                if (!filasPorEtiqueta.TryGetValue(etiqueta, out var coincidencias) ||
+                if (!filasPorEtiqueta.TryGetValue(
+                        etiqueta,
+                        out var coincidencias) ||
                     coincidencias.Count == 0)
                 {
                     resultado.Add(new
@@ -20891,6 +21080,8 @@ WHERE rn = 1;";
                         articulo = "",
                         pesoNeto = (decimal?)null,
                         estatus = (int?)null,
+                        produccionId = (int?)null,
+                        solicitudSurtidoId = (long?)null,
                         transferida = false,
                         encontradaEnTif = false,
                         encontradaEnP1 = false
@@ -20899,26 +21090,36 @@ WHERE rn = 1;";
                     continue;
                 }
 
-                bool encontradaEnTif =
-                    coincidencias.Any(x => x.Planta == "TIF");
+                bool encontradaEnTif = coincidencias.Any(
+                    x => string.Equals(
+                        x.Planta,
+                        "TIF",
+                        StringComparison.OrdinalIgnoreCase));
 
-                bool encontradaEnP1 =
-                    coincidencias.Any(x => x.Planta == "P1");
+                bool encontradaEnP1 = coincidencias.Any(
+                    x => string.Equals(
+                        x.Planta,
+                        "P1",
+                        StringComparison.OrdinalIgnoreCase));
 
-                bool transferida =
-                    encontradaEnTif && encontradaEnP1;
+                bool transferida = encontradaEnTif && encontradaEnP1;
 
                 /*
-                 * Prioridad:
+                 * Prioridad para elegir el registro mostrado:
+                 *
                  * 1. Venta comprobada.
                  * 2. Registro activo.
-                 * 3. P1 sobre TIF cuando ambos están activos.
+                 * 3. Planta 1 cuando existe en las dos plantas.
                  * 4. ProduccionId más reciente.
                  */
                 var elegida = coincidencias
                     .OrderByDescending(x => x.TieneVenta == 1)
                     .ThenByDescending(x => x.Estatus == 1)
-                    .ThenByDescending(x => x.Planta == "P1")
+                    .ThenByDescending(x =>
+                        string.Equals(
+                            x.Planta,
+                            "P1",
+                            StringComparison.OrdinalIgnoreCase))
                     .ThenByDescending(x => x.ProduccionId)
                     .First();
 
@@ -20942,7 +21143,9 @@ WHERE rn = 1;";
                         $"{cliente} · {folio}";
 
                     if (transferida)
+                    {
                         resumen += " · aparece en TIF y P1";
+                    }
                 }
                 else if (elegida.Estatus == 1)
                 {
@@ -20956,7 +21159,9 @@ WHERE rn = 1;";
                         $"En almacén {almacen} · Planta {elegida.Planta}";
 
                     if (transferida)
+                    {
                         resumen += " · transferida entre plantas";
+                    }
                 }
                 else
                 {
@@ -20978,7 +21183,10 @@ WHERE rn = 1;";
                     estado,
                     resumen,
                     planta = elegida.Planta,
-                    almacen = elegida.Almacen ?? elegida.AlmacenCodigo ?? "",
+                    almacen =
+                        elegida.Almacen ??
+                        elegida.AlmacenCodigo ??
+                        "",
                     cliente = elegida.Cliente ?? "",
                     folio = elegida.Folio ?? "",
                     articulo = elegida.Articulo ?? "",
@@ -21450,7 +21658,6 @@ WHERE rn = 1;";
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 $"Catalogo_Proveedores_SAP_{DateTime.Now:yyyy-MM-dd}.xlsx");
         }
-
 
 
     }
