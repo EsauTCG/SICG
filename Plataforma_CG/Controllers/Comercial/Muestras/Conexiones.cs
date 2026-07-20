@@ -35,6 +35,7 @@ namespace Plataforma_CG.Controllers.Comercial.Muestras
                 string operario = LimpiarTextoZpl(model.Operario);
                 string spec = LimpiarTextoZpl(model.Spec);
                 string temp = ExtraerTemperatura(model.Temperatura);
+                string peso = LimpiarTextoZpl(model.Peso);
 
                 string datos = $@"^XA
 ^CI28
@@ -78,6 +79,9 @@ namespace Plataforma_CG.Controllers.Comercial.Muestras
 
 ^FX --- Temperatura ---
 ^FO30,830^A0N,32,32^FDProducto {temp}^FS
+
+^FX --- Peso ---
+{(!string.IsNullOrEmpty(peso) ? $"^FO30,780^A0N,28,28^FDPeso: {peso}^FS" : "")}
 
 ^FX --- Codigo de Barras centrado abajo ---
 ^FO70,910^BY3^BCN,150,Y,N,N^FD{lote}^FS

@@ -60,6 +60,7 @@ namespace Plataforma_CG.Models
         public string Operator { get; set; }
         public DateTime ProcessedAt { get; set; }
         public string Location { get; set; }
+        public decimal? PesoReal { get; set; }
     }
 
     public class EditarSolicitudModel
