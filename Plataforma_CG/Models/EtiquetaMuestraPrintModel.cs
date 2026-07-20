@@ -14,5 +14,6 @@ namespace Plataforma_CG.Models
         public string FechaProduccion { get; set; } = "";
         public string Operario { get; set; } = "";
         public string Temperatura { get; set; } = "";
+        public string Peso { get; set; } = "";
     }
 }

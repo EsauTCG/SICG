@@ -19157,7 +19157,8 @@ ORDER BY s.CreatedAt DESC";
                             ExternalChain = l.ExternalChain,
                             Operator = l.Operator ?? "",
                             ProcessedAt = l.ProcessedAt,
-                            Location = l.Location ?? ""
+                            Location = l.Location ?? "",
+                            PesoReal = l.PesoReal
                         }).ToList();
 
                         vm.Items.Add(itemVM);
