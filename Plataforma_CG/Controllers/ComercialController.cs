@@ -18995,7 +18995,9 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
       AND (@VendedorId IS NULL OR ov.VendedorId IN @IdsBusqueda)
     ORDER BY ov.FechaRegistro DESC";
 
-                var ovMuestras = await conn.QueryAsync(sql, new { VendedorId = vendedorId, IdsBusqueda = idsBusqueda });
+                var ovMuestras = idsBusqueda.Count > 0
+                    ? await conn.QueryAsync(sql, new { VendedorId = vendedorId, IdsBusqueda = idsBusqueda })
+                    : await conn.QueryAsync(sql, new { VendedorId = vendedorId, IdsBusqueda = new List<int> { 0 } });
 
                 return Json(ovMuestras);
             }
@@ -19098,7 +19100,9 @@ WHERE s.Activo = 1 AND s.CreatedAt >= DATEADD(day, -60, GETDATE())
 AND (@VendedorId IS NULL OR ov.VendedorId IN @IdsBusqueda)
 ORDER BY s.CreatedAt DESC";
 
-                var solicitudes = await conn.QueryAsync(sql, new { VendedorId = vendedorId, IdsBusqueda = idsBusqueda });
+                var solicitudes = idsBusqueda.Count > 0
+                    ? await conn.QueryAsync(sql, new { VendedorId = vendedorId, IdsBusqueda = idsBusqueda })
+                    : await conn.QueryAsync(sql, new { VendedorId = vendedorId, IdsBusqueda = new List<int> { 0 } });
 
                 var lista = new List<Plataforma_CG.Models.SolicitudMuestraVM>();
                 foreach (var s in solicitudes)

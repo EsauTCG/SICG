@@ -1100,11 +1100,6 @@ body[data-theme="dark"] .modal-body::-webkit-scrollbar-thumb {
         color: #eefaff !important;
     }
 
-                <button class="btn btn-outline-secondary btn-sm px-3 fw-bold" onclick="imprimirReportePlanta()"><i class="bi bi-printer me-1"></i> Imprimir Reporte</button>
-                <button class="btn btn-outline-secondary btn-sm px-3 fw-bold" onclick="abrirModalVlan()"><i class="bi bi-diagram-3 me-1"></i> Nueva VLAN</button>
-                <button class="btn btn-brand btn-sm px-3" onclick="abrirNuevaIP()"><i class="bi bi-plus-lg me-1"></i> Agregar IP</button>
-            </div>
-
     .topologia-modal .modal-title {
         color: #fff !important;
         font-size: 15px !important;
@@ -1117,30 +1112,6 @@ body[data-theme="dark"] .modal-body::-webkit-scrollbar-thumb {
         font-size: 10px;
         margin-top: 2px;
     }
-
-        <div class="dashboard-panel">
-            <div class="d-flex justify-content-between align-items-center mb-2 px-1">
-                <div id="contadorResultados" class="text-muted small fw-bold">
-                </div>
-            </div>
-            <div class="table-responsive">
-                <table class="table table-custom align-middle mb-0">
-                    <thead>
-                        <tr>
-                            <th style="width: 15%;">Dirección IP</th>
-                            <th style="width: 20%;">Equipo / Observaciones</th>
-                            <th style="width: 15%;">Usuario / Área</th>
-                            <th style="width: 10%;">Tipo</th>
-                            <th style="width: 15%;">Fechas (Alta / Modif)</th>
-                            <th style="width: 10%;">Modificado Por</th>
-                            <th class="text-center" style="width: 15%;">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tbodyIPs">
-                    </tbody>
-                </table>
-            </div>
-        </div>
 
     .topologia-shell {
         width: 100%;
@@ -3178,7 +3149,7 @@ body[data-theme="dark"] .vlan-nav-stats {
                     <input type="text" class="form-control border-start-0 ps-0" id="buscadorIP" placeholder="Buscar IP o equipo..." onkeyup="renderTabla()">
                 </div>
 
-               
+                <button class="btn btn-outline-secondary btn-sm px-3 fw-bold" onclick="imprimirReportePlanta()"><i class="bi bi-printer me-1"></i> Imprimir Reporte</button>
                 
             </div>
 
@@ -4023,6 +3994,11 @@ body[data-theme="dark"] .vlan-nav-stats {
                     filtrados.forEach(i => {
                 let estaLibre = !i.equipo || i.equipo.trim() === '';
                 let equipoDisplay = estaLibre ? '<span class="badge-disponible">DISPONIBLE</span>' : `<b>${i.equipo}</b>`;
+
+                let obsText = i.observaciones || i.Observaciones || '';
+                if (!estaLibre && obsText.trim() !== '') {
+                    equipoDisplay += `<div class="text-muted mt-1 text-wrap" style="font-size: 0.7rem; max-width: 220px; line-height: 1.25;"><i class="bi bi-chat-left-text me-1"></i>${obsText}</div>`;
+                }
 
                 let usuarioAreaDisplay = '<span class="text-muted small">-</span>';
                 if (i.usuario || i.area) {
@@ -5699,29 +5675,18 @@ body[data-theme="dark"] .vlan-nav-stats {
                     return;
                 }
 
-                        filtrados.forEach(i => {
-        let estaLibre = !i.equipo || i.equipo.trim() === '';
-        let equipoDisplay = estaLibre ? '<span class="badge-disponible">DISPONIBLE</span>' : `<b>${i.equipo}</b>`;
+                if (node.kind === 'device' && node.ipId) {
+                    const item = node.data || {};
+                    const status = topoStatus[node.id] || 'unknown';
+                    const statusText = { online: 'En linea', offline: 'Sin respuesta', checking: 'Comprobando...', unknown: 'Sin comprobar' }[status] || 'Sin comprobar';
 
-        // Extraemos las observaciones de la BD y las formateamos
-        let obsText = i.observaciones || i.Observaciones || '';
-        if (obsText.trim() !== '') {
-            // text-wrap evita que la tabla se estire infinitamente hacia la derecha
-            equipoDisplay += `<div class="text-muted mt-1 text-wrap" style="font-size: 0.7rem; max-width: 220px; line-height: 1.25;"><i class="bi bi-chat-left-text me-1"></i>${obsText}</div>`;
-        }
-
-        let usuarioAreaDisplay = '<span class="text-muted small">-</span>';
-        if (i.usuario || i.area) {
-            let extraInfo = [];
-            if (i.usuario) extraInfo.push(`<div class="text-dark fw-bold" style="font-size:0.8rem;"><i class="bi bi-person text-muted"></i> ${i.usuario}</div>`);
-            if (i.area) extraInfo.push(`<div class="text-muted" style="font-size:0.75rem;"><i class="bi bi-building"></i> ${i.area}</div>`);
-            usuarioAreaDisplay = extraInfo.join('');
-        }
-
-        let badgeTipo = '-';
-        // ... el resto de tu codigo sigue igual ...
-                if(i.tipo === 'Cable') badgeTipo = '<span class="tipo-cable"><i class="bi bi-ethernet"></i> Cable</span>';
-                if(i.tipo === 'WiFi') badgeTipo = '<span class="tipo-wifi"><i class="bi bi-wifi"></i> WiFi</span>';
+                    host.innerHTML = `
+                        <div class="topologia-card">
+                            <h5>${topoEsc(item.equipo || node.title)}</h5>
+                            <div class="topologia-field">
+                                <label>Direccion IP</label>
+                                <div class="topologia-readonly">${topoEsc(node.ip)}</div>
+                            </div>
 
                             <div class="topologia-field">
                                 <label>Usuario / área</label>
@@ -6123,19 +6088,6 @@ body[data-theme="dark"] .vlan-nav-stats {
                     topoRenderEdges();
                 }, 80);
             });
-
-                           // Recargamos la información desde cero
-                           await cargarTodoDesdeServidor();
-                           alert("✅ " + data.mensaje);
-                       } else {
-                           alert("Error: " + data.mensaje);
-                       }
-                   } catch (error) {
-                       alert("Error de conexión al intentar eliminar: " + error.message);
-                   } finally {
-                       document.body.style.cursor = 'default';
-                   }
-               }
 
          function imprimirReportePlanta() {
                 let pActiva = $('#selectPlanta').val();
