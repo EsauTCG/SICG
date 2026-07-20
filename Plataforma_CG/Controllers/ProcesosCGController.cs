@@ -10,6 +10,7 @@ using Plataforma_CG.Filters;
 using Plataforma_CG.Models;
 using Plataforma_CG.Services;
 using Plataforma_CG.ViewModels;
+using Plataforma_CG.ViewModels.ComparativaCosteo;
 using QRCoder;
 using System;
 using System.Collections.Generic;
@@ -2962,6 +2963,463 @@ ORDER BY FechaEjecucion DESC, Id DESC;")).ToList();
 
             return View("~/Views/ProcesosCG/Costeo.cshtml", model);
         }
+
+
+        //Modal ComparativaCosteo 
+
+        [HttpPost("ConsultarComparativaCosteo")]
+        public async Task<IActionResult> ConsultarComparativaCosteo([FromBody] ComparativaCosteoFiltroVM filtro)
+        {
+            using var cn = new SqlConnection(
+                _configuration.GetConnectionString("CadenaMeatP1"));
+
+            var sql = @"SET NOCOUNT ON;
+ 
+/*==============================================================
+  PARÁMETROS
+==============================================================*/
+ 
+
+DECLARE @FechaInicio date;
+DECLARE @FechaFin date;
+ 
+SET @TipoPeriodo = UPPER(LTRIM(RTRIM(@TipoPeriodo)));
+ 
+IF @TipoPeriodo NOT IN ('DIA', 'SEMANA', 'MES')
+BEGIN
+    THROW 50001, 'El periodo debe ser DIA, SEMANA o MES.', 1;
+END;
+ 
+ 
+/*==============================================================
+  CALCULAR RANGO DE FECHAS
+==============================================================*/
+ 
+SET @FechaInicio =
+    CASE
+        WHEN @TipoPeriodo = 'DIA'
+            THEN @FechaBase
+ 
+        WHEN @TipoPeriodo = 'SEMANA'
+            THEN DATEADD
+            (
+                DAY,
+                -(DATEDIFF(DAY, '19000101', @FechaBase) % 7),
+                @FechaBase
+            )
+ 
+        WHEN @TipoPeriodo = 'MES'
+            THEN DATEFROMPARTS
+            (
+                YEAR(@FechaBase),
+                MONTH(@FechaBase),
+                1
+            )
+    END;
+ 
+SET @FechaFin =
+    CASE
+        WHEN @TipoPeriodo = 'DIA'
+            THEN DATEADD(DAY, 1, @FechaInicio)
+ 
+        WHEN @TipoPeriodo = 'SEMANA'
+            THEN DATEADD(DAY, 7, @FechaInicio)
+ 
+        WHEN @TipoPeriodo = 'MES'
+            THEN DATEADD(MONTH, 1, @FechaInicio)
+    END;
+ 
+ 
+/*==============================================================
+  TABLA TEMPORAL CON DATOS TIF
+==============================================================*/
+ 
+DROP TABLE IF EXISTS #TIF;
+ 
+CREATE TABLE #TIF
+(
+    CodigoEtiqueta varchar(100) COLLATE DATABASE_DEFAULT NOT NULL,
+    Lote varchar(250) COLLATE DATABASE_DEFAULT NULL,
+    SKU varchar(50) COLLATE DATABASE_DEFAULT NULL,
+    Producto varchar(250) COLLATE DATABASE_DEFAULT NULL,
+    FechaProduccion date NULL,
+    PesoTIF decimal(18,2) NULL,
+    CostoTIF decimal(18,2) NULL,
+    TieneCostoTIF bit NOT NULL,
+    ProduccionIdTIF bigint NULL
+);
+ 
+ 
+/*==============================================================
+  CONSULTA REMOTA
+ 
+  OPENQUERY hace que el filtro y los cálculos se ejecuten
+  directamente en SERVERTIF.
+==============================================================*/
+ 
+DECLARE @ConsultaRemota nvarchar(max);
+DECLARE @SQL nvarchar(max);
+ 
+SET @ConsultaRemota = N'
+SELECT
+    CONVERT(varchar(100), p.CodigoEtiqueta) AS CodigoEtiqueta,
+    CONVERT(varchar(250), l.Nombre) AS Lote,
+    CONVERT(varchar(50), p.Articulo) AS SKU,
+    CONVERT(varchar(250), art.Nombre) AS Producto,
+    CONVERT(date, l.FechaProduccion) AS FechaProduccion,
+ 
+    CONVERT
+    (
+        decimal(18,2),
+        ISNULL(p.PesoNeto, 0)
+    ) AS PesoTIF,
+ 
+    CONVERT
+    (
+        decimal(18,2),
+        ISNULL
+        (
+            ROUND
+            (
+                CASE
+                    WHEN c.ProduccionId IS NOT NULL
+                        THEN c.CostoUnitario * pc.FactorUnidad
+                    ELSE pc.CostoCanal
+                END,
+                2
+            ),
+            ISNULL(pcc.Costo, 0)
+        )
+    ) AS CostoTIF,
+ 
+    CASE
+        WHEN pc.ProduccionId IS NULL
+             AND pcc.ProduccionId IS NULL
+            THEN 0
+        ELSE 1
+    END AS TieneCostoTIF,
+ 
+    p.ProduccionId AS ProduccionIdTIF
+ 
+FROM TIF_meat.dbo.Produccion p
+ 
+INNER JOIN TIF_meat.dbo.Lote l
+    ON p.LoteId = l.LoteId
+ 
+LEFT JOIN TIF_CommerciaNet.dbo.Articulo art
+    ON p.Articulo = art.ArticuloId
+ 
+OUTER APPLY
+(
+    SELECT TOP (1)
+        pc1.ProduccionId,
+        pc1.FactorUnidad,
+        pc1.CostoCanal,
+        pc1.FechaHora
+    FROM TIF_meat.dbo.ProduccionCosteo pc1
+    WHERE pc1.ProduccionId = p.ProduccionId
+    ORDER BY pc1.FechaHora DESC
+) pc
+ 
+OUTER APPLY
+(
+    SELECT TOP (1)
+        c1.ProduccionId,
+        c1.CostoUnitario
+    FROM TIF_meat.dbo.Costeo c1
+    WHERE c1.ProduccionId = p.ProduccionId
+) c
+ 
+OUTER APPLY
+(
+    SELECT TOP (1)
+        pcc1.ProduccionId,
+        pcc1.Costo,
+        pcc1.FechaHora
+    FROM TIF_meat.dbo.ProduccionCosto pcc1
+    WHERE pcc1.ProduccionId = p.ProduccionId
+      AND pcc1.TipoCostoID = 0
+    ORDER BY pcc1.FechaHora DESC
+) pcc
+ 
+WHERE
+    p.CodigoEtiqueta IS NOT NULL
+    AND p.UltimoProcesoId <> 29
+    AND l.FechaProduccion >= ''' +
+        CONVERT(char(8), @FechaInicio, 112) + N'''
+    AND l.FechaProduccion < ''' +
+        CONVERT(char(8), @FechaFin, 112) + N'''
+';
+ 
+ 
+/* Insertar resultado remoto en tabla temporal local */
+ 
+SET @SQL = N'
+INSERT INTO #TIF
+(
+    CodigoEtiqueta,
+    Lote,
+    SKU,
+    Producto,
+    FechaProduccion,
+    PesoTIF,
+    CostoTIF,
+    TieneCostoTIF,
+    ProduccionIdTIF
+)
+SELECT
+    CodigoEtiqueta,
+    Lote,
+    SKU,
+    Producto,
+    FechaProduccion,
+    PesoTIF,
+    CostoTIF,
+    TieneCostoTIF,
+    ProduccionIdTIF
+FROM OPENQUERY
+(
+    [SERVERTIF],
+    ''' + REPLACE(@ConsultaRemota, '''', '''''') + N'''
+);';
+ 
+EXEC sys.sp_executesql @SQL;
+ 
+ 
+/*==============================================================
+  ÍNDICE TEMPORAL PARA ACELERAR EL CRUCE CON P1
+==============================================================*/
+ 
+CREATE CLUSTERED INDEX IX_TIF_CodigoEtiqueta
+    ON #TIF(CodigoEtiqueta);
+ 
+ 
+/*==============================================================
+  COMPARACIÓN TIF CONTRA P1
+ 
+  El INNER JOIN significa:
+  solamente devuelve etiquetas que existen en ambos sistemas.
+ 
+  La unión es exclusivamente:
+  TIF.CodigoEtiqueta = P1.CodigoEtiqueta
+==============================================================*/
+ 
+;WITH Comparacion AS
+(
+    SELECT
+        tif.CodigoEtiqueta,
+ 
+        tif.FechaProduccion AS FechaTIF,
+        CONVERT(date, lp1.FechaProduccion) AS FechaP1,
+ 
+        tif.Lote AS LoteTIF,
+        CONVERT(varchar(250), lp1.Nombre)
+            COLLATE DATABASE_DEFAULT AS LoteP1,
+ 
+        tif.SKU AS SKUTIF,
+        CONVERT(varchar(50), p1.Articulo)
+            COLLATE DATABASE_DEFAULT AS SKUP1,
+ 
+        tif.Producto AS ProductoTIF,
+        CONVERT(varchar(250), artp1.Nombre)
+            COLLATE DATABASE_DEFAULT AS ProductoP1,
+ 
+        tif.PesoTIF,
+ 
+        CAST
+        (
+            ISNULL(p1.PesoNeto, 0)
+            AS decimal(18,2)
+        ) AS PesoP1,
+ 
+        tif.CostoTIF,
+ 
+        CAST
+        (
+            ISNULL
+            (
+                ROUND
+                (
+                    CASE
+                        WHEN cp1.ProduccionId IS NOT NULL
+                            THEN cp1.CostoUnitario *
+                                 pcp1.FactorUnidad
+                        ELSE pcp1.CostoCanal
+                    END,
+                    2
+                ),
+                ISNULL(pccp1.Costo, 0)
+            )
+            AS decimal(18,2)
+        ) AS CostoP1,
+ 
+        tif.TieneCostoTIF,
+ 
+        CASE
+            WHEN pcp1.ProduccionId IS NULL
+                 AND pccp1.ProduccionId IS NULL
+                THEN 0
+            ELSE 1
+        END AS TieneCostoP1,
+ 
+        tif.ProduccionIdTIF,
+        p1.ProduccionId AS ProduccionIdP1,
+ 
+        ROW_NUMBER() OVER
+        (
+            PARTITION BY tif.CodigoEtiqueta
+            ORDER BY p1.ProduccionId DESC
+        ) AS NumeroRegistro
+ 
+    FROM #TIF tif
+ 
+    INNER JOIN meat.dbo.Produccion p1
+        ON p1.CodigoEtiqueta = tif.CodigoEtiqueta
+ 
+    INNER JOIN meat.dbo.Lote lp1
+        ON p1.LoteId = lp1.LoteId
+ 
+    LEFT JOIN CommerciaNet.dbo.Articulo artp1
+        ON p1.Articulo = artp1.ArticuloId
+ 
+    OUTER APPLY
+    (
+        SELECT TOP (1)
+            pc.ProduccionId,
+            pc.FactorUnidad,
+            pc.CostoCanal,
+            pc.FechaHora
+        FROM meat.dbo.ProduccionCosteo pc
+        WHERE pc.ProduccionId = p1.ProduccionId
+        ORDER BY pc.FechaHora DESC
+    ) pcp1
+ 
+    OUTER APPLY
+    (
+        SELECT TOP (1)
+            c.ProduccionId,
+            c.CostoUnitario
+        FROM meat.dbo.Costeo c
+        WHERE c.ProduccionId = p1.ProduccionId
+    ) cp1
+ 
+    OUTER APPLY
+    (
+        SELECT TOP (1)
+            pcc.ProduccionId,
+            pcc.Costo,
+            pcc.FechaHora
+        FROM meat.dbo.ProduccionCosto pcc
+        WHERE pcc.ProduccionId = p1.ProduccionId
+          AND pcc.TipoCostoID = 0
+        ORDER BY pcc.FechaHora DESC
+    ) pccp1
+),
+Resultado AS
+( 
+    SELECT
+        
+ 
+        CodigoEtiqueta,
+ 
+        LoteTIF,
+        LoteP1,
+ 
+        SKUTIF,
+        SKUP1,
+ 
+        ProductoTIF,
+        ProductoP1,
+ 
+        PesoTIF,
+        PesoP1,
+ 
+        CAST
+        (
+            PesoP1 - PesoTIF
+            AS decimal(18,2)
+        ) AS DiferenciaPeso,
+ 
+        CostoTIF,
+        CostoP1,
+ 
+        CAST
+        (
+            CostoP1 - CostoTIF
+            AS decimal(18,2)
+        ) AS DiferenciaCosto,
+ 
+        CASE
+            WHEN TieneCostoTIF = 0
+                 AND TieneCostoP1 = 0
+                THEN 'SIN COSTO EN TIF Y P1'
+ 
+            WHEN TieneCostoTIF = 0
+                THEN 'SIN COSTO EN TIF'
+ 
+            WHEN TieneCostoP1 = 0
+                THEN 'SIN COSTO EN P1'
+ 
+            WHEN ABS(CostoP1 - CostoTIF) <= @Tolerancia
+                THEN '100% MISMO COSTO'
+ 
+            ELSE 'COSTO DIFERENTE'
+        END AS EstadoCosto,
+ 
+        ProduccionIdTIF,
+        ProduccionIdP1,
+
+        FechaTIF
+ 
+FROM Comparacion
+ 
+WHERE NumeroRegistro = 1
+
+)
+
+SELECT *
+FROM Resultado
+
+WHERE
+(
+    @EstadoCosto IS NULL
+    OR @EstadoCosto = ''
+    OR EstadoCosto = @EstadoCosto
+)
+ 
+ORDER BY
+    FechaTIF DESC,
+    CodigoEtiqueta
+ 
+OPTION (RECOMPILE);";
+
+            var parametros = new
+            {
+                TipoPeriodo = filtro.TipoPeriodo,
+                FechaBase = filtro.FechaBase,
+                Tolerancia = filtro.Tolerancia,
+                EstadoCosto = filtro.EstadoCosto
+            };
+
+            var datos = await cn.QueryAsync<ComparativaCosteoRowVM>(
+                sql,
+                parametros
+                );
+
+            var primerRegistro = datos.FirstOrDefault();
+
+
+
+            return Json(new
+            {
+                ok = true,
+                datos
+            });
+
+            
+        }
+
+
 
         [HttpPost("EjecutarCosteo")]
         public async Task<IActionResult> EjecutarCosteo(
