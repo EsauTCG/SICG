@@ -15,5 +15,6 @@ namespace Plataforma_CG.Models
         public string Operario { get; set; } = "";
         public string Temperatura { get; set; } = "";
         public string Peso { get; set; } = "";
+        public string Notes { get; set; } = "";
     }
 }

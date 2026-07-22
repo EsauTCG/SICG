@@ -36,6 +36,12 @@ namespace Plataforma_CG.Controllers.Comercial.Muestras
                 string spec = LimpiarTextoZpl(model.Spec);
                 string temp = ExtraerTemperatura(model.Temperatura);
                 string peso = LimpiarTextoZpl(model.Peso);
+                string notes = LimpiarTextoZpl(model.Notes);
+                int nOff = string.IsNullOrEmpty(notes) ? 0 : 40;
+
+                string specLine = LimpiarTextoZpl(model.Spec);
+                if (specLine.Length > 120)
+                    specLine = specLine.Substring(0, 117) + "...";
 
                 string datos = $@"^XA
 ^CI28
@@ -59,32 +65,33 @@ namespace Plataforma_CG.Controllers.Comercial.Muestras
 ^FO30,450^A0N,28,28^FDSolicitud: {solicitud}^FS
 ^FO400,450^A0N,28,28^FDVendedor: {vendedor}^FS
 ^FO30,500^A0N,28,28^FDCliente: {cliente}^FS
+{(!string.IsNullOrEmpty(notes) ? $"^FO30,540^A0N,28,28^FB750,2,0,L^FDDestinatario: {notes}^FS" : "")}
 
 ^FX --- Linea separadora gruesa ---
-^FO30,560^GB740,4,4^FS
+^FO30,{580 + nOff}^GB740,4,4^FS
 
 ^FX --- Cuadricula de Detalles (Izquierda) ---
-^FO30,610^FB360,2,0,L^A0N,26,26^FDLote: {lote}^FS
-^FO30,670^A0N,28,28^FDSKU REQ: {skuReq}^FS
+^FO30,{610 + nOff}^FB360,2,0,L^A0N,26,26^FDLote: {lote}^FS
+^FO30,{670 + nOff}^A0N,28,28^FDSKU REQ: {skuReq}^FS
 
 ^FX --- SKU Trabajado con fondo invertido ---
-^FO30,730^A0N,28,28^FDSKU TRAB: ^FS
-^FO185,720^GB140,40,40^FS
-^FO195,726^A0N,28,28^FR^FD{skuTrab}^FS
+^FO30,{730 + nOff}^A0N,28,28^FDSKU TRAB: ^FS
+^FO185,{720 + nOff}^GB140,40,40^FS
+^FO195,{726 + nOff}^A0N,28,28^FR^FD{skuTrab}^FS
 
 ^FX --- Cuadricula de Detalles (Derecha) ---
-^FO400,610^A0N,22,22^FDFecha Prod: {fecha}^FS
-^FO400,650^A0N,22,22^FDOperario: {operario}^FS
-^FO400,690^FB380,5,2,L^A0N,20,20^FDEsp: {spec}^FS
+^FO400,{610 + nOff}^A0N,22,22^FDFecha Prod: {fecha}^FS
+^FO400,{650 + nOff}^A0N,22,22^FDOperario: {operario}^FS
+^FO400,{690 + nOff}^FB380,7,2,L^A0N,18,18^FDEsp: {specLine}^FS
 
 ^FX --- Temperatura ---
-^FO30,830^A0N,32,32^FDProducto {temp}^FS
+^FO30,{890 + nOff}^A0N,32,32^FDProducto {temp}^FS
 
 ^FX --- Peso ---
-{(!string.IsNullOrEmpty(peso) ? $"^FO30,780^A0N,28,28^FDPeso: {peso}^FS" : "")}
+{(!string.IsNullOrEmpty(peso) ? $"^FO30,{840 + nOff}^A0N,28,28^FDPeso: {peso}^FS" : "")}
 
 ^FX --- Codigo de Barras centrado abajo ---
-^FO70,910^BY3^BCN,150,Y,N,N^FD{lote}^FS
+^FO70,{970 + nOff}^BY3^BCN,150,Y,N,N^FD{lote}^FS
 
 ^XZ";
 

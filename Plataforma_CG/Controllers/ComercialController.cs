@@ -18950,34 +18950,6 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
                 using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
                 await conn.OpenAsync();
 
-                var esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
-                int? vendedorId = null;
-
-                if (!esAdmin)
-                {
-                    var login = User.Identity?.Name ?? "";
-                    vendedorId = await conn.ExecuteScalarAsync<int?>(@"
-                SELECT u.VendedorId 
-                FROM UsuarioSQL u 
-                WHERE u.Usuario = @Login", new { Login = login });
-
-                    if (!vendedorId.HasValue)
-                        return Json(Array.Empty<object>());
-                }
-
-                var idsBusqueda = new List<int>();
-                if (vendedorId.HasValue)
-                {
-                    var idStr = vendedorId.Value.ToString();
-                    for (int i = 0; i + 1 < idStr.Length; i += 2)
-                    {
-                        if (int.TryParse(idStr.Substring(i, 2), out var partial))
-                            idsBusqueda.Add(partial);
-                    }
-                    if (idsBusqueda.Count == 0)
-                        idsBusqueda.Add(vendedorId.Value);
-                }
-
                 var sql = @"
     SELECT 
         ov.Id AS id, ov.Consecutivo AS consecutivo, ov.Cliente AS cliente, 
@@ -18992,12 +18964,9 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
     WHERE ovm.EsMuestra = 1 
       AND ovm.SolicitudMuestraId IS NULL
       AND ov.Estatus <> 0
-      AND (@VendedorId IS NULL OR ov.VendedorId IN @IdsBusqueda)
     ORDER BY ov.FechaRegistro DESC";
 
-                var ovMuestras = idsBusqueda.Count > 0
-                    ? await conn.QueryAsync(sql, new { VendedorId = vendedorId, IdsBusqueda = idsBusqueda })
-                    : await conn.QueryAsync(sql, new { VendedorId = vendedorId, IdsBusqueda = new List<int> { 0 } });
+                var ovMuestras = await conn.QueryAsync(sql);
 
                 return Json(ovMuestras);
             }
@@ -19091,7 +19060,8 @@ SELECT
     s.Stage, s.Location,
     s.Plan_ProcessDate AS ProcessDate, s.Plan_Shift AS Shift,
     s.Plan_Line AS Line, s.Plan_Planner AS Planner, s.Plan_Especificacion AS Especificacion,
-    s.Plan_ReleasedAt AS ReleasedAt
+    s.Plan_ReleasedAt AS ReleasedAt,
+    ov.Consecutivo AS OvConsecutivo
 FROM SolicitudMuestras s
 LEFT JOIN OrdenVentaMuestra ovm ON s.Id = ovm.SolicitudMuestraId
 LEFT JOIN OrdenVenta ov ON ovm.OrdenVentaId = ov.Id
@@ -19122,6 +19092,7 @@ ORDER BY s.CreatedAt DESC";
                         Notes = s.Notes ?? "",
                         Stage = s.Stage ?? "Pendiente",
                         Location = s.Location ?? "",
+                        OvConsecutivo = s.OvConsecutivo ?? "",
                         Planning = s.ProcessDate != null ? new Plataforma_CG.Models.PlaneacionVM
                         {
                             ProcessDate = s.ProcessDate,
@@ -19641,6 +19612,7 @@ ORDER BY s.CreatedAt DESC";
                 var sqlLogSigo = @"
 INSERT INTO LogAjustePrecios (ArticuloId, PrecioAnterior, PrecioNuevo, Usuario, FechaHora, Planta)
 VALUES (@Sku, @PrecioAnterior, @PrecioNuevo, @Usuario, GETDATE(), @Planta)";
+
                 foreach (var item in paquete)
                 {
                     var precioAnterior = await connMeat.QueryFirstOrDefaultAsync<decimal>(sqlSelectBase, new { Sku = item.Sku }, txMeat);
@@ -19657,6 +19629,13 @@ VALUES (@Sku, @PrecioAnterior, @PrecioNuevo, @Usuario, GETDATE(), @Planta)";
                     }, txSigo);
                 }
 
+                // NUEVO: ACTUALIZAMOS LA FECHA DE LA ÚLTIMA CONFIGURACIÓN
+                var sqlUpdateConfig = @"
+UPDATE ConfiguracionAlertasPrecios 
+SET UltimaActualizacion = GETDATE(), ActualizadoPor = @Usuario 
+WHERE Id = 1";
+                await connSigo.ExecuteAsync(sqlUpdateConfig, new { Usuario = nombreUsuario }, txSigo);
+
                 txMeat.Commit();
                 txSigo.Commit();
                 return Json(new { ok = true });
@@ -19665,6 +19644,82 @@ VALUES (@Sku, @PrecioAnterior, @PrecioNuevo, @Usuario, GETDATE(), @Planta)";
             {
                 txMeat.Rollback();
                 txSigo.Rollback();
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+        // ==========================================
+        // NUEVOS ENDPOINTS: ALERTAS DE PRECIOS
+        // ==========================================
+
+        [HttpGet("Comercial/ObtenerConfigAlertaPrecios")]
+        public async Task<IActionResult> ObtenerConfigAlertaPrecios()
+        {
+            try
+            {
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+
+                var sql = "SELECT FrecuenciaMeses, AnticipacionDias, UltimaActualizacion FROM ConfiguracionAlertasPrecios WHERE Id = 1";
+                var result = await conn.QueryFirstOrDefaultAsync(sql);
+
+                if (result == null)
+                {
+                    // Si no existe, simulamos los valores por defecto para que no truene el JavaScript
+                    return Json(new { ok = true, meses = 3, dias = 7, ultimaAct = (string)null });
+                }
+
+                return Json(new
+                {
+                    ok = true,
+                    meses = result.FrecuenciaMeses,
+                    dias = result.AnticipacionDias,
+                    ultimaAct = result.UltimaActualizacion != null ? ((DateTime)result.UltimaActualizacion).ToString("yyyy-MM-ddTHH:mm:ss") : null
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+        public class ConfigAlertaDTO
+        {
+            public int meses { get; set; }
+            public int dias { get; set; }
+        }
+
+        [HttpPost("Comercial/GuardarConfigAlertaPrecios")]
+        public async Task<IActionResult> GuardarConfigAlertaPrecios([FromBody] ConfigAlertaDTO data)
+        {
+            try
+            {
+                var nombreUsuario = User.Identity?.Name ?? "Sistema";
+
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+
+                // Intentamos actualizar
+                var sqlUpdate = @"
+UPDATE ConfiguracionAlertasPrecios 
+SET FrecuenciaMeses = @meses, AnticipacionDias = @dias, ActualizadoPor = @usuario 
+WHERE Id = 1";
+
+                int filasAfectadas = await conn.ExecuteAsync(sqlUpdate, new { meses = data.meses, dias = data.dias, usuario = nombreUsuario });
+
+                // Si no había registro (filasAfectadas == 0), lo insertamos
+                if (filasAfectadas == 0)
+                {
+                    var sqlInsert = @"
+INSERT INTO ConfiguracionAlertasPrecios (FrecuenciaMeses, AnticipacionDias, ActualizadoPor) 
+VALUES (@meses, @dias, @usuario)";
+                    await conn.ExecuteAsync(sqlInsert, new { meses = data.meses, dias = data.dias, usuario = nombreUsuario });
+                }
+
+                return Json(new { ok = true, mensaje = "Configuración actualizada" });
+            }
+            catch (Exception ex)
+            {
                 return Json(new { ok = false, mensaje = ex.Message });
             }
         }
@@ -20285,27 +20340,6 @@ WHERE i.Uid = @ItemUid
                         ok = false,
                         mensaje =
                             $"El SKU {skuPlaneado} ya tiene todas sus cajas ligadas."
-                    });
-                }
-
-                var yaExiste = await connSigo.ExecuteScalarAsync<int>(
-                    @"
-SELECT COUNT(1)
-FROM dbo.SolicitudMuestras_Etiquetas
-WHERE UPPER(LTRIM(RTRIM(ISNULL(ExternalChain, '')))) = @Etiqueta
-   OR UPPER(LTRIM(RTRIM(ISNULL(Code, '')))) = @Etiqueta;",
-                    new
-                    {
-                        Etiqueta = etiqueta
-                    });
-
-                if (yaExiste > 0)
-                {
-                    return Json(new
-                    {
-                        ok = false,
-                        mensaje =
-                            $"La etiqueta {etiqueta} ya fue ligada anteriormente."
                     });
                 }
 
