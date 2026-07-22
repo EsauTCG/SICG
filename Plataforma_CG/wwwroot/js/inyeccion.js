@@ -36,6 +36,16 @@ let leyendoBascula = false;
 let modoManualActivo = false;
 let pausaPorPestanaOculta = true;
 
+// Identidad inmutable del producto que realmente terminó de cargar su receta.
+let productoSeleccionadoActual = null;
+
+// Fotografía de lote/producto/receta usada por la confirmación y la etiqueta.
+let capturaPendiente = null;
+let capturaEnProceso = false;
+
+// Evita que una respuesta vieja de receta sobrescriba una selección más reciente.
+let secuenciaSeleccionProducto = 0;
+
 // ======================================================
 // CONTROL AFK REAL DEL OPERADOR
 // La báscula NO debe contar como actividad del usuario.
@@ -85,6 +95,9 @@ document.getElementById("loteSelect").addEventListener("change", async function 
 
     try {
         aplicarSeleccionLoteDesdeCombo(this);
+
+        // Un producto del lote anterior nunca debe permanecer activo.
+        limpiarProductoSeleccionado();
 
         await cargarProductosPorPlantilla(plantillaSeleccionada);
 
@@ -245,52 +258,102 @@ async function cargarProductosPorPlantilla(plantilla) {
         console.error("❌ Error al cargar productos:", err);
     }
 }
+function normalizarSku(valor) {
+    return String(valor ?? "").trim().toUpperCase();
+}
+
+function limpiarProductoSeleccionado() {
+    productoSeleccionadoActual = null;
+    skuSeleccionado = null;
+    NombreSeleccionado = "";
+    capturaPendiente = null;
+
+    const productoSeleccionado = document.getElementById("productoSeleccionado");
+    if (productoSeleccionado) productoSeleccionado.textContent = "—";
+
+    const ids = ["sku", "porcentaje", "velocidad", "producto", "modo", "presion", "altura", "avance"];
+    ids.forEach(id => {
+        const elemento = document.getElementById(id);
+        if (elemento) elemento.value = "";
+    });
+}
+
 async function seleccionarProducto(sku, nombre) {
+    const seleccionId = ++secuenciaSeleccionProducto;
+    const skuSolicitado = String(sku ?? "").trim();
+    const nombreSolicitado = String(nombre ?? "").trim();
 
     mostrarLoading("Cargando receta...");
 
     try {
+        const receta = await cargarReceta(skuSolicitado, nombreSolicitado, seleccionId);
 
-        skuSeleccionado = sku;
-        document.getElementById("productoSeleccionado").textContent = nombre;
-        NombreSeleccionado = nombre;
+        // Si otra selección empezó después, esta respuesta ya no tiene permiso de cambiar el estado.
+        if (!receta || seleccionId !== secuenciaSeleccionProducto) return;
 
-        cerrarModal('modalProducto');
+        const skuReceta = String(receta.sku ?? receta.SKU ?? skuSolicitado).trim();
 
-        await cargarReceta(sku, nombre);
+        if (normalizarSku(skuReceta) !== normalizarSku(skuSolicitado)) {
+            throw new Error(`La receta recibida pertenece al SKU ${skuReceta}, no al SKU ${skuSolicitado}.`);
+        }
 
+        productoSeleccionadoActual = Object.freeze({
+            sku: skuReceta,
+            nombre: nombreSolicitado
+        });
+
+        skuSeleccionado = productoSeleccionadoActual.sku;
+        NombreSeleccionado = productoSeleccionadoActual.nombre; // Se conserva solo por compatibilidad visual.
+
+        document.getElementById("productoSeleccionado").textContent = productoSeleccionadoActual.nombre;
+        cerrarModal("modalProducto");
+
+        console.log("✔ Producto confirmado:", productoSeleccionadoActual);
     } catch (err) {
-        console.error(err);
-    }
-    finally {
-        ocultarLoading();
+        console.error("❌ Error seleccionando producto:", err);
+        limpiarProductoSeleccionado();
+        alert(err.message || "No fue posible cargar el producto seleccionado.");
+    } finally {
+        if (seleccionId === secuenciaSeleccionProducto) {
+            ocultarLoading();
+        }
     }
 }
 
-async function cargarReceta(sku, nombre) {
-    try {
-        const resp = await fetch(`/api/Inyeccion/ObtenerReceta?sku=${sku}`);
-        if (!resp.ok) throw new Error("No se encontró la receta");
+async function cargarReceta(sku, nombre, seleccionId) {
+    const resp = await fetch(`/api/Inyeccion/ObtenerReceta?sku=${encodeURIComponent(sku)}`, {
+        cache: "no-store"
+    });
 
-        const receta = await resp.json(); // RecetaModel
+    if (!resp.ok) throw new Error("No se encontró la receta");
 
-        // Llenar campo por campo en la vista de receta
-        document.getElementById("sku").value = receta.sku;
-        document.getElementById("porcentaje").value = receta.porcentaje;
-        document.getElementById("velocidad").value = receta.velocidad;
-        document.getElementById("producto").value = nombre;
-        document.getElementById("modo").value = receta.modoInyeccion;
-        document.getElementById("presion").value = receta.presion;
-        document.getElementById("altura").value = receta.altura;
-        document.getElementById("avance").value = receta.avance;
+    const receta = await resp.json();
 
-        console.log("✔ Receta cargada:", receta);
-        const ruta = await cargarImagenProducto(nombre, sku);
-        mostrarImagenProducto(ruta);
+    // Una respuesta atrasada no debe escribir en la pantalla.
+    if (seleccionId !== secuenciaSeleccionProducto) return null;
 
-    } catch (err) {
-        console.error("❌ Error al cargar receta:", err);
+    const skuReceta = String(receta.sku ?? receta.SKU ?? "").trim();
+    if (!skuReceta || normalizarSku(skuReceta) !== normalizarSku(sku)) {
+        throw new Error("La receta recibida no coincide con el SKU seleccionado.");
     }
+
+    document.getElementById("sku").value = skuReceta;
+    document.getElementById("porcentaje").value = receta.porcentaje;
+    document.getElementById("velocidad").value = receta.velocidad;
+    document.getElementById("producto").value = nombre;
+    document.getElementById("modo").value = receta.modoInyeccion;
+    document.getElementById("presion").value = receta.presion;
+    document.getElementById("altura").value = receta.altura;
+    document.getElementById("avance").value = receta.avance;
+
+    console.log("✔ Receta cargada:", receta);
+
+    const ruta = await cargarImagenProducto(nombre, skuReceta);
+    if (seleccionId === secuenciaSeleccionProducto) {
+        mostrarImagenProducto(ruta);
+    }
+
+    return receta;
 }
 function mostrarImagenProducto(ruta) {
 
@@ -599,33 +662,67 @@ function cerrarModal(id) {
     document.getElementById("overlay").style.display = "none";
 }
 
-function abrirConfirmacionCaptura() {
+function crearSnapshotCaptura() {
     const comboLote = document.getElementById("loteSelect");
-    const sku = document.getElementById("sku")?.value?.trim() || "";
-    const producto = NombreSeleccionado || document.getElementById("productoSeleccionado")?.textContent?.trim() || "";
-    const peso = obtenerPesoActual();
-    const taraActual = taraSeleccionada ? taraSeleccionada.peso : 0;
+    const opcionLote = comboLote?.options?.[comboLote.selectedIndex];
+    const skuPantalla = String(document.getElementById("sku")?.value ?? "").trim();
 
-
-    if (!comboLote.value || !loteSeleccionado || !plantillaSeleccionada) {
-        alert("Debe seleccionar un lote antes de capturar.");
-        return;
+    if (!comboLote?.value || !loteSeleccionado || !plantillaSeleccionada) {
+        throw new Error("Debe seleccionar un lote antes de capturar.");
     }
 
-    if (!sku || producto === "—") {
-        alert("Debe seleccionar un producto antes de capturar.");
-        return;
+    if (!productoSeleccionadoActual) {
+        throw new Error("Debe seleccionar un producto antes de capturar.");
     }
 
-    document.getElementById("confirmLote").textContent = nombreLoteGlobal || comboLote.options[comboLote.selectedIndex].textContent;
-    document.getElementById("confirmProducto").textContent = producto;
-    document.getElementById("confirmSku").textContent = sku;
-    document.getElementById("confirmPeso").textContent = `${Number(peso || 0).toFixed(3)} kg`;
-    document.getElementById("confirmTara").textContent = `${Number(taraActual || 0).toFixed(3)} kg`;
+    if (normalizarSku(productoSeleccionadoActual.sku) !== normalizarSku(skuPantalla)) {
+        throw new Error("El nombre del producto y el SKU en pantalla no corresponden. Seleccione nuevamente el producto.");
+    }
 
-    abrirModal("modalConfirmarCaptura");
+    const loteImpresion = String(
+        nombreLoteGlobal ||
+        opcionLote?.dataset?.lote ||
+        opcionLote?.textContent ||
+        ""
+    ).trim();
 
-    iniciarPesoVivoConfirmacion();
+    return Object.freeze({
+        SKU: skuPantalla,
+        ProductoSKU: skuPantalla,
+        Producto: productoSeleccionadoActual.nombre,
+        LoteId: String(loteSeleccionado),
+        Plantilla: String(plantillaSeleccionada),
+        LoteImpresion: loteImpresion,
+        Porcentaje: Number(document.getElementById("porcentaje").value || 0),
+        Velocidad: Number(document.getElementById("velocidad").value || 0),
+        ModoInyeccion: Number(document.getElementById("modo").value || 0),
+        Presion: Number(document.getElementById("presion").value || 0),
+        Altura: Number(document.getElementById("altura").value || 0),
+        Avance: document.getElementById("avance").value,
+        Tara: taraSeleccionada ? Number(taraSeleccionada.peso || 0) : 0,
+        TipoPeso: modoManualActivo ? "Man" : "Aut",
+        Autoriza: usuarioAutorizaId
+    });
+}
+
+function abrirConfirmacionCaptura() {
+    try {
+        capturaPendiente = crearSnapshotCaptura();
+
+        const peso = obtenerPesoActual();
+
+        document.getElementById("confirmLote").textContent = capturaPendiente.LoteImpresion;
+        document.getElementById("confirmProducto").textContent = capturaPendiente.Producto;
+        document.getElementById("confirmSku").textContent = capturaPendiente.SKU;
+        document.getElementById("confirmPeso").textContent = `${Number(peso || 0).toFixed(3)} kg`;
+        document.getElementById("confirmTara").textContent = `${capturaPendiente.Tara.toFixed(3)} kg`;
+
+        abrirModal("modalConfirmarCaptura");
+        iniciarPesoVivoConfirmacion();
+    } catch (error) {
+        capturaPendiente = null;
+        alert(error.message || "No fue posible preparar la captura.");
+    }
 }
 
 let intervaloPesoConfirmacion = null;
@@ -659,11 +756,21 @@ function detenerPesoVivoConfirmacion() {
 
 function cerrarConfirmacionCaptura() {
     detenerPesoVivoConfirmacion();
+    capturaPendiente = null;
     cerrarModal("modalConfirmarCaptura");
 }
 
 async function confirmarCapturaEntrada() {
     const btnConfirmar = document.getElementById("btnConfirmarCaptura");
+
+    if (capturaEnProceso) return;
+
+    if (!capturaPendiente) {
+        alert("La captura perdió su contexto. Abra nuevamente la confirmación.");
+        return;
+    }
+
+    const snapshot = capturaPendiente;
 
     btnConfirmar.disabled = true;
     btnConfirmar.innerHTML = "Capturando...";
@@ -671,125 +778,105 @@ async function confirmarCapturaEntrada() {
     try {
         detenerPesoVivoConfirmacion();
         cerrarModal("modalConfirmarCaptura");
+        capturaPendiente = null;
 
-        await capturarEntrada();
-
+        await capturarEntrada(snapshot);
     } finally {
         btnConfirmar.disabled = false;
         btnConfirmar.innerHTML = "Confirmar captura";
     }
 }
 
-async function capturarEntrada() {
-
-    const comboLote = document.getElementById("loteSelect");
-
-    if (!comboLote.value) {
-        restaurarUltimoLote();
-    }
-
-    if (!comboLote.value || !loteSeleccionado) {
-        alert("Debe seleccionar un lote válido antes de capturar");
+async function capturarEntrada(snapshot) {
+    if (capturaEnProceso) {
+        console.warn("⚠ Ya existe una captura en proceso.");
         return;
     }
 
-    if (!plantillaSeleccionada) {
-        alert("No hay una plantilla válida asociada al lote seleccionado");
-        return;
-    }
+    capturaEnProceso = true;
 
-    const sku = document.getElementById("sku").value;
-    const porcentaje = Number(document.getElementById("porcentaje").value || 0);
-    const velocidad = Number(document.getElementById("velocidad").value || 0);
-    const modo = Number(document.getElementById("modo").value || 0);
-    const presion = Number(document.getElementById("presion").value || 0);
-    const altura = Number(document.getElementById("altura").value || 0);
-    const avance = document.getElementById("avance").value;
-    const taraNum = taraSeleccionada ? taraSeleccionada.peso : 0;
-    const pesoActual = obtenerPesoActual();
-
-    const entrada = {
-        Id: 0,
-        Folio: "",
-        SKU: sku,
-        fk_Inyectora: 0,
-        Porcentaje: porcentaje,
-        ModoInyeccion: modo,
-        Presion: presion,
-        Velocidad: velocidad,
-        Altura: altura,
-        Avance: avance,
-        Bascula: ipBasculaGlobal,
-        FechaHora: new Date().toISOString(),
-        TipoPeso: modoManualActivo ? "Man" : "Aut",
-        Autoriza: usuarioAutorizaId,
-        Peso: pesoActual,
-        Tara: taraNum,
-        fk_Lote: loteSeleccionado,
-        Plantilla: plantillaSeleccionada,
-        UsSIGO: correo
-    };
-
-    console.log("➡ Objeto Capturado", entrada);
-
-    if (entrada.SKU !== "") {
-        try {
-            const resp = await fetch("/api/Inyeccion/CapturarEntrada", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(entrada)
-            });
-
-            if (!resp.ok) throw new Error("Error al guardar la entrada");
-
-            const resultado = await resp.json();
-            console.log("✔ Respuesta backend:", resultado);
-
-            const idGenerado =
-                typeof resultado === "object" && resultado !== null
-                    ? (resultado.id ?? resultado.Id ?? 0)
-                    : resultado;
-
-            entrada.Id = idGenerado;
-
-            /*
-                El folio NO viene en la respuesta de CapturarEntrada.
-                Lo consultamos igual que en Detallado usando /api/Inyeccion/ConsultarEntrada.
-            */
-            const folioReal = await obtenerFolioEntrada(entrada.Id);
-            entrada.Folio = folioReal || "";
-
-            console.log("✔ Entrada registrada", {
-                id: entrada.Id,
-                folio: entrada.Folio
-            });
-
-            ultimaCapturaPayload = {
-                ...entrada,
-                Producto: NombreSeleccionado
-            };
-
-            console.log(" Payload guardado:", ultimaCapturaPayload);
-            console.log(" Producto guardado:", ultimaCapturaPayload.Producto);
-
-            mostrarToastEntrada(entrada.Id);
-            await cargarRendimientoTiempoReal();
-
-            try {
-                await imprimirEtiquetaSalida(ultimaCapturaPayload);
-                console.log(" Primera impresión exitosa");
-            } catch (errImpr) {
-                console.warn(" La entrada se guardó pero falló la impresión", errImpr);
-            }
-
-        } catch (err) {
-            console.error("❌ Error capturando entrada", err);
-            alert("Ocurrió un error al registrar la entrada");
+    try {
+        if (!snapshot || !snapshot.SKU || !snapshot.Producto) {
+            throw new Error("La captura no contiene una identidad válida de producto.");
         }
-    } else {
-        alert("Debe asegurarse de seleccionar producto");
+
+        if (normalizarSku(snapshot.SKU) !== normalizarSku(snapshot.ProductoSKU)) {
+            throw new Error("El SKU de la etiqueta no coincide con el SKU capturado.");
+        }
+
+        const pesoActual = obtenerPesoActual();
+
+        const entrada = {
+            Id: 0,
+            Folio: "",
+            SKU: snapshot.SKU,
+            fk_Inyectora: 0,
+            Porcentaje: snapshot.Porcentaje,
+            ModoInyeccion: snapshot.ModoInyeccion,
+            Presion: snapshot.Presion,
+            Velocidad: snapshot.Velocidad,
+            Altura: snapshot.Altura,
+            Avance: snapshot.Avance,
+            Bascula: ipBasculaGlobal,
+            FechaHora: new Date().toISOString(),
+            TipoPeso: snapshot.TipoPeso,
+            Autoriza: snapshot.Autoriza,
+            Peso: pesoActual,
+            Tara: snapshot.Tara,
+            fk_Lote: snapshot.LoteId,
+            Plantilla: snapshot.Plantilla,
+            UsSIGO: correo
+        };
+
+        console.log("➡ Objeto capturado (snapshot):", {
+            entrada,
+            producto: snapshot.Producto,
+            lote: snapshot.LoteImpresion
+        });
+
+        const resp = await fetch("/api/Inyeccion/CapturarEntrada", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(entrada)
+        });
+
+        if (!resp.ok) throw new Error("Error al guardar la entrada");
+
+        const resultado = await resp.json();
+        const idGenerado =
+            typeof resultado === "object" && resultado !== null
+                ? (resultado.id ?? resultado.Id ?? 0)
+                : resultado;
+
+        entrada.Id = idGenerado;
+        entrada.Folio = (await obtenerFolioEntrada(entrada.Id)) || "";
+
+        // La etiqueta se construye exclusivamente con la fotografía de esta captura.
+        // Ya no consulta NombreSeleccionado, nombreLoteGlobal ni otra captura global.
+        const etiquetaCapturada = Object.freeze({
+            ...entrada,
+            ProductoSKU: snapshot.ProductoSKU,
+            Producto: snapshot.Producto,
+            LoteImpresion: snapshot.LoteImpresion
+        });
+
+        ultimaCapturaPayload = { ...etiquetaCapturada };
+        mostrarToastEntrada(entrada.Id);
+
+        try {
+            // Imprimir antes de refrescar reportes reduce todavía más la ventana de concurrencia.
+            await imprimirEtiquetaSalida(etiquetaCapturada);
+            console.log("✔ Primera impresión exitosa", etiquetaCapturada);
+        } catch (errImpr) {
+            console.warn("⚠ La entrada se guardó pero falló la impresión", errImpr);
+        }
+
+        await cargarRendimientoTiempoReal();
+    } catch (err) {
+        console.error("❌ Error capturando entrada", err);
+        alert(err.message || "Ocurrió un error al registrar la entrada");
+    } finally {
+        capturaEnProceso = false;
     }
 }
 function guardarImpresora() {
@@ -828,82 +915,84 @@ function cargarConfiguracionImpresora() {
     console.log("⚙ Impresora restaurada:", ipImpresoraGlobal);
 }
 async function imprimirEtiquetaSalida(entradaObj) {
+    const etiqueta = entradaObj ? { ...entradaObj } : null;
+
     if (!ipImpresoraGlobal) {
-        alert("Debe configurar la impresora antes de imprimir.");
-        return;
-    }
-    if (!nombreLoteGlobal) {
-        console.warn("⚠ No existe nombre de lote para impresión");
-    }
-    if (!entradaObj || !entradaObj.SKU) {
-        console.warn("⚠ Entrada inválida. No se puede imprimir.");
-        return;
+        throw new Error("Debe configurar la impresora antes de imprimir.");
     }
 
-    console.log("🖨️ Enviando impresión a IP:", ipImpresoraGlobal);
-
-    if (!entradaObj.Folio) {
-        console.warn("⚠ La entrada no trae Folio para imprimir:", entradaObj);
+    if (!etiqueta?.Id || Number(etiqueta.Id) <= 0) {
+        throw new Error("La entrada no contiene un Id válido para imprimir desde base de datos.");
     }
 
-    const productoParaImprimir =
-        entradaObj.Producto ||
-        ultimaCapturaPayload?.Producto ||
-        NombreSeleccionado ||
-        "";
+    if (!etiqueta?.SKU) {
+        throw new Error("La entrada no contiene SKU para imprimir.");
+    }
 
+    const productoParaImprimir = String(etiqueta.Producto ?? "").trim();
+    const loteParaImprimir = String(etiqueta.LoteImpresion ?? "").trim();
+    const skuProducto = normalizarSku(etiqueta.ProductoSKU ?? etiqueta.SKU);
+
+    if (!productoParaImprimir) {
+        throw new Error("La etiqueta no contiene el nombre congelado del producto.");
+    }
+
+    if (!loteParaImprimir) {
+        throw new Error("La etiqueta no contiene el lote congelado de la captura.");
+    }
+
+    if (skuProducto !== normalizarSku(etiqueta.SKU)) {
+        throw new Error("Se bloqueó la impresión porque el nombre y el SKU no pertenecen a la misma captura.");
+    }
+
+    console.log("🖨️ Imprimiendo snapshot:", {
+        id: etiqueta.Id,
+        sku: etiqueta.SKU,
+        producto: productoParaImprimir,
+        lote: loteParaImprimir,
+        tipoPeso: etiqueta.TipoPeso
+    });
+
+    // El backend vuelve a consultar la entrada por Id y obtiene el nombre por el SKU guardado.
+    // La etiqueta ya no depende del nombre que exista actualmente en el navegador.
     const url = `/api/Inyeccion/Imprimir` +
-        `?ip=${encodeURIComponent(ipImpresoraGlobal)}` +
-        `&lote=${encodeURIComponent(nombreLoteGlobal || "")}` +
-        `&prod=${encodeURIComponent(productoParaImprimir)}`;
+        `?id=${encodeURIComponent(etiqueta.Id)}` +
+        `&ip=${encodeURIComponent(ipImpresoraGlobal)}` +
+        `&lote=${encodeURIComponent(loteParaImprimir)}`;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     try {
-        // Crear un timeout de 15 segundos
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
-
         const resp = await fetch(url, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(entradaObj),
-            signal: controller.signal
+            signal: controller.signal,
+            cache: "no-store"
         });
 
-        clearTimeout(timeoutId);
-
-        console.log("📡 Respuesta recibida - Status:", resp.status);
-
-        // Verificar si la respuesta es exitosa
         if (!resp.ok) {
-            console.error("❌ Error HTTP al imprimir:", resp.status, resp.statusText);
-            mostrarToastImpresionError(entradaObj);
-            throw new Error(`Error HTTP: ${resp.status} - ${resp.statusText}`);
+            const detalle = await resp.text().catch(() => "");
+            throw new Error(`Error HTTP ${resp.status}${detalle ? `: ${detalle}` : ""}`);
         }
 
-        // Leer la respuesta del servidor
         const resultado = await resp.json();
-        console.log("📄 Respuesta del servidor:", resultado);
 
-        // Verificar si el backend reporta éxito
         if (resultado.success === false) {
-            console.error("❌ El servidor reportó error:", resultado.message);
-            mostrarToastImpresionError(entradaObj);
             throw new Error(resultado.message || "Error en la impresión");
         }
 
         console.log("✔ Impresión enviada correctamente");
         return resultado;
-
     } catch (err) {
-        if (err.name === 'AbortError') {
-            console.error("❌ Timeout: La impresora no respondió en 15 segundos");
-            mostrarToastImpresionError(entradaObj);
-            throw new Error("Timeout: La impresora no respondió");
-        }
+        const errorFinal = err.name === "AbortError"
+            ? new Error("Timeout: la impresora no respondió en 15 segundos")
+            : err;
 
-        console.error("❌ Error al imprimir:", err.message);
-        mostrarToastImpresionError(entradaObj);
-        throw err;
+        mostrarToastImpresionError(etiqueta);
+        console.error("❌ Error al imprimir:", errorFinal.message);
+        throw errorFinal;
+    } finally {
+        clearTimeout(timeoutId);
     }
 }
 
@@ -1308,7 +1397,7 @@ async function cargarDetalladoTiempoRealHoy() {
 
         let data = await resp.json();
 
-        
+
 
         if (!Array.isArray(data)) {
             data = [data];
@@ -1481,8 +1570,8 @@ function filtrarProductos() {
 function mostrarToastImpresionError(entradaObj) {
     const toast = document.getElementById("toastImpresionError");
 
-    // Guardamos la última entrada para reintento
-    ultimaEntradaParaImprimir = entradaObj;
+    // Guardamos una copia independiente: el reintento jamás usa el estado actual de pantalla.
+    ultimaEntradaParaImprimir = entradaObj ? Object.freeze({ ...entradaObj }) : null;
 
     // Asegurarse de que esté visible
     toast.style.display = "flex";
@@ -1559,8 +1648,7 @@ async function reimprimirUltimaCaptura() {
 
     📦 Producto: ${ultimaCapturaPayload.Producto}
     ⚖️  Peso: ${ultimaCapturaPayload.Peso} kg
-    🏷️  SKU: ${ultimaCapturaPayload.SKU}`))
-    {
+    🏷️  SKU: ${ultimaCapturaPayload.SKU}`)) {
         try {
             await imprimirEtiquetaSalida(ultimaCapturaPayload);
             alert('✅ Reimpresión exitosa');

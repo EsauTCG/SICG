@@ -158,11 +158,21 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
         .AsNoTracking()
         .CountAsync(o => o.Estatus == 5, cancellationToken);
 
-    var totalTransferencias = await _ovContext.Transferencias
-        .AsNoTracking()
-        .CountAsync(t => t.Estatus == 5, cancellationToken);
+        var transferenciasYaEnEmbarque = await _qrContext.EmbarqueDocumento
+            .AsNoTracking()
+            .Where(d => d.TipoDocumento == "TRANSFERENCIA")
+            .Select(d => d.DocumentoId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
 
-    var viewModel = new CrearEmbarqueViewModel
+        var totalTransferencias = await _ovContext.Transferencias
+            .AsNoTracking()
+            .CountAsync(t =>
+                t.Estatus == 4 &&
+                !transferenciasYaEnEmbarque.Contains(t.Id),
+                cancellationToken);
+
+        var viewModel = new CrearEmbarqueViewModel
     {
         TotalOrdenes = totalOrdenes,
         TotalTransferencias = totalTransferencias
@@ -289,9 +299,20 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
         consecutivo = consecutivo?.Trim();
         fecha = fecha?.Trim();
 
+        // Transferencias que ya están ligadas a cualquier embarque.
+        // Estas ya no deben volver a salir como disponibles.
+        var transferenciasYaEnEmbarque = await _qrContext.EmbarqueDocumento
+            .AsNoTracking()
+            .Where(d => d.TipoDocumento == "TRANSFERENCIA")
+            .Select(d => d.DocumentoId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
         var query = _ovContext.Transferencias
             .AsNoTracking()
-            .Where(t => t.Estatus == 5);
+            .Where(t =>
+                t.Estatus == 4 &&
+                !transferenciasYaEnEmbarque.Contains(t.Id));
 
         if (!string.IsNullOrWhiteSpace(busqueda))
         {
@@ -356,8 +377,7 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
             Sucursal = t.Sucursal,
             Consecutivo = t.Consecutivo,
             FechaSolicitud = t.FechaSolicitud,
-            FechaSolicitudTexto =
-                t.FechaSolicitud?.ToString("dd/MM/yyyy") ?? ""
+            FechaSolicitudTexto = t.FechaSolicitud?.ToString("dd/MM/yyyy") ?? ""
         }).ToList();
 
         return Json(new
@@ -369,8 +389,6 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
             hayMas = pagina * tamanoPagina < total
         });
     }
-
-
 
 
     // ============================================================
@@ -427,11 +445,30 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
             : new List<OrdenVenta>();
 
         // Una sola consulta para todas las transferencias.
+        var transferenciasYaEnEmbarqueSeleccionadas = transferenciasSeleccionadas.Any()
+            ? await _qrContext.EmbarqueDocumento
+                .AsNoTracking()
+                .Where(d =>
+                    d.TipoDocumento == "TRANSFERENCIA" &&
+                    transferenciasSeleccionadas.Contains(d.DocumentoId))
+                .Select(d => d.DocumentoId)
+                .Distinct()
+                .ToListAsync(cancellationToken)
+            : new List<int>();
+
+        if (transferenciasYaEnEmbarqueSeleccionadas.Any())
+        {
+            TempData["Error"] =
+                "Una o más transferencias seleccionadas ya pertenecen a otro embarque. Actualiza la página e intenta nuevamente.";
+
+            return RedirectToAction(nameof(Crear));
+        }
+
         var transferencias = transferenciasSeleccionadas.Any()
             ? await _ovContext.Transferencias
                 .Where(t =>
                     transferenciasSeleccionadas.Contains(t.Id) &&
-                    t.Estatus == 5)
+                    t.Estatus == 4)
                 .ToListAsync(cancellationToken)
             : new List<Transferencia>();
 
@@ -509,10 +546,10 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
                 orden.FechaEmbarque = ahora;
             }
 
-            foreach (var transferencia in transferencias)
-            {
-                transferencia.Estatus = 6;
-            }
+            // IMPORTANTE:
+            // Las transferencias NO se cambian de estatus aquí.
+            // Se quedan en 4 para que su flujo externo pueda pasarlas a 5.
+            // El candado para que no vuelvan a aparecer es la relación en EmbarqueDocumento.
 
             // Un guardado por DbContext.
             await _qrContext.SaveChangesAsync(cancellationToken);
@@ -842,11 +879,9 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
                 }
                 else if (doc.TipoDocumento == "TRANSFERENCIA")
                 {
-                    var tr = await _ovContext.Transferencias
-                        .FirstOrDefaultAsync(x => x.Id == doc.DocumentoId);
-
-                    if (tr != null)
-                        tr.Estatus = 7;
+                    // No se modifica el estatus de la transferencia.
+                    // El seguimiento del viaje se maneja con el estatus del Embarque.
+                    // El flujo externo de Transferencias sigue controlando su 4 → 5.
                 }
             }
 
@@ -3287,13 +3322,9 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
         }
         else if (tipoDocumento == "TRANSFERENCIA")
         {
-            var transferencia = await _ovContext.Transferencias
-                .FirstOrDefaultAsync(t => t.Id == documentoId);
-
-            if (transferencia != null)
-            {
-                transferencia.Estatus = 5;
-            }
+            // No modificamos el estatus de la transferencia.
+            // Al quitar la relación de EmbarqueDocumento, si sigue en estatus 4,
+            // volverá a aparecer como disponible automáticamente.
         }
 
         await _qrContext.SaveChangesAsync();
@@ -3307,16 +3338,22 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
     }
 
     // ============================================================
-    // 4.2 PANTALLA PARA EDITAR EMBARQUE / AGREGAR DOCUMENTOS
+    // 4.2 PANTALLA PARA EDITAR EMBARQUE - CARGA INICIAL LIGERA
     // ============================================================
     [HttpGet]
     [Authorize(Roles = "Administracion de Ventas,Administrador")]
-    public async Task<IActionResult> EditarEmbarques(int id)
+    public async Task<IActionResult> EditarEmbarques(
+        int id,
+        CancellationToken cancellationToken)
     {
+        // Solo obtenemos la información básica del embarque.
+        // Las órdenes y transferencias se consultarán después por AJAX.
         var embarque = await _qrContext.Embarque
-            .Include(e => e.Documentos)
+            .AsNoTracking()
             .Include(e => e.QR)
-            .FirstOrDefaultAsync(e => e.Id == id);
+            .FirstOrDefaultAsync(
+                e => e.Id == id,
+                cancellationToken);
 
         if (embarque == null)
         {
@@ -3324,57 +3361,64 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
             return RedirectToAction("Embarque");
         }
 
-        if (embarque.FechaSalida != null || embarque.Estatus == 2 || embarque.Estatus == 3 || embarque.Estatus == 4 || embarque.Estatus == 5 || embarque.Estatus == 6)
+        if (embarque.FechaSalida != null ||
+            embarque.Estatus == 2 ||
+            embarque.Estatus == 3 ||
+            embarque.Estatus == 4 ||
+            embarque.Estatus == 5 ||
+            embarque.Estatus == 6)
         {
-            TempData["Error"] = "No se pueden agregar documentos porque el embarque ya salió o ya está en seguimiento.";
-            return RedirectToAction("Detalle", new { id });
+            TempData["Error"] =
+                "No se pueden agregar documentos porque el embarque ya salió o ya está en seguimiento.";
+
+            return RedirectToAction("Detalle", new
+            {
+                id
+            });
         }
 
         if (embarque.QR != null)
         {
-            TempData["Error"] = "No se pueden agregar documentos porque el embarque ya tiene QR generado.";
-            return RedirectToAction("Detalle", new { id });
+            TempData["Error"] =
+                "No se pueden agregar documentos porque el embarque ya tiene QR generado.";
+
+            return RedirectToAction("Detalle", new
+            {
+                id
+            });
         }
 
-        var ordenesYaAgregadas = embarque.Documentos
-            .Where(d => d.TipoDocumento == "OV")
-            .Select(d => d.DocumentoId)
-            .ToList();
+        // Únicamente obtenemos los conteos.
+        // Ya no cargamos todas las filas al abrir la vista.
+        var totalOrdenes = await _ovContext.OrdenVenta
+            .AsNoTracking()
+            .CountAsync(
+                o => o.Estatus == 5,
+                cancellationToken);
 
-        var transferenciasYaAgregadas = embarque.Documentos
+        var transferenciasYaEnEmbarque = await _qrContext.EmbarqueDocumento
+            .AsNoTracking()
             .Where(d => d.TipoDocumento == "TRANSFERENCIA")
             .Select(d => d.DocumentoId)
-            .ToList();
+            .Distinct()
+            .ToListAsync(cancellationToken);
 
-        var ordenesDisponibles = await _ovContext.OrdenVenta
-            .Where(o => o.Estatus == 5 && !ordenesYaAgregadas.Contains(o.Id))
-            .Select(o => new OrdenVenta
-            {
-                Id = o.Id,
-                Cliente = o.Cliente,
-                NombreCliente = _ovContext.ClienteSap
-                    .Where(c => c.Cliente == o.Cliente)
-                    .Select(c => c.Nombrecliente)
-                    .FirstOrDefault() ?? o.Cliente,
-                Consecutivo = o.Consecutivo,
-                Ruta = o.Ruta,
-                FechaEntrega = o.FechaEntrega
-            })
-            .ToListAsync();
+        var totalTransferencias = await _ovContext.Transferencias
+            .AsNoTracking()
+            .CountAsync(
+                t => t.Estatus == 4 &&
+                     !transferenciasYaEnEmbarque.Contains(t.Id),
+                cancellationToken);
 
-        var transferenciasDisponibles = await _ovContext.Transferencias
-            .Where(t => t.Estatus == 5 && !transferenciasYaAgregadas.Contains(t.Id))
-            .ToListAsync();
-
-        ViewBag.OrdenesDisponibles = ordenesDisponibles;
-        ViewBag.TransferenciasDisponibles = transferenciasDisponibles;
+        ViewBag.TotalOrdenesDisponibles = totalOrdenes;
+        ViewBag.TotalTransferenciasDisponibles = totalTransferencias;
 
         return View(embarque);
     }
 
 
     // ============================================================
-    // 4.3 AGREGAR DOCUMENTOS AL EMBARQUE EXISTENTE
+    // 4.3 AGREGAR DOCUMENTOS AL EMBARQUE - OPTIMIZADO
     // ============================================================
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -3382,29 +3426,37 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
     public async Task<IActionResult> AgregarDocumentosEmbarque(
         int embarqueId,
         List<int>? ordenesSeleccionadas,
-        List<int>? transferenciasSeleccionadas)
+        List<int>? transferenciasSeleccionadas,
+        CancellationToken cancellationToken)
     {
-        ordenesSeleccionadas ??= new List<int>();
-        transferenciasSeleccionadas ??= new List<int>();
-
-        ordenesSeleccionadas = ordenesSeleccionadas
+        ordenesSeleccionadas = ordenesSeleccionadas?
+            .Where(id => id > 0)
             .Distinct()
-            .ToList();
+            .ToList() ?? new List<int>();
 
-        transferenciasSeleccionadas = transferenciasSeleccionadas
+        transferenciasSeleccionadas = transferenciasSeleccionadas?
+            .Where(id => id > 0)
             .Distinct()
-            .ToList();
+            .ToList() ?? new List<int>();
 
-        if (!ordenesSeleccionadas.Any() && !transferenciasSeleccionadas.Any())
+        if (!ordenesSeleccionadas.Any() &&
+            !transferenciasSeleccionadas.Any())
         {
-            TempData["Error"] = "Debes seleccionar al menos una orden o transferencia para agregar.";
-            return RedirectToAction("EditarEmbarques", new { id = embarqueId });
+            TempData["Error"] =
+                "Debes seleccionar al menos una orden o transferencia para agregar.";
+
+            return RedirectToAction("EditarEmbarques", new
+            {
+                id = embarqueId
+            });
         }
 
         var embarque = await _qrContext.Embarque
             .Include(e => e.Documentos)
             .Include(e => e.QR)
-            .FirstOrDefaultAsync(e => e.Id == embarqueId);
+            .FirstOrDefaultAsync(
+                e => e.Id == embarqueId,
+                cancellationToken);
 
         if (embarque == null)
         {
@@ -3412,96 +3464,139 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
             return RedirectToAction("Embarque");
         }
 
-        if (embarque.FechaSalida != null || embarque.Estatus == 2 || embarque.Estatus == 3 || embarque.Estatus == 4 || embarque.Estatus == 5 || embarque.Estatus == 6)
+        if (embarque.FechaSalida != null ||
+            embarque.Estatus == 2 ||
+            embarque.Estatus == 3 ||
+            embarque.Estatus == 4 ||
+            embarque.Estatus == 5 ||
+            embarque.Estatus == 6)
         {
-            TempData["Error"] = "No se pueden agregar documentos porque el embarque ya salió o ya está en seguimiento.";
-            return RedirectToAction("Detalle", new { id = embarqueId });
+            TempData["Error"] =
+                "No se pueden agregar documentos porque el embarque ya salió o ya está en seguimiento.";
+
+            return RedirectToAction("Detalle", new
+            {
+                id = embarqueId
+            });
         }
 
         if (embarque.QR != null)
         {
-            TempData["Error"] = "No se pueden agregar documentos porque el embarque ya tiene QR generado.";
-            return RedirectToAction("Detalle", new { id = embarqueId });
+            TempData["Error"] =
+                "No se pueden agregar documentos porque el embarque ya tiene QR generado.";
+
+            return RedirectToAction("Detalle", new
+            {
+                id = embarqueId
+            });
         }
 
-        int agregadosOV = 0;
-        int agregadosTR = 0;
+        // Evita volver a agregar documentos que ya estén relacionados.
+        var ordenesExistentes = embarque.Documentos
+            .Where(d => d.TipoDocumento == "OV")
+            .Select(d => d.DocumentoId)
+            .ToHashSet();
 
-        foreach (var ovId in ordenesSeleccionadas)
+        var transferenciasExistentes = embarque.Documentos
+            .Where(d => d.TipoDocumento == "TRANSFERENCIA")
+            .Select(d => d.DocumentoId)
+            .ToHashSet();
+
+        var idsOrdenesPorAgregar = ordenesSeleccionadas
+            .Where(id => !ordenesExistentes.Contains(id))
+            .ToList();
+
+        var idsTransferenciasPorAgregar = transferenciasSeleccionadas
+            .Where(id => !transferenciasExistentes.Contains(id))
+            .ToList();
+
+        // Una sola consulta para todas las órdenes seleccionadas.
+        var ordenes = idsOrdenesPorAgregar.Any()
+            ? await _ovContext.OrdenVenta
+                .Where(o =>
+                    idsOrdenesPorAgregar.Contains(o.Id) &&
+                    o.Estatus == 5)
+                .ToListAsync(cancellationToken)
+            : new List<OrdenVenta>();
+
+        // Una sola consulta para todas las transferencias seleccionadas.
+        var transferenciasYaEnOtroEmbarque = idsTransferenciasPorAgregar.Any()
+            ? await _qrContext.EmbarqueDocumento
+                .AsNoTracking()
+                .Where(d =>
+                    d.TipoDocumento == "TRANSFERENCIA" &&
+                    idsTransferenciasPorAgregar.Contains(d.DocumentoId))
+                .Select(d => d.DocumentoId)
+                .Distinct()
+                .ToListAsync(cancellationToken)
+            : new List<int>();
+
+        idsTransferenciasPorAgregar = idsTransferenciasPorAgregar
+            .Where(id => !transferenciasYaEnOtroEmbarque.Contains(id))
+            .ToList();
+
+        var transferencias = idsTransferenciasPorAgregar.Any()
+            ? await _ovContext.Transferencias
+                .Where(t =>
+                    idsTransferenciasPorAgregar.Contains(t.Id) &&
+                    t.Estatus == 4)
+                .ToListAsync(cancellationToken)
+            : new List<Transferencia>();
+
+        if (!ordenes.Any() && !transferencias.Any())
         {
-            bool yaExiste = embarque.Documentos.Any(d =>
-                d.TipoDocumento == "OV" &&
-                d.DocumentoId == ovId);
+            TempData["Error"] =
+                "No se agregó ningún documento. Es posible que ya no estén disponibles o que ya pertenezcan a otro embarque.";
 
-            if (yaExiste)
-                continue;
+            return RedirectToAction("EditarEmbarques", new
+            {
+                id = embarqueId
+            });
+        }
 
-            var orden = await _ovContext.OrdenVenta
-                .FirstOrDefaultAsync(o => o.Id == ovId && o.Estatus == 5);
+        var ahora = DateTime.Now;
 
-            if (orden == null)
-                continue;
+        var documentosNuevos = new List<EmbarqueDocumento>(
+            ordenes.Count + transferencias.Count);
 
-            _qrContext.EmbarqueDocumento.Add(new EmbarqueDocumento
+        documentosNuevos.AddRange(
+            ordenes.Select(orden => new EmbarqueDocumento
             {
                 EmbarqueId = embarque.Id,
-                DocumentoId = ovId,
+                DocumentoId = orden.Id,
                 TipoDocumento = "OV"
-            });
+            }));
 
-            orden.Estatus = 6;
-            orden.FechaEmbarque = DateTime.Now;
-
-            agregadosOV++;
-        }
-
-        foreach (var trId in transferenciasSeleccionadas)
-        {
-            bool yaExiste = embarque.Documentos.Any(d =>
-                d.TipoDocumento == "TRANSFERENCIA" &&
-                d.DocumentoId == trId);
-
-            if (yaExiste)
-                continue;
-
-            var transferencia = await _ovContext.Transferencias
-                .FirstOrDefaultAsync(t => t.Id == trId && t.Estatus == 5);
-
-            if (transferencia == null)
-                continue;
-
-            _qrContext.EmbarqueDocumento.Add(new EmbarqueDocumento
+        documentosNuevos.AddRange(
+            transferencias.Select(transferencia => new EmbarqueDocumento
             {
                 EmbarqueId = embarque.Id,
-                DocumentoId = trId,
+                DocumentoId = transferencia.Id,
                 TipoDocumento = "TRANSFERENCIA"
-            });
+            }));
 
-            transferencia.Estatus = 6;
+        _qrContext.EmbarqueDocumento.AddRange(documentosNuevos);
 
-            agregadosTR++;
-        }
-
-        if (agregadosOV == 0 && agregadosTR == 0)
+        foreach (var orden in ordenes)
         {
-            TempData["Error"] = "No se agregó ningún documento. Es posible que ya no estén disponibles o que ya pertenezcan a otro embarque.";
-            return RedirectToAction("EditarEmbarques", new { id = embarqueId });
+            orden.Estatus = 6;
+            orden.FechaEmbarque = ahora;
         }
 
-        // Si el embarque ya estaba validado para QR, al agregar documentos nuevos
-        // se reinician validaciones para que calidad/documentación vuelvan a revisar.
-        //embarque.CalidadAprobada = false;
-        //embarque.DocumentacionAprobada = false;
-        //embarque.DocumentacionCalidadAprobada = false;
+        // Las transferencias no se cambian de estatus.
+        // Se bloquean para este módulo por EmbarqueDocumento.
 
-        //embarque.Estatus = 1;
+        await _qrContext.SaveChangesAsync(cancellationToken);
+        await _ovContext.SaveChangesAsync(cancellationToken);
 
-        await _qrContext.SaveChangesAsync();
-        await _ovContext.SaveChangesAsync();
+        TempData["Success"] =
+            $"Se agregaron {ordenes.Count} orden(es) y " +
+            $"{transferencias.Count} transferencia(s) al embarque.";
 
-        TempData["Success"] = $"Se agregaron {agregadosOV} orden(es) y {agregadosTR} transferencia(s) al embarque.";
-
-        return RedirectToAction("Detalle", new { id = embarqueId });
+        return RedirectToAction("Detalle", new
+        {
+            id = embarqueId
+        });
     }
 
     private string ObtenerTextoEstatusTablero(int estatus)

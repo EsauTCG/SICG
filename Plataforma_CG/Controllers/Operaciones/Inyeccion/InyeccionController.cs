@@ -7,6 +7,7 @@ using Plataforma_CG.Models;
 using Plataforma_CG.Models.Operaciones.Inyeccion;
 using Plataforma_CG.Services;
 using System.Threading.Tasks;
+using System.Linq;
 
 namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
 {
@@ -15,9 +16,9 @@ namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
     [Route("api/[controller]")]
     public class InyeccionController : ControllerBase
     {
-        Lotes l= new Lotes();
+        Lotes l = new Lotes();
         Receta r = new Receta();
-        Conexiones co= new Conexiones();
+        Conexiones co = new Conexiones();
         AccesoPermisos permisos = new AccesoPermisos();
         private readonly ImagenProductoService _imgservice;
         private readonly BasculaService _basc;
@@ -52,13 +53,13 @@ namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
         [HttpGet("ObtenerImagen")]
         public IActionResult ObtenerImagen(string nombre, string sku)
         {
-            var ruta = _imgservice.ObtenerRutaImagen(nombre,sku);
-            return PhysicalFile(ruta,"image/png");
+            var ruta = _imgservice.ObtenerRutaImagen(nombre, sku);
+            return PhysicalFile(ruta, "image/png");
         }
         [HttpGet("ObtenerPeso")]
-        public async Task<string> Peso(string ip, string comando="P")
+        public async Task<string> Peso(string ip, string comando = "P")
         {
-            var peso = await _basc.Bascula(ip,comando);
+            var peso = await _basc.Bascula(ip, comando);
             return peso;
         }
         [HttpGet("ObtenerTaras")]
@@ -68,19 +69,102 @@ namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
             return Ok(taras);
         }
         [HttpPost("CapturarEntrada")]
-        public async Task<IActionResult> InsertarEntrada([FromBody]EntradaModel model)
+        public async Task<IActionResult> InsertarEntrada([FromBody] EntradaModel model)
         {
-            string res=await r.InsertarEntrada(model);
+            string res = await r.InsertarEntrada(model);
             Console.WriteLine("Respuesta raw InsertarEntrada: " + res);
             return Ok(res);
         }
 
         [HttpPost("Imprimir")]
-        public async Task<IActionResult> Imprimir(string ip, string lote, string prod, [FromBody] EntradaModel model)
+        public async Task<IActionResult> Imprimir(int id, string ip, string lote)
         {
             try
             {
-                var resultado = co.Impresion(1, model, ip, lote, prod);
+                if (id <= 0)
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "El Id de la entrada no es válido."
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(ip))
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "No se recibió la IP de la impresora."
+                    });
+                }
+
+                // Fuente de verdad: el registro guardado correctamente en BD.
+                var entradaGuardada = await r.ConsultarEntrada(id);
+
+                if (entradaGuardada == null || entradaGuardada.Id <= 0)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = $"No se encontró la entrada {id} para imprimir."
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(entradaGuardada.SKU))
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = $"La entrada {id} no tiene SKU almacenado."
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(entradaGuardada.Plantilla))
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = $"La entrada {id} no tiene plantilla almacenada."
+                    });
+                }
+
+                /*
+                 * Consultamos nuevamente los productos de la plantilla
+                 * y buscamos el nombre usando el SKU guardado en BD.
+                 */
+                var productos = await r.ListarProductos(entradaGuardada.Plantilla);
+
+                var productoCorrecto = productos?.FirstOrDefault(p =>
+                    string.Equals(
+                        p.SKU?.Trim(),
+                        entradaGuardada.SKU.Trim(),
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                );
+
+                if (productoCorrecto == null ||
+                    string.IsNullOrWhiteSpace(productoCorrecto.Nombre))
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message =
+                            $"No se encontró el nombre correspondiente al SKU " +
+                            $"{entradaGuardada.SKU} en la plantilla " +
+                            $"{entradaGuardada.Plantilla}."
+                    });
+                }
+
+                string nombreProductoCorrecto = productoCorrecto.Nombre.Trim();
+
+                var resultado = co.Impresion(
+                    1,
+                    entradaGuardada,
+                    ip.Trim(),
+                    lote?.Trim() ?? string.Empty,
+                    nombreProductoCorrecto
+                );
 
                 if (!resultado.ok)
                 {
@@ -94,7 +178,10 @@ namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
                 return Ok(new
                 {
                     success = true,
-                    message = resultado.mensaje
+                    message = resultado.mensaje,
+                    id = entradaGuardada.Id,
+                    sku = entradaGuardada.SKU,
+                    producto = nombreProductoCorrecto
                 });
             }
             catch (Exception ex)
@@ -102,7 +189,7 @@ namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
                 return StatusCode(500, new
                 {
                     success = false,
-                    message = $"Error: {ex.Message}"
+                    message = $"Error al imprimir la entrada {id}: {ex.Message}"
                 });
             }
         }
