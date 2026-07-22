@@ -385,12 +385,18 @@
 
                 <input type="file" id="inputCargaMasiva" accept=".csv" style="display: none;" onchange="procesarArchivoCSV(event)">
                 <button type="button" class="btn btn-sec" onclick="qs('#inputCargaMasiva').click()">Cargar CSV</button>
+                <button type="button" class="btn" style="background: linear-gradient(#fff, #fed7aa); border-color: #ea580c; color: #9a3412;" onclick="abrirModalAlertas()">
+                     Alertas Precios
+                </button>
                 <button type="button" class="btn btn-log" onclick="abrirBitacoraGeneral()">Bitácora general</button>
             </div>
         </div>
     </header>
 
     <main class="module-main">
+        <!-- BANNER DE ALERTA DE PRECIOS -->
+        <div id="alertaPreciosBanner" style="display: none; background: #fffbeb; border: 1px solid #fef08a; padding: 10px 15px; margin-bottom: 10px; color: #854d0e; border-radius: 4px; font-size: 12px; align-items: center; justify-content: space-between;">
+        </div>
         <div class="card">
             <div class="grid-superior" style="grid-template-columns: 1fr 160px 220px;">
                 <div>
@@ -540,7 +546,41 @@
         </div>
     </div>
 </div>
-
+<!-- MODAL DE CONFIGURACIÓN DE ALERTAS -->
+<div class="modal-backdrop-custom" id="modalAlertasPrecios" onclick="cerrarModalAlertas(event)">
+    <div class="modal-custom" style="max-width: 420px; border-radius: 4px; overflow: hidden;">
+        <div class="modal-head">
+            <h3> Configurar Alertas de Precios</h3>
+            <button type="button" class="btn btn-sec" style="height:22px;" onclick="qs('#modalAlertasPrecios').classList.remove('show')">Cerrar</button>
+        </div>
+        <div style="padding: 15px; background: #fff;">
+            <p style="color: #666; font-size: 11px; margin-top: 0; margin-bottom: 15px;">
+                Defina cada cuándo se deben actualizar los precios de los SKUs y con cuántos días de anticipación desea que el sistema levante la advertencia.
+            </p>
+            <div style="margin-bottom: 12px;">
+                <label>Frecuencia de actualización obligatoria</label>
+                <select id="configFrecuenciaMeses" style="height: 28px; border-radius:3px;">
+                    <option value="1">Mensual (Cada mes)</option>
+                    <option value="2">Bimestral (Cada 2 meses)</option>
+                    <option value="3">Trimestral (Cada 3 meses)</option>
+                    <option value="6">Semestral (Cada 6 meses)</option>
+                </select>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label>Levantar alerta con anticipación de</label>
+                <select id="configAnticipacionDias" style="height: 28px; border-radius:3px;">
+                    <option value="3">3 días antes</option>
+                    <option value="7">1 semana antes (7 días)</option>
+                    <option value="15">15 días antes</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end; border-top: 1px dashed var(--line); padding-top: 15px;">
+                <button type="button" class="btn btn-sec" onclick="qs('#modalAlertasPrecios').classList.remove('show')">Cancelar</button>
+                <button type="button" class="btn btn-green" onclick="guardarConfiguracionAlertas()"> Guardar Regla</button>
+            </div>
+        </div>
+    </div>
+</div>
 <div class="toast" id="toast"></div>
 
 @section Scripts {
@@ -916,7 +956,10 @@
                     body: JSON.stringify(listos)
                 });
                 const data = await res.json();
-                if (data.ok) { mostrarToast("Cambios guardados en " + planta); skusSeleccionados.clear(); descargarPreciosCommerciaNet(); } else { alert("Error: " + data.mensaje); }
+                if (data.ok) { mostrarToast("Cambios guardados en " + planta); skusSeleccionados.clear(); descargarPreciosCommerciaNet();
+                        localStorage.setItem('ultimaActualizacionPrecios', new Date().toISOString());
+        verificarAlertaPrecios();
+                } else { alert("Error: " + data.mensaje); }
             } catch(e) { alert("Error de red"); }
             finally { if(btn) { btn.disabled = false; btn.textContent = "Guardar masivo"; } }
         }
@@ -936,6 +979,8 @@
                     mostrarToast("SKU guardado en " + planta);
                     skusSeleccionados.delete(idx);
                     descargarPreciosCommerciaNet();
+                            localStorage.setItem('ultimaActualizacionPrecios', new Date().toISOString());
+        verificarAlertaPrecios();
                 } else { alert(data.mensaje); }
             } catch(e) { mostrarToast("Error de conexión"); }
         }
@@ -987,7 +1032,115 @@
         function mostrarToast(t) { const b = qs('#toast'); b.textContent = t; b.classList.add('show'); setTimeout(()=>b.classList.remove('show'), 2200); }
 
         qs('#filtroTexto').addEventListener('input', aplicarFiltrosTabla);
+        // --- LÓGICA DE ALERTAS DE PRECIOS CONECTADA A BD ---
 
+        let configAlertaDb = { meses: 3, dias: 7, ultimaAct: null };
+
+        async function verificarAlertaPrecios() {
+            try {
+                const res = await fetch('@Url.Action("ObtenerConfigAlertaPrecios", "Comercial")');
+                const data = await res.json();
+
+                if (data.ok) {
+                    configAlertaDb.meses = data.meses;
+                    configAlertaDb.dias = data.dias;
+                    configAlertaDb.ultimaAct = data.ultimaAct;
+
+                    mostrarBannerAlerta(data.meses, data.dias, data.ultimaAct);
+                }
+            } catch (e) {
+                console.error("Error al obtener configuración de alertas", e);
+            }
+        }
+
+        function mostrarBannerAlerta(freqMeses, antDias, ultimaActIso) {
+            const banner = qs('#alertaPreciosBanner');
+
+            if (!ultimaActIso) {
+                // Si la BD apenas se creó y la fecha es nula, no mostramos nada
+                banner.style.display = 'none';
+                return;
+            }
+
+            const ultimaAct = new Date(ultimaActIso);
+
+            // Calculamos la fecha límite y de advertencia
+            const fechaLimite = new Date(ultimaAct);
+            fechaLimite.setMonth(fechaLimite.getMonth() + freqMeses);
+
+            const fechaAlerta = new Date(fechaLimite);
+            fechaAlerta.setDate(fechaAlerta.getDate() - antDias);
+
+            const hoy = new Date();
+
+            // Lógica de colores y mensajes
+            if (hoy >= fechaAlerta && hoy < fechaLimite) {
+                const diasFaltantes = Math.ceil((fechaLimite - hoy) / (1000 * 60 * 60 * 24));
+                banner.innerHTML = `<span style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">⚠️</span> <span><b>Atención:</b> Faltan <b>${diasFaltantes} días</b> para el ciclo de ${freqMeses} mes(es) desde la última actualización de precios (${ultimaAct.toLocaleDateString('es-MX')}).</span></span>`;
+                banner.style.background = '#fefce8';
+                banner.style.color = '#854d0e';
+                banner.style.borderColor = '#fef08a';
+                banner.style.display = 'flex';
+            } else if (hoy >= fechaLimite) {
+                banner.innerHTML = `<span style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">🛑</span> <span><b>¡Alerta Vencida!</b> Han pasado más de ${freqMeses} mes(es) desde la última actualización de precios (${ultimaAct.toLocaleDateString('es-MX')}). Se requiere un ajuste urgentemente.</span></span>`;
+                banner.style.background = '#fef2f2';
+                banner.style.color = '#991b1b';
+                banner.style.borderColor = '#fecaca';
+                banner.style.display = 'flex';
+            } else {
+                banner.style.display = 'none';
+            }
+        }
+
+        function abrirModalAlertas() {
+            qs('#configFrecuenciaMeses').value = configAlertaDb.meses;
+            qs('#configAnticipacionDias').value = configAlertaDb.dias;
+            qs('#modalAlertasPrecios').classList.add('show');
+        }
+
+        function cerrarModalAlertas(e) {
+            if (e.target.id === 'modalAlertasPrecios') qs('#modalAlertasPrecios').classList.remove('show');
+        }
+
+        async function guardarConfiguracionAlertas() {
+            const freq = qs('#configFrecuenciaMeses').value;
+            const ant = qs('#configAnticipacionDias').value;
+
+            const payload = {
+                meses: parseInt(freq),
+                dias: parseInt(ant)
+            };
+
+            const btn = qs('#modalAlertasPrecios .btn-green');
+            btn.disabled = true;
+            btn.textContent = 'Guardando...';
+
+            try {
+                const res = await fetch('@Url.Action("GuardarConfigAlertaPrecios", "Comercial")', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+
+                if (data.ok) {
+                    qs('#modalAlertasPrecios').classList.remove('show');
+                    mostrarToast('Regla de alertas sincronizada con el servidor');
+                    verificarAlertaPrecios();
+                } else {
+                    mostrarToast('Error: ' + data.mensaje);
+                }
+            } catch (e) {
+                mostrarToast('Error de conexión al guardar configuración.');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '💾 Guardar Regla';
+            }
+        }
+
+        // Arrancar la verificación al entrar a la pantalla
+        setTimeout(verificarAlertaPrecios, 500);
         descargarPreciosCommerciaNet();
+
     </script>
 }
