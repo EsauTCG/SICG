@@ -397,6 +397,30 @@
             margin-top: 0;
         }
 
+    .btn-delete-embarque {
+        background: #fdeeee !important;
+        color: #dc3545 !important;
+        border-color: #f3c2c7 !important;
+    }
+
+        .btn-delete-embarque:hover {
+            background: #dc3545 !important;
+            color: #fff !important;
+            border-color: #dc3545 !important;
+        }
+
+    body[data-theme="dark"] .btn-delete-embarque {
+        background: rgba(153,27,27,0.22) !important;
+        color: #fca5a5 !important;
+        border-color: rgba(248,113,113,0.45) !important;
+    }
+
+        body[data-theme="dark"] .btn-delete-embarque:hover {
+            background: #dc2626 !important;
+            color: #ffffff !important;
+            border-color: #dc2626 !important;
+        }
+
     /* ===== RESPONSIVE TABLET ===== */
     @@media (max-width: 950px) {
         .filter-grid {
@@ -966,6 +990,24 @@ body[data-theme="dark"] .action-buttons .tbtn:hover {
         </div>
     }
 
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert" style="margin-top:1rem;">
+            <i class="bi bi-check-circle me-1"></i>
+            @TempData["Success"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+        </div>
+    }
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert" style="margin-top:1rem;">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            @TempData["Error"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+        </div>
+    }
+
     <form asp-action="Embarque" method="get" class="filter-card">
         <div class="filter-grid">
 
@@ -1232,6 +1274,25 @@ body[data-theme="dark"] .action-buttons .tbtn:hover {
                                         <i class="bi bi-map"></i>
                                         <span>Mapa</span>
                                     </a>
+
+                                    @if (e.FechaSalida == null && e.QR == null && (e.Estatus == 1 || e.Estatus == 7))
+                                    {
+                                        <form asp-action="EliminarEmbarque"
+                                              asp-controller="Embarques"
+                                              method="post"
+                                              class="d-inline"
+                                              onsubmit="return confirm('¿Seguro que deseas eliminar el embarque @e.Consecutivo?\n\nTodas las Órdenes de Venta regresarán a estatus autorizado.\nEsta acción NO se puede deshacer.');">
+
+                                            @Html.AntiForgeryToken()
+
+                                            <input type="hidden" name="embarqueId" value="@e.Id" />
+
+                                            <button type="submit" class="tbtn btn-delete-embarque">
+                                                <i class="bi bi-trash3"></i>
+                                                <span>Eliminar</span>
+                                            </button>
+                                        </form>
+                                    }
                                 }
                                 </div>
                             </td>

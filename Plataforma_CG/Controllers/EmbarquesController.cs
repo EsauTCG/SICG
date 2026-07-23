@@ -3338,6 +3338,103 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
     }
 
     // ============================================================
+    // 4.1.1 ELIMINAR EMBARQUE COMPLETO
+    // ============================================================
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Roles = "Administracion de Ventas,Administrador")]
+    public async Task<IActionResult> EliminarEmbarque(int embarqueId)
+    {
+        var embarque = await _qrContext.Embarque
+            .Include(e => e.Documentos)
+            .Include(e => e.QR)
+            .FirstOrDefaultAsync(e => e.Id == embarqueId);
+
+        if (embarque == null)
+        {
+            TempData["Error"] = "No se encontró el embarque.";
+            return RedirectToAction("Embarque");
+        }
+
+        if (embarque.FechaSalida != null
+            || embarque.Estatus == 2
+            || embarque.Estatus == 3
+            || embarque.Estatus == 4
+            || embarque.Estatus == 5
+            || embarque.Estatus == 6)
+        {
+            TempData["Error"] = "No se puede eliminar el embarque porque ya salió o está en seguimiento.";
+            return RedirectToAction("Detalle", new { id = embarqueId });
+        }
+
+        if (embarque.QR != null)
+        {
+            TempData["Error"] = "No se puede eliminar el embarque porque ya tiene QR generado.";
+            return RedirectToAction("Detalle", new { id = embarqueId });
+        }
+
+        var documentos = embarque.Documentos.ToList();
+
+        foreach (var doc in documentos)
+        {
+            if (doc.TipoDocumento == "OV")
+            {
+                var orden = await _ovContext.OrdenVenta
+                    .FirstOrDefaultAsync(o => o.Id == doc.DocumentoId);
+
+                if (orden != null)
+                {
+                    orden.Estatus = 5;
+                    orden.FechaEmbarque = null;
+                }
+            }
+        }
+
+        _qrContext.EmbarqueDocumento.RemoveRange(documentos);
+
+        if (embarque.QR != null)
+        {
+            _qrContext.EmbarqueQR.Remove(embarque.QR);
+        }
+
+        var archivos = await _qrContext.EmbarqueArchivo
+            .Where(a => a.EmbarqueId == embarqueId)
+            .ToListAsync();
+
+        if (archivos.Any())
+        {
+            _qrContext.EmbarqueArchivo.RemoveRange(archivos);
+        }
+
+        var fotosCalidad = await _qrContext.Set<Embarque.EmbarqueCalidadFoto>()
+            .Where(f => f.EmbarqueId == embarqueId)
+            .ToListAsync();
+
+        if (fotosCalidad.Any())
+        {
+            _qrContext.Set<Embarque.EmbarqueCalidadFoto>().RemoveRange(fotosCalidad);
+        }
+
+        var temperaturas = await _qrContext.EmbarqueProductoTemperaturas
+            .Where(t => t.EmbarqueId == embarqueId)
+            .ToListAsync();
+
+        if (temperaturas.Any())
+        {
+            _qrContext.EmbarqueProductoTemperaturas.RemoveRange(temperaturas);
+        }
+
+        _qrContext.Embarque.Remove(embarque);
+
+        await _qrContext.SaveChangesAsync();
+        await _ovContext.SaveChangesAsync();
+
+        TempData["Success"] = $"El embarque {embarque.Consecutivo} fue eliminado correctamente. Las órdenes de venta regresaron a estatus autorizado.";
+
+        return RedirectToAction("Embarque");
+    }
+
+    // ============================================================
     // 4.2 PANTALLA PARA EDITAR EMBARQUE - CARGA INICIAL LIGERA
     // ============================================================
     [HttpGet]
