@@ -2279,7 +2279,18 @@
                 loadOVMuestras();
 
 
-                function uid(){ return 'it-' + crypto.randomUUID().slice(0,8); }
+               function uid() {
+    // Usar funcion nativa si el entorno lo permite
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return 'it-' + crypto.randomUUID().slice(0,8);
+    }
+
+    // Generar ID manualmente en servidor productivo HTTP
+    return 'it-' + 'xxxxxxxx'.replace(/[x]/g, function() {
+        const r = Math.random() * 16 | 0;
+        return r.toString(16);
+    });
+}
                 function todayPlus(days){ const d = new Date(); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); }
                 function formatDate(value){ if(!value) return 'Sin definir'; const d = new Date(value); return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString('es-MX', {year:'numeric', month:'short', day:'2-digit'}); }
                 function formatDateTime(value){ if(!value) return 'Sin definir'; const d = new Date(value); return Number.isNaN(d.getTime()) ? value : d.toLocaleString('es-MX', {dateStyle:'medium', timeStyle:'short'}); }
