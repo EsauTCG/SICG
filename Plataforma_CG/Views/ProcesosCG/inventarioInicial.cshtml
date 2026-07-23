@@ -22,6 +22,7 @@
         --green-bg: #e9f8ec;
         --orange-bg: #fff1e6;
         --gray-bg: #f3f4f6;
+        --purple-bg: #f3e8ff;
         --red-bg: #fee2e2;
         --shadow: 0 18px 36px rgba(70, 12, 12, .16);
         --inner: inset 0 1px 0 rgba(255,255,255,.55);
@@ -142,7 +143,7 @@
         grid-column: 1 / -1;
         width: 100%;
         display: grid;
-        grid-template-columns: minmax(220px, 1.25fr) minmax(300px, 1.8fr) 150px 150px auto;
+        grid-template-columns: minmax(165px, .9fr) minmax(180px, 1fr) minmax(230px, 1.25fr) minmax(220px, 1.15fr) 128px 128px auto;
         gap: 10px;
         margin-top: 4px;
         align-items: end;
@@ -289,6 +290,41 @@
         color: var(--vino-800) !important;
     }
 
+    .multi-help {
+        padding: 8px 12px;
+        border-top: 1px solid #ead0d0;
+        background: #fff7f7;
+        color: #765050;
+        font-size: 10.5px;
+        line-height: 1.35;
+        font-weight: 800;
+    }
+
+    .almacen-meta {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-left: 4px;
+    }
+
+    .almacen-badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 20px;
+        padding: 2px 6px;
+        border-radius: 999px;
+        background: #f2dfdf;
+        color: #650000;
+        font-size: 9.5px;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .almacen-badge.rafaga {
+        background: var(--purple-bg);
+        color: #6b21a8;
+    }
+
     .actions {
         display: flex;
         gap: 7px;
@@ -360,7 +396,7 @@
     .cards {
         width: 100%;
         display: grid;
-        grid-template-columns: repeat(5, minmax(150px, 1fr));
+        grid-template-columns: repeat(6, minmax(145px, 1fr));
         gap: 10px;
     }
 
@@ -533,6 +569,12 @@
         background: var(--green-bg);
     }
 
+    .row-rafaga .sticky-alcance,
+    .row-rafaga .sticky-concepto,
+    .row-rafaga td {
+        background: var(--purple-bg);
+    }
+
     .row-pedidos .sticky-alcance,
     .row-pedidos .sticky-concepto,
     .row-pedidos td {
@@ -619,6 +661,7 @@
 
     .dot-blue { background: var(--blue-bg); }
     .dot-green { background: var(--green-bg); }
+    .dot-purple { background: var(--purple-bg); }
     .dot-orange { background: var(--orange-bg); }
     .dot-gray { background: var(--gray-bg); }
 
@@ -665,6 +708,7 @@
     .bar.negative { background: #dc2626; }
     .bar.inventario { background: #2563eb; }
     .bar.produccion { background: #059669; }
+    .bar.rafaga { background: #9333ea; }
     .bar.pedidos { background: #ea580c; }
     .bar.disponible { background: #6b7280; }
 
@@ -850,6 +894,10 @@
         background: linear-gradient(135deg, #0f4f74 0%, #1879a8 54%, #083449 100%) !important;
     }
 
+    .card.kpi-rafaga {
+        background: linear-gradient(135deg, #581c87 0%, #9333ea 54%, #3b0764 100%) !important;
+    }
+
     .card.kpi-pedidos {
         background: linear-gradient(135deg, #b45309 0%, #e07b18 54%, #7c2d12 100%) !important;
     }
@@ -894,11 +942,7 @@
     <section class="hero">
         <div class="title-block">
             <h1>Planeación Ejecutiva de Inventario, Producción y Pedidos</h1>
-            <p>
-                Vista consolidada para Dirección General: inventario inicial del día actual, producción planeada,
-                pedidos comprometidos y disponibilidad proyectada por día. El disponible de un día
-                se convierte automáticamente en el inventario del siguiente.
-            </p>
+           
         </div>
 
         <div class="status-chip">
@@ -931,6 +975,29 @@
             </div>
 
             <div class="filtro-card">
+                <label>Clasificación</label>
+                <div class="multi-select" id="clasificacionSelect">
+                    <button type="button" class="multi-trigger" onclick="toggleMultiSelect('clasificacionSelect')">
+                        <span id="clasificacionSelectText">Cargando...</span>
+                        <b>▾</b>
+                    </button>
+
+                    <div class="multi-panel">
+                        <div class="multi-search">
+                            <input type="text" placeholder="Buscar clasificación..." oninput="filtrarOpciones('clasificacionSelect', this.value)" />
+                        </div>
+
+                        <label class="multi-option multi-all">
+                            <input id="clasificacionAllCheck" type="checkbox" checked onchange="seleccionarTodos('clasificacionSelect', this.checked)" />
+                            <span>Seleccionar todas</span>
+                        </label>
+
+                        <div class="multi-options" id="clasificacionOptions"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="filtro-card">
                 <label>SKU / Producto</label>
                 <div class="multi-select" id="skuSelect">
                     <button type="button" class="multi-trigger" onclick="toggleMultiSelect('skuSelect')">
@@ -953,14 +1020,41 @@
                 </div>
             </div>
 
+            <div class="filtro-card">
+                <label>Almacenes considerados</label>
+                <div class="multi-select" id="almacenSelect">
+                    <button type="button" class="multi-trigger" onclick="toggleMultiSelect('almacenSelect')">
+                        <span id="almacenSelectText">Cargando...</span>
+                        <b>▾</b>
+                    </button>
+
+                    <div class="multi-panel">
+                        <div class="multi-search">
+                            <input type="text" placeholder="Buscar almacén..." oninput="filtrarOpciones('almacenSelect', this.value)" />
+                        </div>
+
+                        <label class="multi-option multi-all">
+                            <input id="almacenAllCheck" type="checkbox" checked onchange="seleccionarTodos('almacenSelect', this.checked)" />
+                            <span>Considerar todos</span>
+                        </label>
+
+                        <div class="multi-options" id="almacenOptions"></div>
+
+                        <div class="multi-help">
+                            0 días = disponible inmediato. Los almacenes con ráfaga se liberan automáticamente en la fecha correspondiente.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="filtro-card fechas">
                 <label>Desde</label>
-                <input id="fechaInicioInput" type="date" onchange="cargarDatosSql()" />
+                <input id="fechaInicioInput" type="date" onchange="recargarFiltrosYDatos()" />
             </div>
 
             <div class="filtro-card fechas">
                 <label>Hasta</label>
-                <input id="fechaFinInput" type="date" onchange="cargarDatosSql()" />
+                <input id="fechaFinInput" type="date" onchange="recargarFiltrosYDatos()" />
             </div>
 
             <div class="filtro-card">
@@ -1007,6 +1101,12 @@
             <em>Planeación acumulada</em>
         </div>
 
+        <div class="card kpi-card-color kpi-rafaga">
+            <span>Liberación ráfaga KG</span>
+            <strong id="kpiRafagaTotal">0</strong>
+            <em>Inventario liberado en el rango</em>
+        </div>
+
         <div class="card kpi-card-color kpi-pedidos">
             <span>Pedidos totales KG</span>
             <strong id="kpiPedidosTotal">0</strong>
@@ -1023,7 +1123,7 @@
     <section class="panel table-panel">
         <div class="panel-title">
             <strong>Detalle diario KG</strong>
-            <span id="tablaResumen">Inventario inicial del día anterior + Producción - Pedidos = Disponible</span>
+            <span id="tablaResumen">Inventario disponible + Producción + Liberación de ráfaga - Pedidos = Disponible</span>
         </div>
 
         <div class="table-wrapper">
@@ -1044,6 +1144,11 @@
                     <tr class="row-produccion" id="filaProduccion">
                         <td class="sticky-alcance">-</td>
                         <td class="sticky-concepto">Producción KG</td>
+                    </tr>
+
+                    <tr class="row-rafaga" id="filaRafaga">
+                        <td class="sticky-alcance">-</td>
+                        <td class="sticky-concepto">Liberación ráfaga KG</td>
                     </tr>
 
                     <tr class="row-pedidos" id="filaPedidos">
@@ -1068,6 +1173,10 @@
                 <input type="checkbox" checked onchange="cambiarFiltroMetrica('produccion', this.checked)" />
                 <span class="dot dot-green"></span> Producción
             </label>
+            <label class="legend-item" data-filtro="rafaga">
+                <input type="checkbox" checked onchange="cambiarFiltroMetrica('rafaga', this.checked)" />
+                <span class="dot dot-purple"></span> Liberación ráfaga
+            </label>
             <label class="legend-item" data-filtro="pedidos">
                 <input type="checkbox" checked onchange="cambiarFiltroMetrica('pedidos', this.checked)" />
                 <span class="dot dot-orange"></span> Pedidos
@@ -1082,7 +1191,7 @@
     <section class="panel chart-box">
         <div class="panel-title">
             <strong>Comportamiento diario</strong>
-            <span>Comparativo de inventario, producción, pedidos y disponible</span>
+            <span>Comparativo de inventario, producción, liberación de ráfaga, pedidos y disponible</span>
         </div>
 
         <div class="bars" id="graficaDisponible"></div>
@@ -1096,21 +1205,30 @@
     const DIAS_ADELANTE = 23;
     const SOLO_SKU_CON_INVENTARIO_O_PRODUCCION = true;
     let catalogoDepuradoPorMovimiento = false;
+    let consultaDatosEnCurso = false;
+    let controladorConsultaDatos = null;
+    let secuenciaConsultaDatos = 0;
+    let temporizadorCargaDatos = null;
 
 
     let filtrosCatalogo = {
         masters: [],
-        skus: []
+        clasificaciones: [],
+        skus: [],
+        almacenes: []
     };
 
     let seleccion = {
         masters: [],
-        skus: []
+        clasificaciones: [],
+        skus: [],
+        almacenes: []
     };
 
     let filtrosMetricas = {
         inventario: true,
         produccion: true,
+        rafaga: true,
         pedidos: true,
         disponible: true
     };
@@ -1118,6 +1236,7 @@
     const metricasGrafica = [
         { key: "inventario", nombre: "Inventario", clase: "inventario" },
         { key: "produccion", nombre: "Producción", clase: "produccion" },
+        { key: "rafaga", nombre: "Liberación ráfaga", clase: "rafaga" },
         { key: "pedidos", nombre: "Pedidos", clase: "pedidos" },
         { key: "disponible", nombre: "Disponible", clase: "disponible" }
     ];
@@ -1181,8 +1300,9 @@
     function filaTieneInventarioOProduccion(row) {
         const inventario = normalizarNumero(obtenerCampo(row, "kgInventario", "KgInventario", 0));
         const produccion = normalizarNumero(obtenerCampo(row, "kgProduccion", "KgProduccion", 0));
+        const rafaga = normalizarNumero(obtenerCampo(row, "kgLiberacionRafaga", "KgLiberacionRafaga", 0));
 
-        return inventario > 0 || produccion > 0;
+        return inventario > 0 || produccion > 0 || rafaga > 0;
     }
 
     function obtenerSkusConInventarioOProduccion(rows) {
@@ -1342,6 +1462,7 @@
                 fechaKey: fechaKey(actual),
                 inventario: 0,
                 produccion: 0,
+                rafaga: 0,
                 pedidos: 0,
                 disponible: 0
             });
@@ -1352,12 +1473,24 @@
         return calendario;
     }
 
+    function actualizarEstadoConsulta(texto) {
+        const ultima = document.getElementById("ultimaConsulta");
+        if (ultima) ultima.textContent = texto || "Sin cargar";
+    }
+
     function setCargando(activo) {
         const app = document.getElementById("app");
         if (app) app.classList.toggle("loading", Boolean(activo));
     }
 
-    async function cargarFiltrosIniciales() {
+    async function cargarFiltrosIniciales(preservarSeleccion = false) {
+        const seleccionAnterior = {
+            masters: [...seleccion.masters],
+            clasificaciones: [...seleccion.clasificaciones],
+            skus: [...seleccion.skus],
+            almacenes: [...seleccion.almacenes]
+        };
+
         try {
             setCargando(true);
 
@@ -1370,8 +1503,8 @@
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 fechaInventarioInicial: fechaInventarioInicial,
-                // Los combos MASTER/SKU siempre deben venir del catálogo activo.
-                // La depuración por inventario/producción se aplica al consultar datos, no al cargar filtros.
+                // Los combos se cargan del catálogo activo.
+                // La depuración por movimiento se aplica en la consulta de datos.
                 soloSkuMovimiento: "false"
             });
 
@@ -1383,7 +1516,7 @@
             const json = await response.json();
 
             if (!response.ok || !json.ok) {
-                throw new Error(json.msg || "No se pudieron cargar los filtros.");
+                throw new Error([json.msg, json.error, json.inner].filter(Boolean).join("\n") || "No se pudieron cargar los filtros.");
             }
 
             filtrosCatalogo.masters = (json.masters || json.Masters || []).map(x => ({
@@ -1392,24 +1525,106 @@
                 totalSkus: Number(x.totalSkus ?? x.TotalSkus ?? 0)
             })).filter(x => x.value);
 
+            filtrosCatalogo.clasificaciones = (json.clasificaciones || json.Clasificaciones || []).map(x => ({
+                value: normalizarTexto(x.value ?? x.Value ?? x.clasificacion ?? x.Clasificacion),
+                text: String(x.text ?? x.Text ?? x.value ?? x.Value ?? x.clasificacion ?? x.Clasificacion ?? ""),
+                totalSkus: Number(x.totalSkus ?? x.TotalSkus ?? 0)
+            })).filter(x => x.value);
+
             filtrosCatalogo.skus = (json.skus || json.Skus || []).map(x => ({
                 value: normalizarTexto(x.value ?? x.Value),
                 text: String(x.text ?? x.Text ?? x.value ?? x.Value ?? ""),
                 articulo: String(x.articulo ?? x.Articulo ?? ""),
-                master: normalizarTexto(x.master ?? x.Master ?? x.masterProducto ?? x.MasterProducto)
+                master: normalizarTexto(x.master ?? x.Master ?? x.masterProducto ?? x.MasterProducto),
+                clasificacion: normalizarTexto(
+                    x.clasificacion ?? x.Clasificacion ?? "SIN CLASIFICACIÓN"
+                ) || "SIN CLASIFICACIÓN"
             })).filter(x => x.value);
 
-            seleccion.masters = filtrosCatalogo.masters.map(x => x.value);
-            seleccion.skus = filtrosCatalogo.skus.map(x => x.value);
+            filtrosCatalogo.almacenes = (json.almacenes || json.Almacenes || []).map(x => ({
+                value: normalizarTexto(x.value ?? x.Value ?? x.almacen ?? x.Almacen),
+                text: String(x.text ?? x.Text ?? x.almacen ?? x.Almacen ?? ""),
+                diasRafaga: Number(x.diasRafaga ?? x.DiasRafaga ?? 0),
+                esRafaga: Boolean(x.esRafaga ?? x.EsRafaga ?? false),
+                activo: Boolean(x.activo ?? x.Activo ?? true),
+                seleccionadoPredeterminado: Boolean(
+                    x.seleccionadoPredeterminado ??
+                    x.SeleccionadoPredeterminado ??
+                    true
+                ),
+                totalCajas: normalizarNumero(x.totalCajas ?? x.TotalCajas ?? 0),
+                totalKg: normalizarNumero(x.totalKg ?? x.TotalKg ?? 0)
+            })).filter(x => x.value && x.activo);
+
+            if (preservarSeleccion) {
+                const mastersPermitidos = new Set(filtrosCatalogo.masters.map(x => x.value));
+                const clasificacionesPermitidas = new Set(filtrosCatalogo.clasificaciones.map(x => x.value));
+                const skusPermitidos = new Set(filtrosCatalogo.skus.map(x => x.value));
+                const almacenesPermitidos = new Set(filtrosCatalogo.almacenes.map(x => x.value));
+
+                seleccion.masters = seleccionAnterior.masters.filter(x => mastersPermitidos.has(x));
+                seleccion.clasificaciones = seleccionAnterior.clasificaciones.filter(x => clasificacionesPermitidas.has(x));
+                seleccion.skus = seleccionAnterior.skus.filter(x => skusPermitidos.has(x));
+                seleccion.almacenes = seleccionAnterior.almacenes.filter(x => almacenesPermitidos.has(x));
+
+                if (!seleccion.masters.length && filtrosCatalogo.masters.length) {
+                    seleccion.masters = filtrosCatalogo.masters.map(x => x.value);
+                }
+
+                if (!seleccion.clasificaciones.length && filtrosCatalogo.clasificaciones.length) {
+                    seleccion.clasificaciones = filtrosCatalogo.clasificaciones.map(x => x.value);
+                }
+
+                const skusVisiblesPermitidos = new Set(obtenerValoresSkusVisibles());
+                seleccion.skus = seleccion.skus.filter(x => skusVisiblesPermitidos.has(x));
+
+                if (!seleccion.skus.length && skusVisiblesPermitidos.size) {
+                    seleccion.skus = Array.from(skusVisiblesPermitidos);
+                }
+
+                if (!seleccion.almacenes.length && filtrosCatalogo.almacenes.length) {
+                    seleccion.almacenes = filtrosCatalogo.almacenes
+                        .filter(x => x.seleccionadoPredeterminado)
+                        .map(x => x.value);
+
+                    if (!seleccion.almacenes.length) {
+                        seleccion.almacenes = filtrosCatalogo.almacenes.map(x => x.value);
+                    }
+                }
+            } else {
+                seleccion.masters = filtrosCatalogo.masters.map(x => x.value);
+                seleccion.clasificaciones = filtrosCatalogo.clasificaciones.map(x => x.value);
+                seleccion.skus = filtrosCatalogo.skus.map(x => x.value);
+                seleccion.almacenes = filtrosCatalogo.almacenes
+                    .filter(x => x.seleccionadoPredeterminado)
+                    .map(x => x.value);
+
+                if (!seleccion.almacenes.length) {
+                    seleccion.almacenes = filtrosCatalogo.almacenes.map(x => x.value);
+                }
+            }
 
             renderizarOpcionesMaster();
+            renderizarOpcionesClasificacion();
             renderizarOpcionesSku();
+            renderizarOpcionesAlmacen();
+            actualizarChecksTodo();
             actualizarTextosFiltros();
+            return true;
         } catch (error) {
             console.error(error);
+            actualizarEstadoConsulta("Error en filtros");
             alert("Error al cargar filtros: " + error.message);
+            return false;
         } finally {
             setCargando(false);
+        }
+    }
+
+    async function recargarFiltrosYDatos() {
+        const filtrosOk = await cargarFiltrosIniciales(true);
+        if (filtrosOk) {
+            await cargarDatosSql();
         }
     }
 
@@ -1428,11 +1643,7 @@ function renderizarOpcionesMaster() {
 
     cont.innerHTML = filtrosCatalogo.masters.map(item => {
         const checked = seleccion.masters.includes(item.value);
-
-        const textoBusqueda = [
-            item.value,
-            item.text
-        ].join(" ").toUpperCase();
+        const textoBusqueda = [item.value, item.text].join(" ").toUpperCase();
 
         return `
             <label class="multi-option" data-text="${escapeHtml(textoBusqueda)}">
@@ -1440,7 +1651,7 @@ function renderizarOpcionesMaster() {
                     type="checkbox"
                     value="${escapeHtml(item.value)}"
                     ${checked ? "checked" : ""}
-                    onchange="toggleOpcion('masters', '${escapeHtml(item.value)}', this.checked)"
+                    onchange="toggleOpcion('masters', decodeURIComponent('${encodeURIComponent(item.value)}'), this.checked)"
                 />
                 <span>${escapeHtml(item.text)} <small>(${formatoNumero(item.totalSkus)})</small></span>
             </label>
@@ -1448,28 +1659,82 @@ function renderizarOpcionesMaster() {
     }).join("");
 }
 
-    function obtenerSkusVisiblesPorMaster() {
-        const mastersActivos = new Set(seleccion.masters);
+function renderizarOpcionesClasificacion() {
+    const cont = document.getElementById("clasificacionOptions");
+    if (!cont) return;
 
-        return filtrosCatalogo.skus.filter(item => {
-            return !mastersActivos.size || mastersActivos.has(item.master);
-        });
+    cont.innerHTML = filtrosCatalogo.clasificaciones.map(item => {
+        const checked = seleccion.clasificaciones.includes(item.value);
+        const textoBusqueda = [item.value, item.text].join(" ").toUpperCase();
+
+        return `
+            <label class="multi-option" data-text="${escapeHtml(textoBusqueda)}">
+                <input
+                    type="checkbox"
+                    value="${escapeHtml(item.value)}"
+                    ${checked ? "checked" : ""}
+                    onchange="toggleOpcion('clasificaciones', decodeURIComponent('${encodeURIComponent(item.value)}'), this.checked)"
+                />
+                <span>${escapeHtml(item.text)} <small>(${formatoNumero(item.totalSkus)})</small></span>
+            </label>
+        `;
+    }).join("");
+}
+
+function obtenerSkusVisibles() {
+    const mastersActivos = new Set(seleccion.masters);
+    const clasificacionesActivas = new Set(seleccion.clasificaciones);
+
+    if (!mastersActivos.size || !clasificacionesActivas.size) {
+        return [];
     }
+
+    return filtrosCatalogo.skus.filter(item =>
+        mastersActivos.has(item.master) &&
+        clasificacionesActivas.has(item.clasificacion)
+    );
+}
+
+function obtenerValoresSkusVisibles() {
+    return obtenerSkusVisibles().map(x => x.value);
+}
+
+function todosLosSkusVisiblesEstanSeleccionados() {
+    const visibles = obtenerValoresSkusVisibles();
+    return visibles.length > 0 && visibles.every(sku => seleccion.skus.includes(sku));
+}
+
+function sincronizarSkusConAlcance(seleccionarTodosVisibles = true) {
+    const visibles = obtenerValoresSkusVisibles();
+
+    if (!visibles.length) {
+        seleccion.skus = [];
+        return;
+    }
+
+    if (seleccionarTodosVisibles) {
+        seleccion.skus = [...visibles];
+        return;
+    }
+
+    const permitidos = new Set(visibles);
+    seleccion.skus = seleccion.skus.filter(sku => permitidos.has(sku));
+}
 
 function renderizarOpcionesSku() {
     const cont = document.getElementById("skuOptions");
     if (!cont) return;
 
-    const skusFiltrados = obtenerSkusVisiblesPorMaster();
+    const skusFiltrados = obtenerSkusVisibles();
 
     cont.innerHTML = skusFiltrados.map(item => {
         const checked = seleccion.skus.includes(item.value);
-
         const textoBusqueda = [
             item.value,
             item.text,
             item.articulo,
-            item.master
+            item.master,
+            item.clasificacion
         ].join(" ").toUpperCase();
 
         return `
@@ -1478,13 +1743,65 @@ function renderizarOpcionesSku() {
                     type="checkbox"
                     value="${escapeHtml(item.value)}"
                     ${checked ? "checked" : ""}
-                    onchange="toggleOpcion('skus', '${escapeHtml(item.value)}', this.checked)"
+                    onchange="toggleOpcion('skus', decodeURIComponent('${encodeURIComponent(item.value)}'), this.checked)"
                 />
-                <span>${escapeHtml(item.text)}</span>
+                <span>${escapeHtml(item.text)} <small>${escapeHtml(item.clasificacion)}</small></span>
             </label>
         `;
     }).join("");
 }
+
+    function renderizarOpcionesAlmacen() {
+        const cont = document.getElementById("almacenOptions");
+        if (!cont) return;
+
+        cont.innerHTML = filtrosCatalogo.almacenes.map(item => {
+            const checked = seleccion.almacenes.includes(item.value);
+            const diasTexto = item.diasRafaga === 0
+                ? "Disponible inmediato"
+                : `${item.diasRafaga} día${item.diasRafaga === 1 ? "" : "s"} de ráfaga`;
+
+            const textoBusqueda = [
+                item.value,
+                item.text,
+                diasTexto,
+                item.totalKg
+            ].join(" ").toUpperCase();
+
+            const valueEncoded = encodeURIComponent(item.value);
+
+            return `
+                <label class="multi-option" data-text="${escapeHtml(textoBusqueda)}">
+                    <input
+                        type="checkbox"
+                        value="${escapeHtml(item.value)}"
+                        ${checked ? "checked" : ""}
+                        onchange="toggleOpcion('almacenes', decodeURIComponent('${valueEncoded}'), this.checked)"
+                    />
+                    <span>
+                        ${escapeHtml(item.text)}
+                        <span class="almacen-meta">
+                            <small class="almacen-badge ${item.diasRafaga > 0 ? "rafaga" : ""}">
+                                ${escapeHtml(diasTexto)}
+                            </small>
+                            <small class="almacen-badge">${formatoNumero(item.totalKg)} kg</small>
+                        </span>
+                    </span>
+                </label>
+            `;
+        }).join("");
+    }
+
+    function programarCargaDatos(delay = 180) {
+        if (temporizadorCargaDatos) {
+            clearTimeout(temporizadorCargaDatos);
+        }
+
+        temporizadorCargaDatos = setTimeout(() => {
+            temporizadorCargaDatos = null;
+            cargarDatosSql();
+        }, delay);
+    }
 
     function toggleOpcion(tipo, value, checked) {
         value = normalizarTexto(value);
@@ -1497,21 +1814,14 @@ function renderizarOpcionesSku() {
             seleccion[tipo] = seleccion[tipo].filter(x => x !== value);
         }
 
-        if (tipo === "masters") {
-            const skusPermitidos = obtenerSkusVisiblesPorMaster().map(x => x.value);
-
-            seleccion.skus = seleccion.skus.filter(sku => skusPermitidos.includes(sku));
-
-            if (seleccion.masters.length === filtrosCatalogo.masters.length) {
-                seleccion.skus = filtrosCatalogo.skus.map(x => x.value);
-            }
-
+        if (tipo === "masters" || tipo === "clasificaciones") {
+            sincronizarSkusConAlcance(true);
             renderizarOpcionesSku();
         }
 
         actualizarChecksTodo();
         actualizarTextosFiltros();
-        cargarDatosSql();
+        programarCargaDatos();
     }
 
     function seleccionarTodos(selectId, checked) {
@@ -1520,16 +1830,23 @@ function renderizarOpcionesSku() {
                 ? filtrosCatalogo.masters.map(x => x.value)
                 : [];
 
-            seleccion.skus = checked
-                ? filtrosCatalogo.skus.map(x => x.value)
-                : [];
-
+            sincronizarSkusConAlcance(true);
             renderizarOpcionesMaster();
             renderizarOpcionesSku();
         }
 
+        if (selectId === "clasificacionSelect") {
+            seleccion.clasificaciones = checked
+                ? filtrosCatalogo.clasificaciones.map(x => x.value)
+                : [];
+
+            sincronizarSkusConAlcance(true);
+            renderizarOpcionesClasificacion();
+            renderizarOpcionesSku();
+        }
+
         if (selectId === "skuSelect") {
-            const skusVisibles = obtenerSkusVisiblesPorMaster().map(x => x.value);
+            const skusVisibles = obtenerValoresSkusVisibles();
 
             if (checked) {
                 seleccion.skus = Array.from(new Set([...seleccion.skus, ...skusVisibles]));
@@ -1540,17 +1857,35 @@ function renderizarOpcionesSku() {
             renderizarOpcionesSku();
         }
 
+        if (selectId === "almacenSelect") {
+            seleccion.almacenes = checked
+                ? filtrosCatalogo.almacenes.map(x => x.value)
+                : [];
+
+            renderizarOpcionesAlmacen();
+        }
+
         actualizarChecksTodo();
         actualizarTextosFiltros();
-        cargarDatosSql();
+        programarCargaDatos();
     }
 
     function limpiarFiltros() {
         seleccion.masters = filtrosCatalogo.masters.map(x => x.value);
+        seleccion.clasificaciones = filtrosCatalogo.clasificaciones.map(x => x.value);
         seleccion.skus = filtrosCatalogo.skus.map(x => x.value);
+        seleccion.almacenes = filtrosCatalogo.almacenes
+            .filter(x => x.seleccionadoPredeterminado)
+            .map(x => x.value);
+
+        if (!seleccion.almacenes.length) {
+            seleccion.almacenes = filtrosCatalogo.almacenes.map(x => x.value);
+        }
 
         renderizarOpcionesMaster();
+        renderizarOpcionesClasificacion();
         renderizarOpcionesSku();
+        renderizarOpcionesAlmacen();
         actualizarChecksTodo();
         actualizarTextosFiltros();
         cargarDatosSql();
@@ -1568,14 +1903,15 @@ function filtrarOpciones(selectId, texto) {
         );
 
         const mostrar = !filtro || txt.includes(filtro);
-
         op.classList.toggle("opcion-oculta", !mostrar);
     });
 }
 
     function actualizarChecksTodo() {
         const masterAll = document.getElementById("masterAllCheck");
+        const clasificacionAll = document.getElementById("clasificacionAllCheck");
         const skuAll = document.getElementById("skuAllCheck");
+        const almacenAll = document.getElementById("almacenAllCheck");
 
         if (masterAll) {
             masterAll.checked =
@@ -1583,17 +1919,28 @@ function filtrarOpciones(selectId, texto) {
                 seleccion.masters.length === filtrosCatalogo.masters.length;
         }
 
+        if (clasificacionAll) {
+            clasificacionAll.checked =
+                filtrosCatalogo.clasificaciones.length > 0 &&
+                seleccion.clasificaciones.length === filtrosCatalogo.clasificaciones.length;
+        }
+
         if (skuAll) {
-            const skusVisibles = obtenerSkusVisiblesPorMaster().map(x => x.value);
-            skuAll.checked =
-                skusVisibles.length > 0 &&
-                skusVisibles.every(sku => seleccion.skus.includes(sku));
+            skuAll.checked = todosLosSkusVisiblesEstanSeleccionados();
+        }
+
+        if (almacenAll) {
+            almacenAll.checked =
+                filtrosCatalogo.almacenes.length > 0 &&
+                seleccion.almacenes.length === filtrosCatalogo.almacenes.length;
         }
     }
 
     function actualizarTextosFiltros() {
         const masterText = document.getElementById("masterSelectText");
+        const clasificacionText = document.getElementById("clasificacionSelectText");
         const skuText = document.getElementById("skuSelectText");
+        const almacenText = document.getElementById("almacenSelectText");
 
         if (masterText) {
             if (seleccion.masters.length === 0) {
@@ -1607,15 +1954,51 @@ function filtrarOpciones(selectId, texto) {
             }
         }
 
-        if (skuText) {
-            if (seleccion.skus.length === 0) {
-                skuText.textContent = "Sin SKU seleccionado";
-            } else if (seleccion.skus.length === filtrosCatalogo.skus.length) {
-                skuText.textContent = "Todos los SKU";
-            } else if (seleccion.skus.length === 1) {
-                skuText.textContent = seleccion.skus[0];
+        if (clasificacionText) {
+            if (seleccion.clasificaciones.length === 0) {
+                clasificacionText.textContent = "Sin clasificación seleccionada";
+            } else if (seleccion.clasificaciones.length === filtrosCatalogo.clasificaciones.length) {
+                clasificacionText.textContent = "Todas las clasificaciones";
+            } else if (seleccion.clasificaciones.length === 1) {
+                clasificacionText.textContent = seleccion.clasificaciones[0];
             } else {
-                skuText.textContent = `${seleccion.skus.length} SKU seleccionados`;
+                clasificacionText.textContent = `${seleccion.clasificaciones.length} clasificaciones`;
+            }
+        }
+
+        if (skuText) {
+            const skusVisibles = obtenerValoresSkusVisibles();
+            const seleccionadosVisibles = seleccion.skus.filter(sku => skusVisibles.includes(sku));
+
+            if (seleccion.masters.length === 0) {
+                skuText.textContent = "Seleccione primero un MASTER";
+            } else if (seleccion.clasificaciones.length === 0) {
+                skuText.textContent = "Seleccione una clasificación";
+            } else if (skusVisibles.length === 0) {
+                skuText.textContent = "Sin SKU para el alcance seleccionado";
+            } else if (seleccionadosVisibles.length === 0) {
+                skuText.textContent = "Sin SKU seleccionado";
+            } else if (seleccionadosVisibles.length === skusVisibles.length) {
+                skuText.textContent = `Todos los SKU (${skusVisibles.length})`;
+            } else if (seleccionadosVisibles.length === 1) {
+                skuText.textContent = seleccionadosVisibles[0];
+            } else {
+                skuText.textContent = `${seleccionadosVisibles.length} SKU seleccionados`;
+            }
+        }
+
+        if (almacenText) {
+            if (seleccion.almacenes.length === 0) {
+                almacenText.textContent = "Sin almacenes considerados";
+            } else if (seleccion.almacenes.length === filtrosCatalogo.almacenes.length) {
+                almacenText.textContent = "Todos los almacenes";
+            } else if (seleccion.almacenes.length === 1) {
+                const almacen = filtrosCatalogo.almacenes.find(x => x.value === seleccion.almacenes[0]);
+                almacenText.textContent = almacen
+                    ? `${almacen.text} · ${almacen.diasRafaga} día(s)`
+                    : seleccion.almacenes[0];
+            } else {
+                almacenText.textContent = `${seleccion.almacenes.length} almacenes considerados`;
             }
         }
     }
@@ -1639,6 +2022,7 @@ function filtrarOpciones(selectId, texto) {
         const filas = {
             inventario: document.getElementById("filaInventario"),
             produccion: document.getElementById("filaProduccion"),
+            rafaga: document.getElementById("filaRafaga"),
             pedidos: document.getElementById("filaPedidos"),
             disponible: document.getElementById("filaDisponible")
         };
@@ -1667,6 +2051,27 @@ function filtrarOpciones(selectId, texto) {
     }
 
     async function cargarDatosSql() {
+        if (temporizadorCargaDatos) {
+            clearTimeout(temporizadorCargaDatos);
+            temporizadorCargaDatos = null;
+        }
+
+        /*
+         * Siempre gana la selección más reciente.
+         * Si el usuario cambia MASTER/SKU mientras una consulta sigue activa,
+         * se cancela la anterior para evitar que se pinte información obsoleta.
+         */
+        if (controladorConsultaDatos) {
+            controladorConsultaDatos.abort();
+        }
+
+        const consultaId = ++secuenciaConsultaDatos;
+        const controladorActual = new AbortController();
+
+        controladorConsultaDatos = controladorActual;
+        consultaDatosEnCurso = true;
+        actualizarEstadoConsulta("Consultando...");
+
         const rango = obtenerRangoFechas();
         const fechaInicio = formatoInputFecha(rango.inicio);
         const fechaFin = formatoInputFecha(rango.fin);
@@ -1676,12 +2081,40 @@ function filtrarOpciones(selectId, texto) {
             filtrosCatalogo.masters.length > 0 &&
             seleccion.masters.length === filtrosCatalogo.masters.length;
 
-        const todosSkus =
-            filtrosCatalogo.skus.length > 0 &&
-            seleccion.skus.length === filtrosCatalogo.skus.length;
+        const todasClasificaciones =
+            filtrosCatalogo.clasificaciones.length > 0 &&
+            seleccion.clasificaciones.length === filtrosCatalogo.clasificaciones.length;
 
-        const mastersCsv = todosMasters ? "" : seleccion.masters.join(",");
-        const skusCsv = todosSkus ? "" : seleccion.skus.join(",");
+        const skusVisibles = obtenerValoresSkusVisibles();
+        const todosSkusDelAlcance =
+            skusVisibles.length > 0 &&
+            skusVisibles.every(sku => seleccion.skus.includes(sku));
+
+        const todosAlmacenes =
+            filtrosCatalogo.almacenes.length > 0 &&
+            seleccion.almacenes.length === filtrosCatalogo.almacenes.length;
+
+        // La cadena especial evita que "sin selección" se interprete como "todos".
+        const mastersCsv = seleccion.masters.length === 0
+            ? "__NINGUNO__"
+            : (todosMasters ? "" : seleccion.masters.join(","));
+
+        const clasificacionesCsv = seleccion.clasificaciones.length === 0
+            ? "__NINGUNO__"
+            : (todasClasificaciones ? "" : seleccion.clasificaciones.join(","));
+
+        /*
+         * Cuando están elegidos todos los SKU visibles del alcance MASTER + clasificación,
+         * se manda vacío para que SQL filtre directamente por MASTER.
+         * Esto evita enviar listas largas y hace que el filtro MASTER sea real.
+         */
+        const skusCsv = seleccion.skus.length === 0
+            ? "__NINGUNO__"
+            : (todosSkusDelAlcance ? "" : seleccion.skus.join(","));
+
+        const almacenesCsv = seleccion.almacenes.length === 0
+            ? "__NINGUNO__"
+            : (todosAlmacenes ? "" : seleccion.almacenes.join(","));
 
         try {
             setCargando(true);
@@ -1689,8 +2122,11 @@ function filtrarOpciones(selectId, texto) {
             let url = "/ProcesosCG/InventarioInicialDatos?";
             url += `skusCsv=${encodeURIComponent(skusCsv)}`;
             url += `&mastersCsv=${encodeURIComponent(mastersCsv)}`;
+            url += `&clasificacionesCsv=${encodeURIComponent(clasificacionesCsv)}`;
+            url += `&almacenesCsv=${encodeURIComponent(almacenesCsv)}`;
             url += `&fechaInicio=${encodeURIComponent(fechaInicio)}`;
             url += `&fechaFin=${encodeURIComponent(fechaFin)}`;
+
             const fechaInventarioInicial = sumarDiasInput(fechaInicio, -1);
             url += `&fechaInventarioInicial=${encodeURIComponent(fechaInventarioInicial)}`;
             url += `&dias=${DIAS_ADELANTE}`;
@@ -1698,61 +2134,120 @@ function filtrarOpciones(selectId, texto) {
 
             const response = await fetch(url, {
                 method: "GET",
-                headers: { "Accept": "application/json" }
+                headers: { "Accept": "application/json" },
+                signal: controladorActual.signal
             });
 
             const json = await response.json();
 
             if (!response.ok || !json.ok) {
-                throw new Error(json.msg || json.error || "No se pudo consultar la información.");
+                throw new Error(
+                    [json.msg, json.error, json.inner]
+                        .filter(Boolean)
+                        .join("\n") ||
+                    "No se pudo consultar la información."
+                );
+            }
+
+            if (consultaId !== secuenciaConsultaDatos) {
+                return;
             }
 
             const rows = json.data || json.Data || [];
 
-            aplicarCatalogoSkusConMovimiento(rows, todosMasters && todosSkus);
+            aplicarCatalogoSkusConMovimiento(
+                rows,
+                todosMasters && todosSkusDelAlcance
+            );
 
             const skusConMovimiento = obtenerSkusConInventarioOProduccion(rows);
-            const rowsProcesar = SOLO_SKU_CON_INVENTARIO_O_PRODUCCION && skusConMovimiento.size
-                ? rows.filter(row => {
-                    const sku = obtenerSkuRow(row);
-                    return !sku || skusConMovimiento.has(sku);
-                })
-                : rows;
+            const rowsProcesar =
+                SOLO_SKU_CON_INVENTARIO_O_PRODUCCION &&
+                skusConMovimiento.size
+                    ? rows.filter(row => {
+                        const sku = obtenerSkuRow(row);
+                        return !sku || skusConMovimiento.has(sku);
+                    })
+                    : rows;
 
             const inventarioPorFecha = {};
             const pedidosPorFecha = {};
             const produccionPorFecha = {};
+            const rafagaPorFecha = {};
 
             rowsProcesar.forEach(row => {
                 const fechaValor = obtenerCampo(row, "fecha", "Fecha", null);
                 const key = fechaKey(fechaValor);
                 if (!key) return;
 
-                const inventario = normalizarNumero(obtenerCampo(row, "kgInventario", "KgInventario", 0));
+                const inventario = normalizarNumero(
+                    obtenerCampo(row, "kgInventario", "KgInventario", 0)
+                );
+
                 const pedidos = normalizarNumero(
-                    obtenerCampo(row, "kgPedido", "KgPedido",
-                        obtenerCampo(row, "kgPedidoEstimado", "KgPedidoEstimado", 0)
+                    obtenerCampo(
+                        row,
+                        "kgPedido",
+                        "KgPedido",
+                        obtenerCampo(
+                            row,
+                            "kgPedidoEstimado",
+                            "KgPedidoEstimado",
+                            0
+                        )
                     )
                 );
-                const produccion = normalizarNumero(obtenerCampo(row, "kgProduccion", "KgProduccion", 0));
-                inventarioPorFecha[key] = normalizarNumero(inventarioPorFecha[key]) + inventario;
-                pedidosPorFecha[key] = normalizarNumero(pedidosPorFecha[key]) + pedidos;
-                produccionPorFecha[key] = normalizarNumero(produccionPorFecha[key]) + produccion;
+
+                const produccion = normalizarNumero(
+                    obtenerCampo(row, "kgProduccion", "KgProduccion", 0)
+                );
+
+                const rafaga = normalizarNumero(
+                    obtenerCampo(
+                        row,
+                        "kgLiberacionRafaga",
+                        "KgLiberacionRafaga",
+                        0
+                    )
+                );
+
+                inventarioPorFecha[key] =
+                    normalizarNumero(inventarioPorFecha[key]) + inventario;
+
+                pedidosPorFecha[key] =
+                    normalizarNumero(pedidosPorFecha[key]) + pedidos;
+
+                produccionPorFecha[key] =
+                    normalizarNumero(produccionPorFecha[key]) + produccion;
+
+                rafagaPorFecha[key] =
+                    normalizarNumero(rafagaPorFecha[key]) + rafaga;
             });
 
             let inventarioArrastre = 0;
 
             datos = calendario.map((dia, index) => {
-                const produccion = normalizarNumero(produccionPorFecha[dia.fechaKey]);
-                const pedidos = normalizarNumero(pedidosPorFecha[dia.fechaKey]);
+                const produccion =
+                    normalizarNumero(produccionPorFecha[dia.fechaKey]);
 
-                // El inventario inicial se toma en la fecha de inicio seleccionada,
-                // que por defecto es hoy. Ya no se toma el día anterior.
+                const rafaga =
+                    normalizarNumero(rafagaPorFecha[dia.fechaKey]);
+
+                const pedidos =
+                    normalizarNumero(pedidosPorFecha[dia.fechaKey]);
+
+                /*
+                 * Primer día: inventario ya disponible.
+                 * Días posteriores: disponible del día anterior.
+                 * La ráfaga se agrega una sola vez en su fecha de liberación.
+                 */
                 const inventario = index === 0
                     ? normalizarNumero(inventarioPorFecha[dia.fechaKey])
                     : inventarioArrastre;
 
-                const disponible = inventario + produccion - pedidos;
+                const disponible =
+                    inventario + produccion + rafaga - pedidos;
+
                 inventarioArrastre = disponible;
 
                 return {
@@ -1760,61 +2255,141 @@ function filtrarOpciones(selectId, texto) {
                     fechaKey: dia.fechaKey,
                     inventario,
                     produccion,
+                    rafaga,
                     pedidos,
                     disponible
                 };
             });
 
-            const ultima = document.getElementById("ultimaConsulta");
-            if (ultima) {
-                ultima.textContent = new Date().toLocaleString("es-MX", {
+            actualizarEstadoConsulta(
+                new Date().toLocaleString("es-MX", {
                     day: "2-digit",
                     month: "2-digit",
                     year: "numeric",
                     hour: "2-digit",
                     minute: "2-digit"
-                });
-            }
+                })
+            );
 
             renderizar();
         } catch (error) {
-            console.error(error);
-            alert("Error al cargar Inventario Inicial: " + error.message);
+            if (error?.name === "AbortError") {
+                return;
+            }
+
+            if (consultaId === secuenciaConsultaDatos) {
+                console.error(error);
+                actualizarEstadoConsulta("Error de consulta");
+                alert(
+                    "Error al cargar Inventario Inicial: " +
+                    error.message
+                );
+            }
         } finally {
-            setCargando(false);
+            if (consultaId === secuenciaConsultaDatos) {
+                consultaDatosEnCurso = false;
+                controladorConsultaDatos = null;
+                setCargando(false);
+            }
         }
     }
 
     function textoAlcance() {
-        if (seleccion.skus.length === 0) return "Sin SKU";
+        if (seleccion.masters.length === 0 || seleccion.clasificaciones.length === 0) {
+            return "Sin alcance";
+        }
 
-        if (seleccion.skus.length === 1) return seleccion.skus[0];
+        const skusVisibles = obtenerValoresSkusVisibles();
+        const todosSkusVisibles =
+            skusVisibles.length > 0 &&
+            skusVisibles.every(sku => seleccion.skus.includes(sku));
 
-        if (seleccion.skus.length === filtrosCatalogo.skus.length) {
-            return "Todos";
+        if (seleccion.skus.length === 0) {
+            return seleccion.masters.length === 1
+                ? seleccion.masters[0]
+                : `${seleccion.masters.length} MASTER`;
+        }
+
+        if (seleccion.skus.length === 1) {
+            return seleccion.skus[0];
+        }
+
+        if (todosSkusVisibles) {
+            if (seleccion.masters.length === 1) {
+                return seleccion.masters[0];
+            }
+
+            if (seleccion.masters.length === filtrosCatalogo.masters.length) {
+                return "Todos";
+            }
+
+            return `${seleccion.masters.length} MASTER`;
         }
 
         return `${seleccion.skus.length} SKU`;
     }
 
     function textoDetalleAlcance() {
-        if (seleccion.masters.length === 0) return "Sin MASTER";
+        if (seleccion.masters.length === 0) {
+            return "Selecciona al menos un MASTER";
+        }
 
-        const masters = seleccion.masters.length === filtrosCatalogo.masters.length
-            ? "Todos los MASTER"
-            : `${seleccion.masters.length} MASTER`;
+        if (seleccion.clasificaciones.length === 0) {
+            return "Selecciona al menos una clasificación";
+        }
 
-        const skus = seleccion.skus.length === filtrosCatalogo.skus.length
-            ? "Todos los SKU"
-            : `${seleccion.skus.length} SKU`;
+        const masters =
+            seleccion.masters.length === filtrosCatalogo.masters.length
+                ? "Todos los MASTER"
+                : (
+                    seleccion.masters.length === 1
+                        ? seleccion.masters[0]
+                        : `${seleccion.masters.length} MASTER`
+                );
 
-        return `${masters} / ${skus}`;
+        const clasificaciones =
+            seleccion.clasificaciones.length === filtrosCatalogo.clasificaciones.length
+                ? "Todas las clasificaciones"
+                : (
+                    seleccion.clasificaciones.length === 1
+                        ? seleccion.clasificaciones[0]
+                        : `${seleccion.clasificaciones.length} clasificaciones`
+                );
+
+        const skusVisibles = obtenerValoresSkusVisibles();
+        const seleccionadosVisibles = seleccion.skus.filter(sku => skusVisibles.includes(sku));
+
+        let skus;
+        if (skusVisibles.length === 0) {
+            skus = "Sin SKU disponibles";
+        } else if (seleccionadosVisibles.length === 0) {
+            skus = "Sin SKU seleccionados";
+        } else if (seleccionadosVisibles.length === skusVisibles.length) {
+            skus = `Todos los SKU (${skusVisibles.length})`;
+        } else {
+            skus = `${seleccionadosVisibles.length} SKU`;
+        }
+
+        const almacenes = seleccion.almacenes.length === 0
+            ? "Sin almacenes"
+            : (
+                seleccion.almacenes.length === filtrosCatalogo.almacenes.length
+                    ? "Todos los almacenes"
+                    : (
+                        seleccion.almacenes.length === 1
+                            ? seleccion.almacenes[0]
+                            : `${seleccion.almacenes.length} almacenes`
+                    )
+            );
+
+        return `${masters} / ${clasificaciones} / ${skus} / ${almacenes}`;
     }
 
     function renderizar() {
         const filaFechas = document.getElementById("filaFechas");
         const filaInventario = document.getElementById("filaInventario");
         const filaProduccion = document.getElementById("filaProduccion");
+        const filaRafaga = document.getElementById("filaRafaga");
         const filaPedidos = document.getElementById("filaPedidos");
         const filaDisponible = document.getElementById("filaDisponible");
 
@@ -1836,6 +2411,11 @@ function filtrarOpciones(selectId, texto) {
             <td class="sticky-concepto">Producción KG</td>
         `;
 
+        filaRafaga.innerHTML = `
+            <td class="sticky-alcance">${escapeHtml(alcance)}</td>
+            <td class="sticky-concepto">Liberación ráfaga KG</td>
+        `;
+
         filaPedidos.innerHTML = `
             <td class="sticky-alcance">${escapeHtml(alcance)}</td>
             <td class="sticky-concepto">Pedidos KG</td>
@@ -1855,6 +2435,10 @@ function filtrarOpciones(selectId, texto) {
 
             filaProduccion.innerHTML += `
                 <td class="${claseNegativo(dia.produccion)}">${formatoNumero(dia.produccion)}</td>
+            `;
+
+            filaRafaga.innerHTML += `
+                <td class="${claseNegativo(dia.rafaga)}">${formatoNumero(dia.rafaga)}</td>
             `;
 
             filaPedidos.innerHTML += `
@@ -1888,6 +2472,10 @@ function filtrarOpciones(selectId, texto) {
             return total + normalizarNumero(dia.produccion);
         }, 0);
 
+        const rafagaTotal = datos.reduce((total, dia) => {
+            return total + normalizarNumero(dia.rafaga);
+        }, 0);
+
         const pedidosTotal = datos.reduce((total, dia) => {
             return total + normalizarNumero(dia.pedidos);
         }, 0);
@@ -1898,6 +2486,7 @@ function filtrarOpciones(selectId, texto) {
         document.getElementById("kpiAlcanceDetalle").textContent = alcanceDetalle;
         document.getElementById("kpiDisponibleFinal").textContent = formatoNumero(disponibleFinal);
         document.getElementById("kpiProduccionTotal").textContent = formatoNumero(produccionTotal);
+        document.getElementById("kpiRafagaTotal").textContent = formatoNumero(rafagaTotal);
         document.getElementById("kpiPedidosTotal").textContent = formatoNumero(pedidosTotal);
         document.getElementById("kpiDiasFaltante").textContent = formatoNumero(diasFaltante);
 
@@ -1915,7 +2504,8 @@ function filtrarOpciones(selectId, texto) {
 
         const tablaResumen = document.getElementById("tablaResumen");
         if (tablaResumen) {
-            tablaResumen.textContent = `${alcanceDetalle} | Inventario inicial desde hoy`;
+            tablaResumen.textContent =
+                `${alcanceDetalle} | Inventario disponible del cierre anterior + liberaciones por ráfaga`;
         }
     }
 
@@ -1994,7 +2584,9 @@ function filtrarOpciones(selectId, texto) {
     inicializarRangoFechas();
     cambiarModoVista("completa");
 
-    cargarFiltrosIniciales().then(() => {
-        cargarDatosSql();
+    cargarFiltrosIniciales().then((filtrosOk) => {
+        if (filtrosOk) {
+            cargarDatosSql();
+        }
     });
 </script>

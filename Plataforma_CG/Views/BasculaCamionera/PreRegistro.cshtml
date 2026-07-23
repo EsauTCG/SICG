@@ -529,15 +529,15 @@
     }
 
     .pre-app th:nth-child(6), .pre-app td:nth-child(6) {
-        min-width: 90px;
+        min-width: 100px;
     }
 
     .pre-app th:nth-child(7), .pre-app td:nth-child(7) {
-        min-width: 130px;
+        min-width: 100px;
     }
 
     .pre-app th:nth-child(8), .pre-app td:nth-child(8) {
-        min-width: 150px;
+        min-width: 130px;
     }
 
     .pre-app th:nth-child(9), .pre-app td:nth-child(9) {
@@ -545,10 +545,14 @@
     }
 
     .pre-app th:nth-child(10), .pre-app td:nth-child(10) {
-        min-width: 90px;
+        min-width: 150px;
     }
 
     .pre-app th:nth-child(11), .pre-app td:nth-child(11) {
+        min-width: 90px;
+    }
+
+    .pre-app th:nth-child(12), .pre-app td:nth-child(12) {
         min-width: 240px;
     }
 
@@ -954,6 +958,20 @@
                         </div>
 
                         <div class="form-group">
+                            <label id="cantidadLabel">Cantidad de animales <span class="required-mark">*</span></label>
+                            <input id="cantidad"
+                                   type="number"
+                                   min="1"
+                                   step="1"
+                                   value="1"
+                                   inputmode="numeric"
+                                   required
+                                   data-required-label="Cantidad"
+                                   placeholder="Ej. 35" />
+                            <div class="hint" id="cantidadHint">Capture cuántos animales, cajas, piezas o unidades transporta.</div>
+                        </div>
+
+                        <div class="form-group">
                             <label>Placas <span class="required-mark">*</span></label>
                             <input id="placas" type="text" maxlength="40" placeholder="ABC-123" required data-required-label="Placas" />
                         </div>
@@ -997,13 +1015,34 @@
 
                         <div class="form-group span-2">
                             <label>Origen <span class="required-mark">*</span></label>
-                            <input id="origen" type="text" maxlength="180" placeholder="Rancho, proveedor, planta, almacén" required data-required-label="Origen" />
+                            <input id="origen"
+                                   type="text"
+                                   maxlength="180"
+                                   list="ubicacionesSugeridas"
+                                   value="PLANTA 1"
+                                   placeholder="PLANTA 1, TIF 776 u otra ubicación"
+                                   required
+                                   data-required-label="Origen" />
+                            <div class="hint">Se propone PLANTA 1, pero puede escribir cualquier origen.</div>
                         </div>
 
                         <div class="form-group span-2">
                             <label>Destino <span class="required-mark">*</span></label>
-                            <input id="destino" type="text" maxlength="180" placeholder="Planta, CEDIS, cliente, sucursal" required data-required-label="Destino" />
+                            <input id="destino"
+                                   type="text"
+                                   maxlength="180"
+                                   list="ubicacionesSugeridas"
+                                   value="TIF 776"
+                                   placeholder="TIF 776, PLANTA 1 u otra ubicación"
+                                   required
+                                   data-required-label="Destino" />
+                            <div class="hint">Se propone TIF 776, pero puede escribir cualquier destino.</div>
                         </div>
+
+                        <datalist id="ubicacionesSugeridas">
+                            <option value="PLANTA 1"></option>
+                            <option value="TIF 776"></option>
+                        </datalist>
 
                         <div class="form-group span-2">
                             <label>Condición <span class="required-mark">*</span></label>
@@ -1083,6 +1122,7 @@
                             <th>Tipo</th>
                             <th>Tercero</th>
                             <th>Producto</th>
+                            <th>Cantidad</th>
                             <th>Placas</th>
                             <th>Documento</th>
                             <th>Origen</th>
@@ -1092,7 +1132,7 @@
                         </tr>
                     </thead>
                     <tbody id="tblPreRegistros">
-                        <tr><td colspan="11">Cargando...</td></tr>
+                        <tr><td colspan="12">Cargando...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -1143,6 +1183,7 @@
             { id: "areaOrigen", label: "Área origen" },
             { id: "tipoMovimiento", label: "Tipo movimiento" },
             { id: "clasificacion", label: "Clasificación" },
+            { id: "cantidad", label: "Cantidad" },
             { id: "placas", label: "Placas" },
             { id: "tercero", label: "Proveedor / cliente" },
             { id: "codigoSap", label: "Código SAP" },
@@ -1225,9 +1266,14 @@
         }
 
         function limpiar() {
-            ["placas", "tercero", "codigoSap", "documento", "producto", "sku", "chofer", "origen", "destino", "condicion", "observaciones"].forEach(function (id) {
+            ["placas", "tercero", "codigoSap", "documento", "producto", "sku", "chofer", "condicion", "observaciones"].forEach(function (id) {
                 setVal(id, "");
             });
+
+            setVal("cantidad", "1");
+            setVal("origen", "PLANTA 1");
+            setVal("destino", "TIF 776");
+            actualizarEtiquetaCantidad();
             ultimo = null;
             setStatus("Sin pre-registro creado", "");
             setText("folioPreview", "---");
@@ -1243,6 +1289,7 @@
                 areaOrigen: val("areaOrigen"),
                 tipoMovimiento: val("tipoMovimiento"),
                 clasificacion: val("clasificacion"),
+                cantidad: Number(val("cantidad") || 0),
                 tercero: val("tercero"),
                 codigoSap: val("codigoSap"),
                 placas: val("placas"),
@@ -1265,6 +1312,11 @@
             if (faltantes.length) {
                 marcarErrores(faltantes);
                 return "Faltan campos obligatorios.";
+            }
+
+            if (!Number.isFinite(dto.cantidad) || dto.cantidad <= 0) {
+                marcarErrores([{ id: "cantidad", label: "Cantidad mayor a cero" }]);
+                return "La cantidad debe ser mayor a cero.";
             }
 
             limpiarErrores();
@@ -1329,7 +1381,7 @@
             var estatus = encodeURIComponent(val("filtroEstatus"));
             var q = encodeURIComponent(val("filtroQ"));
             var tbody = byId("tblPreRegistros");
-            tbody.innerHTML = "<tr><td colspan='11'>Cargando...</td></tr>";
+            tbody.innerHTML = "<tr><td colspan='12'>Cargando...</td></tr>";
 
             try {
                 var resp = await fetch(ENDPOINT_LISTAR + "?estatus=" + estatus + "&q=" + q + "&take=150", { headers: { "Accept": "application/json" } });
@@ -1338,7 +1390,7 @@
 
                 var rows = data.rows || [];
                 if (!rows.length) {
-                    tbody.innerHTML = "<tr><td colspan='11'>No hay pre-registros con esos filtros.</td></tr>";
+                    tbody.innerHTML = "<tr><td colspan='12'>No hay pre-registros con esos filtros.</td></tr>";
                     return;
                 }
 
@@ -1351,6 +1403,7 @@
                         td(r.tipoMovimiento) +
                         td(r.tercero) +
                         td(r.producto) +
+                        td(formatearCantidad(r.cantidad)) +
                         td(r.placas) +
                         td(r.documento) +
                         td(r.origen) +
@@ -1366,6 +1419,37 @@
             } catch (err) {
                 tbody.innerHTML = "<tr><td colspan='11'>" + esc(err.message) + "</td></tr>";
             }
+        }
+
+        function formatearCantidad(value) {
+            var n = Number(value || 0);
+            if (!Number.isFinite(n)) return "";
+            return n.toLocaleString("es-MX", { maximumFractionDigits: 2 });
+        }
+
+        function actualizarEtiquetaCantidad() {
+            var clasificacion = val("clasificacion").toLowerCase();
+            var label = "Cantidad de unidades";
+            var hint = "Capture cuántas unidades transporta.";
+
+            if (clasificacion.indexOf("ganado") >= 0) {
+                label = "Cantidad de animales";
+                hint = "Capture cuántos animales transporta.";
+            } else if (clasificacion.indexOf("caja") >= 0) {
+                label = "Cantidad de cajas";
+                hint = "Capture cuántas cajas transporta.";
+            } else if (clasificacion.indexOf("canal") >= 0) {
+                label = "Cantidad de canales / medias canales";
+                hint = "Capture cuántas canales o medias canales transporta.";
+            } else if (clasificacion.indexOf("material") >= 0 || clasificacion.indexOf("insumo") >= 0) {
+                label = "Cantidad de piezas / unidades";
+                hint = "Capture cuántas piezas, bultos o unidades transporta.";
+            }
+
+            var labelEl = byId("cantidadLabel");
+            if (labelEl) labelEl.innerHTML = esc(label) + ' <span class="required-mark">*</span>';
+
+            setText("cantidadHint", hint);
         }
 
         function td(value) {
@@ -1490,6 +1574,7 @@
         safeOn("btnCopiarUltimo", "click", copiarUltimo);
         safeOn("btnBuscarTercero", "click", function () { buscarCatalogo("tercero"); });
         safeOn("btnBuscarProducto", "click", function () { buscarCatalogo("producto"); });
+        safeOn("clasificacion", "change", actualizarEtiquetaCantidad);
         safeOn("btnCerrarCatalogo", "click", function () { byId("catalogModal").classList.remove("active"); });
         safeOn("catalogSearch", "keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); cargarCatalogo(); } });
         safeOn("catalogSearch", "input", debounce(cargarCatalogo, 350));
@@ -1530,6 +1615,7 @@
             };
         }
 
+        actualizarEtiquetaCantidad();
         listarPreRegistros();
     })();
 </script>

@@ -4,12 +4,14 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Data;
 using System.Drawing.Printing;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -36,8 +38,13 @@ namespace Plataforma_CG.Controllers
         [HttpGet("")]
         [HttpGet("Index")]
         [HttpGet("BasculaCamionera")]
+        [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
         public IActionResult BasculaCamionera()
         {
+            Response.Headers.CacheControl = "no-store, no-cache, must-revalidate, max-age=0";
+            Response.Headers.Pragma = "no-cache";
+            Response.Headers.Expires = "0";
+
             return View("~/Views/BasculaCamionera/BasculaCamionera.cshtml");
         }
 
@@ -109,6 +116,7 @@ SELECT TOP (@take)
     Estatus,
     TipoMovimiento,
     Clasificacion,
+    Cantidad,
     Tercero,
     CodigoSap,
     Placas,
@@ -207,6 +215,7 @@ INSERT INTO dbo.BasculaPreRegistro
     Estatus,
     TipoMovimiento,
     Clasificacion,
+    Cantidad,
     Tercero,
     CodigoSap,
     Placas,
@@ -230,6 +239,7 @@ OUTPUT
     inserted.Estatus,
     inserted.TipoMovimiento,
     inserted.Clasificacion,
+    inserted.Cantidad,
     inserted.Tercero,
     inserted.CodigoSap,
     inserted.Placas,
@@ -256,6 +266,7 @@ VALUES
     @Estatus,
     @TipoMovimiento,
     @Clasificacion,
+    @Cantidad,
     @Tercero,
     @CodigoSap,
     @Placas,
@@ -1225,6 +1236,374 @@ ORDER BY NombreProveedor;";
             }
         }
 
+        [HttpPost("ImprimirTicket")]
+        [IgnoreAntiforgeryToken]
+        public IActionResult ImprimirTicket([FromBody] BasculaTicketImpresionDto request)
+        {
+            if (request == null || request.Movimiento == null)
+                return BadRequest(new { ok = false, msg = "Solicitud de impresión vacía." });
+
+            if (!OperatingSystem.IsWindows())
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    msg = "La impresión directa solo está disponible cuando la aplicación se ejecuta en Windows."
+                });
+            }
+
+            try
+            {
+                var printerName = (request.PrinterName ?? "").Trim();
+
+                if (string.IsNullOrWhiteSpace(printerName))
+                    printerName = new PrinterSettings().PrinterName;
+
+                if (string.IsNullOrWhiteSpace(printerName))
+                    return BadRequest(new { ok = false, msg = "No se configuró una impresora." });
+
+                var installedPrinter = PrinterSettings.InstalledPrinters
+                    .Cast<string>()
+                    .FirstOrDefault(x => string.Equals(x, printerName, StringComparison.OrdinalIgnoreCase));
+
+                if (string.IsNullOrWhiteSpace(installedPrinter))
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = $"La impresora '{printerName}' no está instalada o no es visible para el proceso de la aplicación."
+                    });
+                }
+
+                const int copias = 2;
+                var bytes = ConstruirTicketEscPos(request.Movimiento);
+                var folio = !string.IsNullOrWhiteSpace(request.Movimiento.FolioServidor)
+                    ? request.Movimiento.FolioServidor
+                    : request.Movimiento.Folio;
+
+                for (var i = 0; i < copias; i++)
+                {
+                    RawPrinter.Send(
+                        installedPrinter,
+                        bytes,
+                        "Ticket bascula " + (string.IsNullOrWhiteSpace(folio) ? DateTime.Now.ToString("yyyyMMdd-HHmmss") : folio));
+                }
+
+                _logger.LogInformation(
+                    "Ticket de báscula {Folio} enviado a {PrinterName}. Copias: {Copias}",
+                    folio,
+                    installedPrinter,
+                    copias);
+
+                return Ok(new
+                {
+                    ok = true,
+                    msg = $"Ticket enviado directamente a {installedPrinter}.",
+                    printerName = installedPrinter,
+                    copias,
+                    folio
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error imprimiendo ticket de báscula directamente");
+
+                return BadRequest(new
+                {
+                    ok = false,
+                    msg = "No se pudo imprimir directamente: " + ex.Message
+                });
+            }
+        }
+
+        private static string TextoCantidad(string? clasificacion, decimal cantidad)
+        {
+            cantidad = cantidad <= 0 ? 1 : cantidad;
+            var entero = decimal.Truncate(cantidad) == cantidad;
+            var numero = cantidad.ToString(entero ? "N0" : "N2", CultureInfo.GetCultureInfo("es-MX"));
+            var tipo = (clasificacion ?? "").Trim().ToLowerInvariant();
+            var plural = cantidad != 1;
+
+            if (tipo.Contains("ganado")) return numero + (plural ? " animales" : " animal");
+            if (tipo.Contains("caja")) return numero + (plural ? " cajas" : " caja");
+            if (tipo.Contains("canal")) return numero + (plural ? " canales" : " canal");
+            if (tipo.Contains("subproducto")) return numero + (plural ? " piezas" : " pieza");
+            return numero + (plural ? " unidades" : " unidad");
+        }
+
+        private static byte[] ConstruirTicketEscPos(BasculaMovimientoDto r)
+        {
+            const int ancho = 48;
+
+            using var ms = new MemoryStream();
+
+            static void Bytes(Stream stream, params byte[] values)
+            {
+                stream.Write(values, 0, values.Length);
+            }
+
+            static void Texto(Stream stream, string? value)
+            {
+                var bytes = Encoding.ASCII.GetBytes(TextoAscii(value));
+                stream.Write(bytes, 0, bytes.Length);
+            }
+
+            void Linea(string? value = "")
+            {
+                Texto(ms, value);
+                Bytes(ms, 0x0A);
+            }
+
+            void Centrado(string? value)
+            {
+                Bytes(ms, 0x1B, 0x61, 0x01); // ESC a 1
+                Linea(value);
+                Bytes(ms, 0x1B, 0x61, 0x00); // ESC a 0
+            }
+
+            void Campo(string etiqueta, string? valor)
+            {
+                var contenido = TextoAscii(etiqueta + ": " + (valor ?? ""));
+
+                foreach (var line in AjustarLineas(contenido, ancho))
+                    Linea(line);
+            }
+
+            void DosColumnas(string etiqueta, string valor)
+            {
+                etiqueta = TextoAscii(etiqueta);
+                valor = TextoAscii(valor);
+
+                var espacios = ancho - etiqueta.Length - valor.Length;
+
+                if (espacios >= 1)
+                {
+                    Linea(etiqueta + new string(' ', espacios) + valor);
+                }
+                else
+                {
+                    Linea(etiqueta);
+                    Linea(valor.PadLeft(Math.Min(ancho, valor.Length + 2)));
+                }
+            }
+
+            var folio = !string.IsNullOrWhiteSpace(r.FolioServidor) ? r.FolioServidor : r.Folio;
+            var fechaEntrada = r.FechaEntrada == default ? "" : r.FechaEntrada.ToString("dd/MM/yyyy HH:mm:ss");
+            var fechaSalida = r.FechaSalida?.ToString("dd/MM/yyyy HH:mm:ss") ?? "Pendiente";
+            var pesoEntrada = r.PesoEntrada.ToString("N2", CultureInfo.GetCultureInfo("es-MX")) + " KG";
+            var pesoSalida = r.PesoSalida.ToString("N2", CultureInfo.GetCultureInfo("es-MX")) + " KG";
+            var pesoNeto = r.PesoNeto.ToString("N2", CultureInfo.GetCultureInfo("es-MX")) + " KG";
+
+            Bytes(ms, 0x1B, 0x40);             // ESC @: inicializar
+            Bytes(ms, 0x1B, 0x32);             // ESC 2: interlineado predeterminado
+            Bytes(ms, 0x1B, 0x61, 0x01);       // Centrado
+            Bytes(ms, 0x1B, 0x45, 0x01);       // Negrita
+            Bytes(ms, 0x1D, 0x21, 0x11);       // Doble ancho y doble alto
+            Linea("CARNES G");
+            Bytes(ms, 0x1D, 0x21, 0x00);       // Tamaño normal
+            Linea("TICKET DE BASCULA CAMIONERA");
+            Bytes(ms, 0x1B, 0x45, 0x00);       // Negrita OFF
+            Bytes(ms, 0x1B, 0x61, 0x00);       // Izquierda
+
+            Linea(new string('-', ancho));
+            Campo("Folio", folio);
+            Campo("Estatus", r.Estatus);
+            Campo("Movimiento", r.TipoMovimiento);
+            Campo("Clasificacion", r.Clasificacion);
+            Campo("Cantidad", TextoCantidad(r.Clasificacion, r.Cantidad));
+            Campo("Fecha entrada", fechaEntrada);
+            Campo("Fecha salida", fechaSalida);
+
+            Linea(new string('-', ancho));
+            Campo("Proveedor/Cliente", r.Tercero);
+            Campo("Codigo SAP", r.CodigoSap);
+            Campo("Producto", r.Producto);
+            Campo("SKU/Lote", r.Sku);
+            Campo("Documento", r.Documento);
+
+            Linea(new string('-', ancho));
+            Campo("Placas", r.Placas);
+            Campo("Chofer", r.Chofer);
+            Campo("Origen", r.Origen);
+            Campo("Destino", r.Destino);
+            Campo("Condicion", r.Condicion);
+
+            Linea(new string('-', ancho));
+            DosColumnas("PESO ENTRADA", pesoEntrada);
+            DosColumnas("PESO SALIDA", pesoSalida);
+            Linea(new string('=', ancho));
+
+            Bytes(ms, 0x1B, 0x61, 0x01);       // Centrado
+            Bytes(ms, 0x1B, 0x45, 0x01);       // Negrita
+            Linea("PESO NETO");
+            Bytes(ms, 0x1D, 0x21, 0x11);       // Grande
+            Linea(pesoNeto);
+            Bytes(ms, 0x1D, 0x21, 0x00);       // Normal
+            Bytes(ms, 0x1B, 0x45, 0x00);       // Negrita OFF
+            Bytes(ms, 0x1B, 0x61, 0x00);       // Izquierda
+
+            Linea(new string('-', ancho));
+            Campo("Captura manual", r.CapturaManual);
+            Campo("Motivo manual", r.MotivoManual);
+            Campo("Operador entrada", r.UsuarioEntrada);
+            Campo("Operador salida", r.UsuarioSalida);
+            Campo("Observaciones", r.Observaciones);
+
+            Linea();
+            Linea();
+            Linea("____________________    ____________________");
+            Linea("  Operador bascula        Chofer / Recibe");
+            Linea();
+            Centrado("Generado: " + DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss"));
+
+            Bytes(ms, 0x0A, 0x0A, 0x0A, 0x0A); // Avance antes del corte
+            Bytes(ms, 0x1D, 0x56, 0x42, 0x00); // GS V B 0: corte parcial
+
+            return ms.ToArray();
+        }
+
+        private static IEnumerable<string> AjustarLineas(string? value, int width)
+        {
+            var text = TextoAscii(value).Trim();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                yield return "";
+                yield break;
+            }
+
+            while (text.Length > width)
+            {
+                var cut = text.LastIndexOf(' ', width);
+                if (cut <= 0) cut = width;
+
+                yield return text.Substring(0, cut).TrimEnd();
+                text = text.Substring(cut).TrimStart();
+            }
+
+            yield return text;
+        }
+
+        private static string TextoAscii(string? value)
+        {
+            var normalized = (value ?? "")
+                .Replace("\r", " ")
+                .Replace("\n", " ")
+                .Normalize(NormalizationForm.FormD);
+
+            var sb = new StringBuilder(normalized.Length);
+
+            foreach (var c in normalized)
+            {
+                var category = CharUnicodeInfo.GetUnicodeCategory(c);
+
+                if (category == UnicodeCategory.NonSpacingMark)
+                    continue;
+
+                if (c >= 32 && c <= 126)
+                    sb.Append(c);
+                else if (char.IsWhiteSpace(c))
+                    sb.Append(' ');
+            }
+
+            return Regex.Replace(sb.ToString(), @"\s+", " ").Trim();
+        }
+
+        private static class RawPrinter
+        {
+            [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+            private struct DocInfo1
+            {
+                [MarshalAs(UnmanagedType.LPWStr)]
+                public string DocumentName;
+
+                [MarshalAs(UnmanagedType.LPWStr)]
+                public string? OutputFile;
+
+                [MarshalAs(UnmanagedType.LPWStr)]
+                public string DataType;
+            }
+
+            [DllImport("winspool.drv", EntryPoint = "OpenPrinterW", SetLastError = true, CharSet = CharSet.Unicode)]
+            private static extern bool OpenPrinter(string printerName, out IntPtr printerHandle, IntPtr defaults);
+
+            [DllImport("winspool.drv", EntryPoint = "ClosePrinter", SetLastError = true)]
+            private static extern bool ClosePrinter(IntPtr printerHandle);
+
+            [DllImport("winspool.drv", EntryPoint = "StartDocPrinterW", SetLastError = true, CharSet = CharSet.Unicode)]
+            private static extern int StartDocPrinter(IntPtr printerHandle, int level, ref DocInfo1 docInfo);
+
+            [DllImport("winspool.drv", EntryPoint = "EndDocPrinter", SetLastError = true)]
+            private static extern bool EndDocPrinter(IntPtr printerHandle);
+
+            [DllImport("winspool.drv", EntryPoint = "StartPagePrinter", SetLastError = true)]
+            private static extern bool StartPagePrinter(IntPtr printerHandle);
+
+            [DllImport("winspool.drv", EntryPoint = "EndPagePrinter", SetLastError = true)]
+            private static extern bool EndPagePrinter(IntPtr printerHandle);
+
+            [DllImport("winspool.drv", EntryPoint = "WritePrinter", SetLastError = true)]
+            private static extern bool WritePrinter(
+                IntPtr printerHandle,
+                IntPtr bytes,
+                int byteCount,
+                out int bytesWritten);
+
+            public static void Send(string printerName, byte[] bytes, string documentName)
+            {
+                if (bytes == null || bytes.Length == 0)
+                    throw new InvalidOperationException("El ticket no contiene datos para imprimir.");
+
+                if (!OpenPrinter(printerName, out var printerHandle, IntPtr.Zero))
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), "No se pudo abrir la impresora " + printerName + ".");
+
+                var documentStarted = false;
+                var pageStarted = false;
+                IntPtr unmanagedBytes = IntPtr.Zero;
+
+                try
+                {
+                    var docInfo = new DocInfo1
+                    {
+                        DocumentName = documentName,
+                        OutputFile = null,
+                        DataType = "RAW"
+                    };
+
+                    if (StartDocPrinter(printerHandle, 1, ref docInfo) == 0)
+                        throw new Win32Exception(Marshal.GetLastWin32Error(), "No se pudo iniciar el documento de impresión.");
+
+                    documentStarted = true;
+
+                    if (!StartPagePrinter(printerHandle))
+                        throw new Win32Exception(Marshal.GetLastWin32Error(), "No se pudo iniciar la página de impresión.");
+
+                    pageStarted = true;
+                    unmanagedBytes = Marshal.AllocCoTaskMem(bytes.Length);
+                    Marshal.Copy(bytes, 0, unmanagedBytes, bytes.Length);
+
+                    if (!WritePrinter(printerHandle, unmanagedBytes, bytes.Length, out var written))
+                        throw new Win32Exception(Marshal.GetLastWin32Error(), "Windows no aceptó los datos del ticket.");
+
+                    if (written != bytes.Length)
+                        throw new IOException($"La impresora recibió {written} de {bytes.Length} bytes.");
+                }
+                finally
+                {
+                    if (unmanagedBytes != IntPtr.Zero)
+                        Marshal.FreeCoTaskMem(unmanagedBytes);
+
+                    if (pageStarted)
+                        EndPagePrinter(printerHandle);
+
+                    if (documentStarted)
+                        EndDocPrinter(printerHandle);
+
+                    ClosePrinter(printerHandle);
+                }
+            }
+        }
+
         [HttpPost("Tcp/ProbarConexion")]
         [IgnoreAntiforgeryToken]
         public async Task<IActionResult> ProbarConexionTcp([FromBody] TcpTestDto dto)
@@ -1448,6 +1827,15 @@ ORDER BY NombreProveedor;";
             if (string.IsNullOrWhiteSpace(dto.TipoMovimiento))
                 return "Seleccione tipo de movimiento.";
 
+            if (dto.Cantidad <= 0 || decimal.Truncate(dto.Cantidad) != dto.Cantidad)
+                return "Capture una cantidad entera mayor a cero.";
+
+            if (string.IsNullOrWhiteSpace(dto.Origen))
+                return "Capture origen.";
+
+            if (string.IsNullOrWhiteSpace(dto.Destino))
+                return "Capture destino.";
+
             if (string.IsNullOrWhiteSpace(dto.Tercero))
                 return "Capture proveedor / cliente.";
 
@@ -1527,6 +1915,12 @@ WHERE
             cmd.Parameters.AddWithValue("@Estatus", DbValue(dto.Estatus));
             cmd.Parameters.AddWithValue("@TipoMovimiento", DbValue(dto.TipoMovimiento));
             cmd.Parameters.AddWithValue("@Clasificacion", DbValue(dto.Clasificacion));
+
+            var pCantidadPre = cmd.Parameters.Add("@Cantidad", SqlDbType.Decimal);
+            pCantidadPre.Precision = 18;
+            pCantidadPre.Scale = 2;
+            pCantidadPre.Value = dto.Cantidad <= 0 ? 1 : dto.Cantidad;
+
             cmd.Parameters.AddWithValue("@Tercero", DbValue(dto.Tercero));
             cmd.Parameters.AddWithValue("@CodigoSap", DbValue(dto.CodigoSap));
             cmd.Parameters.AddWithValue("@Placas", DbValue(dto.Placas));
@@ -1554,6 +1948,7 @@ WHERE
                 Estatus = GetString(rd, "Estatus"),
                 TipoMovimiento = GetString(rd, "TipoMovimiento"),
                 Clasificacion = GetString(rd, "Clasificacion"),
+                Cantidad = GetDecimal(rd, "Cantidad") ?? 1,
                 Tercero = GetString(rd, "Tercero"),
                 CodigoSap = GetString(rd, "CodigoSap"),
                 Placas = GetString(rd, "Placas"),
@@ -1586,6 +1981,7 @@ SELECT TOP (1)
     Estatus,
     TipoMovimiento,
     Clasificacion,
+    Cantidad,
     Tercero,
     CodigoSap,
     Placas,
@@ -1686,6 +2082,7 @@ button {{ padding:10px 16px; font-weight:800; }}
     <div class=""grid"">
         <div class=""box""><label>Tipo movimiento</label><strong>{Html(p.TipoMovimiento)}</strong></div>
         <div class=""box""><label>Clasificación</label><strong>{Html(p.Clasificacion)}</strong></div>
+        <div class=""box""><label>Cantidad</label><strong>{Html(TextoCantidad(p.Clasificacion, p.Cantidad))}</strong></div>
         <div class=""box""><label>Proveedor / Cliente</label><strong>{Html(p.Tercero)}</strong></div>
         <div class=""box""><label>Código SAP</label><strong>{Html(p.CodigoSap)}</strong></div>
         <div class=""box""><label>Producto</label><strong>{Html(p.Producto)}</strong></div>
@@ -1760,6 +2157,15 @@ button {{ padding:10px 16px; font-weight:800; }}
             if (string.IsNullOrWhiteSpace(dto.TipoMovimiento))
                 return "Seleccione tipo de movimiento.";
 
+            if (dto.Cantidad <= 0 || decimal.Truncate(dto.Cantidad) != dto.Cantidad)
+                return "La cantidad debe ser un número entero mayor a cero.";
+
+            if (string.IsNullOrWhiteSpace(dto.Origen))
+                return "Capture origen.";
+
+            if (string.IsNullOrWhiteSpace(dto.Destino))
+                return "Capture destino.";
+
             if (dto.PesoEntrada <= 0)
                 return "El peso de entrada debe ser mayor a cero.";
 
@@ -1786,6 +2192,12 @@ button {{ padding:10px 16px; font-weight:800; }}
             cmd.Parameters.Add("@Estatus", SqlDbType.NVarChar, 20).Value = estatus;
             cmd.Parameters.Add("@TipoMovimiento", SqlDbType.NVarChar, 60).Value = dto.TipoMovimiento;
             cmd.Parameters.Add("@Clasificacion", SqlDbType.NVarChar, 80).Value = DbValue(dto.Clasificacion);
+
+            var pCantidad = cmd.Parameters.Add("@Cantidad", SqlDbType.Decimal);
+            pCantidad.Precision = 18;
+            pCantidad.Scale = 2;
+            pCantidad.Value = dto.Cantidad <= 0 ? 1 : dto.Cantidad;
+
             cmd.Parameters.Add("@Tercero", SqlDbType.NVarChar, 250).Value = dto.Tercero.Trim();
             cmd.Parameters.Add("@CodigoSap", SqlDbType.NVarChar, 60).Value = DbValue(dto.CodigoSap);
             cmd.Parameters.Add("@Placas", SqlDbType.NVarChar, 40).Value = dto.Placas.Trim().ToUpperInvariant();
@@ -1848,7 +2260,7 @@ button {{ padding:10px 16px; font-weight:800; }}
             var sql = @"
 SELECT TOP (@take)
     MovimientoId, MovimientoGuid, TerminalId, FolioLocal, FolioServidor,
-    Estatus, TipoMovimiento, Clasificacion, Tercero, CodigoSap, Placas,
+    Estatus, TipoMovimiento, Clasificacion, Cantidad, Tercero, CodigoSap, Placas,
     Producto, Sku, Documento, Chofer, Origen, Destino, Condicion,
     PesoEntrada, PesoSalida, PesoNeto,
     CapturaManual, MotivoManual, Observaciones,
@@ -1899,6 +2311,7 @@ ORDER BY FechaEntrada DESC, MovimientoId DESC;";
                 Estatus = GetString(rd, "Estatus"),
                 TipoMovimiento = GetString(rd, "TipoMovimiento"),
                 Clasificacion = GetString(rd, "Clasificacion"),
+                Cantidad = GetDecimal(rd, "Cantidad") ?? 1,
                 Tercero = GetString(rd, "Tercero"),
                 CodigoSap = GetString(rd, "CodigoSap"),
                 Placas = GetString(rd, "Placas"),
@@ -1977,6 +2390,7 @@ VALUES
         {
             dst.TipoMovimiento = src.TipoMovimiento;
             dst.Clasificacion = src.Clasificacion;
+            dst.Cantidad = src.Cantidad;
             dst.Tercero = src.Tercero;
             dst.CodigoSap = src.CodigoSap;
             dst.Placas = src.Placas;
@@ -2173,6 +2587,7 @@ VALUES
 
         public string TipoMovimiento { get; set; } = "";
         public string Clasificacion { get; set; } = "";
+        public decimal Cantidad { get; set; } = 1;
         public string Tercero { get; set; } = "";
         public string CodigoSap { get; set; } = "";
         public string Placas { get; set; } = "";
@@ -2201,6 +2616,13 @@ VALUES
         public string Motivo { get; set; } = "";
     }
 
+    public class BasculaTicketImpresionDto
+    {
+        public string PrinterName { get; set; } = "EPSON TM-T20IV Receipt";
+        public int Copias { get; set; } = 2;
+        public BasculaMovimientoDto Movimiento { get; set; } = new BasculaMovimientoDto();
+    }
+
     public class BasculaMovimientoDto
     {
         public long? MovimientoId { get; set; }
@@ -2210,6 +2632,7 @@ VALUES
         public string FolioServidor { get; set; } = "";
         public string TipoMovimiento { get; set; } = "";
         public string Clasificacion { get; set; } = "";
+        public decimal Cantidad { get; set; } = 1;
         public string Tercero { get; set; } = "";
         public string CodigoSap { get; set; } = "";
         public string Placas { get; set; } = "";

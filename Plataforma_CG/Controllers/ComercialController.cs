@@ -13920,7 +13920,7 @@ SELECT
     SUM(PesoNeto) AS InvInicial
 FROM dbo.InventarioAlmacenado_Meat
 WHERE FechaInventario = EOMONTH(DATEFROMPARTS(@Anio, @Mes, 1), -1)
-  AND CodigoEtiqueta NOT LIKE '%SACT%'
+  AND CodigoEtiqueta NOT LIKE '%SACT%' AND colonia IN ('VENTAS', 'VENTAS 1', 'VENTAS ESP')
 GROUP BY UPPER(LTRIM(RTRIM(Sku)))
 ORDER BY UPPER(LTRIM(RTRIM(Sku)));
 ";

@@ -1,4 +1,5 @@
-﻿@{
+﻿@* VERSION BASCULA-CANTIDAD-RUTA-V3 *@
+@{
     Layout = "~/Views/Shared/_Layout2.cshtml";
     ViewData["Title"] = "Báscula Camionera";
 }
@@ -4706,7 +4707,7 @@
 </style>
 
 
-<div class="window" id="basculaApp">
+<div class="window" id="basculaApp" data-version="BASCULA-CANTIDAD-RUTA-V3">
     <div class="app-header">
         <div class="brand-block">
             <div class="brand-mark">CG</div>
@@ -4929,11 +4930,24 @@
                                 <select id="clasificacion">
                                     <option value="Ganado en pie">Ganado en pie</option>
                                     <option value="Cajas de carne">Cajas de carne</option>
+                                    <option value="Canal / medias canales">Canal / medias canales</option>
                                     <option value="Insumos">Insumos</option>
                                     <option value="Subproducto">Subproducto</option>
                                     <option value="Material de empaque">Material de empaque</option>
                                     <option value="Otro">Otro</option>
                                 </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label id="cantidadLabel">Cantidad de animales</label>
+                                <input id="cantidad"
+                                       type="number"
+                                       min="1"
+                                       step="1"
+                                       value="1"
+                                       inputmode="numeric"
+                                       placeholder="Número de animales" />
+                                <div class="hint" id="cantidadHint">Capture cuántos animales ingresan.</div>
                             </div>
 
                             <div class="form-group">
@@ -4983,12 +4997,24 @@
 
                             <div class="form-group">
                                 <label>Origen</label>
-                                <input id="origen" type="text" placeholder="Rancho, planta, proveedor" />
+                                <input id="origen"
+                                       type="text"
+                                       list="ubicacionesBascula"
+                                       value="PLANTA 1"
+                                       placeholder="PLANTA 1, TIF 776 u otro origen" />
                             </div>
 
                             <div class="form-group">
                                 <label>Destino</label>
-                                <input id="destino" type="text" placeholder="Cliente, planta, corral" />
+                                <input id="destino"
+                                       type="text"
+                                       list="ubicacionesBascula"
+                                       value="TIF 776"
+                                       placeholder="TIF 776, PLANTA 1 u otro destino" />
+                                <datalist id="ubicacionesBascula">
+                                    <option value="PLANTA 1"></option>
+                                    <option value="TIF 776"></option>
+                                </datalist>
                             </div>
 
                             <div class="form-group">
@@ -5050,7 +5076,11 @@
                         <div class="summary-card">
                             <label>Unidad / carga</label>
                             <strong id="sumPlacas">---</strong>
-                            <div class="sub"><span id="sumTercero">---</span> · <span id="sumProducto">---</span></div>
+                            <div class="sub">
+                                <span id="sumCantidad">1 animal</span> ·
+                                <span id="sumTercero">---</span> ·
+                                <span id="sumProducto">---</span>
+                            </div>
                         </div>
                     </div>
 
@@ -5079,6 +5109,7 @@
                                     <th>Tipo</th>
                                     <th>Proveedor/Cliente</th>
                                     <th>Producto</th>
+                                    <th>Cantidad</th>
                                     <th>Placas</th>
                                     <th class="num">Peso entrada</th>
                                     <th class="center">Acción</th>
@@ -5140,6 +5171,7 @@
                                     <th>Fecha salida</th>
                                     <th>Tipo</th>
                                     <th>Clasificación</th>
+                                    <th>Cantidad</th>
                                     <th>Proveedor/Cliente</th>
                                     <th>SKU/Lote</th>
                                     <th class="num">Entrada</th>
@@ -5203,7 +5235,7 @@
 
                         <div class="form-group">
                             <label>Impresora Epson</label>
-                            <input id="printerName" type="text" placeholder="EPSON TM-T20III Receipt" />
+                            <input id="printerName" type="text" value="EPSON TM-T20IV Receipt" placeholder="EPSON TM-T20IV Receipt" />
                         </div>
 
                         <div class="form-group">
@@ -5286,6 +5318,7 @@
         <div class="row"><span>Estatus</span><strong id="pEstatus"></strong></div>
         <div class="row"><span>Movimiento</span><strong id="pMovimiento"></strong></div>
         <div class="row"><span>Clasificación</span><strong id="pClasificacion"></strong></div>
+        <div class="row"><span>Cantidad</span><strong id="pCantidad"></strong></div>
         <div class="row"><span>Fecha entrada</span><strong id="pFechaEntrada"></strong></div>
         <div class="row"><span>Fecha salida</span><strong id="pFechaSalida"></strong></div>
 
@@ -5340,17 +5373,41 @@
 
 <script type="text/javascript">
     (function () {
-        if (window.__BASCULA_CAMIONERA_JS_CARGADO__) {
+        /*
+         * Versión de JavaScript para impresión directa.
+         * No usamos solamente el booleano anterior porque, durante Hot Reload
+         * o navegación parcial, puede quedar cargado el script viejo que llamaba
+         * a window.print(). Una versión nueva siempre reemplaza ese comportamiento.
+         */
+        var BASCULA_BUILD = "2026.07.20-DIRECT-PRINT-V3";
+
+        if (window.__BASCULA_CAMIONERA_BUILD__ === BASCULA_BUILD) {
             return;
         }
 
+        window.__BASCULA_CAMIONERA_BUILD__ = BASCULA_BUILD;
         window.__BASCULA_CAMIONERA_JS_CARGADO__ = true;
+
+        /*
+         * Seguridad adicional: dentro de esta pantalla queda bloqueada cualquier
+         * llamada JavaScript antigua a window.print(). La impresión válida se hace
+         * exclusivamente mediante POST /BasculaCamionera/ImprimirTicket.
+         */
+        if (!window.__BASCULA_PRINT_NATIVO__) {
+            window.__BASCULA_PRINT_NATIVO__ = window.print ? window.print.bind(window) : null;
+        }
+
+        window.print = function () {
+            console.warn("Se bloqueó window.print(): el ticket debe enviarse por impresión directa ESC/POS.");
+            return false;
+        };
 
         var STORAGE_REGISTROS = "sigoBasculaRegistros";
         var STORAGE_BITACORA = "sigoBasculaBitacora";
         var STORAGE_TERMINAL_ID = "sigoBasculaTerminalId";
         var STORAGE_BASCULA_CONFIG = "sigoBasculaConfiguracionActiva";
         var SYNC_ENDPOINT = "/BasculaCamionera/Sync/Movimiento";
+        var PRINT_ENDPOINT = "/BasculaCamionera/ImprimirTicket";
         var LIST_ENDPOINT = "/BasculaCamionera/Listar";
         var PRE_REGISTRO_ENDPOINT = "/BasculaCamionera/PreRegistroPorToken";
         var CATALOGOS_OFFLINE_ENDPOINT = "/BasculaCamionera/CatalogosOffline";
@@ -5888,6 +5945,13 @@
             if (r.syncAttempts == null) r.syncAttempts = 0;
             if (!r.fechaCreacionLocal) r.fechaCreacionLocal = new Date().toISOString();
 
+            var cantidad = Number(r.cantidad || 0);
+            if (!Number.isFinite(cantidad) || cantidad <= 0) r.cantidad = 1;
+            else r.cantidad = Math.max(1, Math.trunc(cantidad));
+
+            if (!String(r.origen || "").trim()) r.origen = "PLANTA 1";
+            if (!String(r.destino || "").trim()) r.destino = "TIF 776";
+
             return r;
         }
 
@@ -6076,6 +6140,9 @@
                     s.folioServidor = s.folioServidor || "";
                     s.fechaEntrada = fechaVistaServidor(s.fechaEntrada);
                     s.fechaSalida = fechaVistaServidor(s.fechaSalida);
+                    s.cantidad = Math.max(1, Math.trunc(Number(s.cantidad || 1)));
+                    s.origen = String(s.origen || "").trim() || "PLANTA 1";
+                    s.destino = String(s.destino || "").trim() || "TIF 776";
                     s.syncStatus = s.folioServidor ? "SINCRONIZADO" : "PENDIENTE_SYNC";
                     s.syncError = "";
 
@@ -6394,6 +6461,7 @@
 
             safeValue("tipoMovimiento", p.tipoMovimiento || "Entrada proveedor");
             safeValue("clasificacion", p.clasificacion || "Ganado en pie");
+            safeValue("cantidad", Math.max(1, Math.trunc(Number(p.cantidad || 1))));
             safeValue("tercero", p.tercero || "");
             safeValue("codigoSap", p.codigoSap || "");
             safeValue("placas", (p.placas || "").toUpperCase());
@@ -6401,13 +6469,14 @@
             safeValue("sku", p.sku || "");
             safeValue("documento", p.documento || "");
             safeValue("chofer", p.chofer || "");
-            safeValue("origen", p.origen || "");
-            safeValue("destino", p.destino || "");
+            safeValue("origen", p.origen || "PLANTA 1");
+            safeValue("destino", p.destino || "TIF 776");
             safeValue("condicion", p.condicion || "");
             safeValue("observaciones", p.observaciones || "");
             safeValue("folioPreRegistroVista", p.folioPreRegistro || "");
             safeValue("areaPreRegistroVista", p.areaOrigen || "");
 
+            actualizarCampoCantidad();
             bloquearCamposPreRegistro(true);
             renderResumen();
         }
@@ -6423,6 +6492,7 @@
             var camposClave = [
                 "tipoMovimiento",
                 "clasificacion",
+                "cantidad",
                 "tercero",
                 "codigoSap",
                 "producto",
@@ -6474,6 +6544,49 @@
         }
 
 
+        function unidadCantidad(clasificacion, cantidad) {
+            var tipo = String(clasificacion || "").toLowerCase();
+            var plural = Number(cantidad || 0) !== 1;
+
+            if (tipo.indexOf("ganado") >= 0) return plural ? "animales" : "animal";
+            if (tipo.indexOf("caja") >= 0) return plural ? "cajas" : "caja";
+            if (tipo.indexOf("canal") >= 0) return plural ? "canales" : "canal";
+            if (tipo.indexOf("subproducto") >= 0) return plural ? "piezas" : "pieza";
+            return plural ? "unidades" : "unidad";
+        }
+
+        function textoCantidad(registro) {
+            var cantidad = Math.max(1, Math.trunc(Number(registro && registro.cantidad ? registro.cantidad : 1)));
+            return cantidad.toLocaleString("es-MX") + " " + unidadCantidad(registro ? registro.clasificacion : "", cantidad);
+        }
+
+        function actualizarCampoCantidad() {
+            var clasificacion = getValue("clasificacion") || "Ganado en pie";
+            var cantidadEl = byId("cantidad");
+            var label = byId("cantidadLabel");
+            var hint = byId("cantidadHint");
+            var unidad = unidadCantidad(clasificacion, 2);
+
+            if (label) {
+                if (unidad === "animales") label.textContent = "Cantidad de animales";
+                else if (unidad === "cajas") label.textContent = "Cantidad de cajas";
+                else if (unidad === "canales") label.textContent = "Cantidad de canales";
+                else if (unidad === "piezas") label.textContent = "Cantidad de piezas";
+                else label.textContent = "Cantidad de unidades";
+            }
+
+            if (cantidadEl) {
+                cantidadEl.min = "1";
+                cantidadEl.step = "1";
+                cantidadEl.placeholder = "Número de " + unidad;
+                if (!Number.isFinite(Number(cantidadEl.value)) || Number(cantidadEl.value) <= 0) {
+                    cantidadEl.value = "1";
+                }
+            }
+
+            if (hint) hint.textContent = "Capture cuántos " + unidad + " ingresan.";
+        }
+
         function getForm() {
             var entrada = num(getValue("pesoEntrada"));
             var salida = num(getValue("pesoSalida"));
@@ -6485,6 +6598,7 @@
                 movimientoId: actual ? (actual.movimientoId || null) : null,
                 tipoMovimiento: getValue("tipoMovimiento"),
                 clasificacion: getValue("clasificacion"),
+                cantidad: Math.max(1, Math.trunc(Number(getValue("cantidad") || 1))),
                 tercero: getValue("tercero").trim(),
                 codigoSap: getValue("codigoSap").trim(),
                 placas: getValue("placas").trim().toUpperCase(),
@@ -6545,6 +6659,7 @@
 
             safeValue("tipoMovimiento", r ? r.tipoMovimiento : "Entrada proveedor");
             safeValue("clasificacion", r ? r.clasificacion : "Ganado en pie");
+            safeValue("cantidad", r ? Math.max(1, Math.trunc(Number(r.cantidad || 1))) : 1);
             safeValue("tercero", r ? r.tercero : "");
             safeValue("codigoSap", r ? r.codigoSap : "");
             safeValue("placas", r ? r.placas : "");
@@ -6552,8 +6667,8 @@
             safeValue("sku", r ? r.sku : "");
             safeValue("documento", r ? r.documento : "");
             safeValue("chofer", r ? r.chofer : "");
-            safeValue("origen", r ? r.origen : "");
-            safeValue("destino", r ? r.destino : "");
+            safeValue("origen", r && String(r.origen || "").trim() ? r.origen : "PLANTA 1");
+            safeValue("destino", r && String(r.destino || "").trim() ? r.destino : "TIF 776");
             safeValue("condicion", r ? r.condicion : "");
             safeValue("pesoEntrada", r ? r.pesoEntrada : "");
             safeValue("pesoSalida", r ? r.pesoSalida : "");
@@ -6561,6 +6676,7 @@
             safeValue("motivoManual", r ? r.motivoManual : "");
             safeValue("observaciones", r ? r.observaciones : "");
 
+            actualizarCampoCantidad();
             bloquearCamposPreRegistro(!!state.preRegistro);
             aplicarModoCapturaManual();
             renderResumen();
@@ -6579,6 +6695,28 @@
 
             if (!getValue("placas").trim()) {
                 alert("Capture Placas.");
+                return false;
+            }
+
+            var cantidad = Number(getValue("cantidad") || 0);
+            if (!Number.isFinite(cantidad) || cantidad <= 0 || Math.trunc(cantidad) !== cantidad) {
+                alert("Capture una cantidad entera mayor a cero.");
+                var cantidadEl = byId("cantidad");
+                if (cantidadEl) cantidadEl.focus();
+                return false;
+            }
+
+            if (!getValue("origen").trim()) {
+                alert("Capture el origen.");
+                var origenEl = byId("origen");
+                if (origenEl) origenEl.focus();
+                return false;
+            }
+
+            if (!getValue("destino").trim()) {
+                alert("Capture el destino.");
+                var destinoEl = byId("destino");
+                if (destinoEl) destinoEl.focus();
                 return false;
             }
 
@@ -7037,11 +7175,9 @@
                 guardarStorage();
                 renderAll();
 
-                safeText("connectionText", "Salida cerrada en SQL con folio oficial " + folioOficial + ". Imprimiendo ticket...");
+                safeText("connectionText", "Salida cerrada en SQL con folio oficial " + folioOficial + ". Enviando ticket a la impresora...");
 
-                setTimeout(function () {
-                    imprimirActual();
-                }, 450);
+                await imprimirActual(r.folio);
             } catch (err) {
                 r.syncStatus = "ERROR_SYNC";
                 r.syncError = err && err.message ? err.message : String(err);
@@ -7066,6 +7202,7 @@
             safeText("sumEntrada", kg(r.pesoEntrada));
             safeText("sumSalida", kg(r.pesoSalida));
             safeText("sumNeto", kg(r.pesoNeto));
+            safeText("sumCantidad", textoCantidad(r));
             safeText("sumTercero", r.tercero || "---");
             safeText("sumProducto", r.producto || "---");
             safeText("sumPlacas", r.placas || "---");
@@ -8120,6 +8257,7 @@
                 addCell(tr, r.tipoMovimiento);
                 addCell(tr, r.tercero);
                 addCell(tr, r.producto);
+                addCell(tr, textoCantidad(r));
                 addCell(tr, r.placas);
                 addCell(tr, kg(r.pesoEntrada), "num");
 
@@ -8141,7 +8279,7 @@
             if (count === 0) {
                 var trEmpty = document.createElement("tr");
                 var td = addCell(trEmpty, "Sin pendientes de salida.", "center text-muted");
-                td.colSpan = 8;
+                td.colSpan = 9;
                 tbody.appendChild(trEmpty);
             }
         }
@@ -8174,6 +8312,7 @@
                 addCell(tr, r.fechaSalida || "Pendiente");
                 addCell(tr, r.tipoMovimiento);
                 addCell(tr, r.clasificacion);
+                addCell(tr, textoCantidad(r));
                 addCell(tr, r.tercero);
                 addCell(tr, r.sku);
                 addCell(tr, kg(r.pesoEntrada), "num");
@@ -8199,7 +8338,7 @@
             if (rows.length === 0) {
                 var trEmpty = document.createElement("tr");
                 var td = addCell(trEmpty, "Sin registros para los filtros seleccionados.", "center text-muted");
-                td.colSpan = 13;
+                td.colSpan = 14;
                 tbody.appendChild(trEmpty);
             }
         }
@@ -8288,6 +8427,7 @@
             setPrintText("pEstatus", estatus);
             setPrintText("pMovimiento", r.tipoMovimiento || "Entrada proveedor");
             setPrintText("pClasificacion", r.clasificacion || "Ganado en pie");
+            setPrintText("pCantidad", textoCantidad(r));
 
             setPrintText("pFechaEntrada", r.fechaEntrada || now());
             setPrintText("pFechaSalida", r.fechaSalida || "Pendiente");
@@ -8318,32 +8458,123 @@
             setPrintText("pFechaImpresion", now());
         }
 
-        function imprimirActual() {
-            var r = getForm();
+        function obtenerRegistroParaImprimir(folioSolicitado) {
+            var folio = typeof folioSolicitado === "string" ? folioSolicitado : "";
 
-            if (state.selectedFolio) {
+            if (!folio && state.selectedFolio) {
+                folio = state.selectedFolio;
+            }
+
+            if (folio) {
                 for (var i = 0; i < state.registros.length; i++) {
-                    if (state.registros[i].folio === state.selectedFolio) {
-                        r = state.registros[i];
-                        break;
+                    if (state.registros[i].folio === folio) {
+                        return state.registros[i];
                     }
                 }
-            } else {
-                r.folio = "SIN-GUARDAR";
-                r.estatus = "Vista previa";
-                r.fechaEntrada = now();
-                r.fechaSalida = r.pesoSalida > 0 ? now() : "Pendiente";
-                r.usuarioEntrada = "Supervisor Báscula";
-                r.usuarioSalida = "Supervisor Báscula";
+            }
+
+            var actual = getForm();
+            actual.folio = actual.folio || "SIN-GUARDAR";
+            actual.estatus = actual.estatus || (actual.pesoSalida > 0 ? "CERRADO" : "PENDIENTE");
+            actual.fechaEntrada = actual.fechaEntrada || now();
+            actual.fechaSalida = actual.fechaSalida || (actual.pesoSalida > 0 ? now() : null);
+            actual.usuarioEntrada = actual.usuarioEntrada || usuario();
+            actual.usuarioSalida = actual.usuarioSalida || (actual.pesoSalida > 0 ? usuario() : "");
+
+            return actual;
+        }
+
+        async function imprimirActual(folioSolicitado) {
+            var r = obtenerRegistroParaImprimir(folioSolicitado);
+            var printerName = getValue("printerName").trim();
+
+            if (!printerName) {
+                alert("Seleccione y guarde primero la impresora en Configuración. Ejemplo: EPSON TM-T20IV Receipt.");
+                cambiarVista("configuracion");
+                return false;
             }
 
             llenarTicketImpresion(r);
+            safeText("connectionText", "Enviando ticket directamente a " + printerName + "...");
 
-            setTimeout(function () {
-                window.focus();
-                window.print();
-            }, 300);
+            try {
+                var response = await fetch(PRINT_ENDPOINT, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
+                    body: JSON.stringify({
+                        printerName: printerName,
+                        copias: 2,
+                        movimiento: crearPayloadSync(r)
+                    })
+                });
+
+                var data = null;
+
+                try {
+                    data = await response.json();
+                } catch (jsonError) {
+                    data = null;
+                }
+
+                if (!response.ok || !data || data.ok !== true) {
+                    throw new Error(data && data.msg ? data.msg : ("HTTP " + response.status));
+                }
+
+                var folio = folioVisible(r);
+                addLog("Imprimió ticket directo en " + printerName, folio);
+                guardarStorage();
+                renderBitacora();
+
+                safeText("connectionText", data.msg || ("Ticket enviado a " + printerName + "."));
+                return true;
+            } catch (err) {
+                var detalle = err && err.message ? err.message : String(err);
+                safeText("connectionText", "No se pudo imprimir el ticket: " + detalle);
+                alert("El pesaje quedó guardado, pero el ticket no pudo imprimirse.\n\n" + detalle);
+                return false;
+            }
         }
+
+        /*
+         * Intercepta los controles de impresión en fase de captura. Esto evita que
+         * un manejador antiguo, todavía residente por Hot Reload o navegación
+         * parcial, alcance a ejecutar window.print() y abra la vista previa.
+         */
+        function capturarClickImpresionDirecta(ev) {
+            var control = ev.target && ev.target.closest
+                ? ev.target.closest("#btnImprimirActual, #btnImprimirActual2, #btnTestPrint, .btn-ticket")
+                : null;
+
+            if (!control) return;
+
+            ev.preventDefault();
+            ev.stopPropagation();
+            ev.stopImmediatePropagation();
+
+            var folio = control.classList.contains("btn-ticket")
+                ? (control.getAttribute("data-folio") || "")
+                : "";
+
+            imprimirActual(folio).catch(function (err) {
+                var detalle = err && err.message ? err.message : String(err);
+                safeText("connectionText", "Error de impresión directa: " + detalle);
+                alert("No se pudo enviar el ticket a la impresora.\n\n" + detalle);
+            });
+        }
+
+        if (window.__BASCULA_PRINT_CAPTURE_HANDLER__) {
+            document.removeEventListener(
+                "click",
+                window.__BASCULA_PRINT_CAPTURE_HANDLER__,
+                true
+            );
+        }
+
+        window.__BASCULA_PRINT_CAPTURE_HANDLER__ = capturarClickImpresionDirecta;
+        document.addEventListener("click", capturarClickImpresionDirecta, true);
 
         function exportCsv() {
             exportExcelHistorial();
@@ -8357,6 +8588,7 @@
                 ["estatus", "Estatus"],
                 ["tipoMovimiento", "Tipo movimiento"],
                 ["clasificacion", "Clasificación"],
+                ["cantidad", "Cantidad"],
                 ["tercero", "Proveedor / Cliente"],
                 ["codigoSap", "Código SAP"],
                 ["placas", "Placas"],
@@ -8517,14 +8749,6 @@
                 return;
             }
 
-            var ticket = ev.target.closest(".btn-ticket");
-
-            if (ticket) {
-                ev.preventDefault();
-                cargarRegistro(ticket.getAttribute("data-folio"));
-                imprimirActual();
-                return;
-            }
         });
 
         async function init() {
@@ -8559,8 +8783,6 @@
             on("btnCerrarSalida", "click", cerrarSalida);
             on("btnCerrarSalida2", "click", cerrarSalida);
 
-            on("btnImprimirActual", "click", imprimirActual);
-            on("btnImprimirActual2", "click", imprimirActual);
 
             on("btnExportCsv", "click", exportCsv);
             on("btnLimpiarDemo", "click", limpiarDemo);
@@ -8578,7 +8800,6 @@
 
             on("btnReadCommand", "click", leerPesoTcp);
             on("btnSaveConfig", "click", guardarConfig);
-            on("btnTestPrint", "click", imprimirActual);
             on("stableTolerance", "change", resetEstabilizador);
             on("stableSamples", "change", resetEstabilizador);
 
@@ -8592,6 +8813,17 @@
                 actualizarTerceroPorMovimiento(true);
                 renderResumen();
             });
+
+            on("clasificacion", "change", function () {
+                actualizarCampoCantidad();
+                renderResumen();
+            });
+            on("cantidad", "input", function () {
+                actualizarCampoCantidad();
+                renderResumen();
+            });
+            on("origen", "input", renderResumen);
+            on("destino", "input", renderResumen);
 
             on("producto", "input", renderResumen);
             on("producto", "dblclick", abrirCatalogoProducto);
