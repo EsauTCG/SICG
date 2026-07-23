@@ -1,15 +1,17 @@
 ﻿@model Plataforma_CG.Models.Embarque
-@using Plataforma_CG.Models
 
 @{
     ViewData["Title"] = "Editar Embarque";
     Layout = "~/Views/Shared/_Layout2.cshtml";
 
-    var ordenes = ((IEnumerable<OrdenVenta>)ViewBag.OrdenesDisponibles)?.ToList() ?? new List<OrdenVenta>();
-    var transferencias = ViewBag.TransferenciasDisponibles as List<Transferencia> ?? new List<Transferencia>();
+    var totalOV = ViewBag.TotalOrdenesDisponibles is int totalOrdenes
+        ? totalOrdenes
+        : 0;
 
-    var totalOV = ordenes.Count;
-    var totalTR = transferencias.Count;
+    var totalTR = ViewBag.TotalTransferenciasDisponibles is int totalTransferencias
+        ? totalTransferencias
+        : 0;
+
     var totalDisponibles = totalOV + totalTR;
 }
 
@@ -632,6 +634,57 @@
             border-color: rgba(255,255,255,0.12) !important;
         }
     }
+
+    /* Loader de guardado */
+    .embarque-loader[hidden] {
+        display: none !important;
+    }
+
+    .embarque-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: rgba(15, 23, 42, .68);
+        backdrop-filter: blur(4px);
+        display: grid;
+        place-items: center;
+        padding: 1rem;
+    }
+
+    .embarque-loader-card {
+        width: min(420px, 100%);
+        background: #fff;
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, .25);
+        padding: 1.6rem;
+        text-align: center;
+    }
+
+        .embarque-loader-card .spinner-border {
+            width: 2.5rem;
+            height: 2.5rem;
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        .embarque-loader-card h5 {
+            font-weight: 800;
+            margin-bottom: .45rem;
+        }
+
+        .embarque-loader-card p {
+            color: var(--text-soft);
+            margin: 0;
+        }
+
+    body[data-theme="dark"] .embarque-loader-card {
+        background: #111827;
+        color: #f9fafb;
+        border-color: rgba(255,255,255,.12);
+    }
+
 </style>
 
 <div class="embarque-page">
@@ -641,11 +694,13 @@
             <div class="header-icon">
                 <i class="bi bi-pencil-square"></i>
             </div>
+
             <div>
                 <h1 class="page-title">Editar Embarque #@Model.Consecutivo</h1>
+
                 <div class="page-subtitle">
-                    Agrega órdenes o transferencias disponibles sin saturar la página.
-                    Los documentos nuevos regresarán el embarque a validación.
+                    Agrega órdenes o transferencias mediante consultas paginadas,
+                    sin cargar todos los registros al abrir la página.
                 </div>
             </div>
         </div>
@@ -656,8 +711,10 @@
                 @Model.FechaCreacion.ToString("yyyy-MM-dd")
             </span>
 
-            <a class="btn-top btn-top-light" href="@Url.Action("Detalle", "Embarques", new { id = Model.Id })">
-                <i class="bi bi-arrow-left-circle"></i> Volver al detalle
+            <a class="btn-top btn-top-light"
+               href="@Url.Action("Detalle", "Embarques", new { id = Model.Id })">
+                <i class="bi bi-arrow-left-circle"></i>
+                Volver al detalle
             </a>
         </div>
     </div>
@@ -667,7 +724,24 @@
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
             <i class="bi bi-exclamation-triangle me-1"></i>
             @TempData["Error"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="alert"
+                    aria-label="Cerrar"></button>
+        </div>
+    }
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle me-1"></i>
+            @TempData["Success"]
+
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="alert"
+                    aria-label="Cerrar"></button>
         </div>
     }
 
@@ -676,6 +750,7 @@
             <div class="summary-icon">
                 <i class="bi bi-truck"></i>
             </div>
+
             <div>
                 <div class="summary-label">Embarque</div>
                 <div class="summary-value">@Model.Consecutivo</div>
@@ -686,6 +761,7 @@
             <div class="summary-icon">
                 <i class="bi bi-bag-check"></i>
             </div>
+
             <div>
                 <div class="summary-label">Órdenes disponibles</div>
                 <div class="summary-value">@totalOV</div>
@@ -696,6 +772,7 @@
             <div class="summary-icon">
                 <i class="bi bi-arrow-left-right"></i>
             </div>
+
             <div>
                 <div class="summary-label">Transferencias disponibles</div>
                 <div class="summary-value">@totalTR</div>
@@ -719,52 +796,85 @@
 
             @Html.AntiForgeryToken()
 
-            <input type="hidden" name="embarqueId" value="@Model.Id" />
+            <input type="hidden"
+                   name="embarqueId"
+                   value="@Model.Id" />
+
+            <div id="documentosSeleccionadosPost"></div>
 
             <div class="floating-toolbar">
                 <div class="toolbar-left">
-                    <button type="submit" class="btn-ui btn-primary-ui" id="btnGuardarDocumentos" disabled>
+                    <button type="submit"
+                            class="btn-ui btn-primary-ui"
+                            id="btnGuardarDocumentos"
+                            disabled>
                         <i class="bi bi-plus-circle"></i>
                         Agregar seleccionados
                     </button>
 
-                    <button type="button" class="btn-ui btn-soft" onclick="seleccionarVisibles()">
+                    <span class="header-chip"
+                          style="color:var(--text); background:var(--bg-card); border:1px solid var(--border);">
+                        <i class="bi bi-bag-check"></i>
+                        OV:
+                        <strong id="cantidadSeleccionadaOV">0</strong>
+                    </span>
+
+                    <span class="header-chip"
+                          style="color:var(--text); background:var(--bg-card); border:1px solid var(--border);">
+                        <i class="bi bi-arrow-left-right"></i>
+                        TR:
+                        <strong id="cantidadSeleccionadaTR">0</strong>
+                    </span>
+                </div>
+
+                <div class="toolbar-right">
+                    <button type="button"
+                            class="btn-ui btn-soft"
+                            onclick="seleccionarVisibles()">
                         <i class="bi bi-check2-square"></i>
                         Seleccionar visibles
                     </button>
 
-                    <button type="button" class="btn-ui btn-soft" onclick="limpiarSeleccion()">
+                    <button type="button"
+                            class="btn-ui btn-soft"
+                            onclick="limpiarSeleccion()">
                         <i class="bi bi-x-square"></i>
                         Limpiar selección
                     </button>
-                </div>
 
-                <div class="toolbar-right">
-                    <button type="button" class="btn-ui btn-soft" onclick="irASeccion('seccionOV')">
+                    <button type="button"
+                            class="btn-ui btn-soft"
+                            onclick="irASeccion('seccionOV')">
                         <i class="bi bi-bag-check"></i>
                         Órdenes
                     </button>
 
-                    <button type="button" class="btn-ui btn-soft" onclick="irASeccion('seccionTR')">
+                    <button type="button"
+                            class="btn-ui btn-soft"
+                            onclick="irASeccion('seccionTR')">
                         <i class="bi bi-arrow-left-right"></i>
                         Transferencias
                     </button>
                 </div>
             </div>
 
-            <div class="card-ui table-card" id="seccionOV">
+            <div class="card-ui table-card"
+                 id="seccionOV">
+
                 <div class="card-head">
                     <div>
                         <div class="card-title">
                             <i class="bi bi-bag-check"></i>
                             Órdenes disponibles
                         </div>
+
                         <div class="card-sub">
-                            Solo aparecen órdenes autorizadas y libres para embarque.
+                            La consulta se realiza en bloques de 50 registros.
                         </div>
                     </div>
 
-                    <span class="header-chip" style="color:var(--text); background:#fff; border:1px solid var(--border);">
+                    <span class="header-chip"
+                          style="color:var(--text); background:var(--bg-card); border:1px solid var(--border);">
                         Total: @totalOV
                     </span>
                 </div>
@@ -772,22 +882,26 @@
                 <div class="card-body">
                     <div class="filters-grid">
                         <div class="filter-field">
-                            <label for="buscarOV">Búsqueda general</label>
-                            <input type="text" id="buscarOV" placeholder="Cliente, consecutivo o ruta." />
-                        </div>
-
-                        <div class="filter-field">
-                            <label for="filtroClienteOV">Cliente</label>
-                            <input type="text" id="filtroClienteOV" placeholder="Filtrar por cliente." />
-                        </div>
-
-                        <div class="filter-field">
                             <label for="filtroConsecutivoOV">Consecutivo</label>
-                            <input type="text" id="filtroConsecutivoOV" placeholder="Filtrar por consecutivo." />
+
+                            <input type="text"
+                                   id="filtroConsecutivoOV"
+                                   placeholder="Filtrar por consecutivo..."
+                                   autocomplete="off" />
                         </div>
 
                         <div class="filter-field">
-                            <label for="soloSeleccionadasOV">Selección</label>
+                            <label for="filtroRutaOV">Ruta</label>
+
+                            <input type="text"
+                                   id="filtroRutaOV"
+                                   placeholder="Filtrar por ruta..."
+                                   autocomplete="off" />
+                        </div>
+
+                        <div class="filter-field">
+                            <label for="soloSeleccionadasOV">Mostrar</label>
+
                             <select id="soloSeleccionadasOV">
                                 <option value="todas">Todas</option>
                                 <option value="seleccionadas">Solo seleccionadas</option>
@@ -797,16 +911,23 @@
                     </div>
 
                     <div class="filter-actions">
-                        <button type="button" class="btn-ui btn-soft" onclick="limpiarFiltrosOV()">
+                        <button type="button"
+                                class="btn-ui btn-soft"
+                                onclick="limpiarFiltrosOV()">
                             <i class="bi bi-eraser"></i>
                             Limpiar filtros
                         </button>
                     </div>
 
-                    <div class="result-counter" id="contadorOV">Mostrando 0 registros</div>
+                    <div class="result-counter"
+                         id="contadorOV">
+                        Mostrando 0 registros
+                    </div>
 
                     <div class="table-scroll">
-                        <table class="table-ui" id="tablaOV">
+                        <table class="table-ui"
+                               id="tablaOV">
+
                             <thead>
                                 <tr>
                                     <th style="width:70px;">Sel.</th>
@@ -814,63 +935,51 @@
                                     <th>Cliente</th>
                                     <th>Consecutivo</th>
                                     <th>Ruta</th>
-                                    <th>Fecha entrega</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                @if (ordenes.Any())
-                                {
-                                    @foreach (var ov in ordenes)
-                                    {
-                                        <tr data-tipo="OV"
-                                            data-cliente="@ov.NombreCliente"
-                                            data-consecutivo="@ov.Consecutivo"
-                                            data-ruta="@ov.Ruta">
-                                            <td data-label="Seleccionar">
-                                                <input type="checkbox"
-                                                       class="check-ui chk-doc chk-ov"
-                                                       name="ordenesSeleccionadas"
-                                                       value="@ov.Id" />
-                                            </td>
-                                            <td data-label="ID"><span class="id-badge">#@ov.Id</span></td>
-                                            <td data-label="Cliente">@ov.NombreCliente</td>
-                                            <td data-label="Consecutivo">@ov.Consecutivo</td>
-                                            <td data-label="Ruta">@ov.Ruta</td>
-                                            <td data-label="Fecha">
-                                                @(ov.FechaEntrega != null
-                                                                                    ? ov.FechaEntrega.ToString("yyyy-MM-dd")
-                                                                                    : "-")
-                                </td>
-                            </tr>
-                                                        }
-                                }
-                                else
-                                {
-                                    <tr>
-                                        <td colspan="6" class="empty-note">
-                                            No hay órdenes disponibles para mostrar.
-                                        </td>
-                                    </tr>
-                                }
+
+                            <tbody id="tbodyOV">
+                                <tr>
+                                    <td colspan="5"
+                                        class="empty-note">
+                                        <div class="spinner-border spinner-border-sm"
+                                             role="status"></div>
+                                        Consultando órdenes disponibles...
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
+                    </div>
+
+                    <div class="text-center mt-3">
+                        <button type="button"
+                                id="btnCargarMasOV"
+                                class="btn-ui btn-soft"
+                                style="display:none;">
+                            <i class="bi bi-chevron-down"></i>
+                            Cargar más órdenes
+                        </button>
                     </div>
                 </div>
             </div>
 
-            <div class="card-ui table-card" id="seccionTR">
+            <div class="card-ui table-card"
+                 id="seccionTR">
+
                 <div class="card-head">
                     <div>
                         <div class="card-title">
                             <i class="bi bi-arrow-left-right"></i>
                             Transferencias disponibles
                         </div>
+
                         <div class="card-sub">
-                            Solo aparecen transferencias autorizadas y libres para embarque.
+                            La consulta se realiza en bloques de 50 registros.
                         </div>
                     </div>
 
-                    <span class="header-chip" style="color:var(--text); background:#fff; border:1px solid var(--border);">
+                    <span class="header-chip"
+                          style="color:var(--text); background:var(--bg-card); border:1px solid var(--border);">
                         Total: @totalTR
                     </span>
                 </div>
@@ -878,22 +987,35 @@
                 <div class="card-body">
                     <div class="filters-grid">
                         <div class="filter-field">
-                            <label for="buscarTR">Búsqueda general</label>
-                            <input type="text" id="buscarTR" placeholder="Sucursal, consecutivo o fecha." />
+                            <label for="filtroConsecutivoTR">Consecutivo</label>
+
+                            <input type="text"
+                                   id="filtroConsecutivoTR"
+                                   placeholder="Filtrar por consecutivo..."
+                                   autocomplete="off" />
                         </div>
 
                         <div class="filter-field">
                             <label for="filtroSucursalTR">Sucursal</label>
-                            <input type="text" id="filtroSucursalTR" placeholder="Filtrar por sucursal." />
+
+                            <input type="text"
+                                   id="filtroSucursalTR"
+                                   placeholder="Filtrar por sucursal..."
+                                   autocomplete="off" />
                         </div>
 
                         <div class="filter-field">
-                            <label for="filtroConsecutivoTR">Consecutivo</label>
-                            <input type="text" id="filtroConsecutivoTR" placeholder="Filtrar por consecutivo." />
+                            <label for="filtroFechaTR">Fecha</label>
+
+                            <input type="text"
+                                   id="filtroFechaTR"
+                                   placeholder="Ej. 15/04/2026"
+                                   autocomplete="off" />
                         </div>
 
                         <div class="filter-field">
-                            <label for="soloSeleccionadasTR">Selección</label>
+                            <label for="soloSeleccionadasTR">Mostrar</label>
+
                             <select id="soloSeleccionadasTR">
                                 <option value="todas">Todas</option>
                                 <option value="seleccionadas">Solo seleccionadas</option>
@@ -903,275 +1025,887 @@
                     </div>
 
                     <div class="filter-actions">
-                        <button type="button" class="btn-ui btn-soft" onclick="limpiarFiltrosTR()">
+                        <button type="button"
+                                class="btn-ui btn-soft"
+                                onclick="limpiarFiltrosTR()">
                             <i class="bi bi-eraser"></i>
                             Limpiar filtros
                         </button>
                     </div>
 
-                    <div class="result-counter" id="contadorTR">Mostrando 0 registros</div>
+                    <div class="result-counter"
+                         id="contadorTR">
+                        Mostrando 0 registros
+                    </div>
 
                     <div class="table-scroll">
-                        <table class="table-ui" id="tablaTR">
+                        <table class="table-ui"
+                               id="tablaTR">
+
                             <thead>
                                 <tr>
                                     <th style="width:70px;">Sel.</th>
                                     <th>ID</th>
                                     <th>Sucursal</th>
                                     <th>Consecutivo</th>
-                                    <th>Fecha Solicitud</th>
-                                    <th>Usuario Solicita</th>
+                                    <th>Fecha solicitud</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                @if (transferencias.Any())
-                                {
-                                    @foreach (var tr in transferencias)
-                                    {
-                                        <tr data-tipo="TR"
-                                            data-sucursal="@tr.Sucursal"
-                                            data-consecutivo="@tr.Consecutivo"
-                                            data-fecha="@tr.FechaSolicitud?.ToString("yyyy-MM-dd")">
-                                            <td data-label="Seleccionar">
-                                                <input type="checkbox"
-                                                       class="check-ui chk-doc chk-tr"
-                                                       name="transferenciasSeleccionadas"
-                                                       value="@tr.Id" />
-                                            </td>
-                                            <td data-label="ID"><span class="id-badge">#@tr.Id</span></td>
-                                            <td data-label="Sucursal">@tr.Sucursal</td>
-                                            <td data-label="Consecutivo">@tr.Consecutivo</td>
-                                            <td data-label="Fecha">@tr.FechaSolicitud?.ToString("yyyy-MM-dd")</td>
-                                            <td data-label="Usuario">@tr.UsuarioSolicita</td>
-                                        </tr>
-                                    }
-                                }
-                                else
-                                {
-                                    <tr>
-                                        <td colspan="6" class="empty-note">
-                                            No hay transferencias disponibles para mostrar.
-                                        </td>
-                                    </tr>
-                                }
+
+                            <tbody id="tbodyTR">
+                                <tr>
+                                    <td colspan="5"
+                                        class="empty-note">
+                                        <div class="spinner-border spinner-border-sm"
+                                             role="status"></div>
+                                        Consultando transferencias disponibles...
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
+                    </div>
+
+                    <div class="text-center mt-3">
+                        <button type="button"
+                                id="btnCargarMasTR"
+                                class="btn-ui btn-soft"
+                                style="display:none;">
+                            <i class="bi bi-chevron-down"></i>
+                            Cargar más transferencias
+                        </button>
                     </div>
                 </div>
             </div>
         </form>
+
+        <div id="loaderEditarEmbarque"
+             class="embarque-loader"
+             hidden>
+
+            <div class="embarque-loader-card">
+                <div class="spinner-border"
+                     role="status"></div>
+
+                <h5>Agregando documentos</h5>
+
+                <p>
+                    Estamos actualizando el embarque.
+                    No cierres esta ventana.
+                </p>
+            </div>
+        </div>
     }
 </div>
 
 <script>
-    function normalizar(valor) {
-        return (valor || "").toString().trim().toLowerCase();
+    const PAGE_SIZE = 50;
+
+    const urlOrdenes =
+        '@Url.Action("ObtenerOrdenesDisponibles", "Embarques")';
+
+    const urlTransferencias =
+        '@Url.Action("ObtenerTransferenciasDisponibles", "Embarques")';
+
+    const seleccionadasOV = new Map();
+    const seleccionadasTR = new Map();
+
+    const estadoOV = {
+        pagina: 0,
+        total: 0,
+        hayMas: true,
+        cargando: false,
+        abortController: null,
+        idsRenderizados: new Set()
+    };
+
+    const estadoTR = {
+        pagina: 0,
+        total: 0,
+        hayMas: true,
+        cargando: false,
+        abortController: null,
+        idsRenderizados: new Set()
+    };
+
+    function escaparHtml(valor) {
+        const elemento = document.createElement("div");
+        elemento.textContent = valor ?? "";
+        return elemento.innerHTML;
     }
 
-    function irASeccion(id) {
-        const seccion = document.getElementById(id);
-        if (!seccion) return;
+    function normalizar(valor) {
+        return (valor ?? "")
+            .toString()
+            .trim()
+            .toLowerCase();
+    }
 
-        const toolbar = document.querySelector(".floating-toolbar");
-        const toolbarHeight = toolbar ? toolbar.offsetHeight : 0;
+    function debounce(funcion, espera) {
+        let timeout;
 
-        const posicion =
-            seccion.getBoundingClientRect().top +
-            window.pageYOffset -
-            toolbarHeight -
-            18;
+        return function (...args) {
+            clearTimeout(timeout);
 
-        window.scrollTo({
-            top: posicion,
-            behavior: "smooth"
+            timeout = setTimeout(() => {
+                funcion.apply(this, args);
+            }, espera);
+        };
+    }
+
+    function irASeccion(idSeccion) {
+        const seccion = document.getElementById(idSeccion);
+
+        if (!seccion) {
+            return;
+        }
+
+        seccion.scrollIntoView({
+            behavior: "smooth",
+            block: "start"
         });
     }
 
-    function actualizarBotonGuardar() {
-        const btn = document.getElementById("btnGuardarDocumentos");
-        const haySeleccion = Array.from(document.querySelectorAll(".chk-doc")).some(x => x.checked);
+    function actualizarEstadoSeleccion() {
+        const contadorOV =
+            document.getElementById("cantidadSeleccionadaOV");
 
-        if (btn) {
-            btn.disabled = !haySeleccion;
+        const contadorTR =
+            document.getElementById("cantidadSeleccionadaTR");
+
+        const boton =
+            document.getElementById("btnGuardarDocumentos");
+
+        if (contadorOV) {
+            contadorOV.textContent = seleccionadasOV.size;
+        }
+
+        if (contadorTR) {
+            contadorTR.textContent = seleccionadasTR.size;
+        }
+
+        if (boton) {
+            boton.disabled =
+                seleccionadasOV.size === 0 &&
+                seleccionadasTR.size === 0;
         }
     }
 
-    function actualizarContador(tableId, counterId) {
-        const table = document.getElementById(tableId);
-        const counter = document.getElementById(counterId);
-        if (!table || !counter) return;
+    function mostrarCargando(tbodyId, columnas, mensaje) {
+        const tbody = document.getElementById(tbodyId);
 
-        const filas = Array.from(table.querySelectorAll("tbody tr"))
-            .filter(f => !f.querySelector(".empty-note") && f.style.display !== "none");
-
-        counter.textContent = `Mostrando ${filas.length} registro(s)`;
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="${columnas}" class="empty-note">
+                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                    ${escaparHtml(mensaje)}
+                </td>
+            </tr>
+        `;
     }
 
-    function aplicarModoSeleccion(fila, modo) {
-        const check = fila.querySelector('input[type="checkbox"]');
-        const seleccionada = check ? check.checked : false;
+    function mostrarVacio(tbodyId, columnas, mensaje) {
+        const tbody = document.getElementById(tbodyId);
 
-        if (modo === "seleccionadas" && !seleccionada) return false;
-        if (modo === "noseleccionadas" && seleccionada) return false;
-
-        return true;
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="${columnas}" class="empty-note">
+                    <i class="bi bi-inbox"></i>
+                    ${escaparHtml(mensaje)}
+                </td>
+            </tr>
+        `;
     }
 
-    function filtrarOV() {
-        const table = document.getElementById("tablaOV");
-        if (!table) return;
+    function mostrarError(tbodyId, columnas) {
+        const tbody = document.getElementById(tbodyId);
 
-        const general = normalizar(document.getElementById("buscarOV").value);
-        const cliente = normalizar(document.getElementById("filtroClienteOV").value);
-        const consecutivo = normalizar(document.getElementById("filtroConsecutivoOV").value);
-        const modo = document.getElementById("soloSeleccionadasOV").value;
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="${columnas}" class="empty-note text-danger">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    No fue posible consultar los registros.
+                </td>
+            </tr>
+        `;
+    }
 
-        table.querySelectorAll("tbody tr").forEach(fila => {
-            if (fila.querySelector(".empty-note")) return;
+    function crearFilaOV(item) {
+        const fila = document.createElement("tr");
+        fila.dataset.id = item.id;
 
-            const txtCliente = normalizar(fila.dataset.cliente);
-            const txtConsecutivo = normalizar(fila.dataset.consecutivo);
-            const txtRuta = normalizar(fila.dataset.ruta);
-            const textoCompleto = normalizar(fila.innerText);
+        fila.innerHTML = `
+            <td data-label="Seleccionar">
+                <input type="checkbox"
+                       class="check-ui check-ov"
+                       value="${item.id}" />
+            </td>
 
-            const cumple =
-                (!general || textoCompleto.includes(general)) &&
-                (!cliente || txtCliente.includes(cliente)) &&
-                (!consecutivo || txtConsecutivo.includes(consecutivo)) &&
-                aplicarModoSeleccion(fila, modo);
+            <td data-label="ID">
+                <span class="id-badge">#${item.id}</span>
+            </td>
 
-            fila.style.display = cumple ? "" : "none";
+            <td data-label="Cliente">
+                ${escaparHtml(item.nombreCliente)}
+            </td>
+
+            <td data-label="Consecutivo">
+                ${escaparHtml(item.consecutivo)}
+            </td>
+
+            <td data-label="Ruta">
+                ${escaparHtml(item.ruta)}
+            </td>
+        `;
+
+        const checkbox = fila.querySelector(".check-ov");
+
+        checkbox.checked = seleccionadasOV.has(item.id);
+
+        checkbox.addEventListener("change", function () {
+            if (this.checked) {
+                seleccionadasOV.set(item.id, item);
+            } else {
+                seleccionadasOV.delete(item.id);
+            }
+
+            actualizarEstadoSeleccion();
+
+            const modo =
+                document.getElementById("soloSeleccionadasOV").value;
+
+            if (modo === "seleccionadas") {
+                renderizarSeleccionadasOV();
+            }
+
+            if (modo === "noseleccionadas" && this.checked) {
+                fila.remove();
+                actualizarContadorOV();
+            }
         });
 
-        actualizarContador("tablaOV", "contadorOV");
+        return fila;
     }
 
-    function filtrarTR() {
-        const table = document.getElementById("tablaTR");
-        if (!table) return;
+    function crearFilaTR(item) {
+        const fila = document.createElement("tr");
+        fila.dataset.id = item.id;
 
-        const general = normalizar(document.getElementById("buscarTR").value);
-        const sucursal = normalizar(document.getElementById("filtroSucursalTR").value);
-        const consecutivo = normalizar(document.getElementById("filtroConsecutivoTR").value);
-        const modo = document.getElementById("soloSeleccionadasTR").value;
+        fila.innerHTML = `
+            <td data-label="Seleccionar">
+                <input type="checkbox"
+                       class="check-ui check-tr"
+                       value="${item.id}" />
+            </td>
 
-        table.querySelectorAll("tbody tr").forEach(fila => {
-            if (fila.querySelector(".empty-note")) return;
+            <td data-label="ID">
+                <span class="id-badge">#${item.id}</span>
+            </td>
 
-            const txtSucursal = normalizar(fila.dataset.sucursal);
-            const txtConsecutivo = normalizar(fila.dataset.consecutivo);
-            const textoCompleto = normalizar(fila.innerText);
+            <td data-label="Sucursal">
+                ${escaparHtml(item.sucursal)}
+            </td>
 
-            const cumple =
-                (!general || textoCompleto.includes(general)) &&
-                (!sucursal || txtSucursal.includes(sucursal)) &&
-                (!consecutivo || txtConsecutivo.includes(consecutivo)) &&
-                aplicarModoSeleccion(fila, modo);
+            <td data-label="Consecutivo">
+                ${escaparHtml(item.consecutivo)}
+            </td>
 
-            fila.style.display = cumple ? "" : "none";
+            <td data-label="Fecha">
+                ${escaparHtml(item.fechaSolicitudTexto)}
+            </td>
+        `;
+
+        const checkbox = fila.querySelector(".check-tr");
+
+        checkbox.checked = seleccionadasTR.has(item.id);
+
+        checkbox.addEventListener("change", function () {
+            if (this.checked) {
+                seleccionadasTR.set(item.id, item);
+            } else {
+                seleccionadasTR.delete(item.id);
+            }
+
+            actualizarEstadoSeleccion();
+
+            const modo =
+                document.getElementById("soloSeleccionadasTR").value;
+
+            if (modo === "seleccionadas") {
+                renderizarSeleccionadasTR();
+            }
+
+            if (modo === "noseleccionadas" && this.checked) {
+                fila.remove();
+                actualizarContadorTR();
+            }
         });
 
-        actualizarContador("tablaTR", "contadorTR");
+        return fila;
     }
+
+    function actualizarContadorOV() {
+        const visibles =
+            document.querySelectorAll("#tbodyOV tr[data-id]").length;
+
+        const contador =
+            document.getElementById("contadorOV");
+
+        if (contador) {
+            contador.textContent =
+                `Mostrando ${visibles} de ${estadoOV.total} registro(s). ` +
+                `Seleccionadas: ${seleccionadasOV.size}`;
+        }
+    }
+
+    function actualizarContadorTR() {
+        const visibles =
+            document.querySelectorAll("#tbodyTR tr[data-id]").length;
+
+        const contador =
+            document.getElementById("contadorTR");
+
+        if (contador) {
+            contador.textContent =
+                `Mostrando ${visibles} de ${estadoTR.total} registro(s). ` +
+                `Seleccionadas: ${seleccionadasTR.size}`;
+        }
+    }
+
+    function cumpleFiltrosLocalesOV(item) {
+        const consecutivo = normalizar(
+            document.getElementById("filtroConsecutivoOV")?.value
+        );
+
+        const ruta = normalizar(
+            document.getElementById("filtroRutaOV")?.value
+        );
+
+        return (
+            !consecutivo ||
+            normalizar(item.consecutivo).includes(consecutivo)
+        ) && (
+            !ruta ||
+            normalizar(item.ruta).includes(ruta)
+        );
+    }
+
+    function cumpleFiltrosLocalesTR(item) {
+        const sucursal = normalizar(
+            document.getElementById("filtroSucursalTR")?.value
+        );
+
+        const consecutivo = normalizar(
+            document.getElementById("filtroConsecutivoTR")?.value
+        );
+
+        const fecha = normalizar(
+            document.getElementById("filtroFechaTR")?.value
+        );
+
+        return (
+            !sucursal ||
+            normalizar(item.sucursal).includes(sucursal)
+        ) && (
+            !consecutivo ||
+            normalizar(item.consecutivo).includes(consecutivo)
+        ) && (
+            !fecha ||
+            normalizar(item.fechaSolicitudTexto).includes(fecha)
+        );
+    }
+
+    function renderizarSeleccionadasOV() {
+        const tbody = document.getElementById("tbodyOV");
+        tbody.innerHTML = "";
+
+        const items = Array
+            .from(seleccionadasOV.values())
+            .filter(cumpleFiltrosLocalesOV);
+
+        items.forEach(item => {
+            tbody.appendChild(crearFilaOV(item));
+        });
+
+        if (!items.length) {
+            mostrarVacio(
+                "tbodyOV",
+                5,
+                "No hay órdenes seleccionadas con estos filtros."
+            );
+        }
+
+        document.getElementById("btnCargarMasOV").style.display = "none";
+        actualizarContadorOV();
+    }
+
+    function renderizarSeleccionadasTR() {
+        const tbody = document.getElementById("tbodyTR");
+        tbody.innerHTML = "";
+
+        const items = Array
+            .from(seleccionadasTR.values())
+            .filter(cumpleFiltrosLocalesTR);
+
+        items.forEach(item => {
+            tbody.appendChild(crearFilaTR(item));
+        });
+
+        if (!items.length) {
+            mostrarVacio(
+                "tbodyTR",
+                5,
+                "No hay transferencias seleccionadas con estos filtros."
+            );
+        }
+
+        document.getElementById("btnCargarMasTR").style.display = "none";
+        actualizarContadorTR();
+    }
+
+    async function cargarOV(reiniciar = false) {
+        const modo =
+            document.getElementById("soloSeleccionadasOV").value;
+
+        if (modo === "seleccionadas") {
+            renderizarSeleccionadasOV();
+            return;
+        }
+
+        if (!reiniciar && (estadoOV.cargando || !estadoOV.hayMas)) {
+            return;
+        }
+
+        if (reiniciar) {
+            estadoOV.abortController?.abort();
+
+            estadoOV.pagina = 0;
+            estadoOV.total = 0;
+            estadoOV.hayMas = true;
+            estadoOV.idsRenderizados.clear();
+
+            mostrarCargando(
+                "tbodyOV",
+                5,
+                "Consultando órdenes disponibles..."
+            );
+        }
+
+        const controladorActual = new AbortController();
+
+        estadoOV.abortController = controladorActual;
+        estadoOV.cargando = true;
+
+        const boton = document.getElementById("btnCargarMasOV");
+        boton.disabled = true;
+
+        try {
+            const paginaSiguiente = estadoOV.pagina + 1;
+
+            const parametros = new URLSearchParams({
+                pagina: paginaSiguiente,
+                tamanoPagina: PAGE_SIZE,
+                consecutivo:
+                    document.getElementById("filtroConsecutivoOV")?.value ?? "",
+                ruta:
+                    document.getElementById("filtroRutaOV")?.value ?? ""
+            });
+
+            const respuesta = await fetch(
+                `${urlOrdenes}?${parametros.toString()}`,
+                {
+                    signal: controladorActual.signal,
+                    headers: {
+                        "X-Requested-With": "XMLHttpRequest"
+                    }
+                }
+            );
+
+            if (!respuesta.ok) {
+                throw new Error("Error consultando órdenes.");
+            }
+
+            const resultado = await respuesta.json();
+            const tbody = document.getElementById("tbodyOV");
+
+            if (reiniciar) {
+                tbody.innerHTML = "";
+            }
+
+            resultado.items.forEach(item => {
+                if (
+                    modo === "noseleccionadas" &&
+                    seleccionadasOV.has(item.id)
+                ) {
+                    return;
+                }
+
+                if (estadoOV.idsRenderizados.has(item.id)) {
+                    return;
+                }
+
+                estadoOV.idsRenderizados.add(item.id);
+                tbody.appendChild(crearFilaOV(item));
+            });
+
+            estadoOV.pagina = resultado.pagina;
+            estadoOV.total = resultado.total;
+            estadoOV.hayMas = resultado.hayMas;
+
+            if (!tbody.querySelector("tr[data-id]")) {
+                mostrarVacio(
+                    "tbodyOV",
+                    5,
+                    "No hay órdenes disponibles con estos filtros."
+                );
+            }
+
+            boton.style.display =
+                estadoOV.hayMas ? "inline-flex" : "none";
+
+            actualizarContadorOV();
+        }
+        catch (error) {
+            if (error.name !== "AbortError") {
+                mostrarError("tbodyOV", 5);
+            }
+        }
+        finally {
+            if (estadoOV.abortController === controladorActual) {
+                estadoOV.cargando = false;
+                boton.disabled = false;
+            }
+        }
+    }
+
+    async function cargarTR(reiniciar = false) {
+        const modo =
+            document.getElementById("soloSeleccionadasTR").value;
+
+        if (modo === "seleccionadas") {
+            renderizarSeleccionadasTR();
+            return;
+        }
+
+        if (!reiniciar && (estadoTR.cargando || !estadoTR.hayMas)) {
+            return;
+        }
+
+        if (reiniciar) {
+            estadoTR.abortController?.abort();
+
+            estadoTR.pagina = 0;
+            estadoTR.total = 0;
+            estadoTR.hayMas = true;
+            estadoTR.idsRenderizados.clear();
+
+            mostrarCargando(
+                "tbodyTR",
+                5,
+                "Consultando transferencias disponibles..."
+            );
+        }
+
+        const controladorActual = new AbortController();
+
+        estadoTR.abortController = controladorActual;
+        estadoTR.cargando = true;
+
+        const boton = document.getElementById("btnCargarMasTR");
+        boton.disabled = true;
+
+        try {
+            const paginaSiguiente = estadoTR.pagina + 1;
+
+            const parametros = new URLSearchParams({
+                pagina: paginaSiguiente,
+                tamanoPagina: PAGE_SIZE,
+                sucursal:
+                    document.getElementById("filtroSucursalTR")?.value ?? "",
+                consecutivo:
+                    document.getElementById("filtroConsecutivoTR")?.value ?? "",
+                fecha:
+                    document.getElementById("filtroFechaTR")?.value ?? ""
+            });
+
+            const respuesta = await fetch(
+                `${urlTransferencias}?${parametros.toString()}`,
+                {
+                    signal: controladorActual.signal,
+                    headers: {
+                        "X-Requested-With": "XMLHttpRequest"
+                    }
+                }
+            );
+
+            if (!respuesta.ok) {
+                throw new Error("Error consultando transferencias.");
+            }
+
+            const resultado = await respuesta.json();
+            const tbody = document.getElementById("tbodyTR");
+
+            if (reiniciar) {
+                tbody.innerHTML = "";
+            }
+
+            resultado.items.forEach(item => {
+                if (
+                    modo === "noseleccionadas" &&
+                    seleccionadasTR.has(item.id)
+                ) {
+                    return;
+                }
+
+                if (estadoTR.idsRenderizados.has(item.id)) {
+                    return;
+                }
+
+                estadoTR.idsRenderizados.add(item.id);
+                tbody.appendChild(crearFilaTR(item));
+            });
+
+            estadoTR.pagina = resultado.pagina;
+            estadoTR.total = resultado.total;
+            estadoTR.hayMas = resultado.hayMas;
+
+            if (!tbody.querySelector("tr[data-id]")) {
+                mostrarVacio(
+                    "tbodyTR",
+                    5,
+                    "No hay transferencias disponibles con estos filtros."
+                );
+            }
+
+            boton.style.display =
+                estadoTR.hayMas ? "inline-flex" : "none";
+
+            actualizarContadorTR();
+        }
+        catch (error) {
+            if (error.name !== "AbortError") {
+                mostrarError("tbodyTR", 5);
+            }
+        }
+        finally {
+            if (estadoTR.abortController === controladorActual) {
+                estadoTR.cargando = false;
+                boton.disabled = false;
+            }
+        }
+    }
+
+    const aplicarFiltrosOV = debounce(() => {
+        cargarOV(true);
+    }, 350);
+
+    const aplicarFiltrosTR = debounce(() => {
+        cargarTR(true);
+    }, 350);
 
     function limpiarFiltrosOV() {
-        document.getElementById("buscarOV").value = "";
-        document.getElementById("filtroClienteOV").value = "";
-        document.getElementById("filtroConsecutivoOV").value = "";
-        document.getElementById("soloSeleccionadasOV").value = "todas";
-        filtrarOV();
+        const consecutivo =
+            document.getElementById("filtroConsecutivoOV");
+
+        const ruta =
+            document.getElementById("filtroRutaOV");
+
+        const modo =
+            document.getElementById("soloSeleccionadasOV");
+
+        if (consecutivo) {
+            consecutivo.value = "";
+        }
+
+        if (ruta) {
+            ruta.value = "";
+        }
+
+        if (modo) {
+            modo.value = "todas";
+        }
+
+        cargarOV(true);
     }
 
     function limpiarFiltrosTR() {
-        document.getElementById("buscarTR").value = "";
-        document.getElementById("filtroSucursalTR").value = "";
-        document.getElementById("filtroConsecutivoTR").value = "";
-        document.getElementById("soloSeleccionadasTR").value = "todas";
-        filtrarTR();
+        const sucursal =
+            document.getElementById("filtroSucursalTR");
+
+        const consecutivo =
+            document.getElementById("filtroConsecutivoTR");
+
+        const fecha =
+            document.getElementById("filtroFechaTR");
+
+        const modo =
+            document.getElementById("soloSeleccionadasTR");
+
+        if (sucursal) {
+            sucursal.value = "";
+        }
+
+        if (consecutivo) {
+            consecutivo.value = "";
+        }
+
+        if (fecha) {
+            fecha.value = "";
+        }
+
+        if (modo) {
+            modo.value = "todas";
+        }
+
+        cargarTR(true);
     }
 
     function seleccionarVisibles() {
-        document.querySelectorAll(".table-ui tbody tr").forEach(fila => {
-            if (fila.style.display === "none") return;
-            if (fila.querySelector(".empty-note")) return;
+        document
+            .querySelectorAll(
+                "#tbodyOV .check-ov:not(:checked), " +
+                "#tbodyTR .check-tr:not(:checked)"
+            )
+            .forEach(checkbox => {
+                checkbox.checked = true;
 
-            const check = fila.querySelector('input[type="checkbox"]');
-            if (check) check.checked = true;
-        });
-
-        actualizarBotonGuardar();
-        filtrarOV();
-        filtrarTR();
+                checkbox.dispatchEvent(
+                    new Event("change", {
+                        bubbles: true
+                    })
+                );
+            });
     }
 
     function limpiarSeleccion() {
-        document.querySelectorAll(".chk-doc").forEach(chk => {
-            chk.checked = false;
-        });
+        seleccionadasOV.clear();
+        seleccionadasTR.clear();
 
-        actualizarBotonGuardar();
-        filtrarOV();
-        filtrarTR();
+        actualizarEstadoSeleccion();
+        cargarOV(true);
+        cargarTR(true);
+    }
+
+    function agregarInputOculto(contenedor, nombre, valor) {
+        const input = document.createElement("input");
+
+        input.type = "hidden";
+        input.name = nombre;
+        input.value = valor;
+
+        contenedor.appendChild(input);
     }
 
     document.addEventListener("DOMContentLoaded", function () {
-        const form = document.getElementById("formAgregarDocumentos");
-        const filtros = [
-            "buscarOV",
-            "filtroClienteOV",
-            "filtroConsecutivoOV",
-            "soloSeleccionadasOV",
-            "buscarTR",
-            "filtroSucursalTR",
-            "filtroConsecutivoTR",
-            "soloSeleccionadasTR"
-        ];
+        const form =
+            document.getElementById("formAgregarDocumentos");
 
-        filtros.forEach(id => {
-            const el = document.getElementById(id);
-            if (!el) return;
-
-            const fn = id.includes("OV") ? filtrarOV : filtrarTR;
-            el.addEventListener("input", fn);
-            el.addEventListener("change", fn);
-        });
-
-        document.querySelectorAll(".chk-doc").forEach(chk => {
-            chk.addEventListener("change", function () {
-                actualizarBotonGuardar();
-                filtrarOV();
-                filtrarTR();
-            });
-        });
-
-        if (form) {
-            form.addEventListener("submit", function (e) {
-                const seleccionados = Array.from(document.querySelectorAll(".chk-doc"))
-                    .filter(x => x.checked);
-
-                if (seleccionados.length <= 0) {
-                    e.preventDefault();
-                    alert("Selecciona al menos una orden o transferencia.");
-                    return;
-                }
-
-                const ok = confirm(`¿Seguro que deseas agregar ${seleccionados.length} documento(s) al embarque?`);
-
-                if (!ok) {
-                    e.preventDefault();
-                    return;
-                }
-
-                const btn = document.getElementById("btnGuardarDocumentos");
-                if (btn) {
-                    btn.disabled = true;
-                    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Agregando...';
-                }
-            });
+        if (!form) {
+            return;
         }
 
-        filtrarOV();
-        filtrarTR();
-        actualizarBotonGuardar();
+        [
+            "filtroConsecutivoOV",
+            "filtroRutaOV"
+        ].forEach(id => {
+            document
+                .getElementById(id)
+                ?.addEventListener("input", aplicarFiltrosOV);
+        });
+
+        [
+            "filtroSucursalTR",
+            "filtroConsecutivoTR",
+            "filtroFechaTR"
+        ].forEach(id => {
+            document
+                .getElementById(id)
+                ?.addEventListener("input", aplicarFiltrosTR);
+        });
+
+        document
+            .getElementById("soloSeleccionadasOV")
+            ?.addEventListener("change", () => cargarOV(true));
+
+        document
+            .getElementById("soloSeleccionadasTR")
+            ?.addEventListener("change", () => cargarTR(true));
+
+        document
+            .getElementById("btnCargarMasOV")
+            ?.addEventListener("click", () => cargarOV(false));
+
+        document
+            .getElementById("btnCargarMasTR")
+            ?.addEventListener("click", () => cargarTR(false));
+
+        const botonGuardar =
+            document.getElementById("btnGuardarDocumentos");
+
+        const loader =
+            document.getElementById("loaderEditarEmbarque");
+
+        const contenedorInputs =
+            document.getElementById("documentosSeleccionadosPost");
+
+        let enviando = false;
+
+        form.addEventListener("submit", function (event) {
+            if (enviando) {
+                event.preventDefault();
+                return;
+            }
+
+            const totalSeleccionados =
+                seleccionadasOV.size +
+                seleccionadasTR.size;
+
+            if (totalSeleccionados === 0) {
+                event.preventDefault();
+
+                alert(
+                    "Debes seleccionar al menos una orden o transferencia."
+                );
+
+                return;
+            }
+
+            const confirmar = confirm(
+                `¿Seguro que deseas agregar ${totalSeleccionados} ` +
+                `documento(s) al embarque?`
+            );
+
+            if (!confirmar) {
+                event.preventDefault();
+                return;
+            }
+
+            contenedorInputs.innerHTML = "";
+
+            seleccionadasOV.forEach((item, id) => {
+                agregarInputOculto(
+                    contenedorInputs,
+                    "ordenesSeleccionadas",
+                    id
+                );
+            });
+
+            seleccionadasTR.forEach((item, id) => {
+                agregarInputOculto(
+                    contenedorInputs,
+                    "transferenciasSeleccionadas",
+                    id
+                );
+            });
+
+            enviando = true;
+            botonGuardar.disabled = true;
+            loader.hidden = false;
+        });
+
+        actualizarEstadoSeleccion();
+
+        // Solo se consultan 50 registros por sección al abrir.
+        cargarOV(true);
+        cargarTR(true);
     });
 </script>

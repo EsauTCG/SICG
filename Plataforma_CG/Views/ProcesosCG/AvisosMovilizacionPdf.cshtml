@@ -1,24 +1,152 @@
 ﻿@model Plataforma_CG.ViewModels.AvisosMovilizacionPdfVM
+
 @{
     Layout = null;
-    var grupos = Model.Rows
-        .GroupBy(x => new { x.SolicitudSurtidoId, x.Venta, x.Cliente, x.FechaVentaTxt })
-        .OrderBy(g => g.Key.FechaVentaTxt)
+
+    string Normalizar(string value)
+        => (value ?? string.Empty).Trim().ToUpperInvariant();
+
+    /*
+        IMPORTANTE:
+        P1 puede devolver una fila por cada etiqueta/caja.
+
+        Antes de construir el PDF, consolidamos las filas por:
+        - Solicitud
+        - Venta
+        - Cliente
+        - Fecha de venta
+        - SKU
+        - Producto
+        - Lote
+        - Fecha de sacrificio
+        - Fecha de producción
+        - Fecha de caducidad
+
+        Después sumamos:
+        - CuentaDeEtiqueta
+        - SumaDeKg
+    */
+    var filasAgrupadas = Model.Rows
+        .GroupBy(x => new
+        {
+            Planta = Normalizar(x.Planta),
+            SolicitudSurtidoId = Normalizar(x.SolicitudSurtidoId),
+            Venta = Normalizar(x.Venta),
+            Cliente = Normalizar(x.Cliente),
+            FechaVenta = x.FechaVenta?.Date,
+
+            Sku = Normalizar(x.Sku),
+            Producto = Normalizar(x.Producto),
+            Lote = Normalizar(x.Lote),
+
+            FechaSacrificio = x.FechaSacrificio?.Date,
+            FechaProduccion = x.FechaProduccion?.Date,
+            FechaCaducidad = x.FechaCaducidad?.Date
+        })
+        .Select(g =>
+        {
+            var primero = g.First();
+
+            return new
+            {
+                Planta = (primero.Planta ?? string.Empty).Trim(),
+                SolicitudSurtidoId = (primero.SolicitudSurtidoId ?? string.Empty).Trim(),
+                Venta = (primero.Venta ?? string.Empty).Trim(),
+                Cliente = (primero.Cliente ?? string.Empty).Trim(),
+
+                FechaVenta = g.Key.FechaVenta,
+                FechaVentaTxt = g.Key.FechaVenta?.ToString("dd/MM/yyyy") ?? string.Empty,
+
+                Sku = (primero.Sku ?? string.Empty).Trim(),
+                Producto = (primero.Producto ?? string.Empty).Trim(),
+                Lote = (primero.Lote ?? string.Empty).Trim(),
+
+                FechaSacrificio = g.Key.FechaSacrificio,
+                FechaSacrificioTxt =
+                    g.Key.FechaSacrificio?.ToString("dd/MM/yyyy") ?? string.Empty,
+
+                FechaProduccion = g.Key.FechaProduccion,
+                FechaProduccionTxt =
+                    g.Key.FechaProduccion?.ToString("dd/MM/yyyy") ?? string.Empty,
+
+                FechaCaducidad = g.Key.FechaCaducidad,
+                FechaCaducidadTxt =
+                    g.Key.FechaCaducidad?.ToString("dd/MM/yyyy") ?? string.Empty,
+
+                CuentaDeEtiqueta = g.Sum(x => x.CuentaDeEtiqueta),
+                SumaDeKg = g.Sum(x => x.SumaDeKg)
+            };
+        })
+        .OrderBy(x => x.FechaVenta)
+        .ThenBy(x => x.SolicitudSurtidoId)
+        .ThenBy(x => x.Sku)
+        .ThenBy(x => x.Producto)
+        .ThenBy(x => x.Lote)
+        .ThenBy(x => x.FechaProduccion)
+        .ThenBy(x => x.FechaCaducidad)
+        .ToList();
+
+    /*
+        Una vez consolidadas las partidas, agrupamos por solicitud
+        para crear cada bloque del PDF.
+    */
+    var grupos = filasAgrupadas
+        .GroupBy(x => new
+        {
+            x.SolicitudSurtidoId,
+            x.Venta,
+            x.Cliente,
+            x.FechaVenta,
+            x.FechaVentaTxt
+        })
+        .OrderBy(g => g.Key.FechaVenta)
         .ThenBy(g => g.Key.SolicitudSurtidoId)
         .ToList();
+
+    /*
+        Los totales se recalculan utilizando las partidas agrupadas.
+        No usamos Model.TotalPartidas porque P1 podría traer una fila
+        por etiqueta y mostrar un total incorrecto.
+    */
+    var totalSolicitudes = grupos.Count;
+    var totalPartidas = filasAgrupadas.Count;
+    var totalCajas = filasAgrupadas.Sum(x => x.CuentaDeEtiqueta);
+    var totalKg = filasAgrupadas.Sum(x => x.SumaDeKg);
+
+    /*
+        Título dinámico:
+        primero intenta obtenerlo de ViewBag.Planta;
+        si no existe, utiliza la planta recibida en las filas.
+    */
+    var plantaTitulo = ((ViewBag.Planta as string) ?? string.Empty).Trim();
+
+    if (string.IsNullOrWhiteSpace(plantaTitulo))
+    {
+        plantaTitulo = filasAgrupadas
+            .Select(x => x.Planta)
+            .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x))
+            ?? "Planta";
+    }
 }
 
 <!doctype html>
 <html lang="es">
 <head>
     <meta charset="utf-8" />
+
     <title>Avisos de movilización SENASICA</title>
+
     <style>
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             font-family: Arial, Helvetica, sans-serif;
             color: #222;
             margin: 28px;
             font-size: 12px;
+            background: #fff;
         }
 
         .header {
@@ -50,6 +178,7 @@
             border: 1px solid #d8bcbc;
             background: #fff7f7;
             padding: 9px;
+            min-height: 58px;
         }
 
         .card .label {
@@ -75,7 +204,6 @@
 
         .solicitud {
             margin-top: 18px;
-            page-break-inside: avoid;
         }
 
         .solicitud-title {
@@ -83,12 +211,21 @@
             color: #fff;
             padding: 7px 9px;
             font-weight: 800;
+            page-break-after: avoid;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 8px;
+        }
+
+        thead {
+            display: table-header-group;
+        }
+
+        tr {
+            page-break-inside: avoid;
         }
 
         th {
@@ -109,12 +246,36 @@
             text-align: right;
         }
 
+        .total-row td {
+            background: #fff4f4;
+            border-top: 2px solid #8b0000;
+        }
+
+        .sin-datos {
+            border: 1px solid #d8bcbc;
+            background: #fffafa;
+            color: #6a3a3a;
+            padding: 16px;
+            text-align: center;
+            font-weight: 700;
+        }
+
         .footer {
             margin-top: 24px;
             color: #666;
             font-size: 11px;
             border-top: 1px solid #ddd;
             padding-top: 8px;
+        }
+
+        .no-print {
+            margin-top: 18px;
+        }
+
+        .print-button {
+            padding: 8px 14px;
+            font-weight: bold;
+            cursor: pointer;
         }
 
         @@media print {
@@ -126,37 +287,52 @@
                 display: none;
             }
 
-            .solicitud {
+            .solicitud-title {
+                page-break-after: avoid;
+            }
+
+            thead {
+                display: table-header-group;
+            }
+
+            tr {
                 page-break-inside: avoid;
             }
         }
     </style>
 </head>
+
 <body>
 
     <div class="header">
         <h1 class="title">Avisos de movilización SENASICA</h1>
+
         <div class="subtitle">
-            Planta TIF | Generado: @Model.FechaGeneracion.ToString("dd/MM/yyyy HH:mm") | Usuario: @Model.Usuario
+            @plantaTitulo |
+            Generado: @Model.FechaGeneracion.ToString("dd/MM/yyyy HH:mm") |
+            Usuario: @Model.Usuario
         </div>
     </div>
 
     <div class="summary">
         <div class="card">
             <div class="label">Solicitudes</div>
-            <div class="value">@Model.TotalSolicitudes</div>
+            <div class="value">@totalSolicitudes.ToString("N0")</div>
         </div>
+
         <div class="card">
             <div class="label">Partidas</div>
-            <div class="value">@Model.TotalPartidas</div>
+            <div class="value">@totalPartidas.ToString("N0")</div>
         </div>
+
         <div class="card">
             <div class="label">Cajas</div>
-            <div class="value">@Model.TotalCajas.ToString("N0")</div>
+            <div class="value">@totalCajas.ToString("N0")</div>
         </div>
+
         <div class="card">
             <div class="label">Kg</div>
-            <div class="value">@Model.TotalKg.ToString("N3")</div>
+            <div class="value">@totalKg.ToString("N3")</div>
         </div>
     </div>
 
@@ -168,63 +344,97 @@
         </div>
     }
 
-    @foreach (var g in grupos)
+    @if (!grupos.Any())
     {
-        var totalCajas = g.Sum(x => x.CuentaDeEtiqueta);
-        var totalKg = g.Sum(x => x.SumaDeKg);
-
-        <div class="solicitud">
-            <div class="solicitud-title">
-                Solicitud: @g.Key.SolicitudSurtidoId |
-                Venta: @g.Key.Venta |
-                Cliente: @g.Key.Cliente |
-                Fecha venta: @g.Key.FechaVentaTxt
-            </div>
-
-            <table>
-                <thead>
-                    <tr>
-                        <th>SKU</th>
-                        <th>Producto</th>
-                        <th>Lote</th>
-                        <th>F. sacrificio</th>
-                        <th>F. producción</th>
-                        <th>F. caducidad</th>
-                        <th class="right">Cajas</th>
-                        <th class="right">Kg</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var x in g.OrderBy(x => x.Sku).ThenBy(x => x.Lote))
-                    {
-                        <tr>
-                            <td>@x.Sku</td>
-                            <td>@x.Producto</td>
-                            <td>@x.Lote</td>
-                            <td>@x.FechaSacrificioTxt</td>
-                            <td>@x.FechaProduccionTxt</td>
-                            <td>@x.FechaCaducidadTxt</td>
-                            <td class="right">@x.CuentaDeEtiqueta.ToString("N0")</td>
-                            <td class="right">@x.SumaDeKg.ToString("N3")</td>
-                        </tr>
-                    }
-
-                    <tr>
-                        <td colspan="6" class="right"><strong>Total solicitud</strong></td>
-                        <td class="right"><strong>@totalCajas.ToString("N0")</strong></td>
-                        <td class="right"><strong>@totalKg.ToString("N3")</strong></td>
-                    </tr>
-                </tbody>
-            </table>
+        <div class="sin-datos">
+            No se encontró información para generar el aviso de movilización.
         </div>
+    }
+    else
+    {
+        @foreach (var g in grupos)
+        {
+            var totalCajasSolicitud = g.Sum(x => x.CuentaDeEtiqueta);
+            var totalKgSolicitud = g.Sum(x => x.SumaDeKg);
+
+            <div class="solicitud">
+                <div class="solicitud-title">
+                    Solicitud: @g.Key.SolicitudSurtidoId |
+                    Venta: @g.Key.Venta |
+                    Cliente: @g.Key.Cliente |
+                    Fecha venta: @g.Key.FechaVentaTxt
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>SKU</th>
+                            <th>Producto</th>
+                            <th>Lote</th>
+                            <th>F. sacrificio</th>
+                            <th>F. producción</th>
+                            <th>F. caducidad</th>
+                            <th class="right">Cajas</th>
+                            <th class="right">Kg</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @foreach (var x in g
+                            .OrderBy(x => x.Sku)
+                            .ThenBy(x => x.Producto)
+                            .ThenBy(x => x.Lote)
+                            .ThenBy(x => x.FechaProduccion)
+                            .ThenBy(x => x.FechaCaducidad))
+                        {
+                            <tr>
+                                <td>@x.Sku</td>
+                                <td>@x.Producto</td>
+                                <td>@x.Lote</td>
+                                <td>@x.FechaSacrificioTxt</td>
+                                <td>@x.FechaProduccionTxt</td>
+                                <td>@x.FechaCaducidadTxt</td>
+                                <td class="right">
+                                    @x.CuentaDeEtiqueta.ToString("N0")
+                                </td>
+                                <td class="right">
+                                    @x.SumaDeKg.ToString("N3")
+                                </td>
+                            </tr>
+                        }
+
+                        <tr class="total-row">
+                            <td colspan="6" class="right">
+                                <strong>Total solicitud</strong>
+                            </td>
+
+                            <td class="right">
+                                <strong>
+                                    @totalCajasSolicitud.ToString("N0")
+                                </strong>
+                            </td>
+
+                            <td class="right">
+                                <strong>
+                                    @totalKgSolicitud.ToString("N3")
+                                </strong>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        }
     }
 
     <div class="footer">
-        Documento generado desde Plataforma CG. Información consultada desde CadenaMeatTIF.
+        Documento generado desde Plataforma CG.
+        Información consolidada de @plantaTitulo.
     </div>
 
-    <div class="no-print" style="margin-top:18px;">
-        <button onclick="window.print()" style="padding:8px 14px;font-weight:bold;">
+    <div class="no-print">
+        <button type="button"
+                class="print-button"
+                onclick="window.print()">
             Imprimir / Guardar PDF
         </button>
     </div>

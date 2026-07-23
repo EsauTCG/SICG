@@ -9,6 +9,8 @@ using System.IO;
 using Microsoft.AspNetCore.Authorization;
 using ClosedXML.Excel;
 using System.Text.Json;
+using Plataforma_CG.ViewModels;
+using System.Globalization;
 using static Plataforma_CG.Models.Embarque;
 
 public class EmbarquesController : Controller
@@ -143,125 +145,432 @@ public class EmbarquesController : Controller
         return View(embarques);
     }
 
-    // ============================================================ 
-    // 2. CREAR EMBARQUE – Listar órdenes autorizadas 
-    // ============================================================ 
-    [Authorize(Roles = "Administracion de Ventas,Administrador")]
-    public async Task<IActionResult> Crear()
+    // ============================================================
+// CREAR EMBARQUE - PÁGINA INICIAL LIGERA
+// ============================================================
+[HttpGet]
+[Authorize(Roles = "Administracion de Ventas,Administrador")]
+public async Task<IActionResult> Crear(CancellationToken cancellationToken)
+{
+    // Solo obtenemos los conteos.
+    // Ya no cargamos miles de registros al abrir la página.
+    var totalOrdenes = await _ovContext.OrdenVenta
+        .AsNoTracking()
+        .CountAsync(o => o.Estatus == 5, cancellationToken);
+
+        var transferenciasYaEnEmbarque = await _qrContext.EmbarqueDocumento
+            .AsNoTracking()
+            .Where(d => d.TipoDocumento == "TRANSFERENCIA")
+            .Select(d => d.DocumentoId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var totalTransferencias = await _ovContext.Transferencias
+            .AsNoTracking()
+            .CountAsync(t =>
+                t.Estatus == 4 &&
+                !transferenciasYaEnEmbarque.Contains(t.Id),
+                cancellationToken);
+
+        var viewModel = new CrearEmbarqueViewModel
     {
-        var ordenes = await _ovContext.OrdenVenta
-            .Where(o => o.Estatus == 5)
-            .Select(o => new OrdenVenta
+        TotalOrdenes = totalOrdenes,
+        TotalTransferencias = totalTransferencias
+    };
+
+    return View(viewModel);
+}
+
+    // ============================================================
+    // CONSULTAR OV DISPONIBLES CON FILTROS Y PAGINACIÓN
+    // ============================================================
+    [HttpGet]
+    [Authorize(Roles = "Administracion de Ventas,Administrador")]
+    public async Task<IActionResult> ObtenerOrdenesDisponibles(
+        string? busqueda,
+        string? cliente,
+        string? consecutivo,
+        string? ruta,
+        int pagina = 1,
+        int tamanoPagina = 50,
+        CancellationToken cancellationToken = default)
+    {
+        pagina = Math.Max(pagina, 1);
+        tamanoPagina = Math.Clamp(tamanoPagina, 10, 100);
+
+        busqueda = busqueda?.Trim();
+        cliente = cliente?.Trim();
+        consecutivo = consecutivo?.Trim();
+        ruta = ruta?.Trim();
+
+        // Agrupamos para evitar duplicados en caso de que ClienteSap
+        // tenga más de un registro para el mismo código.
+        var clientesSapQuery = _ovContext.ClienteSap
+            .AsNoTracking()
+            .GroupBy(c => c.Cliente)
+            .Select(g => new
+            {
+                Cliente = g.Key,
+                NombreCliente = g.Max(x => x.Nombrecliente)
+            });
+
+        var query =
+            from o in _ovContext.OrdenVenta.AsNoTracking()
+            join c in clientesSapQuery
+                on o.Cliente equals c.Cliente into clientes
+            from c in clientes.DefaultIfEmpty()
+            where o.Estatus == 5
+            select new OrdenDisponibleViewModel
             {
                 Id = o.Id,
-                Cliente = o.Cliente,
-                NombreCliente = _ovContext.ClienteSap
-                    .Where(c => c.Cliente == o.Cliente)
-                    .Select(c => c.Nombrecliente)
-                    .FirstOrDefault() ?? o.Cliente,
-                Consecutivo = o.Consecutivo,
-                Ruta = o.Ruta
+                Cliente = o.Cliente ?? "",
+                NombreCliente =
+                    c != null && c.NombreCliente != null
+                        ? c.NombreCliente
+                        : o.Cliente ?? "",
+                Consecutivo = o.Consecutivo ?? "",
+                Ruta = o.Ruta ?? ""
+            };
+
+        if (!string.IsNullOrWhiteSpace(busqueda))
+        {
+            query = query.Where(x =>
+                x.Id.ToString().Contains(busqueda) ||
+                x.Cliente.Contains(busqueda) ||
+                x.NombreCliente.Contains(busqueda) ||
+                x.Consecutivo.Contains(busqueda) ||
+                x.Ruta.Contains(busqueda));
+        }
+
+        if (!string.IsNullOrWhiteSpace(cliente))
+        {
+            query = query.Where(x =>
+                x.Cliente.Contains(cliente) ||
+                x.NombreCliente.Contains(cliente));
+        }
+
+        if (!string.IsNullOrWhiteSpace(consecutivo))
+        {
+            query = query.Where(x => x.Consecutivo.Contains(consecutivo));
+        }
+
+        if (!string.IsNullOrWhiteSpace(ruta))
+        {
+            query = query.Where(x => x.Ruta.Contains(ruta));
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderByDescending(x => x.Id)
+            .Skip((pagina - 1) * tamanoPagina)
+            .Take(tamanoPagina)
+            .ToListAsync(cancellationToken);
+
+        return Json(new
+        {
+            items,
+            total,
+            pagina,
+            tamanoPagina,
+            hayMas = pagina * tamanoPagina < total
+        });
+    }
+
+    // ============================================================
+    // CONSULTAR TRANSFERENCIAS CON FILTROS Y PAGINACIÓN
+    // ============================================================
+    [HttpGet]
+    [Authorize(Roles = "Administracion de Ventas,Administrador")]
+    public async Task<IActionResult> ObtenerTransferenciasDisponibles(
+        string? busqueda,
+        string? sucursal,
+        string? consecutivo,
+        string? fecha,
+        int pagina = 1,
+        int tamanoPagina = 50,
+        CancellationToken cancellationToken = default)
+    {
+        pagina = Math.Max(pagina, 1);
+        tamanoPagina = Math.Clamp(tamanoPagina, 10, 100);
+
+        busqueda = busqueda?.Trim();
+        sucursal = sucursal?.Trim();
+        consecutivo = consecutivo?.Trim();
+        fecha = fecha?.Trim();
+
+        // Transferencias que ya están ligadas a cualquier embarque.
+        // Estas ya no deben volver a salir como disponibles.
+        var transferenciasYaEnEmbarque = await _qrContext.EmbarqueDocumento
+            .AsNoTracking()
+            .Where(d => d.TipoDocumento == "TRANSFERENCIA")
+            .Select(d => d.DocumentoId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var query = _ovContext.Transferencias
+            .AsNoTracking()
+            .Where(t =>
+                t.Estatus == 4 &&
+                !transferenciasYaEnEmbarque.Contains(t.Id));
+
+        if (!string.IsNullOrWhiteSpace(busqueda))
+        {
+            query = query.Where(t =>
+                t.Id.ToString().Contains(busqueda) ||
+                (t.Sucursal != null && t.Sucursal.Contains(busqueda)) ||
+                (t.Consecutivo != null && t.Consecutivo.Contains(busqueda)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(sucursal))
+        {
+            query = query.Where(t =>
+                t.Sucursal != null &&
+                t.Sucursal.Contains(sucursal));
+        }
+
+        if (!string.IsNullOrWhiteSpace(consecutivo))
+        {
+            query = query.Where(t =>
+                t.Consecutivo != null &&
+                t.Consecutivo.Contains(consecutivo));
+        }
+
+        if (!string.IsNullOrWhiteSpace(fecha))
+        {
+            var culturaMexico = CultureInfo.GetCultureInfo("es-MX");
+
+            if (DateTime.TryParse(
+                fecha,
+                culturaMexico,
+                DateTimeStyles.None,
+                out var fechaFiltro))
+            {
+                var fechaInicio = fechaFiltro.Date;
+                var fechaFin = fechaInicio.AddDays(1);
+
+                query = query.Where(t =>
+                    t.FechaSolicitud >= fechaInicio &&
+                    t.FechaSolicitud < fechaFin);
+            }
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+
+        var datos = await query
+            .OrderByDescending(t => t.FechaSolicitud)
+            .ThenByDescending(t => t.Id)
+            .Skip((pagina - 1) * tamanoPagina)
+            .Take(tamanoPagina)
+            .Select(t => new
+            {
+                t.Id,
+                Sucursal = t.Sucursal ?? "",
+                Consecutivo = t.Consecutivo ?? "",
+                t.FechaSolicitud
             })
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
-        var transferencias = await _ovContext.Transferencias
-            .Where(t => t.Estatus == 5)
-            .ToListAsync();
+        var items = datos.Select(t => new TransferenciaDisponibleViewModel
+        {
+            Id = t.Id,
+            Sucursal = t.Sucursal,
+            Consecutivo = t.Consecutivo,
+            FechaSolicitud = t.FechaSolicitud,
+            FechaSolicitudTexto = t.FechaSolicitud?.ToString("dd/MM/yyyy") ?? ""
+        }).ToList();
 
-        ViewBag.Transferencias = transferencias;
-
-        return View(ordenes);
+        return Json(new
+        {
+            items,
+            total,
+            pagina,
+            tamanoPagina,
+            hayMas = pagina * tamanoPagina < total
+        });
     }
 
 
-    // ============================================================ 
-    // 3. GUARDAR EMBARQUE NUEVO 
-    // ============================================================ 
+    // ============================================================
+    // GUARDAR EMBARQUE NUEVO - OPTIMIZADO
+    // ============================================================
     [HttpPost]
+    [ValidateAntiForgeryToken]
     [Authorize(Roles = "Administracion de Ventas,Administrador")]
     public async Task<IActionResult> Crear(
-    List<int> ordenesSeleccionadas,
-    List<int> transferenciasSeleccionadas,
-    string? nombreEmbarque,
-    string? observaciones)
+        List<int>? ordenesSeleccionadas,
+        List<int>? transferenciasSeleccionadas,
+        string? nombreEmbarque,
+        string? observaciones,
+        CancellationToken cancellationToken)
     {
-        if ((ordenesSeleccionadas == null || !ordenesSeleccionadas.Any()) &&
-            (transferenciasSeleccionadas == null || !transferenciasSeleccionadas.Any()))
+        ordenesSeleccionadas = ordenesSeleccionadas?
+            .Where(id => id > 0)
+            .Distinct()
+            .ToList() ?? new List<int>();
+
+        transferenciasSeleccionadas = transferenciasSeleccionadas?
+            .Where(id => id > 0)
+            .Distinct()
+            .ToList() ?? new List<int>();
+
+        if (!ordenesSeleccionadas.Any() &&
+            !transferenciasSeleccionadas.Any())
         {
-            TempData["Error"] = "Debes seleccionar al menos una orden o transferencia.";
-            return RedirectToAction("Crear");
+            TempData["Error"] =
+                "Debes seleccionar al menos una orden o transferencia.";
+
+            return RedirectToAction(nameof(Crear));
         }
 
         nombreEmbarque = nombreEmbarque?.Trim();
         observaciones = observaciones?.Trim();
 
-        if (!string.IsNullOrWhiteSpace(nombreEmbarque) && nombreEmbarque.Length > 150)
+        if (!string.IsNullOrWhiteSpace(nombreEmbarque) &&
+            nombreEmbarque.Length > 150)
         {
-            TempData["Error"] = "El nombre del embarque no puede tener más de 150 caracteres.";
-            return RedirectToAction("Crear");
+            TempData["Error"] =
+                "El nombre del embarque no puede tener más de 150 caracteres.";
+
+            return RedirectToAction(nameof(Crear));
         }
 
-        var embarque = new Embarque
+        // Una sola consulta para todas las órdenes.
+        var ordenes = ordenesSeleccionadas.Any()
+            ? await _ovContext.OrdenVenta
+                .Where(o =>
+                    ordenesSeleccionadas.Contains(o.Id) &&
+                    o.Estatus == 5)
+                .ToListAsync(cancellationToken)
+            : new List<OrdenVenta>();
+
+        // Una sola consulta para todas las transferencias.
+        var transferenciasYaEnEmbarqueSeleccionadas = transferenciasSeleccionadas.Any()
+            ? await _qrContext.EmbarqueDocumento
+                .AsNoTracking()
+                .Where(d =>
+                    d.TipoDocumento == "TRANSFERENCIA" &&
+                    transferenciasSeleccionadas.Contains(d.DocumentoId))
+                .Select(d => d.DocumentoId)
+                .Distinct()
+                .ToListAsync(cancellationToken)
+            : new List<int>();
+
+        if (transferenciasYaEnEmbarqueSeleccionadas.Any())
         {
-            FechaCreacion = DateTime.Now,
-            UsuarioGenera = User.Identity?.Name ?? "Sistema",
-            Estatus = 1,
+            TempData["Error"] =
+                "Una o más transferencias seleccionadas ya pertenecen a otro embarque. Actualiza la página e intenta nuevamente.";
 
-            // NUEVO
-            NombreEmbarque = string.IsNullOrWhiteSpace(nombreEmbarque) ? null : nombreEmbarque,
+            return RedirectToAction(nameof(Crear));
+        }
 
-            Observaciones = observaciones,
-            CalidadAprobada = false,
-            DocumentacionAprobada = false,
-            DocumentacionCalidadAprobada = false
-        };
+        var transferencias = transferenciasSeleccionadas.Any()
+            ? await _ovContext.Transferencias
+                .Where(t =>
+                    transferenciasSeleccionadas.Contains(t.Id) &&
+                    t.Estatus == 4)
+                .ToListAsync(cancellationToken)
+            : new List<Transferencia>();
 
-        _qrContext.Embarque.Add(embarque);
-        await _qrContext.SaveChangesAsync();
-
-        if (ordenesSeleccionadas != null)
+        // Evita crear el embarque si algún registro ya fue utilizado
+        // por otro usuario mientras esta pantalla estaba abierta.
+        if (ordenes.Count != ordenesSeleccionadas.Count)
         {
-            foreach (var ovId in ordenesSeleccionadas)
+            TempData["Error"] =
+                "Una o más órdenes seleccionadas ya no están disponibles. Actualiza la página e intenta nuevamente.";
+
+            return RedirectToAction(nameof(Crear));
+        }
+
+        if (transferencias.Count != transferenciasSeleccionadas.Count)
+        {
+            TempData["Error"] =
+                "Una o más transferencias seleccionadas ya no están disponibles. Actualiza la página e intenta nuevamente.";
+
+            return RedirectToAction(nameof(Crear));
+        }
+
+        var ahora = DateTime.Now;
+
+        await using var transaccionQr =
+            await _qrContext.Database.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            var embarque = new Embarque
             {
-                _qrContext.EmbarqueDocumento.Add(new EmbarqueDocumento
+                FechaCreacion = ahora,
+                UsuarioGenera = User.Identity?.Name ?? "Sistema",
+                Estatus = 1,
+                NombreEmbarque = string.IsNullOrWhiteSpace(nombreEmbarque)
+                    ? null
+                    : nombreEmbarque,
+                Observaciones = observaciones,
+                CalidadAprobada = false,
+                DocumentacionAprobada = false,
+                DocumentacionCalidadAprobada = false
+            };
+
+            _qrContext.Embarque.Add(embarque);
+
+            // Necesitamos este guardado para obtener embarque.Id.
+            await _qrContext.SaveChangesAsync(cancellationToken);
+
+            var documentos = new List<EmbarqueDocumento>(
+                ordenes.Count + transferencias.Count);
+
+            documentos.AddRange(
+                ordenes.Select(o => new EmbarqueDocumento
                 {
                     EmbarqueId = embarque.Id,
-                    DocumentoId = ovId,
+                    DocumentoId = o.Id,
                     TipoDocumento = "OV"
-                });
+                }));
 
-                var orden = await _ovContext.OrdenVenta.FindAsync(ovId);
-                if (orden != null)
-                {
-                    orden.Estatus = 6;
-                    orden.FechaEmbarque = DateTime.Now;
-                }
-            }
-        }
-
-        if (transferenciasSeleccionadas != null)
-        {
-            foreach (var trId in transferenciasSeleccionadas)
-            {
-                _qrContext.EmbarqueDocumento.Add(new EmbarqueDocumento
+            documentos.AddRange(
+                transferencias.Select(t => new EmbarqueDocumento
                 {
                     EmbarqueId = embarque.Id,
-                    DocumentoId = trId,
+                    DocumentoId = t.Id,
                     TipoDocumento = "TRANSFERENCIA"
-                });
+                }));
 
-                var transferencia = await _ovContext.Transferencias.FindAsync(trId);
-                if (transferencia != null)
-                {
-                    transferencia.Estatus = 6;
-                }
+            // Una sola llamada AddRange.
+            _qrContext.EmbarqueDocumento.AddRange(documentos);
+
+            // Actualización en memoria de todos los registros recuperados
+            // en las dos consultas anteriores.
+            foreach (var orden in ordenes)
+            {
+                orden.Estatus = 6;
+                orden.FechaEmbarque = ahora;
             }
+
+            // IMPORTANTE:
+            // Las transferencias NO se cambian de estatus aquí.
+            // Se quedan en 4 para que su flujo externo pueda pasarlas a 5.
+            // El candado para que no vuelvan a aparecer es la relación en EmbarqueDocumento.
+
+            // Un guardado por DbContext.
+            await _qrContext.SaveChangesAsync(cancellationToken);
+            await _ovContext.SaveChangesAsync(cancellationToken);
+
+            await transaccionQr.CommitAsync(cancellationToken);
+
+            return RedirectToAction("Detalle", new
+            {
+                id = embarque.Id
+            });
         }
+        catch
+        {
+            await transaccionQr.RollbackAsync(cancellationToken);
 
-        await _qrContext.SaveChangesAsync();
-        await _ovContext.SaveChangesAsync();
+            TempData["Error"] =
+                "No fue posible crear el embarque. Ningún cambio del embarque fue confirmado.";
 
-        return RedirectToAction("Detalle", new { id = embarque.Id });
+            return RedirectToAction(nameof(Crear));
+        }
     }
 
 
@@ -331,6 +640,14 @@ public class EmbarquesController : Controller
 
         ViewBag.OrdenesVenta = ordenesReal;
         ViewBag.Transferencias = transferenciasReal;
+
+        var fotosCalidad = await _qrContext.Set<Embarque.EmbarqueCalidadFoto>()
+            .AsNoTracking()
+            .Where(f => f.EmbarqueId == embarque.Id)
+            .OrderByDescending(f => f.FechaRegistro)
+            .ToListAsync();
+
+        ViewBag.FotosCalidad = fotosCalidad;
 
         return View(embarque);
     }
@@ -562,11 +879,9 @@ public class EmbarquesController : Controller
                 }
                 else if (doc.TipoDocumento == "TRANSFERENCIA")
                 {
-                    var tr = await _ovContext.Transferencias
-                        .FirstOrDefaultAsync(x => x.Id == doc.DocumentoId);
-
-                    if (tr != null)
-                        tr.Estatus = 7;
+                    // No se modifica el estatus de la transferencia.
+                    // El seguimiento del viaje se maneja con el estatus del Embarque.
+                    // El flujo externo de Transferencias sigue controlando su 4 → 5.
                 }
             }
 
@@ -1661,11 +1976,15 @@ public class EmbarquesController : Controller
 
     [HttpPost]
     public async Task<IActionResult> CargarDocumentos(
-        int id,
-        bool? requiereCartaPorte,
-        List<IFormFile>? cartaPorteArchivos,
-        List<IFormFile>? fichaTecnicaArchivos,
-        List<IFormFile>? cartaGarantiaArchivos)
+     int id,
+     bool? requiereCartaPorte,
+     List<IFormFile>? cartaPorteArchivos,
+     List<IFormFile>? fichaTecnicaArchivos,
+     List<IFormFile>? cartaGarantiaArchivos,
+
+     // NUEVOS OPCIONALES
+     List<IFormFile>? certificacionLavadoArchivos,
+     List<IFormFile>? certificacionFumigacionArchivos)
     {
         var embarque = await _qrContext.Embarque
             .Include(e => e.QR)
@@ -1721,6 +2040,7 @@ public class EmbarquesController : Controller
 
         // =========================================================
         // 2. GUARDAR MÚLTIPLES ARCHIVOS DE FICHA TÉCNICA
+        // Se deja por compatibilidad aunque actualmente no lo estés mostrando.
         // =========================================================
         if (fichaTecnicaArchivos != null && fichaTecnicaArchivos.Any(f => f.Length > 0))
         {
@@ -1743,6 +2063,7 @@ public class EmbarquesController : Controller
 
         // =========================================================
         // 3. GUARDAR MÚLTIPLES ARCHIVOS DE CARTA GARANTÍA
+        // Se deja por compatibilidad aunque actualmente no lo estés mostrando.
         // =========================================================
         if (cartaGarantiaArchivos != null && cartaGarantiaArchivos.Any(f => f.Length > 0))
         {
@@ -1763,12 +2084,56 @@ public class EmbarquesController : Controller
             }
         }
 
+        // =========================================================
+        // 4. GUARDAR CERTIFICACIÓN DE LAVADO - OPCIONAL
+        // =========================================================
+        if (certificacionLavadoArchivos != null && certificacionLavadoArchivos.Any(f => f.Length > 0))
+        {
+            foreach (var archivo in certificacionLavadoArchivos.Where(f => f.Length > 0))
+            {
+                var ruta = await GuardarArchivo(archivo, "certificacionesLavado", "certificacion_lavado");
+
+                _qrContext.Set<EmbarqueArchivo>().Add(new EmbarqueArchivo
+                {
+                    EmbarqueId = embarque.Id,
+                    Tipo = "CERTIFICACION_LAVADO",
+                    RutaArchivo = ruta,
+                    FechaRegistro = DateTime.Now,
+                    UsuarioRegistro = User.Identity?.Name ?? "Sistema"
+                });
+
+                seCargoAlgunArchivoNuevo = true;
+            }
+        }
+
+        // =========================================================
+        // 5. GUARDAR CERTIFICACIÓN DE FUMIGACIÓN - OPCIONAL
+        // =========================================================
+        if (certificacionFumigacionArchivos != null && certificacionFumigacionArchivos.Any(f => f.Length > 0))
+        {
+            foreach (var archivo in certificacionFumigacionArchivos.Where(f => f.Length > 0))
+            {
+                var ruta = await GuardarArchivo(archivo, "certificacionesFumigacion", "certificacion_fumigacion");
+
+                _qrContext.Set<EmbarqueArchivo>().Add(new EmbarqueArchivo
+                {
+                    EmbarqueId = embarque.Id,
+                    Tipo = "CERTIFICACION_FUMIGACION",
+                    RutaArchivo = ruta,
+                    FechaRegistro = DateTime.Now,
+                    UsuarioRegistro = User.Identity?.Name ?? "Sistema"
+                });
+
+                seCargoAlgunArchivoNuevo = true;
+            }
+        }
+
         await _qrContext.SaveChangesAsync();
 
         // =========================================================
-        // NUEVA VALIDACIÓN:
-        // Carta Porte solo es obligatoria si Logística marcó que aplica.
-        // Si no aplica, puede validar sin Carta Porte.
+        // VALIDACIÓN CARTA PORTE
+        // Esta se queda como ya estaba:
+        // solo es obligatoria si logística indicó que aplica.
         // =========================================================
         bool tieneCartaPorte = await _qrContext.Set<EmbarqueArchivo>()
             .AnyAsync(a => a.EmbarqueId == embarque.Id && a.Tipo == "CARTA_PORTE");
@@ -1785,11 +2150,14 @@ public class EmbarquesController : Controller
             return RedirectToAction("Documentacion");
         }
 
+        // =========================================================
+        // VALIDACIÓN FINAL LOGÍSTICA
+        // Lavado y Fumigación NO bloquean, solo se avisan en frontend.
+        // =========================================================
         embarque.DocumentacionAprobada = true;
         embarque.FechaValidacionDocumentacion = DateTime.Now;
         embarque.UsuarioValidaDocumentacion = User.Identity?.Name ?? "Sistema";
 
-        // Solo se libera si también Calidad y Documentación de Calidad ya fueron aprobadas
         embarque.Estatus =
             embarque.CalidadAprobada == true &&
             embarque.DocumentacionAprobada == true &&
@@ -1799,15 +2167,30 @@ public class EmbarquesController : Controller
 
         await _qrContext.SaveChangesAsync();
 
+        bool tieneLavado = await _qrContext.Set<EmbarqueArchivo>()
+            .AnyAsync(a => a.EmbarqueId == embarque.Id && a.Tipo == "CERTIFICACION_LAVADO");
+
+        bool tieneFumigacion = await _qrContext.Set<EmbarqueArchivo>()
+            .AnyAsync(a => a.EmbarqueId == embarque.Id && a.Tipo == "CERTIFICACION_FUMIGACION");
+
         string textoCartaPorte = embarque.RequiereCartaPorte == true
             ? "Carta Porte requerida y validada."
             : "Carta Porte marcada como No aplica.";
 
+        string textoCertificaciones =
+            tieneLavado && tieneFumigacion
+                ? "Certificaciones de Lavado y Fumigación cargadas."
+                : !tieneLavado && !tieneFumigacion
+                    ? "Se validó sin Certificación de Lavado ni Certificación de Fumigación."
+                    : !tieneLavado
+                        ? "Se validó sin Certificación de Lavado."
+                        : "Se validó sin Certificación de Fumigación.";
+
         TempData["Success"] =
             embarque.CalidadAprobada == true &&
             embarque.DocumentacionCalidadAprobada == true
-                ? $"Documentación logística validada correctamente para el embarque #{embarque.Consecutivo}. {textoCartaPorte} Ya puede generar QR."
-                : $"Documentación logística validada correctamente para el embarque #{embarque.Consecutivo}. {textoCartaPorte} Aún faltan otras validaciones.";
+                ? $"Documentación logística validada correctamente para el embarque #{embarque.Consecutivo}. {textoCartaPorte} {textoCertificaciones} Ya puede generar QR."
+                : $"Documentación logística validada correctamente para el embarque #{embarque.Consecutivo}. {textoCartaPorte} {textoCertificaciones} Aún faltan otras validaciones.";
 
         return RedirectToAction("Documentacion");
     }
@@ -2939,13 +3322,9 @@ public class EmbarquesController : Controller
         }
         else if (tipoDocumento == "TRANSFERENCIA")
         {
-            var transferencia = await _ovContext.Transferencias
-                .FirstOrDefaultAsync(t => t.Id == documentoId);
-
-            if (transferencia != null)
-            {
-                transferencia.Estatus = 5;
-            }
+            // No modificamos el estatus de la transferencia.
+            // Al quitar la relación de EmbarqueDocumento, si sigue en estatus 4,
+            // volverá a aparecer como disponible automáticamente.
         }
 
         await _qrContext.SaveChangesAsync();
@@ -2959,100 +3338,13 @@ public class EmbarquesController : Controller
     }
 
     // ============================================================
-    // 4.2 PANTALLA PARA EDITAR EMBARQUE / AGREGAR DOCUMENTOS
-    // ============================================================
-    [HttpGet]
-    [Authorize(Roles = "Administracion de Ventas,Administrador")]
-    public async Task<IActionResult> EditarEmbarques(int id)
-    {
-        var embarque = await _qrContext.Embarque
-            .Include(e => e.Documentos)
-            .Include(e => e.QR)
-            .FirstOrDefaultAsync(e => e.Id == id);
-
-        if (embarque == null)
-        {
-            TempData["Error"] = "No se encontró el embarque.";
-            return RedirectToAction("Embarque");
-        }
-
-        if (embarque.FechaSalida != null || embarque.Estatus == 2 || embarque.Estatus == 3 || embarque.Estatus == 4 || embarque.Estatus == 5 || embarque.Estatus == 6)
-        {
-            TempData["Error"] = "No se pueden agregar documentos porque el embarque ya salió o ya está en seguimiento.";
-            return RedirectToAction("Detalle", new { id });
-        }
-
-        if (embarque.QR != null)
-        {
-            TempData["Error"] = "No se pueden agregar documentos porque el embarque ya tiene QR generado.";
-            return RedirectToAction("Detalle", new { id });
-        }
-
-        var ordenesYaAgregadas = embarque.Documentos
-            .Where(d => d.TipoDocumento == "OV")
-            .Select(d => d.DocumentoId)
-            .ToList();
-
-        var transferenciasYaAgregadas = embarque.Documentos
-            .Where(d => d.TipoDocumento == "TRANSFERENCIA")
-            .Select(d => d.DocumentoId)
-            .ToList();
-
-        var ordenesDisponibles = await _ovContext.OrdenVenta
-            .Where(o => o.Estatus == 5 && !ordenesYaAgregadas.Contains(o.Id))
-            .Select(o => new OrdenVenta
-            {
-                Id = o.Id,
-                Cliente = o.Cliente,
-                NombreCliente = _ovContext.ClienteSap
-                    .Where(c => c.Cliente == o.Cliente)
-                    .Select(c => c.Nombrecliente)
-                    .FirstOrDefault() ?? o.Cliente,
-                Consecutivo = o.Consecutivo,
-                Ruta = o.Ruta,
-                FechaEntrega = o.FechaEntrega
-            })
-            .ToListAsync();
-
-        var transferenciasDisponibles = await _ovContext.Transferencias
-            .Where(t => t.Estatus == 5 && !transferenciasYaAgregadas.Contains(t.Id))
-            .ToListAsync();
-
-        ViewBag.OrdenesDisponibles = ordenesDisponibles;
-        ViewBag.TransferenciasDisponibles = transferenciasDisponibles;
-
-        return View(embarque);
-    }
-
-
-    // ============================================================
-    // 4.3 AGREGAR DOCUMENTOS AL EMBARQUE EXISTENTE
+    // 4.1.1 ELIMINAR EMBARQUE COMPLETO
     // ============================================================
     [HttpPost]
     [ValidateAntiForgeryToken]
     [Authorize(Roles = "Administracion de Ventas,Administrador")]
-    public async Task<IActionResult> AgregarDocumentosEmbarque(
-        int embarqueId,
-        List<int>? ordenesSeleccionadas,
-        List<int>? transferenciasSeleccionadas)
+    public async Task<IActionResult> EliminarEmbarque(int embarqueId)
     {
-        ordenesSeleccionadas ??= new List<int>();
-        transferenciasSeleccionadas ??= new List<int>();
-
-        ordenesSeleccionadas = ordenesSeleccionadas
-            .Distinct()
-            .ToList();
-
-        transferenciasSeleccionadas = transferenciasSeleccionadas
-            .Distinct()
-            .ToList();
-
-        if (!ordenesSeleccionadas.Any() && !transferenciasSeleccionadas.Any())
-        {
-            TempData["Error"] = "Debes seleccionar al menos una orden o transferencia para agregar.";
-            return RedirectToAction("EditarEmbarques", new { id = embarqueId });
-        }
-
         var embarque = await _qrContext.Embarque
             .Include(e => e.Documentos)
             .Include(e => e.QR)
@@ -3064,96 +3356,344 @@ public class EmbarquesController : Controller
             return RedirectToAction("Embarque");
         }
 
-        if (embarque.FechaSalida != null || embarque.Estatus == 2 || embarque.Estatus == 3 || embarque.Estatus == 4 || embarque.Estatus == 5 || embarque.Estatus == 6)
+        if (embarque.FechaSalida != null
+            || embarque.Estatus == 2
+            || embarque.Estatus == 3
+            || embarque.Estatus == 4
+            || embarque.Estatus == 5
+            || embarque.Estatus == 6)
         {
-            TempData["Error"] = "No se pueden agregar documentos porque el embarque ya salió o ya está en seguimiento.";
+            TempData["Error"] = "No se puede eliminar el embarque porque ya salió o está en seguimiento.";
             return RedirectToAction("Detalle", new { id = embarqueId });
         }
 
         if (embarque.QR != null)
         {
-            TempData["Error"] = "No se pueden agregar documentos porque el embarque ya tiene QR generado.";
+            TempData["Error"] = "No se puede eliminar el embarque porque ya tiene QR generado.";
             return RedirectToAction("Detalle", new { id = embarqueId });
         }
 
-        int agregadosOV = 0;
-        int agregadosTR = 0;
+        var documentos = embarque.Documentos.ToList();
 
-        foreach (var ovId in ordenesSeleccionadas)
+        foreach (var doc in documentos)
         {
-            bool yaExiste = embarque.Documentos.Any(d =>
-                d.TipoDocumento == "OV" &&
-                d.DocumentoId == ovId);
-
-            if (yaExiste)
-                continue;
-
-            var orden = await _ovContext.OrdenVenta
-                .FirstOrDefaultAsync(o => o.Id == ovId && o.Estatus == 5);
-
-            if (orden == null)
-                continue;
-
-            _qrContext.EmbarqueDocumento.Add(new EmbarqueDocumento
+            if (doc.TipoDocumento == "OV")
             {
-                EmbarqueId = embarque.Id,
-                DocumentoId = ovId,
-                TipoDocumento = "OV"
-            });
+                var orden = await _ovContext.OrdenVenta
+                    .FirstOrDefaultAsync(o => o.Id == doc.DocumentoId);
 
-            orden.Estatus = 6;
-            orden.FechaEmbarque = DateTime.Now;
-
-            agregadosOV++;
+                if (orden != null)
+                {
+                    orden.Estatus = 5;
+                    orden.FechaEmbarque = null;
+                }
+            }
         }
 
-        foreach (var trId in transferenciasSeleccionadas)
+        _qrContext.EmbarqueDocumento.RemoveRange(documentos);
+
+        if (embarque.QR != null)
         {
-            bool yaExiste = embarque.Documentos.Any(d =>
-                d.TipoDocumento == "TRANSFERENCIA" &&
-                d.DocumentoId == trId);
-
-            if (yaExiste)
-                continue;
-
-            var transferencia = await _ovContext.Transferencias
-                .FirstOrDefaultAsync(t => t.Id == trId && t.Estatus == 5);
-
-            if (transferencia == null)
-                continue;
-
-            _qrContext.EmbarqueDocumento.Add(new EmbarqueDocumento
-            {
-                EmbarqueId = embarque.Id,
-                DocumentoId = trId,
-                TipoDocumento = "TRANSFERENCIA"
-            });
-
-            transferencia.Estatus = 6;
-
-            agregadosTR++;
+            _qrContext.EmbarqueQR.Remove(embarque.QR);
         }
 
-        if (agregadosOV == 0 && agregadosTR == 0)
+        var archivos = await _qrContext.EmbarqueArchivo
+            .Where(a => a.EmbarqueId == embarqueId)
+            .ToListAsync();
+
+        if (archivos.Any())
         {
-            TempData["Error"] = "No se agregó ningún documento. Es posible que ya no estén disponibles o que ya pertenezcan a otro embarque.";
-            return RedirectToAction("EditarEmbarques", new { id = embarqueId });
+            _qrContext.EmbarqueArchivo.RemoveRange(archivos);
         }
 
-        // Si el embarque ya estaba validado para QR, al agregar documentos nuevos
-        // se reinician validaciones para que calidad/documentación vuelvan a revisar.
-        //embarque.CalidadAprobada = false;
-        //embarque.DocumentacionAprobada = false;
-        //embarque.DocumentacionCalidadAprobada = false;
+        var fotosCalidad = await _qrContext.Set<Embarque.EmbarqueCalidadFoto>()
+            .Where(f => f.EmbarqueId == embarqueId)
+            .ToListAsync();
 
-        //embarque.Estatus = 1;
+        if (fotosCalidad.Any())
+        {
+            _qrContext.Set<Embarque.EmbarqueCalidadFoto>().RemoveRange(fotosCalidad);
+        }
+
+        var temperaturas = await _qrContext.EmbarqueProductoTemperaturas
+            .Where(t => t.EmbarqueId == embarqueId)
+            .ToListAsync();
+
+        if (temperaturas.Any())
+        {
+            _qrContext.EmbarqueProductoTemperaturas.RemoveRange(temperaturas);
+        }
+
+        _qrContext.Embarque.Remove(embarque);
 
         await _qrContext.SaveChangesAsync();
         await _ovContext.SaveChangesAsync();
 
-        TempData["Success"] = $"Se agregaron {agregadosOV} orden(es) y {agregadosTR} transferencia(s) al embarque.";
+        TempData["Success"] = $"El embarque {embarque.Consecutivo} fue eliminado correctamente. Las órdenes de venta regresaron a estatus autorizado.";
 
-        return RedirectToAction("Detalle", new { id = embarqueId });
+        return RedirectToAction("Embarque");
+    }
+
+    // ============================================================
+    // 4.2 PANTALLA PARA EDITAR EMBARQUE - CARGA INICIAL LIGERA
+    // ============================================================
+    [HttpGet]
+    [Authorize(Roles = "Administracion de Ventas,Administrador")]
+    public async Task<IActionResult> EditarEmbarques(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        // Solo obtenemos la información básica del embarque.
+        // Las órdenes y transferencias se consultarán después por AJAX.
+        var embarque = await _qrContext.Embarque
+            .AsNoTracking()
+            .Include(e => e.QR)
+            .FirstOrDefaultAsync(
+                e => e.Id == id,
+                cancellationToken);
+
+        if (embarque == null)
+        {
+            TempData["Error"] = "No se encontró el embarque.";
+            return RedirectToAction("Embarque");
+        }
+
+        if (embarque.FechaSalida != null ||
+            embarque.Estatus == 2 ||
+            embarque.Estatus == 3 ||
+            embarque.Estatus == 4 ||
+            embarque.Estatus == 5 ||
+            embarque.Estatus == 6)
+        {
+            TempData["Error"] =
+                "No se pueden agregar documentos porque el embarque ya salió o ya está en seguimiento.";
+
+            return RedirectToAction("Detalle", new
+            {
+                id
+            });
+        }
+
+        if (embarque.QR != null)
+        {
+            TempData["Error"] =
+                "No se pueden agregar documentos porque el embarque ya tiene QR generado.";
+
+            return RedirectToAction("Detalle", new
+            {
+                id
+            });
+        }
+
+        // Únicamente obtenemos los conteos.
+        // Ya no cargamos todas las filas al abrir la vista.
+        var totalOrdenes = await _ovContext.OrdenVenta
+            .AsNoTracking()
+            .CountAsync(
+                o => o.Estatus == 5,
+                cancellationToken);
+
+        var transferenciasYaEnEmbarque = await _qrContext.EmbarqueDocumento
+            .AsNoTracking()
+            .Where(d => d.TipoDocumento == "TRANSFERENCIA")
+            .Select(d => d.DocumentoId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var totalTransferencias = await _ovContext.Transferencias
+            .AsNoTracking()
+            .CountAsync(
+                t => t.Estatus == 4 &&
+                     !transferenciasYaEnEmbarque.Contains(t.Id),
+                cancellationToken);
+
+        ViewBag.TotalOrdenesDisponibles = totalOrdenes;
+        ViewBag.TotalTransferenciasDisponibles = totalTransferencias;
+
+        return View(embarque);
+    }
+
+
+    // ============================================================
+    // 4.3 AGREGAR DOCUMENTOS AL EMBARQUE - OPTIMIZADO
+    // ============================================================
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Roles = "Administracion de Ventas,Administrador")]
+    public async Task<IActionResult> AgregarDocumentosEmbarque(
+        int embarqueId,
+        List<int>? ordenesSeleccionadas,
+        List<int>? transferenciasSeleccionadas,
+        CancellationToken cancellationToken)
+    {
+        ordenesSeleccionadas = ordenesSeleccionadas?
+            .Where(id => id > 0)
+            .Distinct()
+            .ToList() ?? new List<int>();
+
+        transferenciasSeleccionadas = transferenciasSeleccionadas?
+            .Where(id => id > 0)
+            .Distinct()
+            .ToList() ?? new List<int>();
+
+        if (!ordenesSeleccionadas.Any() &&
+            !transferenciasSeleccionadas.Any())
+        {
+            TempData["Error"] =
+                "Debes seleccionar al menos una orden o transferencia para agregar.";
+
+            return RedirectToAction("EditarEmbarques", new
+            {
+                id = embarqueId
+            });
+        }
+
+        var embarque = await _qrContext.Embarque
+            .Include(e => e.Documentos)
+            .Include(e => e.QR)
+            .FirstOrDefaultAsync(
+                e => e.Id == embarqueId,
+                cancellationToken);
+
+        if (embarque == null)
+        {
+            TempData["Error"] = "No se encontró el embarque.";
+            return RedirectToAction("Embarque");
+        }
+
+        if (embarque.FechaSalida != null ||
+            embarque.Estatus == 2 ||
+            embarque.Estatus == 3 ||
+            embarque.Estatus == 4 ||
+            embarque.Estatus == 5 ||
+            embarque.Estatus == 6)
+        {
+            TempData["Error"] =
+                "No se pueden agregar documentos porque el embarque ya salió o ya está en seguimiento.";
+
+            return RedirectToAction("Detalle", new
+            {
+                id = embarqueId
+            });
+        }
+
+        if (embarque.QR != null)
+        {
+            TempData["Error"] =
+                "No se pueden agregar documentos porque el embarque ya tiene QR generado.";
+
+            return RedirectToAction("Detalle", new
+            {
+                id = embarqueId
+            });
+        }
+
+        // Evita volver a agregar documentos que ya estén relacionados.
+        var ordenesExistentes = embarque.Documentos
+            .Where(d => d.TipoDocumento == "OV")
+            .Select(d => d.DocumentoId)
+            .ToHashSet();
+
+        var transferenciasExistentes = embarque.Documentos
+            .Where(d => d.TipoDocumento == "TRANSFERENCIA")
+            .Select(d => d.DocumentoId)
+            .ToHashSet();
+
+        var idsOrdenesPorAgregar = ordenesSeleccionadas
+            .Where(id => !ordenesExistentes.Contains(id))
+            .ToList();
+
+        var idsTransferenciasPorAgregar = transferenciasSeleccionadas
+            .Where(id => !transferenciasExistentes.Contains(id))
+            .ToList();
+
+        // Una sola consulta para todas las órdenes seleccionadas.
+        var ordenes = idsOrdenesPorAgregar.Any()
+            ? await _ovContext.OrdenVenta
+                .Where(o =>
+                    idsOrdenesPorAgregar.Contains(o.Id) &&
+                    o.Estatus == 5)
+                .ToListAsync(cancellationToken)
+            : new List<OrdenVenta>();
+
+        // Una sola consulta para todas las transferencias seleccionadas.
+        var transferenciasYaEnOtroEmbarque = idsTransferenciasPorAgregar.Any()
+            ? await _qrContext.EmbarqueDocumento
+                .AsNoTracking()
+                .Where(d =>
+                    d.TipoDocumento == "TRANSFERENCIA" &&
+                    idsTransferenciasPorAgregar.Contains(d.DocumentoId))
+                .Select(d => d.DocumentoId)
+                .Distinct()
+                .ToListAsync(cancellationToken)
+            : new List<int>();
+
+        idsTransferenciasPorAgregar = idsTransferenciasPorAgregar
+            .Where(id => !transferenciasYaEnOtroEmbarque.Contains(id))
+            .ToList();
+
+        var transferencias = idsTransferenciasPorAgregar.Any()
+            ? await _ovContext.Transferencias
+                .Where(t =>
+                    idsTransferenciasPorAgregar.Contains(t.Id) &&
+                    t.Estatus == 4)
+                .ToListAsync(cancellationToken)
+            : new List<Transferencia>();
+
+        if (!ordenes.Any() && !transferencias.Any())
+        {
+            TempData["Error"] =
+                "No se agregó ningún documento. Es posible que ya no estén disponibles o que ya pertenezcan a otro embarque.";
+
+            return RedirectToAction("EditarEmbarques", new
+            {
+                id = embarqueId
+            });
+        }
+
+        var ahora = DateTime.Now;
+
+        var documentosNuevos = new List<EmbarqueDocumento>(
+            ordenes.Count + transferencias.Count);
+
+        documentosNuevos.AddRange(
+            ordenes.Select(orden => new EmbarqueDocumento
+            {
+                EmbarqueId = embarque.Id,
+                DocumentoId = orden.Id,
+                TipoDocumento = "OV"
+            }));
+
+        documentosNuevos.AddRange(
+            transferencias.Select(transferencia => new EmbarqueDocumento
+            {
+                EmbarqueId = embarque.Id,
+                DocumentoId = transferencia.Id,
+                TipoDocumento = "TRANSFERENCIA"
+            }));
+
+        _qrContext.EmbarqueDocumento.AddRange(documentosNuevos);
+
+        foreach (var orden in ordenes)
+        {
+            orden.Estatus = 6;
+            orden.FechaEmbarque = ahora;
+        }
+
+        // Las transferencias no se cambian de estatus.
+        // Se bloquean para este módulo por EmbarqueDocumento.
+
+        await _qrContext.SaveChangesAsync(cancellationToken);
+        await _ovContext.SaveChangesAsync(cancellationToken);
+
+        TempData["Success"] =
+            $"Se agregaron {ordenes.Count} orden(es) y " +
+            $"{transferencias.Count} transferencia(s) al embarque.";
+
+        return RedirectToAction("Detalle", new
+        {
+            id = embarqueId
+        });
     }
 
     private string ObtenerTextoEstatusTablero(int estatus)
@@ -3472,76 +4012,165 @@ public class EmbarquesController : Controller
         var productos = new List<EmbarqueProductoTemperaturaItemVm>();
 
         // ============================================================
-        // OV: usar PedidoVenta + PedidoVentaProducto
-        // Igual que en Mapa de Carga
+        // OV: usar Subpedido → U_DocMeat → SurtidoEncabezado → SurtidoDetalleTarimas
+        // SKUs realmente surtidos en vez de los generales de PedidoVentaProducto
         // ============================================================
-        var pedidosVenta = await _ovContext.PedidoVenta
+
+        // 1. Obtener Subpedidos de las OVs del embarque
+        var subpedidos = await _ovContext.Subpedidos
             .AsNoTracking()
-            .Include(p => p.Productos)
-            .Where(p => ordenesIds.Contains(p.OrdenVentaId))
+            .Where(s => ordenesIds.Contains(s.OrdenVentaId))
             .ToListAsync();
 
-        foreach (var pedido in pedidosVenta)
+        // 2. Mapear OrdenVentaId → U_DocMeat (tomar el primero por OV)
+        var docMeatPorOV = subpedidos
+            .Where(s => !string.IsNullOrWhiteSpace(s.U_DocMeat))
+            .GroupBy(s => s.OrdenVentaId)
+            .ToDictionary(g => g.Key, g => g.First().U_DocMeat!.Trim());
+
+        // 3. Consultar SurtidoEncabezado usando los U_DocMeat
+        //    SolicitudSurtidoId es int pero U_DocMeat es string, convertir a int para la query
+        var docMeatInts = docMeatPorOV.Values
+            .Distinct()
+            .Select(v => int.TryParse(v, out var n) ? n : (int?)null)
+            .Where(n => n.HasValue)
+            .Select(n => n!.Value)
+            .ToList();
+
+        var surtidoEncabezados = docMeatInts.Any()
+            ? await _ovContext.SurtidoEncabezado
+                .AsNoTracking()
+                .Where(se => docMeatInts.Contains(se.SolicitudSurtidoId))
+                .ToListAsync()
+            : new List<SurtidoEncabezado>();
+
+        // 4. Consultar SurtidoDetalleTarimas para estos encabezados
+        var surtidoDetalle = docMeatInts.Any()
+            ? await _ovContext.SurtidoDetalleTarimas
+                .AsNoTracking()
+                .Where(sd => docMeatInts.Contains(sd.SolicitudSurtidoId))
+                .OrderBy(sd => sd.Articulo)
+                .ThenBy(sd => sd.Tarima)
+                .ToListAsync()
+            : new List<SurtidoDetalleTarima>();
+
+        // 5. Lookup de nombres de producto desde ArticuloSap
+        var skusUnicos = surtidoDetalle
+            .Select(sd => sd.Articulo)
+            .Where(a => !string.IsNullOrWhiteSpace(a))
+            .Select(a => a!.Trim())
+            .Distinct()
+            .ToList();
+
+        var nombresArticulo = skusUnicos.Any()
+            ? await _ovContext.ArticuloSap
+                .AsNoTracking()
+                .Where(a => skusUnicos.Contains(a.ProductoCodigo))
+                .ToDictionaryAsync(a => a.ProductoCodigo, a => a.ProductoNombre)
+            : new Dictionary<string, string>();
+
+        // 6. Construir productos desde SurtidoDetalleTarimas
+        //    Crear diccionario inverso: SolicitudSurtidoId (int) → OrdenVentaId
+        var ovPorSurtidoId = docMeatPorOV
+            .Where(x => int.TryParse(x.Value, out _))
+            .ToDictionary(
+                x => int.Parse(x.Value),
+                x => x.Key);
+
+        foreach (var detalle in surtidoDetalle)
         {
-            ordenesMeta.TryGetValue(pedido.OrdenVentaId, out var metaOv);
+            // Encontrar a qué OV pertenece este surtido
+            ovPorSurtidoId.TryGetValue(detalle.SolicitudSurtidoId, out var ordenVentaId);
+            ordenesMeta.TryGetValue(ordenVentaId, out var metaOv);
 
-            foreach (var detalle in pedido.Productos
-                .Where(d => !string.IsNullOrWhiteSpace(d.ProductoCodigo))
-                .OrderBy(d => d.Id))
+            var skuCodigo = (detalle.Articulo ?? "").Trim();
+            var nombreProducto = nombresArticulo.TryGetValue(skuCodigo, out var nombre)
+                ? nombre
+                : skuCodigo;
+
+            productos.Add(new EmbarqueProductoTemperaturaItemVm
             {
-                productos.Add(new EmbarqueProductoTemperaturaItemVm
-                {
-                    TipoDocumento = "OV",
-                    DocumentoId = pedido.OrdenVentaId,
-                    DocumentoConsecutivo = metaOv?.Consecutivo ?? pedido.OrdenVentaConsecutivo ?? "",
-                    DocumentoCliente = metaOv?.Cliente ?? "",
-                    OrigenDetalleId = detalle.Id,
+                TipoDocumento = "OV",
+                DocumentoId = ordenVentaId,
+                DocumentoConsecutivo = metaOv?.Consecutivo ?? "",
+                DocumentoCliente = metaOv?.Cliente ?? "",
+                OrigenDetalleId = detalle.SurtidoDetalleTarimaId,
 
-                    ProductoCodigo = detalle.ProductoCodigo ?? "",
-                    ProductoNombre = detalle.ProductoNombre ?? "",
-                    Almacen = detalle.Almacen ?? "",
+                ProductoCodigo = skuCodigo,
+                ProductoNombre = nombre,
+                Almacen = (detalle.Sucursal ?? "").Trim(),
 
-                    Cajas = detalle.Cajas,
-                    Kilos = detalle.KilosCaja
-                });
-            }
+                Cajas = detalle.Cajas,
+                Kilos = detalle.Kg,
+                Tarima = (detalle.Tarima ?? "").Trim()
+            });
         }
 
         // ============================================================
-        // TRANSFERENCIAS: usar PedidosTransferencia + Detalles
-        // Igual que en Mapa de Carga
+        // TRANSFERENCIAS: usar TransferenciaScanEtiqueta
+        // Agrupar por TransferenciaId + Sku + TarimaCodigo
+        // Cada grupo = 1 fila en calidad (misma tarima = misma temperatura)
         // ============================================================
-        var pedidosTransferencia = await _ovContext.PedidosTransferencia
-            .AsNoTracking()
-            .Include(p => p.Detalles)
-            .Where(p => transferenciasIds.Contains(p.TransferenciaId))
-            .ToListAsync();
+        var scanEtiquetas = transferenciasIds.Any()
+            ? await _ovContext.TransferenciaScanEtiquetas
+                .AsNoTracking()
+                .Where(s => transferenciasIds.Contains(s.TransferenciaId))
+                .ToListAsync()
+            : new List<TransferenciaScanEtiqueta>();
 
-        foreach (var tr in pedidosTransferencia)
-        {
-            transferenciasMeta.TryGetValue(tr.TransferenciaId, out var metaTr);
+        // Lookup de nombres de producto desde ArticuloSap
+        var skusTr = scanEtiquetas
+            .Select(s => (s.Sku ?? "").Trim())
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Distinct()
+            .ToList();
 
-            foreach (var detalle in tr.Detalles
-                .Where(d => !string.IsNullOrWhiteSpace(d.ProductoCodigo))
-                .OrderBy(d => d.Orden)
-                .ThenBy(d => d.Id))
+        var nombresArticuloTr = skusTr.Any()
+            ? await _ovContext.ArticuloSap
+                .AsNoTracking()
+                .Where(a => skusTr.Contains(a.ProductoCodigo))
+                .ToDictionaryAsync(a => a.ProductoCodigo, a => a.ProductoNombre)
+            : new Dictionary<string, string>();
+
+        // Agrupar por TransferenciaId + Sku + TarimaCodigo
+        var trGroups = scanEtiquetas
+            .Where(s => !string.IsNullOrWhiteSpace(s.TarimaCodigo))
+            .GroupBy(s => new
             {
-                productos.Add(new EmbarqueProductoTemperaturaItemVm
-                {
-                    TipoDocumento = "TRANSFERENCIA",
-                    DocumentoId = tr.TransferenciaId,
-                    DocumentoConsecutivo = metaTr?.Consecutivo ?? tr.Consecutivo ?? "",
-                    DocumentoCliente = metaTr?.Cliente ?? "",
-                    OrigenDetalleId = detalle.Id,
+                s.TransferenciaId,
+                Sku = (s.Sku ?? "").Trim(),
+                Tarima = (s.TarimaCodigo ?? "").Trim()
+            });
 
-                    ProductoCodigo = detalle.ProductoCodigo ?? "",
-                    ProductoNombre = detalle.ProductoCodigo ?? "",
-                    Almacen = "",
+        foreach (var g in trGroups)
+        {
+            var key = g.Key;
+            transferenciasMeta.TryGetValue(key.TransferenciaId, out var metaTr);
 
-                    Cajas = detalle.Cajas,
-                    Kilos = detalle.CantidadKg
-                });
-            }
+            var skuCodigo = key.Sku;
+            var nombreProducto = nombresArticuloTr.TryGetValue(skuCodigo, out var nombre)
+                ? nombre
+                : skuCodigo;
+
+            // min(Id) como OrigenDetalleId estable para la clave
+            var minId = g.Min(s => s.Id);
+
+            productos.Add(new EmbarqueProductoTemperaturaItemVm
+            {
+                TipoDocumento = "TRANSFERENCIA",
+                DocumentoId = key.TransferenciaId,
+                DocumentoConsecutivo = metaTr?.Consecutivo ?? "",
+                DocumentoCliente = metaTr?.Cliente ?? "",
+                OrigenDetalleId = minId,
+
+                ProductoCodigo = skuCodigo,
+                ProductoNombre = nombreProducto,
+                Almacen = "",
+
+                Cajas = g.Count(),
+                Kilos = g.Sum(s => s.Kg),
+                Tarima = key.Tarima
+            });
         }
 
         var guardadas = await _qrContext.EmbarqueProductoTemperaturas

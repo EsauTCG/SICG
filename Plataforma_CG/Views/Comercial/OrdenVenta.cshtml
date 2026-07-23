@@ -506,6 +506,64 @@
         margin-bottom: 4px;
     }
 
+   
+    input[type="checkbox"].form-check-input#chkEsMuestra {
+        width: 22px !important;
+        height: 22px !important;
+        min-height: 22px !important; /* Resetea el min-height global */
+        max-height: 22px !important; /* Evita que herede estiramientos */
+        padding: 0 !important; /* Resetea el padding global */
+        border: 2px solid #dc2626 !important;
+        border-radius: 4px !important;
+        cursor: pointer !important;
+        -webkit-appearance: none !important;
+        -moz-appearance: none !important;
+        appearance: none !important;
+        background-color: #fff !important;
+        background-image: none !important;
+        margin: 0 !important;
+        flex-shrink: 0; /* Evita reduccion por flexbox */
+        box-shadow: none !important;
+    }
+
+        input[type="checkbox"].form-check-input#chkEsMuestra:checked {
+            background-color: #dc2626 !important;
+            border-color: #dc2626 !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'/%3E%3C/svg%3E") !important;
+            background-size: 14px !important;
+            background-position: center !important;
+            background-repeat: no-repeat !important;
+        }
+
+        input[type="checkbox"].form-check-input#chkEsMuestra:hover {
+            box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.2) !important;
+        }
+
+    #chkEsMuestra + label[for="chkEsMuestra"] {
+        cursor: pointer;
+        color: #374151 !important;
+        font-weight: 700 !important;
+        user-select: none;
+        margin-bottom: 0 !important;
+        font-size: 12px !important;
+        text-transform: none !important; 
+        letter-spacing: normal !important;
+    }
+
+    body[data-theme="dark"] #chkEsMuestra + label[for="chkEsMuestra"] {
+        color: #e5e7eb !important;
+    }
+
+    body[data-theme="dark"] input[type="checkbox"].form-check-input#chkEsMuestra {
+        border-color: #ef4444 !important;
+        background-color: #1a1a2e !important;
+    }
+
+        body[data-theme="dark"] input[type="checkbox"].form-check-input#chkEsMuestra:checked {
+            background-color: #ef4444 !important;
+            border-color: #ef4444 !important;
+        }
+
     .module-titlebar .btn-reflejo,
     .module-titlebar .btn-outline-secondary {
         width: auto !important;
@@ -2977,6 +3035,55 @@ body[data-theme="dark"] .ov-products-tip {
     min-height: 26px !important;
     }
     }
+
+
+    /* ============================================================
+       PERFORMANCE MOBILE - ORDEN DE VENTA
+       Reduce repintados caros en celular sin cambiar IDs ni lógica.
+    ============================================================ */
+    @@media (max-width: 768px) {
+        .ov-page,
+        .content,
+        .panel,
+        .panel-body,
+        .modal-content,
+        .bg-light,
+        .tbtn,
+        .btn,
+        .table-responsive,
+        .ov-steps,
+        .ov-step,
+        .ov-guidance,
+        .ov-sticky-actions {
+            box-shadow: none !important;
+            transition: none !important;
+            animation: none !important;
+        }
+
+        #loadingSpinner {
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+        }
+
+        .table thead th,
+        #clienteLookupModal #clienteTable thead th {
+            position: static !important;
+        }
+
+        .table-responsive,
+        .table-responsive.table-sticky,
+        #clienteLookupModal .cliente-lookup-table-wrap {
+            contain: layout paint;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch !important;
+        }
+
+        body,
+        .ov-page {
+            touch-action: manipulation;
+        }
+    }
+
 </style>
 
 <div class="container-fluid legacy-border ov-page">
@@ -3096,7 +3203,13 @@ body[data-theme="dark"] .ov-products-tip {
                                             <option value="FRESCO-COMBO">FRESCO-COMBO</option>
                                             <option value="NINGUNO">NINGUNO</option>
                                         </select>
+                                        <!-- Checkbox de muestra con alineacion flex -->
+                                        <div class="d-flex align-items-center mt-3">
+                                            <input type="checkbox" class="form-check-input m-0" id="chkEsMuestra" name="esMuestra" value="true">
+                                            <label class="form-check-label ms-2" for="chkEsMuestra">¿Es orden de muestra?</label>
+                                        </div>
                                     </div>
+
 
                                     <!-- Modo presupuesto oculto: se conserva para la lógica existente -->
                                     <div class="col-12 col-md-3 d-none">
@@ -3626,35 +3739,37 @@ body[data-theme="dark"] .ov-products-tip {
 
     <script>
         /* ===========================
-        BLOQUEO GLOBAL & UTILIDADES
+        LOADING & UTILIDADES
         =========================== */
         let isLoading = false;
+        let isUiLocked = false;
         let loadToken = 0;
 
-        function setLoading(state, message = "Cargando...") {
-        isLoading = state;
+        function setLoading(state, message = "Cargando...", options) {
+        const lockForm = !!(options && options.lockForm);
+        isLoading = !!state;
+        isUiLocked = !!state && lockForm;
 
         const $spinner = $("#loadingSpinner");
         $spinner.find("p").text(message);
         $spinner.toggleClass("is-active", !!state);
 
+        // En mobile NO bloqueamos toda la pantalla para cargas normales.
+        // Solo se deshabilita el formulario si se llama explícitamente con { lockForm: true }.
         const $form = $("form[asp-action='GuardarPedido'], #formOV");
-        $form.find(":input").prop("disabled", state);
+        $form.find(":input").prop("disabled", !!state && lockForm);
 
-        if (state) {
-        $("body").css("pointer-events", "none");
-        $spinner.css("pointer-events", "auto");
-        } else {
         $("body").css("pointer-events", "");
-        }
+        $spinner.css("pointer-events", "auto");
         }
 
         async function runWithLoading(message, fn, options) {
-        // options: { lockForm: bool, showOverlay: bool } – (lockForm no se usa si showOverlay=false)
+        // options: { lockForm: bool, showOverlay: bool }
         const myToken = ++loadToken;
         const showOverlay = options?.showOverlay ?? true;
+        const lockForm = options?.lockForm ?? false;
 
-        if (showOverlay) setLoading(true, message);
+        if (showOverlay) setLoading(true, message, { lockForm });
         try {
         const result = await fn(myToken);
         if (myToken === loadToken && showOverlay) setLoading(false);
@@ -3665,12 +3780,12 @@ body[data-theme="dark"] .ov-products-tip {
         }
         }
 
-        // Bloquear clics/inputs durante carga
+        // Solo bloquear clics/inputs cuando realmente se solicite lockForm.
         $(document).on("click", "a, button", function (e) {
-        if (isLoading) { e.preventDefault(); e.stopPropagation(); return false; }
+        if (isUiLocked) { e.preventDefault(); e.stopPropagation(); return false; }
         });
         $(document).on("input change", ":input", function (e) {
-        if (isLoading) { e.preventDefault(); e.stopPropagation(); return false; }
+        if (isUiLocked) { e.preventDefault(); e.stopPropagation(); return false; }
         });
     </script>
 
@@ -3728,6 +3843,11 @@ body[data-theme="dark"] .ov-products-tip {
         return pickBool(v);
         }
 
+        // Una orden marcada como muestra entra libre, sin presupuesto ni disponible.
+        function esOrdenMuestra() {
+        return $("#chkEsMuestra").is(":checked");
+        }
+
         function isCanalCedis() {
         return pickBool($("#EsCanalCedis").val());
         }
@@ -3749,12 +3869,16 @@ body[data-theme="dark"] .ov-products-tip {
 
         // ✅ Si es Canal CEDIS y Serie NO es MATRIZ => NO aplica presupuesto/disponible
         function aplicaPresupuesto() {
+        // Regla prioritaria: las órdenes de muestra nunca aplican presupuesto.
+        if (esOrdenMuestra()) return false;
+
         const clienteAplica = pickBoolDefaultTrue($("#ClienteAplicaPresupuesto").val());
         const matriz = esSerieMatriz();
 
         // Solo aplica presupuesto cuando:
-        // 1. El cliente aplica presupuesto
-        // 2. La serie seleccionada es de matriz
+        // 1. NO es orden de muestra
+        // 2. El cliente aplica presupuesto
+        // 3. La serie seleccionada es de matriz
         return clienteAplica && matriz;
         }
 
@@ -3804,6 +3928,37 @@ body[data-theme="dark"] .ov-products-tip {
         toggleColumnasPresupuesto();
         actualizarTotales();
         }
+
+        // Al marcar Muestra, limpia y desactiva inmediatamente toda la lógica de presupuesto.
+        // Al desmarcarla, vuelve a cargar presupuesto solamente cuando corresponda.
+        $(document).on("change", "#chkEsMuestra", async function () {
+        clearDisponiblesCache();
+        setHeadersPresupuesto();
+
+        if (esOrdenMuestra()) {
+        syncNoAplicaState();
+        if (typeof showToast === "function") {
+        showToast("Orden de muestra activada: no requiere presupuesto ni disponible.", "success", 5000);
+        }
+        return;
+        }
+
+        if (!aplicaPresupuesto()) {
+        syncNoAplicaState();
+        return;
+        }
+
+        const cardCode = $("#clienteHidden").val();
+        const fecha = $("#FechaEntrega").val();
+        if (!cardCode || !fecha) {
+        toggleColumnasPresupuesto();
+        return;
+        }
+
+        // Reutiliza el recálculo existente del modo seleccionado.
+        if ($("#modoCli").is(":checked")) $("#modoCli").trigger("change");
+        else $("#modoVend").trigger("change");
+        });
 
         // ===========================
         // ✅ MODO PRESUPUESTO (Vendedor/Cliente)
@@ -4329,7 +4484,7 @@ body[data-theme="dark"] .ov-products-tip {
 
 
         function recalcularDisponibleFila($row) {
-        if (!clienteRequierePresupuesto()) {
+        if (!aplicaPresupuesto()) {
         $row.removeClass("table-danger");
         return;
         }
@@ -4864,15 +5019,20 @@ $(document).on("blur", ".productoInput", function () {
         _excelRowsMasivos = [];
         }
 
-        // Totales tabla
+        // Totales tabla - versión ligera para mobile.
+        // Importante: aquí NO se renombran inputs; eso se hace en actualizarIndices()
+        // solo cuando agregas/elimininas filas o antes de guardar.
         function actualizarTotales() {
         const tbody = document.getElementById('productosBody');
-        let totalPeso = 0, totalImporte = 0;
+        if (!tbody) return;
+
+        let totalPeso = 0;
+        let totalImporte = 0;
 
         for (let i = 0; i < tbody.rows.length; i++) {
         const row = tbody.rows[i];
-        const pesoInput = row.querySelector('input[name$=".Peso"]');
-        const precioInput = row.querySelector('input[name$=".Precio"]');
+        const pesoInput = row.querySelector('input[name$=".Peso"], .peso');
+        const precioInput = row.querySelector('input[name$=".Precio"], .precio');
         const subtotalInput = row.querySelector('.subtotal');
 
         const peso = parseFloat(pesoInput?.value) || 0;
@@ -4884,21 +5044,30 @@ $(document).on("blur", ".productoInput", function () {
         totalPeso += peso;
         totalImporte += subtotal;
 
-        row.cells[0].textContent = i + 1;
-        row.querySelectorAll('input').forEach(input => {
-        if (input.name) {
-        const campo = input.name.split('.').pop();
-        input.name = `Productos[${i}].${campo}`;
+        if (row.cells && row.cells[0]) row.cells[0].textContent = i + 1;
         }
+
+        const totalPesoEl = document.getElementById('totalPeso');
+        const totalImporteEl = document.getElementById('totalImporte');
+        if (totalPesoEl) totalPesoEl.textContent = totalPeso.toFixed(2);
+        if (totalImporteEl) totalImporteEl.textContent = '$' + fmt(totalImporte);
+        }
+
+        let ovTotalesRaf = null;
+        function scheduleActualizarTotales() {
+        if (ovTotalesRaf) return;
+
+        ovTotalesRaf = requestAnimationFrame(function () {
+        ovTotalesRaf = null;
+        actualizarTotales();
         });
-        }
-        document.getElementById('totalPeso').textContent = totalPeso.toFixed(2);
-        document.getElementById('totalImporte').textContent = '$' + fmt(totalImporte);
         }
 
         document.addEventListener('input', function (e) {
-        if (e.target.matches('input[name$=".Peso"], input[name$=".Precio"], .cajas')) actualizarTotales();
-        });
+        if (e.target.matches('input[name$=".Peso"], input[name$=".Precio"], .peso, .precio, .cajas')) {
+        scheduleActualizarTotales();
+        }
+        }, { passive: true });
         document.addEventListener('DOMContentLoaded', () => {
         $('.productoInput').each(function () { initProductoAutocomplete(this); });
         actualizarTotales();
@@ -5035,6 +5204,7 @@ $(document).on("blur", ".productoInput", function () {
         showToast(`SKU ${codigoUpper} omitido: no tiene presupuesto asignado (${owner.label}).`, "warning", 7000);
         return null;
         }
+
         }
 
         const tbody = $('#productosBody');
@@ -5408,7 +5578,7 @@ $(document).on("blur", ".productoInput", function () {
         const peso = parseFloat($(this).val()) || 0;
         fila.find(".cajas").val((peso / kilosCaja).toFixed(0));
         fila.find(".subtotal").val((peso * (parseFloat(fila.find(".precio").val()) || 0)).toFixed(2));
-        actualizarTotales();
+        scheduleActualizarTotales();
         });
 
         fila.find(".cajas").on("input", function () {
@@ -5416,13 +5586,13 @@ $(document).on("blur", ".productoInput", function () {
         const p = (cajas * kilosCaja);
         fila.find(".peso").val(p.toFixed(2));
         fila.find(".subtotal").val((p * (parseFloat(fila.find(".precio").val()) || 0)).toFixed(2));
-        actualizarTotales();
+        scheduleActualizarTotales();
         });
 
         fila.find(".precio").on("input", function () {
         const peso = parseFloat(fila.find(".peso").val()) || 0;
         fila.find(".subtotal").val((peso * (parseFloat($(this).val()) || 0)).toFixed(2));
-        actualizarTotales();
+        scheduleActualizarTotales();
         });
         });
 
@@ -5955,6 +6125,9 @@ $(document).on("blur", ".productoInput", function () {
 
 
 function clienteRequierePresupuesto() {
+        // La muestra tiene prioridad y entra libre aunque el cliente normalmente requiera presupuesto.
+        if (esOrdenMuestra()) return false;
+
         // Valor directo del catálogo:
         // 1 / true  = requiere presupuesto y debe mantener filtro.
         // 0 / false = no requiere presupuesto y puede capturar libre.
@@ -6019,21 +6192,27 @@ function clienteRequierePresupuesto() {
         }
 
 
-        $("form").on("submit", function (e) {
-        if (isLoading) { e.preventDefault(); alert("Espera a que termine la carga antes de guardar."); return false; }
+                $("form").on("submit", function (e) {
+            if (isLoading) { e.preventDefault(); alert("Espera a que termine la carga antes de guardar."); return false; }
 
-        const tSaldo = valNum('#saldoInput');
-        const tSaldoVencido = valNum('#saldoVencidoInput');
-        const tOtros = valNum('#otrosPedidosInput');
-        const tCredito = valNum('#creditoInput');
+            var esMuestra = document.getElementById('chkEsMuestra') && document.getElementById('chkEsMuestra').checked;
 
-        if ([tSaldo, tSaldoVencido, tOtros, tCredito].every(x => x === 0)) {
-        e.preventDefault();
-        alert("No se pudo obtener información de SAP (todos los totales están en 0). Intenta de nuevo o verifica la conexión.");
-        return false;
-        }
+            if (!esMuestra) {
+                const tSaldo = valNum('#saldoInput');
+                const tSaldoVencido = valNum('#saldoVencidoInput');
+                const tOtros = valNum('#otrosPedidosInput');
+                const tCredito = valNum('#creditoInput');
 
-        // ✅ Bloqueo por filas sin presupuesto (solo si aplica)
+                if ([tSaldo, tSaldoVencido, tOtros, tCredito].every(x => x === 0)) {
+                    e.preventDefault();
+                    alert("No se pudo obtener información de SAP (todos los totales están en 0). Intenta de nuevo o verifica la conexión.");
+                    return false;
+                }
+            }
+
+
+        // Las muestras avanzan sin validar presupuesto ni disponible.
+        if (!esMuestra) {
         const sinPres = filasSinPresupuesto();
         if (sinPres.length > 0) {
         e.preventDefault();
@@ -6041,12 +6220,12 @@ function clienteRequierePresupuesto() {
         return false;
         }
 
-        // ✅ NUEVO: Bloqueo por Disponible <= 0 (solo si aplica)
         const sinDisp = filasConDisponibleNoPositivo();
         if (sinDisp.length > 0) {
         e.preventDefault();
         alert(`No puedes guardar: el Disponible quedó en 0 o menor en las filas: ${sinDisp.join(', ')}.\n\nAjusta KG/Cajas o quita el producto.`);
         return false;
+        }
         }
 
         const malas = filasConPrecioCero();
@@ -6177,6 +6356,10 @@ $(document).on("click", "button[type='submit'][form='formOV'], #formOV button[ty
 
         bypassConfirmSubmit = true;
 
+        // Renombrar índices una sola vez antes de guardar, no en cada tecla.
+        if (typeof actualizarIndices === "function") actualizarIndices();
+        if (typeof actualizarTotales === "function") actualizarTotales();
+
         try {
         if (form.requestSubmit) form.requestSubmit();
         else form.submit();
@@ -6243,7 +6426,8 @@ $(document).on("click", "button[type='submit'][form='formOV'], #formOV button[ty
     <script>
         /* ============================================================
            FIX FINAL RESPONSIVO SIDEBAR - ORDEN DE VENTA
-           Calcula empuje faltante + ancho real disponible.
+           Optimizado: sin setInterval constante; usa requestAnimationFrame
+           solo cuando cambia tamaño/sidebar/layout.
         ============================================================ */
         (function () {
             const page = document.querySelector('.ov-page');
@@ -6258,6 +6442,8 @@ $(document).on("click", "button[type='submit'][form='formOV'], #formOV button[ty
 
             let lastPush = -1;
             let lastWidth = -1;
+            let rafId = null;
+            let trackingUntil = 0;
 
             function applyOrdenVentaSidebar() {
                 if (window.innerWidth < 992) {
@@ -6285,11 +6471,7 @@ $(document).on("click", "button[type='submit'][form='formOV'], #formOV button[ty
                 if (sidebarRight < 90) sidebarRight = 0;
 
                 const mainLeft = Math.max(0, Math.round(mainRect.left));
-
-                // Empuja solo lo que todavía esté encimado por el sidebar.
                 const push = Math.max(0, sidebarRight - mainLeft);
-
-                // Ancho real desde donde empieza la vista hasta el borde derecho.
                 const pageLeft = mainLeft + push;
                 const width = Math.max(320, Math.round(window.innerWidth - pageLeft - 12));
 
@@ -6303,34 +6485,43 @@ $(document).on("click", "button[type='submit'][form='formOV'], #formOV button[ty
                 document.documentElement.style.setProperty('--ov-page-width', width + 'px');
             }
 
-            function trackFor(ms) {
-                const end = performance.now() + ms;
-
-                function frame(now) {
-                    applyOrdenVentaSidebar();
-                    if (now < end) requestAnimationFrame(frame);
+            function scheduleSidebarApply(durationMs) {
+                if (durationMs) {
+                    trackingUntil = Math.max(trackingUntil, performance.now() + durationMs);
                 }
 
-                requestAnimationFrame(frame);
+                if (rafId) return;
+
+                const tick = function (now) {
+                    rafId = null;
+                    applyOrdenVentaSidebar();
+
+                    if (trackingUntil && now < trackingUntil) {
+                        rafId = requestAnimationFrame(tick);
+                    } else {
+                        trackingUntil = 0;
+                    }
+                };
+
+                rafId = requestAnimationFrame(tick);
             }
 
-            applyOrdenVentaSidebar();
-            setInterval(applyOrdenVentaSidebar, 60);
+            scheduleSidebarApply(250);
 
             window.addEventListener('resize', function () {
-                trackFor(700);
+                scheduleSidebarApply(500);
             }, { passive: true });
 
             if (window.ResizeObserver) {
                 const resizeObserver = new ResizeObserver(function () {
-                    trackFor(700);
+                    scheduleSidebarApply(350);
                 });
                 resizeObserver.observe(sidebar);
                 resizeObserver.observe(main);
             }
 
             const mutationObserver = new MutationObserver(function () {
-                trackFor(900);
+                scheduleSidebarApply(450);
             });
             mutationObserver.observe(sidebar, {
                 attributes: true,
@@ -6341,13 +6532,13 @@ $(document).on("click", "button[type='submit'][form='formOV'], #formOV button[ty
                 attributeFilter: ['class', 'style']
             });
 
-            sidebar.addEventListener('transitionstart', function () { trackFor(1000); });
-            sidebar.addEventListener('transitionrun', function () { trackFor(1000); });
-            sidebar.addEventListener('transitionend', function () { trackFor(300); });
+            sidebar.addEventListener('transitionstart', function () { scheduleSidebarApply(700); });
+            sidebar.addEventListener('transitionrun', function () { scheduleSidebarApply(700); });
+            sidebar.addEventListener('transitionend', function () { scheduleSidebarApply(200); });
 
             document.addEventListener('click', function (e) {
-                if (e.target.closest('[data-bs-toggle], .sidebar-toggle, .layout-menu-toggle, .hamburger, .menu-toggle, button, a')) {
-                    trackFor(1100);
+                if (e.target.closest('[data-bs-toggle], .sidebar-toggle, .layout-menu-toggle, .hamburger, .menu-toggle')) {
+                    scheduleSidebarApply(700);
                 }
             }, true);
         })();
@@ -6357,7 +6548,10 @@ $(document).on("click", "button[type='submit'][form='formOV'], #formOV button[ty
 
     <script>
         // UX visual: mantiene marcadores del flujo sin tocar la lógica del pedido.
+        // Optimizado para mobile: no recorre la tabla en intervalos; solo se actualiza por eventos.
         (function () {
+            let stepsRaf = null;
+
             function hasValue(selector) {
                 const el = document.querySelector(selector);
                 return !!(el && String(el.value || "").trim());
@@ -6375,20 +6569,33 @@ $(document).on("click", "button[type='submit'][form='formOV'], #formOV button[ty
                 setStepState("ovStepEntrega", hasValue("#Serie") && hasValue("#FechaEntrega") && hasValue("#rutaSelect"));
 
                 let hasProduct = false;
-                document.querySelectorAll("#productosBody tr").forEach(function (row) {
+                const rows = document.querySelectorAll("#productosBody tr");
+                for (let i = 0; i < rows.length; i++) {
+                    const row = rows[i];
                     const sku = row.querySelector(".productoCodigo")?.value || row.querySelector(".productoInput")?.value || "";
                     const peso = parseFloat(row.querySelector(".peso")?.value || "0") || 0;
-                    if (sku.trim() && peso > 0) hasProduct = true;
-                });
+                    if (sku.trim() && peso > 0) {
+                        hasProduct = true;
+                        break;
+                    }
+                }
 
                 setStepState("ovStepProductos", hasProduct);
                 setStepState("ovStepGuardar", hasProduct && hasValue("#clienteHidden") && hasValue("#FechaEntrega"));
             }
 
-            document.addEventListener("input", refreshExecutiveSteps, true);
-            document.addEventListener("change", refreshExecutiveSteps, true);
+            function scheduleRefreshExecutiveSteps() {
+                if (stepsRaf) return;
+
+                stepsRaf = requestAnimationFrame(function () {
+                    stepsRaf = null;
+                    refreshExecutiveSteps();
+                });
+            }
+
+            document.addEventListener("input", scheduleRefreshExecutiveSteps, true);
+            document.addEventListener("change", scheduleRefreshExecutiveSteps, true);
             document.addEventListener("DOMContentLoaded", refreshExecutiveSteps);
-            setInterval(refreshExecutiveSteps, 1200);
         })();
     </script>
 
@@ -6520,8 +6727,6 @@ $(document).on("click", "button[type='submit'][form='formOV'], #formOV button[ty
 
 
     <!-- ✅ AGREGA ESTE HIDDEN EN TU FORM (#formOV) PARA LA REGLA DE CANAL CEDIS -->
-
-
     <input type="hidden" id="productoCodigo" name="ProductoCodigo" />
 
 }

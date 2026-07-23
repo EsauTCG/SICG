@@ -1171,11 +1171,17 @@ namespace Plataforma_CG.Services
 
             while (more)
             {
+                //           var url =
+                //$"{settings["BaseUrl"].TrimEnd('/')}/Items" +
+                //"?$select=ItemCode,ItemName,U_MASTER,U_TipoporSKU,U_KilosCaja,U_Clas_Prod,U_PRESENT,U_PorcInye" +
+                //"&$filter=U_TipoporSKU ge '1' and Valid eq 'tYES' and SalesItem eq 'tYES'" +
+                //$"&$top={batchSize}&$skip={skip}";
+
                 var url =
-     $"{settings["BaseUrl"].TrimEnd('/')}/Items" +
-     "?$select=ItemCode,ItemName,U_MASTER,U_TipoporSKU,U_KilosCaja,U_Clas_Prod,U_PRESENT,U_PorcInye" +
-     "&$filter=U_TipoporSKU ge '1' and Valid eq 'tYES' and SalesItem eq 'tYES'" +
-     $"&$top={batchSize}&$skip={skip}";
+  $"{settings["BaseUrl"].TrimEnd('/')}/Items" +
+  "?$select=ItemCode,ItemName,U_MASTER,U_TipoporSKU,U_KilosCaja,U_Clas_Prod,U_PRESENT,U_PorcInye" +
+  "&$filter=U_TipoporSKU ge '1' and Valid eq 'tYES'" +
+  $"&$top={batchSize}&$skip={skip}";
 
                 var response = await GetWithReLoginAsync(url);
                 response.EnsureSuccessStatusCode();
@@ -2033,9 +2039,341 @@ namespace Plataforma_CG.Services
         }
 
 
+        // ============================================================================
+        // PROVEEDORES SAP
+        // Pegar DENTRO de la clase SapServiceLayerClient.
+        // ============================================================================
+
+        private static string SapString(JsonElement element, string property)
+        {
+            if (!element.TryGetProperty(property, out var value) ||
+                value.ValueKind == JsonValueKind.Null ||
+                value.ValueKind == JsonValueKind.Undefined)
+                return string.Empty;
+
+            return value.ValueKind == JsonValueKind.String
+                ? value.GetString() ?? string.Empty
+                : value.ToString();
+        }
+
+        private static int? SapInt(JsonElement element, string property)
+        {
+            if (!element.TryGetProperty(property, out var value) ||
+                value.ValueKind == JsonValueKind.Null ||
+                value.ValueKind == JsonValueKind.Undefined)
+                return null;
+
+            if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number))
+                return number;
+
+            if (int.TryParse(value.ToString(), out var parsed))
+                return parsed;
+
+            return null;
+        }
+
+        private static decimal SapDecimal(JsonElement element, string property)
+        {
+            if (!element.TryGetProperty(property, out var value) ||
+                value.ValueKind == JsonValueKind.Null ||
+                value.ValueKind == JsonValueKind.Undefined)
+                return 0m;
+
+            if (value.ValueKind == JsonValueKind.Number && value.TryGetDecimal(out var number))
+                return number;
+
+            return decimal.TryParse(
+                value.ToString(),
+                System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var parsed)
+                    ? parsed
+                    : 0m;
+        }
+
+        private static bool SapYes(JsonElement element, string property)
+        {
+            var value = SapString(element, property);
+
+            return value.Equals("tYES", StringComparison.OrdinalIgnoreCase) ||
+                   value.Equals("Y", StringComparison.OrdinalIgnoreCase) ||
+                   value.Equals("YES", StringComparison.OrdinalIgnoreCase) ||
+                   value.Equals("TRUE", StringComparison.OrdinalIgnoreCase) ||
+                   value.Equals("1", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task<Dictionary<int, string>> ObtenerGruposProveedorSapAsync(
+            string baseUrl,
+            CancellationToken ct)
+        {
+            var result = new Dictionary<int, string>();
+
+            try
+            {
+                var url =
+                    $"{baseUrl}/BusinessPartnerGroups" +
+                    "?$select=Code,Name,Type" +
+                    "&$orderby=Code";
+
+                using var response = await GetWithReLoginAsync(url);
+                response.EnsureSuccessStatusCode();
+
+                var json = await response.Content.ReadAsStringAsync(ct);
+                using var document = JsonDocument.Parse(json);
+
+                if (!document.RootElement.TryGetProperty("value", out var rows) ||
+                    rows.ValueKind != JsonValueKind.Array)
+                    return result;
+
+                foreach (var row in rows.EnumerateArray())
+                {
+                    var code = SapInt(row, "Code");
+                    var name = SapString(row, "Name");
+                    var type = SapString(row, "Type");
+
+                    if (!code.HasValue)
+                        continue;
+
+                    // Algunas versiones devuelven el enum como nombre y otras como valor.
+                    bool esGrupoProveedor =
+                        string.IsNullOrWhiteSpace(type) ||
+                        type.Equals("bbpgt_VendorGroup", StringComparison.OrdinalIgnoreCase) ||
+                        type.Equals("S", StringComparison.OrdinalIgnoreCase);
+
+                    if (esGrupoProveedor)
+                        result[code.Value] = name;
+                }
+            }
+            catch
+            {
+                // El catálogo principal puede sincronizarse aunque falle el nombre del grupo.
+            }
+
+            return result;
+        }
+
+        private async Task<Dictionary<int, string>> ObtenerCondicionesPagoSapAsync(
+            string baseUrl,
+            CancellationToken ct)
+        {
+            var result = new Dictionary<int, string>();
+
+            try
+            {
+                var url =
+                    $"{baseUrl}/PaymentTermsTypes" +
+                    "?$select=GroupNumber,PaymentTermsGroupName" +
+                    "&$orderby=GroupNumber";
+
+                using var response = await GetWithReLoginAsync(url);
+                response.EnsureSuccessStatusCode();
+
+                var json = await response.Content.ReadAsStringAsync(ct);
+                using var document = JsonDocument.Parse(json);
+
+                if (!document.RootElement.TryGetProperty("value", out var rows) ||
+                    rows.ValueKind != JsonValueKind.Array)
+                    return result;
+
+                foreach (var row in rows.EnumerateArray())
+                {
+                    var code = SapInt(row, "GroupNumber");
+                    var name = SapString(row, "PaymentTermsGroupName");
+
+                    if (code.HasValue)
+                        result[code.Value] = name;
+                }
+            }
+            catch
+            {
+                // No bloquear la sincronización del proveedor.
+            }
+
+            return result;
+        }
+
+        public async Task<List<CatalogoProveedorSapViewModel>> ObtenerCatTodosProveedoresAsync(
+            CancellationToken ct = default)
+        {
+            if (!_httpClient.DefaultRequestHeaders.Contains("Cookie"))
+                await LoginAsync();
+
+            var baseUrl = (_config.GetSection("SapServiceLayer")["BaseUrl"] ?? "")
+                .TrimEnd('/');
+
+            if (string.IsNullOrWhiteSpace(baseUrl))
+                throw new InvalidOperationException(
+                    "No está configurado SapServiceLayer:BaseUrl.");
+
+            var grupos = await ObtenerGruposProveedorSapAsync(baseUrl, ct);
+            var condiciones = await ObtenerCondicionesPagoSapAsync(baseUrl, ct);
+
+            var proveedores = new List<CatalogoProveedorSapViewModel>();
+
+            int skip = 0;
+            const int batchSize = 1;
+
+            while (true)
+            {
+                // 'S' es el valor del enum proveedor. SAP también lo representa como cSupplier.
+                var url =
+                    $"{baseUrl}/BusinessPartners?" +
+                    "$filter=CardType eq 'S'" +
+                    "&$select=" +
+                    "CardCode,CardName,CardForeignName,FederalTaxID," +
+                    "Phone1,Cellular,EmailAddress,Currency,GroupCode," +
+                    "PayTermsGrpCode,CurrentAccountBalance,Valid,Frozen," +
+                    "Address,ZipCode,City,County,Country" +
+                    "&$orderby=CardCode" +
+                    $"&$top={batchSize}&$skip={skip}";
+
+                using var response = await GetWithReLoginAsync(url);
+                response.EnsureSuccessStatusCode();
+
+                var json = await response.Content.ReadAsStringAsync(ct);
+                using var document = JsonDocument.Parse(json);
+
+                if (!document.RootElement.TryGetProperty("value", out var rows) ||
+                    rows.ValueKind != JsonValueKind.Array ||
+                    rows.GetArrayLength() == 0)
+                    break;
+
+                foreach (var row in rows.EnumerateArray())
+                {
+                    var groupCode = SapInt(row, "GroupCode");
+                    var paymentCode = SapInt(row, "PayTermsGrpCode");
+
+                    proveedores.Add(new CatalogoProveedorSapViewModel
+                    {
+                        CardCode = SapString(row, "CardCode"),
+                        CardName = SapString(row, "CardName"),
+                        CardForeignName = SapString(row, "CardForeignName"),
+                        FederalTaxID = SapString(row, "FederalTaxID"),
+                        Phone1 = SapString(row, "Phone1"),
+                        Cellular = SapString(row, "Cellular"),
+                        EmailAddress = SapString(row, "EmailAddress"),
+                        Currency = SapString(row, "Currency"),
+                        GroupCode = groupCode,
+                        GroupName =
+                            groupCode.HasValue &&
+                            grupos.TryGetValue(groupCode.Value, out var groupName)
+                                ? groupName
+                                : string.Empty,
+                        PayTermsGrpCode = paymentCode,
+                        PaymentTermsName =
+                            paymentCode.HasValue &&
+                            condiciones.TryGetValue(paymentCode.Value, out var paymentName)
+                                ? paymentName
+                                : string.Empty,
+                        CurrentAccountBalance = SapDecimal(row, "CurrentAccountBalance"),
+                        Address = SapString(row, "Address"),
+                        ZipCode = SapString(row, "ZipCode"),
+                        City = SapString(row, "City"),
+                        County = SapString(row, "County"),
+                        Country = SapString(row, "Country"),
+                        Active = SapYes(row, "Valid"),
+                        Frozen = SapYes(row, "Frozen")
+                    });
+                }
+
+                int received = rows.GetArrayLength();
+                skip += received;
+
+                if (received < batchSize)
+                    break;
+            }
+
+            return proveedores;
+        }
+
+        public async Task<(int totalSap, int insertados, int actualizados, int fueraDeSap)>
+            SincronizarProveedoresAsync(CancellationToken ct = default)
+        {
+            var proveedoresSap = await ObtenerCatTodosProveedoresAsync(ct);
+
+            var proveedoresLocales = await _context.ProveedorSap
+                .ToDictionaryAsync(x => x.Proveedor, StringComparer.OrdinalIgnoreCase, ct);
+
+            var encontradosSap = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            int insertados = 0;
+            int actualizados = 0;
+
+            foreach (var item in proveedoresSap)
+            {
+                var codigo = (item.CardCode ?? string.Empty).Trim();
+
+                if (string.IsNullOrWhiteSpace(codigo))
+                    continue;
+
+                encontradosSap.Add(codigo);
+
+                if (!proveedoresLocales.TryGetValue(codigo, out var local))
+                {
+                    local = new ProveedorSap
+                    {
+                        Proveedor = codigo
+                    };
+
+                    _context.ProveedorSap.Add(local);
+                    proveedoresLocales[codigo] = local;
+                    insertados++;
+                }
+                else
+                {
+                    actualizados++;
+                }
+
+                local.NombreProveedor = (item.CardName ?? string.Empty).Trim();
+                local.NombreExtranjero = (item.CardForeignName ?? string.Empty).Trim();
+                local.RFC = (item.FederalTaxID ?? string.Empty).Trim();
+                local.Telefono = (item.Phone1 ?? string.Empty).Trim();
+                local.Celular = (item.Cellular ?? string.Empty).Trim();
+                local.Correo = (item.EmailAddress ?? string.Empty).Trim();
+                local.Moneda = (item.Currency ?? string.Empty).Trim();
+                local.GrupoId = item.GroupCode;
+                local.GrupoNombre = (item.GroupName ?? string.Empty).Trim();
+                local.CondicionPagoId = item.PayTermsGrpCode;
+                local.CondicionPagoNombre = (item.PaymentTermsName ?? string.Empty).Trim();
+                local.SaldoCuenta = item.CurrentAccountBalance;
+                local.Direccion = (item.Address ?? string.Empty).Trim();
+                local.Ciudad = (item.City ?? string.Empty).Trim();
+                local.Estado = (item.County ?? string.Empty).Trim();
+                local.Pais = (item.Country ?? string.Empty).Trim();
+                local.CodigoPostal = (item.ZipCode ?? string.Empty).Trim();
+                local.Activo = item.Active && !item.Frozen;
+                local.Congelado = item.Frozen;
+                local.ExisteEnSap = true;
+                local.FechaModificacion = DateTime.Now;
+            }
+
+            int fueraDeSap = 0;
+
+            foreach (var local in proveedoresLocales.Values)
+            {
+                if (encontradosSap.Contains(local.Proveedor))
+                    continue;
+
+                if (local.ExisteEnSap || local.Activo)
+                {
+                    local.ExisteEnSap = false;
+                    local.Activo = false;
+                    local.FechaModificacion = DateTime.Now;
+                    fueraDeSap++;
+                }
+            }
+
+            await _context.SaveChangesAsync(ct);
+
+            return (
+                totalSap: proveedoresSap.Count,
+                insertados,
+                actualizados,
+                fueraDeSap);
+        }
 
 
-    
+
 
 
 

@@ -1308,7 +1308,7 @@ async function cargarDetalladoTiempoRealHoy() {
 
         let data = await resp.json();
 
-        
+
 
         if (!Array.isArray(data)) {
             data = [data];
@@ -1559,8 +1559,7 @@ async function reimprimirUltimaCaptura() {
 
     📦 Producto: ${ultimaCapturaPayload.Producto}
     ⚖️  Peso: ${ultimaCapturaPayload.Peso} kg
-    🏷️  SKU: ${ultimaCapturaPayload.SKU}`))
-    {
+    🏷️  SKU: ${ultimaCapturaPayload.SKU}`)) {
         try {
             await imprimirEtiquetaSalida(ultimaCapturaPayload);
             alert('✅ Reimpresión exitosa');

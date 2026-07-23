@@ -1,4 +1,4 @@
-﻿using ClosedXML.Excel;
+using ClosedXML.Excel;
 using Dapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -1636,7 +1636,7 @@ ORDER BY
 
 
         [HttpPost]
-        public async Task<IActionResult> GuardarPedido(PedidoViewModel model, string accion, CancellationToken ct)
+        public async Task<IActionResult> GuardarPedido(PedidoViewModel model, string accion, bool esMuestra = false, CancellationToken ct = default)
         {
             if (!model.FechaEntrega.HasValue)
             {
@@ -1934,6 +1934,19 @@ ORDER BY
                 await _context.SaveChangesAsync(ct);
             }
 
+            // 4) Si es muestra, crear registro en tabla puente 
+            if (esMuestra)
+            {
+                var ovMuestra = new OrdenVentaMuestra
+                {
+                    OrdenVentaId = pedido.Id,
+                    EsMuestra = true,
+                    FechaCreacion = DateTime.Now
+                };
+                _context.OrdenVentaMuestra.Add(ovMuestra);
+                await _context.SaveChangesAsync(ct);
+            }
+
             await tx.CommitAsync(ct);
 
             TempData["Success"] = sapDisponible
@@ -1945,6 +1958,94 @@ ORDER BY
             return RedirectToAction("Index", "Pedidos");
         }
 
+        [HttpPost("Comercial/CrearSolicitudDesdeOV")]
+        public async Task<IActionResult> CrearSolicitudDesdeOV(int ordenVentaId)
+        {
+            try
+            {
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+
+                // 1. Obtener datos de la OV
+                var ov = await conn.QueryFirstOrDefaultAsync(
+                    "SELECT * FROM OrdenVenta WHERE Id = @Id",
+                    new { Id = ordenVentaId });
+
+                if (ov == null)
+                    return Json(new { ok = false, mensaje = "OV no encontrada" });
+
+                // 2. Obtener productos de la OV
+                var productos = await conn.QueryAsync(
+                    "SELECT * FROM OrdenVentaProducto WHERE PedidoId = @PedidoId AND Eliminado = 0",
+                    new { PedidoId = ordenVentaId });
+
+                // 3. Calcular folio SM
+                var anioActual = DateTime.Now.Year.ToString();
+                var sqlFolio = @"SELECT ISNULL(MAX(CAST(SUBSTRING(Id, 9, 4) AS INT)), 0) + 1 
+                         FROM SolicitudMuestras WHERE Id LIKE 'SM-' + @Anio + '-%'";
+                var siguienteNum = await conn.ExecuteScalarAsync<int>(sqlFolio, new { Anio = anioActual });
+                var folioDefinitivo = $"SM-{anioActual}-{siguienteNum:D4}";
+
+                // 4. Crear solicitud de muestra con TODA la info de la OV
+                var sqlSolicitud = @"
+            INSERT INTO SolicitudMuestras 
+                (Id, CreatedAt, CreatedBy, Seller, Client, Species, RequestedDate, 
+                 Route, Destination, Priority, Notes, Stage, Location)
+            VALUES 
+                (@Id, @CreatedAt, @CreatedBy, @Seller, @Client, @Species, @RequestedDate,
+                 @Route, @Destination, @Priority, @Notes, @Stage, @Location)";
+
+                await conn.ExecuteAsync(sqlSolicitud, new
+                {
+                    Id = folioDefinitivo,
+                    CreatedAt = DateTime.Now,
+                    CreatedBy = ov.Vendedor ?? "Sistema",
+                    Seller = ov.Vendedor ?? "",
+                    Client = ov.Cliente ?? "",
+                    Species = ov.Presentacion ?? "",
+                    RequestedDate = ov.FechaEntrega ?? DateTime.Now.AddDays(3),
+                    Route = ov.Ruta ?? "",
+                    Destination = ov.Ruta ?? "",
+                    Priority = "Normal",
+                    Notes = ov.Observacion ?? $"Generada desde OV: {ov.Consecutivo}",
+                    Stage = "Planeación pendiente",
+                    Location = "Comercial"
+                });
+
+                // 5. Insertar items/productos
+                var sqlItem = @"
+            INSERT INTO SolicitudMuestras_Items 
+                (Uid, SolicitudId, Sku, WorkSku, Product, Spec, Boxes, Temp)
+            VALUES 
+                (@Uid, @SolicitudId, @Sku, @WorkSku, @Product, @Spec, @Boxes, @Temp)";
+
+                foreach (var p in productos)
+                {
+                    await conn.ExecuteAsync(sqlItem, new
+                    {
+                        Uid = Guid.NewGuid().ToString("N").Substring(0, 10),
+                        SolicitudId = folioDefinitivo,
+                        Sku = p.ProductoCodigo ?? "SD",
+                        WorkSku = (string)null,
+                        Product = p.ProductoNombre ?? "SD",
+                        Spec = "",
+                        Boxes = p.Cajas > 0 ? p.Cajas : 1,
+                        Temp = "Refrigerado"
+                    });
+                }
+
+                // 6. Actualizar tabla puente con el folio
+                await conn.ExecuteAsync(
+                    "UPDATE OrdenVentaMuestra SET SolicitudMuestraId = @SolicitudId WHERE OrdenVentaId = @OrdenVentaId",
+                    new { SolicitudId = folioDefinitivo, OrdenVentaId = ordenVentaId });
+
+                return Json(new { ok = true, mensaje = $"Solicitud {folioDefinitivo} creada correctamente" });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
 
 
 
@@ -3122,21 +3223,28 @@ todo_vendedor AS (
 ),
 surtido_cliente AS (
     SELECT
-        Cliente = UPPER(o.Cliente),
+        Cliente = UPPER(LTRIM(RTRIM(o.Cliente))),
         SKU     = UPPER(LTRIM(RTRIM(sd.Articulo))),
         Mes     = MONTH(se.FechaValidacion),
         Anio    = YEAR(se.FechaValidacion),
         KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
     FROM dbo.OrdenVenta o
-    JOIN dbo.Subpedido sp         ON sp.OrdenVentaId = o.Id
-    JOIN dbo.SurtidoEncabezado se ON se.SolicitudSurtidoId = sp.U_DocMeat
-    JOIN dbo.SurtidoDetalle sd    ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
-    JOIN dbo.ClienteSap cli       ON cli.Cliente = o.Cliente
+    JOIN dbo.Series ser
+        ON ser.NombreSerie = o.Serie
+    JOIN dbo.Subpedido sp
+        ON sp.OrdenVentaId = o.Id
+    JOIN dbo.SurtidoEncabezado se
+        ON se.SolicitudSurtidoId = sp.U_DocMeat
+    JOIN dbo.SurtidoDetalle sd
+        ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+    JOIN clientes cli
+        ON cli.Cliente = UPPER(LTRIM(RTRIM(o.Cliente)))
     WHERE o.Estatus <> 0
       AND se.FechaValidacion IS NOT NULL
-      AND ISNULL(UPPER(cli.U_CANAL),'') NOT LIKE 'CEDIS%'
+      AND ser.Sucursal = 'MATRIZ'
+      AND ISNULL(UPPER(LTRIM(RTRIM(cli.U_CANAL))),'') NOT LIKE 'CEDIS%'
     GROUP BY
-        UPPER(o.Cliente),
+        UPPER(LTRIM(RTRIM(o.Cliente))),
         UPPER(LTRIM(RTRIM(sd.Articulo))),
         MONTH(se.FechaValidacion),
         YEAR(se.FechaValidacion)
@@ -3149,12 +3257,19 @@ surtido_ov_cedis AS (
         Anio  = YEAR(se.FechaValidacion),
         KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
     FROM dbo.OrdenVenta o
-    JOIN dbo.Subpedido sp         ON sp.OrdenVentaId = o.Id
-    JOIN dbo.SurtidoEncabezado se ON se.SolicitudSurtidoId = sp.U_DocMeat
-    JOIN dbo.SurtidoDetalle sd    ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
-    JOIN dbo.ClienteSap cli       ON cli.Cliente = o.Cliente
+    JOIN dbo.Series ser
+        ON ser.NombreSerie = o.Serie
+    JOIN dbo.Subpedido sp
+        ON sp.OrdenVentaId = o.Id
+    JOIN dbo.SurtidoEncabezado se
+        ON se.SolicitudSurtidoId = sp.U_DocMeat
+    JOIN dbo.SurtidoDetalle sd
+        ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+    JOIN clientes cli
+        ON cli.Cliente = UPPER(LTRIM(RTRIM(o.Cliente)))
     WHERE o.Estatus <> 0
       AND se.FechaValidacion IS NOT NULL
+      AND ser.Sucursal = 'MATRIZ'
       AND UPPER(LTRIM(RTRIM(cli.U_CANAL))) LIKE 'CEDIS%'
     GROUP BY
         UPPER(LTRIM(RTRIM(cli.U_CANAL))),
@@ -3279,14 +3394,183 @@ surtido_real AS (
     FROM surtido_vendedor_total
     GROUP BY VendedorId, SKU, Mes, Anio
 )
+,
+
+-- =====================================================
+-- DEVOLUCIONES
+-- Se suman al disponible:
+-- Disponible = Presupuesto - Pendiente - SurtidoReal + Devoluciones
+-- =====================================================
+devoluciones_cliente AS (
+    SELECT
+        Cliente = UPPER(LTRIM(RTRIM(d.CodigoSap))),
+        SKU     = UPPER(LTRIM(RTRIM(d.Articulo))),
+        Mes     = MONTH(d.FechaDevolucion),
+        Anio    = YEAR(d.FechaDevolucion),
+        KgDevolucion = SUM(CAST(ISNULL(d.Peso, 0) AS DECIMAL(18,4)))
+    FROM dbo.DevolucionMeat d
+    JOIN clientes cli
+        ON cli.Cliente = UPPER(LTRIM(RTRIM(d.CodigoSap)))
+    WHERE d.FechaDevolucion IS NOT NULL
+      AND ISNULL(UPPER(LTRIM(RTRIM(cli.U_CANAL))),'') NOT LIKE 'CEDIS%'
+      AND EXISTS
+      (
+          SELECT 1
+          FROM dbo.Subpedido sp
+          JOIN dbo.OrdenVenta o
+              ON o.Id = sp.OrdenVentaId
+          JOIN dbo.Series ser
+              ON ser.NombreSerie = o.Serie
+          WHERE sp.U_DocMeat = d.SolicitudSurtidoId
+            AND ser.Sucursal = 'MATRIZ'
+      )
+    GROUP BY
+        UPPER(LTRIM(RTRIM(d.CodigoSap))),
+        UPPER(LTRIM(RTRIM(d.Articulo))),
+        MONTH(d.FechaDevolucion),
+        YEAR(d.FechaDevolucion)
+),
+devoluciones_cedis_base AS (
+    SELECT
+        Canal = UPPER(LTRIM(RTRIM(cli.U_CANAL))),
+        SKU   = UPPER(LTRIM(RTRIM(d.Articulo))),
+        Mes   = MONTH(d.FechaDevolucion),
+        Anio  = YEAR(d.FechaDevolucion),
+        KgDevolucion = SUM(CAST(ISNULL(d.Peso, 0) AS DECIMAL(18,4)))
+    FROM dbo.DevolucionMeat d
+    JOIN clientes cli
+        ON cli.Cliente = UPPER(LTRIM(RTRIM(d.CodigoSap)))
+    WHERE d.FechaDevolucion IS NOT NULL
+      AND UPPER(LTRIM(RTRIM(cli.U_CANAL))) LIKE 'CEDIS%'
+      AND EXISTS
+      (
+          SELECT 1
+          FROM dbo.Subpedido sp
+          JOIN dbo.OrdenVenta o
+              ON o.Id = sp.OrdenVentaId
+          JOIN dbo.Series ser
+              ON ser.NombreSerie = o.Serie
+          WHERE sp.U_DocMeat = d.SolicitudSurtidoId
+            AND ser.Sucursal = 'MATRIZ'
+      )
+    GROUP BY
+        UPPER(LTRIM(RTRIM(cli.U_CANAL))),
+        UPPER(LTRIM(RTRIM(d.Articulo))),
+        MONTH(d.FechaDevolucion),
+        YEAR(d.FechaDevolucion)
+),
+devoluciones_vendedor_normal AS (
+    SELECT
+        cl.VendedorId,
+        dc.SKU,
+        dc.Mes,
+        dc.Anio,
+        KgDevolucion = SUM(dc.KgDevolucion)
+    FROM devoluciones_cliente dc
+    JOIN clientes cl
+        ON cl.Cliente = dc.Cliente
+    WHERE cl.VendedorId IS NOT NULL
+    GROUP BY
+        cl.VendedorId,
+        dc.SKU,
+        dc.Mes,
+        dc.Anio
+),
+devoluciones_vendedor_desde_cedis AS (
+    SELECT
+        VendedorId = pv.VendedorId,
+        SKU        = pv.SKU,
+        Mes        = pv.Mes,
+        Anio       = pv.Anio,
+        KgDevolucion = SUM(
+            CASE
+                WHEN ISNULL(pxc.PresTotalCanal,0) <= 0 THEN 0
+                ELSE (dc.KgDevolucion * (CAST(pv.Presupuesto AS DECIMAL(18,4)) / pxc.PresTotalCanal))
+            END
+        )
+    FROM presupuestos_vendedor pv
+    JOIN canal_vendedores cv
+        ON cv.VendedorId = pv.VendedorId
+    JOIN pres_vendedor_x_canal pxc
+        ON pxc.Canal = cv.Canal
+       AND pxc.SKU   = pv.SKU
+       AND pxc.Mes   = pv.Mes
+       AND pxc.Anio  = pv.Anio
+    JOIN devoluciones_cedis_base dc
+        ON dc.Canal = cv.Canal
+       AND dc.SKU   = pv.SKU
+       AND dc.Mes   = pv.Mes
+       AND dc.Anio  = pv.Anio
+    GROUP BY
+        pv.VendedorId,
+        pv.SKU,
+        pv.Mes,
+        pv.Anio
+),
+devoluciones_vendedor_total AS (
+    SELECT VendedorId, SKU, Mes, Anio, SUM(KgDevolucion) AS KgDevolucion
+    FROM (
+        SELECT * FROM devoluciones_vendedor_normal
+        UNION ALL
+        SELECT * FROM devoluciones_vendedor_desde_cedis
+    ) x
+    GROUP BY VendedorId, SKU, Mes, Anio
+),
+devoluciones_real AS (
+    SELECT
+        'CLIENTE' AS Origen,
+        Cliente,
+        CAST(NULL AS NVARCHAR(100)) AS Canal,
+        CAST(NULL AS INT) AS VendedorId,
+        SKU,
+        Mes,
+        Anio,
+        SUM(KgDevolucion) AS KgDevolucion
+    FROM devoluciones_cliente
+    GROUP BY Cliente, SKU, Mes, Anio
+
+    UNION ALL
+
+    SELECT
+        'CEDIS',
+        CAST(NULL AS NVARCHAR(50)),
+        Canal,
+        CAST(NULL AS INT),
+        SKU,
+        Mes,
+        Anio,
+        SUM(KgDevolucion)
+    FROM devoluciones_cedis_base
+    GROUP BY Canal, SKU, Mes, Anio
+
+    UNION ALL
+
+    SELECT
+        'VENDEDOR',
+        CAST(NULL AS NVARCHAR(50)),
+        CAST(NULL AS NVARCHAR(100)),
+        VendedorId,
+        SKU,
+        Mes,
+        Anio,
+        SUM(KgDevolucion)
+    FROM devoluciones_vendedor_total
+    GROUP BY VendedorId, SKU, Mes, Anio
+)
 SELECT
     productoCodigo         = t.SKU,
     presupuestoAsignado    = CAST(t.Presupuesto AS DECIMAL(18,4)),
     kgPedidosMes           = CAST(ISNULL(t.Kg,0) AS DECIMAL(18,4)),
     kgSurtidoReal          = CAST(ISNULL(sr.KgSurtido,0) AS DECIMAL(18,4)),
-   presupuestoDisponible = CAST(
-    (t.Presupuesto - ISNULL(t.Kg,0) - ISNULL(sr.KgSurtido,0))
-AS DECIMAL(18,4))
+    kgDevoluciones         = CAST(ISNULL(dev.KgDevolucion,0) AS DECIMAL(18,4)),
+    presupuestoDisponible  = CAST(
+        (
+            t.Presupuesto 
+            - ISNULL(t.Kg,0) 
+            - ISNULL(sr.KgSurtido,0)
+            + ISNULL(dev.KgDevolucion,0)
+        )
+    AS DECIMAL(18,4))
 FROM (
     SELECT * FROM todo_cedis
     UNION ALL
@@ -3300,6 +3584,15 @@ LEFT JOIN surtido_real sr
    AND (
         (t.Origen = 'CEDIS'    AND sr.Canal      = t.Canal)
      OR (t.Origen = 'VENDEDOR' AND sr.VendedorId = t.VendedorId)
+   )
+LEFT JOIN devoluciones_real dev
+    ON dev.Origen = t.Origen
+   AND dev.SKU    = t.SKU
+   AND dev.Mes    = t.Mes
+   AND dev.Anio   = t.Anio
+   AND (
+        (t.Origen = 'CEDIS'    AND dev.Canal      = t.Canal)
+     OR (t.Origen = 'VENDEDOR' AND dev.VendedorId = t.VendedorId)
    )
 WHERE
     t.Mes = @mes
@@ -10884,12 +11177,16 @@ SELECT
     SKU = UPPER(LTRIM(RTRIM(a.ProductoCodigo))),
     ProductoNombre = COALESCE(NULLIF(LTRIM(RTRIM(a.ProductoNombre)), ''), a.ProductoCodigo),
     U_MASTER = UPPER(LTRIM(RTRIM(a.U_MASTER))),
-    ClasificacionId = ISNULL(a.U_Clas_Prod, 99),
-    ClasificacionNombre = ISNULL(cp.Nombre, 'POR DEFINIR')
+    ClasificacionId = ISNULL(TRY_CONVERT(INT, a.U_Clas_Prod), 99),
+    ClasificacionNombre = ISNULL(cp.Nombre, 'POR DEFINIR'),
+    IdTipoSKU = ISNULL(TRY_CONVERT(INT, a.U_TipoporSKU), 0),
+    TipoSKUDescripcion = ISNULL(ts.Descripcion, 'POR DEFINIR')
 INTO #productos
 FROM dbo.ArticuloSap a
 LEFT JOIN dbo.ClasificacionProduccion cp
-    ON a.U_Clas_Prod = cp.ClasificacionId;
+    ON TRY_CONVERT(INT, a.U_Clas_Prod) = cp.ClasificacionId
+LEFT JOIN dbo.CatTipoSKU ts
+    ON TRY_CONVERT(INT, a.U_TipoporSKU) = ts.IdTipoSKU;
 
 CREATE UNIQUE CLUSTERED INDEX IX_tmp_productos
 ON #productos (SKU);
@@ -11470,6 +11767,8 @@ SELECT
     KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
 INTO #surtido_cliente
 FROM dbo.OrdenVenta o
+JOIN dbo.Series ser
+    ON ser.NombreSerie = o.Serie
 JOIN dbo.Subpedido sp
     ON sp.OrdenVentaId = o.Id
 JOIN dbo.SurtidoEncabezado se
@@ -11480,6 +11779,7 @@ JOIN #clientes cli
     ON cli.Cliente = UPPER(LTRIM(RTRIM(o.Cliente)))
 WHERE o.Estatus <> 0
   AND se.FechaValidacion IS NOT NULL
+  AND ser.Sucursal = 'MATRIZ'
   AND ISNULL(cli.U_CANAL, '') NOT LIKE 'CEDIS%'
 GROUP BY
     UPPER(LTRIM(RTRIM(o.Cliente))),
@@ -11498,6 +11798,8 @@ SELECT
     KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
 INTO #surtido_ov_cedis
 FROM dbo.OrdenVenta o
+JOIN dbo.Series ser
+    ON ser.NombreSerie = o.Serie
 JOIN dbo.Subpedido sp
     ON sp.OrdenVentaId = o.Id
 JOIN dbo.SurtidoEncabezado se
@@ -11508,6 +11810,7 @@ JOIN #clientes cli
     ON cli.Cliente = UPPER(LTRIM(RTRIM(o.Cliente)))
 WHERE o.Estatus <> 0
   AND se.FechaValidacion IS NOT NULL
+  AND ser.Sucursal = 'MATRIZ'
   AND cli.U_CANAL LIKE 'CEDIS%'
 GROUP BY
     cli.U_CANAL,
@@ -11795,6 +12098,8 @@ SELECT
     prd.U_MASTER AS U_MASTER,
     ISNULL(prd.ClasificacionId, 99) AS ClasificacionId,
     ISNULL(prd.ClasificacionNombre, 'POR DEFINIR') AS ClasificacionNombre,
+    ISNULL(prd.IdTipoSKU, 0) AS IdTipoSKU,
+    ISNULL(prd.TipoSKUDescripcion, 'POR DEFINIR') AS TipoSKUDescripcion,
     CAST(t.Presupuesto AS DECIMAL(18,4)) AS PresupuestoAsignado,
     CAST(t.Kg AS DECIMAL(18,4)) AS KgPedidosMes,
     CAST(
@@ -13615,7 +13920,7 @@ SELECT
     SUM(PesoNeto) AS InvInicial
 FROM dbo.InventarioAlmacenado_Meat
 WHERE FechaInventario = EOMONTH(DATEFROMPARTS(@Anio, @Mes, 1), -1)
-  AND CodigoEtiqueta NOT LIKE '%SACT%'
+  AND CodigoEtiqueta NOT LIKE '%SACT%' AND colonia IN ('VENTAS', 'VENTAS 1', 'VENTAS ESP')
 GROUP BY UPPER(LTRIM(RTRIM(Sku)))
 ORDER BY UPPER(LTRIM(RTRIM(Sku)));
 ";
@@ -13652,7 +13957,7 @@ ORDER BY UPPER(LTRIM(RTRIM(Sku)));
             UPPER(LTRIM(RTRIM(ProductoCodigo))) AS sku,
             SUM(kg) AS invActual
         FROM InventarioSigo
-      where colonia like '%ventas%' 
+     where colonia = 'VENTAS' or colonia = 'VENTAS 1' or colonia = 'VENTAS ESP'
         GROUP BY UPPER(LTRIM(RTRIM(ProductoCodigo)));
     ", cn);
 
@@ -14855,6 +15160,7 @@ ResumenFinal AS (
         ON p.OrdenVentaId = c.Id
     INNER JOIN ClienteSap d 
         ON p.Cliente = d.Cliente
+AND ISNULL(d.AplicaPresupuesto, 0) = 1
     WHERE c.Estatus <> 0
 
     UNION ALL
@@ -15011,7 +15317,7 @@ WITH PedidoDetOV AS (
     INNER JOIN SubpedidoProductos b
         ON a.Id = b.SubpedidoId
     INNER JOIN OrdenVenta ov
-        ON a.OrdenVentaId = ov.Id
+        ON a.OrdenVentaId = ov.Id 
     WHERE a.ConsecutivoOV = @Folio
       AND ov.Estatus <> 0
       AND (
@@ -15208,6 +15514,7 @@ WITH BaseOV AS (
         ON a.OrdenVentaId = c.Id
     INNER JOIN ClienteSap d
         ON a.Cliente = d.Cliente
+ AND ISNULL(d.AplicaPresupuesto, 0) = 1
     WHERE c.Estatus <> 0
     GROUP BY
         a.ConsecutivoOV,
@@ -18396,7 +18703,9 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
            "SOLICITUD_MUESTRAS_VENDEDOR",
            "SOLICITUD_MUESTRAS_PLANEACION",
            "SOLICITUD_MUESTRAS_PRODUCCION",
-           "SOLICITUD_MUESTRAS_TRACKING"
+           "SOLICITUD_MUESTRAS_TRACKING",
+                "SOLICITUD_MUESTRAS_PROD_LINEA",
+                "SOLICITUD_MUESTRAS_PROD_NUEVO"
        };
 
         [HttpGet("Comercial/AsegurarModulosMuestras")]
@@ -18437,7 +18746,10 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
                     ["vendedor"] = true,
                     ["planeacion"] = true,
                     ["produccion"] = true,
-                    ["tracking"] = true
+                    ["tracking"] = true,
+                    ["prod_linea"] = true,
+                    ["prod_nuevo"] = true
+
                 };
                 return Json(allTrue);
             }
@@ -18449,7 +18761,9 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
                 ["vendedor"] = null,
                 ["planeacion"] = null,
                 ["produccion"] = null,
-                ["tracking"] = null
+                ["tracking"] = null,
+                ["prod_linea"] = null,
+                ["prod_nuevo"] = null
             };
 
             var clavesPermisos = new (string tab, string clave)[]
@@ -18457,7 +18771,9 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
                ("vendedor",   "SOLICITUD_MUESTRAS_VENDEDOR"),
                ("planeacion", "SOLICITUD_MUESTRAS_PLANEACION"),
                ("produccion", "SOLICITUD_MUESTRAS_PRODUCCION"),
-               ("tracking",   "SOLICITUD_MUESTRAS_TRACKING")
+               ("tracking",   "SOLICITUD_MUESTRAS_TRACKING"),
+               ("prod_linea", "SOLICITUD_MUESTRAS_PROD_LINEA"), 
+               ("prod_nuevo", "SOLICITUD_MUESTRAS_PROD_NUEVO")
             };
 
             foreach (var (tab, clave) in clavesPermisos)
@@ -18522,7 +18838,9 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
                     vendedor = permisos.Any(x => x.PerfilId == p.Id && x.ModuloId == modulos.FirstOrDefault(m => m.Clave == "SOLICITUD_MUESTRAS_VENDEDOR")?.Id && x.PuedeLeer),
                     planeacion = permisos.Any(x => x.PerfilId == p.Id && x.ModuloId == modulos.FirstOrDefault(m => m.Clave == "SOLICITUD_MUESTRAS_PLANEACION")?.Id && x.PuedeLeer),
                     produccion = permisos.Any(x => x.PerfilId == p.Id && x.ModuloId == modulos.FirstOrDefault(m => m.Clave == "SOLICITUD_MUESTRAS_PRODUCCION")?.Id && x.PuedeLeer),
-                    tracking = permisos.Any(x => x.PerfilId == p.Id && x.ModuloId == modulos.FirstOrDefault(m => m.Clave == "SOLICITUD_MUESTRAS_TRACKING")?.Id && x.PuedeLeer)
+                    tracking = permisos.Any(x => x.PerfilId == p.Id && x.ModuloId == modulos.FirstOrDefault(m => m.Clave == "SOLICITUD_MUESTRAS_TRACKING")?.Id && x.PuedeLeer),
+                    prodLinea = permisos.Any(x => x.PerfilId == p.Id && x.ModuloId == modulos.FirstOrDefault(m => m.Clave == "SOLICITUD_MUESTRAS_PROD_LINEA")?.Id && x.PuedeLeer), // Agregado
+                    prodNuevo = permisos.Any(x => x.PerfilId == p.Id && x.ModuloId == modulos.FirstOrDefault(m => m.Clave == "SOLICITUD_MUESTRAS_PROD_NUEVO")?.Id && x.PuedeLeer)  // Agregado
                 }).ToList();
 
                 return Json(new { ok = true, data });
@@ -18597,14 +18915,12 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
                     var sql = @"
                SELECT TOP 1 
                    CASE 
-                       WHEN Rol = 'Admin' OR PerfilId = 1 THEN 'Admin'
-                       WHEN EsVendedor = 1 OR PerfilId = 5 THEN 'Vendedor'
-                       WHEN PerfilId = 1005 THEN 'Planeador'
-                       WHEN PerfilId = 3 THEN 'Produccion'
-                       ELSE 'Vendedor'
+                       WHEN u.Rol = 'Admin' OR u.PerfilId = 1 THEN 'Admin'
+                       ELSE ISNULL(p.Nombre, 'Vendedor')
                    END
-               FROM UsuarioSQL 
-               WHERE Usuario = @User OR Nombre = @User";
+               FROM UsuarioSQL u
+               LEFT JOIN Perfiles p ON u.PerfilId = p.Id
+               WHERE u.Usuario = @User OR u.Nombre = @User";
 
                     var resultado = await conn.ExecuteScalarAsync<string>(sql, new { User = nombreUsuario });
 
@@ -18626,9 +18942,8 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
             ViewData["Perfil"] = perfilCalculado;
             return View();
         }
-
-        [HttpGet("Comercial/ObtenerSolicitudes")]
-        public async Task<IActionResult> ObtenerSolicitudes()
+        [HttpGet("Comercial/ObtenerOVMuestras")]
+        public async Task<IActionResult> ObtenerOVMuestras()
         {
             try
             {
@@ -18636,17 +18951,128 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
                 await conn.OpenAsync();
 
                 var sql = @"
+    SELECT 
+        ov.Id AS id, ov.Consecutivo AS consecutivo, ov.Cliente AS cliente, 
+        cs.Nombrecliente AS clienteNombre,
+        ov.Vendedor AS vendedor, ov.Ruta AS ruta, 
+        ov.Presentacion AS presentacion, ov.FechaEntrega AS fechaEntrega, 
+        ov.Observacion AS observacion,
+        ovm.SolicitudMuestraId AS solicitudMuestraId
+    FROM OrdenVenta ov
+    INNER JOIN OrdenVentaMuestra ovm ON ov.Id = ovm.OrdenVentaId
+    LEFT JOIN ClienteSap cs ON ov.Cliente = cs.Cliente
+    WHERE ovm.EsMuestra = 1 
+      AND ovm.SolicitudMuestraId IS NULL
+      AND ov.Estatus <> 0
+    ORDER BY ov.FechaRegistro DESC";
+
+                var ovMuestras = await conn.QueryAsync(sql);
+
+                return Json(ovMuestras);
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+        [HttpGet("Comercial/ObtenerProductosOV")]
+        public async Task<IActionResult> ObtenerProductosOV(int ovId)
+        {
+            try
+            {
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+
+                var sql = "SELECT ProductoCodigo AS productoCodigo, ProductoNombre AS productoNombre, Cajas AS cajas, Peso AS peso, Precio AS precio FROM OrdenVentaProducto WHERE PedidoId = @PedidoId AND Eliminado = 0";
+                var productos = await conn.QueryAsync(sql, new { PedidoId = ovId });
+
+                return Json(productos);
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+
+        [HttpPost("Comercial/ActualizarStageSolicitud")]
+        public async Task<IActionResult> ActualizarStageSolicitud(string solicitudId, string stage)
+        {
+            try
+            {
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+                await conn.ExecuteAsync(
+                    "UPDATE SolicitudMuestras SET Stage = @Stage WHERE Id = @Id",
+                    new { Stage = stage, Id = solicitudId });
+                return Json(new { ok = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+
+        [HttpGet("Comercial/ObtenerSolicitudes")]
+        public async Task<IActionResult> ObtenerSolicitudes(string vendedor = null, bool soloMias = false)
+
+        {
+            try
+            {
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+
+                var esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
+
+                int? vendedorId = null;
+                if (!esAdmin && soloMias)
+                {
+                    var login = !string.IsNullOrWhiteSpace(vendedor) ? vendedor : (User.Identity?.Name ?? "");
+                    vendedorId = await conn.ExecuteScalarAsync<int?>(@"
+                        SELECT u.VendedorId 
+                        FROM UsuarioSQL u 
+                        WHERE u.Usuario = @Login", new { Login = login });
+
+                    if (!vendedorId.HasValue)
+                        return Json(Array.Empty<object>());
+                }
+
+                var idsBusqueda = new List<int>();
+                if (vendedorId.HasValue)
+                {
+                    var idStr = vendedorId.Value.ToString();
+                    for (int i = 0; i + 1 < idStr.Length; i += 2)
+                    {
+                        if (int.TryParse(idStr.Substring(i, 2), out var partial))
+                            idsBusqueda.Add(partial);
+                    }
+                    if (idsBusqueda.Count == 0)
+                        idsBusqueda.Add(vendedorId.Value);
+                }
+
+                var sql = @"
 SELECT 
-    s.Id, s.CreatedAt, s.CreatedBy, s.Seller, s.Client, s.Species,
+    s.Id, s.CreatedAt, s.CreatedBy, s.Seller,
+    COALESCE(NULLIF(LTRIM(RTRIM(cs.Nombrecliente)), ''), s.Client) AS Client,
+    s.Species,
     s.RequestedDate, s.[Route], s.Destination, s.Priority, s.Notes,
     s.Stage, s.Location,
     s.Plan_ProcessDate AS ProcessDate, s.Plan_Shift AS Shift,
-    s.Plan_Line AS Line, s.Plan_Planner AS Planner, s.Plan_ReleasedAt AS ReleasedAt
+    s.Plan_Line AS Line, s.Plan_Planner AS Planner, s.Plan_Especificacion AS Especificacion,
+    s.Plan_ReleasedAt AS ReleasedAt,
+    ov.Consecutivo AS OvConsecutivo
 FROM SolicitudMuestras s
+LEFT JOIN OrdenVentaMuestra ovm ON s.Id = ovm.SolicitudMuestraId
+LEFT JOIN OrdenVenta ov ON ovm.OrdenVentaId = ov.Id
+LEFT JOIN ClienteSap cs ON s.Client = cs.Cliente
 WHERE s.Activo = 1 AND s.CreatedAt >= DATEADD(day, -60, GETDATE())
+AND (@VendedorId IS NULL OR ov.VendedorId IN @IdsBusqueda)
 ORDER BY s.CreatedAt DESC";
 
-                var solicitudes = await conn.QueryAsync(sql);
+                var solicitudes = idsBusqueda.Count > 0
+                    ? await conn.QueryAsync(sql, new { VendedorId = vendedorId, IdsBusqueda = idsBusqueda })
+                    : await conn.QueryAsync(sql, new { VendedorId = vendedorId, IdsBusqueda = new List<int> { 0 } });
 
                 var lista = new List<Plataforma_CG.Models.SolicitudMuestraVM>();
                 foreach (var s in solicitudes)
@@ -18666,12 +19092,14 @@ ORDER BY s.CreatedAt DESC";
                         Notes = s.Notes ?? "",
                         Stage = s.Stage ?? "Pendiente",
                         Location = s.Location ?? "",
+                        OvConsecutivo = s.OvConsecutivo ?? "",
                         Planning = s.ProcessDate != null ? new Plataforma_CG.Models.PlaneacionVM
                         {
                             ProcessDate = s.ProcessDate,
                             Shift = s.Shift,
                             Line = s.Line,
                             Planner = s.Planner,
+                            Especificacion = s.Especificacion ?? "",
                             ReleasedAt = s.ReleasedAt
                         } : null
                     };
@@ -18700,7 +19128,8 @@ ORDER BY s.CreatedAt DESC";
                             ExternalChain = l.ExternalChain,
                             Operator = l.Operator ?? "",
                             ProcessedAt = l.ProcessedAt,
-                            Location = l.Location ?? ""
+                            Location = l.Location ?? "",
+                            PesoReal = l.PesoReal
                         }).ToList();
 
                         vm.Items.Add(itemVM);
@@ -18836,6 +19265,13 @@ ORDER BY s.CreatedAt DESC";
                     }
                 }
 
+                if (nuevaSolicitud.OrdenVentaId.HasValue)
+                {
+                    await conn.ExecuteAsync(
+                        "UPDATE OrdenVentaMuestra SET SolicitudMuestraId = @SolicitudId WHERE OrdenVentaId = @OrdenVentaId",
+                        new { SolicitudId = nuevaSolicitud.Id, OrdenVentaId = nuevaSolicitud.OrdenVentaId.Value });
+                }
+
                 return Json(new { ok = true, mensaje = "Solicitud creada correctamente." });
             }
             catch (Exception ex)
@@ -18844,97 +19280,97 @@ ORDER BY s.CreatedAt DESC";
             }
         }
 
-        [HttpPost("Comercial/GuardarPlaneacion")]
-        [RevisarPermiso("SOLICITUD_MUESTRAS_PLANEACION", "ESCRIBIR")]
-        public async Task<IActionResult> GuardarPlaneacion([FromBody] Plataforma_CG.Models.SolicitudMuestraVM solicitudActualizada)
-        {
-            try
-            {
-                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
-                await conn.OpenAsync();
+        //[HttpPost("Comercial/GuardarPlaneacion")]
+        //[RevisarPermiso("SOLICITUD_MUESTRAS_PLANEACION", "ESCRIBIR")]
+        //public async Task<IActionResult> GuardarPlaneacion([FromBody] Plataforma_CG.Models.SolicitudMuestraVM solicitudActualizada)
+        //{
+        //    try
+        //    {
+        //        using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+        //        await conn.OpenAsync();
 
-                var sql = @"
-        UPDATE SolicitudMuestras 
-        SET Stage = @Stage,
-            Location = @Location,
-            Plan_ProcessDate = @ProcessDate,
-            Plan_Shift = @Shift,
-            Plan_Line = @Line,
-            Plan_Planner = @Planner,
-            Plan_ReleasedAt = @ReleasedAt
-        WHERE Id = @Id";
+        //        var sql = @"
+        //UPDATE SolicitudMuestras 
+        //SET Stage = @Stage,
+        //    Location = @Location,
+        //    Plan_ProcessDate = @ProcessDate,
+        //    Plan_Shift = @Shift,
+        //    Plan_Line = @Line,
+        //    Plan_Planner = @Planner,
+        //    Plan_ReleasedAt = @ReleasedAt
+        //WHERE Id = @Id";
 
-                await conn.ExecuteAsync(sql, new
-                {
-                    solicitudActualizada.Id,
-                    Stage = "Liberado a producción",
-                    Location = "Producción",
-                    ProcessDate = solicitudActualizada.Planning?.ProcessDate,
-                    Shift = solicitudActualizada.Planning?.Shift,
-                    Line = solicitudActualizada.Planning?.Line,
-                    Planner = solicitudActualizada.Planning?.Planner,
-                    ReleasedAt = DateTime.Now
-                });
+        //        await conn.ExecuteAsync(sql, new
+        //        {
+        //            solicitudActualizada.Id,
+        //            Stage = "Liberado a producción",
+        //            Location = "Producción",
+        //            ProcessDate = solicitudActualizada.Planning?.ProcessDate,
+        //            Shift = solicitudActualizada.Planning?.Shift,
+        //            Line = solicitudActualizada.Planning?.Line,
+        //            Planner = solicitudActualizada.Planning?.Planner,
+        //            ReleasedAt = DateTime.Now
+        //        });
 
-                if (solicitudActualizada.Items != null)
-                {
-                    foreach (var item in solicitudActualizada.Items)
-                    {
-                        await conn.ExecuteAsync(
-                            "UPDATE SolicitudMuestras_Items SET WorkSku = @WorkSku WHERE Uid = @Uid",
-                            new { item.Uid, WorkSku = item.WorkSku ?? (object)DBNull.Value });
-                    }
-                }
+        //        if (solicitudActualizada.Items != null)
+        //        {
+        //            foreach (var item in solicitudActualizada.Items)
+        //            {
+        //                await conn.ExecuteAsync(
+        //                    "UPDATE SolicitudMuestras_Items SET WorkSku = @WorkSku WHERE Uid = @Uid",
+        //                    new { item.Uid, WorkSku = item.WorkSku ?? (object)DBNull.Value });
+        //            }
+        //        }
 
-                return Json(new { ok = true, mensaje = "Liberado a producción." });
-            }
-            catch (Exception ex)
-            {
-                return Json(new { ok = false, mensaje = ex.Message });
-            }
-        }
+        //        return Json(new { ok = true, mensaje = "Liberado a producción." });
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return Json(new { ok = false, mensaje = ex.Message });
+        //    }
+        //}
 
-        [HttpPost("Comercial/LigarEtiqueta")]
-        [RevisarPermiso("SOLICITUD_MUESTRAS_PRODUCCION", "ESCRIBIR")]
-        public async Task<IActionResult> LigarEtiqueta([FromBody] Plataforma_CG.Models.EtiquetaVM nuevaEtiqueta, string solicitudId, string itemUid)
-        {
-            try
-            {
-                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
-                await conn.OpenAsync();
+        //[HttpPost("Comercial/LigarEtiqueta")]
+        //[RevisarPermiso("SOLICITUD_MUESTRAS_PRODUCCION", "ESCRIBIR")]
+        //public async Task<IActionResult> LigarEtiqueta([FromBody] Plataforma_CG.Models.EtiquetaVM nuevaEtiqueta, string solicitudId, string itemUid)
+        //{
+        //    try
+        //    {
+        //        using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+        //        await conn.OpenAsync();
 
-                var existe = await conn.ExecuteScalarAsync<int>(
-                    "SELECT COUNT(1) FROM SolicitudMuestras_Etiquetas WHERE ExternalChain = @Chain",
-                    new { Chain = nuevaEtiqueta.ExternalChain });
+        //        var existe = await conn.ExecuteScalarAsync<int>(
+        //            "SELECT COUNT(1) FROM SolicitudMuestras_Etiquetas WHERE ExternalChain = @Chain",
+        //            new { Chain = nuevaEtiqueta.ExternalChain });
 
-                if (existe > 0)
-                    return Json(new { ok = false, mensaje = "La cadena de conexión externa ya está registrada." });
+        //        if (existe > 0)
+        //            return Json(new { ok = false, mensaje = "La cadena de conexión externa ya está registrada." });
 
-                var sql = @"
-        INSERT INTO SolicitudMuestras_Etiquetas (Code, ItemUid, ExternalChain, Operator, ProcessedAt, Location, PesoReal)
-        VALUES (@Code, @ItemUid, @ExternalChain, @Operator, @ProcessedAt, @Location, @PesoReal)";
+        //        var sql = @"
+        //INSERT INTO SolicitudMuestras_Etiquetas (Code, ItemUid, ExternalChain, Operator, ProcessedAt, Location, PesoReal)
+        //VALUES (@Code, @ItemUid, @ExternalChain, @Operator, @ProcessedAt, @Location, @PesoReal)";
 
-                await conn.ExecuteAsync(sql, new
-                {
-                    nuevaEtiqueta.Code,
-                    ItemUid = itemUid,
-                    nuevaEtiqueta.ExternalChain,
-                    Operator = nuevaEtiqueta.Operator ?? "Sistema",
-                    ProcessedAt = DateTime.Now,
-                    Location = "Producción",
-                    PesoReal = (decimal?)null
-                });
+        //        await conn.ExecuteAsync(sql, new
+        //        {
+        //            nuevaEtiqueta.Code,
+        //            ItemUid = itemUid,
+        //            nuevaEtiqueta.ExternalChain,
+        //            Operator = nuevaEtiqueta.Operator ?? "Sistema",
+        //            ProcessedAt = DateTime.Now,
+        //            Location = "Producción",
+        //            PesoReal = (decimal?)null
+        //        });
 
-                return Json(new { ok = true, mensaje = "Etiqueta ligada." });
-            }
-            catch (Exception ex)
-            {
-                return Json(new { ok = false, mensaje = ex.Message });
-            }
-        }
+        //        return Json(new { ok = true, mensaje = "Etiqueta ligada." });
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return Json(new { ok = false, mensaje = ex.Message });
+        //    }
+        //}
 
         [HttpPost("Comercial/ActualizarUbicacion")]
-        [RevisarPermiso("SOLICITUD_MUESTRAS_TRACKING", "ESCRIBIR")]
+        [RevisarPermiso("SOLICITUD_MUESTRAS_PRODUCCION", "ESCRIBIR")]
         public async Task<IActionResult> ActualizarUbicacion(string solicitudId, string ubicacion)
         {
             try
@@ -18970,6 +19406,64 @@ ORDER BY s.CreatedAt DESC";
                 await conn.ExecuteAsync(sql, new { Id = id, Motivo = motivo });
 
                 return Json(new { ok = true, mensaje = "Solicitud cancelada correctamente." });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+
+        [HttpPost("Comercial/EditarSolicitud")]
+        public async Task<IActionResult> EditarSolicitud([FromBody] EditarSolicitudModel model)
+        {
+            try
+            {
+                if (model == null || string.IsNullOrWhiteSpace(model.Id))
+                    return Json(new { ok = false, mensaje = "Solicitud inválida." });
+
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+
+                var sql = @"UPDATE SolicitudMuestras
+                    SET Species = @Species,
+                        RequestedDate = @RequestedDate,
+                        [Route] = @Route,
+                        Destination = @Destination,
+                        Priority = @Priority,
+                        Notes = @Notes
+                    WHERE Id = @Id AND Activo = 1";
+
+                var rows = await conn.ExecuteAsync(sql, new
+                {
+                    model.Id,
+                    model.Species,
+                    model.RequestedDate,
+                    model.Route,
+                    model.Destination,
+                    model.Priority,
+                    model.Notes
+                });
+
+                if (rows == 0)
+                    return Json(new { ok = false, mensaje = "Solicitud no encontrada o inactiva." });
+
+                if (model.Items != null && model.Items.Count > 0)
+                {
+                    foreach (var item in model.Items)
+                    {
+                        if (!string.IsNullOrWhiteSpace(item.Uid))
+                        {
+                            await conn.ExecuteAsync(
+                                @"UPDATE SolicitudMuestras_Items 
+                                  SET Spec = @Spec 
+                                  WHERE Uid = @Uid AND SolicitudId = @SolicitudId",
+                                new { Uid = item.Uid, Spec = item.Spec ?? "", SolicitudId = model.Id });
+                        }
+                    }
+                }
+
+                return Json(new { ok = true, mensaje = "Solicitud actualizada correctamente." });
             }
             catch (Exception ex)
             {
@@ -19118,6 +19612,7 @@ ORDER BY s.CreatedAt DESC";
                 var sqlLogSigo = @"
 INSERT INTO LogAjustePrecios (ArticuloId, PrecioAnterior, PrecioNuevo, Usuario, FechaHora, Planta)
 VALUES (@Sku, @PrecioAnterior, @PrecioNuevo, @Usuario, GETDATE(), @Planta)";
+
                 foreach (var item in paquete)
                 {
                     var precioAnterior = await connMeat.QueryFirstOrDefaultAsync<decimal>(sqlSelectBase, new { Sku = item.Sku }, txMeat);
@@ -19134,6 +19629,13 @@ VALUES (@Sku, @PrecioAnterior, @PrecioNuevo, @Usuario, GETDATE(), @Planta)";
                     }, txSigo);
                 }
 
+                // NUEVO: ACTUALIZAMOS LA FECHA DE LA ÚLTIMA CONFIGURACIÓN
+                var sqlUpdateConfig = @"
+UPDATE ConfiguracionAlertasPrecios 
+SET UltimaActualizacion = GETDATE(), ActualizadoPor = @Usuario 
+WHERE Id = 1";
+                await connSigo.ExecuteAsync(sqlUpdateConfig, new { Usuario = nombreUsuario }, txSigo);
+
                 txMeat.Commit();
                 txSigo.Commit();
                 return Json(new { ok = true });
@@ -19146,10 +19648,2050 @@ VALUES (@Sku, @PrecioAnterior, @PrecioNuevo, @Usuario, GETDATE(), @Planta)";
             }
         }
 
+        // ==========================================
+        // NUEVOS ENDPOINTS: ALERTAS DE PRECIOS
+        // ==========================================
+
+        [HttpGet("Comercial/ObtenerConfigAlertaPrecios")]
+        public async Task<IActionResult> ObtenerConfigAlertaPrecios()
+        {
+            try
+            {
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+
+                var sql = "SELECT FrecuenciaMeses, AnticipacionDias, UltimaActualizacion FROM ConfiguracionAlertasPrecios WHERE Id = 1";
+                var result = await conn.QueryFirstOrDefaultAsync(sql);
+
+                if (result == null)
+                {
+                    // Si no existe, simulamos los valores por defecto para que no truene el JavaScript
+                    return Json(new { ok = true, meses = 3, dias = 7, ultimaAct = (string)null });
+                }
+
+                return Json(new
+                {
+                    ok = true,
+                    meses = result.FrecuenciaMeses,
+                    dias = result.AnticipacionDias,
+                    ultimaAct = result.UltimaActualizacion != null ? ((DateTime)result.UltimaActualizacion).ToString("yyyy-MM-ddTHH:mm:ss") : null
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+        public class ConfigAlertaDTO
+        {
+            public int meses { get; set; }
+            public int dias { get; set; }
+        }
+
+        [HttpPost("Comercial/GuardarConfigAlertaPrecios")]
+        public async Task<IActionResult> GuardarConfigAlertaPrecios([FromBody] ConfigAlertaDTO data)
+        {
+            try
+            {
+                var nombreUsuario = User.Identity?.Name ?? "Sistema";
+
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+
+                // Intentamos actualizar
+                var sqlUpdate = @"
+UPDATE ConfiguracionAlertasPrecios 
+SET FrecuenciaMeses = @meses, AnticipacionDias = @dias, ActualizadoPor = @usuario 
+WHERE Id = 1";
+
+                int filasAfectadas = await conn.ExecuteAsync(sqlUpdate, new { meses = data.meses, dias = data.dias, usuario = nombreUsuario });
+
+                // Si no había registro (filasAfectadas == 0), lo insertamos
+                if (filasAfectadas == 0)
+                {
+                    var sqlInsert = @"
+INSERT INTO ConfiguracionAlertasPrecios (FrecuenciaMeses, AnticipacionDias, ActualizadoPor) 
+VALUES (@meses, @dias, @usuario)";
+                    await conn.ExecuteAsync(sqlInsert, new { meses = data.meses, dias = data.dias, usuario = nombreUsuario });
+                }
+
+                return Json(new { ok = true, mensaje = "Configuración actualizada" });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
         public class DtoAjustePrecio
         {
             public string Sku { get; set; } = "";
             public decimal Precio { get; set; }
+        }
+
+
+        // ============================================================================
+        // PEGAR DENTRO DE ComercialController
+        // Reemplaza tus métodos actuales GuardarPlaneacion y LigarEtiqueta por este bloque completo.
+        // Requiere los using que tu controlador ya tiene:
+        // using Dapper;
+        // using Microsoft.Data.SqlClient;
+        // using System.Data;
+        // using System.Text.RegularExpressions;
+        // ============================================================================
+
+        private sealed class SolicitudItemEtiquetaValidacionRow
+        {
+            public string Uid { get; set; } = "";
+            public string SolicitudId { get; set; } = "";
+            public string Sku { get; set; } = "";
+            public string? WorkSku { get; set; }
+            public int Boxes { get; set; }
+            public bool Activo { get; set; }
+            public string Stage { get; set; } = "";
+            public DateTime? PlanReleasedAt { get; set; }
+            public int EtiquetasLigadas { get; set; }
+        }
+
+        private sealed class ProduccionEtiquetaMeatRow
+        {
+            public int ProduccionId { get; set; }
+            public long? LoteId { get; set; }
+            public string CodigoEtiqueta { get; set; } = "";
+            public string Articulo { get; set; } = "";
+            public int Estatus { get; set; }
+            public decimal? PesoNeto { get; set; }
+            public string? Almacen { get; set; }
+            public DateTime? FechaProduccion { get; set; }
+            public DateTime? FechaHora { get; set; }
+        }
+
+
+        // ============================================================================
+        // PLANEACIÓN: obliga a asignar un artículo válido a CADA renglón.
+        // La liberación es fail-closed: si falta un SKU o SQL falla, no se libera.
+        // ============================================================================
+        [HttpPost("Comercial/GuardarPlaneacion")]
+        [RevisarPermiso("SOLICITUD_MUESTRAS_PLANEACION", "ESCRIBIR")]
+        public async Task<IActionResult> GuardarPlaneacion(
+            [FromBody] Plataforma_CG.Models.SolicitudMuestraVM solicitudActualizada)
+        {
+            static string N(string? valor) =>
+                (valor ?? string.Empty).Trim().ToUpperInvariant();
+
+            if (solicitudActualizada == null)
+                return Json(new { ok = false, mensaje = "La planeación recibida es inválida." });
+
+            var solicitudId = (solicitudActualizada.Id ?? string.Empty).Trim();
+
+            if (string.IsNullOrWhiteSpace(solicitudId))
+                return Json(new { ok = false, mensaje = "La solicitud es obligatoria." });
+
+            if (solicitudActualizada.Planning == null)
+                return Json(new { ok = false, mensaje = "Capture los datos de Planeación." });
+
+            var processDateText = Convert.ToString(
+                solicitudActualizada.Planning.ProcessDate,
+                System.Globalization.CultureInfo.InvariantCulture);
+
+            if (string.IsNullOrWhiteSpace(processDateText))
+                return Json(new { ok = false, mensaje = "La fecha de proceso es obligatoria." });
+
+            var shift = (solicitudActualizada.Planning.Shift ?? string.Empty).Trim();
+            var line = (solicitudActualizada.Planning.Line ?? string.Empty).Trim();
+            var planner = (solicitudActualizada.Planning.Planner ?? string.Empty).Trim();
+            var especificacion = (solicitudActualizada.Planning.Especificacion ?? string.Empty).Trim();
+
+            if (string.IsNullOrWhiteSpace(shift))
+                return Json(new { ok = false, mensaje = "El turno es obligatorio." });
+
+            if (string.IsNullOrWhiteSpace(line))
+                return Json(new { ok = false, mensaje = "La línea es obligatoria." });
+
+            if (string.IsNullOrWhiteSpace(planner))
+                planner = (User?.Identity?.Name ?? string.Empty).Trim();
+
+            if (string.IsNullOrWhiteSpace(planner))
+                return Json(new { ok = false, mensaje = "No se pudo identificar al planeador." });
+
+            var itemsRecibidos = (solicitudActualizada.Items ?? new List<Plataforma_CG.Models.ItemMuestraVM>())
+                .Where(i => i != null)
+                .Select(i => new
+                {
+                    Uid = (i.Uid ?? string.Empty).Trim(),
+                    SkuSolicitado = N(i.Sku),
+                    WorkSku = N(i.WorkSku)
+                })
+                .Where(i => !string.IsNullOrWhiteSpace(i.Uid))
+                .GroupBy(i => i.Uid, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.Last())
+                .ToList();
+
+            if (itemsRecibidos.Count == 0)
+            {
+                return Json(new
+                {
+                    ok = false,
+                    mensaje = "La solicitud no contiene artículos para planear."
+                });
+            }
+
+            var sinArticulo = itemsRecibidos
+                .Where(i => string.IsNullOrWhiteSpace(i.WorkSku))
+                .Select(i => string.IsNullOrWhiteSpace(i.SkuSolicitado) ? i.Uid : i.SkuSolicitado)
+                .ToList();
+
+            if (sinArticulo.Count > 0)
+            {
+                return Json(new
+                {
+                    ok = false,
+                    mensaje =
+                        "No se puede liberar a producción. Asigne un artículo a todos los renglones. " +
+                        $"Pendientes: {string.Join(", ", sinArticulo.Take(10))}."
+                });
+            }
+
+            var cadena = _configuration.GetConnectionString("DefaultConnection");
+
+            if (string.IsNullOrWhiteSpace(cadena))
+            {
+                _logger.LogError("No se encontró la cadena DefaultConnection.");
+                return Json(new
+                {
+                    ok = false,
+                    mensaje = "No está configurada la conexión de SIGO."
+                });
+            }
+
+            try
+            {
+                using var conn = new SqlConnection(cadena);
+                await conn.OpenAsync();
+
+                using var tx = conn.BeginTransaction(IsolationLevel.Serializable);
+
+                try
+                {
+                    var solicitudActiva = await conn.ExecuteScalarAsync<int>(
+                        @"SELECT COUNT(1)
+                  FROM dbo.SolicitudMuestras WITH (UPDLOCK, HOLDLOCK)
+                  WHERE Id = @Id
+                    AND ISNULL(Activo, 0) = 1;",
+                        new { Id = solicitudId },
+                        tx);
+
+                    if (solicitudActiva != 1)
+                    {
+                        tx.Rollback();
+                        return Json(new
+                        {
+                            ok = false,
+                            mensaje = "La solicitud no existe, está cancelada o ya no está activa."
+                        });
+                    }
+
+                    var uidsBase = (await conn.QueryAsync<string>(
+                        @"SELECT Uid
+                  FROM dbo.SolicitudMuestras_Items WITH (UPDLOCK, HOLDLOCK)
+                  WHERE SolicitudId = @SolicitudId;",
+                        new { SolicitudId = solicitudId },
+                        tx))
+                        .Select(x => (x ?? string.Empty).Trim())
+                        .Where(x => !string.IsNullOrWhiteSpace(x))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+
+                    if (uidsBase.Count == 0)
+                    {
+                        tx.Rollback();
+                        return Json(new
+                        {
+                            ok = false,
+                            mensaje = "La solicitud no tiene artículos registrados en la base de datos."
+                        });
+                    }
+
+                    var recibidosPorUid = itemsRecibidos.ToDictionary(
+                        x => x.Uid,
+                        x => x,
+                        StringComparer.OrdinalIgnoreCase);
+
+                    var faltantesBase = uidsBase
+                        .Where(uid =>
+                            !recibidosPorUid.TryGetValue(uid, out var item) ||
+                            string.IsNullOrWhiteSpace(item.WorkSku))
+                        .ToList();
+
+                    if (faltantesBase.Count > 0)
+                    {
+                        tx.Rollback();
+                        return Json(new
+                        {
+                            ok = false,
+                            mensaje =
+                                "No se puede liberar. Existen renglones sin artículo asignado " +
+                                $"({faltantesBase.Count}). Recargue la pantalla y complete todos los SKU."
+                        });
+                    }
+
+                    var extras = itemsRecibidos
+                        .Where(i => !uidsBase.Contains(i.Uid, StringComparer.OrdinalIgnoreCase))
+                        .Select(i => i.Uid)
+                        .ToList();
+
+                    if (extras.Count > 0)
+                    {
+                        tx.Rollback();
+                        return Json(new
+                        {
+                            ok = false,
+                            mensaje = "La petición contiene artículos que no pertenecen a la solicitud."
+                        });
+                    }
+
+                    // Blindaje adicional: el WorkSku debe existir realmente en ArticuloSap.
+                    var skusAsignados = itemsRecibidos
+                        .Select(i => i.WorkSku)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToArray();
+
+                    var skusCatalogo = (await conn.QueryAsync<string>(
+                        @"SELECT DISTINCT UPPER(LTRIM(RTRIM(ProductoCodigo)))
+                  FROM dbo.ArticuloSap
+                  WHERE UPPER(LTRIM(RTRIM(ProductoCodigo))) IN @Skus;",
+                        new { Skus = skusAsignados },
+                        tx))
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                    var skusInvalidos = skusAsignados
+                        .Where(sku => !skusCatalogo.Contains(sku))
+                        .ToList();
+
+                    if (skusInvalidos.Count > 0)
+                    {
+                        tx.Rollback();
+                        return Json(new
+                        {
+                            ok = false,
+                            mensaje =
+                                "No se puede liberar. Los siguientes artículos no existen en ArticuloSap: " +
+                                string.Join(", ", skusInvalidos.Take(10))
+                        });
+                    }
+
+                    foreach (var uid in uidsBase)
+                    {
+                        var item = recibidosPorUid[uid];
+
+                        var actualizados = await conn.ExecuteAsync(
+                            @"UPDATE dbo.SolicitudMuestras_Items
+                      SET WorkSku = @WorkSku
+                      WHERE Uid = @Uid
+                        AND SolicitudId = @SolicitudId;",
+                            new
+                            {
+                                WorkSku = item.WorkSku,
+                                Uid = uid,
+                                SolicitudId = solicitudId
+                            },
+                            tx);
+
+                        if (actualizados != 1)
+                            throw new InvalidOperationException($"No se pudo actualizar el renglón {uid}.");
+                    }
+
+                    var solicitudActualizadaCount = await conn.ExecuteAsync(
+                        @"UPDATE dbo.SolicitudMuestras
+                  SET Stage = N'Liberado a producción',
+                      Location = N'Producción',
+                      Plan_ProcessDate = @ProcessDate,
+                      Plan_Shift = @Shift,
+                      Plan_Line = @Line,
+                      Plan_Planner = @Planner,
+                      Plan_Especificacion = @Especificacion,
+                      Plan_ReleasedAt = @ReleasedAt
+                  WHERE Id = @Id
+                    AND ISNULL(Activo, 0) = 1;",
+                        new
+                        {
+                            Id = solicitudId,
+                            ProcessDate = solicitudActualizada.Planning.ProcessDate,
+                            Shift = shift,
+                            Line = line,
+                            Planner = planner,
+                            Especificacion = especificacion,
+                            ReleasedAt = DateTime.Now
+                        },
+                        tx);
+
+                    if (solicitudActualizadaCount != 1)
+                        throw new InvalidOperationException("No se pudo liberar la solicitud a producción.");
+
+                    tx.Commit();
+
+                    return Json(new
+                    {
+                        ok = true,
+                        mensaje =
+                            $"Solicitud {solicitudId} liberada a producción con " +
+                            $"{uidsBase.Count} artículo(s) asignado(s)."
+                    });
+                }
+                catch
+                {
+                    tx.Rollback();
+                    throw;
+                }
+            }
+            catch (SqlException ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error SQL guardando la planeación de {SolicitudId}.",
+                    solicitudId);
+
+                return Json(new
+                {
+                    ok = false,
+                    mensaje = "No fue posible guardar la planeación. No se liberó a producción."
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error guardando la planeación de {SolicitudId}.",
+                    solicitudId);
+
+                return Json(new
+                {
+                    ok = false,
+                    mensaje = ex.GetBaseException().Message
+                });
+            }
+        }
+        [HttpPost("Comercial/LigarEtiqueta")]
+        [RevisarPermiso("SOLICITUD_MUESTRAS_PRODUCCION", "ESCRIBIR")]
+        public async Task<IActionResult> LigarEtiqueta(
+            [FromBody] Plataforma_CG.Models.EtiquetaVM nuevaEtiqueta,
+            string solicitudId,
+            string itemUid,
+            string planta)
+        {
+            static string Normalizar(string? valor) =>
+                (valor ?? string.Empty).Trim().ToUpperInvariant();
+
+            var etiqueta = Normalizar(
+                !string.IsNullOrWhiteSpace(nuevaEtiqueta?.ExternalChain)
+                    ? nuevaEtiqueta.ExternalChain
+                    : nuevaEtiqueta?.Code);
+
+            solicitudId = (solicitudId ?? string.Empty).Trim();
+            itemUid = (itemUid ?? string.Empty).Trim();
+            planta = Normalizar(planta);
+
+            if (string.IsNullOrWhiteSpace(solicitudId))
+            {
+                return Json(new
+                {
+                    ok = false,
+                    mensaje = "La solicitud es obligatoria."
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(itemUid))
+            {
+                return Json(new
+                {
+                    ok = false,
+                    mensaje = "El artículo de la solicitud es obligatorio."
+                });
+            }
+
+            if (planta != "P1" && planta != "TIF")
+            {
+                return Json(new
+                {
+                    ok = false,
+                    mensaje = "Seleccione la planta de origen de la etiqueta: P1 o TIF."
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(etiqueta))
+            {
+                return Json(new
+                {
+                    ok = false,
+                    mensaje = "La etiqueta es obligatoria."
+                });
+            }
+
+            if (etiqueta.Length > 100)
+            {
+                return Json(new
+                {
+                    ok = false,
+                    mensaje = "La etiqueta excede la longitud permitida."
+                });
+            }
+
+            // --------------------------------------------------------------------
+            // Nomenclaturas permitidas por planta
+            // --------------------------------------------------------------------
+            var prefijosPermitidos = planta switch
+            {
+                "P1" => new[]
+                {
+            "DEST",
+            "RETT",
+            "RETR",
+            "DESH",
+            "COMP"
+        },
+
+                "TIF" => new[]
+                {
+            "DEST",
+            "RETT",
+            "COMT"
+        },
+
+                _ => Array.Empty<string>()
+            };
+
+            var nomenclaturasPermitidas = string.Join(", ", prefijosPermitidos);
+
+            var tipoEtiqueta = prefijosPermitidos.FirstOrDefault(
+                prefijo => etiqueta.StartsWith(
+                    prefijo,
+                    StringComparison.OrdinalIgnoreCase));
+
+            if (string.IsNullOrWhiteSpace(tipoEtiqueta))
+            {
+                return Json(new
+                {
+                    ok = false,
+                    mensaje =
+                        $"La etiqueta {etiqueta} no tiene una nomenclatura válida " +
+                        $"para la planta {planta}. " +
+                        $"Nomenclaturas permitidas: {nomenclaturasPermitidas}."
+                });
+            }
+
+            // Se valida la parte posterior a la nomenclatura.
+            // Debe contener únicamente letras, números, guion o guion bajo.
+            var contenidoEtiqueta = etiqueta[tipoEtiqueta.Length..];
+
+            if (string.IsNullOrWhiteSpace(contenidoEtiqueta) ||
+                !Regex.IsMatch(
+                    contenidoEtiqueta,
+                    @"^[0-9A-Z_-]+$",
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+            {
+                return Json(new
+                {
+                    ok = false,
+                    mensaje =
+                        $"La etiqueta {etiqueta} no tiene un formato válido. " +
+                        $"Para la planta {planta} se permiten las nomenclaturas " +
+                        $"{nomenclaturasPermitidas}, seguidas de letras, números, " +
+                        "guion o guion bajo."
+                });
+            }
+
+            var nombreCadena = planta == "P1"
+                ? "CadenaMeatP1"
+                : "CadenaMeatTIF";
+
+            var cadenaSigo =
+                _configuration.GetConnectionString("DefaultConnection");
+
+            var cadenaMeat =
+                _configuration.GetConnectionString(nombreCadena);
+
+            if (string.IsNullOrWhiteSpace(cadenaSigo))
+            {
+                _logger.LogError(
+                    "No se encontró la cadena DefaultConnection.");
+
+                return Json(new
+                {
+                    ok = false,
+                    mensaje =
+                        "No está configurada la conexión de SIGO. " +
+                        "La etiqueta no fue ligada."
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(cadenaMeat))
+            {
+                _logger.LogError(
+                    "No se encontró la cadena {CadenaMeat}.",
+                    nombreCadena);
+
+                return Json(new
+                {
+                    ok = false,
+                    mensaje =
+                        $"No está configurada la conexión {nombreCadena}. " +
+                        "La etiqueta no fue ligada."
+                });
+            }
+
+            try
+            {
+                // ----------------------------------------------------------------
+                // 1. Obtener solicitud, SKU planeado y avance desde SIGO
+                // ----------------------------------------------------------------
+                using var connSigo = new SqlConnection(cadenaSigo);
+                await connSigo.OpenAsync();
+
+                const string sqlItem = @"
+SELECT TOP (1)
+    i.Uid,
+    i.SolicitudId,
+    Sku = ISNULL(i.Sku, ''),
+    i.WorkSku,
+    Boxes = ISNULL(i.Boxes, 0),
+    Activo = CAST(ISNULL(s.Activo, 0) AS bit),
+    Stage = ISNULL(s.Stage, ''),
+    PlanReleasedAt = s.Plan_ReleasedAt,
+    EtiquetasLigadas =
+    (
+        SELECT COUNT(1)
+        FROM dbo.SolicitudMuestras_Etiquetas e
+        WHERE e.ItemUid = i.Uid
+    )
+FROM dbo.SolicitudMuestras_Items i
+INNER JOIN dbo.SolicitudMuestras s
+    ON s.Id = i.SolicitudId
+WHERE i.Uid = @ItemUid
+  AND i.SolicitudId = @SolicitudId;";
+
+                var item =
+                    await connSigo
+                        .QuerySingleOrDefaultAsync<SolicitudItemEtiquetaValidacionRow>(
+                            sqlItem,
+                            new
+                            {
+                                ItemUid = itemUid,
+                                SolicitudId = solicitudId
+                            });
+
+                if (item == null)
+                {
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje =
+                            "No se encontró el SKU dentro de la solicitud seleccionada."
+                    });
+                }
+
+                if (!item.Activo)
+                {
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje =
+                            "La solicitud está cancelada o inactiva. " +
+                            "No se pueden ligar etiquetas."
+                    });
+                }
+
+                if (!item.PlanReleasedAt.HasValue)
+                {
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje =
+                            "La solicitud todavía no ha sido liberada por Planeación."
+                    });
+                }
+
+                var skuPlaneado = Normalizar(item.WorkSku);
+
+                if (string.IsNullOrWhiteSpace(skuPlaneado))
+                {
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje =
+                            "El artículo no tiene un SKU de trabajo definido en Planeación."
+                    });
+                }
+
+                if (item.Boxes <= 0)
+                {
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje =
+                            "El artículo no tiene una cantidad válida de cajas."
+                    });
+                }
+
+                if (item.EtiquetasLigadas >= item.Boxes)
+                {
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje =
+                            $"El SKU {skuPlaneado} ya tiene todas sus cajas ligadas."
+                    });
+                }
+
+                // ----------------------------------------------------------------
+                // 2. Consultar etiqueta exacta en Producción
+                // ----------------------------------------------------------------
+                using var connMeat = new SqlConnection(cadenaMeat);
+                await connMeat.OpenAsync();
+
+                const string sqlMeat = @"
+SELECT TOP (2)
+    ProduccionId,
+    LoteId,
+    CodigoEtiqueta = ISNULL(CodigoEtiqueta, ''),
+    Articulo = ISNULL(Articulo, ''),
+    Estatus = ISNULL(Estatus, 0),
+    PesoNeto,
+    Almacen,
+    FechaProduccion,
+    FechaHora
+FROM dbo.Produccion
+WHERE UPPER(LTRIM(RTRIM(ISNULL(CodigoEtiqueta, '')))) = @Etiqueta
+ORDER BY FechaHora DESC, ProduccionId DESC;";
+
+                var coincidencias =
+                    (await connMeat.QueryAsync<ProduccionEtiquetaMeatRow>(
+                        sqlMeat,
+                        new
+                        {
+                            Etiqueta = etiqueta
+                        }))
+                    .ToList();
+
+                if (coincidencias.Count == 0)
+                {
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje =
+                            $"La etiqueta {etiqueta} no existe en {nombreCadena}. " +
+                            "Verifique la planta seleccionada y vuelva a escanear."
+                    });
+                }
+
+                if (coincidencias.Count > 1)
+                {
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje =
+                            $"La etiqueta {etiqueta} tiene más de un registro " +
+                            $"en {nombreCadena}. Debe revisarse antes de ligarla."
+                    });
+                }
+
+                var produccion = coincidencias[0];
+                var skuMeat = Normalizar(produccion.Articulo);
+
+                if (produccion.Estatus != 1)
+                {
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje =
+                            $"La etiqueta {etiqueta} existe en {nombreCadena}, " +
+                            $"pero no está activa. " +
+                            $"Estatus encontrado: {produccion.Estatus}."
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(skuMeat))
+                {
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje =
+                            $"La etiqueta {etiqueta} no tiene un artículo válido " +
+                            "registrado en MEAT."
+                    });
+                }
+
+                if (!string.Equals(
+                        skuMeat,
+                        skuPlaneado,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje =
+                            $"Etiqueta rechazada. La etiqueta {etiqueta} pertenece " +
+                            $"al SKU {skuMeat}, pero Planeación indicó {skuPlaneado}.",
+                        etiqueta,
+                        tipoEtiqueta,
+                        skuPlaneado,
+                        skuMeat,
+                        estatus = produccion.Estatus,
+                        planta,
+                        cadena = nombreCadena
+                    });
+                }
+
+                // ----------------------------------------------------------------
+                // 3. Insertar en SIGO dentro de transacción serializable
+                // ----------------------------------------------------------------
+                using var tx =
+                    connSigo.BeginTransaction(IsolationLevel.Serializable);
+
+                try
+                {
+                    var duplicadoBloqueado =
+                        await connSigo.ExecuteScalarAsync<int>(
+                            @"
+SELECT COUNT(1)
+FROM dbo.SolicitudMuestras_Etiquetas WITH (UPDLOCK, HOLDLOCK)
+WHERE UPPER(LTRIM(RTRIM(ISNULL(ExternalChain, '')))) = @Etiqueta
+   OR UPPER(LTRIM(RTRIM(ISNULL(Code, '')))) = @Etiqueta;",
+                            new
+                            {
+                                Etiqueta = etiqueta
+                            },
+                            tx);
+
+                    if (duplicadoBloqueado > 0)
+                    {
+                        tx.Rollback();
+
+                        return Json(new
+                        {
+                            ok = false,
+                            mensaje =
+                                $"La etiqueta {etiqueta} ya fue ligada por otro usuario."
+                        });
+                    }
+
+                    var ligadasActuales =
+                        await connSigo.ExecuteScalarAsync<int>(
+                            @"
+SELECT COUNT(1)
+FROM dbo.SolicitudMuestras_Etiquetas WITH (UPDLOCK, HOLDLOCK)
+WHERE ItemUid = @ItemUid;",
+                            new
+                            {
+                                ItemUid = itemUid
+                            },
+                            tx);
+
+                    if (ligadasActuales >= item.Boxes)
+                    {
+                        tx.Rollback();
+
+                        return Json(new
+                        {
+                            ok = false,
+                            mensaje =
+                                $"El SKU {skuPlaneado} ya tiene todas sus cajas ligadas."
+                        });
+                    }
+
+                    const string sqlInsert = @"
+INSERT INTO dbo.SolicitudMuestras_Etiquetas
+(
+    Code,
+    ItemUid,
+    ExternalChain,
+    Operator,
+    ProcessedAt,
+    Location,
+    PesoReal
+)
+VALUES
+(
+    @Code,
+    @ItemUid,
+    @ExternalChain,
+    @Operator,
+    @ProcessedAt,
+    @Location,
+    @PesoReal
+);";
+
+                    var operador =
+                        (User?.Identity?.Name ?? string.Empty).Trim();
+
+                    if (string.IsNullOrWhiteSpace(operador))
+                    {
+                        operador =
+                            (nuevaEtiqueta?.Operator ?? "Sistema").Trim();
+                    }
+
+                    await connSigo.ExecuteAsync(
+                        sqlInsert,
+                        new
+                        {
+                            Code = etiqueta,
+                            ItemUid = itemUid,
+                            ExternalChain = etiqueta,
+                            Operator = operador,
+                            ProcessedAt = DateTime.Now,
+                            Location = $"Producción {planta}",
+                            PesoReal = produccion.PesoNeto
+                        },
+                        tx);
+
+                    const string sqlActualizarSolicitud = @"
+UPDATE s
+SET
+    s.Location = N'Producción',
+    s.Stage =
+        CASE
+            WHEN
+                (
+                    SELECT COUNT(1)
+                    FROM dbo.SolicitudMuestras_Etiquetas e
+                    INNER JOIN dbo.SolicitudMuestras_Items i2
+                        ON i2.Uid = e.ItemUid
+                    WHERE i2.SolicitudId = s.Id
+                )
+                >=
+                (
+                    SELECT ISNULL(SUM(ISNULL(i3.Boxes, 0)), 0)
+                    FROM dbo.SolicitudMuestras_Items i3
+                    WHERE i3.SolicitudId = s.Id
+                )
+                AND
+                (
+                    SELECT ISNULL(SUM(ISNULL(i4.Boxes, 0)), 0)
+                    FROM dbo.SolicitudMuestras_Items i4
+                    WHERE i4.SolicitudId = s.Id
+                ) > 0
+            THEN N'Cumplido producción'
+            ELSE N'Producción parcial'
+        END
+FROM dbo.SolicitudMuestras s
+WHERE s.Id = @SolicitudId;";
+
+                    await connSigo.ExecuteAsync(
+                        sqlActualizarSolicitud,
+                        new
+                        {
+                            SolicitudId = solicitudId
+                        },
+                        tx);
+
+                    tx.Commit();
+                }
+                catch
+                {
+                    tx.Rollback();
+                    throw;
+                }
+
+                return Json(new
+                {
+                    ok = true,
+                    mensaje =
+                        $"Etiqueta {etiqueta} validada y ligada correctamente. " +
+                        $"Tipo {tipoEtiqueta}, SKU {skuMeat}, estatus activo, " +
+                        $"origen {nombreCadena}.",
+                    etiqueta,
+                    tipoEtiqueta,
+                    skuPlaneado,
+                    skuMeat,
+                    estatus = produccion.Estatus,
+                    pesoNeto = produccion.PesoNeto,
+                    produccionId = produccion.ProduccionId,
+                    loteId = produccion.LoteId,
+                    almacen = produccion.Almacen,
+                    planta,
+                    cadena = nombreCadena
+                });
+            }
+            catch (SqlException ex)
+                when (ex.Number == 2601 || ex.Number == 2627)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Intento de ligar una etiqueta MEAT duplicada. " +
+                    "Etiqueta: {Etiqueta}, tipo: {TipoEtiqueta}, planta: {Planta}.",
+                    etiqueta,
+                    tipoEtiqueta,
+                    planta);
+
+                return Json(new
+                {
+                    ok = false,
+                    mensaje =
+                        $"La etiqueta {etiqueta} ya fue ligada anteriormente."
+                });
+            }
+            catch (SqlException ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error SQL al validar la etiqueta {Etiqueta} " +
+                    "de tipo {TipoEtiqueta} en la planta {Planta}.",
+                    etiqueta,
+                    tipoEtiqueta,
+                    planta);
+
+                return Json(new
+                {
+                    ok = false,
+                    mensaje =
+                        $"No fue posible validar la etiqueta en {nombreCadena}. " +
+                        "La etiqueta NO fue ligada."
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error inesperado al ligar la etiqueta {Etiqueta}. " +
+                    "Tipo: {TipoEtiqueta}, planta: {Planta}.",
+                    etiqueta,
+                    tipoEtiqueta,
+                    planta);
+
+                return Json(new
+                {
+                    ok = false,
+                    mensaje =
+                        "Ocurrió un error inesperado. " +
+                        "La etiqueta NO fue ligada."
+                });
+            }
+        }
+
+        // ============================================================================
+        // REEMPLAZO ROBUSTO DEL TRACKING MEAT
+        // Pegar dentro de ComercialController.
+        // Reemplaza:
+        //   TrackingEtiquetasMeatRequest
+        //   TrackingEtiquetaMeatRow
+        //   ConsultarTrackingEtiquetasEnPlantaAsync
+        //
+        // El endpoint ObtenerTrackingEtiquetasMeat puede conservarse.
+        // ============================================================================
+
+        public sealed class TrackingEtiquetasMeatRequest
+        {
+            public List<string> Etiquetas { get; set; } = new();
+        }
+
+        private sealed class TrackingEtiquetaMeatRow
+        {
+            public string CodigoEtiqueta { get; set; } = string.Empty;
+            public int ProduccionId { get; set; }
+            public string? Articulo { get; set; }
+            public decimal? PesoNeto { get; set; }
+            public int Estatus { get; set; }
+
+            // Código que guarda Produccion.Almacen.
+            public string? AlmacenCodigo { get; set; }
+
+            // Nombre enriquecido desde CommerciaNET/TIF_CommerciaNET.
+            public string? Almacen { get; set; }
+
+            public int TieneVenta { get; set; }
+            public long? SolicitudSurtidoId { get; set; }
+            public string? Cliente { get; set; }
+            public string? Folio { get; set; }
+            public string Planta { get; set; } = string.Empty;
+        }
+
+        private sealed class TrackingAlmacenMeatRow
+        {
+            public string AlmacenId { get; set; } = string.Empty;
+            public string? Nombre { get; set; }
+        }
+
+        private sealed class TrackingVentaMeatRow
+        {
+            public int ProduccionId { get; set; }
+            public long SolicitudSurtidoId { get; set; }
+            public string? Cliente { get; set; }
+            public string? Folio { get; set; }
+        }
+
+        private async Task<List<TrackingEtiquetaMeatRow>> ConsultarTrackingEtiquetasEnPlantaAsync(
+            string connectionStringName,
+            string planta,
+            string catalogoAlmacenes,
+            IReadOnlyCollection<string> etiquetas,
+            CancellationToken ct)
+        {
+            static string Normalizar(string? valor) =>
+                (valor ?? string.Empty)
+                    .Replace("\0", string.Empty)
+                    .Trim()
+                    .ToUpperInvariant();
+
+            var cadena = _configuration.GetConnectionString(connectionStringName);
+
+            if (string.IsNullOrWhiteSpace(cadena))
+            {
+                throw new InvalidOperationException(
+                    $"No existe la cadena de conexión {connectionStringName}.");
+            }
+
+            var catalogoSeguro = catalogoAlmacenes switch
+            {
+                "CommerciaNET" => "CommerciaNET",
+                "TIF_CommerciaNET" => "TIF_CommerciaNET",
+                _ => throw new InvalidOperationException(
+                    "Catálogo de almacenes no permitido.")
+            };
+
+            var etiquetasNormalizadas = etiquetas
+                .Select(Normalizar)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            if (etiquetasNormalizadas.Length == 0)
+                return new List<TrackingEtiquetaMeatRow>();
+
+            await using var conn = new SqlConnection(cadena);
+            await conn.OpenAsync(ct);
+
+            // ------------------------------------------------------------------------
+            // 1. BUSCAR PRODUCCIÓN PRIMERO.
+            //
+            // Esta consulta no depende de Almacen, SalidaEmbarque ni SurtidoReferencia.
+            // Aunque falle algún catálogo adicional, la etiqueta seguirá apareciendo.
+            // ------------------------------------------------------------------------
+            const string sqlProduccion = @"
+SELECT
+    CodigoEtiqueta =
+        UPPER(LTRIM(RTRIM(ISNULL(p.CodigoEtiqueta, '')))),
+    p.ProduccionId,
+    Articulo = ISNULL(p.Articulo, ''),
+    p.PesoNeto,
+    Estatus = ISNULL(p.Estatus, 0),
+    AlmacenCodigo =
+        LTRIM(RTRIM(CONVERT(NVARCHAR(100), ISNULL(p.Almacen, '')))),
+    Almacen =
+        LTRIM(RTRIM(CONVERT(NVARCHAR(100), ISNULL(p.Almacen, '')))),
+    TieneVenta = CAST(0 AS INT),
+    SolicitudSurtidoId = CAST(NULL AS BIGINT),
+    Cliente = CAST(NULL AS NVARCHAR(500)),
+    Folio = CAST(NULL AS NVARCHAR(500))
+FROM dbo.Produccion p
+WHERE
+    UPPER(LTRIM(RTRIM(ISNULL(p.CodigoEtiqueta, ''))))
+        IN @Etiquetas;";
+
+            var rows = (await conn.QueryAsync<TrackingEtiquetaMeatRow>(
+                new CommandDefinition(
+                    sqlProduccion,
+                    new { Etiquetas = etiquetasNormalizadas },
+                    commandTimeout: 45,
+                    cancellationToken: ct)))
+                .ToList();
+
+            foreach (var row in rows)
+            {
+                row.CodigoEtiqueta = Normalizar(row.CodigoEtiqueta);
+                row.AlmacenCodigo = (row.AlmacenCodigo ?? string.Empty).Trim();
+                row.Almacen = string.IsNullOrWhiteSpace(row.Almacen)
+                    ? row.AlmacenCodigo
+                    : row.Almacen.Trim();
+                row.Planta = planta;
+            }
+
+            if (rows.Count == 0)
+                return rows;
+
+            // ------------------------------------------------------------------------
+            // 2. ENRIQUECER EL NOMBRE DEL ALMACÉN.
+            //
+            // Si el usuario SQL no tiene permiso al catálogo CommerciaNET, no se
+            // descarta la etiqueta: se conserva el código de Produccion.Almacen.
+            // ------------------------------------------------------------------------
+            var almacenesIds = rows
+                .Select(x => (x.AlmacenCodigo ?? string.Empty).Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            if (almacenesIds.Length > 0)
+            {
+                try
+                {
+                    var sqlAlmacenes = $@"
+SELECT
+    AlmacenId =
+        LTRIM(RTRIM(CONVERT(NVARCHAR(100), AlmacenId))),
+    Nombre
+FROM [{catalogoSeguro}].dbo.Almacen
+WHERE
+    LTRIM(RTRIM(CONVERT(NVARCHAR(100), AlmacenId)))
+        IN @Almacenes;";
+
+                    var almacenes = (await conn.QueryAsync<TrackingAlmacenMeatRow>(
+                        new CommandDefinition(
+                            sqlAlmacenes,
+                            new { Almacenes = almacenesIds },
+                            commandTimeout: 30,
+                            cancellationToken: ct)))
+                        .ToDictionary(
+                            x => (x.AlmacenId ?? string.Empty).Trim(),
+                            x => (x.Nombre ?? string.Empty).Trim(),
+                            StringComparer.OrdinalIgnoreCase);
+
+                    foreach (var row in rows)
+                    {
+                        var codigo = (row.AlmacenCodigo ?? string.Empty).Trim();
+
+                        if (almacenes.TryGetValue(codigo, out var nombre)
+                            && !string.IsNullOrWhiteSpace(nombre))
+                        {
+                            row.Almacen = nombre;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "No se pudo enriquecer el almacén de tracking en {Catalogo}. " +
+                        "Se mostrará Produccion.Almacen.",
+                        catalogoSeguro);
+                }
+            }
+
+            // ------------------------------------------------------------------------
+            // 3. CONSULTAR VENTA.
+            //
+            // La ausencia o falla de venta tampoco elimina el registro de Produccion.
+            // ------------------------------------------------------------------------
+            var produccionIds = rows
+                .Select(x => x.ProduccionId)
+                .Distinct()
+                .ToArray();
+
+            try
+            {
+                const string sqlVentas = @"
+;WITH VentaAgrupada AS
+(
+    SELECT
+        se.ProduccionId,
+        SolicitudSurtidoId =
+            CONVERT(BIGINT, se.SolicitudSurtidoId),
+        Cliente =
+            MAX(CASE
+                    WHEN sr.TipoReferenciaId = 6
+                    THEN LTRIM(RTRIM(sr.Referencia))
+                END),
+        Folio =
+            MAX(CASE
+                    WHEN sr.TipoReferenciaId = 9
+                    THEN LTRIM(RTRIM(sr.Referencia))
+                END)
+    FROM dbo.SalidaEmbarque se
+    LEFT JOIN dbo.SurtidoReferencia sr
+        ON sr.SolicitudSurtidoId = se.SolicitudSurtidoId
+       AND sr.TipoReferenciaId IN (6, 9)
+    WHERE se.ProduccionId IN @ProduccionIds
+    GROUP BY
+        se.ProduccionId,
+        se.SolicitudSurtidoId
+),
+VentaElegida AS
+(
+    SELECT
+        *,
+        rn = ROW_NUMBER() OVER
+        (
+            PARTITION BY ProduccionId
+            ORDER BY SolicitudSurtidoId DESC
+        )
+    FROM VentaAgrupada
+)
+SELECT
+    ProduccionId,
+    SolicitudSurtidoId,
+    Cliente,
+    Folio
+FROM VentaElegida
+WHERE rn = 1;";
+
+                var ventas = (await conn.QueryAsync<TrackingVentaMeatRow>(
+                    new CommandDefinition(
+                        sqlVentas,
+                        new { ProduccionIds = produccionIds },
+                        commandTimeout: 45,
+                        cancellationToken: ct)))
+                    .ToDictionary(x => x.ProduccionId);
+
+                foreach (var row in rows)
+                {
+                    if (!ventas.TryGetValue(row.ProduccionId, out var venta))
+                        continue;
+
+                    row.TieneVenta = 1;
+                    row.SolicitudSurtidoId = venta.SolicitudSurtidoId;
+                    row.Cliente = (venta.Cliente ?? string.Empty).Trim();
+                    row.Folio = (venta.Folio ?? string.Empty).Trim();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "No se pudo consultar SalidaEmbarque/SurtidoReferencia para " +
+                    "tracking en {Planta}. Se conservará la ubicación de almacén.",
+                    planta);
+            }
+
+            return rows;
+        }
+
+        [HttpGet("~/Comercial/ObtenerTrackingEtiquetasMeat")]
+        //[RevisarPermiso("SOLICITUD_MUESTRAS_TRACKING", "LEER")]
+        public async Task<IActionResult> ObtenerTrackingEtiquetasMeat(
+      [FromQuery] List<string> etiquetas,
+      CancellationToken ct = default)
+        {
+            static string Normalizar(string? valor)
+            {
+                var normalizado = (valor ?? string.Empty)
+                    .Replace("\0", string.Empty)
+                    .Trim()
+                    .ToUpperInvariant();
+
+                // El lector puede enviar espacios o saltos de línea.
+                return Regex.Replace(normalizado, @"\s+", string.Empty);
+            }
+
+            static bool EsNomenclaturaPermitida(string etiqueta)
+            {
+                if (string.IsNullOrWhiteSpace(etiqueta))
+                    return false;
+
+                return
+                    etiqueta.StartsWith("DEST", StringComparison.OrdinalIgnoreCase) ||
+                    etiqueta.StartsWith("RETT", StringComparison.OrdinalIgnoreCase) ||
+                    etiqueta.StartsWith("RETR", StringComparison.OrdinalIgnoreCase) ||
+                    etiqueta.StartsWith("DESH", StringComparison.OrdinalIgnoreCase) ||
+                    etiqueta.StartsWith("COMP", StringComparison.OrdinalIgnoreCase) ||
+                    etiqueta.StartsWith("COMT", StringComparison.OrdinalIgnoreCase);
+            }
+
+            // --------------------------------------------------------------------
+            // 1. Normalizar y conservar todas las nomenclaturas válidas.
+            //
+            // P1:
+            // DEST, RETT, RETR, DESH, COMP
+            //
+            // TIF:
+            // DEST, RETT, COMT
+            //
+            // Para tracking se consultan ambas bases porque una etiqueta puede
+            // tener antecedentes o movimientos entre plantas.
+            // --------------------------------------------------------------------
+            etiquetas = (etiquetas ?? new List<string>())
+                .Select(Normalizar)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Where(EsNomenclaturaPermitida)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(500)
+                .ToList();
+
+            if (etiquetas.Count == 0)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje =
+                        "Debe proporcionar al menos una etiqueta válida. " +
+                        "Nomenclaturas permitidas: DEST, RETT, RETR, DESH, COMP o COMT."
+                });
+            }
+
+            var filas = new List<TrackingEtiquetaMeatRow>();
+            var advertencias = new List<string>();
+            var consultasFallidas = 0;
+
+            // --------------------------------------------------------------------
+            // 2. Consultar TIF
+            // --------------------------------------------------------------------
+            try
+            {
+                var tif = await ConsultarTrackingEtiquetasEnPlantaAsync(
+                    connectionStringName: "CadenaMeatTIF",
+                    planta: "TIF",
+                    catalogoAlmacenes: "TIF_CommerciaNET",
+                    etiquetas: etiquetas,
+                    ct: ct);
+
+                filas.AddRange(tif);
+            }
+            catch (Exception ex)
+            {
+                consultasFallidas++;
+
+                advertencias.Add(
+                    $"Error consultando TIF: {ex.GetBaseException().Message}");
+
+                _logger.LogError(
+                    ex,
+                    "Error consultando tracking MEAT TIF.");
+            }
+
+            // --------------------------------------------------------------------
+            // 3. Consultar Planta 1
+            // --------------------------------------------------------------------
+            try
+            {
+                var p1 = await ConsultarTrackingEtiquetasEnPlantaAsync(
+                    connectionStringName: "CadenaMeatP1",
+                    planta: "P1",
+                    catalogoAlmacenes: "CommerciaNET",
+                    etiquetas: etiquetas,
+                    ct: ct);
+
+                filas.AddRange(p1);
+            }
+            catch (Exception ex)
+            {
+                consultasFallidas++;
+
+                advertencias.Add(
+                    $"Error consultando P1: {ex.GetBaseException().Message}");
+
+                _logger.LogError(
+                    ex,
+                    "Error consultando tracking MEAT P1.");
+            }
+
+            if (consultasFallidas >= 2)
+            {
+                return StatusCode(503, new
+                {
+                    ok = false,
+                    mensaje = "No fue posible consultar TIF ni P1.",
+                    advertencias
+                });
+            }
+
+            // --------------------------------------------------------------------
+            // 4. Agrupar coincidencias encontradas en ambas plantas
+            // --------------------------------------------------------------------
+            var filasPorEtiqueta = filas
+                .Where(x => !string.IsNullOrWhiteSpace(x.CodigoEtiqueta))
+                .GroupBy(x => Normalizar(x.CodigoEtiqueta))
+                .ToDictionary(
+                    grupo => grupo.Key,
+                    grupo => grupo.ToList(),
+                    StringComparer.OrdinalIgnoreCase);
+
+            var resultado = new List<object>();
+
+            foreach (var etiqueta in etiquetas)
+            {
+                if (!filasPorEtiqueta.TryGetValue(
+                        etiqueta,
+                        out var coincidencias) ||
+                    coincidencias.Count == 0)
+                {
+                    resultado.Add(new
+                    {
+                        etiqueta,
+                        encontrado = false,
+                        estado = "NO_ENCONTRADA",
+                        resumen = "No existe coincidencia en TIF ni en P1.",
+                        planta = "",
+                        almacen = "",
+                        cliente = "",
+                        folio = "",
+                        articulo = "",
+                        pesoNeto = (decimal?)null,
+                        estatus = (int?)null,
+                        produccionId = (int?)null,
+                        solicitudSurtidoId = (long?)null,
+                        transferida = false,
+                        encontradaEnTif = false,
+                        encontradaEnP1 = false
+                    });
+
+                    continue;
+                }
+
+                bool encontradaEnTif = coincidencias.Any(
+                    x => string.Equals(
+                        x.Planta,
+                        "TIF",
+                        StringComparison.OrdinalIgnoreCase));
+
+                bool encontradaEnP1 = coincidencias.Any(
+                    x => string.Equals(
+                        x.Planta,
+                        "P1",
+                        StringComparison.OrdinalIgnoreCase));
+
+                bool transferida = encontradaEnTif && encontradaEnP1;
+
+                /*
+                 * Prioridad para elegir el registro mostrado:
+                 *
+                 * 1. Venta comprobada.
+                 * 2. Registro activo.
+                 * 3. Planta 1 cuando existe en las dos plantas.
+                 * 4. ProduccionId más reciente.
+                 */
+                var elegida = coincidencias
+                    .OrderByDescending(x => x.TieneVenta == 1)
+                    .ThenByDescending(x => x.Estatus == 1)
+                    .ThenByDescending(x =>
+                        string.Equals(
+                            x.Planta,
+                            "P1",
+                            StringComparison.OrdinalIgnoreCase))
+                    .ThenByDescending(x => x.ProduccionId)
+                    .First();
+
+                string estado;
+                string resumen;
+
+                if (elegida.TieneVenta == 1)
+                {
+                    estado = "VENDIDA";
+
+                    var cliente = string.IsNullOrWhiteSpace(elegida.Cliente)
+                        ? "Cliente no identificado"
+                        : elegida.Cliente.Trim();
+
+                    var folio = string.IsNullOrWhiteSpace(elegida.Folio)
+                        ? "Folio no identificado"
+                        : elegida.Folio.Trim();
+
+                    resumen =
+                        $"Vendida en {elegida.Planta} · " +
+                        $"{cliente} · {folio}";
+
+                    if (transferida)
+                    {
+                        resumen += " · aparece en TIF y P1";
+                    }
+                }
+                else if (elegida.Estatus == 1)
+                {
+                    estado = "EN_ALMACEN";
+
+                    var almacen = string.IsNullOrWhiteSpace(elegida.Almacen)
+                        ? elegida.AlmacenCodigo ?? "Almacén no identificado"
+                        : elegida.Almacen.Trim();
+
+                    resumen =
+                        $"En almacén {almacen} · Planta {elegida.Planta}";
+
+                    if (transferida)
+                    {
+                        resumen += " · transferida entre plantas";
+                    }
+                }
+                else
+                {
+                    estado = "INACTIVA_SIN_VENTA";
+
+                    var almacen = string.IsNullOrWhiteSpace(elegida.Almacen)
+                        ? elegida.AlmacenCodigo ?? "Sin almacén identificado"
+                        : elegida.Almacen.Trim();
+
+                    resumen =
+                        $"Registro inactivo en {elegida.Planta} · " +
+                        $"{almacen} · sin venta comprobada";
+                }
+
+                resultado.Add(new
+                {
+                    etiqueta,
+                    encontrado = true,
+                    estado,
+                    resumen,
+                    planta = elegida.Planta,
+                    almacen =
+                        elegida.Almacen ??
+                        elegida.AlmacenCodigo ??
+                        "",
+                    cliente = elegida.Cliente ?? "",
+                    folio = elegida.Folio ?? "",
+                    articulo = elegida.Articulo ?? "",
+                    pesoNeto = elegida.PesoNeto,
+                    estatus = elegida.Estatus,
+                    produccionId = elegida.ProduccionId,
+                    solicitudSurtidoId = elegida.SolicitudSurtidoId,
+                    transferida,
+                    encontradaEnTif,
+                    encontradaEnP1
+                });
+            }
+
+            return Json(new
+            {
+                ok = true,
+                etiquetas = resultado,
+                advertencias
+            });
+        }
+
+        [HttpPost("Comercial/ImprimirEtiquetaMuestra")]
+        [RevisarPermiso("SOLICITUD_MUESTRAS_PRODUCCION", "ESCRIBIR")]
+        public async Task<IActionResult> ImprimirEtiquetaMuestra(
+            [FromBody] List<Plataforma_CG.Models.EtiquetaMuestraPrintModel> etiquetas,
+            string ip)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(ip))
+                    return Json(new { ok = false, mensaje = "La IP de la impresora es obligatoria." });
+
+                if (etiquetas == null || !etiquetas.Any())
+                    return Json(new { ok = false, mensaje = "No hay etiquetas para imprimir." });
+
+                var con = new Plataforma_CG.Controllers.Comercial.Muestras.Conexiones();
+                var errores = new List<string>();
+                var exitosas = 0;
+
+                foreach (var etiq in etiquetas)
+                {
+                    var resultado = con.Impresion(etiq, ip);
+                    if (resultado.ok)
+                        exitosas++;
+                    else
+                        errores.Add($"{etiq.Lote}: {resultado.mensaje}");
+                }
+
+                if (errores.Any())
+                {
+                    return Json(new
+                    {
+                        ok = exitosas > 0,
+                        mensaje = $"Impresas: {exitosas}. Errores: {string.Join("; ", errores)}"
+                    });
+                }
+
+                return Json(new { ok = true, mensaje = $"{exitosas} etiqueta(s) enviada(s) correctamente." });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = $"Error: {ex.Message}" });
+            }
+        }
+
+        // ============================================================================
+        // CATÁLOGO DE PROVEEDORES
+        // Pegar DENTRO de ComercialController.
+        // ============================================================================
+
+
+        [HttpGet("Comercial/Proveedores")]
+        public IActionResult Proveedores()
+        {
+            return View("~/Views/Comercial/Proveedores.cshtml");
+        }
+
+        [HttpGet]
+        [Route("Comercial/GetProveedoresJsonPaged")]
+        public async Task<IActionResult> GetProveedoresJsonPaged(
+            int page = 1,
+            int pageSize = 50,
+            string search = "",
+            string estatus = "todos",
+            int? grupoId = null,
+            string moneda = "")
+        {
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 50;
+            if (pageSize > 200) pageSize = 200;
+
+            IQueryable<ProveedorSap> query =
+                _context.ProveedorSap.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLower();
+
+                query = query.Where(x =>
+                    (x.Proveedor ?? "").ToLower().Contains(term) ||
+                    (x.NombreProveedor ?? "").ToLower().Contains(term) ||
+                    (x.NombreExtranjero ?? "").ToLower().Contains(term) ||
+                    (x.RFC ?? "").ToLower().Contains(term) ||
+                    (x.Telefono ?? "").ToLower().Contains(term) ||
+                    (x.Celular ?? "").ToLower().Contains(term) ||
+                    (x.Correo ?? "").ToLower().Contains(term) ||
+                    (x.GrupoNombre ?? "").ToLower().Contains(term) ||
+                    (x.CondicionPagoNombre ?? "").ToLower().Contains(term) ||
+                    (x.Ciudad ?? "").ToLower().Contains(term) ||
+                    (x.Estado ?? "").ToLower().Contains(term));
+            }
+
+            estatus = (estatus ?? "todos").Trim().ToLowerInvariant();
+
+            if (estatus == "activos")
+                query = query.Where(x => x.Activo && x.ExisteEnSap);
+            else if (estatus == "inactivos")
+                query = query.Where(x => !x.Activo || !x.ExisteEnSap);
+            else if (estatus == "congelados")
+                query = query.Where(x => x.Congelado);
+
+            if (grupoId.HasValue)
+                query = query.Where(x => x.GrupoId == grupoId.Value);
+
+            if (!string.IsNullOrWhiteSpace(moneda))
+            {
+                var monedaNormalizada = moneda.Trim().ToUpper();
+                query = query.Where(x =>
+                    (x.Moneda ?? "").ToUpper() == monedaNormalizada);
+            }
+
+            var total = await query.CountAsync();
+
+            var proveedores = await query
+                .OrderBy(x => x.NombreProveedor)
+                .ThenBy(x => x.Proveedor)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(x => new
+                {
+                    proveedor = x.Proveedor,
+                    nombreProveedor = x.NombreProveedor,
+                    nombreExtranjero = x.NombreExtranjero,
+                    rfc = x.RFC,
+                    telefono = x.Telefono,
+                    celular = x.Celular,
+                    correo = x.Correo,
+                    moneda = x.Moneda,
+                    grupoId = x.GrupoId,
+                    grupoNombre = x.GrupoNombre,
+                    condicionPagoId = x.CondicionPagoId,
+                    condicionPagoNombre = x.CondicionPagoNombre,
+                    saldoCuenta = x.SaldoCuenta,
+                    direccion = x.Direccion,
+                    ciudad = x.Ciudad,
+                    estado = x.Estado,
+                    pais = x.Pais,
+                    codigoPostal = x.CodigoPostal,
+                    activo = x.Activo,
+                    congelado = x.Congelado,
+                    existeEnSap = x.ExisteEnSap,
+                    fechaModificacion = x.FechaModificacion
+                })
+                .ToListAsync();
+
+            return Json(new
+            {
+                total,
+                page,
+                pageSize,
+                proveedores
+            });
+        }
+
+        [HttpGet]
+        [Route("Comercial/GetFiltrosProveedores")]
+        public async Task<IActionResult> GetFiltrosProveedores()
+        {
+            var grupos = await _context.ProveedorSap
+                .AsNoTracking()
+                .Where(x =>
+                    x.GrupoId.HasValue &&
+                    x.GrupoNombre != null &&
+                    x.GrupoNombre != "")
+                .GroupBy(x => new { x.GrupoId, x.GrupoNombre })
+                .Select(group => new
+                {
+                    id = group.Key.GrupoId,
+                    nombre = group.Key.GrupoNombre,
+                    total = group.Count()
+                })
+                .OrderBy(x => x.nombre)
+                .ToListAsync();
+
+            var monedas = await _context.ProveedorSap
+                .AsNoTracking()
+                .Where(x => x.Moneda != null && x.Moneda != "")
+                .Select(x => x.Moneda)
+                .Distinct()
+                .OrderBy(x => x)
+                .ToListAsync();
+
+            var resumen = new
+            {
+                total = await _context.ProveedorSap.CountAsync(),
+                activos = await _context.ProveedorSap.CountAsync(
+                    x => x.Activo && x.ExisteEnSap),
+                inactivos = await _context.ProveedorSap.CountAsync(
+                    x => !x.Activo || !x.ExisteEnSap),
+                congelados = await _context.ProveedorSap.CountAsync(
+                    x => x.Congelado),
+                saldoTotal = await _context.ProveedorSap.SumAsync(
+                    x => (decimal?)x.SaldoCuenta) ?? 0m
+            };
+
+            return Json(new
+            {
+                grupos,
+                monedas,
+                resumen
+            });
+        }
+
+        [HttpGet]
+        [Route("Comercial/GetProveedorDetalle")]
+        public async Task<IActionResult> GetProveedorDetalle(string proveedor)
+        {
+            proveedor = (proveedor ?? string.Empty).Trim();
+
+            if (string.IsNullOrWhiteSpace(proveedor))
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "Proveedor no válido."
+                });
+
+            var item = await _context.ProveedorSap
+                .AsNoTracking()
+                .Where(x => x.Proveedor == proveedor)
+                .Select(x => new
+                {
+                    x.Proveedor,
+                    x.NombreProveedor,
+                    x.NombreExtranjero,
+                    x.RFC,
+                    x.Telefono,
+                    x.Celular,
+                    x.Correo,
+                    x.Moneda,
+                    x.GrupoId,
+                    x.GrupoNombre,
+                    x.CondicionPagoId,
+                    x.CondicionPagoNombre,
+                    x.SaldoCuenta,
+                    x.Direccion,
+                    x.Ciudad,
+                    x.Estado,
+                    x.Pais,
+                    x.CodigoPostal,
+                    x.Activo,
+                    x.Congelado,
+                    x.ExisteEnSap,
+                    x.FechaModificacion
+                })
+                .FirstOrDefaultAsync();
+
+            if (item == null)
+                return NotFound(new
+                {
+                    ok = false,
+                    mensaje = "Proveedor no encontrado."
+                });
+
+            return Json(new
+            {
+                ok = true,
+                proveedor = item
+            });
+        }
+
+        [HttpPost]
+        [Route("Comercial/SincronizarProveedoresSap")]
+        public async Task<IActionResult> SincronizarProveedoresSap(
+            CancellationToken ct = default)
+        {
+            try
+            {
+                var resultado = await _sap.SincronizarProveedoresAsync(ct);
+
+                return Json(new
+                {
+                    ok = true,
+                    mensaje = "Catálogo de proveedores sincronizado correctamente.",
+                    totalSap = resultado.totalSap,
+                    insertados = resultado.insertados,
+                    actualizados = resultado.actualizados,
+                    fueraDeSap = resultado.fueraDeSap,
+                    fecha = DateTime.Now
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error sincronizando proveedores desde SAP.");
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    mensaje = ex.GetBaseException().Message
+                });
+            }
+        }
+
+        [HttpGet]
+        [Route("Comercial/ObtenerProveedoresAutocomplete")]
+        public async Task<IActionResult> ObtenerProveedoresAutocomplete(
+            string term = "")
+        {
+            term = (term ?? string.Empty).Trim().ToLower();
+
+            var query = _context.ProveedorSap
+                .AsNoTracking()
+                .Where(x => x.Activo && x.ExisteEnSap);
+
+            if (!string.IsNullOrWhiteSpace(term))
+            {
+                query = query.Where(x =>
+                    (x.Proveedor ?? "").ToLower().Contains(term) ||
+                    (x.NombreProveedor ?? "").ToLower().Contains(term) ||
+                    (x.RFC ?? "").ToLower().Contains(term));
+            }
+
+            var result = await query
+                .OrderBy(x => x.NombreProveedor)
+                .Take(50)
+                .Select(x => new
+                {
+                    id = x.Proveedor,
+                    text = x.NombreProveedor + " (" + x.Proveedor + ")",
+                    rfc = x.RFC,
+                    moneda = x.Moneda,
+                    condicionPago = x.CondicionPagoNombre
+                })
+                .ToListAsync();
+
+            return Json(result);
+        }
+
+        [HttpGet]
+        [Route("Comercial/DescargarProveedoresExcel")]
+        public IActionResult DescargarProveedoresExcel(
+            string search = "",
+            string estatus = "todos",
+            int? grupoId = null,
+            string moneda = "")
+        {
+            IQueryable<ProveedorSap> query =
+                _context.ProveedorSap.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLower();
+
+                query = query.Where(x =>
+                    (x.Proveedor ?? "").ToLower().Contains(term) ||
+                    (x.NombreProveedor ?? "").ToLower().Contains(term) ||
+                    (x.RFC ?? "").ToLower().Contains(term) ||
+                    (x.GrupoNombre ?? "").ToLower().Contains(term));
+            }
+
+            estatus = (estatus ?? "todos").Trim().ToLowerInvariant();
+
+            if (estatus == "activos")
+                query = query.Where(x => x.Activo && x.ExisteEnSap);
+            else if (estatus == "inactivos")
+                query = query.Where(x => !x.Activo || !x.ExisteEnSap);
+            else if (estatus == "congelados")
+                query = query.Where(x => x.Congelado);
+
+            if (grupoId.HasValue)
+                query = query.Where(x => x.GrupoId == grupoId.Value);
+
+            if (!string.IsNullOrWhiteSpace(moneda))
+            {
+                var monedaNormalizada = moneda.Trim().ToUpper();
+                query = query.Where(x =>
+                    (x.Moneda ?? "").ToUpper() == monedaNormalizada);
+            }
+
+            var rows = query
+                .OrderBy(x => x.NombreProveedor)
+                .ThenBy(x => x.Proveedor)
+                .ToList();
+
+            using var workbook = new XLWorkbook();
+            var sheet = workbook.Worksheets.Add("ProveedoresSAP");
+
+            string[] headers =
+            {
+        "ProveedorId",
+        "Proveedor",
+        "Nombre extranjero",
+        "RFC",
+        "Grupo",
+        "Moneda",
+        "Condición de pago",
+        "Saldo cuenta",
+        "Teléfono",
+        "Celular",
+        "Correo",
+        "Dirección",
+        "Ciudad",
+        "Estado",
+        "País",
+        "CP",
+        "Activo",
+        "Congelado",
+        "Existe en SAP",
+        "Última modificación"
+    };
+
+            for (int column = 0; column < headers.Length; column++)
+                sheet.Cell(1, column + 1).Value = headers[column];
+
+            int row = 2;
+
+            foreach (var item in rows)
+            {
+                sheet.Cell(row, 1).Value = item.Proveedor;
+                sheet.Cell(row, 2).Value = item.NombreProveedor;
+                sheet.Cell(row, 3).Value = item.NombreExtranjero;
+                sheet.Cell(row, 4).Value = item.RFC;
+                sheet.Cell(row, 5).Value = item.GrupoNombre;
+                sheet.Cell(row, 6).Value = item.Moneda;
+                sheet.Cell(row, 7).Value = item.CondicionPagoNombre;
+                sheet.Cell(row, 8).Value = item.SaldoCuenta;
+                sheet.Cell(row, 9).Value = item.Telefono;
+                sheet.Cell(row, 10).Value = item.Celular;
+                sheet.Cell(row, 11).Value = item.Correo;
+                sheet.Cell(row, 12).Value = item.Direccion;
+                sheet.Cell(row, 13).Value = item.Ciudad;
+                sheet.Cell(row, 14).Value = item.Estado;
+                sheet.Cell(row, 15).Value = item.Pais;
+                sheet.Cell(row, 16).Value = item.CodigoPostal;
+                sheet.Cell(row, 17).Value = item.Activo ? "Sí" : "No";
+                sheet.Cell(row, 18).Value = item.Congelado ? "Sí" : "No";
+                sheet.Cell(row, 19).Value = item.ExisteEnSap ? "Sí" : "No";
+                sheet.Cell(row, 20).Value = item.FechaModificacion;
+                row++;
+            }
+
+            var header = sheet.Range(1, 1, 1, headers.Length);
+            header.Style.Font.Bold = true;
+            header.Style.Fill.BackgroundColor = XLColor.DarkRed;
+            header.Style.Font.FontColor = XLColor.White;
+
+            sheet.Column(8).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Column(20).Style.NumberFormat.Format = "dd/MM/yyyy HH:mm";
+            sheet.SheetView.FreezeRows(1);
+            sheet.RangeUsed()?.SetAutoFilter();
+            sheet.Columns().AdjustToContents();
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+
+            return File(
+                stream.ToArray(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                $"Catalogo_Proveedores_SAP_{DateTime.Now:yyyy-MM-dd}.xlsx");
         }
 
 

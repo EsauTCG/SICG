@@ -1,0 +1,2550 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Planeación Ejecutiva de Inventario";
+}
+
+<style>
+    :root {
+        --mm-brand: #8b0000;
+        --mm-brand-dark: #530000;
+        --mm-brand-soft: #fff1f1;
+        --mm-bg: #f4e7e7;
+        --mm-panel: #ffffff;
+        --mm-line: #dfc8c8;
+        --mm-text: #321515;
+        --mm-muted: #745858;
+        --mm-danger: #b42318;
+        --mm-warning: #9a6700;
+        --mm-success: #247a3d;
+        --mm-purple: #6842a8;
+        --mm-blue: #175cd3;
+        --mm-gray: #667085;
+        --mm-shadow: 0 12px 30px rgba(78, 20, 20, .10);
+    }
+
+    html,
+    body {
+        min-height: 100%;
+    }
+
+    .minmax-root,
+    .minmax-root * {
+        box-sizing: border-box;
+    }
+
+    /*
+       Se conserva la vista dentro del flujo normal de _Layout2.
+       Estas clases solamente eliminan límites de ancho y envolturas
+       decorativas; no alteran margin-left, transform ni posición del layout,
+       por lo que el sidebar puede abrir y cerrar normalmente.
+    */
+    .mm-minmax-host {
+        width: 100% !important;
+        max-width: none !important;
+    }
+
+    .mm-minmax-host-clean {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .minmax-root {
+        width: 100%;
+        max-width: none;
+        min-width: 0;
+        min-height: calc(100dvh - var(--layout2-offset, 72px));
+        margin: 0;
+        padding: 0;
+        overflow: visible;
+        color: var(--mm-text);
+        background:
+            radial-gradient(circle at top right, rgba(139, 0, 0, .08), transparent 34%),
+            var(--mm-bg);
+        font-family: Inter, "Segoe UI", Arial, sans-serif;
+    }
+
+    .minmax-root:fullscreen,
+    .minmax-root:-webkit-full-screen {
+        position: fixed !important;
+        inset: 0 !important;
+        z-index: 99999 !important;
+        width: 100vw !important;
+        height: 100dvh !important;
+        min-height: 100dvh !important;
+        overflow: auto !important;
+        background: var(--mm-bg);
+    }
+
+    .minmax-shell {
+        width: 100%;
+        min-width: 0;
+        min-height: calc(100dvh - var(--layout2-offset, 72px));
+        display: flex;
+        flex-direction: column;
+        overflow: visible;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .minmax-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 14px 16px;
+        color: #fff;
+        background: linear-gradient(110deg, #a70000, var(--mm-brand) 55%, var(--mm-brand-dark));
+        border-bottom: 1px solid #4d0000;
+    }
+
+    .minmax-title {
+        min-width: 0;
+    }
+
+    .minmax-title h1 {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 950;
+        letter-spacing: .01em;
+    }
+
+    .minmax-title small {
+        display: block;
+        margin-top: 4px;
+        opacity: .88;
+        font-size: .75rem;
+        font-weight: 650;
+    }
+
+    .minmax-live {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: .38rem .62rem;
+        border: 1px solid rgba(255,255,255,.26);
+        border-radius: 999px;
+        background: rgba(255,255,255,.13);
+        font-size: .72rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .minmax-live-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #6ee7b7;
+        box-shadow: 0 0 0 4px rgba(110,231,183,.16);
+    }
+
+    .minmax-body {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 8px;
+        overflow: visible;
+    }
+
+    .mm-card {
+        border: 1px solid var(--mm-line);
+        border-radius: 13px;
+        background: var(--mm-panel);
+        box-shadow: 0 5px 14px rgba(69, 22, 22, .05);
+    }
+
+    .mm-card-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 9px;
+        padding: 9px 11px;
+        border-bottom: 1px solid #ecdada;
+        background: linear-gradient(180deg, #fff, #fff6f6);
+        font-size: .82rem;
+        font-weight: 950;
+    }
+
+    .mm-card-title i {
+        color: var(--mm-brand);
+    }
+
+    .mm-filters {
+        display: grid;
+        grid-template-columns:
+            minmax(210px, 1.25fr)
+            140px
+            175px
+            175px
+            165px
+            auto;
+        gap: 8px;
+        align-items: end;
+        padding: 10px;
+    }
+
+    .mm-field label {
+        display: block;
+        margin-bottom: 4px;
+        color: #653939;
+        font-size: .68rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .025em;
+    }
+
+    .mm-field input,
+    .mm-field select {
+        width: 100%;
+        min-height: 38px;
+        padding: .42rem .58rem;
+        border: 1px solid #d4b5b5;
+        border-radius: 9px;
+        background: #fff;
+        color: #321515;
+        font-size: .78rem;
+        font-weight: 750;
+    }
+
+    .mm-field input:focus,
+    .mm-field select:focus {
+        outline: none;
+        border-color: var(--mm-brand);
+        box-shadow: 0 0 0 3px rgba(139,0,0,.10);
+    }
+
+    .mm-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .mm-btn {
+        min-height: 38px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: .45rem .70rem;
+        border: 1px solid #d0b2b2;
+        border-radius: 9px;
+        background: linear-gradient(#fff, #f4e5e5);
+        color: #522323;
+        font-size: .72rem;
+        font-weight: 900;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .mm-btn:hover {
+        filter: brightness(.985);
+    }
+
+    .mm-btn:disabled {
+        cursor: wait;
+        opacity: .58;
+    }
+
+    .mm-btn.primary {
+        color: #fff;
+        border-color: #700000;
+        background: linear-gradient(180deg, #ad0000, #740000);
+    }
+
+    .mm-btn.success {
+        color: #fff;
+        border-color: #1d6c36;
+        background: linear-gradient(180deg, #2f8d4b, #236b39);
+    }
+
+    .mm-btn.dark {
+        color: #fff;
+        border-color: #343a40;
+        background: #343a40;
+    }
+
+    .mm-kpis {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(150px, 1fr));
+        gap: 10px;
+        padding: 10px;
+    }
+
+    .mm-kpi {
+        position: relative;
+        min-width: 0;
+        min-height: 122px;
+        padding: 14px 16px;
+        border: 1px solid rgba(255,255,255,.16);
+        border-radius: 18px;
+        color: #fff;
+        overflow: hidden;
+        box-shadow: 0 16px 28px rgba(70, 12, 12, .16), inset 0 1px 0 rgba(255,255,255,.12);
+        background: linear-gradient(135deg, #5c0000 0%, #8b0000 60%, #3c0505 100%);
+    }
+
+    .mm-kpi::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(135deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,0) 52%);
+        pointer-events: none;
+    }
+
+    .mm-kpi::after {
+        content: "";
+        position: absolute;
+        right: -42px;
+        bottom: -56px;
+        width: 156px;
+        height: 156px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.10);
+        border: 22px solid rgba(255,255,255,.08);
+        pointer-events: none;
+    }
+
+    .mm-kpi > span,
+    .mm-kpi > strong,
+    .mm-kpi > em {
+        position: relative;
+        z-index: 1;
+    }
+
+    .mm-kpi span {
+        display: block;
+        color: rgba(255,255,255,.92);
+        font-size: .64rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        line-height: 1.15;
+        letter-spacing: .04em;
+    }
+
+    .mm-kpi strong {
+        display: block;
+        margin-top: 8px;
+        color: #fff;
+        font-size: clamp(1.45rem, 1.8vw, 2.15rem);
+        font-weight: 950;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        text-shadow: 0 2px 10px rgba(0,0,0,.18);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .mm-kpi em {
+        display: block;
+        margin-top: 8px;
+        color: rgba(255,255,255,.86);
+        font-size: .79rem;
+        font-style: normal;
+        font-weight: 800;
+        line-height: 1.2;
+    }
+
+    .mm-kpi.general {
+        background: linear-gradient(135deg, #7a0000 0%, #c21414 58%, #5b0707 100%);
+    }
+
+    .mm-kpi.bajo {
+        background: linear-gradient(135deg, #8f0000 0%, #d03535 56%, #640909 100%);
+    }
+
+    .mm-kpi.alerta {
+        background: linear-gradient(135deg, #b06d00 0%, #d99a15 56%, #7d4b00 100%);
+    }
+
+    .mm-kpi.ok {
+        background: linear-gradient(135deg, #12855b 0%, #28a46b 56%, #0b6944 100%);
+    }
+
+    .mm-kpi.sobre {
+        background: linear-gradient(135deg, #0fa7a2 0%, #26c3bf 54%, #0a7b78 100%);
+    }
+
+    .mm-kpi.sin {
+        background: linear-gradient(135deg, #17753a 0%, #2e9353 56%, #0f5b2d 100%);
+    }
+
+    .mm-kpi.kg {
+        background: linear-gradient(135deg, #175cd3 0%, #3b7af0 56%, #1343a0 100%);
+    }
+
+    .mm-summary-grid {
+        display: grid;
+        grid-template-columns: minmax(310px, .75fr) minmax(460px, 1.25fr);
+        gap: 9px;
+    }
+
+    .mm-chart-card {
+        min-width: 0;
+        padding: 10px;
+    }
+
+    .mm-chart-heading {
+        margin: 0 0 9px;
+        color: #5d2a2a;
+        font-size: .72rem;
+        font-weight: 950;
+        text-transform: uppercase;
+    }
+
+    .mm-status-list,
+    .mm-top-list {
+        display: grid;
+        gap: 7px;
+    }
+
+    .mm-status-row {
+        display: grid;
+        grid-template-columns: 145px minmax(80px,1fr) 45px;
+        gap: 7px;
+        align-items: center;
+        font-size: .71rem;
+    }
+
+    .mm-top-row {
+        display: grid;
+        grid-template-columns: 76px minmax(120px,1fr) 88px;
+        gap: 7px;
+        align-items: center;
+        font-size: .70rem;
+    }
+
+    .mm-bar {
+        height: 15px;
+        overflow: hidden;
+        border: 1px solid #dfcccc;
+        border-radius: 999px;
+        background: #f7eeee;
+    }
+
+    .mm-bar-fill {
+        height: 100%;
+        min-width: 2px;
+        border-radius: inherit;
+    }
+
+    .fill-BAJO { background: #dc2626; }
+    .fill-MIN { background: #f59e0b; }
+    .fill-OK { background: #16a34a; }
+    .fill-SOBRE { background: #7c3aed; }
+    .fill-NOPROD { background: #475467; }
+    .fill-SIN { background: #98a2b3; }
+
+    .mm-top-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .mm-detail-card {
+        flex: 0 0 auto;
+        min-height: 260px;
+        display: flex;
+        flex-direction: column;
+        overflow: visible;
+    }
+
+    .mm-table-wrap {
+        width: 100%;
+        min-height: 230px;
+        overflow-x: auto;
+        overflow-y: visible;
+        background: #fff;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .mm-table {
+        width: max-content;
+        min-width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: .72rem;
+    }
+
+    .mm-table th {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        padding: 8px 7px;
+        border-right: 1px solid #7d3030;
+        border-bottom: 1px solid #4d0000;
+        background: linear-gradient(180deg, #a90000, #720000);
+        color: #fff;
+        text-align: left;
+        font-size: .65rem;
+        font-weight: 950;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .mm-table th.mm-sortable {
+        cursor: pointer;
+        user-select: none;
+        transition: filter .16s ease, box-shadow .16s ease;
+    }
+
+    .mm-table th.mm-sortable:hover {
+        filter: brightness(1.13);
+        box-shadow: inset 0 -3px 0 rgba(255,255,255,.72);
+    }
+
+    .mm-sort-head {
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 5px;
+        width: 100%;
+    }
+
+    .mm-table th.num .mm-sort-head {
+        justify-content: flex-end;
+    }
+
+    .mm-sort-indicator {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 11px;
+        color: rgba(255,255,255,.54);
+        font-size: .69rem;
+        line-height: 1;
+    }
+
+    .mm-table th.mm-sort-active .mm-sort-indicator {
+        color: #fff;
+        text-shadow: 0 1px 3px rgba(0,0,0,.45);
+    }
+
+    .mm-table th.mm-sort-active {
+        background: linear-gradient(180deg, #d10000, #870000) !important;
+        box-shadow: inset 0 -3px 0 rgba(255,255,255,.75);
+    }
+
+    .mm-table td {
+        padding: 7px;
+        border-right: 1px solid #eadbdb;
+        border-bottom: 1px solid #eadbdb;
+        background: #fff;
+        color: #291515;
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+
+    .mm-table tbody tr:nth-child(even) td {
+        background: #fff8f8;
+    }
+
+    .mm-table tbody tr:hover td {
+        background: #ffefef;
+    }
+
+    .mm-table .num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .mm-table .product {
+        min-width: 280px;
+        max-width: 380px;
+        white-space: normal;
+        line-height: 1.2;
+        font-weight: 750;
+    }
+
+    .mm-table .sticky-clas,
+    .mm-table .sticky-master,
+    .mm-table .sticky-sku {
+        position: sticky;
+        z-index: 12;
+    }
+
+    .mm-table .sticky-clas {
+        left: 0;
+        width: 125px;
+        min-width: 125px;
+    }
+
+    .mm-table .sticky-master {
+        left: 125px;
+        width: 135px;
+        min-width: 135px;
+    }
+
+    .mm-table .sticky-sku {
+        left: 260px;
+        width: 80px;
+        min-width: 80px;
+        font-weight: 950;
+    }
+
+    .mm-table th.sticky-clas,
+    .mm-table th.sticky-master,
+    .mm-table th.sticky-sku {
+        z-index: 30;
+    }
+
+    .mm-table tbody .sticky-clas,
+    .mm-table tbody .sticky-master,
+    .mm-table tbody .sticky-sku {
+        background: inherit;
+    }
+
+    .mm-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 112px;
+        padding: .25rem .48rem;
+        border: 1px solid transparent;
+        border-radius: 999px;
+        font-size: .62rem;
+        font-weight: 950;
+        white-space: nowrap;
+    }
+
+    .status-BAJO {
+        color: #9f1710;
+        border-color: #f0a6a1;
+        background: #fee4e2;
+    }
+
+    .status-MIN {
+        color: #805600;
+        border-color: #f2cc69;
+        background: #fff2c7;
+    }
+
+    .status-OK {
+        color: #196c34;
+        border-color: #88c999;
+        background: #e0f4e5;
+    }
+
+    .status-SOBRE {
+        color: #5e3999;
+        border-color: #bea6df;
+        background: #eee5fb;
+    }
+
+    .status-NOPROD,
+    .status-SIN {
+        color: #475467;
+        border-color: #cbd0d8;
+        background: #f2f4f7;
+    }
+
+    .mm-gap-negative {
+        color: var(--mm-danger);
+        font-weight: 900;
+    }
+
+    .mm-gap-positive {
+        color: var(--mm-success);
+        font-weight: 900;
+    }
+
+    .mm-loading {
+        padding: 28px 12px !important;
+        text-align: center !important;
+        color: var(--mm-muted) !important;
+    }
+
+    .mm-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 8px 11px;
+        border-top: 1px solid #dbbebe;
+        background: linear-gradient(#f7eaea, #edd7d7);
+        color: #5d3434;
+        font-size: .67rem;
+        font-weight: 750;
+    }
+
+    .mm-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 7800;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 14px;
+        background: rgba(20, 7, 7, .66);
+        backdrop-filter: blur(3px);
+    }
+
+    .mm-modal.show {
+        display: flex;
+    }
+
+    .mm-modal-shell {
+        width: min(1180px, 100%);
+        max-height: 94vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        border-radius: 16px;
+        background: #f7f2f2;
+        box-shadow: 0 30px 80px rgba(0,0,0,.38);
+    }
+
+    .mm-modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 11px 13px;
+        border-bottom: 1px solid #e3d2d2;
+        background: #fff;
+    }
+
+    .mm-modal-header strong {
+        color: #371616;
+        font-size: .92rem;
+    }
+
+    .mm-modal-body {
+        min-height: 0;
+        overflow: auto;
+        padding: 11px;
+    }
+
+    .mm-catalog-grid {
+        display: grid;
+        grid-template-columns: minmax(400px, .85fr) minmax(480px, 1.15fr);
+        gap: 10px;
+    }
+
+    .mm-catalog-card {
+        overflow: hidden;
+        border: 1px solid #dfcccc;
+        border-radius: 12px;
+        background: #fff;
+    }
+
+    .mm-catalog-card h3 {
+        margin: 0;
+        padding: 9px 10px;
+        border-bottom: 1px solid #eadada;
+        background: #fff7f7;
+        color: #541f1f;
+        font-size: .78rem;
+        font-weight: 950;
+    }
+
+    .mm-catalog-scroll {
+        max-height: 66vh;
+        overflow: auto;
+    }
+
+    .mm-catalog-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: .70rem;
+    }
+
+    .mm-catalog-table th,
+    .mm-catalog-table td {
+        padding: 7px;
+        border-bottom: 1px solid #eadede;
+        text-align: left;
+        vertical-align: middle;
+    }
+
+    .mm-catalog-table th {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        background: #7b0000;
+        color: #fff;
+        font-size: .62rem;
+        text-transform: uppercase;
+    }
+
+    .mm-catalog-table input,
+    .mm-catalog-table select {
+        width: 100%;
+        min-height: 32px;
+        border: 1px solid #d2b9b9;
+        border-radius: 7px;
+        padding: .30rem .42rem;
+        font-size: .70rem;
+    }
+
+    .mm-catalog-search {
+        padding: 8px;
+        border-bottom: 1px solid #eadede;
+    }
+
+    .mm-catalog-search input {
+        width: 100%;
+        min-height: 35px;
+        border: 1px solid #d2b9b9;
+        border-radius: 8px;
+        padding: .38rem .55rem;
+        font-size: .73rem;
+    }
+
+    /* Laptop y pantallas medianas */
+    @@media (max-width: 1250px) {
+        .mm-filters {
+            grid-template-columns: repeat(3, minmax(160px, 1fr));
+        }
+
+        .mm-actions {
+            grid-column: 1 / -1;
+            justify-content: flex-start;
+        }
+
+        .mm-kpis {
+            grid-template-columns: repeat(4, minmax(115px, 1fr));
+        }
+    }
+
+    /* En resoluciones angostas se prioriza filtro, KPIs y tabla. */
+    @@media (max-width: 1100px) {
+        .mm-summary-grid {
+            display: none;
+        }
+    }
+
+    /* Laptop con poca altura: compacta sin recortar la tabla. */
+    @@media (max-height: 820px) and (min-width: 901px) {
+        .minmax-header {
+            padding: 9px 12px;
+        }
+
+        .minmax-title h1 {
+            font-size: .98rem;
+        }
+
+        .minmax-title small {
+            margin-top: 2px;
+            font-size: .67rem;
+        }
+
+        .minmax-body {
+            gap: 6px;
+            padding: 6px;
+        }
+
+        .mm-card-title {
+            padding: 6px 9px;
+        }
+
+        .mm-filters {
+            gap: 6px;
+            padding: 7px;
+        }
+
+        .mm-field input,
+        .mm-field select,
+        .mm-btn {
+            min-height: 34px;
+        }
+
+        .mm-kpis {
+            gap: 7px;
+            padding: 7px;
+        }
+
+        .mm-kpi {
+            min-height: 104px;
+            padding: 10px 11px;
+        }
+
+        .mm-kpi strong {
+            font-size: 1.18rem;
+        }
+
+        .mm-kpi em {
+            font-size: .72rem;
+        }
+
+        .mm-summary-grid {
+            display: none;
+        }
+
+        .mm-footer {
+            padding: 5px 9px;
+        }
+    }
+
+    /* Tablet y móvil: el contenido principal puede desplazarse verticalmente. */
+    @@media (max-width: 900px) {
+        .minmax-header {
+            align-items: flex-start;
+            gap: 8px;
+            padding: 10px 11px;
+        }
+
+        .minmax-title h1 {
+            font-size: .98rem;
+            line-height: 1.2;
+        }
+
+        .minmax-title small {
+            font-size: .66rem;
+        }
+
+        .minmax-body {
+            display: block;
+            padding: 6px;
+            overflow: visible;
+        }
+
+        .minmax-body > * + * {
+            margin-top: 7px;
+        }
+
+        .mm-filters {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .mm-actions {
+            grid-column: 1 / -1;
+        }
+
+        .mm-kpis {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .mm-summary-grid {
+            display: none;
+        }
+
+        .mm-detail-card {
+            min-height: 420px;
+            max-height: none;
+        }
+
+        .mm-table-wrap {
+            min-height: 360px;
+            max-height: none;
+        }
+
+        .mm-catalog-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .mm-top-list {
+            max-height: 250px;
+            overflow: auto;
+        }
+
+        .mm-modal {
+            padding: 0;
+        }
+
+        .mm-modal-shell {
+            width: 100vw;
+            height: 100dvh;
+            max-height: 100dvh;
+            border-radius: 0;
+        }
+    }
+
+    @@media (max-width: 700px) {
+        .mm-table {
+            font-size: .68rem;
+        }
+
+        .mm-table .sticky-clas {
+            left: 0;
+            width: 100px;
+            min-width: 100px;
+        }
+
+        .mm-table .sticky-master {
+            left: 100px;
+            width: 110px;
+            min-width: 110px;
+        }
+
+        .mm-table .sticky-sku {
+            left: 210px;
+            width: 70px;
+            min-width: 70px;
+        }
+
+        .mm-table .product {
+            min-width: 220px;
+            max-width: 280px;
+        }
+    }
+
+    @@media (max-width: 560px) {
+        .minmax-header {
+            align-items: center;
+        }
+
+        .minmax-title h1 {
+            font-size: .88rem;
+        }
+
+        .minmax-title small {
+            display: none;
+        }
+
+        .minmax-live {
+            padding: .34rem;
+        }
+
+        .minmax-live span:last-child {
+            display: none;
+        }
+
+        .mm-card-title {
+            padding: 8px 9px;
+        }
+
+        .mm-filters {
+            grid-template-columns: 1fr;
+            padding: 8px;
+        }
+
+        .mm-actions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 6px;
+        }
+
+        .mm-btn {
+            width: 100%;
+            min-width: 0;
+        }
+
+        .mm-kpis {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            padding: 7px;
+        }
+
+        .mm-kpi {
+            min-height: 108px;
+            padding: 10px 11px;
+            border-radius: 16px;
+        }
+
+        .mm-kpi strong {
+            white-space: normal;
+        }
+
+        .mm-kpi.kg {
+            grid-column: 1 / -1;
+        }
+
+        .mm-footer {
+            align-items: flex-start;
+            flex-direction: column;
+            padding: 7px 9px;
+        }
+    }
+
+    @@media (max-width: 390px) {
+        .mm-actions {
+            grid-template-columns: 1fr;
+        }
+
+        .mm-kpis {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .mm-kpi span {
+            font-size: .57rem;
+        }
+    }
+</style>
+
+<div class="minmax-root">
+    <div class="minmax-shell">
+        <header class="minmax-header">
+            <div class="minmax-title">
+                <h1>
+                    <i class="fa-solid fa-chart-line me-1"></i>
+                    Indicador de Inventario Mínimo, Ideal y Máximo
+                </h1>
+                
+            </div>
+
+            <div class="minmax-live">
+                <span class="minmax-live-dot"></span>
+                <span>Información operativa</span>
+            </div>
+        </header>
+
+        <main class="minmax-body">
+            <section class="mm-card">
+                <div class="mm-card-title">
+                    <span>
+                        <i class="fa-solid fa-filter me-1"></i>
+                        Filtros y actualización
+                    </span>
+                    <span id="mmUpdatedText" style="color:var(--mm-muted);font-size:.66rem">
+                        Sin consultar
+                    </span>
+                </div>
+
+                <div class="mm-filters">
+                    <div class="mm-field">
+                        <label for="buscarInput">Buscar SKU, producto o master</label>
+                        <input id="buscarInput"
+                               type="search"
+                               autocomplete="off"
+                               placeholder="Ej. N108, costilla, pulpa..." />
+                    </div>
+
+                    <div class="mm-field">
+                        <label for="mesInput">Mes de análisis</label>
+                        <input id="mesInput" type="month" />
+                    </div>
+
+                    <div class="mm-field">
+                        <label for="clasificacionSelect">Clasificación</label>
+                        <select id="clasificacionSelect">
+                            <option value="">Todas</option>
+                        </select>
+                    </div>
+
+                    <div class="mm-field">
+                        <label for="masterSelect">Master</label>
+                        <select id="masterSelect">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+
+                    <div class="mm-field">
+                        <label for="estatusSelect">Indicador</label>
+                        <select id="estatusSelect">
+                            <option value="">Todos</option>
+                            <option value="BAJO">Bajo mínimo</option>
+                            <option value="MIN">Entre mínimo e ideal</option>
+                            <option value="OK">Dentro de rango</option>
+                            <option value="SOBRE">Sobre máximo</option>
+                            <option value="NOPROD">No producir</option>
+                            <option value="SIN">Sin configuración/base</option>
+                        </select>
+                    </div>
+
+                    <div class="mm-actions">
+                        <button id="btnActualizar"
+                                class="mm-btn primary"
+                                type="button">
+                            <i class="fa-solid fa-rotate"></i>
+                            Actualizar
+                        </button>
+
+                        <button id="btnCatalogo"
+                                class="mm-btn"
+                                type="button">
+                            <i class="fa-solid fa-sliders"></i>
+                            Catálogo
+                        </button>
+
+                        <button id="btnCsv"
+                                class="mm-btn success"
+                                type="button">
+                            <i class="fa-solid fa-file-csv"></i>
+                            CSV
+                        </button>
+
+                        <button id="btnFullscreen"
+                                class="mm-btn dark"
+                                type="button">
+                            <i class="fa-solid fa-expand"></i>
+                            Pantalla
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="mm-card">
+                <div class="mm-kpis">
+                    <div class="mm-kpi general">
+                        <span>SKUs filtrados</span>
+                        <strong id="kpiSkus">0</strong>
+                        <em>Total visible en la consulta</em>
+                    </div>
+
+                    <div class="mm-kpi bajo">
+                        <span>Bajo mínimo</span>
+                        <strong id="kpiBajo">0</strong>
+                        <em>Inventario por debajo del mínimo</em>
+                    </div>
+
+                    <div class="mm-kpi alerta">
+                        <span>Entre mínimo e ideal</span>
+                        <strong id="kpiMin">0</strong>
+                        <em>Productos en nivel preventivo</em>
+                    </div>
+
+                    <div class="mm-kpi ok">
+                        <span>Dentro de rango</span>
+                        <strong id="kpiOk">0</strong>
+                        <em>Inventario dentro del objetivo</em>
+                    </div>
+
+                    <div class="mm-kpi sobre">
+                        <span>Sobre máximo</span>
+                        <strong id="kpiSobre">0</strong>
+                        <em>Productos excedidos sobre parámetro</em>
+                    </div>
+
+                    <div class="mm-kpi sin">
+                        <span>Sin parámetro / no prod.</span>
+                        <strong id="kpiSin">0</strong>
+                        <em>Registros sin clasificación operativa</em>
+                    </div>
+
+                    <div class="mm-kpi kg">
+                        <span>Inventario actual</span>
+                        <strong id="kpiActual">0 kg</strong>
+                        <em>Peso total del inventario filtrado</em>
+                    </div>
+                </div>
+            </section>
+
+            <section class="mm-summary-grid">
+                <div class="mm-card mm-chart-card">
+                    <h2 class="mm-chart-heading">Distribución por indicador</h2>
+                    <div id="semaforoChart" class="mm-status-list"></div>
+                </div>
+
+                <div class="mm-card mm-chart-card">
+                    <h2 class="mm-chart-heading">Mayor exceso o faltante contra ideal</h2>
+                    <div id="topChart" class="mm-top-list"></div>
+                </div>
+            </section>
+
+            <section class="mm-card mm-detail-card">
+                <div class="mm-card-title">
+                    <span>
+                        <i class="fa-solid fa-table-list me-1"></i>
+                        Detalle por SKU
+                    </span>
+                    <span id="mmResultCount" style="color:var(--mm-muted);font-size:.66rem">
+                        0 registros
+                    </span>
+                </div>
+
+                <div class="mm-table-wrap">
+                    <table class="mm-table">
+                        <thead>
+                            <tr id="mmTableHeader">
+                                <th class="sticky-clas mm-sortable" data-sort="clasificacion" tabindex="0" title="Ordenar por clasificación">
+                                    <span class="mm-sort-head">Clasificación <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="sticky-master mm-sortable" data-sort="master" tabindex="0" title="Ordenar por MASTER">
+                                    <span class="mm-sort-head">Master <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="sticky-sku mm-sortable" data-sort="sku" tabindex="0" title="Ordenar por SKU">
+                                    <span class="mm-sort-head">SKU <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="mm-sortable" data-sort="producto" tabindex="0" title="Ordenar por producto">
+                                    <span class="mm-sort-head">Producto <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="num mm-sortable" data-sort="kgProduccionMes" tabindex="0" title="Ordenar por producción del mes">
+                                    <span class="mm-sort-head">Producción mes <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="num mm-sortable" data-sort="kgInventarioInicial" tabindex="0" title="Ordenar por inventario inicial">
+                                    <span class="mm-sort-head">Inv. inicial <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="num mm-sortable" data-sort="kgBaseCalculo" tabindex="0" title="Ordenar por base de cálculo">
+                                    <span class="mm-sort-head">Base cálculo <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="num mm-sortable" data-sort="kgActual" tabindex="0" title="Ordenar por inventario actual">
+                                    <span class="mm-sort-head">Inv. actual <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="num mm-sortable" data-sort="minimo" tabindex="0" title="Ordenar por mínimo">
+                                    <span class="mm-sort-head">Mínimo <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="num mm-sortable" data-sort="ideal" tabindex="0" title="Ordenar por ideal">
+                                    <span class="mm-sort-head">Ideal <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="num mm-sortable" data-sort="maximo" tabindex="0" title="Ordenar por máximo">
+                                    <span class="mm-sort-head">Máximo <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="num mm-sortable" data-sort="gapIdeal" tabindex="0" title="Ordenar por diferencia contra ideal">
+                                    <span class="mm-sort-head">Gap ideal <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="num mm-sortable" data-sort="diasActual" tabindex="0" title="Ordenar por días actuales">
+                                    <span class="mm-sort-head">Días actual <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="num mm-sortable" data-sort="porcentajeMaximo" tabindex="0" title="Ordenar por porcentaje del máximo">
+                                    <span class="mm-sort-head">% máximo <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="mm-sortable" data-sort="estatus" tabindex="0" title="Ordenar por indicador">
+                                    <span class="mm-sort-head">Indicador <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaBody">
+                            <tr>
+                                <td colspan="15" class="mm-loading">
+                                    Selecciona el mes y actualiza.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <footer class="mm-footer">
+            <div>
+                Regla del Excel: Base = producción mensual + inventario inicial.
+                Umbrales = Base / 30.4 × días definidos por clasificación.
+            </div>
+            <div id="fuenteDatos">
+                Inventario actual: última actualización disponible en dbo.InventarioSigo.
+            </div>
+        </footer>
+    </div>
+</div>
+
+<div id="catalogoModal" class="mm-modal" aria-hidden="true">
+    <div class="mm-modal-shell">
+        <div class="mm-modal-header">
+            <div>
+                <strong>
+                    <i class="fa-solid fa-sliders me-1" style="color:var(--mm-brand)"></i>
+                    Catálogo de clasificación Min–Ideal–Max
+                </strong>
+                <div style="margin-top:3px;color:var(--mm-muted);font-size:.68rem">
+                    Configura días por clasificación y asigna cada SKU.
+                </div>
+            </div>
+
+            <button id="btnCerrarCatalogo"
+                    type="button"
+                    class="mm-btn dark">
+                <i class="fa-solid fa-xmark"></i>
+                Cerrar
+            </button>
+        </div>
+
+        <div class="mm-modal-body">
+            <div class="mm-catalog-grid">
+                <section class="mm-catalog-card">
+                    <h3>Reglas por clasificación</h3>
+                    <div class="mm-catalog-scroll">
+                        <table class="mm-catalog-table">
+                            <thead>
+                                <tr>
+                                    <th>Clasificación</th>
+                                    <th>Mín.</th>
+                                    <th>Ideal</th>
+                                    <th>Máx.</th>
+                                    <th>Orden</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="catalogoClasificacionesBody"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="mm-catalog-card">
+                    <h3>Asignación por SKU</h3>
+                    <div class="mm-catalog-search">
+                        <input id="catalogoSkuBuscar"
+                               type="search"
+                               autocomplete="off"
+                               placeholder="Buscar SKU, producto o master..." />
+                    </div>
+                    <div class="mm-catalog-scroll">
+                        <table class="mm-catalog-table">
+                            <thead>
+                                <tr>
+                                    <th>SKU</th>
+                                    <th>Producto / master</th>
+                                    <th>Clasificación</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="catalogoSkuBody"></tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (() => {
+        "use strict";
+
+        const URLS = {
+            datos: '@Url.Action("InventarioMinMaxDatos", "ProcesosCg")',
+            catalogo: '@Url.Action("InventarioMinMaxCatalogo", "ProcesosCg")',
+            guardarClasificacion: '@Url.Action("GuardarInventarioMinMaxClasificacion", "ProcesosCg")',
+            guardarSku: '@Url.Action("GuardarInventarioMinMaxSkuClasificacion", "ProcesosCg")'
+        };
+
+        const LABELS = {
+            BAJO: "Bajo mínimo",
+            MIN: "Entre mínimo e ideal",
+            OK: "Dentro de rango",
+            SOBRE: "Sobre máximo",
+            NOPROD: "No producir",
+            SIN: "Sin configuración/base"
+        };
+
+        const STATUS_ORDER = ["BAJO", "MIN", "OK", "SOBRE", "NOPROD", "SIN"];
+
+        let datos = [];
+        let clasificaciones = [];
+        let catalogoSkus = [];
+        let cargando = false;
+
+        let ordenTabla = {
+            campo: "clasificacion",
+            direccion: "asc"
+        };
+
+        const el = id => document.getElementById(id);
+
+        const tablaBody = el("tablaBody");
+        const buscarInput = el("buscarInput");
+        const mesInput = el("mesInput");
+        const clasificacionSelect = el("clasificacionSelect");
+        const masterSelect = el("masterSelect");
+        const estatusSelect = el("estatusSelect");
+        const btnActualizar = el("btnActualizar");
+        const btnCatalogo = el("btnCatalogo");
+        const catalogoModal = el("catalogoModal");
+
+        function normalizarNumero(value) {
+            const n = Number(value);
+            return Number.isFinite(n) ? n : 0;
+        }
+
+        function normalizarTexto(value) {
+            return String(value ?? "").trim();
+        }
+
+        function getVal(obj, ...keys) {
+            for (const key of keys) {
+                if (obj && obj[key] !== undefined && obj[key] !== null) {
+                    return obj[key];
+                }
+            }
+            return null;
+        }
+
+        function esc(value) {
+            return normalizarTexto(value)
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+
+        function formatoNumero(value, decimals = 0) {
+            return normalizarNumero(value).toLocaleString("es-MX", {
+                minimumFractionDigits: decimals,
+                maximumFractionDigits: decimals
+            });
+        }
+
+        function formatoFecha(value) {
+            if (!value) return "N/D";
+
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return normalizarTexto(value);
+
+            return date.toLocaleString("es-MX", {
+                dateStyle: "medium",
+                timeStyle: "short"
+            });
+        }
+
+        function mesActual() {
+            const now = new Date();
+            const month = String(now.getMonth() + 1).padStart(2, "0");
+            return `${now.getFullYear()}-${month}`;
+        }
+
+        function normalizarFila(row) {
+            return {
+                clasificacion: normalizarTexto(
+                    getVal(row, "clasificacion", "Clasificacion")
+                ).toUpperCase(),
+
+                clasificacionOrden: normalizarNumero(
+                    getVal(row, "clasificacionOrden", "ClasificacionOrden")
+                ),
+
+                master: normalizarTexto(
+                    getVal(row, "master", "Master", "masterProducto", "MasterProducto")
+                ) || "SIN MASTER",
+
+                sku: normalizarTexto(
+                    getVal(row, "sku", "Sku", "SKU")
+                ).toUpperCase(),
+
+                producto: normalizarTexto(
+                    getVal(row, "producto", "Producto")
+                ),
+
+                kgProduccionMes: normalizarNumero(
+                    getVal(row, "kgProduccionMes", "KgProduccionMes")
+                ),
+
+                kgInventarioInicial: normalizarNumero(
+                    getVal(row, "kgInventarioInicial", "KgInventarioInicial")
+                ),
+
+                kgBaseCalculo: normalizarNumero(
+                    getVal(row, "kgBaseCalculo", "KgBaseCalculo")
+                ),
+
+                kgActual: normalizarNumero(
+                    getVal(row, "kgActual", "KgActual")
+                ),
+
+                cajasActuales: normalizarNumero(
+                    getVal(row, "cajasActuales", "CajasActuales")
+                ),
+
+                lotes: normalizarNumero(
+                    getVal(row, "lotes", "Lotes")
+                ),
+
+                diasMinimo: normalizarNumero(
+                    getVal(row, "diasMinimo", "DiasMinimo")
+                ),
+
+                diasIdeal: normalizarNumero(
+                    getVal(row, "diasIdeal", "DiasIdeal")
+                ),
+
+                diasMaximo: normalizarNumero(
+                    getVal(row, "diasMaximo", "DiasMaximo")
+                ),
+
+                minimo: normalizarNumero(
+                    getVal(row, "minimo", "Minimo")
+                ),
+
+                ideal: normalizarNumero(
+                    getVal(row, "ideal", "Ideal")
+                ),
+
+                maximo: normalizarNumero(
+                    getVal(row, "maximo", "Maximo")
+                ),
+
+                gapIdeal: normalizarNumero(
+                    getVal(row, "gapIdeal", "GapIdeal")
+                ),
+
+                consumoDiario: normalizarNumero(
+                    getVal(row, "consumoDiario", "ConsumoDiario")
+                ),
+
+                diasActual: normalizarNumero(
+                    getVal(row, "diasActual", "DiasActual")
+                ),
+
+                porcentajeMaximo: normalizarNumero(
+                    getVal(row, "porcentajeMaximo", "PorcentajeMaximo")
+                ),
+
+                estatus: normalizarTexto(
+                    getVal(row, "estatus", "Estatus")
+                ).toUpperCase() || "SIN",
+
+                fechaActualizacion: getVal(
+                    row,
+                    "fechaActualizacion",
+                    "FechaActualizacion"
+                ),
+
+                fechaInventarioInicial: getVal(
+                    row,
+                    "fechaInventarioInicial",
+                    "FechaInventarioInicial"
+                )
+            };
+        }
+
+        async function leerJson(response) {
+            const raw = await response.text();
+            let data = null;
+
+            try {
+                data = raw ? JSON.parse(raw) : null;
+            } catch {
+                data = null;
+            }
+
+            if (!response.ok) {
+                const mensajeBase =
+                    data?.msg ||
+                    data?.message ||
+                    `HTTP ${response.status}`;
+
+                const detalle = [
+                    data?.error,
+                    data?.inner
+                ]
+                    .filter(Boolean)
+                    .join(" | ");
+
+                throw new Error(
+                    detalle
+                        ? `${mensajeBase} Detalle: ${detalle}`
+                        : (mensajeBase || raw || `HTTP ${response.status}`)
+                );
+            }
+
+            return data;
+        }
+
+        async function postJson(url, payload) {
+            const response = await fetch(url, {
+                method: "POST",
+                cache: "no-store",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await leerJson(response);
+
+            if (data?.ok === false) {
+                throw new Error(data.msg || data.error || "La operación no se completó.");
+            }
+
+            return data;
+        }
+
+        function setCargando(value) {
+            cargando = value;
+            btnActualizar.disabled = value;
+            btnActualizar.innerHTML = value
+                ? `<span class="spinner-border spinner-border-sm"></span> Consultando`
+                : `<i class="fa-solid fa-rotate"></i> Actualizar`;
+        }
+
+        function renderLoading(message) {
+            tablaBody.innerHTML = `
+                <tr>
+                    <td colspan="15" class="mm-loading">
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                        ${esc(message)}
+                    </td>
+                </tr>`;
+        }
+
+        async function cargarDatos() {
+            if (cargando) return;
+
+            const mes = mesInput.value || mesActual();
+            const mesFecha = `${mes}-01`;
+
+            setCargando(true);
+            renderLoading("Consultando planeación, inventario inicial y existencias actuales…");
+            el("fuenteDatos").textContent = "Consultando fuentes de información…";
+
+            try {
+                const url =
+                    `${URLS.datos}?mes=${encodeURIComponent(mesFecha)}&_=${Date.now()}`;
+
+                const response = await fetch(url, {
+                    method: "GET",
+                    cache: "no-store",
+                    headers: { "Accept": "application/json" }
+                });
+
+                const data = await leerJson(response);
+
+                if (data?.ok === false) {
+                    throw new Error(data.msg || data.error || "No se pudo consultar.");
+                }
+
+                const rows = Array.isArray(data?.data) ? data.data : [];
+                datos = rows
+                    .map(normalizarFila)
+                    .filter(x => x.sku);
+
+                llenarFiltros();
+                renderizar();
+
+                el("mmUpdatedText").textContent =
+                    `SIGO: ${formatoFecha(data?.fechaActualizacion)} · ` +
+                    `Inventario inicial: ${formatoFecha(data?.fechaInventarioInicial)}`;
+
+                el("fuenteDatos").textContent =
+                    `${data?.criterio || "Base mensual dinámica."} ` +
+                    `Registros: ${formatoNumero(datos.length)}.`;
+            } catch (error) {
+                console.error(error);
+                datos = [];
+                renderizar();
+
+                tablaBody.innerHTML = `
+                    <tr>
+                        <td colspan="15" class="mm-loading" style="color:#b42318 !important">
+                            <i class="fa-solid fa-triangle-exclamation me-1"></i>
+                            ${esc(error?.message || "No se pudo cargar la información.")}
+                        </td>
+                    </tr>`;
+
+                el("mmUpdatedText").textContent = "Error de consulta";
+                el("fuenteDatos").textContent =
+                    "No se muestran valores simulados. Revisa la migración SQL y el endpoint InventarioMinMaxDatos.";
+            } finally {
+                setCargando(false);
+            }
+        }
+
+        function llenarFiltros() {
+            const clasActual = clasificacionSelect.value;
+            const masterActual = masterSelect.value;
+
+            const clasificacionesDisponibles = [
+                ...new Set(datos.map(x => x.clasificacion).filter(Boolean))
+            ].sort();
+
+            const masters = [
+                ...new Set(datos.map(x => x.master).filter(Boolean))
+            ].sort();
+
+            clasificacionSelect.innerHTML =
+                `<option value="">Todas</option>` +
+                clasificacionesDisponibles
+                    .map(x => `<option value="${esc(x)}">${esc(x)}</option>`)
+                    .join("");
+
+            masterSelect.innerHTML =
+                `<option value="">Todos</option>` +
+                masters
+                    .map(x => `<option value="${esc(x)}">${esc(x)}</option>`)
+                    .join("");
+
+            if (clasificacionesDisponibles.includes(clasActual)) {
+                clasificacionSelect.value = clasActual;
+            }
+
+            if (masters.includes(masterActual)) {
+                masterSelect.value = masterActual;
+            }
+        }
+
+        function obtenerFiltrados() {
+            const buscar = buscarInput.value.trim().toLowerCase();
+            const clasificacion = clasificacionSelect.value;
+            const master = masterSelect.value;
+            const estatus = estatusSelect.value;
+
+            return datos.filter(item => {
+                const texto =
+                    `${item.clasificacion} ${item.master} ${item.sku} ${item.producto}`
+                    .toLowerCase();
+
+                if (buscar && !texto.includes(buscar)) return false;
+                if (clasificacion && item.clasificacion !== clasificacion) return false;
+                if (master && item.master !== master) return false;
+                if (estatus && item.estatus !== estatus) return false;
+
+                return true;
+            });
+        }
+
+        function esNumeroOrden(campo) {
+            return [
+                "kgProduccionMes",
+                "kgInventarioInicial",
+                "kgBaseCalculo",
+                "kgActual",
+                "minimo",
+                "ideal",
+                "maximo",
+                "gapIdeal",
+                "diasActual",
+                "porcentajeMaximo"
+            ].includes(campo);
+        }
+
+        function ordenarLista(lista) {
+            const campo = ordenTabla.campo;
+            const factor = ordenTabla.direccion === "desc" ? -1 : 1;
+
+            return [...lista].sort((a, b) => {
+                let resultado = 0;
+
+                if (esNumeroOrden(campo)) {
+                    const valorA = normalizarNumero(a[campo]);
+                    const valorB = normalizarNumero(b[campo]);
+                    resultado = valorA - valorB;
+                } else {
+                    const valorA = normalizarTexto(a[campo]).toLocaleUpperCase("es-MX");
+                    const valorB = normalizarTexto(b[campo]).toLocaleUpperCase("es-MX");
+                    resultado = valorA.localeCompare(valorB, "es-MX", {
+                        numeric: true,
+                        sensitivity: "base"
+                    });
+                }
+
+                if (resultado === 0 && campo !== "sku") {
+                    resultado = normalizarTexto(a.sku).localeCompare(
+                        normalizarTexto(b.sku),
+                        "es-MX",
+                        { numeric: true, sensitivity: "base" }
+                    );
+                }
+
+                return resultado * factor;
+            });
+        }
+
+        function actualizarIndicadoresOrden() {
+            document.querySelectorAll("#mmTableHeader [data-sort]").forEach(th => {
+                const indicador = th.querySelector(".mm-sort-indicator");
+                const activo = th.dataset.sort === ordenTabla.campo;
+
+                th.classList.toggle("mm-sort-active", activo);
+                th.setAttribute("aria-sort", activo
+                    ? (ordenTabla.direccion === "asc" ? "ascending" : "descending")
+                    : "none");
+
+                if (indicador) {
+                    indicador.textContent = activo
+                        ? (ordenTabla.direccion === "asc" ? "▲" : "▼")
+                        : "◇";
+                }
+            });
+        }
+
+        function cambiarOrden(campo) {
+            if (!campo) return;
+
+            if (ordenTabla.campo === campo) {
+                ordenTabla.direccion = ordenTabla.direccion === "asc" ? "desc" : "asc";
+            } else {
+                ordenTabla.campo = campo;
+                ordenTabla.direccion = "asc";
+            }
+
+            renderizar();
+        }
+
+        function renderizar() {
+            const lista = ordenarLista(obtenerFiltrados());
+
+            actualizarIndicadoresOrden();
+            renderTabla(lista);
+            renderKpis(lista);
+            renderSemaforo(lista);
+            renderTop(lista);
+
+            el("mmResultCount").textContent =
+                `${formatoNumero(lista.length)} registro${lista.length === 1 ? "" : "s"}`;
+        }
+
+        function renderTabla(lista) {
+            if (!lista.length) {
+                tablaBody.innerHTML = `
+                    <tr>
+                        <td colspan="15" class="mm-loading">
+                            No hay registros para los filtros seleccionados.
+                        </td>
+                    </tr>`;
+                return;
+            }
+
+            tablaBody.innerHTML = lista.map(item => {
+                const pct = Math.min(Math.max(item.porcentajeMaximo, 0), 120);
+                const gapClass = item.gapIdeal < 0
+                    ? "mm-gap-negative"
+                    : item.gapIdeal > 0
+                        ? "mm-gap-positive"
+                        : "";
+
+                const clasificacion = item.clasificacion || "SIN ASIGNAR";
+                const tooltip =
+                    `Días: ${formatoNumero(item.diasMinimo, 2)} / ` +
+                    `${formatoNumero(item.diasIdeal, 2)} / ` +
+                    `${formatoNumero(item.diasMaximo, 2)} · ` +
+                    `Cajas: ${formatoNumero(item.cajasActuales)} · ` +
+                    `Lotes: ${formatoNumero(item.lotes)}`;
+
+                return `
+                    <tr>
+                        <td class="sticky-clas" title="${esc(tooltip)}">
+                            <strong>${esc(clasificacion)}</strong>
+                        </td>
+
+                        <td class="sticky-master">
+                            ${esc(item.master)}
+                        </td>
+
+                        <td class="sticky-sku">
+                            ${esc(item.sku)}
+                        </td>
+
+                        <td class="product" title="${esc(item.producto)}">
+                            ${esc(item.producto || "Sin descripción")}
+                        </td>
+
+                        <td class="num">${formatoNumero(item.kgProduccionMes, 0)}</td>
+                        <td class="num">${formatoNumero(item.kgInventarioInicial, 0)}</td>
+                        <td class="num"><strong>${formatoNumero(item.kgBaseCalculo, 0)}</strong></td>
+                        <td class="num"><strong>${formatoNumero(item.kgActual, 0)}</strong></td>
+                        <td class="num">${formatoNumero(item.minimo, 0)}</td>
+                        <td class="num">${formatoNumero(item.ideal, 0)}</td>
+                        <td class="num">${formatoNumero(item.maximo, 0)}</td>
+
+                        <td class="num ${gapClass}">
+                            ${formatoNumero(item.gapIdeal, 0)}
+                        </td>
+
+                        <td class="num">
+                            ${formatoNumero(item.diasActual, 1)}
+                        </td>
+
+                        <td class="num">
+                            <div class="mm-bar"
+                                 title="${formatoNumero(item.porcentajeMaximo, 1)}% del máximo">
+                                <div class="mm-bar-fill fill-${esc(item.estatus)}"
+                                     style="width:${pct}%"></div>
+                            </div>
+                            <div style="margin-top:2px">
+                                ${formatoNumero(item.porcentajeMaximo, 1)}%
+                            </div>
+                        </td>
+
+                        <td>
+                            <span class="mm-badge status-${esc(item.estatus)}">
+                                ${esc(LABELS[item.estatus] || item.estatus)}
+                            </span>
+                        </td>
+                    </tr>`;
+            }).join("");
+        }
+
+        function renderKpis(lista) {
+            const counts = {
+                BAJO: 0,
+                MIN: 0,
+                OK: 0,
+                SOBRE: 0,
+                NOPROD: 0,
+                SIN: 0
+            };
+
+            let actual = 0;
+
+            lista.forEach(item => {
+                actual += item.kgActual;
+                counts[item.estatus] = (counts[item.estatus] || 0) + 1;
+            });
+
+            el("kpiSkus").textContent = formatoNumero(lista.length);
+            el("kpiBajo").textContent = formatoNumero(counts.BAJO);
+            el("kpiMin").textContent = formatoNumero(counts.MIN);
+            el("kpiOk").textContent = formatoNumero(counts.OK);
+            el("kpiSobre").textContent = formatoNumero(counts.SOBRE);
+            el("kpiSin").textContent =
+                formatoNumero(counts.SIN + counts.NOPROD);
+            el("kpiActual").textContent = `${formatoNumero(actual, 0)} kg`;
+        }
+
+        function renderSemaforo(lista) {
+            const counts = Object.fromEntries(
+                STATUS_ORDER.map(key => [key, 0])
+            );
+
+            lista.forEach(item => {
+                counts[item.estatus] = (counts[item.estatus] || 0) + 1;
+            });
+
+            const max = Math.max(...Object.values(counts), 1);
+
+            el("semaforoChart").innerHTML = STATUS_ORDER.map(key => {
+                const width = (counts[key] / max) * 100;
+
+                return `
+                    <div class="mm-status-row">
+                        <span class="mm-badge status-${key}">
+                            ${esc(LABELS[key])}
+                        </span>
+
+                        <div class="mm-bar">
+                            <div class="mm-bar-fill fill-${key}"
+                                 style="width:${width}%"></div>
+                        </div>
+
+                        <strong style="text-align:right">
+                            ${formatoNumero(counts[key])}
+                        </strong>
+                    </div>`;
+            }).join("");
+        }
+
+        function renderTop(lista) {
+            const top = [...lista]
+                .filter(x => x.ideal > 0)
+                .sort((a, b) => Math.abs(b.gapIdeal) - Math.abs(a.gapIdeal))
+                .slice(0, 15);
+
+            if (!top.length) {
+                el("topChart").innerHTML =
+                    `<div style="color:var(--mm-muted);font-size:.72rem">Sin información.</div>`;
+                return;
+            }
+
+            const max = Math.max(...top.map(x => Math.abs(x.gapIdeal)), 1);
+
+            el("topChart").innerHTML = top.map(item => {
+                const width = (Math.abs(item.gapIdeal) / max) * 100;
+
+                return `
+                    <div class="mm-top-row">
+                        <strong>${esc(item.sku)}</strong>
+
+                        <div>
+                            <div class="mm-top-name" title="${esc(item.producto)}">
+                                ${esc(item.producto)}
+                            </div>
+
+                            <div class="mm-bar" style="margin-top:3px">
+                                <div class="mm-bar-fill fill-${esc(item.estatus)}"
+                                     style="width:${width}%"></div>
+                            </div>
+                        </div>
+
+                        <strong class="${item.gapIdeal < 0 ? "mm-gap-negative" : "mm-gap-positive"}"
+                                style="text-align:right">
+                            ${item.gapIdeal > 0 ? "+" : ""}${formatoNumero(item.gapIdeal, 0)}
+                        </strong>
+                    </div>`;
+            }).join("");
+        }
+
+        async function cargarCatalogo() {
+            const bodyClas = el("catalogoClasificacionesBody");
+            const bodySku = el("catalogoSkuBody");
+
+            bodyClas.innerHTML = `
+                <tr><td colspan="6" class="mm-loading">Cargando reglas…</td></tr>`;
+            bodySku.innerHTML = `
+                <tr><td colspan="4" class="mm-loading">Cargando asignaciones…</td></tr>`;
+
+            const response = await fetch(
+                `${URLS.catalogo}?_=${Date.now()}`,
+                {
+                    method: "GET",
+                    cache: "no-store",
+                    headers: { "Accept": "application/json" }
+                }
+            );
+
+            const data = await leerJson(response);
+
+            if (data?.ok === false) {
+                throw new Error(data.msg || data.error || "No se pudo consultar el catálogo.");
+            }
+
+            clasificaciones = Array.isArray(data?.clasificaciones)
+                ? data.clasificaciones.map(x => ({
+                    clasificacion: normalizarTexto(
+                        getVal(x, "clasificacion", "Clasificacion")
+                    ).toUpperCase(),
+                    diasMinimo: normalizarNumero(
+                        getVal(x, "diasMinimo", "DiasMinimo")
+                    ),
+                    diasIdeal: normalizarNumero(
+                        getVal(x, "diasIdeal", "DiasIdeal")
+                    ),
+                    diasMaximo: normalizarNumero(
+                        getVal(x, "diasMaximo", "DiasMaximo")
+                    ),
+                    orden: normalizarNumero(
+                        getVal(x, "orden", "Orden")
+                    ),
+                    activo: Boolean(
+                        getVal(x, "activo", "Activo")
+                    )
+                }))
+                : [];
+
+            catalogoSkus = Array.isArray(data?.skus)
+                ? data.skus.map(x => ({
+                    sku: normalizarTexto(
+                        getVal(x, "sku", "Sku")
+                    ).toUpperCase(),
+                    producto: normalizarTexto(
+                        getVal(x, "producto", "Producto")
+                    ),
+                    master: normalizarTexto(
+                        getVal(x, "master", "Master")
+                    ) || "SIN MASTER",
+                    clasificacion: normalizarTexto(
+                        getVal(x, "clasificacion", "Clasificacion")
+                    ).toUpperCase()
+                }))
+                : [];
+
+            renderCatalogoClasificaciones();
+            renderCatalogoSkus();
+        }
+
+        function renderCatalogoClasificaciones() {
+            const body = el("catalogoClasificacionesBody");
+
+            if (!clasificaciones.length) {
+                body.innerHTML = `
+                    <tr><td colspan="6" class="mm-loading">No hay clasificaciones.</td></tr>`;
+                return;
+            }
+
+            body.innerHTML = clasificaciones.map((item, index) => `
+                <tr data-clas-index="${index}">
+                    <td>
+                        <strong>${esc(item.clasificacion)}</strong>
+                    </td>
+                    <td>
+                        <input data-field="diasMinimo"
+                               type="number"
+                               min="0"
+                               step="0.1"
+                               value="${item.diasMinimo}" />
+                    </td>
+                    <td>
+                        <input data-field="diasIdeal"
+                               type="number"
+                               min="0"
+                               step="0.1"
+                               value="${item.diasIdeal}" />
+                    </td>
+                    <td>
+                        <input data-field="diasMaximo"
+                               type="number"
+                               min="0"
+                               step="0.1"
+                               value="${item.diasMaximo}" />
+                    </td>
+                    <td>
+                        <input data-field="orden"
+                               type="number"
+                               min="1"
+                               step="1"
+                               value="${item.orden}" />
+                    </td>
+                    <td>
+                        <button type="button"
+                                class="mm-btn primary"
+                                data-save-clas="${index}">
+                            Guardar
+                        </button>
+                    </td>
+                </tr>`).join("");
+        }
+
+        function clasificacionOptions(selected) {
+            const options = [
+                `<option value="">Sin asignar</option>`,
+                ...clasificaciones
+                    .filter(x => x.activo)
+                    .map(x => `
+                        <option value="${esc(x.clasificacion)}"
+                                ${x.clasificacion === selected ? "selected" : ""}>
+                            ${esc(x.clasificacion)}
+                        </option>`)
+            ];
+
+            return options.join("");
+        }
+
+        function renderCatalogoSkus() {
+            const buscar = el("catalogoSkuBuscar").value
+                .trim()
+                .toLowerCase();
+
+            const rows = catalogoSkus
+                .filter(item => {
+                    if (!buscar) return true;
+
+                    return `${item.sku} ${item.producto} ${item.master}`
+                        .toLowerCase()
+                        .includes(buscar);
+                })
+                .slice(0, 500);
+
+            const body = el("catalogoSkuBody");
+
+            if (!rows.length) {
+                body.innerHTML = `
+                    <tr><td colspan="4" class="mm-loading">Sin resultados.</td></tr>`;
+                return;
+            }
+
+            body.innerHTML = rows.map(item => `
+                <tr data-sku="${esc(item.sku)}">
+                    <td>
+                        <strong>${esc(item.sku)}</strong>
+                    </td>
+                    <td>
+                        <div style="font-weight:800">${esc(item.producto || "Sin descripción")}</div>
+                        <div style="color:var(--mm-muted);font-size:.64rem">${esc(item.master)}</div>
+                    </td>
+                    <td>
+                        <select data-sku-select="${esc(item.sku)}">
+                            ${clasificacionOptions(item.clasificacion)}
+                        </select>
+                    </td>
+                    <td>
+                        <button type="button"
+                                class="mm-btn"
+                                data-save-sku="${esc(item.sku)}">
+                            Guardar
+                        </button>
+                    </td>
+                </tr>`).join("");
+        }
+
+        async function guardarClasificacion(index, button) {
+            const item = clasificaciones[index];
+            const row = button.closest("tr");
+
+            if (!item || !row) return;
+
+            const payload = {
+                clasificacion: item.clasificacion,
+                diasMinimo: normalizarNumero(
+                    row.querySelector('[data-field="diasMinimo"]').value
+                ),
+                diasIdeal: normalizarNumero(
+                    row.querySelector('[data-field="diasIdeal"]').value
+                ),
+                diasMaximo: normalizarNumero(
+                    row.querySelector('[data-field="diasMaximo"]').value
+                ),
+                orden: normalizarNumero(
+                    row.querySelector('[data-field="orden"]').value
+                ),
+                activo: true
+            };
+
+            if (
+                payload.diasMinimo < 0 ||
+                payload.diasIdeal < payload.diasMinimo ||
+                payload.diasMaximo < payload.diasIdeal
+            ) {
+                alert("La regla debe cumplir mínimo ≤ ideal ≤ máximo.");
+                return;
+            }
+
+            button.disabled = true;
+            button.textContent = "Guardando…";
+
+            try {
+                await postJson(URLS.guardarClasificacion, payload);
+                await cargarCatalogo();
+                await cargarDatos();
+            } catch (error) {
+                alert(error?.message || "No se pudo guardar la clasificación.");
+            } finally {
+                button.disabled = false;
+                button.textContent = "Guardar";
+            }
+        }
+
+        async function guardarSku(sku, button) {
+            const row = button.closest("tr");
+            const select = row?.querySelector("[data-sku-select]");
+
+            if (!select) return;
+
+            button.disabled = true;
+            button.textContent = "Guardando…";
+
+            try {
+                await postJson(
+                    URLS.guardarSku,
+                    {
+                        sku,
+                        clasificacion: select.value
+                    }
+                );
+
+                const item = catalogoSkus.find(x => x.sku === sku);
+                if (item) item.clasificacion = select.value;
+
+                await cargarDatos();
+            } catch (error) {
+                alert(error?.message || "No se pudo guardar el SKU.");
+            } finally {
+                button.disabled = false;
+                button.textContent = "Guardar";
+            }
+        }
+
+        function abrirCatalogo() {
+            catalogoModal.classList.add("show");
+            catalogoModal.setAttribute("aria-hidden", "false");
+            document.body.style.overflow = "hidden";
+
+            cargarCatalogo().catch(error => {
+                console.error(error);
+                alert(error?.message || "No se pudo abrir el catálogo.");
+            });
+        }
+
+        function cerrarCatalogo() {
+            catalogoModal.classList.remove("show");
+            catalogoModal.setAttribute("aria-hidden", "true");
+            document.body.style.overflow = "";
+        }
+
+        function exportarCsv() {
+            const lista = obtenerFiltrados();
+
+            const headers = [
+                "CLASIFICACION",
+                "MASTER",
+                "SKU",
+                "PRODUCTO",
+                "PRODUCCION_MES",
+                "INVENTARIO_INICIAL",
+                "BASE_CALCULO",
+                "INVENTARIO_ACTUAL",
+                "DIAS_MINIMO",
+                "DIAS_IDEAL",
+                "DIAS_MAXIMO",
+                "MINIMO",
+                "IDEAL",
+                "MAXIMO",
+                "GAP_IDEAL",
+                "DIAS_ACTUAL",
+                "PORCENTAJE_MAXIMO",
+                "INDICADOR"
+            ];
+
+            const rows = lista.map(item => [
+                item.clasificacion,
+                item.master,
+                item.sku,
+                item.producto,
+                item.kgProduccionMes,
+                item.kgInventarioInicial,
+                item.kgBaseCalculo,
+                item.kgActual,
+                item.diasMinimo,
+                item.diasIdeal,
+                item.diasMaximo,
+                item.minimo,
+                item.ideal,
+                item.maximo,
+                item.gapIdeal,
+                item.diasActual,
+                item.porcentajeMaximo,
+                LABELS[item.estatus] || item.estatus
+            ]);
+
+            const csv = [headers, ...rows]
+                .map(row =>
+                    row
+                        .map(value =>
+                            `"${String(value ?? "").replaceAll('"', '""')}"`
+                        )
+                        .join(",")
+                )
+                .join("\r\n");
+
+            const blob = new Blob(
+                ["\uFEFF" + csv],
+                { type: "text/csv;charset=utf-8" }
+            );
+
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+
+            link.href = url;
+            link.download =
+                `inventario_min_max_${mesInput.value || mesActual()}.csv`;
+
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        const minmaxRoot = document.querySelector(".minmax-root");
+
+        function prepararContenedorLayout() {
+            if (!minmaxRoot) return;
+
+            let actual = minmaxRoot.parentElement;
+            let profundidad = 0;
+
+            while (actual && actual !== document.body && profundidad < 5) {
+                const clases = actual.classList;
+                const esContenedorAncho =
+                    clases.contains("container") ||
+                    clases.contains("container-sm") ||
+                    clases.contains("container-md") ||
+                    clases.contains("container-lg") ||
+                    clases.contains("container-xl") ||
+                    clases.contains("container-xxl") ||
+                    clases.contains("container-fluid");
+
+                const estilo = window.getComputedStyle(actual);
+                const maxWidthLimitado =
+                    estilo.maxWidth !== "none" &&
+                    Number.parseFloat(estilo.maxWidth) > 0;
+
+                if (esContenedorAncho || maxWidthLimitado) {
+                    actual.classList.add("mm-minmax-host");
+                }
+
+                /*
+                   Solo se limpia la envoltura inmediata o una envoltura que
+                   contiene exclusivamente esta vista. Así no se toca el
+                   content-wrapper que controla la apertura del sidebar.
+                */
+                const soloContieneLaVista =
+                    actual.children.length === 1 &&
+                    actual.contains(minmaxRoot);
+
+                if (profundidad === 0 || soloContieneLaVista) {
+                    actual.classList.add("mm-minmax-host-clean");
+                }
+
+                if (
+                    clases.contains("content-wrapper") ||
+                    clases.contains("main-content") ||
+                    clases.contains("page-wrapper") ||
+                    clases.contains("app-content")
+                ) {
+                    break;
+                }
+
+                actual = actual.parentElement;
+                profundidad += 1;
+            }
+        }
+
+        function actualizarBotonFullscreen() {
+            const button = el("btnFullscreen");
+            if (!button) return;
+
+            button.innerHTML = document.fullscreenElement
+                ? `<i class="fa-solid fa-compress"></i> Salir`
+                : `<i class="fa-solid fa-expand"></i> Pantalla`;
+        }
+
+        function toggleFullscreen() {
+            const target = minmaxRoot || document.documentElement;
+
+            if (!document.fullscreenElement) {
+                target.requestFullscreen?.().catch(console.warn);
+            } else {
+                document.exitFullscreen?.();
+            }
+        }
+
+        let searchTimer = null;
+
+        buscarInput.addEventListener("input", () => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(renderizar, 130);
+        });
+
+        clasificacionSelect.addEventListener("change", renderizar);
+        masterSelect.addEventListener("change", renderizar);
+        estatusSelect.addEventListener("change", renderizar);
+
+        const mmTableHeader = el("mmTableHeader");
+
+        mmTableHeader?.addEventListener("click", event => {
+            const th = event.target.closest("[data-sort]");
+            if (!th) return;
+            cambiarOrden(th.dataset.sort);
+        });
+
+        mmTableHeader?.addEventListener("keydown", event => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+
+            const th = event.target.closest("[data-sort]");
+            if (!th) return;
+
+            event.preventDefault();
+            cambiarOrden(th.dataset.sort);
+        });
+
+        btnActualizar.addEventListener("click", cargarDatos);
+        btnCatalogo.addEventListener("click", abrirCatalogo);
+        el("btnCerrarCatalogo").addEventListener("click", cerrarCatalogo);
+        el("btnCsv").addEventListener("click", exportarCsv);
+        el("btnFullscreen").addEventListener("click", toggleFullscreen);
+
+        document.addEventListener("fullscreenchange", actualizarBotonFullscreen);
+
+        el("catalogoSkuBuscar").addEventListener("input", () => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(renderCatalogoSkus, 130);
+        });
+
+        el("catalogoClasificacionesBody").addEventListener("click", event => {
+            const button = event.target.closest("[data-save-clas]");
+            if (!button) return;
+
+            guardarClasificacion(
+                Number(button.getAttribute("data-save-clas")),
+                button
+            );
+        });
+
+        el("catalogoSkuBody").addEventListener("click", event => {
+            const button = event.target.closest("[data-save-sku]");
+            if (!button) return;
+
+            guardarSku(
+                button.getAttribute("data-save-sku"),
+                button
+            );
+        });
+
+        catalogoModal.addEventListener("click", event => {
+            if (event.target === catalogoModal) {
+                cerrarCatalogo();
+            }
+        });
+
+        document.addEventListener("keydown", event => {
+            if (event.key === "Escape" && catalogoModal.classList.contains("show")) {
+                cerrarCatalogo();
+            }
+        });
+
+        prepararContenedorLayout();
+        mesInput.value = mesActual();
+        actualizarBotonFullscreen();
+        actualizarIndicadoresOrden();
+        cargarDatos();
+    })();
+</script>

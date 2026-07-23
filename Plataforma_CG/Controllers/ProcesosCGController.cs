@@ -1,8 +1,6 @@
 using ClosedXML.Excel;
 using Dapper;
-using Dapper;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.SqlClient;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -12,11 +10,11 @@ using Plataforma_CG.Filters;
 using Plataforma_CG.Models;
 using Plataforma_CG.Services;
 using Plataforma_CG.ViewModels;
+using Plataforma_CG.ViewModels.ComparativaCosteo;
 using QRCoder;
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.Odbc;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -57,6 +55,234 @@ namespace Plataforma_CG.Controllers
             _db = db;
             _logger = logger;
             _autoStore = autoStore;
+        }
+
+        // =======================================================
+        // SAP SERVICE LAYER SQLQUERIES
+        // Reemplazo de consultas directas ODBC/HANA.
+        // Estas consultas deben existir en SAP Business One Service Layer.
+        // Endpoint de ejecución: SQLQueries('<SqlCode>')/List
+        // =======================================================
+        private const string SAP_SQL_INV_LOTE_DISPONIBLE = "CG_INV_LOTE_DISPONIBLE";
+        private const string SAP_SQL_DEV_APLICADAS_PEDIDO = "CG_DEV_APLICADAS_PEDIDO";
+        private const string SAP_SQL_CONCILIACION_INVENTARIO = "CG_CONCILIACION_INVENTARIO";
+        private const string SAP_SQL_CONCILIACION_INVENTARIO_P1 = "CG_CONCILIACION_INVENTARIO_P1";
+        private const string SAP_SQL_CONCILIACION_INVENTARIO_TIF = "CG_CONCILIACION_INVENTARIO_TIF";
+
+        private sealed class SapSqlQueryDefinitionVM
+        {
+            public string SqlCode { get; set; } = "";
+            public string SqlName { get; set; } = "";
+            public string ParamList { get; set; } = "";
+            public string SqlText { get; set; } = "";
+        }
+
+        [HttpGet("SapSqlQueriesRequeridas")]
+        [RevisarPermiso("ENTREGAS_SAP", "LEER")]
+        public IActionResult SapSqlQueriesRequeridas()
+        {
+            return Ok(new
+            {
+                ok = true,
+                msg = "Crea estas SQLQueries en SAP Business One Service Layer para reemplazar la conexión ODBC/HANA.",
+                queries = GetSapSqlQueriesRequeridas()
+            });
+        }
+
+        private static List<SapSqlQueryDefinitionVM> GetSapSqlQueriesRequeridas()
+        {
+            return new List<SapSqlQueryDefinitionVM>
+            {
+                new SapSqlQueryDefinitionVM
+                {
+                    SqlCode = SAP_SQL_INV_LOTE_DISPONIBLE,
+                    SqlName = "CG - Inventario lote disponible",
+                    ParamList = "itemCode,whsCode,lote",
+                    SqlText = @"SELECT
+    T0.""ItemCode"" AS ""Articulo"",
+    T0.""WhsCode"" AS ""Almacen"",
+    T1.""DistNumber"" AS ""Lote"",
+    SUM(IFNULL(T0.""Quantity"", 0)) AS ""CantidadSap"",
+    SUM(IFNULL(T0.""CommitQty"", 0)) AS ""ComprometidoSap"",
+    SUM(IFNULL(T0.""Quantity"", 0) - IFNULL(T0.""CommitQty"", 0)) AS ""DisponibleSap""
+FROM OBTQ T0
+INNER JOIN OBTN T1
+    ON T0.""ItemCode"" = T1.""ItemCode""
+   AND T0.""SysNumber"" = T1.""SysNumber""
+WHERE
+    T0.""ItemCode"" = :itemCode
+    AND T0.""WhsCode"" = :whsCode
+    AND T1.""DistNumber"" = :lote
+GROUP BY
+    T0.""ItemCode"",
+    T0.""WhsCode"",
+    T1.""DistNumber"""
+                },
+                new SapSqlQueryDefinitionVM
+                {
+                    SqlCode = SAP_SQL_DEV_APLICADAS_PEDIDO,
+                    SqlName = "CG - Devoluciones aplicadas por pedido",
+                    ParamList = "pedidoSap",
+                    SqlText = @"WITH P AS (
+    SELECT :pedidoSap AS ""PedidoSap"" FROM DUMMY
+),
+Entrega AS (
+    SELECT
+        T0.""DocEntry"",
+        T0.""DocNum"",
+        T0.""DocDate"",
+        T0.""CardCode"",
+        T0.""CardName"",
+        T0.""NumAtCard""
+    FROM ODLN T0, P
+    WHERE
+        T0.""NumAtCard"" = P.""PedidoSap""
+        OR T0.""Comments"" LIKE '%' || P.""PedidoSap"" || '%'
+),
+Factura AS (
+    SELECT
+        T0.""DocEntry"",
+        T0.""DocNum"",
+        T0.""DocDate"",
+        T0.""CardCode"",
+        T0.""CardName"",
+        T0.""NumAtCard""
+    FROM OINV T0, P
+    WHERE
+        T0.""NumAtCard"" = P.""PedidoSap""
+        OR T0.""Comments"" LIKE '%' || P.""PedidoSap"" || '%'
+),
+DetalleSap AS (
+    SELECT
+        'ORDN/RDN1' AS ""TipoAplicacion"",
+        E.""NumAtCard"" AS ""PedidoSap"",
+        E.""DocNum"" AS ""DocNumOriginal"",
+        E.""DocEntry"" AS ""DocEntryOriginal"",
+        D0.""DocEntry"" AS ""DocEntryDevolucion"",
+        D0.""DocNum"" AS ""DocNumDevolucion"",
+        D0.""DocDate"" AS ""FechaDevolucion"",
+        D1.""ItemCode"",
+        BTN.""DistNumber"" AS ""Lote"",
+        ABS(IFNULL(TLD.""Quantity"", D1.""Quantity"")) AS ""CantidadDevuelta""
+    FROM Entrega E
+    INNER JOIN RDN1 D1
+        ON D1.""BaseType"" = 15
+        AND D1.""BaseEntry"" = E.""DocEntry""
+    INNER JOIN ORDN D0
+        ON D0.""DocEntry"" = D1.""DocEntry""
+    LEFT JOIN OITL TL
+        ON TL.""DocType"" = 16
+        AND TL.""DocEntry"" = D0.""DocEntry""
+        AND TL.""DocLine"" = D1.""LineNum""
+        AND TL.""ItemCode"" = D1.""ItemCode""
+    LEFT JOIN ITL1 TLD
+        ON TLD.""LogEntry"" = TL.""LogEntry""
+    LEFT JOIN OBTN BTN
+        ON BTN.""AbsEntry"" = TLD.""MdAbsEntry""
+    WHERE
+        D0.""CANCELED"" = 'N'
+
+    UNION ALL
+
+    SELECT
+        'ORIN/RIN1' AS ""TipoAplicacion"",
+        F.""NumAtCard"" AS ""PedidoSap"",
+        F.""DocNum"" AS ""DocNumOriginal"",
+        F.""DocEntry"" AS ""DocEntryOriginal"",
+        NC0.""DocEntry"" AS ""DocEntryDevolucion"",
+        NC0.""DocNum"" AS ""DocNumDevolucion"",
+        NC0.""DocDate"" AS ""FechaDevolucion"",
+        NC1.""ItemCode"",
+        BTN.""DistNumber"" AS ""Lote"",
+        ABS(IFNULL(TLD.""Quantity"", NC1.""Quantity"")) AS ""CantidadDevuelta""
+    FROM Factura F
+    INNER JOIN RIN1 NC1
+        ON NC1.""BaseType"" = 13
+        AND NC1.""BaseEntry"" = F.""DocEntry""
+    INNER JOIN ORIN NC0
+        ON NC0.""DocEntry"" = NC1.""DocEntry""
+    LEFT JOIN OITL TL
+        ON TL.""DocType"" = 14
+        AND TL.""DocEntry"" = NC0.""DocEntry""
+        AND TL.""DocLine"" = NC1.""LineNum""
+        AND TL.""ItemCode"" = NC1.""ItemCode""
+    LEFT JOIN ITL1 TLD
+        ON TLD.""LogEntry"" = TL.""LogEntry""
+    LEFT JOIN OBTN BTN
+        ON BTN.""AbsEntry"" = TLD.""MdAbsEntry""
+    WHERE
+        NC0.""CANCELED"" = 'N'
+)
+SELECT
+    UPPER(TRIM(""PedidoSap"")) AS ""PedidoSap"",
+    UPPER(TRIM(""ItemCode"")) AS ""Articulo"",
+    UPPER(TRIM(IFNULL(""Lote"", 'SIN_LOTE'))) AS ""Lote"",
+    SUM(""CantidadDevuelta"") AS ""KgDevueltosSap"",
+    MAX(""DocNumDevolucion"") AS ""DocNumDevolucion"",
+    MAX(""DocEntryDevolucion"") AS ""DocEntryDevolucion"",
+    MAX(""FechaDevolucion"") AS ""FechaDevolucionSap"",
+    STRING_AGG(""TipoAplicacion"", ', ') AS ""TipoAplicacion""
+FROM DetalleSap
+GROUP BY
+    UPPER(TRIM(""PedidoSap"")),
+    UPPER(TRIM(""ItemCode"")),
+    UPPER(TRIM(IFNULL(""Lote"", 'SIN_LOTE')))
+ORDER BY
+    ""Articulo"",
+    ""Lote"""
+                },
+                new SapSqlQueryDefinitionVM
+                {
+                    SqlCode = SAP_SQL_CONCILIACION_INVENTARIO_P1,
+                    SqlName = "CG - Conciliacion inventario SAP P1",
+                    ParamList = "",
+                    SqlText = @"SELECT
+    T0.ItemCode AS ProductoCodigo,
+    T0.WhsCode AS Sucursal,
+    T0.Quantity AS CantidadSap,
+    T0.CommitQty AS ComprometidoSap,
+    T1.ItemName AS DescripcionSap,
+    T2.DistNumber AS Lote
+FROM OBTQ T0
+INNER JOIN OITM T1
+    ON T1.ItemCode = T0.ItemCode
+INNER JOIN OBTN T2
+    ON T2.ItemCode = T0.ItemCode
+   AND T2.SysNumber = T0.SysNumber
+WHERE
+    T0.Quantity > 0
+    AND T0.WhsCode = 'PLAP1GEN'
+ORDER BY
+    T0.WhsCode,
+    T0.ItemCode,
+    T2.DistNumber"
+                },
+                new SapSqlQueryDefinitionVM
+                {
+                    SqlCode = SAP_SQL_CONCILIACION_INVENTARIO_TIF,
+                    SqlName = "CG - Conciliacion inventario SAP TIF",
+                    ParamList = "",
+                    SqlText = @"SELECT
+    T0.ItemCode AS ProductoCodigo,
+    T0.WhsCode AS Sucursal,
+    T0.Quantity AS CantidadSap,
+    T0.CommitQty AS ComprometidoSap,
+    T1.ItemName AS DescripcionSap,
+    T2.DistNumber AS Lote
+FROM OBTQ T0
+INNER JOIN OITM T1
+    ON T1.ItemCode = T0.ItemCode
+INNER JOIN OBTN T2
+    ON T2.ItemCode = T0.ItemCode
+   AND T2.SysNumber = T0.SysNumber
+WHERE
+    T0.Quantity > 0
+    AND T0.WhsCode = 'PLATIFGE'
+ORDER BY
+    T0.WhsCode,
+    T0.ItemCode,
+    T2.DistNumber"
+                }            };
         }
         [HttpGet]
         public async Task<IActionResult> ObtenerPermisosVistaEntregas()
@@ -365,7 +591,9 @@ namespace Plataforma_CG.Controllers
 
                 var json = await _data.BuildJsonAsync(referencia, source);
 
-                var resultado = await ValidarTrazabilidadDesdeJsonAsync(json)
+                source = NormalizeSource(source);
+
+                var resultado = await ValidarTrazabilidadDesdeJsonAsync(json, source)
                                 ?? new List<TrazabilidadSapVM>();
 
                 var hayErrorTrazabilidad = resultado.Any(x =>
@@ -443,6 +671,154 @@ namespace Plataforma_CG.Controllers
                     devolucionError = ""
                 });
             }
+        }
+
+        // =======================================================
+        // TRAZABILIDAD PROGRESIVA
+        // =======================================================
+        // Este endpoint entrega primero únicamente la validación de lotes.
+        // Las devoluciones se consultan por separado para que el modal abra
+        // inmediatamente y la pantalla se complete de forma progresiva.
+        [HttpGet("ValidarTrazabilidadRapida")]
+        [RevisarPermiso("ENTREGAS_SAP", "LEER")]
+        public async Task<IActionResult> ValidarTrazabilidadRapida(
+            [FromQuery] string referencia,
+            [FromQuery] string source = "P1")
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(referencia))
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = "Referencia vacía.",
+                        detalle = new List<object>()
+                    });
+                }
+
+                source = NormalizeSource(source);
+
+                var json = await _data.BuildJsonAsync(referencia, source);
+                var detalle = await ValidarTrazabilidadDesdeJsonAsync(json, source)
+                              ?? new List<TrazabilidadSapVM>();
+
+                var hayError = TieneErrorTrazabilidad(detalle);
+
+                return Ok(new
+                {
+                    ok = !hayError,
+                    msg = hayError
+                        ? "La entrega tiene diferencias de trazabilidad. Revisa lotes y kg."
+                        : "Trazabilidad correcta. Todos los lotes tienen kg disponibles.",
+                    detalle
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error en trazabilidad rápida. Ref={Referencia} Source={Source}",
+                    referencia,
+                    source);
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = "Error al validar trazabilidad.",
+                    error = ex.Message,
+                    detalle = new List<object>()
+                });
+            }
+        }
+
+        // Este endpoint consulta solamente devoluciones Meat vs SAP.
+        // Lo usan el modal progresivo y la validación automática de devoluciones,
+        // evitando ejecutar nuevamente toda la trazabilidad de inventario.
+        [HttpGet("ValidarDevolucionesEntrega")]
+        [RevisarPermiso("ENTREGAS_SAP", "LEER")]
+        public async Task<IActionResult> ValidarDevolucionesEntrega(
+            [FromQuery] string referencia,
+            [FromQuery] string source = "P1")
+        {
+            if (string.IsNullOrWhiteSpace(referencia))
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    msg = "Referencia vacía.",
+                    devoluciones = new List<object>(),
+                    devolucionError = "Referencia vacía."
+                });
+            }
+
+            source = NormalizeSource(source);
+
+            try
+            {
+                var json = await _data.BuildJsonAsync(referencia, source);
+
+                var devoluciones =
+                    await ValidarDevolucionesAplicadasDesdeJsonAsync(
+                        json,
+                        source,
+                        referencia)
+                    ?? new List<DevolucionComparativoVM>();
+
+                var hayError = TieneErrorDevolucion(devoluciones);
+
+                return Ok(new
+                {
+                    ok = !hayError,
+                    msg = hayError
+                        ? "La entrega tiene devoluciones pendientes o diferencias contra SAP."
+                        : "Devoluciones correctas.",
+                    devoluciones,
+                    devolucionError = ""
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Error al validar devoluciones Meat vs SAP. Ref={Referencia} Source={Source}",
+                    referencia,
+                    source);
+
+                // Se devuelve HTTP 200 para que el modal pueda conservar y mostrar
+                // la trazabilidad ya cargada, aun cuando falle esta segunda fase.
+                return Ok(new
+                {
+                    ok = false,
+                    msg = "No se pudo consultar devoluciones Meat vs SAP.",
+                    devoluciones = new List<object>(),
+                    devolucionError = ex.Message
+                });
+            }
+        }
+
+        private static bool TieneErrorTrazabilidad(
+            IEnumerable<TrazabilidadSapVM>? detalle)
+        {
+            return (detalle ?? Enumerable.Empty<TrazabilidadSapVM>())
+                .Any(x =>
+                    x.Estatus == "NO EXISTE LOTE EN SAP" ||
+                    x.Estatus == "SIN DISPONIBLE" ||
+                    x.Estatus == "FALTAN KG" ||
+                    x.Estatus == "JSON SIN LOTES" ||
+                    x.Estatus == "JSON VACÍO" ||
+                    x.Estatus == "SIN DETALLE DE TRAZABILIDAD");
+        }
+
+        private static bool TieneErrorDevolucion(
+            IEnumerable<DevolucionComparativoVM>? devoluciones)
+        {
+            return (devoluciones ?? Enumerable.Empty<DevolucionComparativoVM>())
+                .Any(x =>
+                    x.Estatus == "PENDIENTE SAP" ||
+                    x.Estatus == "DIFERENCIA KG" ||
+                    x.Estatus == "FALTA LOTE SAP" ||
+                    x.Estatus == "SOBRANTE SAP");
         }
 
         private sealed class DevolucionMeatSapRow
@@ -648,154 +1024,30 @@ ORDER BY
 
         private async Task<List<DevolucionSapAplicadaRow>> ObtenerDevolucionesAplicadasSapAsync(string pedidoSap)
         {
-            var cs = _configuration.GetConnectionString("SapHana");
+            pedidoSap = (pedidoSap ?? "").Trim();
 
-            if (string.IsNullOrWhiteSpace(cs))
-                throw new Exception("No existe la cadena de conexión 'SapHana'.");
+            if (string.IsNullOrWhiteSpace(pedidoSap))
+                return new List<DevolucionSapAplicadaRow>();
 
-            var pedido = SqlText(pedidoSap);
-
-            var sql = $@"
-WITH P AS (
-    SELECT '{pedido}' AS ""PedidoSap"" FROM DUMMY
-),
-
-Entrega AS (
-    SELECT
-        T0.""DocEntry"",
-        T0.""DocNum"",
-        T0.""DocDate"",
-        T0.""CardCode"",
-        T0.""CardName"",
-        T0.""NumAtCard""
-    FROM ""PROD_CARNESG"".""ODLN"" T0, P
-    WHERE
-        T0.""NumAtCard"" = P.""PedidoSap""
-        OR T0.""Comments"" LIKE '%' || P.""PedidoSap"" || '%'
-),
-
-Factura AS (
-    SELECT
-        T0.""DocEntry"",
-        T0.""DocNum"",
-        T0.""DocDate"",
-        T0.""CardCode"",
-        T0.""CardName"",
-        T0.""NumAtCard""
-    FROM ""PROD_CARNESG"".""OINV"" T0, P
-    WHERE
-        T0.""NumAtCard"" = P.""PedidoSap""
-        OR T0.""Comments"" LIKE '%' || P.""PedidoSap"" || '%'
-),
-
-DetalleSap AS (
-    SELECT
-        'ORDN/RDN1' AS ""TipoAplicacion"",
-        E.""NumAtCard"" AS ""PedidoSap"",
-        E.""DocNum"" AS ""DocNumOriginal"",
-        E.""DocEntry"" AS ""DocEntryOriginal"",
-        D0.""DocEntry"" AS ""DocEntryDevolucion"",
-        D0.""DocNum"" AS ""DocNumDevolucion"",
-        D0.""DocDate"" AS ""FechaDevolucion"",
-        D1.""ItemCode"",
-        BTN.""DistNumber"" AS ""Lote"",
-        ABS(IFNULL(TLD.""Quantity"", D1.""Quantity"")) AS ""CantidadDevuelta""
-    FROM Entrega E
-    INNER JOIN ""PROD_CARNESG"".""RDN1"" D1
-        ON D1.""BaseType"" = 15
-        AND D1.""BaseEntry"" = E.""DocEntry""
-    INNER JOIN ""PROD_CARNESG"".""ORDN"" D0
-        ON D0.""DocEntry"" = D1.""DocEntry""
-    LEFT JOIN ""PROD_CARNESG"".""OITL"" TL
-        ON TL.""DocType"" = 16
-        AND TL.""DocEntry"" = D0.""DocEntry""
-        AND TL.""DocLine"" = D1.""LineNum""
-        AND TL.""ItemCode"" = D1.""ItemCode""
-    LEFT JOIN ""PROD_CARNESG"".""ITL1"" TLD
-        ON TLD.""LogEntry"" = TL.""LogEntry""
-    LEFT JOIN ""PROD_CARNESG"".""OBTN"" BTN
-        ON BTN.""AbsEntry"" = TLD.""MdAbsEntry""
-    WHERE
-        D0.""CANCELED"" = 'N'
-
-    UNION ALL
-
-    SELECT
-        'ORIN/RIN1' AS ""TipoAplicacion"",
-        F.""NumAtCard"" AS ""PedidoSap"",
-        F.""DocNum"" AS ""DocNumOriginal"",
-        F.""DocEntry"" AS ""DocEntryOriginal"",
-        NC0.""DocEntry"" AS ""DocEntryDevolucion"",
-        NC0.""DocNum"" AS ""DocNumDevolucion"",
-        NC0.""DocDate"" AS ""FechaDevolucion"",
-        NC1.""ItemCode"",
-        BTN.""DistNumber"" AS ""Lote"",
-        ABS(IFNULL(TLD.""Quantity"", NC1.""Quantity"")) AS ""CantidadDevuelta""
-    FROM Factura F
-    INNER JOIN ""PROD_CARNESG"".""RIN1"" NC1
-        ON NC1.""BaseType"" = 13
-        AND NC1.""BaseEntry"" = F.""DocEntry""
-    INNER JOIN ""PROD_CARNESG"".""ORIN"" NC0
-        ON NC0.""DocEntry"" = NC1.""DocEntry""
-    LEFT JOIN ""PROD_CARNESG"".""OITL"" TL
-        ON TL.""DocType"" = 14
-        AND TL.""DocEntry"" = NC0.""DocEntry""
-        AND TL.""DocLine"" = NC1.""LineNum""
-        AND TL.""ItemCode"" = NC1.""ItemCode""
-    LEFT JOIN ""PROD_CARNESG"".""ITL1"" TLD
-        ON TLD.""LogEntry"" = TL.""LogEntry""
-    LEFT JOIN ""PROD_CARNESG"".""OBTN"" BTN
-        ON BTN.""AbsEntry"" = TLD.""MdAbsEntry""
-    WHERE
-        NC0.""CANCELED"" = 'N'
-)
-
-SELECT
-    UPPER(TRIM(""PedidoSap"")) AS ""PedidoSap"",
-    UPPER(TRIM(""ItemCode"")) AS ""Articulo"",
-    UPPER(TRIM(IFNULL(""Lote"", 'SIN_LOTE'))) AS ""Lote"",
-    SUM(""CantidadDevuelta"") AS ""KgDevueltosSap"",
-    MAX(""DocNumDevolucion"") AS ""DocNumDevolucion"",
-    MAX(""DocEntryDevolucion"") AS ""DocEntryDevolucion"",
-    MAX(""FechaDevolucion"") AS ""FechaDevolucionSap"",
-    STRING_AGG(""TipoAplicacion"", ', ') AS ""TipoAplicacion""
-FROM DetalleSap
-GROUP BY
-    UPPER(TRIM(""PedidoSap"")),
-    UPPER(TRIM(""ItemCode"")),
-    UPPER(TRIM(IFNULL(""Lote"", 'SIN_LOTE')))
-ORDER BY
-    ""Articulo"",
-    ""Lote"";
-";
-
-            var lista = new List<DevolucionSapAplicadaRow>();
-
-            using var cn = new OdbcConnection(cs);
-            await cn.OpenAsync();
-
-            using var cmd = cn.CreateCommand();
-            cmd.CommandText = sql;
-            cmd.CommandTimeout = 180;
-
-            using var rd = await cmd.ExecuteReaderAsync();
-
-            while (await rd.ReadAsync())
-            {
-                lista.Add(new DevolucionSapAplicadaRow
+            var rows = await EjecutarSapSqlQueryListAsync(
+                SAP_SQL_DEV_APLICADAS_PEDIDO,
+                new Dictionary<string, string>
                 {
-                    PedidoSap = rd["PedidoSap"]?.ToString() ?? "",
-                    Articulo = rd["Articulo"]?.ToString() ?? "",
-                    Lote = rd["Lote"]?.ToString() ?? "",
-                    KgDevueltosSap = ToDecimalSafe(rd["KgDevueltosSap"]),
-                    DocNumDevolucion = ToIntSafe(rd["DocNumDevolucion"]),
-                    DocEntryDevolucion = ToIntSafe(rd["DocEntryDevolucion"]),
-                    FechaDevolucionSap = ToDateTimeSafe(rd["FechaDevolucionSap"]),
-                    TipoAplicacion = rd["TipoAplicacion"]?.ToString() ?? ""
-                });
-            }
+                    ["pedidoSap"] = pedidoSap
+                }
+            );
 
-            return lista;
+            return rows.Select(x => new DevolucionSapAplicadaRow
+            {
+                PedidoSap = JsonStr(x, "PedidoSap"),
+                Articulo = JsonStr(x, "Articulo"),
+                Lote = JsonStr(x, "Lote"),
+                KgDevueltosSap = JsonDecimal(x, "KgDevueltosSap"),
+                DocNumDevolucion = JsonIntNullable(x, "DocNumDevolucion"),
+                DocEntryDevolucion = JsonIntNullable(x, "DocEntryDevolucion"),
+                FechaDevolucionSap = JsonDateNullable(x, "FechaDevolucionSap"),
+                TipoAplicacion = JsonStr(x, "TipoAplicacion")
+            }).ToList();
         }
 
         private static string ExtraerNumAtCardDesdeJson(string json)
@@ -826,7 +1078,9 @@ ORDER BY
             return (value ?? "").Trim().ToUpperInvariant();
         }
 
-        private async Task<List<TrazabilidadSapVM>> ValidarTrazabilidadDesdeJsonAsync(string json)
+        private async Task<List<TrazabilidadSapVM>> ValidarTrazabilidadDesdeJsonAsync(
+            string json,
+            string source)
         {
             if (string.IsNullOrWhiteSpace(json) || json.Trim() == "{}")
             {
@@ -892,19 +1146,24 @@ ORDER BY
                             !string.IsNullOrWhiteSpace(lote) &&
                             kg > 0)
                         {
-                            lotesReq.Add((itemCode, whsCode, lote, kg));
+                            lotesReq.Add((itemCode.Trim(), whsCode.Trim(), lote.Trim(), kg));
                         }
                     }
                 }
             }
 
             var agrupado = lotesReq
-                .GroupBy(x => new { x.ItemCode, x.WhsCode, x.Lote })
+                .GroupBy(x => new
+                {
+                    ItemCode = NormalizeKey(x.ItemCode),
+                    WhsCode = NormalizeKey(x.WhsCode),
+                    Lote = NormalizeKey(x.Lote)
+                })
                 .Select(g => new
                 {
-                    g.Key.ItemCode,
-                    g.Key.WhsCode,
-                    g.Key.Lote,
+                    ItemCode = g.First().ItemCode,
+                    WhsCode = g.First().WhsCode,
+                    Lote = g.First().Lote,
                     Kg = g.Sum(x => x.Kg)
                 })
                 .ToList();
@@ -920,102 +1179,122 @@ ORDER BY
                 };
             }
 
-            var sapSchema = "PROD_CARNESG";
+            // La fecha de producción se obtiene exclusivamente de la base Meat
+            // correspondiente a la planta (CadenaMeatP1 o CadenaMeatTIF).
+            var fechasProduccionMeat = await ObtenerFechasProduccionMeatAsync(
+                source,
+                agrupado.Select(x => x.Lote));
 
-            var selects = agrupado.Select(x => $@"
-        SELECT
-            '{SqlText(x.ItemCode)}' AS ""ItemCode"",
-            '{SqlText(x.WhsCode)}' AS ""WhsCode"",
-            '{SqlText(x.Lote)}' AS ""DistNumber"",
-            {x.Kg.ToString(System.Globalization.CultureInfo.InvariantCulture)} AS ""KgJson""
-        FROM DUMMY
-    ");
+            var resultado = new List<TrazabilidadSapVM>();
 
-            var reqRawSql = string.Join(" UNION ALL ", selects);
+            // Antes se ejecutaba la SQLQuery completa de SAP una vez por cada lote.
+            // Ahora se carga una sola vez por almacén y después se filtra en memoria.
+            // Esto reduce de forma importante el tiempo de la primera fase del modal.
+            var inventarioSapPorAlmacen =
+                new Dictionary<string, List<InventarioSapConciliacionRow>>(
+                    StringComparer.OrdinalIgnoreCase);
 
-            var sql = $@"
-WITH ReqRaw AS
-(
-    {reqRawSql}
-),
-Req AS
-(
-    SELECT
-        ""ItemCode"",
-        ""WhsCode"",
-        ""DistNumber"",
-        SUM(""KgJson"") AS ""KgJson""
-    FROM ReqRaw
-    GROUP BY
-        ""ItemCode"",
-        ""WhsCode"",
-        ""DistNumber""
-),
-Sap AS
-(
-    SELECT
-        T0.""ItemCode"",
-        T0.""WhsCode"",
-        T1.""DistNumber"",
-        SUM(IFNULL(T0.""Quantity"", 0)) AS ""CantidadSap"",
-        SUM(IFNULL(T0.""CommitQty"", 0)) AS ""ComprometidoSap"",
-        SUM(IFNULL(T0.""Quantity"", 0) - IFNULL(T0.""CommitQty"", 0)) AS ""DisponibleSap""
-    FROM ""{sapSchema}"".""OBTQ"" T0
-    INNER JOIN ""{sapSchema}"".""OBTN"" T1
-        ON T0.""ItemCode"" = T1.""ItemCode""
-       AND T0.""SysNumber"" = T1.""SysNumber""
-    INNER JOIN Req R
-        ON R.""ItemCode"" = T0.""ItemCode""
-       AND R.""WhsCode"" = T0.""WhsCode""
-       AND R.""DistNumber"" = T1.""DistNumber""
-    GROUP BY
-        T0.""ItemCode"",
-        T0.""WhsCode"",
-        T1.""DistNumber""
-)
-SELECT
-    COALESCE(R.""ItemCode"", '') AS ""Articulo"",
-    COALESCE(R.""WhsCode"", '') AS ""Almacen"",
-    COALESCE(R.""DistNumber"", '') AS ""Lote"",
-    COALESCE(R.""KgJson"", 0) AS ""KgSolicitadosJson"",
+            var almacenes = agrupado
+                .Select(x => NormalizeKey(x.WhsCode))
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
-    COALESCE(S.""CantidadSap"", 0) AS ""CantidadSap"",
-    COALESCE(S.""ComprometidoSap"", 0) AS ""ComprometidoSap"",
-    COALESCE(S.""DisponibleSap"", 0) AS ""DisponibleSap"",
+            foreach (var almacen in almacenes)
+            {
+                inventarioSapPorAlmacen[almacen] =
+                    await ObtenerInventarioSapConciliacionAsync(
+                        almacen,
+                        articulo: "",
+                        lote: "");
+            }
 
-    CASE
-        WHEN S.""DistNumber"" IS NULL THEN COALESCE(R.""KgJson"", 0)
-        WHEN COALESCE(S.""DisponibleSap"", 0) + 0.01 < COALESCE(R.""KgJson"", 0)
-            THEN COALESCE(R.""KgJson"", 0) - COALESCE(S.""DisponibleSap"", 0)
-        ELSE 0
-    END AS ""KgFaltantes"",
+            foreach (var x in agrupado)
+            {
+                inventarioSapPorAlmacen.TryGetValue(
+                    NormalizeKey(x.WhsCode),
+                    out var sapInv);
 
-    CASE
-        WHEN S.""DistNumber"" IS NULL THEN 0
-        WHEN COALESCE(S.""DisponibleSap"", 0) > COALESCE(R.""KgJson"", 0)
-            THEN COALESCE(S.""DisponibleSap"", 0) - COALESCE(R.""KgJson"", 0)
-        ELSE 0
-    END AS ""KgSobrantes"",
+                sapInv ??= new List<InventarioSapConciliacionRow>();
 
-    CASE
-        WHEN S.""DistNumber"" IS NULL THEN 'NO EXISTE LOTE EN SAP'
-        WHEN COALESCE(S.""DisponibleSap"", 0) <= 0 THEN 'SIN DISPONIBLE'
-        WHEN COALESCE(S.""DisponibleSap"", 0) + 0.01 < COALESCE(R.""KgJson"", 0) THEN 'FALTAN KG'
-        WHEN ABS(COALESCE(S.""DisponibleSap"", 0) - COALESCE(R.""KgJson"", 0)) <= 0.01 THEN 'OK EXACTO'
-        WHEN COALESCE(S.""DisponibleSap"", 0) > COALESCE(R.""KgJson"", 0) THEN 'OK CON SOBRANTE'
-        ELSE 'REVISAR'
-    END AS ""Estatus""
-FROM Req R
-LEFT JOIN Sap S
-    ON S.""ItemCode"" = R.""ItemCode""
-   AND S.""WhsCode"" = R.""WhsCode""
-   AND S.""DistNumber"" = R.""DistNumber""
-ORDER BY
-    R.""ItemCode"",
-    R.""DistNumber"";
-";
+                var sap = sapInv
+                    .Where(r =>
+                        NormalizeKey(r.ProductoCodigo) == NormalizeKey(x.ItemCode) &&
+                        NormLoteInv(r.Lote) == NormLoteInv(x.Lote))
+                    .GroupBy(r => KeyInv(r.Sucursal, r.ProductoCodigo, r.Lote))
+                    .Select(g => new InventarioSapConciliacionRow
+                    {
+                        Sucursal = g.First().Sucursal,
+                        ProductoCodigo = g.First().ProductoCodigo,
+                        DescripcionSap = g.First().DescripcionSap,
+                        Lote = g.First().Lote,
+                        CantidadSap = g.Sum(r => r.CantidadSap),
+                        ComprometidoSap = g.Sum(r => r.ComprometidoSap),
+                        DisponibleSap = g.Sum(r => r.DisponibleSap)
+                    })
+                    .FirstOrDefault();
 
-            return await EjecutarConsultaTrazabilidadSapAsync(sql);
+                decimal cantidadSap = sap?.CantidadSap ?? 0m;
+                decimal comprometidoSap = sap?.ComprometidoSap ?? 0m;
+                decimal disponibleSap = sap?.DisponibleSap ?? 0m;
+
+                decimal kgFaltantes = 0m;
+                decimal kgSobrantes = 0m;
+                string estatus;
+
+                if (sap == null)
+                {
+                    kgFaltantes = x.Kg;
+                    estatus = "NO EXISTE LOTE EN SAP";
+                }
+                else if (disponibleSap <= 0)
+                {
+                    kgFaltantes = x.Kg;
+                    estatus = "SIN DISPONIBLE";
+                }
+                else if (disponibleSap + 0.01m < x.Kg)
+                {
+                    kgFaltantes = x.Kg - disponibleSap;
+                    estatus = "FALTAN KG";
+                }
+                else if (Math.Abs(disponibleSap - x.Kg) <= 0.01m)
+                {
+                    estatus = "OK EXACTO";
+                }
+                else if (disponibleSap > x.Kg)
+                {
+                    kgSobrantes = disponibleSap - x.Kg;
+                    estatus = "OK CON SOBRANTE";
+                }
+                else
+                {
+                    estatus = "REVISAR";
+                }
+
+                fechasProduccionMeat.TryGetValue(
+                    NormLoteInv(x.Lote),
+                    out var fechaProduccion);
+
+                resultado.Add(new TrazabilidadSapVM
+                {
+                    Articulo = sap?.ProductoCodigo ?? x.ItemCode,
+                    Almacen = sap?.Sucursal ?? x.WhsCode,
+                    Lote = sap?.Lote ?? x.Lote,
+                    FechaProduccion = fechaProduccion,
+                    KgSolicitadosJson = x.Kg,
+                    CantidadSap = cantidadSap,
+                    ComprometidoSap = comprometidoSap,
+                    DisponibleSap = disponibleSap,
+                    KgFaltantes = kgFaltantes,
+                    KgSobrantes = kgSobrantes,
+                    Estatus = estatus
+                });
+            }
+
+            return resultado
+                .OrderBy(x => x.Articulo)
+                .ThenBy(x => x.Lote)
+                .ToList();
         }
 
         private static string SqlText(string value)
@@ -1023,46 +1302,225 @@ ORDER BY
             return (value ?? "").Replace("'", "''");
         }
 
-        private async Task<List<TrazabilidadSapVM>> EjecutarConsultaTrazabilidadSapAsync(string sql)
+        private async Task<List<JsonElement>> EjecutarSapSqlQueryListAsync(
+            string sqlCode,
+            Dictionary<string, string>? parameters = null)
         {
-            var lista = new List<TrazabilidadSapVM>();
+            if (string.IsNullOrWhiteSpace(sqlCode))
+                throw new Exception("Código de SQLQuery SAP vacío.");
 
-            var cs = _configuration.GetConnectionString("SapHana");
+            parameters ??= new Dictionary<string, string>();
 
-            if (string.IsNullOrWhiteSpace(cs))
+            var endpoint = $"SQLQueries('{ODataEscape(sqlCode)}')/List";
+            var rows = new List<JsonElement>();
+
+            (bool ok, string? response, string? error) r;
+
+            // Para SQLQueries sin parámetros, usar GET.
+            // Esto evita errores de "Parameter error" en Service Layer cuando el body va vacío.
+            if (parameters.Count == 0)
             {
-                throw new Exception("No existe la cadena de conexión 'SapHana' dentro de ConnectionStrings.");
+                var g = await _sap.GetAsync(endpoint);
+                r = (g.ok, g.response, g.error);
+            }
+            else
+            {
+                var paramList = string.Join(",", parameters.Select(x =>
+                    $"{x.Key}={SapSqlParamValue(x.Value)}"));
+
+                var body = JsonSerializer.Serialize(new { ParamList = paramList });
+                var p = await _sap.PostJsonAsync(endpoint, body);
+                r = (p.ok, p.response, p.error);
             }
 
-            using var cn = new OdbcConnection(cs);
-            await cn.OpenAsync();
-
-            using var cmd = cn.CreateCommand();
-            cmd.CommandText = sql;
-            cmd.CommandTimeout = 180;
-
-            using var rd = await cmd.ExecuteReaderAsync();
-
-            while (await rd.ReadAsync())
+            if (!r.ok)
             {
-                lista.Add(new TrazabilidadSapVM
+                throw new Exception(
+                    $"No se pudo ejecutar SQLQuery SAP '{sqlCode}'. " +
+                    $"Verifica que exista en Service Layer y que el usuario tenga permisos. " +
+                    $"Error: {r.error}. Respuesta: {r.response}");
+            }
+
+            string? nextLink = LeerRowsSqlQueryResponse(r.response, rows);
+
+            var guard = 0;
+            while (!string.IsNullOrWhiteSpace(nextLink) && guard < 200)
+            {
+                guard++;
+
+                var nextEndpoint = NormalizarSapEndpoint(nextLink);
+                var next = await _sap.GetAsync(nextEndpoint);
+
+                if (!next.ok)
                 {
-                    Articulo = rd["Articulo"]?.ToString() ?? "",
-                    Almacen = rd["Almacen"]?.ToString() ?? "",
-                    Lote = rd["Lote"]?.ToString() ?? "",
+                    throw new Exception(
+                        $"No se pudo leer la siguiente página de SQLQuery SAP '{sqlCode}'. " +
+                        $"Error: {next.error}. Respuesta: {next.response}");
+                }
 
-                    KgSolicitadosJson = ToDecimalSafe(rd["KgSolicitadosJson"]),
-                    CantidadSap = ToDecimalSafe(rd["CantidadSap"]),
-                    ComprometidoSap = ToDecimalSafe(rd["ComprometidoSap"]),
-                    DisponibleSap = ToDecimalSafe(rd["DisponibleSap"]),
-                    KgFaltantes = ToDecimalSafe(rd["KgFaltantes"]),
-                    KgSobrantes = ToDecimalSafe(rd["KgSobrantes"]),
-
-                    Estatus = rd["Estatus"]?.ToString() ?? ""
-                });
+                nextLink = LeerRowsSqlQueryResponse(next.response, rows);
             }
 
-            return lista;
+            return rows;
+        }
+
+        private static string? LeerRowsSqlQueryResponse(string? response, List<JsonElement> rows)
+        {
+            if (string.IsNullOrWhiteSpace(response))
+                return null;
+
+            using var doc = JsonDocument.Parse(response);
+            var root = doc.RootElement;
+
+            if (root.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in root.EnumerateArray())
+                    rows.Add(item.Clone());
+
+                return null;
+            }
+
+            if (root.TryGetProperty("value", out var value) && value.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in value.EnumerateArray())
+                    rows.Add(item.Clone());
+            }
+
+            if (root.TryGetProperty("@odata.nextLink", out var next1) && next1.ValueKind == JsonValueKind.String)
+                return next1.GetString();
+
+            if (root.TryGetProperty("odata.nextLink", out var next2) && next2.ValueKind == JsonValueKind.String)
+                return next2.GetString();
+
+            return null;
+        }
+
+        private static string NormalizarSapEndpoint(string endpointOrUrl)
+        {
+            var s = (endpointOrUrl ?? "").Trim();
+
+            if (string.IsNullOrWhiteSpace(s))
+                return s;
+
+            var idx = s.IndexOf("/b1s/v1/", StringComparison.OrdinalIgnoreCase);
+            if (idx >= 0)
+                return s.Substring(idx + "/b1s/v1/".Length);
+
+            idx = s.IndexOf("/b1s/v2/", StringComparison.OrdinalIgnoreCase);
+            if (idx >= 0)
+                return s.Substring(idx + "/b1s/v2/".Length);
+
+            return s.TrimStart('/');
+        }
+
+        //PARA VER QUERYS REQUERIDAS
+        //http://localhost:5019/ProcesosCG/SapSqlQueriesRequeridas
+
+
+        //pra enviar los endpoint o querys a service layer
+        //POST https://TU_SERVIDOR:50000/b1s/v2/SQLQueries
+
+        //BODY
+        //        {
+        //  "SqlCode": "CG_CONCILIACION_INVENTARIO",
+        //  "SqlName": "CG - Conciliacion inventario SAP",
+        //  "ParamList": "sucursal,articulo,lote",
+        //  "SqlText": "SELECT T0."WhsCode" AS "Sucursal", T0."ItemCode" AS "ProductoCodigo", IFNULL(T1."ItemName", '') AS "DescripcionSap", IFNULL(NULLIF(T2."DistNumber", ''), '-') AS "Lote", SUM(IFNULL(T0."Quantity", 0)) AS "CantidadSap", SUM(IFNULL(T0."CommitQty", 0)) AS "ComprometidoSap", SUM(IFNULL(T0."Quantity", 0) - IFNULL(T0."CommitQty", 0)) AS "DisponibleSap" FROM OBTQ T0 INNER JOIN OITM T1 ON T1."ItemCode" = T0."ItemCode" INNER JOIN OBTN T2 ON T2."ItemCode" = T0."ItemCode" AND T2."SysNumber" = T0."SysNumber" WHERE T0."Quantity" > 0 AND (:sucursal = '' OR T0."WhsCode" = :sucursal) AND (:articulo = '' OR UPPER(T0."ItemCode") LIKE '%' || UPPER(:articulo) || '%') AND (:lote = '' OR UPPER(T2."DistNumber") LIKE '%' || UPPER(:lote) || '%') GROUP BY T0."WhsCode", T0."ItemCode", T1."ItemName", T2."DistNumber" ORDER BY T0."WhsCode", T0."ItemCode", T2."DistNumber""
+        //}
+        private static string SapSqlParamValue(string value)
+        {
+            return (value ?? string.Empty)
+                .Trim()
+                .Replace(",", " ")
+                .Replace("\r", " ")
+                .Replace("\n", " ");
+        }
+
+        private static bool TryGetJsonProperty(JsonElement row, string name, out JsonElement value)
+        {
+            if (row.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var p in row.EnumerateObject())
+                {
+                    if (p.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        value = p.Value;
+                        return true;
+                    }
+                }
+            }
+
+            value = default;
+            return false;
+        }
+
+        private static string JsonStr(JsonElement row, string name)
+        {
+            if (!TryGetJsonProperty(row, name, out var value))
+                return "";
+
+            return value.ValueKind switch
+            {
+                JsonValueKind.String => value.GetString() ?? "",
+                JsonValueKind.Number => value.ToString(),
+                JsonValueKind.True => "true",
+                JsonValueKind.False => "false",
+                _ => value.ToString() ?? ""
+            };
+        }
+
+        private static decimal JsonDecimal(JsonElement row, string name)
+        {
+            if (!TryGetJsonProperty(row, name, out var value))
+                return 0m;
+
+            try
+            {
+                if (value.ValueKind == JsonValueKind.Number)
+                    return value.GetDecimal();
+
+                if (value.ValueKind == JsonValueKind.String &&
+                    decimal.TryParse(value.GetString(), System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out var d))
+                    return d;
+            }
+            catch { }
+
+            return 0m;
+        }
+
+        private static int? JsonIntNullable(JsonElement row, string name)
+        {
+            if (!TryGetJsonProperty(row, name, out var value))
+                return null;
+
+            try
+            {
+                if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var n))
+                    return n;
+
+                if (value.ValueKind == JsonValueKind.String && int.TryParse(value.GetString(), out var s))
+                    return s;
+            }
+            catch { }
+
+            return null;
+        }
+
+        private static DateTime? JsonDateNullable(JsonElement row, string name)
+        {
+            if (!TryGetJsonProperty(row, name, out var value))
+                return null;
+
+            if (value.ValueKind == JsonValueKind.String)
+            {
+                var s = value.GetString() ?? "";
+
+                if (DateTime.TryParse(s, out var d))
+                    return d;
+            }
+
+            return null;
         }
 
         private static decimal ToDecimalSafe(object value)
@@ -1273,7 +1731,7 @@ ORDER BY
                 {
                     ok = false,
                     msg = "Error al consultar conciliación de inventario.",
-                    error = ex.Message,
+                    error = ex.GetBaseException().Message,
                     inner = ex.InnerException?.Message
                 });
             }
@@ -1328,12 +1786,52 @@ ORDER BY
                 .OrderBy(x => x)
                 .ToList();
 
+            // Separamos los lotes por planta para consultar FechaProduccion
+            // en la base Meat correcta, nunca desde SAP.
+            var lotesP1 = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var lotesTif = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var key in keys)
+            {
+                localDict.TryGetValue(key, out var localRow);
+                sapDict.TryGetValue(key, out var sapRow);
+
+                var sucursalRow = localRow?.Sucursal ?? sapRow?.Sucursal ?? "";
+                var loteRow = localRow?.Lote ?? sapRow?.Lote ?? "";
+                var loteNormalizado = NormLoteInv(loteRow);
+
+                if (loteNormalizado == "-")
+                    continue;
+
+                var sourceMeat = SourceMeatDesdeSucursal(sucursalRow);
+
+                if (sourceMeat == "TIF")
+                    lotesTif.Add(loteNormalizado);
+                else if (sourceMeat == "P1")
+                    lotesP1.Add(loteNormalizado);
+            }
+
+            var fechasP1 = await ObtenerFechasProduccionMeatAsync("P1", lotesP1);
+            var fechasTif = await ObtenerFechasProduccionMeatAsync("TIF", lotesTif);
+
             var resultado = new List<ConciliacionInventarioRowVM>();
 
             foreach (var key in keys)
             {
                 localDict.TryGetValue(key, out var l);
                 sapDict.TryGetValue(key, out var s);
+
+                var sucursalResultado = l?.Sucursal ?? s?.Sucursal ?? "";
+                var loteResultado = l?.Lote ?? s?.Lote ?? "";
+                var sourceMeat = SourceMeatDesdeSucursal(sucursalResultado);
+
+                DateTime? fechaProduccion = null;
+                var loteNormalizado = NormLoteInv(loteResultado);
+
+                if (sourceMeat == "TIF")
+                    fechasTif.TryGetValue(loteNormalizado, out fechaProduccion);
+                else if (sourceMeat == "P1")
+                    fechasP1.TryGetValue(loteNormalizado, out fechaProduccion);
 
                 var kgLocal = l?.KgLocal ?? 0;
                 var kgSap = s?.CantidadSap ?? 0;
@@ -1360,10 +1858,11 @@ ORDER BY
 
                 resultado.Add(new ConciliacionInventarioRowVM
                 {
-                    Sucursal = l?.Sucursal ?? s?.Sucursal ?? "",
+                    Sucursal = sucursalResultado,
                     ProductoCodigo = l?.ProductoCodigo ?? s?.ProductoCodigo ?? "",
                     DescripcionSap = s?.DescripcionSap ?? "",
-                    Lote = l?.Lote ?? s?.Lote ?? "",
+                    Lote = loteResultado,
+                    FechaProduccion = fechaProduccion,
 
                     KgLocal = kgLocal,
                     CantidadSap = kgSap,
@@ -1464,85 +1963,74 @@ ORDER BY
             string articulo,
             string lote)
         {
-            var lista = new List<InventarioSapConciliacionRow>();
+            sucursal = (sucursal ?? "").Trim().ToUpperInvariant();
+            articulo = (articulo ?? "").Trim().ToUpperInvariant();
+            lote = (lote ?? "").Trim().ToUpperInvariant();
 
-            var cs = _configuration.GetConnectionString("SapHana");
+            var sqlCodes = new List<string>();
 
-            if (string.IsNullOrWhiteSpace(cs))
-                throw new Exception("No existe la cadena de conexión 'SapHana' dentro de ConnectionStrings.");
-
-            var sapSchema = _configuration["SapHana:Schema"];
-
-            if (string.IsNullOrWhiteSpace(sapSchema))
-                sapSchema = "PROD_CARNESG";
-
-            var where = new List<string>
-    {
-        @"T0.""Quantity"" > 0"
-    };
-
-            if (!string.IsNullOrWhiteSpace(sucursal))
-                where.Add($@"T0.""WhsCode"" = '{SqlTextInv(sucursal.Trim())}'");
-
-            if (!string.IsNullOrWhiteSpace(articulo))
-                where.Add($@"UPPER(T0.""ItemCode"") LIKE '%{SqlTextInv(articulo.Trim().ToUpperInvariant())}%'");
-
-            if (!string.IsNullOrWhiteSpace(lote))
-                where.Add($@"UPPER(T2.""DistNumber"") LIKE '%{SqlTextInv(lote.Trim().ToUpperInvariant())}%'");
-
-            var sql = $@"
-SELECT
-    T0.""WhsCode"" AS ""Sucursal"",
-    T0.""ItemCode"" AS ""ProductoCodigo"",
-    IFNULL(T1.""ItemName"", '') AS ""DescripcionSap"",
-    IFNULL(NULLIF(T2.""DistNumber"", ''), '-') AS ""Lote"",
-
-    SUM(IFNULL(T0.""Quantity"", 0)) AS ""CantidadSap"",
-    SUM(IFNULL(T0.""CommitQty"", 0)) AS ""ComprometidoSap"",
-    SUM(IFNULL(T0.""Quantity"", 0) - IFNULL(T0.""CommitQty"", 0)) AS ""DisponibleSap""
-FROM ""{sapSchema}"".""OBTQ"" T0
-INNER JOIN ""{sapSchema}"".""OITM"" T1
-    ON T1.""ItemCode"" = T0.""ItemCode""
-INNER JOIN ""{sapSchema}"".""OBTN"" T2
-    ON T2.""ItemCode"" = T0.""ItemCode""
-   AND T2.""SysNumber"" = T0.""SysNumber""
-WHERE {string.Join(" AND ", where)}
-GROUP BY
-    T0.""WhsCode"",
-    T0.""ItemCode"",
-    T1.""ItemName"",
-    T2.""DistNumber""
-ORDER BY
-    T0.""WhsCode"",
-    T0.""ItemCode"",
-    T2.""DistNumber"";
-";
-
-            using var cn = new OdbcConnection(cs);
-            await cn.OpenAsync();
-
-            using var cmd = cn.CreateCommand();
-            cmd.CommandText = sql;
-            cmd.CommandTimeout = 180;
-
-            using var rd = await cmd.ExecuteReaderAsync();
-
-            while (await rd.ReadAsync())
+            if (string.IsNullOrWhiteSpace(sucursal))
             {
-                lista.Add(new InventarioSapConciliacionRow
-                {
-                    Sucursal = rd["Sucursal"]?.ToString() ?? "",
-                    ProductoCodigo = rd["ProductoCodigo"]?.ToString() ?? "",
-                    DescripcionSap = rd["DescripcionSap"]?.ToString() ?? "",
-                    Lote = rd["Lote"]?.ToString() ?? "",
-
-                    CantidadSap = ToDecimalInv(rd["CantidadSap"]),
-                    ComprometidoSap = ToDecimalInv(rd["ComprometidoSap"]),
-                    DisponibleSap = ToDecimalInv(rd["DisponibleSap"])
-                });
+                // Cuando la pantalla está en "Todos", consultamos las dos SQLQueries fijas
+                // para evitar parámetros string en Service Layer.
+                sqlCodes.Add(SAP_SQL_CONCILIACION_INVENTARIO_P1);
+                sqlCodes.Add(SAP_SQL_CONCILIACION_INVENTARIO_TIF);
+            }
+            else if (sucursal == "PLAP1GEN")
+            {
+                sqlCodes.Add(SAP_SQL_CONCILIACION_INVENTARIO_P1);
+            }
+            else if (sucursal == "PLATIFGE")
+            {
+                sqlCodes.Add(SAP_SQL_CONCILIACION_INVENTARIO_TIF);
+            }
+            else
+            {
+                return new List<InventarioSapConciliacionRow>();
             }
 
-            return lista;
+            var salida = new List<InventarioSapConciliacionRow>();
+
+            foreach (var sqlCode in sqlCodes)
+            {
+                // Estas consultas ya tienen el almacén fijo dentro del SQLText,
+                // por eso no mandamos ParamList.
+                var rows = await EjecutarSapSqlQueryListAsync(sqlCode);
+
+                foreach (var x in rows)
+                {
+                    var item = JsonStr(x, "ProductoCodigo").Trim();
+                    var loteSap = JsonStr(x, "Lote").Trim();
+
+                    if (!string.IsNullOrWhiteSpace(articulo) &&
+                        !item.ToUpperInvariant().Contains(articulo))
+                    {
+                        continue;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(lote) &&
+                        !loteSap.ToUpperInvariant().Contains(lote))
+                    {
+                        continue;
+                    }
+
+                    var cantidad = JsonDecimal(x, "CantidadSap");
+                    var comprometido = JsonDecimal(x, "ComprometidoSap");
+
+                    salida.Add(new InventarioSapConciliacionRow
+                    {
+                        Sucursal = JsonStr(x, "Sucursal"),
+                        ProductoCodigo = item,
+                        DescripcionSap = JsonStr(x, "DescripcionSap"),
+                        Lote = string.IsNullOrWhiteSpace(loteSap) ? "-" : loteSap,
+                        CantidadSap = cantidad,
+                        ComprometidoSap = comprometido,
+                        DisponibleSap = cantidad - comprometido
+                    });
+                }
+            }
+
+            return salida;
         }
 
         private static string KeyInv(string sucursal, string producto, string lote)
@@ -1570,6 +2058,118 @@ ORDER BY
             return (value ?? "").Replace("'", "''");
         }
 
+        // =======================================================
+        // FECHA DE PRODUCCIÓN DESDE MEAT P1 / TIF
+        // =======================================================
+
+        private static string SourceMeatDesdeSucursal(string sucursal)
+        {
+            var s = NormInv(sucursal);
+
+            if (s == "PLATIFGE" || s == "TIF" || s == "PLANTA TIF")
+                return "TIF";
+
+            if (s == "PLAP1GEN" || s == "P1" || s == "PLANTA 1")
+                return "P1";
+
+            return "";
+        }
+
+        private async Task<Dictionary<string, DateTime?>> ObtenerFechasProduccionMeatAsync(
+            string source,
+            IEnumerable<string> lotes)
+        {
+            source = NormalizeSource(source);
+
+            var lotesNormalizados = (lotes ?? Enumerable.Empty<string>())
+                .Select(NormLoteInv)
+                .Where(x => !string.IsNullOrWhiteSpace(x) && x != "-")
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var resultado = new Dictionary<string, DateTime?>(
+                StringComparer.OrdinalIgnoreCase);
+
+            if (lotesNormalizados.Count == 0)
+                return resultado;
+
+            var cs = GetMeatConnectionString(source);
+
+            if (string.IsNullOrWhiteSpace(cs))
+            {
+                var key = source == "TIF" ? "CadenaMeatTIF" : "CadenaMeatP1";
+                throw new Exception(
+                    $"No existe la cadena de conexión '{key}' para consultar FechaProduccion en Meat.");
+            }
+
+            const string sql = @"
+SELECT
+    UPPER(LTRIM(RTRIM(CONVERT(nvarchar(200), Nombre)))) AS Lote,
+    MAX(CONVERT(date, FechaProduccion)) AS FechaProduccion
+FROM dbo.Lote
+WHERE UPPER(LTRIM(RTRIM(CONVERT(nvarchar(200), Nombre)))) IN @Lotes
+GROUP BY
+    UPPER(LTRIM(RTRIM(CONVERT(nvarchar(200), Nombre))));";
+
+            await using var cn = new SqlConnection(cs);
+            await cn.OpenAsync();
+
+            // SQL Server acepta como máximo 2,100 parámetros. Se procesan bloques
+            // para soportar conciliaciones con muchos lotes.
+            const int tamanoBloque = 1000;
+
+            for (var i = 0; i < lotesNormalizados.Count; i += tamanoBloque)
+            {
+                var bloque = lotesNormalizados
+                    .Skip(i)
+                    .Take(tamanoBloque)
+                    .ToArray();
+
+                var rows = await cn.QueryAsync<LoteFechaProduccionMeatRow>(
+                    sql,
+                    new { Lotes = bloque });
+
+                foreach (var row in rows)
+                {
+                    var loteNormalizado = NormLoteInv(row.Lote);
+
+                    if (loteNormalizado == "-")
+                        continue;
+
+                    resultado[loteNormalizado] = row.FechaProduccion;
+                }
+            }
+
+            return resultado;
+        }
+
+        private sealed class LoteFechaProduccionMeatRow
+        {
+            public string Lote { get; set; } = "";
+            public DateTime? FechaProduccion { get; set; }
+        }
+
+        // Se deja dentro del controller para que el endpoint de trazabilidad
+        // sea autocontenido y serialice FechaProduccion en el JSON.
+        private sealed class TrazabilidadSapVM
+        {
+            public string Articulo { get; set; } = "";
+            public string Almacen { get; set; } = "";
+            public string Lote { get; set; } = "";
+            public DateTime? FechaProduccion { get; set; }
+            public bool EsProduccionHoy =>
+                FechaProduccion.HasValue &&
+                FechaProduccion.Value.Date == DateTime.Today;
+
+            public decimal KgSolicitadosJson { get; set; }
+            public decimal CantidadSap { get; set; }
+            public decimal ComprometidoSap { get; set; }
+            public decimal DisponibleSap { get; set; }
+            public decimal KgFaltantes { get; set; }
+            public decimal KgSobrantes { get; set; }
+            public string Estatus { get; set; } = "";
+        }
+
         private static decimal ToDecimalInv(object value)
         {
             if (value == null || value == DBNull.Value)
@@ -1584,6 +2184,10 @@ ORDER BY
             public string ProductoCodigo { get; set; } = "";
             public string DescripcionSap { get; set; } = "";
             public string Lote { get; set; } = "";
+            public DateTime? FechaProduccion { get; set; }
+            public bool EsProduccionHoy =>
+                FechaProduccion.HasValue &&
+                FechaProduccion.Value.Date == DateTime.Today;
 
             public decimal KgLocal { get; set; }
             public decimal CantidadSap { get; set; }
@@ -1640,14 +2244,15 @@ ORDER BY
                 ws.Cell(1, 2).Value = "Artículo";
                 ws.Cell(1, 3).Value = "Descripción SAP";
                 ws.Cell(1, 4).Value = "Lote";
-                ws.Cell(1, 5).Value = "Kg Local";
-                ws.Cell(1, 6).Value = "Cantidad SAP";
-                ws.Cell(1, 7).Value = "Comprometido SAP";
-                ws.Cell(1, 8).Value = "Disponible SAP";
-                ws.Cell(1, 9).Value = "Diferencia Kg";
-                ws.Cell(1, 10).Value = "Estatus";
+                ws.Cell(1, 5).Value = "Fecha producción";
+                ws.Cell(1, 6).Value = "Kg Local";
+                ws.Cell(1, 7).Value = "Cantidad SAP";
+                ws.Cell(1, 8).Value = "Comprometido SAP";
+                ws.Cell(1, 9).Value = "Disponible SAP";
+                ws.Cell(1, 10).Value = "Diferencia Kg";
+                ws.Cell(1, 11).Value = "Estatus";
 
-                var header = ws.Range(1, 1, 1, 10);
+                var header = ws.Range(1, 1, 1, 11);
                 header.Style.Font.Bold = true;
                 header.Style.Fill.BackgroundColor = XLColor.DarkRed;
                 header.Style.Font.FontColor = XLColor.White;
@@ -1662,30 +2267,44 @@ ORDER BY
                     ws.Cell(row, 2).Value = r.ProductoCodigo;
                     ws.Cell(row, 3).Value = r.DescripcionSap;
                     ws.Cell(row, 4).Value = r.Lote;
-                    ws.Cell(row, 5).Value = r.KgLocal;
-                    ws.Cell(row, 6).Value = r.CantidadSap;
-                    ws.Cell(row, 7).Value = r.ComprometidoSap;
-                    ws.Cell(row, 8).Value = r.DisponibleSap;
-                    ws.Cell(row, 9).Value = r.DiferenciaKg;
-                    ws.Cell(row, 10).Value = r.Estatus;
+
+                    if (r.FechaProduccion.HasValue)
+                    {
+                        ws.Cell(row, 5).Value = r.FechaProduccion.Value;
+                        ws.Cell(row, 5).Style.DateFormat.Format = "dd/MM/yyyy";
+
+                        if (r.EsProduccionHoy)
+                        {
+                            ws.Cell(row, 5).Style.Fill.BackgroundColor = XLColor.DarkRed;
+                            ws.Cell(row, 5).Style.Font.FontColor = XLColor.White;
+                            ws.Cell(row, 5).Style.Font.Bold = true;
+                        }
+                    }
+
+                    ws.Cell(row, 6).Value = r.KgLocal;
+                    ws.Cell(row, 7).Value = r.CantidadSap;
+                    ws.Cell(row, 8).Value = r.ComprometidoSap;
+                    ws.Cell(row, 9).Value = r.DisponibleSap;
+                    ws.Cell(row, 10).Value = r.DiferenciaKg;
+                    ws.Cell(row, 11).Value = r.Estatus;
 
                     if (r.Estatus == "OK")
                     {
-                        ws.Cell(row, 10).Style.Fill.BackgroundColor = XLColor.LightGreen;
+                        ws.Cell(row, 11).Style.Fill.BackgroundColor = XLColor.LightGreen;
                     }
                     else
                     {
-                        ws.Cell(row, 10).Style.Fill.BackgroundColor = XLColor.LightPink;
+                        ws.Cell(row, 11).Style.Fill.BackgroundColor = XLColor.LightPink;
                     }
                 }
 
                 ws.Columns().AdjustToContents();
 
-                ws.Column(5).Style.NumberFormat.Format = "#,##0.00";
                 ws.Column(6).Style.NumberFormat.Format = "#,##0.00";
                 ws.Column(7).Style.NumberFormat.Format = "#,##0.00";
                 ws.Column(8).Style.NumberFormat.Format = "#,##0.00";
                 ws.Column(9).Style.NumberFormat.Format = "#,##0.00";
+                ws.Column(10).Style.NumberFormat.Format = "#,##0.00";
 
                 ws.SheetView.FreezeRows(1);
                 ws.RangeUsed()?.SetAutoFilter();
@@ -2704,6 +3323,463 @@ ORDER BY FechaEjecucion DESC, Id DESC;")).ToList();
             return View("~/Views/ProcesosCG/Costeo.cshtml", model);
         }
 
+
+        //Modal ComparativaCosteo 
+
+        [HttpPost("ConsultarComparativaCosteo")]
+        public async Task<IActionResult> ConsultarComparativaCosteo([FromBody] ComparativaCosteoFiltroVM filtro)
+        {
+            using var cn = new SqlConnection(
+                _configuration.GetConnectionString("CadenaMeatP1"));
+
+            var sql = @"SET NOCOUNT ON;
+ 
+/*==============================================================
+  PARÁMETROS
+==============================================================*/
+ 
+
+DECLARE @FechaInicio date;
+DECLARE @FechaFin date;
+ 
+SET @TipoPeriodo = UPPER(LTRIM(RTRIM(@TipoPeriodo)));
+ 
+IF @TipoPeriodo NOT IN ('DIA', 'SEMANA', 'MES')
+BEGIN
+    THROW 50001, 'El periodo debe ser DIA, SEMANA o MES.', 1;
+END;
+ 
+ 
+/*==============================================================
+  CALCULAR RANGO DE FECHAS
+==============================================================*/
+ 
+SET @FechaInicio =
+    CASE
+        WHEN @TipoPeriodo = 'DIA'
+            THEN @FechaBase
+ 
+        WHEN @TipoPeriodo = 'SEMANA'
+            THEN DATEADD
+            (
+                DAY,
+                -(DATEDIFF(DAY, '19000101', @FechaBase) % 7),
+                @FechaBase
+            )
+ 
+        WHEN @TipoPeriodo = 'MES'
+            THEN DATEFROMPARTS
+            (
+                YEAR(@FechaBase),
+                MONTH(@FechaBase),
+                1
+            )
+    END;
+ 
+SET @FechaFin =
+    CASE
+        WHEN @TipoPeriodo = 'DIA'
+            THEN DATEADD(DAY, 1, @FechaInicio)
+ 
+        WHEN @TipoPeriodo = 'SEMANA'
+            THEN DATEADD(DAY, 7, @FechaInicio)
+ 
+        WHEN @TipoPeriodo = 'MES'
+            THEN DATEADD(MONTH, 1, @FechaInicio)
+    END;
+ 
+ 
+/*==============================================================
+  TABLA TEMPORAL CON DATOS TIF
+==============================================================*/
+ 
+DROP TABLE IF EXISTS #TIF;
+ 
+CREATE TABLE #TIF
+(
+    CodigoEtiqueta varchar(100) COLLATE DATABASE_DEFAULT NOT NULL,
+    Lote varchar(250) COLLATE DATABASE_DEFAULT NULL,
+    SKU varchar(50) COLLATE DATABASE_DEFAULT NULL,
+    Producto varchar(250) COLLATE DATABASE_DEFAULT NULL,
+    FechaProduccion date NULL,
+    PesoTIF decimal(18,2) NULL,
+    CostoTIF decimal(18,2) NULL,
+    TieneCostoTIF bit NOT NULL,
+    ProduccionIdTIF bigint NULL
+);
+ 
+ 
+/*==============================================================
+  CONSULTA REMOTA
+ 
+  OPENQUERY hace que el filtro y los cálculos se ejecuten
+  directamente en SERVERTIF.
+==============================================================*/
+ 
+DECLARE @ConsultaRemota nvarchar(max);
+DECLARE @SQL nvarchar(max);
+ 
+SET @ConsultaRemota = N'
+SELECT
+    CONVERT(varchar(100), p.CodigoEtiqueta) AS CodigoEtiqueta,
+    CONVERT(varchar(250), l.Nombre) AS Lote,
+    CONVERT(varchar(50), p.Articulo) AS SKU,
+    CONVERT(varchar(250), art.Nombre) AS Producto,
+    CONVERT(date, l.FechaProduccion) AS FechaProduccion,
+ 
+    CONVERT
+    (
+        decimal(18,2),
+        ISNULL(p.PesoNeto, 0)
+    ) AS PesoTIF,
+ 
+    CONVERT
+    (
+        decimal(18,2),
+        ISNULL
+        (
+            ROUND
+            (
+                CASE
+                    WHEN c.ProduccionId IS NOT NULL
+                        THEN c.CostoUnitario * pc.FactorUnidad
+                    ELSE pc.CostoCanal
+                END,
+                2
+            ),
+            ISNULL(pcc.Costo, 0)
+        )
+    ) AS CostoTIF,
+ 
+    CASE
+        WHEN pc.ProduccionId IS NULL
+             AND pcc.ProduccionId IS NULL
+            THEN 0
+        ELSE 1
+    END AS TieneCostoTIF,
+ 
+    p.ProduccionId AS ProduccionIdTIF
+ 
+FROM TIF_meat.dbo.Produccion p
+ 
+INNER JOIN TIF_meat.dbo.Lote l
+    ON p.LoteId = l.LoteId
+ 
+LEFT JOIN TIF_CommerciaNet.dbo.Articulo art
+    ON p.Articulo = art.ArticuloId
+ 
+OUTER APPLY
+(
+    SELECT TOP (1)
+        pc1.ProduccionId,
+        pc1.FactorUnidad,
+        pc1.CostoCanal,
+        pc1.FechaHora
+    FROM TIF_meat.dbo.ProduccionCosteo pc1
+    WHERE pc1.ProduccionId = p.ProduccionId
+    ORDER BY pc1.FechaHora DESC
+) pc
+ 
+OUTER APPLY
+(
+    SELECT TOP (1)
+        c1.ProduccionId,
+        c1.CostoUnitario
+    FROM TIF_meat.dbo.Costeo c1
+    WHERE c1.ProduccionId = p.ProduccionId
+) c
+ 
+OUTER APPLY
+(
+    SELECT TOP (1)
+        pcc1.ProduccionId,
+        pcc1.Costo,
+        pcc1.FechaHora
+    FROM TIF_meat.dbo.ProduccionCosto pcc1
+    WHERE pcc1.ProduccionId = p.ProduccionId
+      AND pcc1.TipoCostoID = 0
+    ORDER BY pcc1.FechaHora DESC
+) pcc
+ 
+WHERE
+    p.CodigoEtiqueta IS NOT NULL
+    AND p.UltimoProcesoId <> 29
+    AND l.FechaProduccion >= ''' +
+        CONVERT(char(8), @FechaInicio, 112) + N'''
+    AND l.FechaProduccion < ''' +
+        CONVERT(char(8), @FechaFin, 112) + N'''
+';
+ 
+ 
+/* Insertar resultado remoto en tabla temporal local */
+ 
+SET @SQL = N'
+INSERT INTO #TIF
+(
+    CodigoEtiqueta,
+    Lote,
+    SKU,
+    Producto,
+    FechaProduccion,
+    PesoTIF,
+    CostoTIF,
+    TieneCostoTIF,
+    ProduccionIdTIF
+)
+SELECT
+    CodigoEtiqueta,
+    Lote,
+    SKU,
+    Producto,
+    FechaProduccion,
+    PesoTIF,
+    CostoTIF,
+    TieneCostoTIF,
+    ProduccionIdTIF
+FROM OPENQUERY
+(
+    [SERVERTIF],
+    ''' + REPLACE(@ConsultaRemota, '''', '''''') + N'''
+);';
+ 
+EXEC sys.sp_executesql @SQL;
+ 
+ 
+/*==============================================================
+  ÍNDICE TEMPORAL PARA ACELERAR EL CRUCE CON P1
+==============================================================*/
+ 
+CREATE CLUSTERED INDEX IX_TIF_CodigoEtiqueta
+    ON #TIF(CodigoEtiqueta);
+ 
+ 
+/*==============================================================
+  COMPARACIÓN TIF CONTRA P1
+ 
+  El INNER JOIN significa:
+  solamente devuelve etiquetas que existen en ambos sistemas.
+ 
+  La unión es exclusivamente:
+  TIF.CodigoEtiqueta = P1.CodigoEtiqueta
+==============================================================*/
+ 
+;WITH Comparacion AS
+(
+    SELECT
+        tif.CodigoEtiqueta,
+ 
+        tif.FechaProduccion AS FechaTIF,
+        CONVERT(date, lp1.FechaProduccion) AS FechaP1,
+ 
+        tif.Lote AS LoteTIF,
+        CONVERT(varchar(250), lp1.Nombre)
+            COLLATE DATABASE_DEFAULT AS LoteP1,
+ 
+        tif.SKU AS SKUTIF,
+        CONVERT(varchar(50), p1.Articulo)
+            COLLATE DATABASE_DEFAULT AS SKUP1,
+ 
+        tif.Producto AS ProductoTIF,
+        CONVERT(varchar(250), artp1.Nombre)
+            COLLATE DATABASE_DEFAULT AS ProductoP1,
+ 
+        tif.PesoTIF,
+ 
+        CAST
+        (
+            ISNULL(p1.PesoNeto, 0)
+            AS decimal(18,2)
+        ) AS PesoP1,
+ 
+        tif.CostoTIF,
+ 
+        CAST
+        (
+            ISNULL
+            (
+                ROUND
+                (
+                    CASE
+                        WHEN cp1.ProduccionId IS NOT NULL
+                            THEN cp1.CostoUnitario *
+                                 pcp1.FactorUnidad
+                        ELSE pcp1.CostoCanal
+                    END,
+                    2
+                ),
+                ISNULL(pccp1.Costo, 0)
+            )
+            AS decimal(18,2)
+        ) AS CostoP1,
+ 
+        tif.TieneCostoTIF,
+ 
+        CASE
+            WHEN pcp1.ProduccionId IS NULL
+                 AND pccp1.ProduccionId IS NULL
+                THEN 0
+            ELSE 1
+        END AS TieneCostoP1,
+ 
+        tif.ProduccionIdTIF,
+        p1.ProduccionId AS ProduccionIdP1,
+ 
+        ROW_NUMBER() OVER
+        (
+            PARTITION BY tif.CodigoEtiqueta
+            ORDER BY p1.ProduccionId DESC
+        ) AS NumeroRegistro
+ 
+    FROM #TIF tif
+ 
+    INNER JOIN meat.dbo.Produccion p1
+        ON p1.CodigoEtiqueta = tif.CodigoEtiqueta
+ 
+    INNER JOIN meat.dbo.Lote lp1
+        ON p1.LoteId = lp1.LoteId
+ 
+    LEFT JOIN CommerciaNet.dbo.Articulo artp1
+        ON p1.Articulo = artp1.ArticuloId
+ 
+    OUTER APPLY
+    (
+        SELECT TOP (1)
+            pc.ProduccionId,
+            pc.FactorUnidad,
+            pc.CostoCanal,
+            pc.FechaHora
+        FROM meat.dbo.ProduccionCosteo pc
+        WHERE pc.ProduccionId = p1.ProduccionId
+        ORDER BY pc.FechaHora DESC
+    ) pcp1
+ 
+    OUTER APPLY
+    (
+        SELECT TOP (1)
+            c.ProduccionId,
+            c.CostoUnitario
+        FROM meat.dbo.Costeo c
+        WHERE c.ProduccionId = p1.ProduccionId
+    ) cp1
+ 
+    OUTER APPLY
+    (
+        SELECT TOP (1)
+            pcc.ProduccionId,
+            pcc.Costo,
+            pcc.FechaHora
+        FROM meat.dbo.ProduccionCosto pcc
+        WHERE pcc.ProduccionId = p1.ProduccionId
+          AND pcc.TipoCostoID = 0
+        ORDER BY pcc.FechaHora DESC
+    ) pccp1
+),
+Resultado AS
+( 
+    SELECT
+        
+ 
+        CodigoEtiqueta,
+ 
+        LoteTIF,
+        LoteP1,
+ 
+        SKUTIF,
+        SKUP1,
+ 
+        ProductoTIF,
+        ProductoP1,
+ 
+        PesoTIF,
+        PesoP1,
+ 
+        CAST
+        (
+            PesoP1 - PesoTIF
+            AS decimal(18,2)
+        ) AS DiferenciaPeso,
+ 
+        CostoTIF,
+        CostoP1,
+ 
+        CAST
+        (
+            CostoP1 - CostoTIF
+            AS decimal(18,2)
+        ) AS DiferenciaCosto,
+ 
+        CASE
+            WHEN TieneCostoTIF = 0
+                 AND TieneCostoP1 = 0
+                THEN 'SIN COSTO EN TIF Y P1'
+ 
+            WHEN TieneCostoTIF = 0
+                THEN 'SIN COSTO EN TIF'
+ 
+            WHEN TieneCostoP1 = 0
+                THEN 'SIN COSTO EN P1'
+ 
+            WHEN ABS(CostoP1 - CostoTIF) <= @Tolerancia
+                THEN '100% MISMO COSTO'
+ 
+            ELSE 'COSTO DIFERENTE'
+        END AS EstadoCosto,
+ 
+        ProduccionIdTIF,
+        ProduccionIdP1,
+
+        FechaTIF
+ 
+FROM Comparacion
+ 
+WHERE NumeroRegistro = 1
+
+)
+
+SELECT *
+FROM Resultado
+
+WHERE
+(
+    @EstadoCosto IS NULL
+    OR @EstadoCosto = ''
+    OR EstadoCosto = @EstadoCosto
+)
+ 
+ORDER BY
+    FechaTIF DESC,
+    CodigoEtiqueta
+ 
+OPTION (RECOMPILE);";
+
+            var parametros = new
+            {
+                TipoPeriodo = filtro.TipoPeriodo,
+                FechaBase = filtro.FechaBase,
+                Tolerancia = filtro.Tolerancia,
+                EstadoCosto = filtro.EstadoCosto
+            };
+
+            var datos = await cn.QueryAsync<ComparativaCosteoRowVM>(
+                sql,
+                parametros
+                );
+
+            var primerRegistro = datos.FirstOrDefault();
+
+
+
+            return Json(new
+            {
+                ok = true,
+                datos
+            });
+
+            
+        }
+
+
+
         [HttpPost("EjecutarCosteo")]
         public async Task<IActionResult> EjecutarCosteo(
      [FromBody] Plataforma_CG.ViewModels.CosteoFiltroVM model,
@@ -3546,15 +4622,26 @@ ORDER BY
             public decimal TotalKg => Rows.Sum(x => x.Suma_De_Kg);
         }
 
+
         [HttpGet("AvisosMovilizacionPdf")]
-        [RevisarPermiso("ENTREGAS_SAP", "LEER")]
+        [RevisarPermiso("AVISOS_PDF", "LEER")]
         public async Task<IActionResult> AvisosMovilizacionPdf(
-       [FromQuery] string ids,
-       [FromQuery] string comentarios = "")
+            [FromQuery] string ids,
+            [FromQuery] string comentarios = "",
+            [FromQuery] DateTime? desde = null,
+            [FromQuery] DateTime? hasta = null,
+            [FromQuery] string cliente = "",
+            [FromQuery] string venta = "",
+            [FromQuery] string lote = "",
+            [FromQuery] string source = "TIF",
+            [FromQuery] string planta = "",
+            [FromQuery] string origen = "")
         {
+            source = ResolveAvisosSource(source, planta, origen);
+
             try
             {
-                var solicitudes = ParseSolicitudesAvisoInt(ids);
+                var solicitudes = ParseSolicitudesAvisos(ids);
 
                 if (!solicitudes.Any())
                     return BadRequest("No se recibieron solicitudes válidas para generar el aviso.");
@@ -3562,14 +4649,28 @@ ORDER BY
                 if (solicitudes.Count > 50)
                     return BadRequest("Selecciona máximo 50 solicitudes por PDF para evitar tiempo de espera.");
 
-                var solicitudesTxt = solicitudes
-                    .Select(x => x.ToString())
-                    .ToList();
+                var rowsRaw = await ObtenerDetalleAvisosMovilizacionAsync(
+                    solicitudes,
+                    source,
+                    desde,
+                    hasta,
+                    cliente,
+                    venta,
+                    lote
+                );
 
-                var rows = await ObtenerDetalleAvisosMovilizacionTifAsync(solicitudesTxt);
+                if (rowsRaw == null || !rowsRaw.Any())
+                    return NotFound($"No se encontró información para las solicitudes seleccionadas en {GetAvisosSourceLabel(source)}.");
 
-                if (rows == null || !rows.Any())
-                    return NotFound("No se encontró información para las solicitudes seleccionadas en CadenaMeatTIF.");
+                /*
+                 * P1 puede devolver una fila por etiqueta/caja.
+                 * Antes de construir el PDF se consolida por:
+                 * solicitud + SKU + producto + lote + fechas.
+                 *
+                 * Esto hace que P1 tenga exactamente el mismo comportamiento
+                 * visual que TIF: una partida consolidada con cajas y kg sumados.
+                 */
+                var rows = AgruparDetalleAvisosParaPdf(rowsRaw);
 
                 var vm = new Plataforma_CG.ViewModels.AvisosMovilizacionPdfVM
                 {
@@ -3579,20 +4680,81 @@ ORDER BY
                     Rows = rows
                 };
 
+                ViewBag.Source = source;
+                ViewBag.Planta = GetAvisosSourceLabel(source);
+
                 return View("~/Views/ProcesosCG/AvisosMovilizacionPdf.cshtml", vm);
             }
             catch (SqlException ex) when (ex.Number == -2)
             {
-                _logger.LogError(ex, "Timeout SQL al generar AvisosMovilizacionPdf. Ids={Ids}", ids);
+                _logger.LogError(ex, "Timeout SQL al generar AvisosMovilizacionPdf. Ids={Ids} Source={Source}", ids, source);
 
                 return StatusCode(504,
-                    "Timeout SQL al consultar avisos de movilización. Revisa índice de solicitud_surtido_id o la vista vw_AvisosMovilizacion_TIF.");
+                    $"Timeout SQL al consultar avisos de movilización para {GetAvisosSourceLabel(source)}.");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al generar AvisosMovilizacionPdf. Ids={Ids}", ids);
+                _logger.LogError(ex, "Error al generar AvisosMovilizacionPdf. Ids={Ids} Source={Source}", ids, source);
                 return StatusCode(500, "Error al generar el aviso de movilización: " + ex.Message);
             }
+        }
+
+
+        private static List<AvisoMovilizacionDetalleVM> AgruparDetalleAvisosParaPdf(
+            IEnumerable<AvisoMovilizacionDetalleVM> source)
+        {
+            static string Normalizar(string value)
+                => (value ?? "").Trim().ToUpperInvariant();
+
+            return (source ?? Enumerable.Empty<AvisoMovilizacionDetalleVM>())
+                .GroupBy(x => new
+                {
+                    Planta = Normalizar(x.Planta),
+                    Solicitud = Normalizar(x.SolicitudSurtidoId),
+                    Venta = Normalizar(x.Venta),
+                    Cliente = Normalizar(x.Cliente),
+                    FechaVenta = x.FechaVenta?.Date,
+
+                    Sku = Normalizar(x.Sku),
+                    Producto = Normalizar(x.Producto),
+                    Lote = Normalizar(x.Lote),
+
+                    FechaSacrificio = x.FechaSacrificio?.Date,
+                    FechaProduccion = x.FechaProduccion?.Date,
+                    FechaCaducidad = x.FechaCaducidad?.Date
+                })
+                .Select(g =>
+                {
+                    var primero = g.First();
+
+                    return new AvisoMovilizacionDetalleVM
+                    {
+                        Planta = (primero.Planta ?? "").Trim(),
+                        SolicitudSurtidoId = (primero.SolicitudSurtidoId ?? "").Trim(),
+                        Venta = (primero.Venta ?? "").Trim(),
+                        Cliente = (primero.Cliente ?? "").Trim(),
+                        FechaVenta = g.Key.FechaVenta,
+
+                        Sku = (primero.Sku ?? "").Trim(),
+                        Producto = (primero.Producto ?? "").Trim(),
+                        Lote = (primero.Lote ?? "").Trim(),
+
+                        FechaSacrificio = g.Key.FechaSacrificio,
+                        FechaProduccion = g.Key.FechaProduccion,
+                        FechaCaducidad = g.Key.FechaCaducidad,
+
+                        CuentaDeEtiqueta = g.Sum(x => x.CuentaDeEtiqueta),
+                        SumaDeKg = g.Sum(x => x.SumaDeKg)
+                    };
+                })
+                .OrderBy(x => x.FechaVenta)
+                .ThenBy(x => x.SolicitudSurtidoId)
+                .ThenBy(x => x.Sku)
+                .ThenBy(x => x.Producto)
+                .ThenBy(x => x.Lote)
+                .ThenBy(x => x.FechaProduccion)
+                .ThenBy(x => x.FechaCaducidad)
+                .ToList();
         }
 
 
@@ -3672,6 +4834,7 @@ OPTION (RECOMPILE);";
             var totalSolicitudes = rows.Select(x => x.Solicitud_Surtido_Id).Distinct().Count();
             var totalCajas = rows.Sum(x => x.Cuenta_De_Etiqueta);
             var totalKg = rows.Sum(x => x.Suma_De_Kg);
+            var plantaTitulo = rows.FirstOrDefault()?.Planta ?? "Planta TIF";
 
             var sb = new System.Text.StringBuilder();
 
@@ -3691,7 +4854,7 @@ OPTION (RECOMPILE);";
 </style>
 </head>
 <body>
-    <h2>Avisos de movilización TIF</h2>
+    <h2>Avisos de movilización {H(plantaTitulo)}</h2>
     <div class=""muted"">Generado: {DateTime.Now:dd/MM/yyyy HH:mm} | Usuario: {H(usuario)}</div>
 
     <div class=""summary"">
@@ -4426,15 +5589,28 @@ OPTION (RECOMPILE);";
             return View("~/Views/ProcesosCG/AutoArticulos.cshtml");
         }
 
-        // Consultas de Lectura
         [HttpGet("ObtenerDatosBase")]
         [RevisarPermiso("AUTO_ARTICULOS", "LEER")]
         public async Task<IActionResult> ObtenerDatosBase()
         {
             try
             {
-                var usuarios = await _db.UsuariosAutoArticulos.ToListAsync();
-                var categorias = await _db.CategoriasAutoArticulos.ToListAsync();
+                // El Select crea un objeto anónimo limpio para evitar que el JSON explote
+                var usuarios = await _db.UsuariosAutoArticulos
+                    .Select(u => new {
+                        id = u.Id,
+                        nombre = u.Nombre,
+                        departamento = u.Departamento,
+                        tokenGafete = u.TokenGafete
+                    }).ToListAsync();
+
+                var categorias = await _db.CategoriasAutoArticulos
+                    .Select(c => new {
+                        id = c.Id,
+                        nombre = c.Nombre,
+                        criticidad = c.Criticidad
+                    }).ToListAsync();
+
                 return Json(new { ok = true, usuarios, categorias });
             }
             catch (Exception ex)
@@ -4442,26 +5618,31 @@ OPTION (RECOMPILE);";
                 return Json(new { ok = false, mensaje = ex.Message });
             }
         }
-
         [HttpGet("ObtenerTablaPermisos")]
         [RevisarPermiso("AUTO_ARTICULOS", "LEER")]
         public async Task<IActionResult> ObtenerTablaPermisos()
         {
             try
             {
-                var datos = await _db.UsuariosAutoArticulos
-                    .Select(u => new
-                    {
-                        UsuarioId = u.Id,
-                        Nombre = u.Nombre,
-                        Departamento = u.Departamento,
-                        TokenGafete = u.TokenGafete,
-                        Categorias = _db.PermisosAutoArticulos
-                                        .Where(p => p.UsuarioId == u.Id)
-                                        .Select(p => p.Categoria)
-                                        .ToList()
-                    })
-                    .ToListAsync();
+                // 1. Traemos todos los usuarios a memoria
+                var usuarios = await _db.UsuariosAutoArticulos.ToListAsync();
+
+                // 2. Traemos todos los permisos incluyendo la información de la categoría
+                var permisos = await _db.PermisosAutoArticulos
+                                        .Include(p => p.Categoria)
+                                        .ToListAsync();
+
+                // 3. Cruzamos los datos en memoria (Esto ya no falla en EF Core)
+                var datos = usuarios.Select(u => new
+                {
+                    UsuarioId = u.Id,
+                    Nombre = u.Nombre,
+                    Departamento = u.Departamento,
+                    TokenGafete = u.TokenGafete,
+                    Categorias = permisos.Where(p => p.UsuarioId == u.Id)
+                                         .Select(p => p.Categoria)
+                                         .ToList()
+                }).ToList();
 
                 return Json(new { ok = true, datos });
             }
@@ -4682,9 +5863,120 @@ OPTION (RECOMPILE);";
 
             return Json(new { ok = true, mensaje = "PIN actualizado correctamente." });
         }
-        // =======================================================
-        // MÉTODOS INTERNOS DE SEGURIDAD
-        // =======================================================
+
+        [HttpPost("GuardarNuevaCategoriaArticulo")]
+        [RevisarPermiso("AUTO_ARTICULOS", "ESCRIBIR")]
+        public async Task<IActionResult> GuardarNuevaCategoriaArticulo([FromBody] CategoriaModel nuevaCategoria)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(nuevaCategoria.Nombre))
+                    return Json(new { ok = false, mensaje = "El nombre de la categoría es obligatorio." });
+
+                bool existe = await _db.CategoriasAutoArticulos.AnyAsync(c => c.Nombre.ToLower() == nuevaCategoria.Nombre.ToLower());
+
+                if (existe)
+                    return Json(new { ok = false, mensaje = "Esta categoría o artículo ya existe." });
+
+                _db.CategoriasAutoArticulos.Add(nuevaCategoria);
+                await _db.SaveChangesAsync();
+
+                return Json(new { ok = true, mensaje = "Registrado correctamente." });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+        [HttpPost("GuardarReporteDano")]
+        [RevisarPermiso("AUTO_ARTICULOS", "ESCRIBIR")]
+        public async Task<IActionResult> GuardarReporteDano([FromForm] string Equipo, [FromForm] string UsuarioResponsable, [FromForm] string TipoHallazgo, [FromForm] string Detalle, [FromForm] IFormFile Foto)
+        {
+            try
+            {
+                var usuarioActivo = User?.Identity?.Name ?? "SISTEMA";
+                string fotoBase64 = null;
+
+                if (Foto != null && Foto.Length > 0)
+                {
+                    using (var ms = new MemoryStream())
+                    {
+                        await Foto.CopyToAsync(ms);
+                        var fileBytes = ms.ToArray();
+                        string base64String = Convert.ToBase64String(fileBytes);
+
+                        fotoBase64 = $"data:{Foto.ContentType};base64,{base64String}";
+                    }
+                }
+
+                var nuevoReporte = new LogDanoEquipoModel
+                {
+                    Equipo = Equipo,
+                    UsuarioResponsable = UsuarioResponsable,
+                    TipoHallazgo = TipoHallazgo,
+                    Detalle = Detalle,
+                    RutaFoto = fotoBase64,
+                    UsuarioRegistro = usuarioActivo,
+                    FechaHora = DateTime.Now
+                };
+
+                _db.LogsDanosEquipos.Add(nuevoReporte);
+                await _db.SaveChangesAsync();
+
+                return Json(new { ok = true, mensaje = "Guardado con éxito" });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+        [HttpGet("ObtenerReportesDanos")]
+        [RevisarPermiso("AUTO_ARTICULOS", "LEER")]
+        public async Task<IActionResult> ObtenerReportesDanos()
+        {
+            try
+            {
+                var reportes = await _db.LogsDanosEquipos
+                    .OrderByDescending(r => r.FechaHora)
+                    .Take(100)
+                    .Select(r => new {
+                        id = r.Id,
+                        fecha = r.FechaHora.ToString("dd/MM/yyyy HH:mm"),
+                        equipo = r.Equipo,
+                        responsable = r.UsuarioResponsable ?? "",
+                        tipoHallazgo = r.TipoHallazgo,
+                        detalle = r.Detalle,
+                        tieneFoto = !string.IsNullOrEmpty(r.RutaFoto),
+                        usuarioRegistro = r.UsuarioRegistro
+                    })
+                    .ToListAsync();
+
+                return Json(new { ok = true, reportes });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+        [HttpGet("ObtenerFotoDano")]
+        public async Task<IActionResult> ObtenerFotoDano(int id)
+        {
+            try
+            {
+                var reporte = await _db.LogsDanosEquipos.FindAsync(id);
+                if (reporte != null && !string.IsNullOrEmpty(reporte.RutaFoto))
+                {
+                    return Json(new { ok = true, fotoBase64 = reporte.RutaFoto });
+                }
+                return Json(new { ok = false, mensaje = "Sin foto" });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
 
         private string ObtenerPinSupervisor()
         {
@@ -5184,7 +6476,7 @@ OPTION (RECOMPILE);";
                 List<string> errores = new List<string>();
 
                 char separador = lineas[0].Contains(";") ? ';' : ',';
-                string CleanCsv(string val) => val?.Replace("\"", "").Trim() ?? "";
+                string CleanCsv(string val) => (val ?? "").Replace("\"", "").Trim();
                 var culture = System.Globalization.CultureInfo.InvariantCulture;
                 var usuario = User?.Identity?.Name ?? "Sistema";
 
@@ -5404,24 +6696,20 @@ ORDER BY u.CodigoEtiqueta;
 
         [HttpGet("AvisosMovilizacion")]
         [RevisarPermiso("AVISOS_MOVILIZACION", "LEER")]
-        public async Task<IActionResult> AvisosMovilizacion(
-     DateTime? desde,
-     DateTime? hasta,
-     string cliente = "",
-     string venta = "",
-     string lote = "")
+        public IActionResult AvisosMovilizacion(
+            DateTime? desde,
+            DateTime? hasta,
+            string cliente = "",
+            string venta = "",
+            string lote = "",
+            string source = "TIF",
+            string planta = "",
+            string origen = "")
         {
+            source = ResolveAvisosSource(source, planta, origen);
+
             var d1 = (desde ?? DateTime.Today).Date;
             var d2Visible = (hasta ?? DateTime.Today).Date;
-            var d2Exclusive = d2Visible.AddDays(1);
-
-            var rows = await ObtenerResumenAvisosMovilizacionTifAsync(
-                d1,
-                d2Exclusive,
-                cliente ?? "",
-                venta ?? "",
-                lote ?? ""
-            );
 
             var vm = new AvisosMovilizacionPageVM
             {
@@ -5430,16 +6718,168 @@ ORDER BY u.CodigoEtiqueta;
                 Cliente = cliente ?? "",
                 Venta = venta ?? "",
                 Lote = lote ?? "",
-                Rows = rows
+
+                // Importante: aquí NO se cargan datos pesados.
+                // La vista se abre rápido y después llama AvisosMovilizacionData por AJAX.
+                Rows = new List<AvisoMovilizacionResumenVM>()
             };
+
+            ViewBag.Source = source;
+            ViewBag.Planta = GetAvisosSourceLabel(source);
 
             return View("~/Views/ProcesosCG/AvisosMovilizacion.cshtml", vm);
         }
 
+        [HttpGet("AvisosMovilizacionData")]
+        [RevisarPermiso("AVISOS_MOVILIZACION", "LEER")]
+        public async Task<IActionResult> AvisosMovilizacionData(
+            DateTime? desde,
+            DateTime? hasta,
+            string cliente = "",
+            string venta = "",
+            string lote = "",
+            string source = "TIF",
+            string planta = "",
+            string origen = "",
+            bool cargarTif = false,
+            int tamanoLote = 200,
+            CancellationToken ct = default)
+        {
+            source = ResolveAvisosSource(source, planta, origen);
+            tamanoLote = Math.Clamp(tamanoLote, 1, 500);
+
+            try
+            {
+                var d1 = (desde ?? DateTime.Today).Date;
+                var d2Visible = (hasta ?? DateTime.Today).Date;
+                var d2Exclusive = d2Visible.AddDays(1);
+
+                List<AvisoMovilizacionResumenVM> rows;
+
+                if (source == "P1")
+                {
+                    /*
+                     * P1 se consulta en dos etapas:
+                     *   cargarTif = false -> devuelve inmediatamente la información local.
+                     *   cargarTif = true  -> consulta SERVERTIF y devuelve la información completa.
+                     */
+                    rows = await ObtenerResumenAvisosMovilizacionP1SpAsync(
+                        d1,
+                        d2Exclusive,
+                        cliente ?? "",
+                        venta ?? "",
+                        lote ?? "",
+                        cargarTif,
+                        tamanoLote,
+                        ct
+                    );
+                }
+                else
+                {
+                    // Planta TIF conserva exactamente su flujo original.
+                    rows = await ObtenerResumenAvisosMovilizacionTifAsync(
+                        d1,
+                        d2Exclusive,
+                        cliente ?? "",
+                        venta ?? "",
+                        lote ?? "",
+                        ct
+                    );
+                }
+
+                return Ok(new
+                {
+                    ok = true,
+                    source,
+                    planta = GetAvisosSourceLabel(source),
+
+                    // La vista utiliza estos campos para mostrar el progreso.
+                    etapa = source == "P1"
+                        ? (cargarTif ? "TIF" : "LOCAL")
+                        : "COMPLETA",
+
+                    tifCompletado = source != "P1" || cargarTif,
+
+                    desde = d1.ToString("yyyy-MM-dd"),
+                    hasta = d2Visible.ToString("yyyy-MM-dd"),
+                    totalSolicitudes = rows.Count,
+                    totalCajas = rows.Sum(x => x.TotalCajas),
+                    totalKg = rows.Sum(x => x.TotalKg),
+                    rows
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                return StatusCode(499, new
+                {
+                    ok = false,
+                    source,
+                    etapa = source == "P1" && cargarTif ? "TIF" : "LOCAL",
+                    msg = "Consulta cancelada por cambio de filtro."
+                });
+            }
+            catch (SqlException ex) when (ex.Number == -2)
+            {
+                _logger.LogError(
+                    ex,
+                    "Timeout SQL en AvisosMovilizacionData. Source={Source} CargarTif={CargarTif}",
+                    source,
+                    cargarTif
+                );
+
+                return StatusCode(504, new
+                {
+                    ok = false,
+                    source,
+                    etapa = source == "P1" && cargarTif ? "TIF" : "LOCAL",
+                    msg = source == "P1" && cargarTif
+                        ? "La información local ya fue cargada, pero la consulta TIF tardó demasiado."
+                        : $"Timeout SQL al cargar avisos de movilización para {GetAvisosSourceLabel(source)}.",
+                    error = ex.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error en AvisosMovilizacionData. Source={Source} CargarTif={CargarTif}",
+                    source,
+                    cargarTif
+                );
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    source,
+                    etapa = source == "P1" && cargarTif ? "TIF" : "LOCAL",
+                    msg = source == "P1" && cargarTif
+                        ? "La información local permanece visible, pero no fue posible completar la consulta TIF."
+                        : $"Error al cargar avisos de movilización para {GetAvisosSourceLabel(source)}.",
+                    error = ex.Message,
+                    inner = ex.InnerException?.Message
+                });
+            }
+        }
+
         [HttpGet("AvisosMovilizacionDetalle")]
         [RevisarPermiso("AVISOS_MOVILIZACION", "LEER")]
-        public async Task<IActionResult> AvisosMovilizacionDetalle([FromQuery] string id)
+        public async Task<IActionResult> AvisosMovilizacionDetalle(
+            [FromQuery] string id,
+            [FromQuery] DateTime? desde = null,
+            [FromQuery] DateTime? hasta = null,
+            [FromQuery] string cliente = "",
+            [FromQuery] string venta = "",
+            [FromQuery] string lote = "",
+            [FromQuery] string source = "TIF",
+            [FromQuery] string planta = "",
+            [FromQuery] string origen = "",
+            [FromQuery] bool cargarTif = false,
+            [FromQuery] int tamanoLote = 50,
+            CancellationToken ct = default)
         {
+            source = ResolveAvisosSource(source, planta, origen);
+            tamanoLote = Math.Clamp(tamanoLote, 1, 200);
+
             try
             {
                 var ids = ParseSolicitudesAvisos(id);
@@ -5447,37 +6887,189 @@ ORDER BY u.CodigoEtiqueta;
                 if (!ids.Any())
                     return BadRequest(new { ok = false, msg = "Solicitud requerida." });
 
-                var rows = await ObtenerDetalleAvisosMovilizacionTifAsync(ids);
+                List<AvisoMovilizacionDetalleApiRow> rowsApi;
+
+                if (source == "P1")
+                {
+                    var d1 = (desde ?? DateTime.Today).Date;
+                    var d2Visible = (hasta ?? DateTime.Today).Date;
+                    var d2Exclusive = d2Visible.AddDays(1);
+
+                    /*
+                     * cargarTif=false:
+                     *   Devuelve inmediatamente toda la información local.
+                     *
+                     * cargarTif=true:
+                     *   La vista lo invoca después, un lote a la vez, para actualizar
+                     *   únicamente las fechas TIF sin bloquear la carga local.
+                     */
+                    var spRows = await ConsultarAvisosMovilizacionP1SpRowsAsync(
+                        d1,
+                        d2Exclusive,
+                        cliente ?? "",
+                        venta ?? "",
+                        lote ?? "",
+                        cargarTif,
+                        tamanoLote,
+                        ct
+                    );
+
+                    var set = ids.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                    rowsApi = spRows
+                        .Where(x => set.Contains((x.solicitud_surtido_id ?? "").Trim()))
+                        .Select(MapAvisoMovilizacionP1ApiRow)
+                        .ToList();
+                }
+                else
+                {
+                    var rows = await ObtenerDetalleAvisosMovilizacionTifAsync(ids);
+
+                    rowsApi = rows
+                        .Select((x, index) => MapAvisoMovilizacionDetalleApiRow(x, index))
+                        .ToList();
+                }
 
                 return Ok(new
                 {
                     ok = true,
+                    source,
+                    planta = GetAvisosSourceLabel(source),
+                    etapa = source == "P1"
+                        ? (cargarTif ? "TIF" : "LOCAL")
+                        : "COMPLETA",
+                    tifCompletado = source != "P1" || cargarTif,
                     solicitud = ids.FirstOrDefault() ?? "",
-                    totalPartidas = rows.Count,
-                    totalCajas = rows.Sum(x => x.CuentaDeEtiqueta),
-                    totalKg = rows.Sum(x => x.SumaDeKg),
-                    rows
+                    totalPartidas = rowsApi.Count,
+                    totalCajas = rowsApi.Sum(x => x.CuentaDeEtiqueta),
+                    totalKg = rowsApi.Sum(x => x.SumaDeKg),
+                    rows = rowsApi
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                return StatusCode(499, new
+                {
+                    ok = false,
+                    source,
+                    etapa = source == "P1" && cargarTif ? "TIF" : "LOCAL",
+                    msg = "Consulta de detalle cancelada."
+                });
+            }
+            catch (SqlException ex) when (ex.Number == -2)
+            {
+                _logger.LogError(
+                    ex,
+                    "Timeout en detalle de aviso. Id={Id} Source={Source} CargarTif={CargarTif} Lote={Lote}",
+                    id,
+                    source,
+                    cargarTif,
+                    lote
+                );
+
+                return StatusCode(504, new
+                {
+                    ok = false,
+                    source,
+                    etapa = source == "P1" && cargarTif ? "TIF" : "LOCAL",
+                    msg = source == "P1" && cargarTif
+                        ? $"El lote {lote} tardó demasiado al consultar TIF. Los datos locales permanecen visibles."
+                        : $"La información local del detalle tardó demasiado para {GetAvisosSourceLabel(source)}.",
+                    error = ex.Message
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al consultar detalle de aviso de movilización. Id={Id}", id);
+                _logger.LogError(
+                    ex,
+                    "Error al consultar detalle de aviso. Id={Id} Source={Source} CargarTif={CargarTif} Lote={Lote}",
+                    id,
+                    source,
+                    cargarTif,
+                    lote
+                );
 
                 return StatusCode(500, new
                 {
                     ok = false,
-                    msg = "Error al consultar detalle.",
+                    source,
+                    etapa = source == "P1" && cargarTif ? "TIF" : "LOCAL",
+                    msg = source == "P1" && cargarTif
+                        ? $"No fue posible completar las fechas TIF del lote {lote}. Los datos locales permanecen visibles."
+                        : $"Error al consultar detalle para {GetAvisosSourceLabel(source)}.",
                     error = ex.Message
                 });
             }
         }
 
+        [HttpGet("AvisosMovilizacionExcel")]
+        [RevisarPermiso("AVISOS_MOVILIZACION", "LEER")]
+        public async Task<IActionResult> AvisosMovilizacionExcel(
+            [FromQuery] string ids = "",
+            [FromQuery] string solicitudes = "",
+            [FromQuery] DateTime? desde = null,
+            [FromQuery] DateTime? hasta = null,
+            [FromQuery] string cliente = "",
+            [FromQuery] string venta = "",
+            [FromQuery] string lote = "",
+            [FromQuery] string source = "TIF",
+            [FromQuery] string planta = "",
+            [FromQuery] string origen = "")
+        {
+            source = ResolveAvisosSource(source, planta, origen);
+
+            try
+            {
+                var rawIds = !string.IsNullOrWhiteSpace(ids) ? ids : solicitudes;
+                var solicitudesList = ParseSolicitudesAvisos(rawIds);
+
+                if (!solicitudesList.Any())
+                    return BadRequest("Selecciona al menos una solicitud para generar el Aviso de Movilización.");
+
+                if (solicitudesList.Count > 250)
+                    return BadRequest("Selecciona máximo 250 solicitudes por Excel para evitar tiempo de espera.");
+
+                var rows = await ObtenerDetalleAvisosMovilizacionAsync(solicitudesList, source, desde, hasta, cliente, venta, lote);
+
+                if (rows == null || !rows.Any())
+                    return NotFound($"No se encontró información para las solicitudes seleccionadas en {GetAvisosSourceLabel(source)}.");
+
+                var excelBytes = CrearExcelAvisosMovilizacion(rows);
+                var fileName = $"Avisos_Movilizacion_{source}_{DateTime.Now:yyyyMMdd_HHmm}.xlsx";
+
+                return File(
+                    excelBytes,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    fileName
+                );
+            }
+            catch (SqlException ex) when (ex.Number == -2)
+            {
+                _logger.LogError(ex, "Timeout SQL al generar AvisosMovilizacionExcel. Source={Source} Ids={Ids}", source, ids);
+                return StatusCode(504, "Timeout SQL al consultar avisos de movilización.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al generar AvisosMovilizacionExcel. Source={Source} Ids={Ids}", source, ids);
+                return StatusCode(500, "Error al generar Excel de avisos de movilización: " + ex.Message);
+            }
+        }
 
         [HttpPost("EnviarAvisosMovilizacionSenasica")]
         [RevisarPermiso("AVISOS_MOVILIZACION", "ESCRIBIR")]
         public async Task<IActionResult> EnviarAvisosMovilizacionSenasica(
-            [FromBody] EnviarAvisosMovilizacionRequest req)
+            [FromBody] EnviarAvisosMovilizacionRequest req,
+            [FromQuery] DateTime? desde = null,
+            [FromQuery] DateTime? hasta = null,
+            [FromQuery] string cliente = "",
+            [FromQuery] string venta = "",
+            [FromQuery] string lote = "",
+            [FromQuery] string source = "TIF",
+            [FromQuery] string planta = "",
+            [FromQuery] string origen = "")
         {
+            source = ResolveAvisosSource(source, planta, origen);
+
             try
             {
                 if (req == null)
@@ -5506,22 +7098,23 @@ ORDER BY u.CodigoEtiqueta;
                     });
                 }
 
-                var rows = await ObtenerDetalleAvisosMovilizacionTifAsync(solicitudes);
+                var rows = await ObtenerDetalleAvisosMovilizacionAsync(solicitudes, source, desde, hasta, cliente, venta, lote);
 
                 if (!rows.Any())
                 {
                     return NotFound(new
                     {
                         ok = false,
-                        msg = "No se encontró información para las solicitudes seleccionadas en CadenaMeatTIF."
+                        source,
+                        msg = $"No se encontró información para las solicitudes seleccionadas en {GetAvisosSourceLabel(source)}."
                     });
                 }
 
                 var usuario = User?.Identity?.Name ?? "";
-                var asunto = string.Format("Avisos de movilización TIF - {0:dd/MM/yyyy HH:mm}", DateTime.Now);
+                var asunto = string.Format("Avisos de movilización {0} - {1:dd/MM/yyyy HH:mm}", GetAvisosSourceLabel(source), DateTime.Now);
                 var html = BuildAvisosMovilizacionHtml(rows, req.Comentarios ?? "", usuario);
                 var excelBytes = CrearExcelAvisosMovilizacion(rows);
-                var excelName = string.Format("Avisos_Movilizacion_TIF_{0:yyyyMMdd_HHmm}.xlsx", DateTime.Now);
+                var excelName = string.Format("Avisos_Movilizacion_{0}_{1:yyyyMMdd_HHmm}.xlsx", source, DateTime.Now);
 
                 await EnviarCorreoAvisosMovilizacionAsync(
                     correoMedico,
@@ -5534,7 +7127,9 @@ ORDER BY u.CodigoEtiqueta;
                 return Ok(new
                 {
                     ok = true,
-                    msg = "Aviso(s) de movilización enviados al médico SENASICA.",
+                    source,
+                    planta = GetAvisosSourceLabel(source),
+                    msg = $"Aviso(s) de movilización enviados al médico SENASICA para {GetAvisosSourceLabel(source)}.",
                     totalSolicitudes = rows.Select(x => x.SolicitudSurtidoId).Distinct().Count(),
                     totalPartidas = rows.Count,
                     totalCajas = rows.Sum(x => x.CuentaDeEtiqueta),
@@ -5544,11 +7139,12 @@ ORDER BY u.CodigoEtiqueta;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al enviar avisos de movilización SENASICA.");
+                _logger.LogError(ex, "Error al enviar avisos de movilización SENASICA. Source={Source}", source);
 
                 return StatusCode(500, new
                 {
                     ok = false,
+                    source,
                     msg = "Error interno al enviar avisos de movilización SENASICA.",
                     error = ex.Message,
                     inner = ex.InnerException?.Message,
@@ -5557,48 +7153,763 @@ ORDER BY u.CodigoEtiqueta;
             }
         }
 
+        private static string ResolveAvisosSource(string source, string planta = "", string origen = "")
+        {
+            var raw = !string.IsNullOrWhiteSpace(source)
+                ? source
+                : (!string.IsNullOrWhiteSpace(planta) ? planta : origen);
+
+            return NormalizeSource(raw);
+        }
+
+        private static string GetAvisosSourceLabel(string source)
+        {
+            return NormalizeSource(source) == "P1" ? "Planta 1" : "Planta TIF";
+        }
+
+        private string GetAvisosMovilizacionConnectionString(string source)
+        {
+            source = NormalizeSource(source);
+            var key = source == "P1" ? "CadenaMeatP1" : "CadenaMeatTIF";
+            var cs = _configuration.GetConnectionString(key);
+
+            if (string.IsNullOrWhiteSpace(cs))
+                throw new Exception($"No existe la cadena de conexión '{key}' en appsettings.");
+
+            return cs;
+        }
+
+        private static string GetAvisosMovilizacionViewName(string source)
+        {
+            // Solo TIF usa vista. Planta 1 se resuelve desde Transferencias + Meat_P1.
+            return "dbo.vw_AvisosMovilizacion_TIF";
+        }
+
+
+        private sealed class AvisoMovilizacionP1SpRow
+        {
+            public string planta { get; set; } = "";
+            public string solicitud_surtido_id { get; set; } = "";
+            public string venta { get; set; } = "";
+            public string cliente { get; set; } = "";
+            public DateTime? fecha_venta { get; set; }
+            public string fecha_venta_txt { get; set; } = "";
+            public string sku { get; set; } = "";
+            public string producto { get; set; } = "";
+            public string lote { get; set; } = "";
+            public DateTime? fecha_sacrificio { get; set; }
+            public string fecha_sacrificio_txt { get; set; } = "";
+            public DateTime? fecha_produccion { get; set; }
+            public string fecha_produccion_txt { get; set; } = "";
+            public DateTime? fecha_caducidad { get; set; }
+            public string fecha_caducidad_txt { get; set; } = "";
+            public int cuenta_de_etiqueta { get; set; }
+            public decimal suma_de_kg { get; set; }
+
+            // Columnas adicionales del procedimiento en dos etapas.
+            public string registro_key { get; set; } = "";
+            public bool requiere_tif { get; set; }
+            public string estado_tif { get; set; } = "";
+            public string mensaje_tif { get; set; } = "";
+        }
+
+
+        private sealed class AvisoMovilizacionDetalleApiRow
+        {
+            public string DetalleKey { get; set; } = "";
+            public string Planta { get; set; } = "";
+            public string SolicitudSurtidoId { get; set; } = "";
+            public string Venta { get; set; } = "";
+            public string Cliente { get; set; } = "";
+            public DateTime? FechaVenta { get; set; }
+            public string FechaVentaTxt { get; set; } = "";
+            public string Sku { get; set; } = "";
+            public string Producto { get; set; } = "";
+            public string Lote { get; set; } = "";
+            public DateTime? FechaSacrificio { get; set; }
+            public string FechaSacrificioTxt { get; set; } = "";
+            public DateTime? FechaProduccion { get; set; }
+            public string FechaProduccionTxt { get; set; } = "";
+            public DateTime? FechaCaducidad { get; set; }
+            public string FechaCaducidadTxt { get; set; } = "";
+            public int CuentaDeEtiqueta { get; set; }
+            public decimal SumaDeKg { get; set; }
+            public bool RequiereTif { get; set; }
+            public string EstadoTif { get; set; } = "";
+            public string MensajeTif { get; set; } = "";
+        }
+
+        private static AvisoMovilizacionDetalleApiRow MapAvisoMovilizacionP1ApiRow(
+            AvisoMovilizacionP1SpRow x)
+        {
+            return new AvisoMovilizacionDetalleApiRow
+            {
+                DetalleKey = (x.registro_key ?? "").Trim(),
+                Planta = "Planta 1",
+                SolicitudSurtidoId = (x.solicitud_surtido_id ?? "").Trim(),
+                Venta = x.venta ?? "",
+                Cliente = x.cliente ?? "",
+                FechaVenta = x.fecha_venta,
+                FechaVentaTxt = x.fecha_venta_txt ?? "",
+                Sku = x.sku ?? "",
+                Producto = x.producto ?? "",
+                Lote = x.lote ?? "",
+                FechaSacrificio = x.fecha_sacrificio,
+                FechaSacrificioTxt = x.fecha_sacrificio_txt ?? "",
+                FechaProduccion = x.fecha_produccion,
+                FechaProduccionTxt = x.fecha_produccion_txt ?? "",
+                FechaCaducidad = x.fecha_caducidad,
+                FechaCaducidadTxt = x.fecha_caducidad_txt ?? "",
+                CuentaDeEtiqueta = x.cuenta_de_etiqueta,
+                SumaDeKg = x.suma_de_kg,
+                RequiereTif = x.requiere_tif,
+                EstadoTif = x.estado_tif ?? "",
+                MensajeTif = x.mensaje_tif ?? ""
+            };
+        }
+
+        private static AvisoMovilizacionDetalleApiRow MapAvisoMovilizacionDetalleApiRow(
+            AvisoMovilizacionDetalleVM x,
+            int index)
+        {
+            var solicitud = (x.SolicitudSurtidoId ?? "").Trim();
+            var sku = (x.Sku ?? "").Trim();
+            var lote = (x.Lote ?? "").Trim();
+            var fecha = x.FechaProduccion?.ToString("yyyyMMdd") ?? "SINFECHA";
+
+            return new AvisoMovilizacionDetalleApiRow
+            {
+                DetalleKey = $"{solicitud}|{sku}|{lote}|{fecha}|{index}",
+                Planta = x.Planta ?? "",
+                SolicitudSurtidoId = solicitud,
+                Venta = x.Venta ?? "",
+                Cliente = x.Cliente ?? "",
+                FechaVenta = x.FechaVenta,
+                FechaVentaTxt = x.FechaVenta?.ToString("dd/MM/yyyy") ?? "",
+                Sku = x.Sku ?? "",
+                Producto = x.Producto ?? "",
+                Lote = x.Lote ?? "",
+                FechaSacrificio = x.FechaSacrificio,
+                FechaSacrificioTxt = x.FechaSacrificio?.ToString("dd/MM/yyyy") ?? "",
+                FechaProduccion = x.FechaProduccion,
+                FechaProduccionTxt = x.FechaProduccion?.ToString("dd/MM/yyyy") ?? "",
+                FechaCaducidad = x.FechaCaducidad,
+                FechaCaducidadTxt = x.FechaCaducidad?.ToString("dd/MM/yyyy") ?? "",
+                CuentaDeEtiqueta = x.CuentaDeEtiqueta,
+                SumaDeKg = x.SumaDeKg,
+                RequiereTif = false,
+                EstadoTif = "NO APLICA",
+                MensajeTif = "La información corresponde directamente a Planta TIF."
+            };
+        }
+
+        private static DateTime? MinDateOrNull(IEnumerable<DateTime?> values)
+        {
+            var list = values
+                .Where(x => x.HasValue)
+                .Select(x => x.Value)
+                .ToList();
+
+            return list.Any() ? list.Min() : null;
+        }
+
+        private static DateTime? MaxDateOrNull(IEnumerable<DateTime?> values)
+        {
+            var list = values
+                .Where(x => x.HasValue)
+                .Select(x => x.Value)
+                .ToList();
+
+            return list.Any() ? list.Max() : null;
+        }
+
+        private async Task<List<AvisoMovilizacionP1SpRow>> ConsultarAvisosMovilizacionP1SpRowsAsync(
+            DateTime desde,
+            DateTime hasta,
+            string cliente,
+            string venta,
+            string lote,
+            bool cargarTif,
+            int tamanoLote = 200,
+            CancellationToken ct = default)
+        {
+            var cs = _configuration.GetConnectionString("CadenaMeatP1");
+
+            if (string.IsNullOrWhiteSpace(cs))
+                throw new Exception("No existe la cadena de conexión 'CadenaMeatP1' en appsettings.");
+
+            tamanoLote = Math.Clamp(tamanoLote, 1, 500);
+
+            await using var cn = new SqlConnection(cs);
+            await cn.OpenAsync(ct);
+
+            var rows = await cn.QueryAsync<AvisoMovilizacionP1SpRow>(
+                new CommandDefinition(
+                    "dbo.sp_AvisosMovilizacion_P1",
+                    new
+                    {
+                        Desde = desde,
+                        Hasta = hasta,
+                        Cliente = (cliente ?? "").Trim(),
+                        Venta = (venta ?? "").Trim(),
+                        Lote = (lote ?? "").Trim(),
+                        CargarTIF = cargarTif,
+                        TamanoLote = tamanoLote
+                    },
+                    commandType: CommandType.StoredProcedure,
+                    commandTimeout: cargarTif ? 180 : 60,
+                    cancellationToken: ct
+                )
+            );
+
+            return rows.ToList();
+        }
+
+        private async Task<List<AvisoMovilizacionDetalleVM>> ObtenerDetalleAvisosMovilizacionP1SpAsync(
+            DateTime desde,
+            DateTime hasta,
+            string cliente,
+            string venta,
+            string lote,
+            bool cargarTif,
+            int tamanoLote = 200,
+            CancellationToken ct = default)
+        {
+            var rows = await ConsultarAvisosMovilizacionP1SpRowsAsync(
+                desde,
+                hasta,
+                cliente,
+                venta,
+                lote,
+                cargarTif,
+                tamanoLote,
+                ct
+            );
+
+            return rows.Select(x => new AvisoMovilizacionDetalleVM
+            {
+                Planta = "Planta 1",
+                SolicitudSurtidoId = (x.solicitud_surtido_id ?? "").Trim(),
+                Venta = x.venta ?? "",
+                Cliente = x.cliente ?? "",
+                FechaVenta = x.fecha_venta,
+                Sku = x.sku ?? "",
+                Producto = x.producto ?? "",
+                Lote = x.lote ?? "",
+                FechaSacrificio = x.fecha_sacrificio,
+                FechaProduccion = x.fecha_produccion,
+                FechaCaducidad = x.fecha_caducidad,
+                CuentaDeEtiqueta = x.cuenta_de_etiqueta,
+                SumaDeKg = x.suma_de_kg
+            }).ToList();
+        }
+
+        private async Task<List<AvisoMovilizacionResumenVM>> ObtenerResumenAvisosMovilizacionP1SpAsync(
+            DateTime desde,
+            DateTime hasta,
+            string cliente,
+            string venta,
+            string lote,
+            bool cargarTif,
+            int tamanoLote = 200,
+            CancellationToken ct = default)
+        {
+            var detalle = await ObtenerDetalleAvisosMovilizacionP1SpAsync(
+                desde,
+                hasta,
+                cliente,
+                venta,
+                lote,
+                cargarTif,
+                tamanoLote,
+                ct
+            );
+
+            return detalle
+                .GroupBy(x => new
+                {
+                    x.SolicitudSurtidoId,
+                    FechaVenta = x.FechaVenta?.Date
+                })
+                .Select(g => new AvisoMovilizacionResumenVM
+                {
+                    SolicitudSurtidoId = g.Key.SolicitudSurtidoId,
+                    Venta = g.Select(x => x.Venta)
+                        .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
+                    Cliente = g.Select(x => x.Cliente)
+                        .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
+                    FechaVenta = g.Key.FechaVenta,
+
+                    Lotes = string.Join(", ",
+                        g.Select(x => x.Lote)
+                         .Where(x => !string.IsNullOrWhiteSpace(x))
+                         .Distinct()
+                         .OrderBy(x => x)
+                    ),
+
+                    TotalPartidas = g.Count(),
+                    TotalCajas = g.Sum(x => x.CuentaDeEtiqueta),
+                    TotalKg = g.Sum(x => x.SumaDeKg),
+
+                    FechaSacrificioMin = MinDateOrNull(g.Select(x => x.FechaSacrificio)),
+                    FechaSacrificioMax = MaxDateOrNull(g.Select(x => x.FechaSacrificio)),
+
+                    FechaProduccionMin = MinDateOrNull(g.Select(x => x.FechaProduccion)),
+                    FechaProduccionMax = MaxDateOrNull(g.Select(x => x.FechaProduccion)),
+
+                    FechaCaducidadMin = MinDateOrNull(g.Select(x => x.FechaCaducidad)),
+                    FechaCaducidadMax = MaxDateOrNull(g.Select(x => x.FechaCaducidad))
+                })
+                .OrderByDescending(x => x.FechaVenta)
+                .ThenByDescending(x => x.SolicitudSurtidoId)
+                .ThenBy(x => x.Venta)
+                .ThenBy(x => x.Cliente)
+                .ToList();
+        }
+
+
+        private async Task<List<AvisoMovilizacionResumenVM>> ObtenerResumenAvisosMovilizacionP1RapidoAsync(
+            DateTime desde,
+            DateTime hasta,
+            string cliente,
+            string venta,
+            string lote,
+            CancellationToken ct)
+        {
+            const string sql = @"
+;WITH Base AS
+(
+    SELECT
+        TransferenciaId = a.TransferenciaId,
+        Pedido = LTRIM(RTRIM(CONVERT(nvarchar(50), a.Pedido))) COLLATE Modern_Spanish_CI_AS,
+        Destino = CONVERT(nvarchar(200), ISNULL(a.Destino, N'')) COLLATE Modern_Spanish_CI_AS,
+        FechaVenta = CONVERT(date, a.Fecha),
+        ProductoCodigo = CONVERT(nvarchar(50), ISNULL(a.ProductoCodigo, N'')) COLLATE Modern_Spanish_CI_AS,
+        Cajas = ISNULL(a.Cajas, 0),
+        Peso = CAST(ISNULL(a.Peso, 0) AS decimal(18,3))
+    FROM dbo.RomaneoTransferencias a
+    WHERE a.Fecha >= @Desde
+      AND a.Fecha <  @Hasta
+      AND (@Cliente = '' OR CONVERT(nvarchar(200), ISNULL(a.Destino, N'')) LIKE '%' + @Cliente + '%')
+      AND (@Venta   = '' OR LTRIM(RTRIM(CONVERT(nvarchar(50), a.Pedido))) LIKE '%' + @Venta + '%')
+      AND
+      (
+            @Lote = ''
+         OR EXISTS
+            (
+                SELECT 1
+                FROM dbo.TransferenciaScanEtiqueta te
+                WHERE te.TransferenciaId = a.TransferenciaId
+                  AND
+                  (
+                        CONVERT(nvarchar(200), ISNULL(te.CodigoEtiqueta, N'')) LIKE '%' + @Lote + '%'
+                     OR CONVERT(nvarchar(50),  ISNULL(te.Sku, N''))            LIKE '%' + @Lote + '%'
+                  )
+            )
+      )
+)
+SELECT TOP (500)
+    SolicitudSurtidoId = Pedido,
+    Venta = Pedido,
+    Cliente = MAX(Destino),
+    FechaVenta = FechaVenta,
+    Lotes = CONVERT(nvarchar(max), N''),
+    TotalPartidas = COUNT(DISTINCT NULLIF(ProductoCodigo, N'')),
+    TotalCajas = SUM(Cajas),
+    TotalKg = CAST(SUM(Peso) AS decimal(18,3)),
+    FechaSacrificioMin = CONVERT(date, NULL),
+    FechaSacrificioMax = CONVERT(date, NULL),
+    FechaProduccionMin = CONVERT(date, NULL),
+    FechaProduccionMax = CONVERT(date, NULL),
+    FechaCaducidadMin = CONVERT(date, NULL),
+    FechaCaducidadMax = CONVERT(date, NULL)
+FROM Base
+WHERE Pedido <> N''
+GROUP BY
+    Pedido,
+    FechaVenta
+ORDER BY
+    FechaVenta DESC,
+    Pedido DESC
+OPTION (RECOMPILE);";
+
+            var cn = _db.Database.GetDbConnection();
+            var shouldClose = cn.State == ConnectionState.Closed;
+
+            if (shouldClose)
+                await cn.OpenAsync(ct);
+
+            try
+            {
+                var rows = await cn.QueryAsync<AvisoMovilizacionResumenVM>(
+                    new CommandDefinition(
+                        sql,
+                        new
+                        {
+                            Desde = desde,
+                            Hasta = hasta,
+                            Cliente = (cliente ?? "").Trim(),
+                            Venta = (venta ?? "").Trim(),
+                            Lote = (lote ?? "").Trim()
+                        },
+                        cancellationToken: ct,
+                        commandTimeout: 30
+                    )
+                );
+
+                return rows.ToList();
+            }
+            finally
+            {
+                if (shouldClose)
+                    await cn.CloseAsync();
+            }
+        }
+
+        private async Task<List<AvisoMovilizacionDetalleVM>> ObtenerDetalleAvisosMovilizacionAsync(
+            IEnumerable<string> solicitudes,
+            string source,
+            DateTime? desde = null,
+            DateTime? hasta = null,
+            string cliente = "",
+            string venta = "",
+            string lote = "",
+            bool cargarTif = true,
+            int tamanoLote = 200,
+            CancellationToken ct = default)
+        {
+            source = ResolveAvisosSource(source);
+
+            if (source != "P1")
+                return await ObtenerDetalleAvisosMovilizacionTifAsync(solicitudes);
+
+            var ids = (solicitudes ?? Array.Empty<string>())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (!ids.Any())
+                return new List<AvisoMovilizacionDetalleVM>();
+
+            var d1 = (desde ?? DateTime.Today).Date;
+            var d2Visible = (hasta ?? DateTime.Today).Date;
+            var d2Exclusive = d2Visible.AddDays(1);
+
+            /*
+             * Por defecto, PDF, Excel y envío SENASICA continúan utilizando
+             * cargarTif=true. El modal de detalle puede solicitar primero
+             * cargarTif=false y después enriquecer cada lote.
+             */
+            var rows = await ObtenerDetalleAvisosMovilizacionP1SpAsync(
+                d1,
+                d2Exclusive,
+                cliente ?? "",
+                venta ?? "",
+                lote ?? "",
+                cargarTif,
+                tamanoLote,
+                ct
+            );
+
+            var set = ids.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            return rows
+                .Where(x => set.Contains((x.SolicitudSurtidoId ?? "").Trim()))
+                .ToList();
+        }
+
+        private async Task<List<AvisoMovilizacionDetalleVM>> ObtenerDetalleAvisosMovilizacionP1Async(IEnumerable<string> solicitudes)
+        {
+            var pedidos = (solicitudes ?? Array.Empty<string>())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (!pedidos.Any())
+                return new List<AvisoMovilizacionDetalleVM>();
+
+            const string sql = @"
+/* ============================================================
+   AVISO DE MOVILIZACION PLANTA 1
+   Basado en la misma lógica del Excel de Transferencias.
+   ============================================================ */
+;WITH BaseEtiquetas AS (
+    SELECT
+        a.TransferenciaId,
+        Pedido = LTRIM(RTRIM(CONVERT(nvarchar(50), a.Consecutivo))) COLLATE Modern_Spanish_CI_AS,
+        Destino = CONVERT(nvarchar(200), ISNULL(a.Destino, N'')) COLLATE Modern_Spanish_CI_AS,
+        FechaSolicitud = CONVERT(date, a.FechaSolicitud),
+        ProductoCodigo = CONVERT(nvarchar(50), ISNULL(d.ProductoCodigo, c.Sku)) COLLATE Modern_Spanish_CI_AS,
+        ProductoNombre = CONVERT(nvarchar(200), ISNULL(d.ProductoNombre, c.Sku)) COLLATE Modern_Spanish_CI_AS,
+        Sku = CONVERT(nvarchar(50), c.Sku) COLLATE Modern_Spanish_CI_AS,
+        CodigoEtiqueta = CONVERT(nvarchar(200), LTRIM(RTRIM(c.CodigoEtiqueta))) COLLATE Modern_Spanish_CI_AS,
+        Kg = CAST(COALESCE(c.Kg, 0) AS decimal(18,4))
+    FROM dbo.PedidosTransferencia a
+    INNER JOIN dbo.TransferenciaScanEtiqueta c
+        ON a.TransferenciaId = c.TransferenciaId
+    LEFT JOIN dbo.ArticuloSap d
+        ON c.Sku = d.ProductoCodigo
+    WHERE
+        LTRIM(RTRIM(CONVERT(nvarchar(50), a.Consecutivo))) IN @Solicitudes
+        OR LTRIM(RTRIM(CONVERT(nvarchar(50), a.TransferenciaId))) IN @Solicitudes
+),
+
+EtiquetasPedido AS (
+    SELECT DISTINCT CodigoEtiqueta
+    FROM BaseEtiquetas
+),
+
+LogP1 AS (
+    SELECT
+        CodigoEtiqueta,
+        ProduccionId,
+        EtiquetacionId,
+        FechaHoraEvento,
+        rn = ROW_NUMBER() OVER (PARTITION BY CodigoEtiqueta ORDER BY FechaHoraEvento DESC)
+    FROM (
+        SELECT
+            CodigoEtiqueta = CONVERT(nvarchar(200), LTRIM(RTRIM(pel.CodigoEtiqueta))) COLLATE Modern_Spanish_CI_AS,
+            pel.ProduccionId,
+            pel.EtiquetacionId,
+            pel.FechaHoraEvento
+        FROM [Meat_P1].Meat.dbo.ProduccionEtiquetacionLog pel
+        INNER JOIN EtiquetasPedido ep
+            ON CONVERT(nvarchar(200), LTRIM(RTRIM(pel.CodigoEtiqueta))) COLLATE Modern_Spanish_CI_AS
+             = ep.CodigoEtiqueta
+    ) x
+),
+
+ConLog AS (
+    SELECT
+        b.Pedido,
+        b.Destino,
+        b.FechaSolicitud,
+        b.ProductoCodigo,
+        b.ProductoNombre,
+        b.Sku,
+        b.CodigoEtiqueta,
+        b.Kg,
+        ProduccionId = lp.ProduccionId,
+        EtiquetacionId = lp.EtiquetacionId
+    FROM BaseEtiquetas b
+    LEFT JOIN LogP1 lp
+        ON lp.CodigoEtiqueta = b.CodigoEtiqueta
+       AND lp.rn = 1
+),
+
+ProdP1 AS (
+    SELECT
+        pr.ProduccionId,
+        SKU = CONVERT(nvarchar(50), pr.Articulo) COLLATE Modern_Spanish_CI_AS,
+        FechaProduccion = CONVERT(date, pr.FechaProduccion),
+        PesoKg = CAST(pr.PesoNeto AS decimal(18,4)),
+        pr.LoteId
+    FROM [Meat_P1].Meat.dbo.Produccion pr
+),
+
+LoteP1 AS (
+    SELECT
+        l.LoteId,
+        Lote = CONVERT(nvarchar(200), LTRIM(RTRIM(l.Nombre))) COLLATE Modern_Spanish_CI_AS
+    FROM [Meat_P1].Meat.dbo.Lote l
+),
+
+ColP1 AS (
+    SELECT
+        ColectorId,
+        DiasVida = TRY_CONVERT(int, Interface)
+    FROM [Meat_P1].CommerciaNet.dbo.colector
+    WHERE SistemaId = 'ETI'
+),
+
+Detalle AS (
+    SELECT
+        c.Pedido,
+        c.Destino,
+        c.FechaSolicitud,
+        c.CodigoEtiqueta,
+
+        SKU = COALESCE(
+            NULLIF(c.Sku, N''),
+            NULLIF(c.ProductoCodigo, N''),
+            N'SIN SKU'
+        ) COLLATE Modern_Spanish_CI_AS,
+
+        Producto = COALESCE(
+            NULLIF(c.ProductoNombre, N''),
+            N'SIN PRODUCTO'
+        ) COLLATE Modern_Spanish_CI_AS,
+
+        Lote = COALESCE(
+            lp.Lote,
+            N'SIN LOTE'
+        ) COLLATE Modern_Spanish_CI_AS,
+
+        FechaProduccion = pp.FechaProduccion,
+
+        PesoKg = COALESCE(
+            pp.PesoKg,
+            c.Kg,
+            CAST(0 AS decimal(18,4))
+        ),
+
+        DiasVida = COALESCE(cp.DiasVida, 0),
+
+        FechaCaducidad = CASE
+            WHEN pp.FechaProduccion IS NULL THEN NULL
+            ELSE DATEADD(day, COALESCE(cp.DiasVida, 0), pp.FechaProduccion)
+        END,
+
+        FechaSacrificio = TRY_CONVERT(date, sr.Referencia, 103)
+    FROM ConLog c
+    LEFT JOIN ProdP1 pp
+        ON pp.ProduccionId = c.ProduccionId
+    LEFT JOIN LoteP1 lp
+        ON lp.LoteId = pp.LoteId
+    LEFT JOIN ColP1 cp
+        ON cp.ColectorId = c.EtiquetacionId
+    LEFT JOIN [Meat_TIF].TIF_MEAT.dbo.LOTE ltf
+        ON CONVERT(nvarchar(200), LTRIM(RTRIM(ltf.nombre))) COLLATE Modern_Spanish_CI_AS
+         = COALESCE(lp.Lote, N'') COLLATE Modern_Spanish_CI_AS
+    LEFT JOIN [Meat_TIF].TIF_MEAT.dbo.SolicitudReferencia sr
+        ON sr.solicitudProduccionid = ltf.loteid
+       AND sr.tiporeferenciaId = 47
+)
+
+SELECT
+    Planta = N'Planta 1',
+    SolicitudSurtidoId = d.Pedido,
+    Venta = d.Pedido,
+    Cliente = MAX(d.Destino),
+    FechaVenta = MAX(d.FechaSolicitud),
+    Sku = d.SKU,
+    Producto = d.Producto,
+    Lote = d.Lote,
+    FechaSacrificio = d.FechaSacrificio,
+    FechaProduccion = d.FechaProduccion,
+    FechaCaducidad = d.FechaCaducidad,
+    CuentaDeEtiqueta = COUNT(1),
+    SumaDeKg = CAST(SUM(d.PesoKg) AS decimal(18,3))
+FROM Detalle d
+GROUP BY
+    d.Pedido,
+    d.SKU,
+    d.Producto,
+    d.Lote,
+    d.FechaSacrificio,
+    d.FechaProduccion,
+    d.FechaCaducidad
+ORDER BY
+    d.Pedido,
+    d.SKU,
+    d.Producto,
+    d.Lote,
+    d.FechaProduccion,
+    d.FechaCaducidad
+OPTION (RECOMPILE);";
+
+            var cn = _db.Database.GetDbConnection();
+            var shouldClose = cn.State == ConnectionState.Closed;
+
+            if (shouldClose)
+                await cn.OpenAsync();
+
+            try
+            {
+                var rows = await cn.QueryAsync<AvisoMovilizacionDetalleVM>(
+                    new CommandDefinition(
+                        sql,
+                        new { Solicitudes = pedidos },
+                        commandTimeout: 180
+                    )
+                );
+
+                return rows.ToList();
+            }
+            finally
+            {
+                if (shouldClose)
+                    await cn.CloseAsync();
+            }
+        }
 
         private async Task<List<AvisoMovilizacionResumenVM>> ObtenerResumenAvisosMovilizacionTifAsync(
             DateTime desde,
             DateTime hasta,
             string cliente,
             string venta,
-            string lote)
+            string lote,
+            CancellationToken ct = default)
         {
             var cs = _configuration.GetConnectionString("CadenaMeatTIF");
 
             if (string.IsNullOrWhiteSpace(cs))
                 throw new Exception("No existe la cadena de conexión 'CadenaMeatTIF' en appsettings.");
 
-            const string sql = @"
-;WITH Base AS
-(
-    SELECT
-        solicitud_surtido_id,
-        venta,
-        cliente,
-        fecha_venta,
-        sku,
-        producto,
-        lote,
-        fecha_sacrificio,
-        fecha_produccion,
-        fecha_caducidad,
-        cuenta_de_etiqueta,
-        suma_de_kg
-    FROM dbo.vw_AvisosMovilizacion_TIF
-    WHERE fecha_venta >= @Desde
-      AND fecha_venta <  @Hasta
-      AND (@Cliente = '' OR cliente LIKE '%' + @Cliente + '%')
-      AND (@Venta   = '' OR venta   LIKE '%' + @Venta   + '%')
-      AND (@Lote    = '' OR lote    LIKE '%' + @Lote    + '%')
-)
+            desde = desde.Date;
+            hasta = hasta.Date;
+
+            if (hasta <= desde)
+                hasta = desde.AddDays(1);
+
+            /*
+             * Primero obtenemos solamente las solicitudes del rango directamente
+             * desde SolicitudSurtido. Esto evita pedirle a la vista pesada que recorra
+             * todo el histórico antes de aplicar el filtro de fecha.
+             */
+            const string sqlSolicitudes = @"
+SELECT DISTINCT
+    ss.SolicitudSurtidoId
+FROM TIF_MEAT.dbo.SolicitudSurtido ss
+INNER JOIN TIF_MEAT.dbo.SalidaEmbarque se
+    ON se.SolicitudSurtidoId = ss.SolicitudSurtidoId
+WHERE ss.FechaSurtido >= @Desde
+  AND ss.FechaSurtido <  @Hasta
+ORDER BY ss.SolicitudSurtidoId
+OPTION (RECOMPILE);";
+
+            /*
+             * La vista se consulta en bloques pequeños y el resultado se materializa
+             * una sola vez en #Base. Así la concatenación de lotes ya no vuelve a
+             * ejecutar la vista completa por cada solicitud.
+             */
+            const string sqlResumen = @"
+SET NOCOUNT ON;
+
+SELECT
+    solicitud_surtido_id,
+    venta,
+    cliente,
+    fecha_venta,
+    sku,
+    producto,
+    lote,
+    fecha_sacrificio,
+    fecha_produccion,
+    fecha_caducidad,
+    cuenta_de_etiqueta,
+    suma_de_kg
+INTO #Base
+FROM dbo.vw_AvisosMovilizacion_TIF
+WHERE solicitud_surtido_id IN @Solicitudes
+  AND fecha_venta >= @Desde
+  AND fecha_venta <  @Hasta
+  AND (@Cliente = N'' OR cliente LIKE N'%' + @Cliente + N'%')
+  AND (@Venta   = N'' OR venta   LIKE N'%' + @Venta   + N'%')
+  AND (@Lote    = N'' OR lote    LIKE N'%' + @Lote    + N'%')
+OPTION (RECOMPILE);
+
+CREATE CLUSTERED INDEX IX_Base_Solicitud_Fecha
+    ON #Base (solicitud_surtido_id, fecha_venta);
+
 SELECT
     CONVERT(nvarchar(50), b.solicitud_surtido_id) AS SolicitudSurtidoId,
     MAX(b.venta) AS Venta,
     MAX(b.cliente) AS Cliente,
     b.fecha_venta AS FechaVenta,
-    ISNULL(lx.Lotes, '') AS Lotes,
+    ISNULL(lx.Lotes, N'') AS Lotes,
     COUNT(1) AS TotalPartidas,
     SUM(ISNULL(b.cuenta_de_etiqueta, 0)) AS TotalCajas,
     CAST(SUM(ISNULL(b.suma_de_kg, 0)) AS decimal(18,3)) AS TotalKg,
@@ -5608,22 +7919,28 @@ SELECT
     MAX(b.fecha_produccion) AS FechaProduccionMax,
     MIN(b.fecha_caducidad) AS FechaCaducidadMin,
     MAX(b.fecha_caducidad) AS FechaCaducidadMax
-FROM Base b
+FROM #Base b
 OUTER APPLY
 (
-    SELECT Lotes = STUFF((
-        SELECT N', ' + x.Lote
-        FROM
+    SELECT Lotes = STUFF
+    (
         (
-            SELECT DISTINCT
-                Lote = NULLIF(LTRIM(RTRIM(b2.lote)), N'')
-            FROM Base b2
-            WHERE b2.solicitud_surtido_id = b.solicitud_surtido_id
-        ) x
-        WHERE x.Lote IS NOT NULL
-        ORDER BY x.Lote
-        FOR XML PATH(''), TYPE
-    ).value('.', 'nvarchar(max)'), 1, 2, N'')
+            SELECT N', ' + x.Lote
+            FROM
+            (
+                SELECT DISTINCT
+                    Lote = NULLIF(LTRIM(RTRIM(b2.lote)), N'')
+                FROM #Base b2
+                WHERE b2.solicitud_surtido_id = b.solicitud_surtido_id
+            ) x
+            WHERE x.Lote IS NOT NULL
+            ORDER BY x.Lote
+            FOR XML PATH(''), TYPE
+        ).value('.', 'nvarchar(max)'),
+        1,
+        2,
+        N''
+    )
 ) lx
 GROUP BY
     b.solicitud_surtido_id,
@@ -5633,20 +7950,72 @@ ORDER BY
     b.fecha_venta,
     MAX(b.venta),
     MAX(b.cliente),
-    b.solicitud_surtido_id;";
+    b.solicitud_surtido_id
+OPTION (RECOMPILE);";
 
             using var cn = new SqlConnection(cs);
+            await cn.OpenAsync(ct);
 
-            var rows = await cn.QueryAsync<AvisoMovilizacionResumenVM>(sql, new
+            var solicitudes = (
+                await cn.QueryAsync<int>(
+                    new CommandDefinition(
+                        sqlSolicitudes,
+                        new
+                        {
+                            Desde = desde,
+                            Hasta = hasta
+                        },
+                        commandTimeout: 60,
+                        cancellationToken: ct
+                    )
+                )
+            )
+            .Where(x => x > 0)
+            .Distinct()
+            .ToList();
+
+            if (!solicitudes.Any())
+                return new List<AvisoMovilizacionResumenVM>();
+
+            var resultado = new List<AvisoMovilizacionResumenVM>();
+
+            const int tamanoBloque = 300;
+
+            for (var i = 0; i < solicitudes.Count; i += tamanoBloque)
             {
-                Desde = desde,
-                Hasta = hasta,
-                Cliente = (cliente ?? "").Trim(),
-                Venta = (venta ?? "").Trim(),
-                Lote = (lote ?? "").Trim()
-            });
+                ct.ThrowIfCancellationRequested();
 
-            return rows.ToList();
+                var bloque = solicitudes
+                    .Skip(i)
+                    .Take(tamanoBloque)
+                    .ToArray();
+
+                var filas = await cn.QueryAsync<AvisoMovilizacionResumenVM>(
+                    new CommandDefinition(
+                        sqlResumen,
+                        new
+                        {
+                            Solicitudes = bloque,
+                            Desde = desde,
+                            Hasta = hasta,
+                            Cliente = (cliente ?? "").Trim(),
+                            Venta = (venta ?? "").Trim(),
+                            Lote = (lote ?? "").Trim()
+                        },
+                        commandTimeout: 180,
+                        cancellationToken: ct
+                    )
+                );
+
+                resultado.AddRange(filas);
+            }
+
+            return resultado
+                .OrderBy(x => x.FechaVenta)
+                .ThenBy(x => x.Venta)
+                .ThenBy(x => x.Cliente)
+                .ThenBy(x => x.SolicitudSurtidoId)
+                .ToList();
         }
 
         private static List<int> ParseSolicitudesAvisosInt(IEnumerable<string> solicitudes)
@@ -5722,13 +8091,10 @@ OPTION (RECOMPILE);";
 
             using var cn = new SqlConnection(cs);
 
-            var rows = await cn.QueryAsync<AvisoMovilizacionDetalleVM>(
-                new CommandDefinition(
-                    sql,
-                    new { Solicitudes = ids },
-                    commandTimeout: 180
-                )
-            );
+            var rows = await cn.QueryAsync<AvisoMovilizacionDetalleVM>(sql, new
+            {
+                Solicitudes = ids
+            });
 
             return rows.ToList();
         }
@@ -5756,6 +8122,7 @@ OPTION (RECOMPILE);";
             var totalSolicitudes = rows.Select(x => x.SolicitudSurtidoId).Distinct().Count();
             var totalCajas = rows.Sum(x => x.CuentaDeEtiqueta);
             var totalKg = rows.Sum(x => x.SumaDeKg);
+            var plantaTitulo = rows.FirstOrDefault()?.Planta ?? "Planta TIF";
 
             var sb = new System.Text.StringBuilder();
 
@@ -5775,7 +8142,7 @@ OPTION (RECOMPILE);";
 </style>
 </head>
 <body>
-    <h2>Avisos de movilización TIF</h2>
+    <h2>Avisos de movilización {H(plantaTitulo)}</h2>
     <div class=""muted"">Generado: {DateTime.Now:dd/MM/yyyy HH:mm} | Usuario: {H(usuario)}</div>
 
     <div class=""summary"">
@@ -5991,6 +8358,37 @@ OPTION (RECOMPILE);";
             public string MasterProducto { get; set; } = "";
         }
 
+        private sealed class InventarioInicialClasificacionSkuVM
+        {
+            public string Sku { get; set; } = "";
+            public string Clasificacion { get; set; } = "";
+        }
+
+        private sealed class InventarioInicialAlmacenFiltroVM
+        {
+            public string Almacen { get; set; } = "";
+            public int DiasRafaga { get; set; }
+            public bool EsRafaga { get; set; }
+            public bool Activo { get; set; }
+            public bool SeleccionadoPredeterminado { get; set; }
+            public decimal TotalCajas { get; set; }
+            public decimal TotalKg { get; set; }
+            public DateTime? FechaInventario { get; set; }
+        }
+
+        private sealed class InventarioInicialPrerequisitosVM
+        {
+            public int TablaConfigExiste { get; set; }
+            public int ColumnaAlmacenExiste { get; set; }
+            public int ColumnaSkuNormExiste { get; set; }
+            public int ColumnaAlmacenNormExiste { get; set; }
+            public int ColumnaCodigoEtiquetaNormExiste { get; set; }
+            public int TablaArticuloSapExiste { get; set; }
+            public int TablaClasificacionProduccionExiste { get; set; }
+            public int ParametroAlmacenesExiste { get; set; }
+            public int ParametroClasificacionesExiste { get; set; }
+        }
+
         private sealed class InventarioInicialDisponibleVM
         {
             public DateTime? Fecha { get; set; }
@@ -6013,6 +8411,9 @@ OPTION (RECOMPILE);";
             public decimal CajasProduccion { get; set; }
             public decimal KgProduccion { get; set; }
 
+            public decimal CajasLiberacionRafaga { get; set; }
+            public decimal KgLiberacionRafaga { get; set; }
+
             public decimal CajasDisponible { get; set; }
 
             public decimal? KgPedidoEstimado { get; set; }
@@ -6028,34 +8429,265 @@ OPTION (RECOMPILE);";
         }
 
         [HttpGet("InventarioInicialFiltros")]
-        public async Task<IActionResult> InventarioInicialFiltros()
+        public async Task<IActionResult> InventarioInicialFiltros(
+            DateTime? fechaInicio = null,
+            DateTime? fechaFin = null,
+            DateTime? fechaInventarioInicial = null,
+            int dias = 23,
+            bool soloSkuMovimiento = true)
         {
             try
             {
-                const string sqlMasters = @"
-SELECT
-    MasterProducto,
-    COUNT(DISTINCT Sku) AS TotalSkus
-FROM dbo.InventarioInicialCatalogo WITH (NOLOCK)
-WHERE Activo = 1
-GROUP BY
-    MasterProducto
-ORDER BY
-    CASE WHEN MasterProducto = 'SIN MASTER' THEN 1 ELSE 0 END,
-    MasterProducto;
-";
+                var fechaInicioReal = (fechaInicio ?? DateTime.Today).Date;
+                var fechaFinReal = (fechaFin ?? fechaInicioReal.AddDays(dias)).Date;
+                var fechaInventarioReal =
+                    (fechaInventarioInicial ?? fechaInicioReal.AddDays(-1)).Date;
 
-                const string sqlSkus = @"
+                if (fechaFinReal < fechaInicioReal)
+                {
+                    var temp = fechaInicioReal;
+                    fechaInicioReal = fechaFinReal;
+                    fechaFinReal = temp;
+                }
+
+                const string sqlPrerequisitos = @"
+SELECT
+    TablaConfigExiste =
+        CASE WHEN OBJECT_ID('dbo.InventarioInicialAlmacenConfig', 'U') IS NULL
+             THEN 0 ELSE 1 END,
+    ColumnaAlmacenExiste =
+        CASE WHEN COL_LENGTH('dbo.InventarioAlmacenado_Meat', 'Almacen') IS NULL
+             THEN 0 ELSE 1 END,
+    ColumnaSkuNormExiste =
+        CASE WHEN COL_LENGTH('dbo.InventarioAlmacenado_Meat', 'SkuNorm') IS NULL
+             THEN 0 ELSE 1 END,
+    ColumnaAlmacenNormExiste =
+        CASE WHEN COL_LENGTH('dbo.InventarioAlmacenado_Meat', 'AlmacenNorm') IS NULL
+             THEN 0 ELSE 1 END,
+    ColumnaCodigoEtiquetaNormExiste =
+        CASE WHEN COL_LENGTH('dbo.InventarioAlmacenado_Meat', 'CodigoEtiquetaNorm') IS NULL
+             THEN 0 ELSE 1 END,
+    TablaArticuloSapExiste =
+        CASE WHEN OBJECT_ID('dbo.ArticuloSap', 'U') IS NULL THEN 0 ELSE 1 END,
+    TablaClasificacionProduccionExiste =
+        CASE WHEN OBJECT_ID('dbo.ClasificacionProduccion', 'U') IS NULL THEN 0 ELSE 1 END,
+    ParametroAlmacenesExiste =
+        CASE WHEN EXISTS
+        (
+            SELECT 1
+            FROM sys.parameters
+            WHERE object_id = OBJECT_ID('dbo.sp_InventarioInicial')
+              AND name = '@AlmacenesCsv'
+        ) THEN 1 ELSE 0 END,
+    ParametroClasificacionesExiste =
+        CASE WHEN EXISTS
+        (
+            SELECT 1
+            FROM sys.parameters
+            WHERE object_id = OBJECT_ID('dbo.sp_InventarioInicial')
+              AND name = '@ClasificacionesCsv'
+        ) THEN 1 ELSE 0 END;";
+
+                const string sqlSkusSinConfig = @"
+;WITH SkusMovimiento AS
+(
+    SELECT DISTINCT
+        UPPER(LTRIM(RTRIM(i.SkuNorm))) AS Sku
+    FROM dbo.InventarioAlmacenado_Meat i WITH (NOLOCK)
+    WHERE
+        i.SkuNorm IS NOT NULL
+        AND LTRIM(RTRIM(i.SkuNorm)) <> ''
+        AND i.FechaInventario >= @FechaInventarioInicial
+        AND i.FechaInventario < DATEADD(DAY, 1, @FechaInventarioInicial)
+        AND ISNULL(i.PesoNeto, 0) > 0
+
+    UNION
+
+    SELECT DISTINCT
+        UPPER(LTRIM(RTRIM(b.ProductoCodigoConvertidoNorm))) AS Sku
+    FROM dbo.PlaneacionProduccion a WITH (NOLOCK)
+    INNER JOIN dbo.PlanDiario b WITH (NOLOCK)
+        ON b.PlaneacionId = a.PlaneacionId
+    WHERE
+        b.ProductoCodigoConvertidoNorm IS NOT NULL
+        AND LTRIM(RTRIM(b.ProductoCodigoConvertidoNorm)) <> ''
+        AND a.FechaPlan >= @FechaInicio
+        AND a.FechaPlan < DATEADD(DAY, 1, @FechaFin)
+        AND ISNULL(b.KgInyeccion, 0) > 0
+)
+SELECT
+    UPPER(LTRIM(RTRIM(c.Sku))) AS Sku,
+    c.Articulo,
+    CASE
+        WHEN NULLIF(LTRIM(RTRIM(c.MasterProducto)), '') IS NULL THEN 'SIN MASTER'
+        ELSE UPPER(LTRIM(RTRIM(c.MasterProducto)))
+    END AS MasterProducto
+FROM dbo.InventarioInicialCatalogo c WITH (NOLOCK)
+WHERE
+    c.Activo = 1
+    AND NULLIF(LTRIM(RTRIM(c.Sku)), '') IS NOT NULL
+    AND
+    (
+        @SoloSkuMovimiento = 0
+        OR EXISTS
+        (
+            SELECT 1
+            FROM SkusMovimiento sm
+            WHERE sm.Sku COLLATE DATABASE_DEFAULT =
+                  UPPER(LTRIM(RTRIM(c.Sku))) COLLATE DATABASE_DEFAULT
+        )
+    )
+ORDER BY
+    CASE
+        WHEN NULLIF(LTRIM(RTRIM(c.MasterProducto)), '') IS NULL THEN 'SIN MASTER'
+        ELSE UPPER(LTRIM(RTRIM(c.MasterProducto)))
+    END,
+    UPPER(LTRIM(RTRIM(c.Sku)));";
+
+                const string sqlSkusConConfig = @"
+;WITH SkusMovimiento AS
+(
+    SELECT DISTINCT
+        UPPER(LTRIM(RTRIM(i.SkuNorm))) AS Sku
+    FROM dbo.InventarioAlmacenado_Meat i WITH (NOLOCK)
+    LEFT JOIN dbo.InventarioInicialAlmacenConfig cfg WITH (NOLOCK)
+        ON cfg.Almacen COLLATE DATABASE_DEFAULT =
+           UPPER(LTRIM(RTRIM(CONVERT(NVARCHAR(200), ISNULL(i.Almacen, ''))))) COLLATE DATABASE_DEFAULT
+    WHERE
+        i.SkuNorm IS NOT NULL
+        AND LTRIM(RTRIM(i.SkuNorm)) <> ''
+        AND i.FechaInventario >= @FechaInventarioInicial
+        AND i.FechaInventario < DATEADD(DAY, 1, @FechaInventarioInicial)
+        AND ISNULL(i.PesoNeto, 0) > 0
+        AND ISNULL(cfg.Activo, 1) = 1
+
+    UNION
+
+    SELECT DISTINCT
+        UPPER(LTRIM(RTRIM(b.ProductoCodigoConvertidoNorm))) AS Sku
+    FROM dbo.PlaneacionProduccion a WITH (NOLOCK)
+    INNER JOIN dbo.PlanDiario b WITH (NOLOCK)
+        ON b.PlaneacionId = a.PlaneacionId
+    WHERE
+        b.ProductoCodigoConvertidoNorm IS NOT NULL
+        AND LTRIM(RTRIM(b.ProductoCodigoConvertidoNorm)) <> ''
+        AND a.FechaPlan >= @FechaInicio
+        AND a.FechaPlan < DATEADD(DAY, 1, @FechaFin)
+        AND ISNULL(b.KgInyeccion, 0) > 0
+)
+SELECT
+    UPPER(LTRIM(RTRIM(c.Sku))) AS Sku,
+    c.Articulo,
+    CASE
+        WHEN NULLIF(LTRIM(RTRIM(c.MasterProducto)), '') IS NULL THEN 'SIN MASTER'
+        ELSE UPPER(LTRIM(RTRIM(c.MasterProducto)))
+    END AS MasterProducto
+FROM dbo.InventarioInicialCatalogo c WITH (NOLOCK)
+WHERE
+    c.Activo = 1
+    AND NULLIF(LTRIM(RTRIM(c.Sku)), '') IS NOT NULL
+    AND
+    (
+        @SoloSkuMovimiento = 0
+        OR EXISTS
+        (
+            SELECT 1
+            FROM SkusMovimiento sm
+            WHERE sm.Sku COLLATE DATABASE_DEFAULT =
+                  UPPER(LTRIM(RTRIM(c.Sku))) COLLATE DATABASE_DEFAULT
+        )
+    )
+ORDER BY
+    CASE
+        WHEN NULLIF(LTRIM(RTRIM(c.MasterProducto)), '') IS NULL THEN 'SIN MASTER'
+        ELSE UPPER(LTRIM(RTRIM(c.MasterProducto)))
+    END,
+    UPPER(LTRIM(RTRIM(c.Sku)));";
+
+                const string sqlAlmacenesSinConfig = @"
+SELECT
+    Almacen = UPPER(LTRIM(RTRIM(CONVERT(NVARCHAR(200), i.Almacen)))) COLLATE DATABASE_DEFAULT,
+    DiasRafaga = CAST(0 AS INT),
+    EsRafaga = CAST(0 AS BIT),
+    Activo = CAST(1 AS BIT),
+    SeleccionadoPredeterminado = CAST(1 AS BIT),
+    TotalCajas = CAST(COUNT_BIG(*) AS DECIMAL(18,3)),
+    TotalKg = CAST(ISNULL(SUM(ISNULL(i.PesoNeto, 0)), 0) AS DECIMAL(18,3)),
+    FechaInventario = @FechaInventarioInicial
+FROM dbo.InventarioAlmacenado_Meat i WITH (NOLOCK)
+WHERE
+    NULLIF(LTRIM(RTRIM(CONVERT(NVARCHAR(200), i.Almacen))), '') IS NOT NULL
+    AND i.FechaInventario >= @FechaInventarioInicial
+    AND i.FechaInventario < DATEADD(DAY, 1, @FechaInventarioInicial)
+    AND ISNULL(i.PesoNeto, 0) > 0
+GROUP BY
+    UPPER(LTRIM(RTRIM(CONVERT(NVARCHAR(200), i.Almacen)))) COLLATE DATABASE_DEFAULT
+ORDER BY Almacen;";
+
+                const string sqlAlmacenesConConfig = @"
+;WITH AlmacenesBase AS
+(
+    SELECT DISTINCT
+        UPPER(LTRIM(RTRIM(CONVERT(NVARCHAR(200), i.Almacen)))) COLLATE DATABASE_DEFAULT AS Almacen
+    FROM dbo.InventarioAlmacenado_Meat i WITH (NOLOCK)
+    WHERE NULLIF(LTRIM(RTRIM(CONVERT(NVARCHAR(200), i.Almacen))), '') IS NOT NULL
+),
+InventarioFecha AS
+(
+    SELECT
+        UPPER(LTRIM(RTRIM(CONVERT(NVARCHAR(200), i.Almacen)))) COLLATE DATABASE_DEFAULT AS Almacen,
+        CAST(COUNT_BIG(*) AS DECIMAL(18,3)) AS TotalCajas,
+        CAST(ISNULL(SUM(ISNULL(i.PesoNeto, 0)), 0) AS DECIMAL(18,3)) AS TotalKg
+    FROM dbo.InventarioAlmacenado_Meat i WITH (NOLOCK)
+    WHERE
+        NULLIF(LTRIM(RTRIM(CONVERT(NVARCHAR(200), i.Almacen))), '') IS NOT NULL
+        AND i.FechaInventario >= @FechaInventarioInicial
+        AND i.FechaInventario < DATEADD(DAY, 1, @FechaInventarioInicial)
+        AND ISNULL(i.PesoNeto, 0) > 0
+    GROUP BY
+        UPPER(LTRIM(RTRIM(CONVERT(NVARCHAR(200), i.Almacen)))) COLLATE DATABASE_DEFAULT
+)
+SELECT
+    b.Almacen,
+    ISNULL(cfg.DiasRafaga, 0) AS DiasRafaga,
+    CAST(CASE WHEN ISNULL(cfg.DiasRafaga, 0) > 0 THEN 1 ELSE 0 END AS BIT) AS EsRafaga,
+    CAST(ISNULL(cfg.Activo, 1) AS BIT) AS Activo,
+    CAST(ISNULL(cfg.SeleccionadoPredeterminado, 1) AS BIT) AS SeleccionadoPredeterminado,
+    ISNULL(inv.TotalCajas, 0) AS TotalCajas,
+    ISNULL(inv.TotalKg, 0) AS TotalKg,
+    @FechaInventarioInicial AS FechaInventario
+FROM AlmacenesBase b
+LEFT JOIN dbo.InventarioInicialAlmacenConfig cfg WITH (NOLOCK)
+    ON cfg.Almacen COLLATE DATABASE_DEFAULT = b.Almacen COLLATE DATABASE_DEFAULT
+LEFT JOIN InventarioFecha inv
+    ON inv.Almacen COLLATE DATABASE_DEFAULT = b.Almacen COLLATE DATABASE_DEFAULT
+WHERE ISNULL(cfg.Activo, 1) = 1
+ORDER BY
+    CASE WHEN ISNULL(cfg.DiasRafaga, 0) = 0 THEN 0 ELSE 1 END,
+    ISNULL(cfg.DiasRafaga, 0),
+    b.Almacen;";
+
+                const string sqlClasificacionesSku = @"
+;WITH ClasificacionBase AS
+(
+    SELECT
+        Sku = UPPER(LTRIM(RTRIM(CONVERT(NVARCHAR(100), a.ProductoCodigo)))) COLLATE DATABASE_DEFAULT,
+        Clasificacion =
+            CASE
+                WHEN NULLIF(LTRIM(RTRIM(CONVERT(NVARCHAR(200), b.Nombre))), '') IS NULL
+                    THEN N'SIN CLASIFICACIÓN'
+                ELSE UPPER(LTRIM(RTRIM(CONVERT(NVARCHAR(200), b.Nombre))))
+            END
+    FROM dbo.ArticuloSap a WITH (NOLOCK)
+    LEFT JOIN dbo.ClasificacionProduccion b WITH (NOLOCK)
+        ON a.U_Clas_Prod = b.ClasificacionId
+    WHERE NULLIF(LTRIM(RTRIM(CONVERT(NVARCHAR(100), a.ProductoCodigo))), '') IS NOT NULL
+)
 SELECT
     Sku,
-    Articulo,
-    MasterProducto
-FROM dbo.InventarioInicialCatalogo WITH (NOLOCK)
-WHERE Activo = 1
-ORDER BY
-    MasterProducto,
-    Sku;
-";
+    Clasificacion = MAX(Clasificacion)
+FROM ClasificacionBase
+GROUP BY Sku;";
 
                 var cn = _db.Database.GetDbConnection();
                 var shouldClose = cn.State == ConnectionState.Closed;
@@ -6065,61 +8697,167 @@ ORDER BY
 
                 try
                 {
-                    var mastersRaw = (await cn.QueryAsync<InventarioInicialMasterFiltroVM>(
-                        sqlMasters,
+                    var prerequisitos = await cn.QuerySingleAsync<InventarioInicialPrerequisitosVM>(
+                        sqlPrerequisitos,
                         commandTimeout: 60
-                    )).ToList();
+                    );
+
+                    if (prerequisitos.ColumnaAlmacenExiste == 0)
+                    {
+                        return StatusCode(500, new
+                        {
+                            ok = false,
+                            msg = "Falta la columna Almacen en dbo.InventarioAlmacenado_Meat.",
+                            error = "Ejecuta primero el script SQL de almacenes y ráfagas o ajusta la fuente al nombre real de la columna de almacén."
+                        });
+                    }
+
+                    if (prerequisitos.ColumnaSkuNormExiste == 0)
+                    {
+                        return StatusCode(500, new
+                        {
+                            ok = false,
+                            msg = "Falta la columna SkuNorm en dbo.InventarioAlmacenado_Meat.",
+                            error = "Ejecuta el script de normalización utilizado por Inventario Inicial antes de abrir la vista."
+                        });
+                    }
+
+                    if (prerequisitos.TablaArticuloSapExiste == 0 ||
+                        prerequisitos.TablaClasificacionProduccionExiste == 0)
+                    {
+                        return StatusCode(500, new
+                        {
+                            ok = false,
+                            msg = "No se puede cargar el filtro de clasificación.",
+                            error = "Deben existir dbo.ArticuloSap y dbo.ClasificacionProduccion."
+                        });
+                    }
+
+                    var parametros = new
+                    {
+                        FechaInicio = fechaInicioReal,
+                        FechaFin = fechaFinReal,
+                        FechaInventarioInicial = fechaInventarioReal,
+                        SoloSkuMovimiento = soloSkuMovimiento
+                    };
 
                     var skusRaw = (await cn.QueryAsync<InventarioInicialSkuFiltroVM>(
-                        sqlSkus,
-                        commandTimeout: 60
+                        prerequisitos.TablaConfigExiste == 1
+                            ? sqlSkusConConfig
+                            : sqlSkusSinConfig,
+                        parametros,
+                        commandTimeout: 120
                     )).ToList();
 
-                    var masters = mastersRaw
-                        .Select(x => new
-                        {
-                            value = string.IsNullOrWhiteSpace(x.MasterProducto)
-                                ? "SIN MASTER"
-                                : x.MasterProducto.Trim().ToUpper(),
+                    var clasificacionesSkuRaw =
+                        (await cn.QueryAsync<InventarioInicialClasificacionSkuVM>(
+                            sqlClasificacionesSku,
+                            commandTimeout: 60
+                        )).ToList();
 
-                            text = string.IsNullOrWhiteSpace(x.MasterProducto)
-                                ? "SIN MASTER"
-                                : x.MasterProducto.Trim().ToUpper(),
+                    var clasificacionPorSku = clasificacionesSkuRaw
+                        .Where(x => !string.IsNullOrWhiteSpace(x.Sku))
+                        .GroupBy(x => x.Sku.Trim().ToUpperInvariant())
+                        .ToDictionary(
+                            g => g.Key,
+                            g => string.IsNullOrWhiteSpace(g.First().Clasificacion)
+                                ? "SIN CLASIFICACIÓN"
+                                : g.First().Clasificacion.Trim().ToUpperInvariant()
+                        );
 
-                            totalSkus = x.TotalSkus
-                        })
-                        .Where(x => !string.IsNullOrWhiteSpace(x.value))
-                        .OrderBy(x => x.text == "SIN MASTER" ? 1 : 0)
-                        .ThenBy(x => x.text)
-                        .ToList();
+                    var almacenesRaw = (await cn.QueryAsync<InventarioInicialAlmacenFiltroVM>(
+                        prerequisitos.TablaConfigExiste == 1
+                            ? sqlAlmacenesConConfig
+                            : sqlAlmacenesSinConfig,
+                        new { FechaInventarioInicial = fechaInventarioReal },
+                        commandTimeout: 120
+                    )).ToList();
 
                     var skus = skusRaw
                         .Select(x => new
                         {
-                            value = (x.Sku ?? "").Trim().ToUpper(),
-
+                            value = (x.Sku ?? "").Trim().ToUpperInvariant(),
                             text = string.IsNullOrWhiteSpace(x.Articulo)
-                                ? (x.Sku ?? "").Trim().ToUpper()
-                                : $"{(x.Sku ?? "").Trim().ToUpper()} - {x.Articulo.Trim()}",
-
+                                ? (x.Sku ?? "").Trim().ToUpperInvariant()
+                                : $"{(x.Sku ?? "").Trim().ToUpperInvariant()} - {x.Articulo.Trim()}",
                             articulo = x.Articulo ?? "",
-
                             master = string.IsNullOrWhiteSpace(x.MasterProducto)
                                 ? "SIN MASTER"
-                                : x.MasterProducto.Trim().ToUpper()
+                                : x.MasterProducto.Trim().ToUpperInvariant(),
+                            clasificacion = clasificacionPorSku.TryGetValue(
+                                (x.Sku ?? "").Trim().ToUpperInvariant(),
+                                out var clasificacionSku
+                            )
+                                ? clasificacionSku
+                                : "SIN CLASIFICACIÓN"
                         })
                         .Where(x => !string.IsNullOrWhiteSpace(x.value))
-                        .OrderBy(x => x.master)
+                        .OrderBy(x => x.master == "SIN MASTER" ? 1 : 0)
+                        .ThenBy(x => x.master)
                         .ThenBy(x => x.value)
+                        .ToList();
+
+                    var masters = skus
+                        .GroupBy(x => x.master)
+                        .Select(g => new
+                        {
+                            value = g.Key,
+                            text = g.Key,
+                            totalSkus = g.Select(x => x.value).Distinct().Count()
+                        })
+                        .OrderBy(x => x.text == "SIN MASTER" ? 1 : 0)
+                        .ThenBy(x => x.text)
+                        .ToList();
+
+                    var clasificaciones = skus
+                        .GroupBy(x => x.clasificacion)
+                        .Select(g => new
+                        {
+                            value = g.Key,
+                            text = g.Key,
+                            totalSkus = g.Select(x => x.value).Distinct().Count()
+                        })
+                        .OrderBy(x => x.text == "SIN CLASIFICACIÓN" ? 1 : 0)
+                        .ThenBy(x => x.text)
+                        .ToList();
+
+                    var almacenes = almacenesRaw
+                        .Select(x => new
+                        {
+                            value = (x.Almacen ?? "").Trim().ToUpperInvariant(),
+                            text = (x.Almacen ?? "").Trim(),
+                            diasRafaga = x.DiasRafaga,
+                            esRafaga = x.EsRafaga,
+                            activo = x.Activo,
+                            seleccionadoPredeterminado = x.SeleccionadoPredeterminado,
+                            totalCajas = x.TotalCajas,
+                            totalKg = x.TotalKg,
+                            fechaInventario = x.FechaInventario
+                        })
+                        .Where(x => !string.IsNullOrWhiteSpace(x.value))
                         .ToList();
 
                     return Ok(new
                     {
                         ok = true,
                         totalMasters = masters.Count,
+                        totalClasificaciones = clasificaciones.Count,
                         totalSkus = skus.Count,
+                        totalAlmacenes = almacenes.Count,
+                        fechaInicio = fechaInicioReal,
+                        fechaFin = fechaFinReal,
+                        fechaInventarioInicial = fechaInventarioReal,
+                        configuracionRafagaDisponible = prerequisitos.TablaConfigExiste == 1,
+                        advertencia = prerequisitos.TablaConfigExiste == 1
+                            ? ""
+                            : "No existe dbo.InventarioInicialAlmacenConfig. Los almacenes se muestran temporalmente con 0 días de ráfaga; ejecuta el SQL de instalación para habilitar la liberación.",
+                        criterio = soloSkuMovimiento
+                            ? "SKU con inventario > 0 OR producción > 0"
+                            : "Todos los SKU activos del catálogo",
                         masters,
-                        skus
+                        clasificaciones,
+                        skus,
+                        almacenes
                     });
                 }
                 finally
@@ -6136,7 +8874,7 @@ ORDER BY
                 {
                     ok = false,
                     msg = "Error al consultar filtros de inventario inicial.",
-                    error = ex.Message,
+                    error = ex.GetBaseException().Message,
                     inner = ex.InnerException?.Message
                 });
             }
@@ -6147,24 +8885,48 @@ ORDER BY
             string sku = "",
             string skusCsv = "",
             string mastersCsv = "",
+            string clasificacionesCsv = "",
+            string almacenesCsv = "",
             DateTime? fechaInicio = null,
             DateTime? fechaFin = null,
-            int dias = 23)
+            DateTime? fechaInventarioInicial = null,
+            int dias = 23,
+            bool soloSkuMovimiento = true)
         {
             try
             {
                 sku = (sku ?? "").Trim().ToUpper();
                 skusCsv = (skusCsv ?? "").Trim().ToUpper();
                 mastersCsv = (mastersCsv ?? "").Trim().ToUpper();
+                clasificacionesCsv = (clasificacionesCsv ?? "").Trim().ToUpper();
+                almacenesCsv = (almacenesCsv ?? "").Trim().ToUpper();
+
+                var fechaInicioReal = (fechaInicio ?? DateTime.Today).Date;
+                var fechaFinReal = (fechaFin ?? fechaInicioReal.AddDays(dias)).Date;
+
+                if (fechaFinReal < fechaInicioReal)
+                {
+                    var temp = fechaInicioReal;
+                    fechaInicioReal = fechaFinReal;
+                    fechaFinReal = temp;
+                }
+
+                // La planeación comienza con la fotografía/cierre del día anterior.
+                var fechaInventarioReal =
+                    (fechaInventarioInicial ?? fechaInicioReal.AddDays(-1)).Date;
 
                 const string sql = @"
 EXEC dbo.sp_InventarioInicial
     @Sku = @Sku,
     @SkusCsv = @SkusCsv,
     @MastersCsv = @MastersCsv,
+    @ClasificacionesCsv = @ClasificacionesCsv,
+    @AlmacenesCsv = @AlmacenesCsv,
     @FechaInicio = @FechaInicio,
     @FechaFin = @FechaFin,
-    @Dias = @Dias;
+    @FechaInventarioInicial = @FechaInventarioInicial,
+    @Dias = @Dias,
+    @SoloSkuMovimiento = @SoloSkuMovimiento;
 ";
 
                 var cn = _db.Database.GetDbConnection();
@@ -6175,6 +8937,71 @@ EXEC dbo.sp_InventarioInicial
 
                 try
                 {
+                    const string sqlPrerequisitosDatos = @"
+SELECT
+    TablaConfigExiste =
+        CASE WHEN OBJECT_ID('dbo.InventarioInicialAlmacenConfig', 'U') IS NULL
+             THEN 0 ELSE 1 END,
+    ColumnaAlmacenExiste =
+        CASE WHEN COL_LENGTH('dbo.InventarioAlmacenado_Meat', 'Almacen') IS NULL
+             THEN 0 ELSE 1 END,
+    ColumnaSkuNormExiste =
+        CASE WHEN COL_LENGTH('dbo.InventarioAlmacenado_Meat', 'SkuNorm') IS NULL
+             THEN 0 ELSE 1 END,
+    ColumnaAlmacenNormExiste =
+        CASE WHEN COL_LENGTH('dbo.InventarioAlmacenado_Meat', 'AlmacenNorm') IS NULL
+             THEN 0 ELSE 1 END,
+    ColumnaCodigoEtiquetaNormExiste =
+        CASE WHEN COL_LENGTH('dbo.InventarioAlmacenado_Meat', 'CodigoEtiquetaNorm') IS NULL
+             THEN 0 ELSE 1 END,
+    TablaArticuloSapExiste =
+        CASE WHEN OBJECT_ID('dbo.ArticuloSap', 'U') IS NULL THEN 0 ELSE 1 END,
+    TablaClasificacionProduccionExiste =
+        CASE WHEN OBJECT_ID('dbo.ClasificacionProduccion', 'U') IS NULL THEN 0 ELSE 1 END,
+    ParametroAlmacenesExiste =
+        CASE WHEN EXISTS
+        (
+            SELECT 1
+            FROM sys.parameters
+            WHERE object_id = OBJECT_ID('dbo.sp_InventarioInicial')
+              AND name = '@AlmacenesCsv'
+        ) THEN 1 ELSE 0 END,
+    ParametroClasificacionesExiste =
+        CASE WHEN EXISTS
+        (
+            SELECT 1
+            FROM sys.parameters
+            WHERE object_id = OBJECT_ID('dbo.sp_InventarioInicial')
+              AND name = '@ClasificacionesCsv'
+        ) THEN 1 ELSE 0 END;";
+
+                    var prerequisitos =
+                        await cn.QuerySingleAsync<InventarioInicialPrerequisitosVM>(
+                            sqlPrerequisitosDatos,
+                            commandTimeout: 60
+                        );
+
+                    if (prerequisitos.TablaConfigExiste == 0 ||
+                        prerequisitos.TablaArticuloSapExiste == 0 ||
+                        prerequisitos.TablaClasificacionProduccionExiste == 0 ||
+                        prerequisitos.ParametroAlmacenesExiste == 0 ||
+                        prerequisitos.ParametroClasificacionesExiste == 0 ||
+                        prerequisitos.ColumnaAlmacenNormExiste == 0 ||
+                        prerequisitos.ColumnaCodigoEtiquetaNormExiste == 0)
+                    {
+                        return StatusCode(500, new
+                        {
+                            ok = false,
+                            msg = "Falta ejecutar el parche SQL V3.4 de clasificación y ráfagas.",
+                            error =
+                                "Deben existir dbo.InventarioInicialAlmacenConfig, dbo.ArticuloSap, " +
+                                "dbo.ClasificacionProduccion, las columnas AlmacenNorm y CodigoEtiquetaNorm, y " +
+                                "dbo.sp_InventarioInicial debe incluir @AlmacenesCsv y @ClasificacionesCsv."
+                        });
+                    }
+
+                    var cronometroConsulta = Stopwatch.StartNew();
+
                     var rows = (await cn.QueryAsync<InventarioInicialDisponibleVM>(
                         sql,
                         new
@@ -6182,17 +9009,32 @@ EXEC dbo.sp_InventarioInicial
                             Sku = string.IsNullOrWhiteSpace(sku) ? null : sku,
                             SkusCsv = string.IsNullOrWhiteSpace(skusCsv) ? null : skusCsv,
                             MastersCsv = string.IsNullOrWhiteSpace(mastersCsv) ? null : mastersCsv,
-                            FechaInicio = fechaInicio,
-                            FechaFin = fechaFin,
-                            Dias = dias
+                            ClasificacionesCsv = string.IsNullOrWhiteSpace(clasificacionesCsv) ? null : clasificacionesCsv,
+                            AlmacenesCsv = string.IsNullOrWhiteSpace(almacenesCsv) ? null : almacenesCsv,
+                            FechaInicio = fechaInicioReal,
+                            FechaFin = fechaFinReal,
+                            FechaInventarioInicial = fechaInventarioReal,
+                            Dias = dias,
+                            SoloSkuMovimiento = soloSkuMovimiento
                         },
-                        commandTimeout: 180
+                        commandTimeout: 240
                     )).ToList();
+
+                    cronometroConsulta.Stop();
 
                     return Ok(new
                     {
                         ok = true,
                         total = rows.Count,
+                        duracionMs = cronometroConsulta.ElapsedMilliseconds,
+                        fechaInicio = fechaInicioReal,
+                        fechaFin = fechaFinReal,
+                        fechaInventarioInicial = fechaInventarioReal,
+                        clasificacionesCsv,
+                        almacenesCsv,
+                        criterioRafaga =
+                            "Los almacenes con 0 días son disponibles inmediatos. " +
+                            "Los almacenes con ráfaga se incorporan una sola vez en su fecha de liberación.",
                         data = rows
                     });
                 }
@@ -6216,11 +9058,2060 @@ EXEC dbo.sp_InventarioInicial
             }
         }
 
+        // ========================= INVENTARIO MIN Y MAX / DIRECCIÓN GENERAL =========================
 
+        [HttpGet("Min_Max")]
+        public IActionResult Min_Max()
+        {
+            return View("~/Views/ProcesosCG/Min_Max.cshtml");
+        }
+
+        private sealed class InventarioActualMinMaxRowVM
+        {
+            public string Sku { get; set; } = "";
+            public string Producto { get; set; } = "";
+            public decimal KgActual { get; set; }
+            public int CajasActuales { get; set; }
+            public int Lotes { get; set; }
+            public DateTime? FechaActualizacion { get; set; }
+        }
+
+        /*
+         * Endpoint conservado para compatibilidad con vistas anteriores.
+         */
+        [HttpGet("InventarioActualMinMax")]
+        public async Task<IActionResult> InventarioActualMinMax(
+            string sucursal = "",
+            string almacen = "")
+        {
+            try
+            {
+                sucursal = (sucursal ?? "").Trim();
+                almacen = (almacen ?? "").Trim();
+
+                const string sql = @"
+DECLARE @FechaUltima DATETIME;
+
+SELECT
+    @FechaUltima = MAX(FechaActualizacion)
+FROM dbo.InventarioSigo WITH (NOLOCK)
+WHERE
+    ISNULL(Kg, 0) <> 0
+    AND (@Sucursal = '' OR UPPER(LTRIM(RTRIM(Sucursal))) = UPPER(LTRIM(RTRIM(@Sucursal))))
+    AND (@Almacen = '' OR UPPER(LTRIM(RTRIM(Almacen))) = UPPER(LTRIM(RTRIM(@Almacen))));
+
+SELECT
+    UPPER(LTRIM(RTRIM(ProductoCodigo))) AS Sku,
+    MAX(LTRIM(RTRIM(ProductoNombre))) AS Producto,
+    SUM(ISNULL(Kg, 0)) AS KgActual,
+    SUM(ISNULL(Cajas, 0)) AS CajasActuales,
+    COUNT(
+        DISTINCT ISNULL(
+            NULLIF(LTRIM(RTRIM(Lote)), ''),
+            '-'
+        )
+    ) AS Lotes,
+    MAX(FechaActualizacion) AS FechaActualizacion
+FROM dbo.InventarioSigo WITH (NOLOCK)
+WHERE
+    FechaActualizacion = @FechaUltima
+    AND ISNULL(Kg, 0) <> 0
+    AND (@Sucursal = '' OR UPPER(LTRIM(RTRIM(Sucursal))) = UPPER(LTRIM(RTRIM(@Sucursal))))
+    AND (@Almacen = '' OR UPPER(LTRIM(RTRIM(Almacen))) = UPPER(LTRIM(RTRIM(@Almacen))))
+GROUP BY
+    UPPER(LTRIM(RTRIM(ProductoCodigo)))
+ORDER BY
+    Sku;";
+
+                var cn = _db.Database.GetDbConnection();
+                var shouldClose = cn.State == ConnectionState.Closed;
+
+                if (shouldClose)
+                    await cn.OpenAsync();
+
+                try
+                {
+                    var rows = (await cn.QueryAsync<InventarioActualMinMaxRowVM>(
+                        sql,
+                        new
+                        {
+                            Sucursal = sucursal,
+                            Almacen = almacen
+                        },
+                        commandTimeout: 180
+                    )).ToList();
+
+                    return Ok(new
+                    {
+                        ok = true,
+                        total = rows.Count,
+                        data = rows,
+                        fuente = "dbo.InventarioSigo",
+                        criterio =
+                            "Última FechaActualizacion disponible dentro de los filtros; suma de Kg por ProductoCodigo."
+                    });
+                }
+                finally
+                {
+                    if (shouldClose)
+                        await cn.CloseAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al consultar InventarioActualMinMax");
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = "Error al consultar inventario actual min/max.",
+                    error = ex.Message,
+                    inner = ex.InnerException?.Message
+                });
+            }
+        }
+
+        private sealed class InventarioMinMaxRowVM
+        {
+            public string Clasificacion { get; set; } = "";
+            public int ClasificacionOrden { get; set; }
+            public string Master { get; set; } = "";
+            public string Sku { get; set; } = "";
+            public string Producto { get; set; } = "";
+
+            public decimal KgProduccionMes { get; set; }
+            public decimal KgInventarioInicial { get; set; }
+            public decimal KgBaseCalculo { get; set; }
+            public decimal KgActual { get; set; }
+
+            public int CajasActuales { get; set; }
+            public int Lotes { get; set; }
+
+            public decimal DiasMinimo { get; set; }
+            public decimal DiasIdeal { get; set; }
+            public decimal DiasMaximo { get; set; }
+
+            public decimal Minimo { get; set; }
+            public decimal Ideal { get; set; }
+            public decimal Maximo { get; set; }
+            public decimal GapIdeal { get; set; }
+
+            public decimal ConsumoDiario { get; set; }
+            public decimal DiasActual { get; set; }
+            public decimal PorcentajeMaximo { get; set; }
+
+            public string Estatus { get; set; } = "";
+            public DateTime? FechaActualizacion { get; set; }
+            public DateTime? FechaInventarioInicial { get; set; }
+        }
+
+        private sealed class InventarioMinMaxClasificacionVM
+        {
+            public int ClasificacionId { get; set; }
+            public string Clasificacion { get; set; } = "";
+            public decimal DiasMinimo { get; set; }
+            public decimal DiasIdeal { get; set; }
+            public decimal DiasMaximo { get; set; }
+            public int Orden { get; set; }
+            public bool Activo { get; set; }
+            public DateTime? FechaActualizacion { get; set; }
+        }
+
+        private sealed class InventarioMinMaxSkuCatalogoVM
+        {
+            public string Sku { get; set; } = "";
+            public string Producto { get; set; } = "";
+            public string Master { get; set; } = "";
+            public string Clasificacion { get; set; } = "";
+            public bool Configurado { get; set; }
+        }
+
+        public sealed class InventarioMinMaxClasificacionRequest
+        {
+            public string Clasificacion { get; set; } = "";
+            public decimal DiasMinimo { get; set; }
+            public decimal DiasIdeal { get; set; }
+            public decimal DiasMaximo { get; set; }
+            public int Orden { get; set; } = 999;
+            public bool Activo { get; set; } = true;
+        }
+
+        public sealed class InventarioMinMaxSkuClasificacionRequest
+        {
+            public string Sku { get; set; } = "";
+            public string Clasificacion { get; set; } = "";
+        }
+
+        /*
+         * Fuentes:
+         *   - ArticuloSap.U_Clas_Prod -> ClasificacionProduccion.ClasificacionId
+         *   - ClasificacionProduccion contiene DiasMinimo, DiasIdeal y DiasMaximo.
+         *   - PlaneacionProduccion + PlanDiario: producción del mes.
+         *   - InventarioAlmacenado_Meat: inventario al cierre anterior.
+         *   - InventarioSigo: inventario actual.
+         */
+        [HttpGet("InventarioMinMaxDatos")]
+        public async Task<IActionResult> InventarioMinMaxDatos(
+            DateTime? mes = null,
+            string sucursal = "",
+            string almacen = "")
+        {
+            try
+            {
+                var mesBase = mes ?? DateTime.Today;
+                var fechaDesde = new DateTime(mesBase.Year, mesBase.Month, 1);
+                var fechaHasta = fechaDesde.AddMonths(1);
+                var fechaInventarioObjetivo = fechaDesde.AddDays(-1);
+
+                sucursal = (sucursal ?? "").Trim();
+                almacen = (almacen ?? "").Trim();
+
+                const string sql = @"
+DECLARE @FechaActualizacion DATETIME;
+DECLARE @FechaInventarioReal DATE;
+
+SELECT
+    @FechaActualizacion = MAX(s.FechaActualizacion)
+FROM dbo.InventarioSigo s WITH (NOLOCK)
+WHERE
+    ISNULL(s.Kg, 0) <> 0
+    AND (@Sucursal = '' OR UPPER(LTRIM(RTRIM(s.Sucursal))) = UPPER(LTRIM(RTRIM(@Sucursal))))
+    AND (@Almacen = '' OR UPPER(LTRIM(RTRIM(s.Almacen))) = UPPER(LTRIM(RTRIM(@Almacen))));
+
+SELECT
+    @FechaInventarioReal = MAX(CAST(i.FechaInventario AS DATE))
+FROM dbo.InventarioAlmacenado_Meat i WITH (NOLOCK)
+WHERE
+    CAST(i.FechaInventario AS DATE) <= @FechaInventarioObjetivo;
+
+;WITH Articulos AS
+(
+    SELECT
+        UPPER(LTRIM(RTRIM(a.ProductoCodigo))) AS Sku,
+        MAX(NULLIF(LTRIM(RTRIM(a.ProductoNombre)), '')) AS Producto,
+        MAX(a.U_Clas_Prod) AS ClasificacionId
+    FROM dbo.ArticuloSap a WITH (NOLOCK)
+    WHERE
+        NULLIF(LTRIM(RTRIM(a.ProductoCodigo)), '') IS NOT NULL
+    GROUP BY
+        UPPER(LTRIM(RTRIM(a.ProductoCodigo)))
+),
+CatalogoMaster AS
+(
+    SELECT
+        UPPER(LTRIM(RTRIM(c.Sku))) AS Sku,
+        MAX(NULLIF(LTRIM(RTRIM(c.Articulo)), '')) AS Producto,
+        MAX(
+            CASE
+                WHEN NULLIF(LTRIM(RTRIM(c.MasterProducto)), '') IS NULL
+                    THEN 'SIN MASTER'
+                ELSE UPPER(LTRIM(RTRIM(c.MasterProducto)))
+            END
+        ) AS Master
+    FROM dbo.InventarioInicialCatalogo c WITH (NOLOCK)
+    WHERE
+        c.Activo = 1
+        AND NULLIF(LTRIM(RTRIM(c.Sku)), '') IS NOT NULL
+    GROUP BY
+        UPPER(LTRIM(RTRIM(c.Sku)))
+),
+Produccion AS
+(
+    SELECT
+        UPPER(LTRIM(RTRIM(d.ProductoCodigoConvertidoNorm))) AS Sku,
+        SUM(ISNULL(d.KgInyeccion, 0)) AS KgProduccionMes
+    FROM dbo.PlaneacionProduccion p WITH (NOLOCK)
+    INNER JOIN dbo.PlanDiario d WITH (NOLOCK)
+        ON d.PlaneacionId = p.PlaneacionId
+    WHERE
+        p.FechaPlan >= @FechaDesde
+        AND p.FechaPlan < @FechaHasta
+        AND NULLIF(LTRIM(RTRIM(d.ProductoCodigoConvertidoNorm)), '') IS NOT NULL
+        AND ISNULL(d.KgInyeccion, 0) <> 0
+    GROUP BY
+        UPPER(LTRIM(RTRIM(d.ProductoCodigoConvertidoNorm)))
+),
+InventarioInicial AS
+(
+    SELECT
+        UPPER(LTRIM(RTRIM(i.SkuNorm))) AS Sku,
+        SUM(ISNULL(i.PesoNeto, 0)) AS KgInventarioInicial
+    FROM dbo.InventarioAlmacenado_Meat i WITH (NOLOCK)
+    WHERE
+        @FechaInventarioReal IS NOT NULL
+        AND CAST(i.FechaInventario AS DATE) = @FechaInventarioReal
+        AND NULLIF(LTRIM(RTRIM(i.SkuNorm)), '') IS NOT NULL
+        AND ISNULL(i.PesoNeto, 0) <> 0
+    GROUP BY
+        UPPER(LTRIM(RTRIM(i.SkuNorm)))
+),
+InventarioActual AS
+(
+    SELECT
+        UPPER(LTRIM(RTRIM(s.ProductoCodigo))) AS Sku,
+        MAX(NULLIF(LTRIM(RTRIM(s.ProductoNombre)), '')) AS Producto,
+        SUM(ISNULL(s.Kg, 0)) AS KgActual,
+        SUM(ISNULL(s.Cajas, 0)) AS CajasActuales,
+        COUNT(
+            DISTINCT ISNULL(
+                NULLIF(LTRIM(RTRIM(s.Lote)), ''),
+                '-'
+            )
+        ) AS Lotes
+    FROM dbo.InventarioSigo s WITH (NOLOCK)
+    WHERE
+        @FechaActualizacion IS NOT NULL
+        AND s.FechaActualizacion = @FechaActualizacion
+        AND ISNULL(s.Kg, 0) <> 0
+        AND (@Sucursal = '' OR UPPER(LTRIM(RTRIM(s.Sucursal))) = UPPER(LTRIM(RTRIM(@Sucursal))))
+        AND (@Almacen = '' OR UPPER(LTRIM(RTRIM(s.Almacen))) = UPPER(LTRIM(RTRIM(@Almacen))))
+        AND NULLIF(LTRIM(RTRIM(s.ProductoCodigo)), '') IS NOT NULL
+    GROUP BY
+        UPPER(LTRIM(RTRIM(s.ProductoCodigo)))
+),
+Skus AS
+(
+    /*
+     * Se incluye ArticuloSap para que la pantalla muestre el catálogo
+     * configurado aunque un SKU no tenga movimiento en el mes seleccionado.
+     */
+    SELECT a.Sku
+    FROM Articulos a
+    LEFT JOIN dbo.ClasificacionProduccion cp WITH (NOLOCK)
+        ON cp.ClasificacionId = a.ClasificacionId
+    WHERE
+        a.ClasificacionId IS NOT NULL
+        OR EXISTS (SELECT 1 FROM CatalogoMaster cm WHERE cm.Sku = a.Sku)
+
+    UNION
+    SELECT Sku FROM CatalogoMaster
+
+    UNION
+    SELECT Sku FROM Produccion
+
+    UNION
+    SELECT Sku FROM InventarioInicial
+
+    UNION
+    SELECT Sku FROM InventarioActual
+),
+Base AS
+(
+    SELECT
+        s.Sku,
+        COALESCE(a.Producto, cm.Producto, ia.Producto, '') AS Producto,
+        COALESCE(cm.Master, 'SIN MASTER') AS Master,
+
+        UPPER(LTRIM(RTRIM(ISNULL(cp.Nombre, '')))) AS Clasificacion,
+        ISNULL(cp.OrdenMinMax, 999) AS ClasificacionOrden,
+
+        CAST(ISNULL(p.KgProduccionMes, 0) AS DECIMAL(18,3)) AS KgProduccionMes,
+        CAST(ISNULL(ii.KgInventarioInicial, 0) AS DECIMAL(18,3)) AS KgInventarioInicial,
+        CAST(
+            ISNULL(p.KgProduccionMes, 0) +
+            ISNULL(ii.KgInventarioInicial, 0)
+            AS DECIMAL(18,3)
+        ) AS KgBaseCalculo,
+        CAST(ISNULL(ia.KgActual, 0) AS DECIMAL(18,3)) AS KgActual,
+
+        ISNULL(ia.CajasActuales, 0) AS CajasActuales,
+        ISNULL(ia.Lotes, 0) AS Lotes,
+
+        CAST(
+            CASE WHEN ISNULL(cp.ActivoMinMax, 0) = 1
+                THEN ISNULL(cp.DiasMinimo, 0)
+                ELSE 0
+            END
+            AS DECIMAL(10,2)
+        ) AS DiasMinimo,
+
+        CAST(
+            CASE WHEN ISNULL(cp.ActivoMinMax, 0) = 1
+                THEN ISNULL(cp.DiasIdeal, 0)
+                ELSE 0
+            END
+            AS DECIMAL(10,2)
+        ) AS DiasIdeal,
+
+        CAST(
+            CASE WHEN ISNULL(cp.ActivoMinMax, 0) = 1
+                THEN ISNULL(cp.DiasMaximo, 0)
+                ELSE 0
+            END
+            AS DECIMAL(10,2)
+        ) AS DiasMaximo,
+
+        CAST(ISNULL(cp.ActivoMinMax, 0) AS BIT) AS ReglaActiva
+    FROM Skus s
+    LEFT JOIN Articulos a
+        ON a.Sku = s.Sku
+    LEFT JOIN CatalogoMaster cm
+        ON cm.Sku = s.Sku
+    LEFT JOIN Produccion p
+        ON p.Sku = s.Sku
+    LEFT JOIN InventarioInicial ii
+        ON ii.Sku = s.Sku
+    LEFT JOIN InventarioActual ia
+        ON ia.Sku = s.Sku
+    LEFT JOIN dbo.ClasificacionProduccion cp WITH (NOLOCK)
+        ON cp.ClasificacionId = a.ClasificacionId
+),
+Umbrales AS
+(
+    SELECT
+        b.*,
+        CAST(
+            CASE
+                WHEN b.KgBaseCalculo > 0
+                    THEN b.KgBaseCalculo / CAST(30.4 AS DECIMAL(10,2))
+                ELSE 0
+            END
+            AS DECIMAL(18,6)
+        ) AS ConsumoDiario,
+
+        CAST(
+            (b.KgBaseCalculo / CAST(30.4 AS DECIMAL(10,2))) * b.DiasMinimo
+            AS DECIMAL(18,3)
+        ) AS Minimo,
+
+        CAST(
+            (b.KgBaseCalculo / CAST(30.4 AS DECIMAL(10,2))) * b.DiasIdeal
+            AS DECIMAL(18,3)
+        ) AS Ideal,
+
+        CAST(
+            (b.KgBaseCalculo / CAST(30.4 AS DECIMAL(10,2))) * b.DiasMaximo
+            AS DECIMAL(18,3)
+        ) AS Maximo
+    FROM Base b
+)
+SELECT
+    u.Clasificacion,
+    u.ClasificacionOrden,
+    u.Master,
+    u.Sku,
+    u.Producto,
+
+    u.KgProduccionMes,
+    u.KgInventarioInicial,
+    u.KgBaseCalculo,
+    u.KgActual,
+
+    u.CajasActuales,
+    u.Lotes,
+
+    u.DiasMinimo,
+    u.DiasIdeal,
+    u.DiasMaximo,
+
+    u.Minimo,
+    u.Ideal,
+    u.Maximo,
+
+    CAST(u.KgActual - u.Ideal AS DECIMAL(18,3)) AS GapIdeal,
+    u.ConsumoDiario,
+
+    CAST(
+        CASE
+            WHEN u.ConsumoDiario > 0
+                THEN u.KgActual / u.ConsumoDiario
+            ELSE 0
+        END
+        AS DECIMAL(18,2)
+    ) AS DiasActual,
+
+    CAST(
+        CASE
+            WHEN u.Maximo > 0
+                THEN (u.KgActual / u.Maximo) * 100
+            ELSE 0
+        END
+        AS DECIMAL(18,2)
+    ) AS PorcentajeMaximo,
+
+    CASE
+        WHEN u.Clasificacion = 'NO PRODUCIR'
+            THEN 'NOPROD'
+        WHEN NULLIF(u.Clasificacion, '') IS NULL
+            THEN 'SIN'
+        WHEN u.Clasificacion = 'POR DEFINIR'
+            THEN 'SIN'
+        WHEN u.ReglaActiva = 0
+            THEN 'SIN'
+        WHEN u.KgBaseCalculo <= 0
+            THEN 'SIN'
+        WHEN u.DiasMinimo = 0
+             AND u.DiasIdeal = 0
+             AND u.DiasMaximo = 0
+            THEN 'SIN'
+        WHEN u.KgActual < u.Minimo
+            THEN 'BAJO'
+        WHEN u.KgActual < u.Ideal
+            THEN 'MIN'
+        WHEN u.KgActual <= u.Maximo
+            THEN 'OK'
+        ELSE 'SOBRE'
+    END AS Estatus,
+
+    @FechaActualizacion AS FechaActualizacion,
+    @FechaInventarioReal AS FechaInventarioInicial
+FROM Umbrales u
+ORDER BY
+    u.ClasificacionOrden,
+    u.Master,
+    u.Sku;";
+
+                var cn = _db.Database.GetDbConnection();
+                var shouldClose = cn.State == ConnectionState.Closed;
+
+                if (shouldClose)
+                    await cn.OpenAsync();
+
+                try
+                {
+                    var rows = (await cn.QueryAsync<InventarioMinMaxRowVM>(
+                        sql,
+                        new
+                        {
+                            FechaDesde = fechaDesde,
+                            FechaHasta = fechaHasta,
+                            FechaInventarioObjetivo = fechaInventarioObjetivo,
+                            Sucursal = sucursal,
+                            Almacen = almacen
+                        },
+                        commandTimeout: 180
+                    )).ToList();
+
+                    var fechaActualizacion = rows
+                        .Where(x => x.FechaActualizacion.HasValue)
+                        .Select(x => x.FechaActualizacion!.Value)
+                        .DefaultIfEmpty()
+                        .Max();
+
+                    var fechaInventarioInicial = rows
+                        .Where(x => x.FechaInventarioInicial.HasValue)
+                        .Select(x => x.FechaInventarioInicial!.Value)
+                        .DefaultIfEmpty()
+                        .Max();
+
+                    return Ok(new
+                    {
+                        ok = true,
+                        total = rows.Count,
+                        mes = fechaDesde.ToString("yyyy-MM"),
+                        fechaDesde,
+                        fechaHasta = fechaHasta.AddDays(-1),
+                        fechaInventarioInicial =
+                            fechaInventarioInicial == default
+                                ? (DateTime?)null
+                                : fechaInventarioInicial,
+                        fechaActualizacion =
+                            fechaActualizacion == default
+                                ? (DateTime?)null
+                                : fechaActualizacion,
+                        denominadorDias = 30.4m,
+                        criterio =
+                            "Base = producción planeada del mes + último inventario almacenado disponible al cierre anterior. " +
+                            "Mínimo, ideal y máximo = Base / 30.4 × días definidos en ClasificacionProduccion.",
+                        data = rows
+                    });
+                }
+                finally
+                {
+                    if (shouldClose)
+                        await cn.CloseAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al consultar InventarioMinMaxDatos");
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = "Error al consultar el indicador de inventario mínimo y máximo.",
+                    error = ex.Message,
+                    inner = ex.InnerException?.Message
+                });
+            }
+        }
+
+        [HttpGet("InventarioMinMaxCatalogo")]
+        public async Task<IActionResult> InventarioMinMaxCatalogo()
+        {
+            try
+            {
+                const string sql = @"
+SELECT
+    c.ClasificacionId,
+    UPPER(LTRIM(RTRIM(c.Nombre))) AS Clasificacion,
+    CAST(ISNULL(c.DiasMinimo, 0) AS DECIMAL(10,2)) AS DiasMinimo,
+    CAST(ISNULL(c.DiasIdeal, 0) AS DECIMAL(10,2)) AS DiasIdeal,
+    CAST(ISNULL(c.DiasMaximo, 0) AS DECIMAL(10,2)) AS DiasMaximo,
+    ISNULL(c.OrdenMinMax, 999) AS Orden,
+    CAST(ISNULL(c.ActivoMinMax, 0) AS BIT) AS Activo,
+    c.FechaMinMaxActualizacion AS FechaActualizacion
+FROM dbo.ClasificacionProduccion c WITH (NOLOCK)
+WHERE
+    NULLIF(LTRIM(RTRIM(c.Nombre)), '') IS NOT NULL
+ORDER BY
+    ISNULL(c.OrdenMinMax, 999),
+    c.ClasificacionId;
+
+;WITH Masters AS
+(
+    SELECT
+        UPPER(LTRIM(RTRIM(c.Sku))) AS Sku,
+        MAX(
+            CASE
+                WHEN NULLIF(LTRIM(RTRIM(c.MasterProducto)), '') IS NULL
+                    THEN 'SIN MASTER'
+                ELSE UPPER(LTRIM(RTRIM(c.MasterProducto)))
+            END
+        ) AS Master
+    FROM dbo.InventarioInicialCatalogo c WITH (NOLOCK)
+    WHERE
+        c.Activo = 1
+        AND NULLIF(LTRIM(RTRIM(c.Sku)), '') IS NOT NULL
+    GROUP BY
+        UPPER(LTRIM(RTRIM(c.Sku)))
+),
+Articulos AS
+(
+    SELECT
+        UPPER(LTRIM(RTRIM(a.ProductoCodigo))) AS Sku,
+        MAX(NULLIF(LTRIM(RTRIM(a.ProductoNombre)), '')) AS Producto,
+        MAX(a.U_Clas_Prod) AS ClasificacionId
+    FROM dbo.ArticuloSap a WITH (NOLOCK)
+    WHERE
+        NULLIF(LTRIM(RTRIM(a.ProductoCodigo)), '') IS NOT NULL
+    GROUP BY
+        UPPER(LTRIM(RTRIM(a.ProductoCodigo)))
+)
+SELECT
+    a.Sku,
+    ISNULL(a.Producto, '') AS Producto,
+    ISNULL(m.Master, 'SIN MASTER') AS Master,
+    UPPER(LTRIM(RTRIM(ISNULL(cp.Nombre, '')))) AS Clasificacion,
+    CAST(
+        CASE
+            WHEN cp.ClasificacionId IS NULL
+                 OR UPPER(LTRIM(RTRIM(ISNULL(cp.Nombre, '')))) = 'POR DEFINIR'
+                THEN 0
+            ELSE 1
+        END
+        AS BIT
+    ) AS Configurado
+FROM Articulos a
+LEFT JOIN Masters m
+    ON m.Sku = a.Sku
+LEFT JOIN dbo.ClasificacionProduccion cp WITH (NOLOCK)
+    ON cp.ClasificacionId = a.ClasificacionId
+ORDER BY
+    ISNULL(m.Master, 'SIN MASTER'),
+    a.Sku;";
+
+                var cn = _db.Database.GetDbConnection();
+                var shouldClose = cn.State == ConnectionState.Closed;
+
+                if (shouldClose)
+                    await cn.OpenAsync();
+
+                try
+                {
+                    using var multiple = await cn.QueryMultipleAsync(
+                        sql,
+                        commandTimeout: 120
+                    );
+
+                    var clasificaciones =
+                        (await multiple.ReadAsync<InventarioMinMaxClasificacionVM>())
+                        .ToList();
+
+                    var skus =
+                        (await multiple.ReadAsync<InventarioMinMaxSkuCatalogoVM>())
+                        .ToList();
+
+                    return Ok(new
+                    {
+                        ok = true,
+                        clasificaciones,
+                        skus
+                    });
+                }
+                finally
+                {
+                    if (shouldClose)
+                        await cn.CloseAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al consultar InventarioMinMaxCatalogo");
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = "No se pudo consultar el catálogo de inventario mínimo y máximo.",
+                    error = ex.Message,
+                    inner = ex.InnerException?.Message
+                });
+            }
+        }
+
+        [HttpPost("GuardarInventarioMinMaxClasificacion")]
+        public async Task<IActionResult> GuardarInventarioMinMaxClasificacion(
+            [FromBody] InventarioMinMaxClasificacionRequest request)
+        {
+            try
+            {
+                if (request == null)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = "No se recibió la configuración de clasificación."
+                    });
+                }
+
+                var clasificacion = (request.Clasificacion ?? "")
+                    .Trim()
+                    .ToUpperInvariant();
+
+                if (string.IsNullOrWhiteSpace(clasificacion))
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = "La clasificación es obligatoria."
+                    });
+                }
+
+                if (request.DiasMinimo < 0 ||
+                    request.DiasIdeal < request.DiasMinimo ||
+                    request.DiasMaximo < request.DiasIdeal)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = "La regla debe cumplir: mínimo >= 0, ideal >= mínimo y máximo >= ideal."
+                    });
+                }
+
+                const string sql = @"
+UPDATE dbo.ClasificacionProduccion
+SET
+    DiasMinimo = @DiasMinimo,
+    DiasIdeal = @DiasIdeal,
+    DiasMaximo = @DiasMaximo,
+    OrdenMinMax = @Orden,
+    ActivoMinMax = @Activo,
+    UsuarioMinMaxActualizacion = @Usuario,
+    FechaMinMaxActualizacion = SYSDATETIME()
+WHERE
+    UPPER(LTRIM(RTRIM(Nombre))) = @Clasificacion;";
+
+                var usuario = (User?.Identity?.Name ?? "SISTEMA").Trim();
+
+                var cn = _db.Database.GetDbConnection();
+                var shouldClose = cn.State == ConnectionState.Closed;
+
+                if (shouldClose)
+                    await cn.OpenAsync();
+
+                try
+                {
+                    var affected = await cn.ExecuteAsync(
+                        sql,
+                        new
+                        {
+                            Clasificacion = clasificacion,
+                            request.DiasMinimo,
+                            request.DiasIdeal,
+                            request.DiasMaximo,
+                            Orden = request.Orden <= 0 ? 999 : request.Orden,
+                            request.Activo,
+                            Usuario = usuario
+                        },
+                        commandTimeout: 60
+                    );
+
+                    if (affected <= 0)
+                    {
+                        return NotFound(new
+                        {
+                            ok = false,
+                            msg = "La clasificación no existe en ClasificacionProduccion."
+                        });
+                    }
+                }
+                finally
+                {
+                    if (shouldClose)
+                        await cn.CloseAsync();
+                }
+
+                return Ok(new
+                {
+                    ok = true,
+                    msg = "Clasificación guardada correctamente."
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error al guardar clasificación de inventario min/max"
+                );
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = "No se pudo guardar la clasificación.",
+                    error = ex.Message,
+                    inner = ex.InnerException?.Message
+                });
+            }
+        }
+
+        [HttpPost("GuardarInventarioMinMaxSkuClasificacion")]
+        public async Task<IActionResult> GuardarInventarioMinMaxSkuClasificacion(
+            [FromBody] InventarioMinMaxSkuClasificacionRequest request)
+        {
+            try
+            {
+                if (request == null)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = "No se recibió la asignación del SKU."
+                    });
+                }
+
+                var sku = (request.Sku ?? "")
+                    .Trim()
+                    .ToUpperInvariant();
+
+                var clasificacion = (request.Clasificacion ?? "")
+                    .Trim()
+                    .ToUpperInvariant();
+
+                if (string.IsNullOrWhiteSpace(sku))
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = "El SKU es obligatorio."
+                    });
+                }
+
+                var usuario = (User?.Identity?.Name ?? "SISTEMA").Trim();
+
+                var cn = _db.Database.GetDbConnection();
+                var shouldClose = cn.State == ConnectionState.Closed;
+
+                if (shouldClose)
+                    await cn.OpenAsync();
+
+                try
+                {
+                    var existeSku = await cn.ExecuteScalarAsync<int>(
+                        @"SELECT COUNT(1)
+                          FROM dbo.ArticuloSap WITH (NOLOCK)
+                          WHERE UPPER(LTRIM(RTRIM(ProductoCodigo))) = @Sku;",
+                        new { Sku = sku },
+                        commandTimeout: 60
+                    );
+
+                    if (existeSku <= 0)
+                    {
+                        return NotFound(new
+                        {
+                            ok = false,
+                            msg = "El SKU no existe en ArticuloSap."
+                        });
+                    }
+
+                    int? clasificacionId = null;
+
+                    if (!string.IsNullOrWhiteSpace(clasificacion))
+                    {
+                        clasificacionId = await cn.ExecuteScalarAsync<int?>(
+                            @"SELECT TOP (1) ClasificacionId
+                              FROM dbo.ClasificacionProduccion WITH (NOLOCK)
+                              WHERE
+                                  UPPER(LTRIM(RTRIM(Nombre))) = @Clasificacion
+                                  AND ISNULL(ActivoMinMax, 0) = 1
+                              ORDER BY ClasificacionId;",
+                            new { Clasificacion = clasificacion },
+                            commandTimeout: 60
+                        );
+
+                        if (!clasificacionId.HasValue)
+                        {
+                            return BadRequest(new
+                            {
+                                ok = false,
+                                msg = "La clasificación seleccionada no existe o está inactiva."
+                            });
+                        }
+                    }
+
+                    var affected = await cn.ExecuteAsync(
+                        @"UPDATE dbo.ArticuloSap
+                          SET U_Clas_Prod = @ClasificacionId
+                          WHERE UPPER(LTRIM(RTRIM(ProductoCodigo))) = @Sku;",
+                        new
+                        {
+                            Sku = sku,
+                            ClasificacionId = clasificacionId
+                        },
+                        commandTimeout: 60
+                    );
+
+                    if (affected <= 0)
+                    {
+                        return NotFound(new
+                        {
+                            ok = false,
+                            msg = "No se encontró el SKU para actualizar."
+                        });
+                    }
+
+                    return Ok(new
+                    {
+                        ok = true,
+                        msg = string.IsNullOrWhiteSpace(clasificacion)
+                            ? "Clasificación retirada del SKU."
+                            : "Clasificación del SKU guardada correctamente.",
+                        usuario
+                    });
+                }
+                finally
+                {
+                    if (shouldClose)
+                        await cn.CloseAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error al guardar clasificación del SKU para inventario min/max"
+                );
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = "No se pudo guardar la clasificación del SKU.",
+                    error = ex.Message,
+                    inner = ex.InnerException?.Message
+                });
+            }
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        // ========================= AJUSTE CONTROLADO DE ETIQUETAS =========================
+
+        private const int AJUSTE_ETIQUETA_PROCESO_ELIMINACION = 29;
+        private const decimal AJUSTE_ETIQUETA_PESO_ELIMINACION = 0.01m;
+        private const int AJUSTE_ETIQUETA_PROCESO_ACTIVACION = 20;
+        private const string AJUSTE_ETIQUETA_DEVICE_ID = "Sistema SIGO";
+
+        // Estos procesos representan operaciones que ya avanzaron a retrabajo o embarque.
+        // Por seguridad operativa, una etiqueta inactiva no puede regresar al proceso 20.
+        private static readonly HashSet<int> AJUSTE_ETIQUETA_PROCESOS_BLOQUEADOS_ACTIVACION = new HashSet<int>
+        {
+            14, // Retrabajo
+            16, // Embarque Canales
+            17, // Embarque
+            37  // Embarque de Pieles
+        };
+
+        private static bool EsProcesoBloqueadoParaActivacion(int? procesoId)
+        {
+            return procesoId.HasValue
+                   && AJUSTE_ETIQUETA_PROCESOS_BLOQUEADOS_ACTIVACION.Contains(procesoId.Value);
+        }
+
+        private static string ObtenerNombreProcesoBloqueadoActivacion(int? procesoId)
+        {
+            return procesoId switch
+            {
+                14 => "Retrabajo",
+                16 => "Embarque Canales",
+                17 => "Embarque",
+                37 => "Embarque de Pieles",
+                _ => ""
+            };
+        }
+
+        public sealed class AjusteEtiquetaRequestVM
+        {
+            public Guid OperacionId { get; set; }
+            public string Source { get; set; } = "P1";
+            public int ProduccionId { get; set; }
+            public string Accion { get; set; } = "";
+            public decimal? PesoNuevo { get; set; }
+            public string Motivo { get; set; } = "";
+            public string Confirmacion { get; set; } = "";
+            public string AutorizacionHistorica { get; set; } = "";
+        }
+
+        private sealed class AjusteEtiquetaPermisoVM
+        {
+            public bool PuedeLeer { get; set; }
+            public bool PuedeEscribir { get; set; }
+            public bool PuedeEliminar { get; set; }
+        }
+
+        private sealed class AjusteEtiquetaProduccionVM
+        {
+            public int ProduccionId { get; set; }
+            public string CodigoEtiqueta { get; set; } = "";
+            public DateTime? FechaProduccion { get; set; }
+            public DateTime? FechaProduccionDia { get; set; }
+            public string Articulo { get; set; } = "";
+            public string Producto { get; set; } = "";
+            public string Almacen { get; set; } = "";
+            public string AlmacenNombre { get; set; } = "";
+            public string AlmacenColonia { get; set; } = "";
+            public bool EliminacionBloqueadaAlmacen { get; set; }
+            public int? LoteId { get; set; }
+            public string Lote { get; set; } = "";
+            public int Estatus { get; set; }
+            public decimal PesoNeto { get; set; }
+            public int? UltimoProcesoId { get; set; }
+            public string ProcesoActual { get; set; } = "";
+            public DateTime FechaServidor { get; set; }
+        }
+
+
+        private sealed class AjusteEtiquetaLogColumnVM
+        {
+            public string Name { get; set; } = "";
+            public bool IsIdentity { get; set; }
+            public bool IsNullable { get; set; }
+            public bool HasDefault { get; set; }
+            public bool IsComputed { get; set; }
+            public string TypeName { get; set; } = "";
+        }
+
+        [HttpGet("AjusteEtiquetas")]
+        [RevisarPermiso("AJUSTE_ETIQUETAS", "LEER")]
+        public IActionResult AjusteEtiquetas(string source = "P1")
+        {
+            ViewBag.Source = NormalizeSource(source);
+            return View("~/Views/ProcesosCG/AjusteEtiquetas.cshtml");
+        }
+
+        [HttpGet("AjusteEtiquetaPermisos")]
+        [RevisarPermiso("AJUSTE_ETIQUETAS", "LEER")]
+        public async Task<IActionResult> AjusteEtiquetaPermisos()
+        {
+            var permiso = await ObtenerPermisoAjusteEtiquetasAsync();
+
+            return Ok(new
+            {
+                ok = true,
+                puedeLeer = permiso.PuedeLeer,
+                puedeEscribir = permiso.PuedeEscribir,
+                puedeEliminar = permiso.PuedeEliminar,
+                regla = "Eliminar del día requiere ESCRIBIR. Eliminar histórico y activar requieren además ELIMINAR y confirmación explícita. No se permite activar etiquetas en procesos 14, 16, 17 o 37."
+            });
+        }
+
+        [HttpGet("BuscarEtiquetaAjuste")]
+        [RevisarPermiso("AJUSTE_ETIQUETAS", "LEER")]
+        public async Task<IActionResult> BuscarEtiquetaAjuste(string valor, string source = "P1")
+        {
+            source = NormalizeSource(source);
+            valor = (valor ?? "").Trim();
+
+            if (string.IsNullOrWhiteSpace(valor))
+                return BadRequest(new { ok = false, msg = "Captura un ProduccionId o código de etiqueta." });
+
+            var cs = GetMeatConnectionString(source);
+            if (string.IsNullOrWhiteSpace(cs))
+                return StatusCode(500, new { ok = false, msg = $"No existe la cadena Meat para {source}." });
+
+            var dbCommercia = source == "TIF" ? "TIF_CommerciaNet" : "CommerciaNet";
+            int? produccionId = int.TryParse(valor, out var id) ? id : null;
+            var codigo = valor.ToUpperInvariant();
+
+            var sql = $@"
+SELECT TOP (1)
+    p.ProduccionId,
+    CONVERT(nvarchar(200), ISNULL(p.CodigoEtiqueta, '')) AS CodigoEtiqueta,
+    p.FechaProduccion,
+    TRY_CONVERT(date, p.FechaProduccion) AS FechaProduccionDia,
+    CONVERT(nvarchar(100), ISNULL(p.Articulo, '')) AS Articulo,
+    CONVERT(nvarchar(250), ISNULL(a.Nombre, '')) AS Producto,
+    CONVERT(nvarchar(100), ISNULL(p.Almacen, '')) AS Almacen,
+    CONVERT(nvarchar(250), ISNULL(alm.Nombre, '')) AS AlmacenNombre,
+    CONVERT(nvarchar(250), ISNULL(alm.Colonia, '')) AS AlmacenColonia,
+    CONVERT(bit,
+        CASE
+            WHEN UPPER(ISNULL(alm.Colonia, '')) LIKE '%VENTA%'
+              OR UPPER(LTRIM(RTRIM(CONVERT(nvarchar(100), alm.AlmacenId))))
+                 IN ('TIFCA1','TIFCA2','TIFCA3','TIFCA4','TIFCA5','TIFCA6','MTR')
+                THEN 1
+            ELSE 0
+        END
+    ) AS EliminacionBloqueadaAlmacen,
+    p.LoteId,
+    CONVERT(nvarchar(200), ISNULL(l.Nombre, '')) AS Lote,
+    CONVERT(int, ISNULL(p.Estatus, 0)) AS Estatus,
+    CONVERT(decimal(18,3), ISNULL(p.PesoNeto, 0)) AS PesoNeto,
+    CONVERT(int, p.UltimoProcesoId) AS UltimoProcesoId,
+    CONVERT(date, GETDATE()) AS FechaServidor
+FROM dbo.Produccion p WITH (NOLOCK)
+LEFT JOIN {dbCommercia}.dbo.Articulo a WITH (NOLOCK)
+    ON a.ArticuloId = p.Articulo
+LEFT JOIN {dbCommercia}.dbo.Almacen alm WITH (NOLOCK)
+    ON alm.AlmacenId = p.Almacen
+LEFT JOIN dbo.Lote l WITH (NOLOCK)
+    ON l.LoteId = p.LoteId
+WHERE
+    (@ProduccionId IS NOT NULL AND p.ProduccionId = @ProduccionId)
+    OR UPPER(LTRIM(RTRIM(CONVERT(nvarchar(200), p.CodigoEtiqueta)))) = @CodigoEtiqueta
+ORDER BY p.ProduccionId DESC;";
+
+            try
+            {
+                await using var cn = new SqlConnection(cs);
+                await cn.OpenAsync();
+
+                var row = await cn.QueryFirstOrDefaultAsync<AjusteEtiquetaProduccionVM>(
+                    sql,
+                    new { ProduccionId = produccionId, CodigoEtiqueta = codigo },
+                    commandTimeout: 60);
+
+                if (row == null)
+                    return NotFound(new { ok = false, msg = $"No se encontró la etiqueta en {source}." });
+
+                row.ProcesoActual = await ObtenerNombreProcesoAjusteAsync(cn, row.UltimoProcesoId);
+
+                var permiso = await ObtenerPermisoAjusteEtiquetasAsync();
+
+                // La comparación se realiza con fechas convertidas por SQL Server en la misma
+                // conexión de Meat. Un valor NULL o no convertible se trata como histórico.
+                var esHoy = row.FechaProduccionDia.HasValue
+                            && row.FechaProduccionDia.Value.Date == row.FechaServidor.Date;
+                var esHistorico = !esHoy;
+                var activa = row.Estatus == 1;
+
+                var bloqueadaPorAlmacen = row.EliminacionBloqueadaAlmacen;
+
+                var puedeEliminarHoy = activa && esHoy
+                                        && !bloqueadaPorAlmacen
+                                        && permiso.PuedeEscribir;
+                var puedeEliminarHistorico = activa && esHistorico
+                                              && !bloqueadaPorAlmacen
+                                              && permiso.PuedeEscribir
+                                              && permiso.PuedeEliminar;
+                var activacionBloqueadaProceso = EsProcesoBloqueadoParaActivacion(row.UltimoProcesoId);
+                var procesoBloqueadoActivacionNombre =
+                    ObtenerNombreProcesoBloqueadoActivacion(row.UltimoProcesoId);
+
+                var puedeActivar = !activa
+                                   && !activacionBloqueadaProceso
+                                   && permiso.PuedeEscribir
+                                   && permiso.PuedeEliminar;
+
+                string regla;
+                if (activa && bloqueadaPorAlmacen)
+                {
+                    regla = $"Eliminación bloqueada: el almacén {row.Almacen} - {row.AlmacenNombre} está protegido por política operativa. No puede eliminarse aunque el usuario tenga autorización histórica.";
+                }
+                else if (!activa)
+                {
+                    if (activacionBloqueadaProceso)
+                    {
+                        regla =
+                            $"Activación bloqueada: la etiqueta está en el ProcesoId {row.UltimoProcesoId} - " +
+                            $"{procesoBloqueadoActivacionNombre}. Los procesos 14, 16, 17 y 37 no pueden reactivarse.";
+                    }
+                    else
+                    {
+                        regla = puedeActivar
+                            ? "Etiqueta inactiva: puede activarse con permisos ESCRIBIR + ELIMINAR, peso nuevo y confirmación ACTIVAR."
+                            : "Etiqueta inactiva: activarla requiere permisos ESCRIBIR + ELIMINAR.";
+                    }
+                }
+                else if (esHoy)
+                {
+                    regla = puedeEliminarHoy
+                        ? "Etiqueta del día: puede eliminarse con permiso ESCRIBIR."
+                        : "Etiqueta del día bloqueada: requiere permiso ESCRIBIR.";
+                }
+                else
+                {
+                    regla = puedeEliminarHistorico
+                        ? "Etiqueta histórica: requiere permiso ELIMINAR y escribir AUTORIZAR antes de eliminar."
+                        : "Etiqueta histórica bloqueada: requiere permiso ELIMINAR.";
+                }
+
+                return Ok(new
+                {
+                    ok = true,
+                    source,
+                    etiqueta = row,
+                    esHoy,
+                    esHistorico,
+                    requiereAutorizacion = activa && esHistorico && !bloqueadaPorAlmacen,
+                    eliminacionBloqueadaAlmacen = bloqueadaPorAlmacen,
+                    puedeEliminarHoy,
+                    puedeEliminarHistorico,
+                    puedeActivar,
+                    activacionBloqueadaProceso,
+                    procesoBloqueadoActivacionId = activacionBloqueadaProceso
+                        ? row.UltimoProcesoId
+                        : null,
+                    procesoBloqueadoActivacionNombre,
+                    puedeEscribir = permiso.PuedeEscribir,
+                    puedeAutorizarHistorico = permiso.PuedeEliminar,
+                    regla
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al buscar etiqueta de ajuste. Source={Source} Valor={Valor}", source, valor);
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = "No se pudo consultar la etiqueta.",
+                    error = ex.Message,
+                    inner = ex.InnerException?.Message
+                });
+            }
+        }
+
+        [HttpGet("HistorialEtiquetaAjuste")]
+        [RevisarPermiso("AJUSTE_ETIQUETAS", "LEER")]
+        public async Task<IActionResult> HistorialEtiquetaAjuste(int produccionId, string source = "P1")
+        {
+            source = NormalizeSource(source);
+
+            if (produccionId <= 0)
+                return BadRequest(new { ok = false, msg = "ProduccionId inválido." });
+
+            var cs = GetMeatConnectionString(source);
+            if (string.IsNullOrWhiteSpace(cs))
+                return StatusCode(500, new { ok = false, msg = $"No existe la cadena Meat para {source}." });
+
+            try
+            {
+                await using var cn = new SqlConnection(cs);
+                await cn.OpenAsync();
+
+                var produccionLog = await ConsultarProduccionLogAjusteAsync(cn, produccionId);
+
+                var auditoria = new List<dynamic>();
+                var auditoriaExiste = await cn.ExecuteScalarAsync<int>(@"
+SELECT CASE WHEN OBJECT_ID('dbo.AjusteEtiquetaAuditoria', 'U') IS NULL THEN 0 ELSE 1 END;", commandTimeout: 30);
+
+                if (auditoriaExiste == 1)
+                {
+                    auditoria = (await cn.QueryAsync(@"
+SELECT TOP (100)
+    AjusteId,
+    OperacionId,
+    Planta,
+    ProduccionId,
+    CodigoEtiqueta,
+    Accion,
+    FechaProduccion,
+    EsHistorico,
+    AutorizacionTipo,
+    UsuarioSolicita,
+    UsuarioAutoriza,
+    Motivo,
+    ProcesoAnterior,
+    ProcesoNuevo,
+    EstatusAnterior,
+    EstatusNuevo,
+    PesoAnterior,
+    PesoNuevo,
+    FechaHora
+FROM dbo.AjusteEtiquetaAuditoria WITH (NOLOCK)
+WHERE ProduccionId = @ProduccionId
+ORDER BY FechaHora DESC, AjusteId DESC;",
+                        new { ProduccionId = produccionId },
+                        commandTimeout: 60)).ToList();
+                }
+
+                return Ok(new
+                {
+                    ok = true,
+                    source,
+                    produccionId,
+                    produccionLog,
+                    auditoria,
+                    auditoriaDisponible = auditoriaExiste == 1
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al consultar historial de ajuste. Source={Source} ProduccionId={ProduccionId}", source, produccionId);
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = "No se pudo consultar el historial.",
+                    error = ex.Message,
+                    inner = ex.InnerException?.Message
+                });
+            }
+        }
+
+        [HttpPost("AplicarAjusteEtiqueta")]
+        [ValidateAntiForgeryToken]
+        [RevisarPermiso("AJUSTE_ETIQUETAS", "ESCRIBIR")]
+        public async Task<IActionResult> AplicarAjusteEtiqueta([FromBody] AjusteEtiquetaRequestVM req)
+        {
+            if (req == null)
+                return BadRequest(new { ok = false, msg = "Solicitud vacía." });
+
+            req.Source = NormalizeSource(req.Source);
+            req.Accion = (req.Accion ?? "").Trim().ToUpperInvariant();
+            req.Motivo = (req.Motivo ?? "").Trim();
+            req.Confirmacion = (req.Confirmacion ?? "").Trim().ToUpperInvariant();
+            req.AutorizacionHistorica = (req.AutorizacionHistorica ?? "").Trim().ToUpperInvariant();
+
+            if (req.ProduccionId <= 0)
+                return BadRequest(new { ok = false, msg = "ProduccionId inválido." });
+
+            if (req.Accion != "ELIMINAR" && req.Accion != "ACTIVAR")
+                return BadRequest(new { ok = false, msg = "Acción no permitida. Solo se permite ELIMINAR o ACTIVAR." });
+
+            if (req.Motivo.Length < 10)
+                return BadRequest(new { ok = false, msg = "Captura un motivo de al menos 10 caracteres." });
+
+            if (req.Accion == "ELIMINAR" && req.Confirmacion != "ELIMINAR")
+                return BadRequest(new { ok = false, msg = "Escribe ELIMINAR para confirmar la baja de la etiqueta." });
+
+            if (req.Accion == "ACTIVAR")
+            {
+                if (req.Confirmacion != "ACTIVAR")
+                    return BadRequest(new { ok = false, msg = "Escribe ACTIVAR para confirmar la reactivación." });
+
+                if (!req.PesoNuevo.HasValue || req.PesoNuevo.Value <= 0)
+                    return BadRequest(new { ok = false, msg = "Captura el peso neto correcto para activar la etiqueta." });
+            }
+
+            var permiso = await ObtenerPermisoAjusteEtiquetasAsync();
+            if (!permiso.PuedeEscribir)
+                return StatusCode(403, new { ok = false, msg = "No tienes permiso ESCRIBIR para ajustar etiquetas." });
+
+            var cs = GetMeatConnectionString(req.Source);
+            if (string.IsNullOrWhiteSpace(cs))
+                return StatusCode(500, new { ok = false, msg = $"No existe la cadena Meat para {req.Source}." });
+
+            var dbCommercia = req.Source == "TIF" ? "TIF_CommerciaNet" : "CommerciaNet";
+            var operacionId = req.OperacionId == Guid.Empty ? Guid.NewGuid() : req.OperacionId;
+            var usuario = (User?.Identity?.Name ?? "SISTEMA").Trim();
+
+            await using var cn = new SqlConnection(cs);
+            await cn.OpenAsync();
+            await using var tx = (SqlTransaction)await cn.BeginTransactionAsync(IsolationLevel.Serializable);
+
+            try
+            {
+                var auditoriaExiste = await cn.ExecuteScalarAsync<int>(@"
+SELECT CASE WHEN OBJECT_ID('dbo.AjusteEtiquetaAuditoria', 'U') IS NULL THEN 0 ELSE 1 END;",
+                    transaction: tx,
+                    commandTimeout: 30);
+
+                if (auditoriaExiste == 0)
+                    throw new InvalidOperationException("Falta ejecutar el SQL de instalación: dbo.AjusteEtiquetaAuditoria no existe.");
+
+                var operacionRepetida = await cn.ExecuteScalarAsync<int>(@"
+SELECT CASE WHEN EXISTS
+(
+    SELECT 1
+    FROM dbo.AjusteEtiquetaAuditoria WITH (UPDLOCK, HOLDLOCK)
+    WHERE OperacionId = @OperacionId
+) THEN 1 ELSE 0 END;",
+                    new { OperacionId = operacionId },
+                    tx,
+                    commandTimeout: 30);
+
+                if (operacionRepetida == 1)
+                {
+                    await tx.RollbackAsync();
+                    return Conflict(new { ok = false, msg = "Esta operación ya fue procesada. Actualiza la pantalla." });
+                }
+
+                var actual = await cn.QueryFirstOrDefaultAsync<AjusteEtiquetaProduccionVM>($@"
+SELECT TOP (1)
+    p.ProduccionId,
+    CONVERT(nvarchar(200), ISNULL(p.CodigoEtiqueta, '')) AS CodigoEtiqueta,
+    p.FechaProduccion,
+    TRY_CONVERT(date, p.FechaProduccion) AS FechaProduccionDia,
+    CONVERT(nvarchar(100), ISNULL(p.Articulo, '')) AS Articulo,
+    CONVERT(nvarchar(100), ISNULL(p.Almacen, '')) AS Almacen,
+    CONVERT(nvarchar(250), ISNULL(alm.Nombre, '')) AS AlmacenNombre,
+    CONVERT(nvarchar(250), ISNULL(alm.Colonia, '')) AS AlmacenColonia,
+    CONVERT(bit,
+        CASE
+            WHEN UPPER(ISNULL(alm.Colonia, '')) LIKE '%VENTA%'
+              OR UPPER(LTRIM(RTRIM(CONVERT(nvarchar(100), alm.AlmacenId))))
+                 IN ('TIFCA1','TIFCA2','TIFCA3','TIFCA4','TIFCA5','TIFCA6','MTR')
+                THEN 1
+            ELSE 0
+        END
+    ) AS EliminacionBloqueadaAlmacen,
+    p.LoteId,
+    CONVERT(int, ISNULL(p.Estatus, 0)) AS Estatus,
+    CONVERT(decimal(18,3), ISNULL(p.PesoNeto, 0)) AS PesoNeto,
+    CONVERT(int, p.UltimoProcesoId) AS UltimoProcesoId,
+    CONVERT(date, GETDATE()) AS FechaServidor
+FROM dbo.Produccion p WITH (UPDLOCK, HOLDLOCK)
+LEFT JOIN {dbCommercia}.dbo.Almacen alm
+    ON alm.AlmacenId = p.Almacen
+WHERE p.ProduccionId = @ProduccionId;",
+                    new { req.ProduccionId },
+                    tx,
+                    commandTimeout: 60);
+
+                if (actual == null)
+                    throw new KeyNotFoundException("No se encontró el ProduccionId solicitado.");
+
+                // Validación definitiva de fecha dentro de la transacción.
+                // La fecha del navegador nunca se utiliza para autorizar el movimiento.
+                var esHoy = actual.FechaProduccionDia.HasValue
+                            && actual.FechaProduccionDia.Value.Date == actual.FechaServidor.Date;
+                var esHistorico = !esHoy;
+
+                int procesoLog;
+                int estatusNuevo;
+                decimal pesoNuevo;
+                int? procesoProduccionNuevo;
+                int estatusLog;
+                decimal pesoLog;
+                string autorizacionTipo;
+                string? usuarioAutoriza;
+
+                if (req.Accion == "ELIMINAR")
+                {
+                    if (actual.Estatus != 1)
+                        throw new InvalidOperationException("La etiqueta ya está inactiva. Para recuperarla utiliza Activar etiqueta.");
+
+                    if (actual.EliminacionBloqueadaAlmacen)
+                    {
+                        await tx.RollbackAsync();
+                        return Conflict(new
+                        {
+                            ok = false,
+                            eliminacionBloqueadaAlmacen = true,
+                            almacen = actual.Almacen,
+                            almacenNombre = actual.AlmacenNombre,
+                            colonia = actual.AlmacenColonia,
+                            msg = $"No se permite eliminar la etiqueta porque está en el almacén protegido {actual.Almacen} - {actual.AlmacenNombre}. Revisa el almacén donde se encuentra la etiqueta."
+                        });
+                    }
+
+                    if (esHistorico)
+                    {
+                        if (!permiso.PuedeEliminar)
+                        {
+                            await tx.RollbackAsync();
+                            return StatusCode(403, new
+                            {
+                                ok = false,
+                                requiereAutorizacion = true,
+                                msg = $"No se puede eliminar. FechaProduccion={actual.FechaProduccionDia:yyyy-MM-dd}; FechaServidor={actual.FechaServidor:yyyy-MM-dd}. Requiere permiso ELIMINAR."
+                            });
+                        }
+
+                        if (req.AutorizacionHistorica != "AUTORIZAR")
+                        {
+                            await tx.RollbackAsync();
+                            return BadRequest(new
+                            {
+                                ok = false,
+                                requiereAutorizacion = true,
+                                msg = $"La etiqueta no es de hoy. FechaProduccion={actual.FechaProduccionDia:yyyy-MM-dd}; FechaServidor={actual.FechaServidor:yyyy-MM-dd}. Escribe AUTORIZAR para continuar."
+                            });
+                        }
+                    }
+
+                    procesoLog = AJUSTE_ETIQUETA_PROCESO_ELIMINACION;
+                    procesoProduccionNuevo = AJUSTE_ETIQUETA_PROCESO_ELIMINACION;
+                    estatusNuevo = 0;
+                    pesoNuevo = AJUSTE_ETIQUETA_PESO_ELIMINACION;
+
+                    // ProduccionLog conserva el estado y peso que tenía la etiqueta antes
+                    // de la eliminación, siguiendo el ejemplo operativo proporcionado.
+                    estatusLog = actual.Estatus;
+                    pesoLog = actual.PesoNeto;
+                    autorizacionTipo = esHistorico ? "PERMISO_ELIMINAR_HISTORICO" : "MISMO_DIA";
+                    usuarioAutoriza = esHistorico ? usuario : null;
+                }
+                else
+                {
+                    if (actual.Estatus != 0)
+                        throw new InvalidOperationException("La etiqueta ya está activa. No requiere reactivación.");
+
+                    if (EsProcesoBloqueadoParaActivacion(actual.UltimoProcesoId))
+                    {
+                        var nombreProcesoBloqueado =
+                            ObtenerNombreProcesoBloqueadoActivacion(actual.UltimoProcesoId);
+
+                        await tx.RollbackAsync();
+
+                        return Conflict(new
+                        {
+                            ok = false,
+                            activacionBloqueadaProceso = true,
+                            procesoId = actual.UltimoProcesoId,
+                            proceso = nombreProcesoBloqueado,
+                            msg =
+                                $"No se permite activar la etiqueta porque está en el ProcesoId " +
+                                $"{actual.UltimoProcesoId} - {nombreProcesoBloqueado}. " +
+                                "Los procesos 14, 16, 17 y 37 están protegidos contra reactivación."
+                        });
+                    }
+
+                    if (!permiso.PuedeEliminar)
+                    {
+                        await tx.RollbackAsync();
+                        return StatusCode(403, new
+                        {
+                            ok = false,
+                            msg = "Activar una etiqueta requiere permisos ESCRIBIR + ELIMINAR."
+                        });
+                    }
+
+                    procesoLog = AJUSTE_ETIQUETA_PROCESO_ACTIVACION;
+                    procesoProduccionNuevo = AJUSTE_ETIQUETA_PROCESO_ACTIVACION;
+                    estatusNuevo = 1;
+                    pesoNuevo = decimal.Round(req.PesoNuevo!.Value, 3, MidpointRounding.AwayFromZero);
+                    estatusLog = 1;
+                    pesoLog = pesoNuevo;
+                    autorizacionTipo = "PERMISO_ELIMINAR_ACTIVACION";
+                    usuarioAutoriza = usuario;
+                }
+
+                int filas;
+                if (req.Accion == "ELIMINAR")
+                {
+                    var autorizaHistorico = esHistorico
+                                            && permiso.PuedeEliminar
+                                            && req.AutorizacionHistorica == "AUTORIZAR";
+
+                    filas = await cn.ExecuteAsync($@"
+UPDATE p
+SET
+    p.Estatus = 0,
+    p.UltimoProcesoId = @ProcesoNuevo,
+    p.PesoNeto = @PesoNuevo
+FROM dbo.Produccion p
+WHERE p.ProduccionId = @ProduccionId
+  AND p.Estatus = 1
+  AND
+  (
+      TRY_CONVERT(date, p.FechaProduccion) = CONVERT(date, GETDATE())
+      OR @AutorizaHistorico = 1
+  )
+  AND NOT EXISTS
+  (
+      SELECT 1
+      FROM {dbCommercia}.dbo.Almacen alm
+      WHERE alm.AlmacenId = p.Almacen
+        AND
+        (
+            UPPER(ISNULL(alm.Colonia, '')) LIKE '%VENTA%'
+            OR UPPER(LTRIM(RTRIM(CONVERT(nvarchar(100), alm.AlmacenId))))
+               IN ('TIFCA1','TIFCA2','TIFCA3','TIFCA4','TIFCA5','TIFCA6','MTR')
+        )
+  );",
+                        new
+                        {
+                            ProduccionId = actual.ProduccionId,
+                            ProcesoNuevo = AJUSTE_ETIQUETA_PROCESO_ELIMINACION,
+                            PesoNuevo = AJUSTE_ETIQUETA_PESO_ELIMINACION,
+                            AutorizaHistorico = autorizaHistorico
+                        },
+                        tx,
+                        commandTimeout: 60);
+                }
+                else
+                {
+                    filas = await cn.ExecuteAsync(@"
+UPDATE dbo.Produccion
+SET
+    Estatus = 1,
+    UltimoProcesoId = @ProcesoNuevo,
+    PesoNeto = @PesoNuevo
+WHERE ProduccionId = @ProduccionId
+  AND Estatus = 0
+  AND
+  (
+      UltimoProcesoId IS NULL
+      OR UltimoProcesoId NOT IN (14, 16, 17, 37)
+  );",
+                        new
+                        {
+                            ProduccionId = actual.ProduccionId,
+                            ProcesoNuevo = AJUSTE_ETIQUETA_PROCESO_ACTIVACION,
+                            PesoNuevo = pesoNuevo
+                        },
+                        tx,
+                        commandTimeout: 60);
+                }
+
+                if (filas != 1)
+                {
+                    if (req.Accion == "ELIMINAR")
+                        throw new DBConcurrencyException("No se realizó la eliminación. La etiqueta cambió, la fecha no fue autorizada o el almacén está protegido. Actualiza y vuelve a consultar.");
+
+                    throw new DBConcurrencyException(
+                        "No se realizó la activación. La etiqueta cambió o actualmente pertenece a un proceso protegido (14, 16, 17 o 37). Actualiza y vuelve a consultar.");
+                }
+
+                var accionTexto = req.Accion == "ELIMINAR" ? "ELIMINACIÓN" : "ACTIVACIÓN";
+                var motivoLog = $"{accionTexto} EN SIGO | {req.Motivo} | Usuario: {usuario}";
+
+                await InsertarProduccionLogAjusteAsync(
+                    cn,
+                    tx,
+                    actual,
+                    procesoLog,
+                    estatusLog,
+                    pesoLog,
+                    motivoLog,
+                    usuario,
+                    AJUSTE_ETIQUETA_DEVICE_ID);
+
+                var despues = new
+                {
+                    actual.ProduccionId,
+                    actual.CodigoEtiqueta,
+                    actual.FechaProduccion,
+                    actual.Articulo,
+                    actual.Almacen,
+                    actual.LoteId,
+                    Estatus = estatusNuevo,
+                    PesoNeto = pesoNuevo,
+                    UltimoProcesoId = procesoProduccionNuevo,
+                    ProcesoProduccionModificado = true,
+                    ProcesoProduccionLog = procesoLog,
+                    DeviceId = AJUSTE_ETIQUETA_DEVICE_ID
+                };
+
+                var antesJson = JsonSerializer.Serialize(new
+                {
+                    actual.ProduccionId,
+                    actual.CodigoEtiqueta,
+                    actual.FechaProduccion,
+                    actual.Articulo,
+                    actual.Almacen,
+                    actual.LoteId,
+                    actual.Estatus,
+                    actual.PesoNeto,
+                    actual.UltimoProcesoId
+                });
+
+                var despuesJson = JsonSerializer.Serialize(despues);
+
+                await cn.ExecuteAsync(@"
+INSERT INTO dbo.AjusteEtiquetaAuditoria
+(
+    OperacionId,
+    Planta,
+    ProduccionId,
+    CodigoEtiqueta,
+    Accion,
+    FechaProduccion,
+    EsHistorico,
+    AutorizacionTipo,
+    UsuarioSolicita,
+    UsuarioAutoriza,
+    Motivo,
+    ProcesoAnterior,
+    ProcesoNuevo,
+    EstatusAnterior,
+    EstatusNuevo,
+    PesoAnterior,
+    PesoNuevo,
+    DatosAntes,
+    DatosDespues,
+    FechaHora
+)
+VALUES
+(
+    @OperacionId,
+    @Planta,
+    @ProduccionId,
+    @CodigoEtiqueta,
+    @Accion,
+    @FechaProduccion,
+    @EsHistorico,
+    @AutorizacionTipo,
+    @UsuarioSolicita,
+    @UsuarioAutoriza,
+    @Motivo,
+    @ProcesoAnterior,
+    @ProcesoNuevo,
+    @EstatusAnterior,
+    @EstatusNuevo,
+    @PesoAnterior,
+    @PesoNuevo,
+    @DatosAntes,
+    @DatosDespues,
+    SYSDATETIME()
+);",
+                    new
+                    {
+                        OperacionId = operacionId,
+                        Planta = req.Source,
+                        actual.ProduccionId,
+                        actual.CodigoEtiqueta,
+                        Accion = req.Accion,
+                        actual.FechaProduccion,
+                        EsHistorico = esHistorico,
+                        AutorizacionTipo = autorizacionTipo,
+                        UsuarioSolicita = usuario,
+                        UsuarioAutoriza = usuarioAutoriza,
+                        Motivo = req.Motivo,
+                        ProcesoAnterior = actual.UltimoProcesoId,
+                        ProcesoNuevo = procesoProduccionNuevo,
+                        EstatusAnterior = actual.Estatus,
+                        EstatusNuevo = estatusNuevo,
+                        PesoAnterior = actual.PesoNeto,
+                        PesoNuevo = pesoNuevo,
+                        DatosAntes = antesJson,
+                        DatosDespues = despuesJson
+                    },
+                    tx,
+                    commandTimeout: 60);
+
+                await tx.CommitAsync();
+
+                _logger.LogWarning(
+                    "Ajuste de etiqueta aplicado. Operacion={OperacionId} Source={Source} ProduccionId={ProduccionId} Accion={Accion} Usuario={Usuario} EsHoy={EsHoy} Historico={Historico}",
+                    operacionId,
+                    req.Source,
+                    actual.ProduccionId,
+                    req.Accion,
+                    usuario,
+                    esHoy,
+                    esHistorico);
+
+                return Ok(new
+                {
+                    ok = true,
+                    operacionId,
+                    source = req.Source,
+                    produccionId = actual.ProduccionId,
+                    codigoEtiqueta = actual.CodigoEtiqueta,
+                    accion = req.Accion,
+                    esHoy,
+                    esHistorico,
+                    fechaProduccion = actual.FechaProduccionDia,
+                    fechaServidor = actual.FechaServidor,
+                    autorizacion = autorizacionTipo,
+                    msg = req.Accion == "ELIMINAR"
+                        ? "Etiqueta eliminada correctamente. Se actualizó Produccion y se guardó ProduccionLog."
+                        : "Etiqueta activada correctamente con el peso indicado. ProduccionLog se guardó con ProcesoId 20 y DeviceId Sistema SIGO."
+                });
+            }
+            catch (Exception ex)
+            {
+                try { await tx.RollbackAsync(); } catch { }
+
+                _logger.LogError(
+                    ex,
+                    "Error al aplicar ajuste de etiqueta. Source={Source} ProduccionId={ProduccionId} Accion={Accion}",
+                    req.Source,
+                    req.ProduccionId,
+                    req.Accion);
+
+                var status = ex is KeyNotFoundException ? 404
+                           : ex is InvalidOperationException ? 400
+                           : 500;
+
+                return StatusCode(status, new
+                {
+                    ok = false,
+                    msg = "No se pudo aplicar el ajuste. No se guardó ningún cambio.",
+                    error = ex.Message,
+                    inner = ex.InnerException?.Message
+                });
+            }
+        }
+
+        private async Task<AjusteEtiquetaPermisoVM> ObtenerPermisoAjusteEtiquetasAsync()
+        {
+            var login = (User?.Identity?.Name ?? "").Trim();
+
+            var permiso = await (
+                from u in _db.UsuarioSQL
+                join p in _db.Perfiles on u.PerfilId equals p.Id
+                join ppm in _db.PerfilPermisoModulo on p.Id equals ppm.PerfilId
+                join m in _db.ModulosSistema on ppm.ModuloId equals m.Id
+                where (u.Usuario == login || u.Nombre == login)
+                      && m.Clave == "AJUSTE_ETIQUETAS"
+                      && ppm.Activo
+                      && m.Activo
+                select new AjusteEtiquetaPermisoVM
+                {
+                    PuedeLeer = ppm.PuedeLeer,
+                    PuedeEscribir = ppm.PuedeEscribir,
+                    PuedeEliminar = ppm.PuedeEliminar
+                }
+            ).FirstOrDefaultAsync();
+
+            return permiso ?? new AjusteEtiquetaPermisoVM();
+        }
+
+        private static string AjusteEtiquetaSqlIdentifier(string name)
+        {
+            return $"[{(name ?? "").Replace("]", "]]")}]";
+        }
+
+        private static string? AjusteEtiquetaBuscarColumna(
+            IEnumerable<AjusteEtiquetaLogColumnVM> columnas,
+            params string[] candidatas)
+        {
+            var set = columnas.ToDictionary(x => x.Name, x => x, StringComparer.OrdinalIgnoreCase);
+            return candidatas.FirstOrDefault(set.ContainsKey);
+        }
+
+        private async Task<string> ObtenerNombreProcesoAjusteAsync(SqlConnection cn, int? procesoId)
+        {
+            if (!procesoId.HasValue)
+                return "SIN PROCESO";
+
+            var columnas = (await cn.QueryAsync<string>(@"
+SELECT c.name
+FROM sys.columns c
+WHERE c.object_id = OBJECT_ID('dbo.Proceso');", commandTimeout: 30)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            if (!columnas.Contains("ProcesoId"))
+                return $"Proceso {procesoId.Value}";
+
+            var nombreColumna = new[] { "Nombre", "Descripcion", "Proceso", "Clave" }
+                .FirstOrDefault(columnas.Contains);
+
+            if (nombreColumna == null)
+                return $"Proceso {procesoId.Value}";
+
+            var sql = $@"
+SELECT TOP (1) CONVERT(nvarchar(250), {AjusteEtiquetaSqlIdentifier(nombreColumna)})
+FROM dbo.Proceso WITH (NOLOCK)
+WHERE ProcesoId = @ProcesoId;";
+
+            return await cn.ExecuteScalarAsync<string>(sql, new { ProcesoId = procesoId.Value }, commandTimeout: 30)
+                   ?? $"Proceso {procesoId.Value}";
+        }
+
+        private async Task<List<dynamic>> ConsultarProduccionLogAjusteAsync(SqlConnection cn, int produccionId)
+        {
+            var columnas = (await cn.QueryAsync<AjusteEtiquetaLogColumnVM>(@"
+SELECT
+    c.name AS Name,
+    CONVERT(bit, c.is_identity) AS IsIdentity,
+    CONVERT(bit, c.is_nullable) AS IsNullable,
+    CONVERT(bit, CASE WHEN dc.object_id IS NULL THEN 0 ELSE 1 END) AS HasDefault,
+    CONVERT(bit, c.is_computed) AS IsComputed,
+    t.name AS TypeName
+FROM sys.columns c
+INNER JOIN sys.types t ON t.user_type_id = c.user_type_id
+LEFT JOIN sys.default_constraints dc ON dc.object_id = c.default_object_id
+WHERE c.object_id = OBJECT_ID('dbo.ProduccionLog');", commandTimeout: 30)).ToList();
+
+            if (columnas.Count == 0)
+                return new List<dynamic>();
+
+            string Expr(string alias, params string[] candidatas)
+            {
+                var col = AjusteEtiquetaBuscarColumna(columnas, candidatas);
+                return col == null
+                    ? $"NULL AS {AjusteEtiquetaSqlIdentifier(alias)}"
+                    : $"{AjusteEtiquetaSqlIdentifier(col)} AS {AjusteEtiquetaSqlIdentifier(alias)}";
+            }
+
+            var idCol = AjusteEtiquetaBuscarColumna(columnas, "ProduccionLogId", "Id");
+            var fechaCol = AjusteEtiquetaBuscarColumna(columnas, "FechaHora", "FechaRegistro", "FechaCreacion", "Fecha");
+
+            var orderBy = string.Join(", ", new[]
+            {
+                fechaCol == null ? null : $"{AjusteEtiquetaSqlIdentifier(fechaCol)} DESC",
+                idCol == null ? null : $"{AjusteEtiquetaSqlIdentifier(idCol)} DESC"
+            }.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+            if (string.IsNullOrWhiteSpace(orderBy))
+                orderBy = "(SELECT 0)";
+
+            var sql = $@"
+SELECT TOP (100)
+    {Expr("ProduccionLogId", "ProduccionLogId", "Id")},
+    {Expr("ProduccionId", "ProduccionId")},
+    {Expr("ProcesoId", "ProcesoId", "UltimoProcesoId")},
+    {Expr("CodigoEtiqueta", "CodigoEtiqueta")},
+    {Expr("Almacen", "Almacen")},
+    {Expr("Articulo", "Articulo", "Sku")},
+    {Expr("Estatus", "Estatus")},
+    {Expr("PesoNeto", "PesoNeto", "Peso")},
+    {Expr("Usuario", "Usuario", "UsuarioNombre", "UsuarioId")},
+    {Expr("DeviceId", "DeviceId")},
+    {Expr("Motivo", "Observacion", "Observaciones", "Comentario", "Comentarios", "Motivo", "Descripcion")},
+    {Expr("FechaHora", "FechaHora", "FechaRegistro", "FechaCreacion", "Fecha")}
+FROM dbo.ProduccionLog WITH (NOLOCK)
+WHERE ProduccionId = @ProduccionId
+ORDER BY {orderBy};";
+
+            return (await cn.QueryAsync(sql, new { ProduccionId = produccionId }, commandTimeout: 60)).ToList();
+        }
+
+        private async Task InsertarProduccionLogAjusteAsync(
+            SqlConnection cn,
+            SqlTransaction tx,
+            AjusteEtiquetaProduccionVM actual,
+            int procesoNuevo,
+            int estatusNuevo,
+            decimal pesoNuevo,
+            string motivo,
+            string usuario,
+            string deviceId)
+        {
+            var columnas = (await cn.QueryAsync<AjusteEtiquetaLogColumnVM>(@"
+SELECT
+    c.name AS Name,
+    CONVERT(bit, c.is_identity) AS IsIdentity,
+    CONVERT(bit, c.is_nullable) AS IsNullable,
+    CONVERT(bit, CASE WHEN dc.object_id IS NULL THEN 0 ELSE 1 END) AS HasDefault,
+    CONVERT(bit, c.is_computed) AS IsComputed,
+    t.name AS TypeName
+FROM sys.columns c
+INNER JOIN sys.types t ON t.user_type_id = c.user_type_id
+LEFT JOIN sys.default_constraints dc ON dc.object_id = c.default_object_id
+WHERE c.object_id = OBJECT_ID('dbo.ProduccionLog');",
+                transaction: tx,
+                commandTimeout: 30)).ToList();
+
+            if (columnas.Count == 0)
+                throw new InvalidOperationException("No existe dbo.ProduccionLog en la base Meat seleccionada.");
+
+            var porNombre = columnas.ToDictionary(x => x.Name, x => x, StringComparer.OrdinalIgnoreCase);
+            var insertCols = new List<string>();
+            var insertVals = new List<string>();
+            var parametros = new DynamicParameters();
+
+            void Add(string? col, string parametro, object? value)
+            {
+                if (string.IsNullOrWhiteSpace(col) || insertCols.Contains(col, StringComparer.OrdinalIgnoreCase))
+                    return;
+
+                insertCols.Add(col);
+                insertVals.Add(parametro);
+                parametros.Add(parametro, value);
+            }
+
+            var logIdCol = AjusteEtiquetaBuscarColumna(columnas, "ProduccionLogId", "Id");
+            if (logIdCol != null && porNombre.TryGetValue(logIdCol, out var logIdMeta) && !logIdMeta.IsIdentity)
+            {
+                var nextId = await cn.ExecuteScalarAsync<long>($@"
+SELECT ISNULL(MAX(CONVERT(bigint, {AjusteEtiquetaSqlIdentifier(logIdCol)})), 0) + 1
+FROM dbo.ProduccionLog WITH (TABLOCKX, HOLDLOCK);",
+                    transaction: tx,
+                    commandTimeout: 60);
+
+                Add(logIdCol, "@ProduccionLogId", nextId);
+            }
+
+            var procesoIdCol = AjusteEtiquetaBuscarColumna(columnas, "ProcesoId", "UltimoProcesoId");
+            var deviceIdCol = AjusteEtiquetaBuscarColumna(columnas, "DeviceId");
+
+            if (procesoIdCol == null)
+                throw new InvalidOperationException("ProduccionLog no contiene ProcesoId/UltimoProcesoId.");
+
+            if (deviceIdCol == null)
+                throw new InvalidOperationException("ProduccionLog no contiene la columna DeviceId requerida para registrar Sistema SIGO.");
+
+            Add(AjusteEtiquetaBuscarColumna(columnas, "ProduccionId"), "@ProduccionId", actual.ProduccionId);
+            Add(procesoIdCol, "@ProcesoId", procesoNuevo);
+            Add(AjusteEtiquetaBuscarColumna(columnas, "CodigoEtiqueta"), "@CodigoEtiqueta", actual.CodigoEtiqueta);
+            Add(AjusteEtiquetaBuscarColumna(columnas, "Almacen"), "@Almacen", actual.Almacen);
+            Add(AjusteEtiquetaBuscarColumna(columnas, "Articulo", "Sku"), "@Articulo", actual.Articulo);
+            Add(AjusteEtiquetaBuscarColumna(columnas, "Estatus"), "@Estatus", estatusNuevo);
+            Add(AjusteEtiquetaBuscarColumna(columnas, "PesoNeto", "Peso"), "@PesoNeto", pesoNuevo);
+
+            var usuarioMeatIdRaw = _configuration["AjusteEtiquetas:UsuarioMeatId"];
+            var usuarioMeatId = int.TryParse(usuarioMeatIdRaw, out var usuarioIdCfg) ? usuarioIdCfg : 1000;
+
+            Add(AjusteEtiquetaBuscarColumna(columnas, "UsuarioId"), "@UsuarioId", usuarioMeatId);
+            Add(AjusteEtiquetaBuscarColumna(columnas, "Usuario", "UsuarioNombre"), "@Usuario", usuario);
+            Add(deviceIdCol, "@DeviceId", deviceId);
+            Add(AjusteEtiquetaBuscarColumna(columnas, "Observacion", "Observaciones", "Comentario", "Comentarios", "Motivo", "Descripcion"), "@Motivo", motivo);
+
+            foreach (var fecha in new[]
+            {
+                "FechaHora", "FechaRegistro", "FechaCreacion", "FechaActualizacion", "FechaModificacion", "FechaSistema", "Fecha"
+            })
+            {
+                if (porNombre.ContainsKey(fecha))
+                    Add(fecha, $"@{fecha}", DateTime.Now);
+            }
+
+            var columnasIncluidas = insertCols.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var faltantes = columnas
+                .Where(x => !x.IsIdentity && !x.IsComputed && !x.IsNullable && !x.HasDefault)
+                .Where(x => !columnasIncluidas.Contains(x.Name))
+                .Where(x => !string.Equals(x.TypeName, "timestamp", StringComparison.OrdinalIgnoreCase)
+                         && !string.Equals(x.TypeName, "rowversion", StringComparison.OrdinalIgnoreCase))
+                .Select(x => x.Name)
+                .ToList();
+
+            if (faltantes.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    "ProduccionLog contiene columnas obligatorias sin mapeo: " + string.Join(", ", faltantes) +
+                    ". Ajusta el mapeo antes de permitir modificaciones.");
+            }
+
+            if (!columnasIncluidas.Contains("ProduccionId") || !columnasIncluidas.Contains("CodigoEtiqueta"))
+                throw new InvalidOperationException("ProduccionLog no contiene las columnas mínimas ProduccionId y CodigoEtiqueta.");
+
+            var sql = $@"
+INSERT INTO dbo.ProduccionLog
+(
+    {string.Join(",\n    ", insertCols.Select(AjusteEtiquetaSqlIdentifier))}
+)
+VALUES
+(
+    {string.Join(",\n    ", insertVals)}
+);";
+
+            await cn.ExecuteAsync(sql, parametros, tx, commandTimeout: 60);
+        }
 
 
 
 
     }
 }
+
+
+
 

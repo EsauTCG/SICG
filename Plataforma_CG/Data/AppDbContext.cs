@@ -56,6 +56,7 @@ namespace Plataforma_CG.Data
         public DbSet<PresupuestoLineaHistorico> PresupuestoLineasHistorico { get; set; }
         public DbSet<EntregaSapLog> EntregaSapLogs { get; set; } = null!;
         public DbSet<InventarioScanEtiqueta> InventarioScanEtiquetas { get; set; } = null!;
+        public DbSet<TransferenciaScanEtiqueta> TransferenciaScanEtiquetas { get; set; } = null!;
         public DbSet<PlanDeshueseKpiRow> PlanDeshueseKpiRows { get; set; } = null!;
         public DbSet<Plataforma_CG.Models.SkuConversion> SkuConversion { get; set; } = null!;
 
@@ -118,8 +119,16 @@ namespace Plataforma_CG.Data
         public DbSet<PermisoModel> PermisosAutoArticulos { get; set; }
         public DbSet<LogExcepcionModel> LogsExcepcionesArticulos { get; set; }
         public DbSet<PinArticulosModel> PinArticulos { get; set; }
+        public DbSet<LogDanoEquipoModel> LogsDanosEquipos { get; set; }
+
+        public DbSet<OrdenVentaMuestra> OrdenVentaMuestra { get; set; }
+
 
         public DbSet<ListaPreciosSap> ListaPreciosSap { get; set; }
+
+        // Surtido (BD SIGO - solo lectura)
+        public DbSet<SurtidoEncabezado> SurtidoEncabezado { get; set; }
+        public DbSet<SurtidoDetalleTarima> SurtidoDetalleTarimas { get; set; }
 
         //==================================
         // Reporteador(Reportes)
@@ -130,6 +139,8 @@ namespace Plataforma_CG.Data
         public DbSet<TransferenciasDetallesCabecera> TransferenciasDetallesCabeceras { get; set; }
 
         public DbSet<UsuarioSerie> UsuarioSeries { get; set; }
+
+        public DbSet<ProveedorSap> ProveedorSap { get; set; }
 
         // =========================
         // ======= MODEL CONFIG =====
@@ -263,6 +274,20 @@ namespace Plataforma_CG.Data
                 e.Property(x => x.Sku).HasMaxLength(60).IsRequired();
                 e.Property(x => x.Origen).HasMaxLength(10).IsRequired();
                 e.Property(x => x.Usuario).HasMaxLength(120);
+            });
+
+            // =========================
+            // TransferenciaScanEtiqueta
+            // =========================
+            modelBuilder.Entity<TransferenciaScanEtiqueta>(e =>
+            {
+                e.ToTable("TransferenciaScanEtiqueta");
+                e.HasKey(x => x.Id);
+
+                e.Property(x => x.Sku).HasMaxLength(30).IsRequired();
+                e.Property(x => x.CodigoEtiqueta).HasMaxLength(80).IsRequired();
+                e.Property(x => x.Usuario).HasMaxLength(120);
+                e.Property(x => x.TarimaCodigo).HasMaxLength(50).IsRequired();
             });
 
             // =========================
@@ -401,6 +426,10 @@ namespace Plataforma_CG.Data
 
             modelBuilder.Entity<VentaRealRow>().HasNoKey();
 
+            // Surtido (BD SIGO - solo lectura, keyless)
+            modelBuilder.Entity<SurtidoEncabezado>().HasNoKey();
+            modelBuilder.Entity<SurtidoDetalleTarima>().HasNoKey();
+
             modelBuilder.Entity<PermisoModel>()
             .HasKey(p => new { p.UsuarioId, p.CategoriaId });
 
@@ -450,6 +479,31 @@ namespace Plataforma_CG.Data
                     .HasForeignKey(x => x.SerieId)
                     .OnDelete(DeleteBehavior.Restrict);
             });
+
+
+            modelBuilder.Entity<ProveedorSap>(entity =>
+            {
+                entity.ToTable("ProveedorSap");
+                entity.HasKey(x => x.Proveedor);
+
+                entity.Property(x => x.Proveedor).HasMaxLength(30);
+                entity.Property(x => x.NombreProveedor).HasMaxLength(200);
+                entity.Property(x => x.NombreExtranjero).HasMaxLength(200);
+                entity.Property(x => x.RFC).HasMaxLength(30);
+                entity.Property(x => x.Telefono).HasMaxLength(50);
+                entity.Property(x => x.Celular).HasMaxLength(50);
+                entity.Property(x => x.Correo).HasMaxLength(150);
+                entity.Property(x => x.Moneda).HasMaxLength(10);
+                entity.Property(x => x.GrupoNombre).HasMaxLength(150);
+                entity.Property(x => x.CondicionPagoNombre).HasMaxLength(150);
+                entity.Property(x => x.SaldoCuenta).HasColumnType("decimal(19,6)");
+                entity.Property(x => x.Direccion).HasMaxLength(250);
+                entity.Property(x => x.Ciudad).HasMaxLength(100);
+                entity.Property(x => x.Estado).HasMaxLength(100);
+                entity.Property(x => x.Pais).HasMaxLength(100);
+                entity.Property(x => x.CodigoPostal).HasMaxLength(20);
+            });
+
 
 
         }

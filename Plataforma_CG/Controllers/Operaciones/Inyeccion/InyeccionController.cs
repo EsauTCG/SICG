@@ -15,9 +15,9 @@ namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
     [Route("api/[controller]")]
     public class InyeccionController : ControllerBase
     {
-        Lotes l= new Lotes();
+        Lotes l = new Lotes();
         Receta r = new Receta();
-        Conexiones co= new Conexiones();
+        Conexiones co = new Conexiones();
         AccesoPermisos permisos = new AccesoPermisos();
         private readonly ImagenProductoService _imgservice;
         private readonly BasculaService _basc;
@@ -52,13 +52,13 @@ namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
         [HttpGet("ObtenerImagen")]
         public IActionResult ObtenerImagen(string nombre, string sku)
         {
-            var ruta = _imgservice.ObtenerRutaImagen(nombre,sku);
-            return PhysicalFile(ruta,"image/png");
+            var ruta = _imgservice.ObtenerRutaImagen(nombre, sku);
+            return PhysicalFile(ruta, "image/png");
         }
         [HttpGet("ObtenerPeso")]
-        public async Task<string> Peso(string ip, string comando="P")
+        public async Task<string> Peso(string ip, string comando = "P")
         {
-            var peso = await _basc.Bascula(ip,comando);
+            var peso = await _basc.Bascula(ip, comando);
             return peso;
         }
         [HttpGet("ObtenerTaras")]
@@ -68,9 +68,9 @@ namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
             return Ok(taras);
         }
         [HttpPost("CapturarEntrada")]
-        public async Task<IActionResult> InsertarEntrada([FromBody]EntradaModel model)
+        public async Task<IActionResult> InsertarEntrada([FromBody] EntradaModel model)
         {
-            string res=await r.InsertarEntrada(model);
+            string res = await r.InsertarEntrada(model);
             Console.WriteLine("Respuesta raw InsertarEntrada: " + res);
             return Ok(res);
         }

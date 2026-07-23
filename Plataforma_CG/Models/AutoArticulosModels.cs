@@ -61,6 +61,20 @@ namespace Plataforma_CG.Models
         public string Valor { get; set; } 
         public string Descripcion { get; set; }
     }
+    [Table("LogsDanosEquipos")]
+    public class LogDanoEquipoModel
+    {
+        [Key]
+        public int Id { get; set; }
+        public string Equipo { get; set; }
+
+        public string UsuarioResponsable { get; set; } 
+        public string TipoHallazgo { get; set; }
+        public string Detalle { get; set; }
+        public string RutaFoto { get; set; }
+        public string UsuarioRegistro { get; set; }
+        public DateTime FechaHora { get; set; }
+    }
     public class GuardarPermisosDto
     {
         public int UsuarioId { get; set; }

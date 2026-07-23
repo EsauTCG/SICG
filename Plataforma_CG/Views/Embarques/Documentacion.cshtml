@@ -27,8 +27,8 @@
     var tiposLogistica = new[]
     {
     new { Tipo = "CARTA_PORTE", Label = "Carta Porte", Icon = "bi-truck", Sub = "Documento Carta Porte del embarque" },
-    //new { Tipo = "FICHA_TECNICA", Label = "Ficha Técnica", Icon = "bi-file-earmark-text", Sub = "Ficha técnica relacionada al embarque" },
-    //new { Tipo = "CARTA_GARANTIA", Label = "Carta Garantía", Icon = "bi-patch-check", Sub = "Carta garantía relacionada al embarque" }
+    new { Tipo = "CERTIFICACION_LAVADO", Label = "Certificación de Lavado", Icon = "bi-droplet-half", Sub = "Certificación opcional de lavado de la unidad" },
+    new { Tipo = "CERTIFICACION_FUMIGACION", Label = "Certificación de Fumigación", Icon = "bi-bug", Sub = "Certificación opcional de fumigación de la unidad" }
 };
 
     var cartaPorteNoAplica = Model?.Count(x => x.RequiereCartaPorte == false) ?? 0;
@@ -1204,6 +1204,68 @@
             body[data-theme="dark"] input[type="file"]::file-selector-button:hover {
                 background: rgba(248,113,113,0.18) !important;
             }
+
+    .embarque-title-with-name {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        flex-wrap: wrap;
+    }
+
+    .embarque-title-main {
+        display: inline-flex;
+        align-items: center;
+        gap: .55rem;
+    }
+
+    .embarque-name-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        max-width: 380px;
+        padding: .34rem .65rem;
+        border-radius: 999px;
+        background: var(--primary-soft);
+        border: 1px solid rgba(139,0,0,.16);
+        color: var(--primary);
+        font-size: .82rem;
+        font-weight: 900;
+        line-height: 1.1;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+        .embarque-name-chip.empty {
+            background: #f3f5f8;
+            border-color: var(--border);
+            color: var(--text-soft, var(--muted));
+            font-style: italic;
+            font-weight: 800;
+        }
+
+    @@media (max-width: 576px) {
+        .embarque-name-chip
+
+    {
+        width: 100%;
+        max-width: 100%;
+        justify-content: flex-start;
+    }
+
+    }
+
+    /* Dark mode */
+    body[data-theme="dark"] .embarque-name-chip {
+        background: rgba(127,29,29,0.24) !important;
+        border-color: rgba(248,113,113,0.35) !important;
+        color: #fecaca !important;
+    }
+
+        body[data-theme="dark"] .embarque-name-chip.empty {
+            background: #0b1220 !important;
+            border-color: rgba(203,213,225,0.28) !important;
+            color: #cbd5e1 !important;
+        }
 </style>
 
 <div class="docs-page">
@@ -1377,6 +1439,18 @@
                         var cartasPorte = archivos.Where(a => a.Tipo == "CARTA_PORTE").ToList();
                         var tieneCartaPorte = cartasPorte.Any();
 
+                        var certificacionesLavado = archivos.Where(a => a.Tipo == "CERTIFICACION_LAVADO").ToList();
+                        var tieneCertificacionLavado = certificacionesLavado.Any();
+
+                        var certificacionesFumigacion = archivos.Where(a => a.Tipo == "CERTIFICACION_FUMIGACION").ToList();
+                        var tieneCertificacionFumigacion = certificacionesFumigacion.Any();
+
+                        var textoCertificaciones =
+                        tieneCertificacionLavado && tieneCertificacionFumigacion ? "Lavado/Fumigación cargadas" :
+                        !tieneCertificacionLavado && !tieneCertificacionFumigacion ? "Sin lavado/fumigación" :
+                        !tieneCertificacionLavado ? "Falta lavado" :
+                        "Falta fumigación";
+
                         var documentacionAprobada = e.DocumentacionAprobada == true;
                         var cardId = $"pendiente_{e.Id}";
 
@@ -1395,9 +1469,32 @@
                         <div class="embarque-card" id="@cardId">
                             <div class="embarque-head" onclick="toggleCard('@cardId')">
                                 <div>
-                                    <h3 class="embarque-title">
-                                        <i class="bi bi-truck-front"></i>
-                                        Embarque #@e.Consecutivo
+                                    @{
+                                        var consecutivoEmbarque = !string.IsNullOrWhiteSpace(e.Consecutivo)
+                                        ? e.Consecutivo
+                                        : $"EMB-{e.Id}";
+
+                                        var tieneNombreEmbarque = !string.IsNullOrWhiteSpace(e.NombreEmbarque);
+
+                                        var nombreEmbarqueTexto = tieneNombreEmbarque
+                                        ? e.NombreEmbarque.Trim()
+                                        : "Sin nombre asignado";
+
+                                        var nombreEmbarqueClase = tieneNombreEmbarque
+                                        ? "embarque-name-chip"
+                                        : "embarque-name-chip empty";
+                                    }
+
+                                    <h3 class="embarque-title embarque-title-with-name">
+                                        <span class="embarque-title-main">
+                                            <i class="bi bi-truck-front"></i>
+                                            Embarque #@consecutivoEmbarque
+                                        </span>
+
+                                        <span class="@nombreEmbarqueClase">
+                                            <i class="bi bi-tag"></i>
+                                            @nombreEmbarqueTexto
+                                        </span>
                                     </h3>
                                     <div class="embarque-sub">
                                         ID: @e.Id · Fecha de creación: @e.FechaCreacion.ToString("yyyy-MM-dd HH:mm")
@@ -1408,6 +1505,11 @@
                                     <span class="badge-soft @(cartaPorteOk ? "ok" : "pending")">
                                         <i class="bi bi-file-earmark-text"></i>
                                         @textoCartaPorte
+                                    </span>
+
+                                    <span class="badge-soft @(tieneCertificacionLavado && tieneCertificacionFumigacion ? "ok" : "pending")">
+                                        <i class="bi bi-shield-check"></i>
+                                        @textoCertificaciones
                                     </span>
 
                                     <span class="badge-soft @(documentacionAprobada ? "ok" : "pending")">
@@ -1422,7 +1524,12 @@
                             </div>
 
                             <div class="embarque-body">
-                                <form asp-action="CargarDocumentos" method="post" enctype="multipart/form-data">
+                                <form asp-action="CargarDocumentos"
+                                      method="post"
+                                      enctype="multipart/form-data"
+                                      data-tiene-lavado="@(tieneCertificacionLavado.ToString().ToLowerInvariant())"
+                                      data-tiene-fumigacion="@(tieneCertificacionFumigacion.ToString().ToLowerInvariant())"
+                                      onsubmit="return confirmarValidacionLogistica(this)">
                                     <input type="hidden" name="id" value="@e.Id" />
 
                                     <div class="porte-workflow">
@@ -1568,6 +1675,133 @@
                                                 }
                                             </div>
                                         </div>
+
+                                        <div class="porte-upload-card">
+                                            <div class="porte-panel-head">
+                                                <div class="porte-panel-icon">
+                                                    <i class="bi bi-droplet-half"></i>
+                                                </div>
+                                                <div>
+                                                    <h5 class="porte-panel-title">Certificación de Lavado</h5>
+                                                    <div class="porte-panel-sub">
+                                                        Documento opcional. Si no se carga, el sistema solo pedirá confirmación.
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="porte-panel-body">
+                                                <div class="porte-upload-area" id="uploadBox_lavado_@e.Id">
+                                                    <label class="form-label-ui">Selecciona archivo</label>
+
+                                                    <input type="file"
+                                                           name="certificacionLavadoArchivos"
+                                                           multiple
+                                                           class="input-file-ui"
+                                                           accept=".pdf,.xml,.jpg,.jpeg,.png,.doc,.docx"
+                                                           onchange="mostrarArchivoSeleccionado(this, 'uploadBox_lavado_@e.Id', 'preview_lavado_@e.Id', 'name_lavado_@e.Id')" />
+
+                                                    <div class="hint-text">
+                                                        Formatos permitidos: PDF, XML, JPG, PNG, DOC y DOCX.
+                                                    </div>
+
+                                                    <div class="selected-file-preview" id="preview_lavado_@e.Id">
+                                                        <div class="selected-file-label">Archivo seleccionado</div>
+                                                        <div class="selected-file-name" id="name_lavado_@e.Id"></div>
+                                                    </div>
+                                                </div>
+
+                                                <div class="porte-status @(tieneCertificacionLavado ? "ok" : "info")">
+                                                    <i class="bi @(tieneCertificacionLavado ? "bi-check-circle" : "bi-info-circle")"></i>
+                                                    @(tieneCertificacionLavado
+                                                                                            ? "Ya existe al menos una Certificación de Lavado cargada."
+                                                                                            : "Certificación de Lavado opcional. Se puede validar sin este documento.")
+                                        </div>
+
+                                        @if (tieneCertificacionLavado)
+                                                    {
+                                                        <div class="porte-current-files">
+                                                            <div class="form-label-ui mb-2">Archivos cargados</div>
+
+                                                            <div class="porte-file-list">
+                                                                @foreach (var archivo in certificacionesLavado)
+                                                                {
+                                                                    <a href="@archivo.RutaArchivo" target="_blank" class="porte-file-link">
+                                                                        <span>
+                                                                            <i class="bi bi-file-earmark-text me-1"></i>
+                                                                            Certificación de Lavado #@archivo.Id
+                                                                        </span>
+                                                                        <i class="bi bi-box-arrow-up-right"></i>
+                                                                    </a>
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    }
+                                            </div>
+                                        </div>
+
+                                        <div class="porte-upload-card">
+                                            <div class="porte-panel-head">
+                                                <div class="porte-panel-icon">
+                                                    <i class="bi bi-bug"></i>
+                                                </div>
+                                                <div>
+                                                    <h5 class="porte-panel-title">Certificación de Fumigación</h5>
+                                                    <div class="porte-panel-sub">
+                                                        Documento opcional. Si no se carga, el sistema solo pedirá confirmación.
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="porte-panel-body">
+                                                <div class="porte-upload-area" id="uploadBox_fumigacion_@e.Id">
+                                                    <label class="form-label-ui">Selecciona archivo</label>
+
+                                                    <input type="file"
+                                                           name="certificacionFumigacionArchivos"
+                                                           multiple
+                                                           class="input-file-ui"
+                                                           accept=".pdf,.xml,.jpg,.jpeg,.png,.doc,.docx"
+                                                           onchange="mostrarArchivoSeleccionado(this, 'uploadBox_fumigacion_@e.Id', 'preview_fumigacion_@e.Id', 'name_fumigacion_@e.Id')" />
+
+                                                    <div class="hint-text">
+                                                        Formatos permitidos: PDF, XML, JPG, PNG, DOC y DOCX.
+                                                    </div>
+
+                                                    <div class="selected-file-preview" id="preview_fumigacion_@e.Id">
+                                                        <div class="selected-file-label">Archivo seleccionado</div>
+                                                        <div class="selected-file-name" id="name_fumigacion_@e.Id"></div>
+                                                    </div>
+                                                </div>
+
+                                                <div class="porte-status @(tieneCertificacionFumigacion ? "ok" : "info")">
+                                                    <i class="bi @(tieneCertificacionFumigacion ? "bi-check-circle" : "bi-info-circle")"></i>
+                                                    @(tieneCertificacionFumigacion
+                                                                                            ? "Ya existe al menos una Certificación de Fumigación cargada."
+                                                                                            : "Certificación de Fumigación opcional. Se puede validar sin este documento.")
+                                        </div>
+
+                                        @if (tieneCertificacionFumigacion)
+                                                    {
+                                                        <div class="porte-current-files">
+                                                            <div class="form-label-ui mb-2">Archivos cargados</div>
+
+                                                            <div class="porte-file-list">
+                                                                @foreach (var archivo in certificacionesFumigacion)
+                                                                {
+                                                                    <a href="@archivo.RutaArchivo" target="_blank" class="porte-file-link">
+                                                                        <span>
+                                                                            <i class="bi bi-file-earmark-text me-1"></i>
+                                                                            Certificación de Fumigación #@archivo.Id
+                                                                        </span>
+                                                                        <i class="bi bi-box-arrow-up-right"></i>
+                                                                    </a>
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            </div>
+
                                     </div>
 
                                     <div class="porte-actions">
@@ -1685,9 +1919,32 @@
                         <div class="embarque-card" id="@cardId">
                             <div class="embarque-head" onclick="toggleCard('@cardId')">
                                 <div>
-                                    <h3 class="embarque-title">
-                                        <i class="bi bi-folder-check"></i>
-                                        Embarque #@e.Consecutivo
+                                    @{
+                                        var consecutivoEmbarqueHistorial = !string.IsNullOrWhiteSpace(e.Consecutivo)
+                                        ? e.Consecutivo
+                                        : $"EMB-{e.Id}";
+
+                                        var tieneNombreEmbarqueHistorial = !string.IsNullOrWhiteSpace(e.NombreEmbarque);
+
+                                        var nombreEmbarqueTextoHistorial = tieneNombreEmbarqueHistorial
+                                        ? e.NombreEmbarque.Trim()
+                                        : "Sin nombre asignado";
+
+                                        var nombreEmbarqueClaseHistorial = tieneNombreEmbarqueHistorial
+                                        ? "embarque-name-chip"
+                                        : "embarque-name-chip empty";
+                                    }
+
+                                    <h3 class="embarque-title embarque-title-with-name">
+                                        <span class="embarque-title-main">
+                                            <i class="bi bi-folder-check"></i>
+                                            Embarque #@consecutivoEmbarqueHistorial
+                                        </span>
+
+                                        <span class="@nombreEmbarqueClaseHistorial">
+                                            <i class="bi bi-tag"></i>
+                                            @nombreEmbarqueTextoHistorial
+                                        </span>
                                     </h3>
                                     <div class="embarque-sub">
                                         ID: @e.Id · Validado:
@@ -1801,5 +2058,51 @@
             preview.classList.remove("active");
             name.textContent = "";
         }
+    }
+
+    function tieneArchivosSeleccionados(form, inputName) {
+        const input = form.querySelector(`input[name="${inputName}"]`);
+        return input && input.files && input.files.length > 0;
+    }
+
+    function confirmarValidacionLogistica(form) {
+        const yaTieneLavado = (form.dataset.tieneLavado || "").toLowerCase() === "true";
+        const yaTieneFumigacion = (form.dataset.tieneFumigacion || "").toLowerCase() === "true";
+
+        const tieneLavado =
+            yaTieneLavado ||
+            tieneArchivosSeleccionados(form, "certificacionLavadoArchivos");
+
+        const tieneFumigacion =
+            yaTieneFumigacion ||
+            tieneArchivosSeleccionados(form, "certificacionFumigacionArchivos");
+
+        const faltantes = [];
+
+        if (!tieneLavado) {
+            faltantes.push("Certificación de Lavado");
+        }
+
+        if (!tieneFumigacion) {
+            faltantes.push("Certificación de Fumigación");
+        }
+
+        if (faltantes.length === 0) {
+            return true;
+        }
+
+        let mensaje = "";
+
+        if (faltantes.length === 2) {
+            mensaje =
+                "Estás a punto de validar la documentación logística sin cargar la Certificación de Lavado ni la Certificación de Fumigación.\n\n" +
+                "Estos documentos son opcionales, pero confirma que deseas continuar sin ellos.";
+        } else {
+            mensaje =
+                "Estás a punto de validar la documentación logística sin cargar: " + faltantes[0] + ".\n\n" +
+                "Este documento es opcional, pero confirma que deseas continuar sin él.";
+        }
+
+        return confirm(mensaje);
     }
 </script>
