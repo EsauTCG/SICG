@@ -3463,6 +3463,76 @@ body[data-theme="dark"] textarea::-webkit-scrollbar-thumb {
             color: #cbd5e1 !important;
         }
 
+    /* =========================================================
+       ESTADOS DEL GUARDADO DE TEMPERATURAS
+       ========================================================= */
+
+    .sku-save-status {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        min-height: 24px;
+        margin-top: .25rem;
+        font-weight: 800;
+        font-size: .86rem;
+        transition: all .2s ease;
+    }
+
+        .sku-save-status.is-saving {
+            color: #8a5a00;
+        }
+
+        .sku-save-status.is-success {
+            color: var(--success);
+        }
+
+        .sku-save-status.is-error {
+            color: var(--danger);
+        }
+
+        .sku-save-status.is-dirty {
+            color: #8a5a00;
+        }
+
+    [data-sku-row].sku-row-saved .temp-sku-input {
+        border-color: rgba(25, 135, 84, .65);
+        background: rgba(25, 135, 84, .055);
+    }
+
+    [data-sku-row].sku-row-dirty .temp-sku-input,
+    [data-sku-row].sku-row-dirty .temp-sku-obs {
+        border-color: rgba(245, 158, 11, .75);
+        background: rgba(245, 158, 11, .055);
+    }
+
+    [data-sku-row].sku-save-flash {
+        animation: skuSaveFlash .85s ease;
+    }
+
+    @@keyframes skuSaveFlash {
+        0% {
+            background: rgba(25, 135, 84, .20);
+        }
+
+        100% {
+            background: transparent;
+        }
+    }
+
+    body[data-theme="dark"] [data-sku-row].sku-row-saved .temp-sku-input,
+    body.dark-mode [data-sku-row].sku-row-saved .temp-sku-input {
+        border-color: rgba(80, 200, 120, .75);
+        background: rgba(25, 135, 84, .12);
+    }
+
+    body[data-theme="dark"] [data-sku-row].sku-row-dirty .temp-sku-input,
+    body[data-theme="dark"] [data-sku-row].sku-row-dirty .temp-sku-obs,
+    body.dark-mode [data-sku-row].sku-row-dirty .temp-sku-input,
+    body.dark-mode [data-sku-row].sku-row-dirty .temp-sku-obs {
+        border-color: rgba(245, 158, 11, .75);
+        background: rgba(245, 158, 11, .10);
+    }
+
 </style>
 
 <div class="quality-wrap">
@@ -4156,7 +4226,7 @@ body[data-theme="dark"] textarea::-webkit-scrollbar-thumb {
                                                     <span class="step-number">9</span>
                                                     <span>
                                                         <span class="step-title">Temperatura por SKU</span>
-                                                        <span class="step-desc">
+                                                        <span class="step-desc" data-sku-step-progress>
                                                             Captura individual por producto. Guardado parcial:
                                                             @skuTemperaturaCapturados/@totalSkuTemperatura SKU(s).
                                                         </span>
@@ -4176,7 +4246,7 @@ body[data-theme="dark"] textarea::-webkit-scrollbar-thumb {
                                                             </div>
                                                         </div>
 
-                                                        <span class="sku-temp-badge">
+                                                        <span class="sku-temp-badge" data-sku-general-progress>
                                                             @skuTemperaturaCapturados / @totalSkuTemperatura capturados
                                                         </span>
                                                     </div>
@@ -4190,12 +4260,15 @@ body[data-theme="dark"] textarea::-webkit-scrollbar-thumb {
                                                             ? (doc.TipoDocumento == "OV" ? "Cliente no disponible" : "Sucursal no disponible")
                                                             : doc.DocumentoCliente;
 
-                                                            <div class="sku-doc-card @tipoCss">
+                                                            <div class="sku-doc-card @tipoCss"
+                                                                 data-sku-doc
+                                                                 data-tipo-documento="@doc.TipoDocumento"
+                                                                 data-documento-id="@doc.DocumentoId">
                                                                 <div class="sku-doc-head">
                                                                     <div class="sku-doc-head-main">
                                                                         <div class="sku-doc-type-row">
                                                                             <span class="sku-doc-type-badge">@tipoTexto</span>
-                                                                            <span class="sku-doc-progress-chip">
+                                                                            <span class="sku-doc-progress-chip" data-sku-doc-progress>
                                                                                 @doc.Capturados / @doc.TotalSku SKU(s) capturados
                                                                             </span>
                                                                         </div>
@@ -4332,7 +4405,7 @@ body[data-theme="dark"] textarea::-webkit-scrollbar-thumb {
                                                                                                    placeholder="Opcional" />
                                                                                         </td>
 
-                                                                                        <td data-label="Última captura">
+                                                                                        <td data-label="Última captura" data-sku-last-capture>
                                                                                             @if (p.FechaUltimaCaptura.HasValue)
                                                                                             {
                                                                                                 <span class="sku-captured">
@@ -4396,12 +4469,15 @@ body[data-theme="dark"] textarea::-webkit-scrollbar-thumb {
                                             <i class="bi bi-info-circle me-1"></i>
                                             Revisa la información antes de liberar este embarque.
                                             <br />
-                                            <span class="sku-save-status" data-sku-status></span>
+                                            <span class="sku-save-status"
+                                                  data-sku-status
+                                                  aria-live="polite"></span>
                                         </div>
 
                                         <div class="d-flex gap-2 flex-wrap">
                                             <button type="button"
                                                     class="btn btn-sap btn-sap-outline"
+                                                    data-btn-guardar-temperaturas
                                                     onclick="guardarTemperaturasSku(this.closest('form'), false)">
                                                 <i class="bi bi-save me-1"></i>
                                                 Guardar temperaturas
@@ -5109,14 +5185,92 @@ body[data-theme="dark"] textarea::-webkit-scrollbar-thumb {
             return true;
         }
 
-                function parseNullableDecimal(value) {
-            value = (value || "").toString().trim().replace(",", ".");
+        function parseNullableDecimal(value) {
+            value = (value || "")
+                .toString()
+                .trim()
+                .replace(",", ".");
 
-            if (!value) return null;
+            if (!value) {
+                return null;
+            }
 
             const number = Number(value);
 
-            return Number.isFinite(number) ? number : null;
+            return Number.isFinite(number)
+                ? number
+                : null;
+        }
+
+        function cambiarEstadoTemperaturas(form, tipo, mensaje) {
+            if (!form) return;
+
+            const status = form.querySelector("[data-sku-status]");
+
+            if (!status) return;
+
+            const iconos = {
+                saving: "bi-hourglass-split",
+                success: "bi-check-circle-fill",
+                error: "bi-exclamation-triangle-fill",
+                dirty: "bi-pencil-square"
+            };
+
+            status.className = `sku-save-status is-${tipo}`;
+            status.replaceChildren();
+
+            const icono = document.createElement("i");
+            icono.className = `bi ${iconos[tipo] || "bi-info-circle"}`;
+
+            status.append(
+                icono,
+                document.createTextNode(mensaje || "")
+            );
+        }
+
+        function pintarUltimaCaptura(row, capturada, fecha, usuario) {
+            const celda = row.querySelector("[data-sku-last-capture]");
+
+            if (!celda) return;
+
+            celda.replaceChildren();
+
+            if (capturada) {
+                const estado = document.createElement("span");
+                estado.className = "sku-captured";
+
+                const icono = document.createElement("i");
+                icono.className = "bi bi-check-circle-fill";
+
+                estado.append(
+                    icono,
+                    document.createTextNode(` ${fecha || "Guardado ahora"}`)
+                );
+
+                const salto = document.createElement("br");
+
+                const usuarioElemento = document.createElement("small");
+                usuarioElemento.textContent = usuario || "Sistema";
+
+                celda.append(
+                    estado,
+                    salto,
+                    usuarioElemento
+                );
+            } else {
+                const estado = document.createElement("span");
+                estado.className = "sku-pending";
+
+                const icono = document.createElement("i");
+                icono.className = "bi bi-hourglass-split";
+
+                estado.append(
+                    icono,
+                    document.createTextNode(" Pendiente")
+                );
+
+                celda.appendChild(estado);
+            }
         }
 
         function recolectarTemperaturasSku(form) {
@@ -5130,89 +5284,374 @@ body[data-theme="dark"] textarea::-webkit-scrollbar-thumb {
                 if (!inputTemp) return;
 
                 items.push({
-                    tipoDocumento: inputTemp.dataset.tipoDocumento || "",
-                    documentoId: Number(inputTemp.dataset.documentoId || 0),
-                    origenDetalleId: Number(inputTemp.dataset.origenDetalleId || 0),
-                    productoCodigo: inputTemp.dataset.productoCodigo || "",
-                    almacen: inputTemp.dataset.almacen || "",
-                    temperatura: parseNullableDecimal(inputTemp.value),
-                    observaciones: inputObs ? inputObs.value : ""
+                    tipoDocumento:
+                        inputTemp.dataset.tipoDocumento || "",
+
+                    documentoId:
+                        Number(inputTemp.dataset.documentoId || 0),
+
+                    origenDetalleId:
+                        Number(inputTemp.dataset.origenDetalleId || 0),
+
+                    productoCodigo:
+                        inputTemp.dataset.productoCodigo || "",
+
+                    almacen:
+                        inputTemp.dataset.almacen || "",
+
+                    temperatura:
+                        parseNullableDecimal(inputTemp.value),
+
+                    observaciones:
+                        inputObs ? inputObs.value : ""
                 });
             });
 
             return items;
         }
 
+        function actualizarInterfazTemperaturas(form, result) {
+            if (!form) return;
+
+            const fechaGuardado =
+                result.fechaGuardado || "Guardado ahora";
+
+            const usuario =
+                result.usuario || "Sistema";
+
+            const filas = Array.from(
+                form.querySelectorAll("[data-sku-row]")
+            );
+
+            let totalDom = 0;
+            let capturadasDom = 0;
+
+            filas.forEach(row => {
+                const inputTemp =
+                    row.querySelector(".temp-sku-input");
+
+                if (!inputTemp) return;
+
+                totalDom++;
+
+                const tieneTemperatura =
+                    parseNullableDecimal(inputTemp.value) !== null;
+
+                if (tieneTemperatura) {
+                    capturadasDom++;
+                }
+
+                row.classList.toggle(
+                    "sku-row-saved",
+                    tieneTemperatura
+                );
+
+                row.classList.remove("sku-row-dirty");
+
+                pintarUltimaCaptura(
+                    row,
+                    tieneTemperatura,
+                    fechaGuardado,
+                    usuario
+                );
+
+                /*
+                 * Pequeña animación para que el operador
+                 * vea claramente cuáles filas se procesaron.
+                 */
+                row.classList.remove("sku-save-flash");
+
+                void row.offsetWidth;
+
+                row.classList.add("sku-save-flash");
+
+                window.setTimeout(() => {
+                    row.classList.remove("sku-save-flash");
+                }, 900);
+            });
+
+            const totalServidor = Number(result.total);
+            const capturadasServidor = Number(result.capturadas);
+
+            const total = Number.isFinite(totalServidor)
+                ? totalServidor
+                : totalDom;
+
+            const capturadas = Number.isFinite(capturadasServidor)
+                ? capturadasServidor
+                : capturadasDom;
+
+            /*
+             * Actualizar contador general.
+             */
+            const progresoGeneral =
+                form.querySelector("[data-sku-general-progress]");
+
+            if (progresoGeneral) {
+                progresoGeneral.textContent =
+                    `${capturadas} / ${total} capturados`;
+            }
+
+            /*
+             * Actualizar texto del encabezado del acordeón.
+             */
+            const progresoEncabezado =
+                form.querySelector("[data-sku-step-progress]");
+
+            if (progresoEncabezado) {
+                progresoEncabezado.textContent =
+                    `Captura individual por producto. ` +
+                    `Guardado parcial: ${capturadas}/${total} SKU(s).`;
+            }
+
+            /*
+             * Actualizar el progreso de cada OV o transferencia.
+             */
+            form.querySelectorAll("[data-sku-doc]")
+                .forEach(documento => {
+                    const filasDocumento = Array.from(
+                        documento.querySelectorAll("[data-sku-row]")
+                    );
+
+                    const totalDocumento =
+                        filasDocumento.length;
+
+                    const capturadasDocumento =
+                        filasDocumento.filter(row => {
+                            const input =
+                                row.querySelector(".temp-sku-input");
+
+                            return input &&
+                                parseNullableDecimal(input.value) !== null;
+                        }).length;
+
+                    const progresoDocumento =
+                        documento.querySelector("[data-sku-doc-progress]");
+
+                    if (progresoDocumento) {
+                        progresoDocumento.textContent =
+                            `${capturadasDocumento} / ` +
+                            `${totalDocumento} SKU(s) capturados`;
+                    }
+                });
+        }
+
         async function guardarTemperaturasSku(form, desdeSubmit) {
             if (!form) return false;
 
-            const embarqueId = Number(form.dataset.embarqueId || 0);
-            const status = form.querySelector("[data-sku-status]");
-            const btnGuardar = form.querySelector("button[onclick*='guardarTemperaturasSku']");
-            const items = recolectarTemperaturasSku(form);
-
-            if (!embarqueId) {
-                if (status) status.textContent = "No se encontró el ID del embarque.";
+            /*
+             * Evita que el operador mande dos o más
+             * guardados mientras el primero sigue procesándose.
+             */
+            if (form.dataset.guardandoTemperaturas === "1") {
                 return false;
             }
 
+            const embarqueId =
+                Number(form.dataset.embarqueId || 0);
+
+            const btnGuardar =
+                form.querySelector("[data-btn-guardar-temperaturas]");
+
+            const items =
+                recolectarTemperaturasSku(form);
+
+            /*
+             * Recordamos el último campo donde trabajó el operador.
+             * Al terminar el guardado regresaremos el foco ahí.
+             */
+            const campoFocoAnterior =
+                form._ultimoCampoTemperatura || null;
+
+            const posicionAnterior =
+                window.scrollY;
+
+            let guardadoExitoso = false;
+
+            if (!embarqueId) {
+                cambiarEstadoTemperaturas(
+                    form,
+                    "error",
+                    "No se encontró el ID del embarque."
+                );
+
+                return false;
+            }
+
+            form.dataset.guardandoTemperaturas = "1";
+
+            if (btnGuardar) {
+                if (!btnGuardar.dataset.htmlOriginal) {
+                    btnGuardar.dataset.htmlOriginal =
+                        btnGuardar.innerHTML;
+                }
+
+                btnGuardar.disabled = true;
+                btnGuardar.innerHTML =
+                    '<i class="bi bi-hourglass-split me-1"></i>' +
+                    'Guardando...';
+            }
+
+            cambiarEstadoTemperaturas(
+                form,
+                "saving",
+                "Guardando temperaturas..."
+            );
+
             try {
-                if (btnGuardar) {
-                    btnGuardar.disabled = true;
-                    btnGuardar.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Guardando...';
-                }
+                const response = await fetch(
+                    "/Embarques/GuardarTemperaturasSku",
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            embarqueId,
+                            items
+                        })
+                    }
+                );
 
-                if (status) {
-                    status.textContent = "Guardando temperaturas por SKU...";
+                if (!response.ok) {
+                    throw new Error(
+                        `Error HTTP ${response.status}`
+                    );
                 }
-
-                const response = await fetch("/Embarques/GuardarTemperaturasSku", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        embarqueId,
-                        items
-                    })
-                });
 
                 const result = await response.json();
 
                 if (!result.success) {
-                    if (status) status.textContent = result.message || "No se pudieron guardar las temperaturas.";
-                    alert(result.message || "No se pudieron guardar las temperaturas.");
+                    cambiarEstadoTemperaturas(
+                        form,
+                        "error",
+                        result.message ||
+                        "No se pudieron guardar las temperaturas."
+                    );
+
                     return false;
                 }
 
-                if (status) {
-                    status.textContent = result.message || "Temperaturas guardadas correctamente.";
-                }
+                guardadoExitoso = true;
 
-                if (!desdeSubmit) {
-                    alert(result.message || "Temperaturas guardadas correctamente.");
-                }
+                /*
+                 * Aquí está el cambio importante:
+                 * actualizamos la página sin recargarla.
+                 */
+                actualizarInterfazTemperaturas(
+                    form,
+                    result
+                );
+
+                cambiarEstadoTemperaturas(
+                    form,
+                    "success",
+                    result.message ||
+                    "Temperaturas guardadas correctamente."
+                );
 
                 return true;
             } catch (error) {
-                console.error(error);
+                console.error(
+                    "Error al guardar temperaturas:",
+                    error
+                );
 
-                if (status) {
-                    status.textContent = "Error al guardar temperaturas por SKU.";
-                }
+                cambiarEstadoTemperaturas(
+                    form,
+                    "error",
+                    "No fue posible guardar las temperaturas. " +
+                    "Intenta nuevamente."
+                );
 
-                alert("Error al guardar temperaturas por SKU.");
                 return false;
             } finally {
+                form.dataset.guardandoTemperaturas = "0";
+
                 if (btnGuardar) {
                     btnGuardar.disabled = false;
-                    btnGuardar.innerHTML = '<i class="bi bi-save me-1"></i> Guardar temperaturas';
+
+                    if (guardadoExitoso) {
+                        btnGuardar.innerHTML =
+                            '<i class="bi bi-check2-circle me-1"></i>' +
+                            'Temperaturas guardadas';
+
+                        window.setTimeout(() => {
+                            if (btnGuardar.isConnected) {
+                                btnGuardar.innerHTML =
+                                    btnGuardar.dataset.htmlOriginal ||
+                                    '<i class="bi bi-save me-1"></i>' +
+                                    'Guardar temperaturas';
+                            }
+                        }, 1600);
+                    } else {
+                        btnGuardar.innerHTML =
+                            btnGuardar.dataset.htmlOriginal ||
+                            '<i class="bi bi-save me-1"></i>' +
+                            'Guardar temperaturas';
+                    }
+                }
+
+                /*
+                 * Cuando solamente se están guardando temperaturas,
+                 * mantenemos exactamente la posición y el foco.
+                 *
+                 * Cuando viene desde "Validar Calidad", el formulario
+                 * continuará con su envío normal.
+                 */
+                if (!desdeSubmit) {
+                    window.requestAnimationFrame(() => {
+                        window.scrollTo({
+                            top: posicionAnterior,
+                            left: 0,
+                            behavior: "auto"
+                        });
+
+                        if (
+                            campoFocoAnterior &&
+                            campoFocoAnterior.isConnected
+                        ) {
+                            campoFocoAnterior.focus({
+                                preventScroll: true
+                            });
+                        }
+                    });
                 }
             }
         }
 
         document.addEventListener("DOMContentLoaded", function () {
             document.querySelectorAll(".form-calidad-validacion").forEach(form => {
+
+                form.addEventListener("focusin", function (event) {
+                    const campo = event.target;
+
+                    if (
+                        campo.matches(".temp-sku-input") ||
+                        campo.matches(".temp-sku-obs")
+                    ) {
+                        form._ultimoCampoTemperatura = campo;
+                    }
+                });
+
+                form.querySelectorAll(
+                    ".temp-sku-input, .temp-sku-obs"
+                ).forEach(campo => {
+                    campo.addEventListener("input", function () {
+                        const row = campo.closest("[data-sku-row]");
+
+                        if (row) {
+                            row.classList.add("sku-row-dirty");
+                        }
+
+                        cambiarEstadoTemperaturas(
+                            form,
+                            "dirty",
+                            "Existen cambios pendientes por guardar."
+                        );
+                    });
+                });
+
                 form.addEventListener("submit", async function (event) {
                     if (form.dataset.enviandoDespuesDeGuardar === "1") {
                         return;

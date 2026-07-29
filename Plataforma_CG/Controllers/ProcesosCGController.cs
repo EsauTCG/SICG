@@ -13,11 +13,15 @@ using Plataforma_CG.ViewModels;
 using Plataforma_CG.ViewModels.ComparativaCosteo;
 using QRCoder;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
@@ -32,6 +36,10 @@ namespace Plataforma_CG.Controllers
         private readonly ILogger<ProcesosCgController> _logger;
 
         private const string BASE_URL = "http://10.1.1.2/PrintRestService/PrintRestService.svc";
+
+        // Evita dobles autocompletados simultáneos para la misma entrega.
+        private static readonly ConcurrentDictionary<string, SemaphoreSlim>
+            AutocompletarSapGates = new(StringComparer.OrdinalIgnoreCase);
 
         private readonly IEntregasSapService _data;
         private readonly ISapServiceLayerClient _sap;
@@ -3262,6 +3270,1337 @@ ORDER BY ProduccionId DESC;";
 
 
 
+
+        // =========================================================
+        // AUTOCOMPLETAR INVENTARIO SAP Y ENVIAR ENTREGA
+        // =========================================================
+
+        /// <summary>
+        /// Devuelve los permisos del módulo independiente AUTOCOMPLETAR_SAP.
+        /// LEER controla visibilidad, ESCRIBIR ejecuta el autocompletado y
+        /// ELIMINAR queda disponible para una futura anulación controlada.
+        /// </summary>
+        [HttpGet("ObtenerPermisosAutocompletarSap")]
+        public async Task<IActionResult> ObtenerPermisosAutocompletarSap()
+        {
+            var login = (User?.Identity?.Name ?? "").Trim();
+
+            if (string.IsNullOrWhiteSpace(login))
+            {
+                return Json(new
+                {
+                    puedeLeer = false,
+                    puedeEscribir = false,
+                    puedeEliminar = false
+                });
+            }
+
+            var permiso = await (
+                from u in _db.UsuarioSQL
+                join p in _db.Perfiles on u.PerfilId equals p.Id
+                join ppm in _db.PerfilPermisoModulo on p.Id equals ppm.PerfilId
+                join m in _db.ModulosSistema on ppm.ModuloId equals m.Id
+                where (u.Usuario == login || u.Nombre == login)
+                      && m.Clave == "AUTOCOMPLETAR_SAP"
+                      && ppm.Activo
+                      && m.Activo
+                select new
+                {
+                    ppm.PuedeLeer,
+                    ppm.PuedeEscribir,
+                    ppm.PuedeEliminar
+                }
+            ).FirstOrDefaultAsync();
+
+            if (permiso == null)
+            {
+                return Json(new
+                {
+                    puedeLeer = false,
+                    puedeEscribir = false,
+                    puedeEliminar = false
+                });
+            }
+
+            return Json(new
+            {
+                puedeLeer = permiso.PuedeLeer,
+                puedeEscribir = permiso.PuedeEscribir,
+                puedeEliminar = permiso.PuedeEliminar
+            });
+        }
+
+
+        /// <summary>
+        /// Genera una vista previa del JSON exacto que se enviaría a
+        /// PurchaseDeliveryNotes para cubrir los faltantes de la entrega.
+        /// Este endpoint NO crea documentos ni modifica información en SAP.
+        /// </summary>
+        [HttpGet("AutocompletarSapJson")]
+        [Produces("application/json")]
+        [RevisarPermiso("AUTOCOMPLETAR_SAP", "LEER")]
+        public async Task<IActionResult> AutocompletarSapJson(
+            [FromQuery] string referencia,
+            [FromQuery] string source = "P1")
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(referencia))
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = "La referencia es obligatoria."
+                    });
+                }
+
+                referencia = referencia.Trim();
+                source = NormalizeSource(source);
+
+                // 1) Reconstruir la entrega en el servidor.
+                var jsonEntrega = await _data.BuildJsonAsync(
+                    referencia,
+                    source);
+
+                if (string.IsNullOrWhiteSpace(jsonEntrega) ||
+                    jsonEntrega.Trim() == "{}")
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = "No se pudo construir el JSON de la entrega."
+                    });
+                }
+
+                // 2) Recalcular los faltantes reales contra SAP.
+                var trazabilidad =
+                    await ValidarTrazabilidadDesdeJsonAsync(
+                        jsonEntrega,
+                        source)
+                    ?? new List<TrazabilidadSapVM>();
+
+                var faltantes = trazabilidad
+                    .Where(x =>
+                        x.KgFaltantes > 0.01m &&
+                        !string.IsNullOrWhiteSpace(x.Articulo) &&
+                        !string.IsNullOrWhiteSpace(x.Almacen) &&
+                        !string.IsNullOrWhiteSpace(x.Lote) &&
+                        x.Lote != "-")
+                    .GroupBy(x => new
+                    {
+                        Articulo = NormalizeKey(x.Articulo),
+                        Almacen = NormalizeKey(x.Almacen),
+                        Lote = NormalizeKey(x.Lote)
+                    })
+                    .Select(g => new AutocompletarSapLinea
+                    {
+                        Articulo = g.First().Articulo.Trim(),
+                        Almacen = g.First().Almacen.Trim(),
+                        Lote = g.First().Lote.Trim(),
+                        Kg = decimal.Round(
+                            g.Sum(x => x.KgFaltantes),
+                            3,
+                            MidpointRounding.AwayFromZero)
+                    })
+                    .Where(x => x.Kg > 0.01m)
+                    .OrderBy(x => x.Articulo)
+                    .ThenBy(x => x.Almacen)
+                    .ThenBy(x => x.Lote)
+                    .ToList();
+
+                // No se permite generar una vista previa con datos incompletos,
+                // porque tampoco sería seguro enviar esa entrada a SAP.
+                var erroresSinLinea = trazabilidad
+                    .Where(x =>
+                        x.Estatus == "JSON SIN LOTES" ||
+                        x.Estatus == "JSON VACÍO" ||
+                        x.Estatus == "SIN DETALLE DE TRAZABILIDAD" ||
+                        (x.KgFaltantes > 0.01m &&
+                         (string.IsNullOrWhiteSpace(x.Articulo) ||
+                          string.IsNullOrWhiteSpace(x.Almacen) ||
+                          string.IsNullOrWhiteSpace(x.Lote) ||
+                          x.Lote == "-")))
+                    .ToList();
+
+                if (erroresSinLinea.Count > 0)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg =
+                            "Existen partidas incompletas. No es seguro " +
+                            "generar el JSON automático.",
+                        detalle = erroresSinLinea
+                    });
+                }
+
+                if (faltantes.Count == 0)
+                {
+                    return NotFound(new
+                    {
+                        ok = false,
+                        msg =
+                            "No existen kilos faltantes para generar " +
+                            "una entrada automática.",
+                        referencia,
+                        source
+                    });
+                }
+
+                var kgTotal = faltantes.Sum(x => x.Kg);
+
+                var maxKg = _configuration.GetValue<decimal?>(
+                    "AutocompletarSap:MaxKgPorOperacion") ?? 100000m;
+
+                if (kgTotal > maxKg)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg =
+                            $"Los {kgTotal:N3} KG faltantes superan " +
+                            $"el máximo permitido de {maxKg:N3} KG."
+                    });
+                }
+
+                // 3) Leer exactamente la misma configuración del envío real.
+                var precio = _configuration.GetValue<decimal?>(
+                    "AutocompletarSap:Precio") ?? 0.01m;
+
+                if (precio <= 0)
+                    precio = 0.01m;
+
+                var cardCode =
+                    _configuration[
+                        $"AutocompletarSap:CardCode{source}"] ??
+                    _configuration[
+                        "AutocompletarSap:CardCode"] ??
+                    "P000092";
+
+                var endpoint =
+                    _configuration[
+                        "AutocompletarSap:EndpointEntrada"] ??
+                    "PurchaseDeliveryNotes";
+
+                // 4) Generar los mismos identificadores antiduplicado.
+                var firma = CrearFirmaAutocompletar(
+                    referencia,
+                    source,
+                    faltantes);
+
+                var uDocMeatEntrada =
+                    $"ACSP.{source}.{firma}";
+
+                var numAtCardEntrada =
+                    $"AUTO-{source}-{firma}";
+
+                // 5) Construir exactamente el JSON del POST real.
+                var json = ConstruirJsonEntradaAutocompletar(
+                    referencia,
+                    source,
+                    cardCode,
+                    precio,
+                    uDocMeatEntrada,
+                    numAtCardEntrada,
+                    faltantes);
+
+                // 6) Validar sintaxis y formatearlo para lectura humana.
+                using var validacion = JsonDocument.Parse(json);
+
+                var jsonFormateado = JsonSerializer.Serialize(
+                    validacion.RootElement,
+                    new JsonSerializerOptions
+                    {
+                        WriteIndented = true
+                    });
+
+                Response.Headers["X-Json-Valido"] = "true";
+                Response.Headers["X-Sap-Endpoint"] = endpoint;
+                Response.Headers["X-Kg-Totales"] =
+                    kgTotal.ToString(
+                        "0.000",
+                        System.Globalization.CultureInfo.InvariantCulture);
+
+                return Content(
+                    jsonFormateado,
+                    "application/json; charset=utf-8");
+            }
+            catch (JsonException ex)
+            {
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg =
+                        "El JSON generado no tiene una estructura válida.",
+                    error = ex.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error generando vista previa de Autocompletar SAP. " +
+                    "Ref={Referencia} Source={Source}",
+                    referencia,
+                    source);
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg =
+                        "No se pudo generar la vista previa del JSON.",
+                    error = ex.GetBaseException().Message
+                });
+            }
+        }
+
+
+        /// <summary>
+        /// Flujo controlado:
+        /// 1) reconstruye y valida la entrega;
+        /// 2) calcula faltantes por SKU, almacén y lote;
+        /// 3) genera una entrada PurchaseDeliveryNotes a $0.01;
+        /// 4) espera a que SAP refleje el inventario;
+        /// 5) revalida trazabilidad y devoluciones;
+        /// 6) envía la DeliveryNote.
+        ///
+        /// El cliente nunca manda los KG: el servidor vuelve a calcularlos.
+        /// </summary>
+        [HttpPost("AutocompletarYEnviarEntregaSap")]
+        [RevisarPermiso("AUTOCOMPLETAR_SAP", "ESCRIBIR")]
+        public async Task<IActionResult> AutocompletarYEnviarEntregaSap(
+            [FromBody] AutocompletarSapRequest request)
+        {
+            if (request == null ||
+                string.IsNullOrWhiteSpace(request.Referencia))
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    msg = "La referencia de la entrega es obligatoria."
+                });
+            }
+
+            var referencia = request.Referencia.Trim();
+            var source = NormalizeSource(request.Source);
+            var gateKey = $"{source}|{referencia}";
+            var gate = AutocompletarSapGates.GetOrAdd(
+                gateKey,
+                _ => new SemaphoreSlim(1, 1));
+
+            if (!await gate.WaitAsync(0))
+            {
+                return StatusCode(409, new
+                {
+                    ok = false,
+                    msg = "Esta entrega ya tiene un autocompletado en proceso."
+                });
+            }
+
+            string jsonEntrada = "";
+            string? respuestaEntrada = null;
+            string? respuestaEntrega = null;
+            string uDocMeatEntrada = "";
+            int? entradaDocEntry = null;
+            int? entradaDocNum = null;
+            int? entregaDocEntry = null;
+            int? entregaDocNum = null;
+            decimal kgAutocompletados = 0m;
+            int lineasAutocompletadas = 0;
+
+            try
+            {
+                var jsonEntrega = await _data.BuildJsonAsync(
+                    referencia,
+                    source);
+
+                if (string.IsNullOrWhiteSpace(jsonEntrega) ||
+                    jsonEntrega.Trim() == "{}")
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = "No se pudo construir el JSON de la entrega."
+                    });
+                }
+
+                // Primero se revisan devoluciones. No se crea inventario si hay
+                // una devolución pendiente o una diferencia que deba resolverse.
+                var devolucionesIniciales =
+                    await ValidarDevolucionesAplicadasDesdeJsonAsync(
+                        jsonEntrega,
+                        source,
+                        referencia)
+                    ?? new List<DevolucionComparativoVM>();
+
+                if (TieneErrorDevolucion(devolucionesIniciales))
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg =
+                            "No se creó la entrada porque la entrega tiene " +
+                            "devoluciones pendientes o diferencias contra SAP.",
+                        devoluciones = devolucionesIniciales
+                    });
+                }
+
+                var trazabilidadInicial =
+                    await ValidarTrazabilidadDesdeJsonAsync(
+                        jsonEntrega,
+                        source)
+                    ?? new List<TrazabilidadSapVM>();
+
+                var faltantes = trazabilidadInicial
+                    .Where(x =>
+                        x.KgFaltantes > 0.01m &&
+                        !string.IsNullOrWhiteSpace(x.Articulo) &&
+                        !string.IsNullOrWhiteSpace(x.Almacen) &&
+                        !string.IsNullOrWhiteSpace(x.Lote) &&
+                        x.Lote != "-")
+                    .GroupBy(x => new
+                    {
+                        Articulo = NormalizeKey(x.Articulo),
+                        Almacen = NormalizeKey(x.Almacen),
+                        Lote = NormalizeKey(x.Lote)
+                    })
+                    .Select(g => new AutocompletarSapLinea
+                    {
+                        Articulo = g.First().Articulo.Trim(),
+                        Almacen = g.First().Almacen.Trim(),
+                        Lote = g.First().Lote.Trim(),
+                        Kg = decimal.Round(
+                            g.Sum(x => x.KgFaltantes),
+                            3,
+                            MidpointRounding.AwayFromZero)
+                    })
+                    .Where(x => x.Kg > 0.01m)
+                    .OrderBy(x => x.Articulo)
+                    .ThenBy(x => x.Almacen)
+                    .ThenBy(x => x.Lote)
+                    .ToList();
+
+                // Si la trazabilidad contiene estados inválidos sin una línea
+                // utilizable, no se debe inventar artículo, almacén o lote.
+                var erroresSinLinea = trazabilidadInicial
+                    .Where(x =>
+                        x.Estatus == "JSON SIN LOTES" ||
+                        x.Estatus == "JSON VACÍO" ||
+                        x.Estatus == "SIN DETALLE DE TRAZABILIDAD" ||
+                        (x.KgFaltantes > 0.01m &&
+                         (string.IsNullOrWhiteSpace(x.Articulo) ||
+                          string.IsNullOrWhiteSpace(x.Almacen) ||
+                          string.IsNullOrWhiteSpace(x.Lote) ||
+                          x.Lote == "-")))
+                    .ToList();
+
+                if (erroresSinLinea.Count > 0)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg =
+                            "La trazabilidad contiene partidas incompletas. " +
+                            "No es seguro generar la entrada automática.",
+                        detalle = erroresSinLinea
+                    });
+                }
+
+                kgAutocompletados = faltantes.Sum(x => x.Kg);
+                lineasAutocompletadas = faltantes.Count;
+
+                var maxKg = _configuration.GetValue<decimal?>(
+                    "AutocompletarSap:MaxKgPorOperacion") ?? 100000m;
+
+                if (kgAutocompletados > maxKg)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg =
+                            $"El faltante de {kgAutocompletados:N3} KG supera " +
+                            $"el máximo permitido de {maxKg:N3} KG."
+                    });
+                }
+
+                var entradaCreada = false;
+                var entradaYaExistia = false;
+
+                if (faltantes.Count > 0)
+                {
+                    var precio = _configuration.GetValue<decimal?>(
+                        "AutocompletarSap:Precio") ?? 0.01m;
+
+                    if (precio <= 0)
+                        precio = 0.01m;
+
+                    var cardCode =
+                        _configuration[
+                            $"AutocompletarSap:CardCode{source}"] ??
+                        _configuration[
+                            "AutocompletarSap:CardCode"] ??
+                        "P000092";
+
+                    var firma = CrearFirmaAutocompletar(
+                        referencia,
+                        source,
+                        faltantes);
+
+                    // La clave depende de los faltantes exactos. Repetir el mismo
+                    // intento no duplica; un faltante diferente genera otra firma.
+                    uDocMeatEntrada = $"ACSP.{source}.{firma}";
+                    var numAtCardEntrada = $"AUTO-{source}-{firma}";
+
+                    var existenteEntrada =
+                        await BuscarPurchaseDeliveryNoteEnSapAsync(
+                            uDocMeatEntrada,
+                            numAtCardEntrada);
+
+                    if (existenteEntrada.found)
+                    {
+                        entradaYaExistia = true;
+                        entradaDocEntry = existenteEntrada.docEntry;
+                        entradaDocNum = existenteEntrada.docNum;
+                        respuestaEntrada = existenteEntrada.response;
+                    }
+                    else
+                    {
+                        jsonEntrada = ConstruirJsonEntradaAutocompletar(
+                            referencia,
+                            source,
+                            cardCode,
+                            precio,
+                            uDocMeatEntrada,
+                            numAtCardEntrada,
+                            faltantes);
+
+                        var endpointEntrada =
+                            _configuration[
+                                "AutocompletarSap:EndpointEntrada"] ??
+                            "PurchaseDeliveryNotes";
+
+                        var postEntrada = await _sap.PostJsonAsync(
+                            endpointEntrada,
+                            jsonEntrada);
+
+                        respuestaEntrada = postEntrada.response;
+
+                        if (!postEntrada.ok)
+                        {
+                            // SAP puede crear el documento y perderse la respuesta.
+                            var existenteDespuesError =
+                                await BuscarPurchaseDeliveryNoteEnSapAsync(
+                                    uDocMeatEntrada,
+                                    numAtCardEntrada);
+
+                            if (!existenteDespuesError.found)
+                            {
+                                await RegistrarAutocompletarSapLogAsync(
+                                    referencia,
+                                    source,
+                                    false,
+                                    "SAP rechazó la entrada automática.",
+                                    uDocMeatEntrada,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    kgAutocompletados,
+                                    lineasAutocompletadas,
+                                    jsonEntrada,
+                                    postEntrada.response,
+                                    null);
+
+                                return BadRequest(new
+                                {
+                                    ok = false,
+                                    msg =
+                                        "SAP rechazó la entrada automática. " +
+                                        "La entrega no fue enviada.",
+                                    error = postEntrada.error,
+                                    detalle = postEntrada.response,
+                                    faltantes
+                                });
+                            }
+
+                            entradaYaExistia = true;
+                            entradaDocEntry =
+                                existenteDespuesError.docEntry;
+                            entradaDocNum =
+                                existenteDespuesError.docNum;
+                            respuestaEntrada =
+                                postEntrada.response ??
+                                existenteDespuesError.response;
+                        }
+                        else
+                        {
+                            entradaCreada = true;
+                            (entradaDocEntry, entradaDocNum) =
+                                LeerDocEntryDocNumSap(
+                                    postEntrada.response);
+                        }
+                    }
+
+                    // Service Layer puede tardar un momento en reflejar el lote.
+                    var intentos = Math.Clamp(
+                        _configuration.GetValue<int?>(
+                            "AutocompletarSap:IntentosRevalidacion") ?? 6,
+                        1,
+                        20);
+
+                    var esperaMs = Math.Clamp(
+                        _configuration.GetValue<int?>(
+                            "AutocompletarSap:EsperaRevalidacionMs") ?? 750,
+                        200,
+                        10000);
+
+                    List<TrazabilidadSapVM> trazabilidadFinal =
+                        trazabilidadInicial;
+
+                    for (var intento = 1; intento <= intentos; intento++)
+                    {
+                        if (intento > 1)
+                            await Task.Delay(esperaMs);
+
+                        jsonEntrega = await _data.BuildJsonAsync(
+                            referencia,
+                            source);
+
+                        trazabilidadFinal =
+                            await ValidarTrazabilidadDesdeJsonAsync(
+                                jsonEntrega,
+                                source)
+                            ?? new List<TrazabilidadSapVM>();
+
+                        if (!TieneErrorTrazabilidad(trazabilidadFinal))
+                            break;
+                    }
+
+                    if (TieneErrorTrazabilidad(trazabilidadFinal))
+                    {
+                        await RegistrarAutocompletarSapLogAsync(
+                            referencia,
+                            source,
+                            false,
+                            "La entrada fue procesada, pero SAP todavía reporta faltantes.",
+                            uDocMeatEntrada,
+                            entradaDocEntry,
+                            entradaDocNum,
+                            null,
+                            null,
+                            kgAutocompletados,
+                            lineasAutocompletadas,
+                            jsonEntrada,
+                            respuestaEntrada,
+                            null);
+
+                        return StatusCode(409, new
+                        {
+                            ok = false,
+                            entradaCreada,
+                            entradaYaExistia,
+                            entradaDocEntry,
+                            entradaDocNum,
+                            kgAutocompletados,
+                            msg =
+                                "La entrada fue procesada, pero la trazabilidad " +
+                                "todavía no está completa. No se envió la entrega.",
+                            detalle = trazabilidadFinal
+                        });
+                    }
+                }
+
+                // Validación final, justo antes de la entrega.
+                jsonEntrega = await _data.BuildJsonAsync(
+                    referencia,
+                    source);
+
+                var trazabilidadConfirmada =
+                    await ValidarTrazabilidadDesdeJsonAsync(
+                        jsonEntrega,
+                        source)
+                    ?? new List<TrazabilidadSapVM>();
+
+                if (TieneErrorTrazabilidad(trazabilidadConfirmada))
+                {
+                    return StatusCode(409, new
+                    {
+                        ok = false,
+                        msg =
+                            "La trazabilidad cambió antes del envío. " +
+                            "No se envió la entrega.",
+                        detalle = trazabilidadConfirmada
+                    });
+                }
+
+                var devolucionesFinales =
+                    await ValidarDevolucionesAplicadasDesdeJsonAsync(
+                        jsonEntrega,
+                        source,
+                        referencia)
+                    ?? new List<DevolucionComparativoVM>();
+
+                if (TieneErrorDevolucion(devolucionesFinales))
+                {
+                    return StatusCode(409, new
+                    {
+                        ok = false,
+                        msg =
+                            "La entrada quedó aplicada, pero las devoluciones " +
+                            "ya no están conciliadas. No se envió la entrega.",
+                        devoluciones = devolucionesFinales
+                    });
+                }
+
+                var envioEntrega =
+                    await EnviarEntregaAutocompletadaAsync(
+                        referencia,
+                        source,
+                        jsonEntrega);
+
+                respuestaEntrega = envioEntrega.Respuesta;
+                entregaDocEntry = envioEntrega.DocEntry;
+                entregaDocNum = envioEntrega.DocNum;
+
+                await RegistrarAutocompletarSapLogAsync(
+                    referencia,
+                    source,
+                    envioEntrega.Ok,
+                    envioEntrega.Mensaje,
+                    uDocMeatEntrada,
+                    entradaDocEntry,
+                    entradaDocNum,
+                    entregaDocEntry,
+                    entregaDocNum,
+                    kgAutocompletados,
+                    lineasAutocompletadas,
+                    jsonEntrada,
+                    respuestaEntrada,
+                    respuestaEntrega);
+
+                if (!envioEntrega.Ok)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        entradaCreada,
+                        entradaYaExistia,
+                        entradaDocEntry,
+                        entradaDocNum,
+                        kgAutocompletados,
+                        msg =
+                            "El inventario quedó completado, pero SAP rechazó " +
+                            "la entrega.",
+                        error = envioEntrega.Error,
+                        detalle = envioEntrega.Respuesta
+                    });
+                }
+
+                return Ok(new
+                {
+                    ok = true,
+                    msg = faltantes.Count > 0
+                        ? "Se completó el inventario faltante y se envió la entrega."
+                        : "La trazabilidad ya estaba completa y se envió la entrega.",
+                    referencia,
+                    source,
+                    entradaCreada,
+                    entradaYaExistia,
+                    entradaDocEntry,
+                    entradaDocNum,
+                    kgAutocompletados,
+                    lineasAutocompletadas,
+                    entregaYaExistia = envioEntrega.YaExistia,
+                    entregaDocEntry,
+                    entregaDocNum
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error en autocompletado SAP. Ref={Referencia} Source={Source}",
+                    referencia,
+                    source);
+
+                await RegistrarAutocompletarSapLogAsync(
+                    referencia,
+                    source,
+                    false,
+                    ex.GetBaseException().Message,
+                    uDocMeatEntrada,
+                    entradaDocEntry,
+                    entradaDocNum,
+                    entregaDocEntry,
+                    entregaDocNum,
+                    kgAutocompletados,
+                    lineasAutocompletadas,
+                    jsonEntrada,
+                    respuestaEntrada,
+                    respuestaEntrega);
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg =
+                        "Error interno al autocompletar inventario y enviar la entrega.",
+                    error = ex.GetBaseException().Message,
+                    inner = ex.InnerException?.Message
+                });
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
+
+        private static string CrearFirmaAutocompletar(
+            string referencia,
+            string source,
+            IEnumerable<AutocompletarSapLinea> lineas)
+        {
+            var canonico = string.Join(
+                "|",
+                lineas
+                    .OrderBy(x => x.Articulo)
+                    .ThenBy(x => x.Almacen)
+                    .ThenBy(x => x.Lote)
+                    .Select(x =>
+                        $"{NormalizeKey(x.Articulo)};" +
+                        $"{NormalizeKey(x.Almacen)};" +
+                        $"{NormalizeKey(x.Lote)};" +
+                        $"{x.Kg:0.000}"));
+
+            canonico =
+                $"{NormalizeKey(source)}|" +
+                $"{NormalizeKey(referencia)}|" +
+                canonico;
+
+            using var sha = SHA256.Create();
+            var bytes = sha.ComputeHash(
+                Encoding.UTF8.GetBytes(canonico));
+
+            return BitConverter
+                .ToString(bytes)
+                .Replace("-", "")
+                .Substring(0, 12);
+        }
+
+        private static string ConstruirJsonEntradaAutocompletar(
+            string referencia,
+            string source,
+            string cardCode,
+            decimal precio,
+            string uDocMeat,
+            string numAtCard,
+            IReadOnlyCollection<AutocompletarSapLinea> faltantes)
+        {
+            var documentLines = new JsonArray();
+
+            var grupos = faltantes
+                .GroupBy(x => new
+                {
+                    Articulo = NormalizeKey(x.Articulo),
+                    Almacen = NormalizeKey(x.Almacen)
+                })
+                .OrderBy(g => g.Key.Articulo)
+                .ThenBy(g => g.Key.Almacen);
+
+            foreach (var grupo in grupos)
+            {
+                var batches = new JsonArray();
+
+                foreach (var lote in grupo
+                    .GroupBy(x => NormalizeKey(x.Lote))
+                    .OrderBy(g => g.Key))
+                {
+                    var cantidadLote = decimal.Round(
+                        lote.Sum(x => x.Kg),
+                        3,
+                        MidpointRounding.AwayFromZero);
+
+                    batches.Add(new JsonObject
+                    {
+                        ["BatchNumber"] = lote.First().Lote,
+                        ["Quantity"] = cantidadLote
+                    });
+                }
+
+                var cantidadLinea = decimal.Round(
+                    grupo.Sum(x => x.Kg),
+                    3,
+                    MidpointRounding.AwayFromZero);
+
+                documentLines.Add(new JsonObject
+                {
+                    ["ItemCode"] = grupo.First().Articulo,
+                    ["Quantity"] = cantidadLinea,
+                    ["WarehouseCode"] = grupo.First().Almacen,
+                    ["PriceAfterVAT"] = decimal.Round(
+                        precio,
+                        4,
+                        MidpointRounding.AwayFromZero),
+                    ["BatchNumbers"] = batches
+                });
+            }
+
+            var comentario =
+                $"AUTOCOMPLETADO SAP PARA ENTREGA {referencia}. " +
+                $"PLANTA {source}. GENERADO {DateTime.Now:dd/MM/yyyy HH:mm:ss}.";
+
+            if (comentario.Length > 250)
+                comentario = comentario.Substring(0, 250);
+
+            var root = new JsonObject
+            {
+                ["CardCode"] = cardCode,
+                ["DocDate"] = DateTime.Today.ToString("yyyy-MM-dd"),
+                ["DocDueDate"] = DateTime.Today.ToString("yyyy-MM-dd"),
+                ["TaxDate"] = DateTime.Today.ToString("yyyy-MM-dd"),
+                ["NumAtCard"] = numAtCard,
+                ["Comments"] = comentario,
+                ["U_DocMeat"] = uDocMeat,
+                ["DocumentLines"] = documentLines
+            };
+
+            return root.ToJsonString(
+                new JsonSerializerOptions
+                {
+                    WriteIndented = false
+                });
+        }
+
+        private async Task<(
+            bool found,
+            int? docEntry,
+            int? docNum,
+            string? response)>
+            BuscarPurchaseDeliveryNoteEnSapAsync(
+                string uDocMeat,
+                string numAtCard)
+        {
+            var filters = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(uDocMeat))
+            {
+                filters.Add(
+                    $"U_DocMeat eq '{ODataEscape(uDocMeat)}'");
+            }
+
+            if (!string.IsNullOrWhiteSpace(numAtCard))
+            {
+                filters.Add(
+                    $"NumAtCard eq '{ODataEscape(numAtCard)}'");
+            }
+
+            if (filters.Count == 0)
+                return (false, null, null, null);
+
+            var filter = string.Join(" or ", filters);
+            var endpoint =
+                "PurchaseDeliveryNotes" +
+                "?$select=DocEntry,DocNum,U_DocMeat,NumAtCard" +
+                "&$top=1" +
+                $"&$filter={Uri.EscapeDataString(filter)}";
+
+            var response = await _sap.GetAsync(endpoint);
+
+            if (!response.ok ||
+                string.IsNullOrWhiteSpace(response.response))
+            {
+                return (false, null, null, response.response);
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(
+                    response.response);
+
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("value", out var value) &&
+                    value.ValueKind == JsonValueKind.Array &&
+                    value.GetArrayLength() > 0)
+                {
+                    var first = value[0];
+                    var docEntry = first.TryGetProperty(
+                        "DocEntry",
+                        out var de) &&
+                        de.ValueKind == JsonValueKind.Number
+                            ? de.GetInt32()
+                            : (int?)null;
+
+                    var docNum = first.TryGetProperty(
+                        "DocNum",
+                        out var dn) &&
+                        dn.ValueKind == JsonValueKind.Number
+                            ? dn.GetInt32()
+                            : (int?)null;
+
+                    return (
+                        true,
+                        docEntry,
+                        docNum,
+                        response.response);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "No se pudo interpretar búsqueda de PurchaseDeliveryNotes.");
+            }
+
+            return (false, null, null, response.response);
+        }
+
+        private async Task<AutocompletarEnvioEntregaResultado>
+            EnviarEntregaAutocompletadaAsync(
+                string referencia,
+                string source,
+                string jsonEntrega)
+        {
+            var (uDocMeat, numAtCard) =
+                ExtraerClavesDocumentoSap(jsonEntrega);
+
+            var existente = await BuscarEntregaEnSapAsync(
+                uDocMeat,
+                numAtCard);
+
+            if (existente.found)
+            {
+                var mensaje =
+                    "La entrega ya existía en SAP. No se volvió a crear.";
+
+                await UpsertEntregaSapLogAsync(
+                    referencia,
+                    source,
+                    true,
+                    mensaje,
+                    existente.docEntry,
+                    existente.docNum);
+
+                return new AutocompletarEnvioEntregaResultado
+                {
+                    Ok = true,
+                    YaExistia = true,
+                    Mensaje = mensaje,
+                    DocEntry = existente.docEntry,
+                    DocNum = existente.docNum
+                };
+            }
+
+            var post = await _sap.PostJsonAsync(
+                "DeliveryNotes",
+                jsonEntrega);
+
+            if (!post.ok)
+            {
+                var existenteDespuesError =
+                    await BuscarEntregaEnSapAsync(
+                        uDocMeat,
+                        numAtCard);
+
+                if (existenteDespuesError.found)
+                {
+                    var mensaje =
+                        "SAP devolvió un error, pero se confirmó que la " +
+                        "entrega ya existe.";
+
+                    await UpsertEntregaSapLogAsync(
+                        referencia,
+                        source,
+                        true,
+                        mensaje,
+                        existenteDespuesError.docEntry,
+                        existenteDespuesError.docNum);
+
+                    return new AutocompletarEnvioEntregaResultado
+                    {
+                        Ok = true,
+                        YaExistia = true,
+                        Mensaje = mensaje,
+                        DocEntry =
+                            existenteDespuesError.docEntry,
+                        DocNum =
+                            existenteDespuesError.docNum,
+                        Error = post.error,
+                        Respuesta = post.response
+                    };
+                }
+
+                await UpsertEntregaSapLogAsync(
+                    referencia,
+                    source,
+                    false,
+                    post.error ?? "SAP rechazó la entrega.");
+
+                return new AutocompletarEnvioEntregaResultado
+                {
+                    Ok = false,
+                    Mensaje =
+                        "SAP rechazó la entrega.",
+                    Error = post.error,
+                    Respuesta = post.response
+                };
+            }
+
+            var (docEntry, docNum) =
+                LeerDocEntryDocNumSap(post.response);
+
+            await UpsertEntregaSapLogAsync(
+                referencia,
+                source,
+                true,
+                "Entrega enviada después del autocompletado.",
+                docEntry,
+                docNum);
+
+            return new AutocompletarEnvioEntregaResultado
+            {
+                Ok = true,
+                Mensaje =
+                    "Entrega enviada después del autocompletado.",
+                DocEntry = docEntry,
+                DocNum = docNum,
+                Respuesta = post.response
+            };
+        }
+
+        private static (string uDocMeat, string numAtCard)
+            ExtraerClavesDocumentoSap(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+                return ("", "");
+
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+
+                var uDocMeat =
+                    root.TryGetProperty(
+                        "U_DocMeat",
+                        out var u) &&
+                    u.ValueKind == JsonValueKind.String
+                        ? u.GetString() ?? ""
+                        : "";
+
+                var numAtCard =
+                    root.TryGetProperty(
+                        "NumAtCard",
+                        out var n) &&
+                    n.ValueKind == JsonValueKind.String
+                        ? n.GetString() ?? ""
+                        : "";
+
+                return (uDocMeat, numAtCard);
+            }
+            catch
+            {
+                return ("", "");
+            }
+        }
+
+        private static (int? docEntry, int? docNum)
+            LeerDocEntryDocNumSap(string? response)
+        {
+            if (string.IsNullOrWhiteSpace(response))
+                return (null, null);
+
+            try
+            {
+                using var doc = JsonDocument.Parse(response);
+                var root = doc.RootElement;
+
+                var docEntry =
+                    root.TryGetProperty(
+                        "DocEntry",
+                        out var de) &&
+                    de.ValueKind == JsonValueKind.Number
+                        ? de.GetInt32()
+                        : (int?)null;
+
+                var docNum =
+                    root.TryGetProperty(
+                        "DocNum",
+                        out var dn) &&
+                    dn.ValueKind == JsonValueKind.Number
+                        ? dn.GetInt32()
+                        : (int?)null;
+
+                return (docEntry, docNum);
+            }
+            catch
+            {
+                return (null, null);
+            }
+        }
+
+        private async Task RegistrarAutocompletarSapLogAsync(
+            string referencia,
+            string source,
+            bool exitoso,
+            string mensaje,
+            string uDocMeatEntrada,
+            int? entradaDocEntry,
+            int? entradaDocNum,
+            int? entregaDocEntry,
+            int? entregaDocNum,
+            decimal kgAutocompletados,
+            int lineasAutocompletadas,
+            string? jsonEntrada,
+            string? respuestaEntrada,
+            string? respuestaEntrega)
+        {
+            try
+            {
+                var connectionString =
+                    _configuration.GetConnectionString(
+                        "DefaultConnection");
+
+                if (string.IsNullOrWhiteSpace(connectionString))
+                    return;
+
+                const string sqlCreate = @"
+IF OBJECT_ID('dbo.AutocompletarSapLog', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.AutocompletarSapLog
+    (
+        Id                    BIGINT IDENTITY(1,1) NOT NULL
+                              CONSTRAINT PK_AutocompletarSapLog PRIMARY KEY,
+        Referencia            NVARCHAR(200) NOT NULL,
+        Source                VARCHAR(10) NOT NULL,
+        Exitoso               BIT NOT NULL,
+        Mensaje               NVARCHAR(1000) NULL,
+        UDocMeatEntrada       NVARCHAR(100) NULL,
+        EntradaDocEntry       INT NULL,
+        EntradaDocNum         INT NULL,
+        EntregaDocEntry       INT NULL,
+        EntregaDocNum         INT NULL,
+        KgAutocompletados     DECIMAL(20,3) NOT NULL
+                              CONSTRAINT DF_AutocompletarSapLog_Kg DEFAULT(0),
+        LineasAutocompletadas INT NOT NULL
+                              CONSTRAINT DF_AutocompletarSapLog_Lineas DEFAULT(0),
+        JsonEntrada           NVARCHAR(MAX) NULL,
+        RespuestaEntrada      NVARCHAR(MAX) NULL,
+        RespuestaEntrega      NVARCHAR(MAX) NULL,
+        Usuario               NVARCHAR(200) NULL,
+        FechaHora             DATETIME2(0) NOT NULL
+                              CONSTRAINT DF_AutocompletarSapLog_Fecha DEFAULT(SYSDATETIME())
+    );
+
+    CREATE INDEX IX_AutocompletarSapLog_Referencia
+        ON dbo.AutocompletarSapLog(Source, Referencia, FechaHora DESC);
+END;";
+
+                const string sqlInsert = @"
+INSERT INTO dbo.AutocompletarSapLog
+(
+    Referencia,
+    Source,
+    Exitoso,
+    Mensaje,
+    UDocMeatEntrada,
+    EntradaDocEntry,
+    EntradaDocNum,
+    EntregaDocEntry,
+    EntregaDocNum,
+    KgAutocompletados,
+    LineasAutocompletadas,
+    JsonEntrada,
+    RespuestaEntrada,
+    RespuestaEntrega,
+    Usuario,
+    FechaHora
+)
+VALUES
+(
+    @Referencia,
+    @Source,
+    @Exitoso,
+    @Mensaje,
+    @UDocMeatEntrada,
+    @EntradaDocEntry,
+    @EntradaDocNum,
+    @EntregaDocEntry,
+    @EntregaDocNum,
+    @KgAutocompletados,
+    @LineasAutocompletadas,
+    @JsonEntrada,
+    @RespuestaEntrada,
+    @RespuestaEntrega,
+    @Usuario,
+    SYSDATETIME()
+);";
+
+                await using var cn =
+                    new SqlConnection(connectionString);
+
+                await cn.OpenAsync();
+                await cn.ExecuteAsync(sqlCreate);
+
+                await cn.ExecuteAsync(
+                    sqlInsert,
+                    new
+                    {
+                        Referencia = referencia,
+                        Source = source,
+                        Exitoso = exitoso,
+                        Mensaje = mensaje?.Length > 1000
+                            ? mensaje.Substring(0, 1000)
+                            : mensaje,
+                        UDocMeatEntrada = uDocMeatEntrada,
+                        EntradaDocEntry = entradaDocEntry,
+                        EntradaDocNum = entradaDocNum,
+                        EntregaDocEntry = entregaDocEntry,
+                        EntregaDocNum = entregaDocNum,
+                        KgAutocompletados = kgAutocompletados,
+                        LineasAutocompletadas =
+                            lineasAutocompletadas,
+                        JsonEntrada = jsonEntrada,
+                        RespuestaEntrada = respuestaEntrada,
+                        RespuestaEntrega = respuestaEntrega,
+                        Usuario =
+                            User?.Identity?.Name ?? "SISTEMA"
+                    });
+            }
+            catch (Exception ex)
+            {
+                // El fallo de bitácora no debe ocultar el resultado real de SAP.
+                _logger.LogWarning(
+                    ex,
+                    "No se pudo guardar AutocompletarSapLog. Ref={Referencia}",
+                    referencia);
+            }
+        }
+
+        public sealed class AutocompletarSapRequest
+        {
+            public string Referencia { get; set; } = "";
+            public string Source { get; set; } = "P1";
+        }
+
+        private sealed class AutocompletarSapLinea
+        {
+            public string Articulo { get; set; } = "";
+            public string Almacen { get; set; } = "";
+            public string Lote { get; set; } = "";
+            public decimal Kg { get; set; }
+        }
+
+        private sealed class AutocompletarEnvioEntregaResultado
+        {
+            public bool Ok { get; set; }
+            public bool YaExistia { get; set; }
+            public string Mensaje { get; set; } = "";
+            public string? Error { get; set; }
+            public string? Respuesta { get; set; }
+            public int? DocEntry { get; set; }
+            public int? DocNum { get; set; }
+        }
+
+
         // ========================= COSTEO =========================
 
         [HttpGet("Costeos")]
@@ -3775,7 +5114,7 @@ OPTION (RECOMPILE);";
                 datos
             });
 
-            
+
         }
 
 

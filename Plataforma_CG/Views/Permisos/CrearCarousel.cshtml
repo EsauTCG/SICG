@@ -3,566 +3,247 @@
     Layout = "~/Views/Shared/_Layout2.cshtml";
 }
 
+@await Html.PartialAsync("_KpiAdminTheme")
+
 <style>
-    /* ================================
-               SAP-LIKE THEME (Paleta CEDIS)
-               ================================ */
-    :root {
-        /* Marca */
-        --brand-grad: linear-gradient(90deg,#8B0000 0%,#5a0000 50%,#1a0000 100%);
-        --brand: #8B0000;
-        /* Cromado / UI */
-        --pane: #fff;
-        --bar: #e6e9ef;
-        --bar-2: #dde2ea;
-        --line: #d8dce3;
-        --ink: #20262e;
-        --muted: #636d7b;
-        --accent: #2d6cdf;
-        --radius: 10px;
-        --shadow: 0 1px 0 rgba(0,0,0,.05), 0 12px 24px rgba(0,0,0,.06);
-        --shadow-sm: 0 6px 16px rgba(0,0,0,.06);
-        --focus: 0 0 0 .2rem rgba(45,108,223,.25);
+    /* ============================================================
+           CREAR CARRUSEL - AJUSTE VISUAL
+        ============================================================ */
+
+    .carousel-create-page .dashboard-panel {
+        overflow: visible;
     }
 
-    body[data-theme="dark"] {
-        --brand-grad: linear-gradient(135deg, #7f1d1d 0%, #450a0a 50%, #111827 100%);
-        --brand: #ef4444;
-        --pane: #111827;
-        --bar: #1f2937;
-        --bar-2: #374151;
-        --line: rgba(255,255,255,0.12);
-        --ink: #e5e7eb;
-        --muted: #94a3b8;
-        --accent: #ef4444;
-        --shadow: 0 1px 0 rgba(0,0,0,.2), 0 12px 24px rgba(0,0,0,.32);
-        --shadow-sm: 0 6px 16px rgba(0,0,0,.26);
-        --focus: 0 0 0 .2rem rgba(248,113,113,.25);
+    .upload-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+        gap: 1.25rem;
+        align-items: stretch;
     }
 
-    body[data-theme="dark"] .layout-main-content {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important;
-    }
-
-    body[data-theme="dark"] .layout-main-content .layout-container-fluid {
-        background: transparent !important;
-        box-shadow: none !important;
-    }
-
-    /* Fondo de la página */
-    body {
-        background: var(--bg) !important;
-        color: var(--ink);
-    }
-
-    /* Shell general */
-    .container-sap {
-        max-width: 1100px;
-        margin: 1.25rem auto 2rem;
-    }
-
-    /* Titlebar claro (como CEDIS) */
-    .sap-titlebar {
-        background: linear-gradient(#eef1f6,#e7ebf2);
-        border: 1px solid var(--bar-2);
-        color: var(--ink);
-        border-radius: var(--radius);
-        padding: .8rem 1rem;
-        box-shadow: var(--shadow);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .75rem;
-        flex-wrap: wrap;
-    }
-
-        .sap-titlebar .left h4 {
-            margin: 0;
-            font-weight: 800;
-            letter-spacing: .2px;
-            display: flex;
-            align-items: center;
-            gap: .55rem;
-        }
-
-            .sap-titlebar .left h4 i {
-                color: var(--brand);
-            }
-
-        .sap-titlebar .left .sub {
-            margin: 0;
-            color: var(--muted);
-            font-size: .92rem;
-        }
-
-        .sap-titlebar .actions .btn {
-            border-radius: 999px;
-            font-weight: 700;
-        }
-
-    /* Toolbar del módulo (opcional) */
-    .sap-toolbar {
-        background: var(--bar);
-        border: 1px solid var(--bar-2);
-        border-top: none;
-        border-radius: 0 0 var(--radius) var(--radius);
-        padding: .45rem .65rem;
-        display: flex;
-        flex-wrap: wrap;
-        gap: .45rem;
-        box-shadow: var(--shadow);
-    }
-
-    .tbtn {
-        display: inline-flex;
-        align-items: center;
-        gap: .45rem;
-        height: 34px;
-        padding: 0 .65rem;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background: #fff;
-        color: #1e2a35;
-        font-size: .92rem;
-        transition: .15s ease;
-    }
-
-        .tbtn:hover {
-            background: #f8fafc;
-            border-color: #cfd6e2;
-        }
-
-        .tbtn:active {
-            background: #edf1f7;
-            transform: translateY(.5px);
-        }
-
-        .tbtn.primary {
-            background: var(--brand-grad);
-            color: #fff;
-            border-color: transparent;
-        }
-
-            .tbtn.primary:hover {
-                filter: brightness(1.05);
-            }
-
-    /* Tarjeta/Panel */
-    .sap-card {
-        background: var(--pane);
-        border: 1px solid var(--line);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow);
-    }
-
-    .sap-card-head {
-        padding: .75rem 1rem;
-        border-bottom: 1px solid var(--line);
-        background: linear-gradient(#f6f8fb,#eef2f7);
-        font-weight: 800;
-        color: #2b3642;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .5rem;
-        flex-wrap: wrap;
-    }
-
-    /* Buscador */
-    .buscador-card {
-        margin: .9rem 0 0;
-    }
-
-    #searchInput {
-        border: 1.5px solid var(--brand);
-        border-radius: 999px;
-        padding: .65rem 1rem;
-        width: 100%;
-        max-width: 520px;
-        transition: .2s ease;
-    }
-
-        #searchInput:focus {
-            outline: none;
-            border-color: var(--accent);
-            box-shadow: var(--focus);
-        }
-
-    /* Listado/accordion */
-    .list-perfiles {
-        margin: .8rem 0 0;
-    }
-
-    .perfil-item {
-        border: 1px solid var(--line);
-        border-radius: 10px;
-        background: #fff;
-        margin-bottom: .65rem;
-        box-shadow: var(--shadow-sm);
-        overflow: hidden;
-        transition: border-color .2s, box-shadow .2s;
-    }
-
-        .perfil-item:hover {
-            border-color: #d8ddea;
-            box-shadow: 0 8px 20px rgba(0,0,0,.06);
-        }
-
-    .perfil-header {
-        padding: .75rem 1rem;
+    .drop-zone {
+        border: 2px dashed var(--kpi-border-strong);
+        border-radius: 16px;
+        padding: 3rem 2rem;
+        text-align: center;
+        background: var(--kpi-panel-soft);
         cursor: pointer;
+        transition: all 0.25s ease;
+        min-height: 330px;
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        gap: .75rem;
-        background: #fff;
+        justify-content: center;
+        color: var(--kpi-text);
     }
 
-        .perfil-header .meta {
-            color: var(--muted);
-            font-weight: 600;
+        .drop-zone:hover {
+            border-color: var(--brand-main);
+            transform: translateY(-2px);
+            box-shadow: var(--kpi-shadow);
         }
 
-        .perfil-header .icono {
-            transition: transform .2s;
-            font-weight: 800;
-            color: #8891a5;
+        .drop-zone.drag-over {
+            border-color: var(--brand-main);
+            background: rgba(122, 11, 11, 0.06);
+            transform: scale(1.01);
         }
 
-    .perfil-item.active .icono {
-        transform: rotate(90deg);
-        color: var(--brand);
-    }
-
-    .vistas-panel {
-        background: #f7f9fc;
-        max-height: 0;
-        overflow: hidden;
-        transition: max-height .35s ease;
-        padding: 0 1rem;
-    }
-
-    .perfil-item.active .vistas-panel {
-        max-height: 99999px;
-        padding-bottom: .8rem;
-    }
-
-    /* Tarjetas de vista/permiso */
-    .vista-item {
-        background: #fff;
-        border: 1px solid #e6e9f0;
-        border-radius: 10px;
-        padding: .55rem .7rem;
-        margin: .5rem 0;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .75rem;
-        font-size: .92rem;
-        transition: border-color .2s, box-shadow .2s, background-color .2s;
-    }
-
-        .vista-item:hover {
-            border-color: #d7dff0;
-            box-shadow: var(--shadow-sm);
+        .drop-zone.has-file {
+            border-color: #16a34a;
+            background: rgba(22, 163, 74, 0.08);
         }
 
-        .vista-item.active {
-            border-color: #9fd1b2;
-            background: #eaf7ef;
-        }
-        /* activo verde suave */
-        .vista-item input[type="checkbox"] {
-            transform: scale(1.25);
-            margin-right: .55rem;
-            accent-color: var(--brand);
-        }
-
-    /* Botonería general */
-    .btn {
-        border-radius: 10px;
-    }
-
-    .btn-primary {
-        background: var(--brand-grad);
-        border-color: transparent;
-    }
-
-        .btn-primary:hover {
-            filter: brightness(1.06);
-        }
-
-    .btn-success {
-        background: #198754;
-        border-color: #198754;
-    }
-
-        .btn-success:hover {
-            background: #157347;
-            border-color: #157347;
-        }
-
-    .btn-secondary {
-        background: #5b6478;
-        border-color: #5b6478;
-    }
-
-    .btn-warning {
-        background: #d97706;
-        border-color: #d97706;
-    }
-
-    .btn-danger {
-        background: #b91c1c;
-        border-color: #b91c1c;
-    }
-
-    /* Tablas si las usas después */
-    .table-wrap {
-        border: 1px solid var(--line);
-        border-radius: 10px;
-        box-shadow: var(--shadow-sm);
-        overflow: auto;
-        max-height: 60vh;
-    }
-
-    .table thead th {
-        position: sticky;
-        top: 0;
-        z-index: 1;
-        background: #f3f6fb !important;
-        color: #2b3642;
-        border-bottom: 1px solid var(--line) !important;
-        text-transform: uppercase;
-        font-size: .85rem;
-        font-weight: 800;
-    }
-
-    /* Badges suaves (compatibilidad) */
-    .badge-soft {
+    .drop-zone-icon {
+        width: 76px;
+        height: 76px;
+        border-radius: 20px;
+        background: rgba(122, 11, 11, 0.10);
+        color: var(--brand-main);
         display: inline-flex;
         align-items: center;
-        gap: .4rem;
-        padding: .35rem .6rem;
-        border-radius: 999px;
-        background: #f8fafc;
-        border: 1px solid var(--line);
-        color: #111;
-        font-weight: 600;
-        box-shadow: var(--shadow-sm);
+        justify-content: center;
+        margin-bottom: 1rem;
+        border: 1px solid rgba(122, 11, 11, 0.18);
     }
 
-        .badge-soft .dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 999px;
-            background: #a3a3a3;
+        .drop-zone-icon i {
+            font-size: 2.6rem;
         }
 
-        .badge-soft.info .dot {
-            background: #2563eb;
-        }
-
-        .badge-soft.ok .dot {
-            background: #16a34a;
-        }
-
-        .badge-soft.warn .dot {
-            background: #d97706;
-        }
-
-        .badge-soft.err .dot {
-            background: #dc2626;
-        }
-
-    #dropZone.drag-over {
-        border-color: #8B0000;
-        background: #fff5f5;
-        transform: scale(1.02);
+    body[data-theme="dark"] .drop-zone-icon {
+        background: rgba(248,113,113,0.12);
+        color: #fca5a5;
+        border-color: rgba(248,113,113,0.30);
     }
 
-    #dropZone.has-file {
-        border-color: #16a34a;
-        background: #f0fdf4;
+    body[data-theme="dark"] .drop-zone.drag-over {
+        background: rgba(248,113,113,0.10);
     }
 
-    body[data-theme="dark"] #dropZone {
-        border-color: rgba(255,255,255,0.15);
-        background: rgba(17,24,39,0.6);
-        color: var(--ink);
-    }
-
-    body[data-theme="dark"] #dropZone.drag-over {
-        border-color: #ef4444;
-        background: rgba(248,113,113,0.1);
-    }
-
-    body[data-theme="dark"] #dropZone.has-file {
+    body[data-theme="dark"] .drop-zone.has-file {
         border-color: #4ade80;
-        background: rgba(34,197,94,0.1);
+        background: rgba(34,197,94,0.10);
     }
 
-    body[data-theme="dark"] #dropZone p,
-    body[data-theme="dark"] #dropZone small {
-        color: var(--muted);
+    .upload-help-card {
+        background: var(--kpi-card-bg);
+        border: 1px solid var(--kpi-border);
+        border-radius: 16px;
+        box-shadow: var(--kpi-shadow);
+        padding: 1.25rem;
+        height: 100%;
     }
 
-    body[data-theme="dark"] .sap-titlebar {
-        background: linear-gradient(135deg, rgba(31,41,55,0.98), rgba(17,24,39,0.98));
-        border-color: rgba(255,255,255,0.12);
-        color: var(--ink);
+    .help-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid var(--kpi-border);
     }
 
-    body[data-theme="dark"] .sap-titlebar .left h4 {
-        color: #f9fafb;
+        .help-item:last-child {
+            border-bottom: none;
+        }
+
+    .help-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        background: rgba(122, 11, 11, 0.08);
+        color: var(--brand-main);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
     }
 
-    body[data-theme="dark"] .sap-titlebar .left h4 i {
+    body[data-theme="dark"] .help-icon {
+        background: rgba(248,113,113,0.12);
         color: #fca5a5;
     }
 
-    body[data-theme="dark"] .sap-titlebar .left .sub {
-        color: #94a3b8;
+    .file-info-card {
+        border-radius: 14px;
+        border: 1px solid rgba(59,130,246,0.28);
+        background: rgba(59,130,246,0.08);
+        color: var(--kpi-text);
+        padding: 0.9rem 1rem;
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
     }
 
-    body[data-theme="dark"] .sap-titlebar .actions .btn {
-        background: rgba(31,41,55,0.6);
-        color: #e5e7eb;
-        border-color: rgba(255,255,255,0.12);
-    }
-
-    body[data-theme="dark"] .sap-titlebar .actions .btn:hover {
-        background: rgba(31,41,55,0.9);
-    }
-
-    body[data-theme="dark"] .sap-toolbar {
-        background: rgba(17,24,39,0.8);
-        border-color: rgba(255,255,255,0.12);
-    }
-
-    body[data-theme="dark"] .tbtn {
-        background: rgba(17,24,39,0.6);
-        color: #e5e7eb;
-        border-color: rgba(255,255,255,0.12);
-    }
-
-    body[data-theme="dark"] .tbtn:hover {
-        background: rgba(31,41,55,0.8);
-        border-color: rgba(255,255,255,0.2);
-    }
-
-    body[data-theme="dark"] .tbtn:active {
-        background: rgba(31,41,55,0.95);
-    }
-
-    body[data-theme="dark"] .sap-card {
-        background: var(--pane);
-        border-color: var(--line);
-    }
-
-    body[data-theme="dark"] .sap-card-head {
-        background: linear-gradient(135deg, rgba(31,41,55,0.98), rgba(17,24,39,0.98));
-        color: #f9fafb;
-        border-bottom-color: rgba(255,255,255,0.12);
-    }
-
-    body[data-theme="dark"] .form-label {
-        color: #cbd5e1;
-    }
-
-    body[data-theme="dark"] #searchInput {
-        background: #0b1220;
-        color: #f9fafb;
-        border-color: rgba(255,255,255,0.15);
-    }
-
-    body[data-theme="dark"] #searchInput::placeholder {
-        color: #64748b;
-    }
-
-    body[data-theme="dark"] .alert {
-        border-color: rgba(255,255,255,0.12);
-    }
-
-    body[data-theme="dark"] .alert-danger {
-        background: rgba(220,38,38,0.12);
-        color: #fca5a5;
-        border-color: rgba(220,38,38,0.30);
-    }
-
-    body[data-theme="dark"] .alert-success {
-        background: rgba(34,197,94,0.12);
-        color: #86efac;
-        border-color: rgba(34,197,94,0.30);
-    }
-
-    body[data-theme="dark"] .alert-info {
+    body[data-theme="dark"] .file-info-card {
         background: rgba(59,130,246,0.12);
-        color: #93c5fd;
         border-color: rgba(59,130,246,0.30);
     }
 
-    body[data-theme="dark"] .btn-close {
-        filter: invert(1);
+    .preview-card {
+        display: none;
+        margin-top: 1rem;
     }
 
-    body[data-theme="dark"] .btn-danger {
-        background: #dc2626;
-        border-color: #dc2626;
+    .preview-frame {
+        border: 1px solid var(--kpi-border);
+        border-radius: 16px;
+        background: var(--kpi-panel-soft);
+        padding: 0.75rem;
+        box-shadow: var(--kpi-shadow);
     }
 
-    body[data-theme="dark"] img#imgPreview {
-        border-color: rgba(255,255,255,0.15);
-    }
-
-    @@media (max-width: 768px) {
-        .sap-titlebar {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: .75rem;
+        .preview-frame img {
+            width: 100%;
+            max-height: 360px;
+            object-fit: contain;
+            border-radius: 12px;
+            display: block;
+            background: #111827;
         }
 
-        .sap-toolbar {
-            flex-wrap: wrap;
+    .dynamic-message {
+        display: none;
+    }
+
+    @@media (max-width: 992px) {
+        .upload-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .drop-zone {
+            min-height: 280px;
         }
     }
 
     @@media (max-width: 576px) {
-        .container-sap {
-            margin: .75rem auto 1.5rem;
-            padding: 0 .5rem;
-        }
-
-        #dropZone {
+        .drop-zone {
             padding: 2rem 1rem;
-        }
-
-        #dropZone i {
-            font-size: 2rem !important;
         }
     }
 </style>
 
-<div class="container-sap">
+<div class="container-fluid py-4 px-3 px-md-4 container-custom carousel-create-page">
 
-    <!-- TITLEBAR -->
-    <div class="sap-titlebar">
-        <div class="left">
-            <h4>
-                <i class="bi bi-image"></i>
-                Nueva Imagen de Carrusel
-            </h4>
-            <p class="sub mb-0">
-                Sube una imagen y asígnala posteriormente a perfiles específicos.
+    <div class="top-banner d-flex justify-content-between align-items-center flex-wrap gap-3 shadow-sm">
+        <div>
+            <h2 class="fw-bold mb-1">
+                <i class="bi bi-image me-2"></i> Nueva Imagen de Carrusel
+            </h2>
+            <p class="mb-0" style="font-size: 0.85rem; opacity: 0.85;">
+                Sube una imagen para el carrusel principal y posteriormente asígnala a perfiles específicos.
             </p>
+        </div>
+
+        <div>
+            <a class="btn btn-sm btn-outline-light fw-bold px-3 border-2" href="@Url.Action("CarouselConfiguracion", "Permisos")">
+                <i class="bi bi-arrow-left-circle me-1"></i> Regresar
+            </a>
         </div>
     </div>
 
-    <!-- MENSAJES -->
+    <div class="d-flex flex-wrap gap-3 mb-4">
+
+        <div class="action-group shadow-sm">
+            <div class="action-label">
+                <i class="bi bi-sliders me-1"></i> Acciones
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="button" id="btnGuardar" class="btn-rojo">
+                    <i class="bi bi-save"></i> Guardar
+                </button>
+
+                <button type="button" class="btn-rojo" onclick="location.href='@Url.Action("CarouselConfiguracion", "Permisos")'">
+                    <i class="bi bi-x-lg"></i> Cancelar
+                </button>
+            </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+            <div class="stat-card">
+                <div class="stat-label">Formato</div>
+                <div class="stat-value" style="font-size:1rem;">JPG / PNG</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Máximo</div>
+                <div class="stat-value" style="font-size:1rem;">5 MB</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Sugerido</div>
+                <div class="stat-value" style="font-size:1rem;">1920×600</div>
+            </div>
+        </div>
+
+    </div>
+
     @if (TempData["Error"] != null)
     {
-        <div class="alert alert-danger alert-dismissible fade show mt-3" role="alert">
-            <i class="bi bi-exclamation-triangle-fill"></i>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
             @TempData["Error"]
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
@@ -570,250 +251,296 @@
 
     @if (TempData["Exito"] != null)
     {
-        <div class="alert alert-success alert-dismissible fade show mt-3" role="alert">
-            <i class="bi bi-check-circle-fill"></i>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i>
             @TempData["Exito"]
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     }
 
-    <!-- ÁREA DE MENSAJES DINÁMICOS -->
-    <div id="mensajeDinamico" style="display:none;" class="alert mt-3"></div>
+    <div id="mensajeDinamico" class="alert dynamic-message"></div>
 
-    <!-- TOOLBAR -->
-    <div class="sap-toolbar">
-        <button type="button" id="btnGuardar" class="tbtn primary">
-            <i class="bi bi-save"></i><span>Guardar</span>
-        </button>
-        <button type="button" class="tbtn" onclick="location.href='@Url.Action("CarouselConfiguracion")'">
-            <i class="bi bi-x-lg"></i><span>Cancelar</span>
-        </button>
-    </div>
-
-    <!-- CARD -->
-    <div class="sap-card mt-3">
-        <div class="sap-card-head">
-            <span class="d-flex align-items-center gap-2">
-                <i class="bi bi-upload"></i>
-                Datos de la Imagen
-            </span>
+    <div class="dashboard-panel">
+        <div class="dashboard-panel-head">
+            <div>
+                <h6 class="dashboard-panel-title">
+                    <i class="bi bi-upload me-1"></i> Datos de la Imagen
+                </h6>
+                <p class="dashboard-panel-subtitle">
+                    Arrastra la imagen o haz clic en el recuadro para seleccionarla desde tu equipo.
+                </p>
+            </div>
         </div>
 
-        <div class="p-3">
+        <div class="p-3 p-md-4">
             <form id="frmCarousel" method="post" enctype="multipart/form-data">
                 @Html.AntiForgeryToken()
 
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Imagen</label>
-                    <div id="dropZone" style="
-                        border: 2px dashed #d8dce3;
-                        border-radius: 10px;
-                        padding: 3rem 2rem;
-                        text-align: center;
-                        background: #f8fafc;
-                        cursor: pointer;
-                        transition: all 0.3s ease;
-    ">
-                        <i class="bi bi-cloud-upload" style="font-size: 3rem; color: #8B0000;"></i>
-                        <p class="mt-3 mb-1 fw-bold">Arrastra tu imagen aquí</p>
-                        <p class="text-muted mb-0">o haz clic para seleccionar</p>
-                        <small class="text-muted d-block mt-2">JPG, PNG, GIF · Máximo 5MB . Resolución sugerida (1024-320px - 1920x600px)</small>
-                    </div>
-                    <div id="fileInfo" style="display:none; margin-top: 1rem;" class="alert alert-info">
-                        <i class="bi bi-file-earmark-image"></i>
-                        <span id="fileName"></span>
-                        <button type="button" class="btn btn-sm btn-danger float-end" onclick="limpiarArchivo()">
-                            <i class="bi bi-x"></i> Quitar
-                        </button>
-                    </div>
-                </div>
+                <div class="upload-layout">
 
-                <!-- Preview opcional -->
-                <div id="preview" class="mb-3" style="display:none;">
-                    <label class="form-label fw-bold">Vista previa:</label>
-                    <img id="imgPreview" src="" style="max-width:100%; max-height:300px; border-radius:8px; border:1px solid #ddd;" />
+                    <div>
+                        <label class="form-label fw-bold text-muted small">IMAGEN DEL CARRUSEL</label>
+
+                        <div id="dropZone" class="drop-zone">
+                            <div>
+                                <div class="drop-zone-icon">
+                                    <i class="bi bi-cloud-upload"></i>
+                                </div>
+
+                                <h5 class="fw-bold text-dark mb-2">Arrastra tu imagen aquí</h5>
+                                <p class="text-muted mb-1">o haz clic para seleccionar un archivo</p>
+                                <small class="text-muted d-block mt-2">
+                                    JPG, PNG o GIF · Máximo 5MB · Resolución sugerida 1024×320 a 1920×600 px
+                                </small>
+                            </div>
+                        </div>
+
+                        <div id="fileInfo" class="file-info-card mt-3">
+                            <div>
+                                <i class="bi bi-file-earmark-image me-1"></i>
+                                <strong id="fileName"></strong>
+                            </div>
+
+                            <button type="button" class="btn btn-sm btn-outline-danger fw-bold" onclick="limpiarArchivo()">
+                                <i class="bi bi-x-lg"></i> Quitar
+                            </button>
+                        </div>
+
+                        <div id="preview" class="preview-card">
+                            <label class="form-label fw-bold text-muted small">VISTA PREVIA</label>
+
+                            <div class="preview-frame">
+                                <img id="imgPreview" src="" alt="Vista previa de imagen" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="upload-help-card">
+                            <h6 class="fw-bold text-dark mb-3">
+                                <i class="bi bi-info-circle me-1"></i> Recomendaciones
+                            </h6>
+
+                            <div class="help-item">
+                                <div class="help-icon">
+                                    <i class="bi bi-aspect-ratio"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-bold text-dark">Tamaño panorámico</div>
+                                    <small class="text-muted">
+                                        Usa imágenes horizontales para evitar recortes extraños en el carrusel.
+                                    </small>
+                                </div>
+                            </div>
+
+                            <div class="help-item">
+                                <div class="help-icon">
+                                    <i class="bi bi-file-earmark-image"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-bold text-dark">Peso recomendado</div>
+                                    <small class="text-muted">
+                                        Mantén el archivo debajo de 5MB para no afectar la carga de la página.
+                                    </small>
+                                </div>
+                            </div>
+
+                            <div class="help-item">
+                                <div class="help-icon">
+                                    <i class="bi bi-shield-check"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-bold text-dark">Asignación posterior</div>
+                                    <small class="text-muted">
+                                        Después de subirla, podrás decidir si se muestra a todos o solo a un perfil.
+                                    </small>
+                                </div>
+                            </div>
+
+                            <div class="help-item">
+                                <div class="help-icon">
+                                    <i class="bi bi-eye"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-bold text-dark">Vista previa</div>
+                                    <small class="text-muted">
+                                        Antes de guardar podrás revisar visualmente que la imagen sea correcta.
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<script>
-    console.log('🟢 Script Drag & Drop iniciado');
+@section Scripts {
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
 
-    let archivoSeleccionado = null;
+    <script>
+        console.log('🟢 Script Drag & Drop iniciado');
 
-    // ═══════════════════════════════════════════════════════════
-    // CONFIGURAR ZONA DE DROP
-    // ═══════════════════════════════════════════════════════════
-    const dropZone = document.getElementById('dropZone');
-    const preview = document.getElementById('preview');
-    const imgPreview = document.getElementById('imgPreview');
-    const fileInfo = document.getElementById('fileInfo');
-    const fileName = document.getElementById('fileName');
+        let archivoSeleccionado = null;
 
-    // Prevenir comportamiento por defecto del navegador
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, preventDefaults, false);
-        document.body.addEventListener(eventName, preventDefaults, false);
-    });
+        const dropZone = document.getElementById('dropZone');
+        const preview = document.getElementById('preview');
+        const imgPreview = document.getElementById('imgPreview');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
 
-    function preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-
-    // Efectos visuales
-    ['dragenter', 'dragover'].forEach(eventName => {
-        dropZone.addEventListener(eventName, () => {
-            dropZone.classList.add('drag-over');
-        }, false);
-    });
-
-    ['dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, () => {
-            dropZone.classList.remove('drag-over');
-        }, false);
-    });
-
-    // Manejar DROP
-    dropZone.addEventListener('drop', handleDrop, false);
-
-    function handleDrop(e) {
-        const dt = e.dataTransfer;
-        const files = dt.files;
-        handleFiles(files);
-    }
-
-    // Click para abrir selector (SIN input visible)
-    dropZone.addEventListener('click', () => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*';
-        input.onchange = (e) => handleFiles(e.target.files);
-        input.click();
-    });
-
-    // ═══════════════════════════════════════════════════════════
-    // PROCESAR ARCHIVO
-    // ═══════════════════════════════════════════════════════════
-    function handleFiles(files) {
-        if (files.length === 0) return;
-
-        const file = files[0];
-        console.log('📁 Archivo recibido:', file.name);
-
-        // Validar tipo
-        if (!file.type.startsWith('image/')) {
-            mostrarMensaje('Solo se permiten imágenes', 'danger');
-            return;
-        }
-
-        // Validar tamaño (5MB)
-        if (file.size > 5 * 1024 * 1024) {
-            mostrarMensaje('La imagen no debe superar los 5MB', 'danger');
-            return;
-        }
-
-        // Guardar archivo
-        archivoSeleccionado = file;
-
-        // Mostrar info
-        fileName.textContent = file.name + ' (' + formatBytes(file.size) + ')';
-        fileInfo.style.display = 'block';
-        dropZone.classList.add('has-file');
-
-        // Preview
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            imgPreview.src = e.target.result;
-            preview.style.display = 'block';
-            console.log('🖼️ Preview generado');
-        };
-        reader.readAsDataURL(file);
-    }
-
-    // ═══════════════════════════════════════════════════════════
-    // LIMPIAR ARCHIVO
-    // ═══════════════════════════════════════════════════════════
-    function limpiarArchivo() {
-        archivoSeleccionado = null;
-        fileInfo.style.display = 'none';
-        preview.style.display = 'none';
-        dropZone.classList.remove('has-file');
-        console.log('🗑️ Archivo limpiado');
-    }
-
-    // ═══════════════════════════════════════════════════════════
-    // BOTÓN GUARDAR
-    // ═══════════════════════════════════════════════════════════
-    document.getElementById('btnGuardar').addEventListener('click', function(e) {
-        console.log('💾 === INICIO SUBMIT ===');
-        e.preventDefault();
-
-        if (!archivoSeleccionado) {
-            mostrarMensaje('Debe seleccionar una imagen', 'danger');
-            return;
-        }
-
-        console.log('✅ Validación OK. Enviando...');
-
-        // Crear FormData
-        const formData = new FormData();
-        formData.append('imagen', archivoSeleccionado);
-
-        // Token antiforgery
-        const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
-
-        // Enviar
-        mostrarMensaje('Subiendo imagen...', 'info');
-
-        fetch('@Url.Action("CrearCarousel", "Permisos")', {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'RequestVerificationToken': token
-            }
-        })
-        .then(response => {
-            console.log('📡 Response:', response.status);
-            if (response.ok || response.redirected) {
-                console.log('✅ Éxito');
-                window.location.href = '@Url.Action("CarouselConfiguracion", "Permisos")';
-            } else {
-                return response.text().then(text => {
-                    console.error('❌ Error:', text);
-                    mostrarMensaje('Error del servidor: ' + response.status, 'danger');
-                });
-            }
-        })
-        .catch(error => {
-            console.error('❌ Error de red:', error);
-            mostrarMensaje('Error: ' + error.message, 'danger');
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
         });
-    });
 
-    // ═══════════════════════════════════════════════════════════
-    // FUNCIONES AUXILIARES
-    // ═══════════════════════════════════════════════════════════
-    function mostrarMensaje(texto, tipo) {
-        const div = document.getElementById('mensajeDinamico');
-        div.className = 'alert alert-' + tipo + ' alert-dismissible fade show mt-3';
-        div.innerHTML = `
-            <i class="bi bi-${tipo === 'danger' ? 'exclamation-triangle' : 'info-circle'}-fill"></i>
-            ${texto}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        div.style.display = 'block';
-    }
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
 
-    function formatBytes(bytes) {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-    }
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dropZone.classList.add('drag-over');
+            }, false);
+        });
 
-    console.log('🟢 Script cargado completamente');
-</script>
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dropZone.classList.remove('drag-over');
+            }, false);
+        });
+
+        dropZone.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFiles(files);
+        }
+
+        dropZone.addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = (e) => handleFiles(e.target.files);
+            input.click();
+        });
+
+        function handleFiles(files) {
+            if (files.length === 0) return;
+
+            const file = files[0];
+            console.log('📁 Archivo recibido:', file.name);
+
+            if (!file.type.startsWith('image/')) {
+                mostrarMensaje('Solo se permiten imágenes', 'danger');
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                mostrarMensaje('La imagen no debe superar los 5MB', 'danger');
+                return;
+            }
+
+            archivoSeleccionado = file;
+
+            fileName.textContent = file.name + ' (' + formatBytes(file.size) + ')';
+            fileInfo.style.display = 'flex';
+            dropZone.classList.add('has-file');
+
+            const reader = new FileReader();
+
+            reader.onload = (e) => {
+                imgPreview.src = e.target.result;
+                preview.style.display = 'block';
+                console.log('🖼️ Preview generado');
+            };
+
+            reader.readAsDataURL(file);
+        }
+
+        function limpiarArchivo() {
+            archivoSeleccionado = null;
+            fileInfo.style.display = 'none';
+            preview.style.display = 'none';
+            imgPreview.src = '';
+            dropZone.classList.remove('has-file');
+            console.log('🗑️ Archivo limpiado');
+        }
+
+        document.getElementById('btnGuardar').addEventListener('click', function(e) {
+            console.log('💾 === INICIO SUBMIT ===');
+            e.preventDefault();
+
+            if (!archivoSeleccionado) {
+                mostrarMensaje('Debe seleccionar una imagen', 'danger');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('imagen', archivoSeleccionado);
+
+            const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+
+            mostrarMensaje('Subiendo imagen...', 'info');
+
+            fetch('@Url.Action("CrearCarousel", "Permisos")', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'RequestVerificationToken': token
+                }
+            })
+            .then(response => {
+                console.log('📡 Response:', response.status);
+
+                if (response.ok || response.redirected) {
+                    window.location.href = '@Url.Action("CarouselConfiguracion", "Permisos")';
+                } else {
+                    return response.text().then(text => {
+                        console.error('❌ Error:', text);
+                        mostrarMensaje('Error del servidor: ' + response.status, 'danger');
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error de red:', error);
+                mostrarMensaje('Error: ' + error.message, 'danger');
+            });
+        });
+
+        function mostrarMensaje(texto, tipo) {
+            const div = document.getElementById('mensajeDinamico');
+
+            const icono = tipo === 'danger'
+                ? 'exclamation-triangle'
+                : tipo === 'success'
+                    ? 'check-circle'
+                    : 'info-circle';
+
+            div.className = 'alert alert-' + tipo + ' alert-dismissible fade show mt-3';
+            div.innerHTML = `
+                <i class="bi bi-${icono}-fill me-2"></i>
+                ${texto}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+
+            div.style.display = 'block';
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        console.log('🟢 Script cargado completamente');
+    </script>
+}

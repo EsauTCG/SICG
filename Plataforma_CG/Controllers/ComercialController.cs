@@ -11119,14 +11119,11 @@ DROP TABLE IF EXISTS #vendedores;
 DROP TABLE IF EXISTS #canal_vendedores;
 DROP TABLE IF EXISTS #plan_prod;
 DROP TABLE IF EXISTS #producido_real;
-DROP TABLE IF EXISTS #presupuestos_normales;
 DROP TABLE IF EXISTS #ov;
 DROP TABLE IF EXISTS #ov_con_surtido;
 DROP TABLE IF EXISTS #ov_peso_agg;
 DROP TABLE IF EXISTS #ov_surtido_agg;
 DROP TABLE IF EXISTS #ov_pendiente_sku;
-DROP TABLE IF EXISTS #consumo_cliente;
-DROP TABLE IF EXISTS #todo_normal;
 DROP TABLE IF EXISTS #presupuestos_cedis;
 DROP TABLE IF EXISTS #tr_surtido_agg;
 DROP TABLE IF EXISTS #consumo_cedis_base;
@@ -11138,15 +11135,15 @@ DROP TABLE IF EXISTS #consumo_vendedor_desde_cedis;
 DROP TABLE IF EXISTS #consumo_vendedor_total;
 DROP TABLE IF EXISTS #todo_vendedor;
 DROP TABLE IF EXISTS #venta_real_base;
-DROP TABLE IF EXISTS #todo_vendedor_estrategico_extra;
-DROP TABLE IF EXISTS #surtido_cliente;
+DROP TABLE IF EXISTS #venta_real_cedis;
+DROP TABLE IF EXISTS #devoluciones_cedis;
+DROP TABLE IF EXISTS #todo_vendedor_venta_real_extra;
 DROP TABLE IF EXISTS #surtido_ov_cedis;
 DROP TABLE IF EXISTS #surtido_transferencias_cedis;
 DROP TABLE IF EXISTS #surtido_cedis_base;
 DROP TABLE IF EXISTS #surtido_vendedor_normal;
 DROP TABLE IF EXISTS #surtido_vendedor_desde_cedis;
 DROP TABLE IF EXISTS #surtido_vendedor_total;
-DROP TABLE IF EXISTS #surtido_real_cliente;
 DROP TABLE IF EXISTS #surtido_real_cedis;
 DROP TABLE IF EXISTS #surtido_real_vendedor;
 DROP TABLE IF EXISTS #todo_cedis_venta_real_extra;
@@ -11173,6 +11170,11 @@ ON #filtro_vendedores (VendedorId);
 -- =========================================================
 -- 1) CATÁLOGOS
 -- =========================================================
+-- NOTA:
+-- ClienteSap se conserva únicamente como catálogo técnico para
+-- identificar el CEDIS y el vendedor asociados a cada operación.
+-- No se generan filas de origen CLIENTE ni se muestran clientes
+-- en el resultado final.
 SELECT
     SKU = UPPER(LTRIM(RTRIM(a.ProductoCodigo))),
     ProductoNombre = COALESCE(NULLIF(LTRIM(RTRIM(a.ProductoNombre)), ''), a.ProductoCodigo),
@@ -11267,27 +11269,7 @@ CREATE CLUSTERED INDEX IX_tmp_producido_real
 ON #producido_real (SKU, Mes, Anio);
 
 -- =========================================================
--- 3) PRESUPUESTOS CLIENTE
--- =========================================================
-SELECT
-    Cliente = UPPER(LTRIM(RTRIM(p.ClienteId))),
-    SKU     = UPPER(LTRIM(RTRIM(p.ProductoCodigo))),
-    Mes     = p.Mes,
-    Anio    = p.Año,
-    Presupuesto = SUM(p.Presupuesto)
-INTO #presupuestos_normales
-FROM dbo.Presupuestos p
-GROUP BY
-    UPPER(LTRIM(RTRIM(p.ClienteId))),
-    UPPER(LTRIM(RTRIM(p.ProductoCodigo))),
-    p.Mes,
-    p.Año;
-
-CREATE CLUSTERED INDEX IX_tmp_presupuestos_normales
-ON #presupuestos_normales (Cliente, SKU, Mes, Anio);
-
--- =========================================================
--- 4) ORDENES DE VENTA / PENDIENTE
+-- 3) ORDENES DE VENTA / PENDIENTE
 -- =========================================================
 SELECT
     o.Id,
@@ -11392,70 +11374,7 @@ CREATE INDEX IX_tmp_ov_pendiente_vendedor
 ON #ov_pendiente_sku (VendedorId, SKU, FechaDate);
 
 -- =========================================================
--- 5) CONSUMO CLIENTE / TODO_NORMAL
--- =========================================================
-SELECT
-    Cliente = ovp.Cliente,
-    SKU     = ovp.SKU,
-    Mes     = MONTH(ovp.FechaDate),
-    Anio    = YEAR(ovp.FechaDate),
-    Kg      = SUM(ovp.KgPendiente)
-INTO #consumo_cliente
-FROM #ov_pendiente_sku ovp
-GROUP BY
-    ovp.Cliente,
-    ovp.SKU,
-    MONTH(ovp.FechaDate),
-    YEAR(ovp.FechaDate);
-
-CREATE CLUSTERED INDEX IX_tmp_consumo_cliente
-ON #consumo_cliente (Cliente, SKU, Mes, Anio);
-
-SELECT
-    'CLIENTE' AS Origen,
-    pn.Mes,
-    pn.Anio,
-    pn.Cliente,
-    CAST(NULL AS NVARCHAR(100)) AS Canal,
-    CAST(NULL AS INT) AS VendedorId,
-    pn.SKU,
-    pn.Presupuesto,
-    ISNULL(cc.Kg, 0) AS Kg
-INTO #todo_normal
-FROM #presupuestos_normales pn
-LEFT JOIN #consumo_cliente cc
-    ON cc.Cliente = pn.Cliente
-   AND cc.SKU     = pn.SKU
-   AND cc.Mes     = pn.Mes
-   AND cc.Anio    = pn.Anio;
-
-INSERT INTO #todo_normal
-(
-    Origen, Mes, Anio, Cliente, Canal, VendedorId, SKU, Presupuesto, Kg
-)
-SELECT
-    'CLIENTE',
-    cc.Mes,
-    cc.Anio,
-    cc.Cliente,
-    CAST(NULL AS NVARCHAR(100)),
-    CAST(NULL AS INT),
-    cc.SKU,
-    CAST(0 AS DECIMAL(18,4)),
-    cc.Kg
-FROM #consumo_cliente cc
-LEFT JOIN #presupuestos_normales pn
-    ON pn.Cliente = cc.Cliente
-   AND pn.SKU     = cc.SKU
-   AND pn.Mes     = cc.Mes
-   AND pn.Anio    = cc.Anio
-WHERE pn.Cliente IS NULL;
-
-CREATE INDEX IX_tmp_todo_normal
-ON #todo_normal (Mes, Anio, Cliente, SKU);
-
--- =========================================================
--- 6) PRESUPUESTO / CONSUMO CEDIS
+-- 4) PRESUPUESTO / CONSUMO CEDIS
 -- =========================================================
 SELECT
     Canal = UPPER(LTRIM(RTRIM(pc.Canal))),
@@ -11570,7 +11489,7 @@ CREATE INDEX IX_tmp_todo_cedis
 ON #todo_cedis (Mes, Anio, Canal, SKU);
 
 -- =========================================================
--- 7) PRESUPUESTO / CONSUMO VENDEDOR
+-- 5) PRESUPUESTO / CONSUMO VENDEDOR
 -- =========================================================
 SELECT
     VendedorId,
@@ -11698,7 +11617,7 @@ CREATE INDEX IX_tmp_todo_vendedor
 ON #todo_vendedor (Mes, Anio, VendedorId, SKU);
 
 -- =========================================================
--- 8) VENTA REAL BASE / EXTRAS
+-- 6) VENTA REAL BASE / EXTRAS
 -- =========================================================
 SELECT
     ArticuloCodigo = UPPER(LTRIM(RTRIM(b.Articulo))),
@@ -11729,7 +11648,118 @@ ON #venta_real_base (VendedorId, ArticuloCodigo, Mes, Anio);
 CREATE INDEX IX_tmp_venta_real_base_canal
 ON #venta_real_base (U_CANAL, ArticuloCodigo, Mes, Anio);
 
+/* =========================================================
+   VENTA REAL BRUTA POR CEDIS
+
+   Esta cifra corresponde a la venta real antes de descontar
+   devoluciones realizadas físicamente en las bodegas.
+   ========================================================= */
 SELECT
+    Canal = UPPER(LTRIM(RTRIM(vr.U_CANAL))),
+    SKU   = UPPER(LTRIM(RTRIM(vr.ArticuloCodigo))),
+    vr.Mes,
+    vr.Anio,
+    VentaRealBruta =
+        SUM(CAST(ISNULL(vr.KgVendidos, 0) AS DECIMAL(18,4)))
+INTO #venta_real_cedis
+FROM #venta_real_base vr
+WHERE ISNULL(UPPER(LTRIM(RTRIM(vr.U_CANAL))), '') LIKE 'CEDIS%'
+GROUP BY
+    UPPER(LTRIM(RTRIM(vr.U_CANAL))),
+    UPPER(LTRIM(RTRIM(vr.ArticuloCodigo))),
+    vr.Mes,
+    vr.Anio;
+
+CREATE UNIQUE CLUSTERED INDEX IX_tmp_venta_real_cedis
+ON #venta_real_cedis (Canal, SKU, Mes, Anio);
+
+/* =========================================================
+   DEVOLUCIONES REALIZADAS EN BODEGA POR CEDIS
+
+   Se excluyen los almacenes que comienzan con FRIGORIFICO.
+   Estas devoluciones:
+     - reducen la venta real;
+     - NO se suman nuevamente al disponible.
+   ========================================================= */
+SELECT
+    Canal =
+        UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, '')))),
+
+    SKU =
+        UPPER(LTRIM(RTRIM(b.Articulo))),
+
+    Mes =
+        MONTH(b.FechaDevolucion),
+
+    Anio =
+        YEAR(b.FechaDevolucion),
+
+    KgDevolucionesBodega =
+        SUM
+        (
+            CAST
+            (
+                ISNULL(b.Peso, 0)
+                AS DECIMAL(18,4)
+            )
+        )
+INTO #devoluciones_cedis
+FROM dbo.DevolucionMeat b
+INNER JOIN dbo.ClienteSap c
+    ON UPPER(LTRIM(RTRIM(b.CodigoSap))) =
+       UPPER(LTRIM(RTRIM(c.Cliente)))
+WHERE b.FechaDevolucion IS NOT NULL
+
+  /*
+      No se aplican parámetros de fecha adicionales porque
+      no forman parte de la firma actual del procedimiento.
+      La devolución se relaciona al resultado por Mes y Año.
+  */
+
+  /* Únicamente devoluciones asociadas con SUC01/SUC02 */
+  AND
+  (
+      b.Remision LIKE '%SUC01%'
+      OR b.Remision LIKE '%SUC02%'
+  )
+
+  /* Debe existir la solicitud en SIGO */
+  AND EXISTS
+  (
+      SELECT 1
+      FROM dbo.Subpedido sp
+      WHERE sp.U_DocMeat = b.SolicitudSurtidoId
+  )
+
+  /* Excluir devoluciones recibidas en frigorífico */
+  AND ISNULL
+      (
+          UPPER(LTRIM(RTRIM(b.AlmacenDevolucionNombre))),
+          ''
+      ) NOT LIKE 'FRIGORIFICO%'
+
+  /* Esta tabla se utilizará en los renglones CEDIS */
+  AND ISNULL
+      (
+          UPPER(LTRIM(RTRIM(c.U_CANAL))),
+          ''
+      ) LIKE 'CEDIS%'
+GROUP BY
+    UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, '')))),
+    UPPER(LTRIM(RTRIM(b.Articulo))),
+    MONTH(b.FechaDevolucion),
+    YEAR(b.FechaDevolucion);
+
+CREATE UNIQUE CLUSTERED INDEX IX_tmp_devoluciones_cedis
+ON #devoluciones_cedis (Canal, SKU, Mes, Anio);
+
+/* =========================================================
+   SKU CON VENTA REAL, PERO SIN PRESUPUESTO DE VENDEDOR
+
+   Se genera una fila con Presupuesto = 0 para que el SKU
+   aparezca en el resultado final aunque no esté presupuestado.
+   ========================================================= */
+SELECT DISTINCT
     'VENDEDOR' AS Origen,
     vr.Mes,
     vr.Anio,
@@ -11739,10 +11769,10 @@ SELECT
     vr.ArticuloCodigo AS SKU,
     CAST(0 AS DECIMAL(18,4)) AS Presupuesto,
     CAST(0 AS DECIMAL(18,4)) AS Kg
-INTO #todo_vendedor_estrategico_extra
+INTO #todo_vendedor_venta_real_extra
 FROM #venta_real_base vr
 WHERE vr.VendedorId IS NOT NULL
-  AND ISNULL(vr.U_CANAL, '') = 'ESTRATEGICO'
+  AND ISNULL(vr.KgVendidos, 0) > 0
   AND NOT EXISTS
   (
       SELECT 1
@@ -11753,43 +11783,18 @@ WHERE vr.VendedorId IS NOT NULL
         AND tv.Anio       = vr.Anio
   );
 
-CREATE INDEX IX_tmp_todo_vendedor_estrategico_extra
-ON #todo_vendedor_estrategico_extra (Mes, Anio, VendedorId, SKU);
+CREATE INDEX IX_tmp_todo_vendedor_venta_real_extra
+ON #todo_vendedor_venta_real_extra
+(
+    Mes,
+    Anio,
+    VendedorId,
+    SKU
+);
 
 -- =========================================================
--- 9) SURTIDO REAL SEPARADO POR ORIGEN
+-- 7) SURTIDO REAL CEDIS / VENDEDOR
 -- =========================================================
-SELECT
-    Cliente = UPPER(LTRIM(RTRIM(o.Cliente))),
-    SKU     = UPPER(LTRIM(RTRIM(sd.Articulo))),
-    Mes     = MONTH(se.FechaValidacion),
-    Anio    = YEAR(se.FechaValidacion),
-    KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
-INTO #surtido_cliente
-FROM dbo.OrdenVenta o
-JOIN dbo.Series ser
-    ON ser.NombreSerie = o.Serie
-JOIN dbo.Subpedido sp
-    ON sp.OrdenVentaId = o.Id
-JOIN dbo.SurtidoEncabezado se
-    ON se.SolicitudSurtidoId = sp.U_DocMeat
-JOIN dbo.SurtidoDetalle sd
-    ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
-JOIN #clientes cli
-    ON cli.Cliente = UPPER(LTRIM(RTRIM(o.Cliente)))
-WHERE o.Estatus <> 0
-  AND se.FechaValidacion IS NOT NULL
-  AND ser.Sucursal = 'MATRIZ'
-  AND ISNULL(cli.U_CANAL, '') NOT LIKE 'CEDIS%'
-GROUP BY
-    UPPER(LTRIM(RTRIM(o.Cliente))),
-    UPPER(LTRIM(RTRIM(sd.Articulo))),
-    MONTH(se.FechaValidacion),
-    YEAR(se.FechaValidacion);
-
-CREATE CLUSTERED INDEX IX_tmp_surtido_cliente
-ON #surtido_cliente (Cliente, SKU, Mes, Anio);
-
 SELECT
     Canal = cli.U_CANAL,
     SKU   = UPPER(LTRIM(RTRIM(sd.Articulo))),
@@ -11866,18 +11871,33 @@ CREATE CLUSTERED INDEX IX_tmp_surtido_cedis_base
 ON #surtido_cedis_base (Canal, SKU, Mes, Anio);
 
 SELECT
-    cl.VendedorId,
-    sc.SKU,
-    sc.Mes,
-    sc.Anio,
-    KgSurtido = SUM(sc.KgSurtido)
+    cli.VendedorId,
+    SKU       = UPPER(LTRIM(RTRIM(sd.Articulo))),
+    Mes       = MONTH(se.FechaValidacion),
+    Anio      = YEAR(se.FechaValidacion),
+    KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
 INTO #surtido_vendedor_normal
-FROM #surtido_cliente sc
-JOIN #clientes cl
-    ON cl.Cliente = sc.Cliente
-WHERE cl.VendedorId IS NOT NULL
+FROM dbo.OrdenVenta o
+JOIN dbo.Series ser
+    ON ser.NombreSerie = o.Serie
+JOIN dbo.Subpedido sp
+    ON sp.OrdenVentaId = o.Id
+JOIN dbo.SurtidoEncabezado se
+    ON se.SolicitudSurtidoId = sp.U_DocMeat
+JOIN dbo.SurtidoDetalle sd
+    ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+JOIN #clientes cli
+    ON cli.Cliente = UPPER(LTRIM(RTRIM(o.Cliente)))
+WHERE o.Estatus <> 0
+  AND se.FechaValidacion IS NOT NULL
+  AND ser.Sucursal = 'MATRIZ'
+  AND ISNULL(cli.U_CANAL, '') NOT LIKE 'CEDIS%'
+  AND cli.VendedorId IS NOT NULL
 GROUP BY
-    cl.VendedorId, sc.SKU, sc.Mes, sc.Anio;
+    cli.VendedorId,
+    UPPER(LTRIM(RTRIM(sd.Articulo))),
+    MONTH(se.FechaValidacion),
+    YEAR(se.FechaValidacion);
 
 CREATE CLUSTERED INDEX IX_tmp_surtido_vendedor_normal
 ON #surtido_vendedor_normal (VendedorId, SKU, Mes, Anio);
@@ -11932,19 +11952,7 @@ GROUP BY
 CREATE CLUSTERED INDEX IX_tmp_surtido_vendedor_total
 ON #surtido_vendedor_total (VendedorId, SKU, Mes, Anio);
 
--- Tablas finales separadas por origen, para evitar JOIN con OR
-SELECT
-    Cliente,
-    SKU,
-    Mes,
-    Anio,
-    KgSurtido
-INTO #surtido_real_cliente
-FROM #surtido_cliente;
-
-CREATE CLUSTERED INDEX IX_tmp_surtido_real_cliente
-ON #surtido_real_cliente (Cliente, SKU, Mes, Anio);
-
+-- Tablas finales separadas por origen
 SELECT
     Canal,
     SKU,
@@ -11969,54 +11977,115 @@ FROM #surtido_vendedor_total;
 CREATE CLUSTERED INDEX IX_tmp_surtido_real_vendedor
 ON #surtido_real_vendedor (VendedorId, SKU, Mes, Anio);
 
+/* =========================================================
+   COMPLETAR VENDEDORES CON VENTA REAL Y SIN PRESUPUESTO
+
+   Si ya existe en #todo_vendedor o en la tabla extra,
+   no se vuelve a insertar.
+   ========================================================= */
+INSERT INTO #todo_vendedor_venta_real_extra
+(
+    Origen,
+    Mes,
+    Anio,
+    Cliente,
+    Canal,
+    VendedorId,
+    SKU,
+    Presupuesto,
+    Kg
+)
+SELECT
+    'VENDEDOR' AS Origen,
+    srv.Mes,
+    srv.Anio,
+    CAST(NULL AS NVARCHAR(50)) AS Cliente,
+    CAST(NULL AS NVARCHAR(100)) AS Canal,
+    srv.VendedorId,
+    srv.SKU,
+    CAST(0 AS DECIMAL(18,4)) AS Presupuesto,
+    CAST(0 AS DECIMAL(18,4)) AS Kg
+FROM #surtido_real_vendedor srv
+WHERE ISNULL(srv.KgSurtido, 0) > 0
+  AND NOT EXISTS
+  (
+      SELECT 1
+      FROM #todo_vendedor tv
+      WHERE tv.VendedorId = srv.VendedorId
+        AND tv.SKU        = srv.SKU
+        AND tv.Mes        = srv.Mes
+        AND tv.Anio       = srv.Anio
+  )
+  AND NOT EXISTS
+  (
+      SELECT 1
+      FROM #todo_vendedor_venta_real_extra tve
+      WHERE tve.VendedorId = srv.VendedorId
+        AND tve.SKU        = srv.SKU
+        AND tve.Mes        = srv.Mes
+        AND tve.Anio       = srv.Anio
+  );
+
 -- =========================================================
--- 10) EXTRA CEDIS DESDE VENTA REAL
+-- 8) EXTRA CEDIS DESDE VENTA REAL
 -- =========================================================
 SELECT
     'CEDIS' AS Origen,
-    vr.Mes,
-    vr.Anio,
+    src.Mes,
+    src.Anio,
     CAST(NULL AS NVARCHAR(50)) AS Cliente,
-    vr.U_CANAL AS Canal,
+    src.Canal,
     CAST(NULL AS INT) AS VendedorId,
-    vr.ArticuloCodigo AS SKU,
+    src.SKU,
     CAST(0 AS DECIMAL(18,4)) AS Presupuesto,
     CAST(0 AS DECIMAL(18,4)) AS Kg
 INTO #todo_cedis_venta_real_extra
-FROM #venta_real_base vr
-WHERE ISNULL(vr.U_CANAL, '') LIKE 'CEDIS%'
+FROM #surtido_real_cedis src
+WHERE ISNULL(src.KgSurtido, 0) > 0
   AND NOT EXISTS
   (
       SELECT 1
       FROM #todo_cedis tc
-      WHERE tc.Canal = vr.U_CANAL
-        AND tc.SKU   = vr.ArticuloCodigo
-        AND tc.Mes   = vr.Mes
-        AND tc.Anio  = vr.Anio
+      WHERE tc.Canal = src.Canal
+        AND tc.SKU   = src.SKU
+        AND tc.Mes   = src.Mes
+        AND tc.Anio  = src.Anio
   );
 
 CREATE INDEX IX_tmp_todo_cedis_venta_real_extra
 ON #todo_cedis_venta_real_extra (Mes, Anio, Canal, SKU);
 
 -- =========================================================
--- 11) BASE FINAL
+-- 9) BASE FINAL
 -- =========================================================
 SELECT *
 INTO #t_base
 FROM
 (
+    /* CEDIS: presupuesto normal */
     SELECT * FROM #todo_cedis
+
     UNION ALL
+
+    /* CEDIS: venta real sin presupuesto */
     SELECT * FROM #todo_cedis_venta_real_extra
+
     UNION ALL
+
+    /* Vendedor: presupuesto normal */
     SELECT * FROM #todo_vendedor
+
+    UNION ALL
+
+    /* Vendedor: venta real sin presupuesto */
+    SELECT * FROM #todo_vendedor_venta_real_extra
 ) t;
 
 CREATE INDEX IX_tmp_t_base
-ON #t_base (Origen, Anio, Mes, SKU, Cliente, Canal, VendedorId);
+ON #t_base (Origen, Anio, Mes, SKU, Canal, VendedorId);
 
 -- =========================================================
--- 12) DÍAS LABORABLES
+-- 10) DÍAS LABORABLES
 -- =========================================================
 SELECT DISTINCT
     Mes,
@@ -12081,18 +12150,16 @@ CREATE CLUSTERED INDEX IX_tmp_dias_laborables
 ON #dias_laborables (Mes, Anio);
 
 -- =========================================================
--- 13) SELECT FINAL
---     YA SIN JOIN CON OR PARA SURTIDO
+-- 11) SELECT FINAL
+--     SOLO CEDIS Y VENDEDORES
 -- =========================================================
 SELECT
     t.Origen,
     t.Mes  AS MesConsulta,
     t.Anio AS AnioConsulta,
-    ISNULL(t.Cliente, '-') AS ClienteCodigo,
-    ISNULL(cl.NombreCliente, '-') AS NombreCliente,
     ISNULL(t.Canal, '-') AS Canal,
     ISNULL(t.VendedorId, 0) AS VendedorId,
-    ISNULL(COALESCE(vend.VendedorNombre, cl.VendedorNombre), '-') AS VendedorNombre,
+    ISNULL(vend.VendedorNombre, '-') AS VendedorNombre,
     t.SKU AS ProductoCodigo,
     prd.ProductoNombre,
     prd.U_MASTER AS U_MASTER,
@@ -12101,39 +12168,79 @@ SELECT
     ISNULL(prd.IdTipoSKU, 0) AS IdTipoSKU,
     ISNULL(prd.TipoSKUDescripcion, 'POR DEFINIR') AS TipoSKUDescripcion,
     CAST(t.Presupuesto AS DECIMAL(18,4)) AS PresupuestoAsignado,
+
     CAST(t.Kg AS DECIMAL(18,4)) AS KgPedidosMes,
-    CAST(
+
+    /* El surtido NO se reduce por devolución */
+    venta.KgSurtidoRealCalculado AS KgSurtidoReal,
+
+    /* Venta real antes de devoluciones */
+    venta.VentaRealBrutaCalculada AS VentaRealBruta,
+
+    /* Devoluciones realizadas en bodegas, no en frigorífico */
+    venta.KgDevolucionesBodegaCalculado AS DevolucionesBodega,
+
+    /* Venta real que debe mostrarse en el reporte */
+    ventaNeta.VentaRealNetaCalculada AS VentaRealNeta,
+
+    CAST
+    (
         CASE
-            WHEN t.Origen = 'CLIENTE'  THEN ISNULL(src.KgSurtido, 0)
-            WHEN t.Origen = 'CEDIS'    THEN ISNULL(srd.KgSurtido, 0)
-            WHEN t.Origen = 'VENDEDOR' THEN ISNULL(srv.KgSurtido, 0)
+            WHEN ISNULL(t.Presupuesto, 0) > 0
+                THEN 1
             ELSE 0
         END
-    AS DECIMAL(18,4)) AS KgSurtidoReal,
-    CAST(
+        AS BIT
+    ) AS TienePresupuesto,
+
+    CAST
+    (
         CASE
-            WHEN (
-                t.Presupuesto
+            WHEN ISNULL(ventaNeta.VentaRealNetaCalculada, 0) > 0
+                THEN 1
+            ELSE 0
+        END
+        AS BIT
+    ) AS TieneVenta,
+
+    CASE
+        WHEN ISNULL(t.Presupuesto, 0) > 0
+         AND ISNULL(ventaNeta.VentaRealNetaCalculada, 0) > 0
+            THEN 'PRESUPUESTO Y VENTA'
+
+        WHEN ISNULL(t.Presupuesto, 0) > 0
+            THEN 'SOLO PRESUPUESTO'
+
+        WHEN ISNULL(ventaNeta.VentaRealNetaCalculada, 0) > 0
+            THEN 'SOLO VENTA'
+    END AS EstatusPresupuestoVenta,
+
+    /*
+       DISPONIBLE:
+       Plan de venta - Surtido - Pedidos.
+
+       La devolución de bodega NO se suma al disponible.
+    */
+    CAST
+    (
+        CASE
+            WHEN
+            (
+                ISNULL(t.Presupuesto, 0)
                 - ISNULL(t.Kg, 0)
-                - CASE
-                    WHEN t.Origen = 'CLIENTE'  THEN ISNULL(src.KgSurtido, 0)
-                    WHEN t.Origen = 'CEDIS'    THEN ISNULL(srd.KgSurtido, 0)
-                    WHEN t.Origen = 'VENDEDOR' THEN ISNULL(srv.KgSurtido, 0)
-                    ELSE 0
-                  END
-            ) < 0 THEN 0
-            ELSE (
-                t.Presupuesto
+                - ISNULL(venta.KgSurtidoRealCalculado, 0)
+            ) < 0
+                THEN 0
+
+            ELSE
+            (
+                ISNULL(t.Presupuesto, 0)
                 - ISNULL(t.Kg, 0)
-                - CASE
-                    WHEN t.Origen = 'CLIENTE'  THEN ISNULL(src.KgSurtido, 0)
-                    WHEN t.Origen = 'CEDIS'    THEN ISNULL(srd.KgSurtido, 0)
-                    WHEN t.Origen = 'VENDEDOR' THEN ISNULL(srv.KgSurtido, 0)
-                    ELSE 0
-                  END
+                - ISNULL(venta.KgSurtidoRealCalculado, 0)
             )
         END
-    AS DECIMAL(18,4)) AS DisponibleVenta,
+        AS DECIMAL(18,4)
+    ) AS DisponibleVenta,
     CAST(ISNULL(pp.PlanProduccion, 0) AS DECIMAL(18,4)) AS PlanProduccion,
     CAST(ISNULL(pr.Producido, 0) AS DECIMAL(18,4)) AS Producido,
     CAST(
@@ -12146,28 +12253,103 @@ SELECT
 FROM #t_base t
 LEFT JOIN #productos prd
     ON prd.SKU = t.SKU
-LEFT JOIN #clientes cl
-    ON cl.Cliente = t.Cliente
 LEFT JOIN #vendedores vend
     ON vend.VendedorId = t.VendedorId
-LEFT JOIN #surtido_real_cliente src
-    ON t.Origen = 'CLIENTE'
-   AND src.Cliente = t.Cliente
-   AND src.SKU     = t.SKU
-   AND src.Mes     = t.Mes
-   AND src.Anio    = t.Anio
 LEFT JOIN #surtido_real_cedis srd
     ON t.Origen = 'CEDIS'
    AND srd.Canal = t.Canal
    AND srd.SKU   = t.SKU
    AND srd.Mes   = t.Mes
    AND srd.Anio  = t.Anio
+
+LEFT JOIN #venta_real_cedis vrc
+    ON t.Origen = 'CEDIS'
+   AND vrc.Canal = UPPER(LTRIM(RTRIM(t.Canal)))
+   AND vrc.SKU   = t.SKU
+   AND vrc.Mes   = t.Mes
+   AND vrc.Anio  = t.Anio
+
+LEFT JOIN #devoluciones_cedis dc
+    ON t.Origen = 'CEDIS'
+   AND dc.Canal = UPPER(LTRIM(RTRIM(t.Canal)))
+   AND dc.SKU   = t.SKU
+   AND dc.Mes   = t.Mes
+   AND dc.Anio  = t.Anio
 LEFT JOIN #surtido_real_vendedor srv
     ON t.Origen = 'VENDEDOR'
    AND srv.VendedorId = t.VendedorId
    AND srv.SKU        = t.SKU
    AND srv.Mes        = t.Mes
    AND srv.Anio       = t.Anio
+OUTER APPLY
+(
+    SELECT
+        /* Surtido utilizado para consumo del plan */
+        KgSurtidoRealCalculado =
+            CAST
+            (
+                CASE
+                    WHEN t.Origen = 'CEDIS'
+                        THEN ISNULL(srd.KgSurtido, 0)
+
+                    WHEN t.Origen = 'VENDEDOR'
+                        THEN ISNULL(srv.KgSurtido, 0)
+
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        /* Venta real antes de devoluciones de bodega */
+        VentaRealBrutaCalculada =
+            CAST
+            (
+                CASE
+                    WHEN t.Origen = 'CEDIS'
+                        THEN ISNULL(vrc.VentaRealBruta, 0)
+
+                    WHEN t.Origen = 'VENDEDOR'
+                        THEN ISNULL(srv.KgSurtido, 0)
+
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        KgDevolucionesBodegaCalculado =
+            CAST
+            (
+                CASE
+                    WHEN t.Origen = 'CEDIS'
+                        THEN ISNULL(dc.KgDevolucionesBodega, 0)
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            )
+) AS venta
+OUTER APPLY
+(
+    SELECT
+        VentaRealNetaCalculada =
+            CAST
+            (
+                CASE
+                    WHEN
+                    (
+                        venta.VentaRealBrutaCalculada
+                        - venta.KgDevolucionesBodegaCalculado
+                    ) < 0
+                        THEN 0
+
+                    ELSE
+                    (
+                        venta.VentaRealBrutaCalculada
+                        - venta.KgDevolucionesBodegaCalculado
+                    )
+                END
+                AS DECIMAL(18,4)
+            )
+) AS ventaNeta
 LEFT JOIN #plan_prod pp
     ON pp.SKU  = t.SKU
    AND pp.Mes  = t.Mes
@@ -12180,41 +12362,59 @@ LEFT JOIN #dias_laborables dl
     ON dl.Mes  = t.Mes
    AND dl.Anio = t.Anio
 WHERE
-    -- Si NO trae canal CEDIS, ve todo
-    NOT EXISTS
+    /* El reporte únicamente considera CEDIS y VENDEDORES */
+    t.Origen IN ('CEDIS', 'VENDEDOR')
+    AND
+    /* Mostrar cuando exista presupuesto, venta real o ambos */
     (
-        SELECT 1
-        FROM STRING_SPLIT(ISNULL(@CanalesCsv, ''), ',') c
-        WHERE ISNULL(LTRIM(RTRIM(c.value)), '') <> ''
-          AND UPPER(LTRIM(RTRIM(c.value))) LIKE 'CEDIS%'
+        ISNULL(t.Presupuesto, 0) > 0
+        OR ISNULL(ventaNeta.VentaRealNetaCalculada, 0) > 0
     )
-
-    OR
-
-    -- Si SÍ trae canal CEDIS, se limita al canal correspondiente
-    EXISTS
+    AND
     (
-        SELECT 1
-        FROM STRING_SPLIT(ISNULL(@CanalesCsv, ''), ',') c
-        WHERE ISNULL(LTRIM(RTRIM(c.value)), '') <> ''
-          AND UPPER(LTRIM(RTRIM(c.value))) LIKE 'CEDIS%'
-          AND
-          (
-              UPPER(LTRIM(RTRIM(ISNULL(t.Canal, '')))) =
-              UPPER(LTRIM(RTRIM(c.value)))
+        /* Si NO trae canal CEDIS, ve todo */
+        NOT EXISTS
+        (
+            SELECT 1
+            FROM STRING_SPLIT(ISNULL(@CanalesCsv, ''), ',') c
+            WHERE ISNULL(LTRIM(RTRIM(c.value)), '') <> ''
+              AND UPPER(LTRIM(RTRIM(c.value))) LIKE 'CEDIS%'
+        )
 
-              OR 'CEDIS-' + UPPER(LTRIM(RTRIM(ISNULL(t.Canal, '')))) =
-              UPPER(LTRIM(RTRIM(c.value)))
+        OR
 
-              OR REPLACE(UPPER(LTRIM(RTRIM(ISNULL(t.Canal, '')))), 'CEDIS-', '') =
-                 REPLACE(UPPER(LTRIM(RTRIM(c.value))), 'CEDIS-', '')
-          )
+        /* Si SÍ trae canal CEDIS, se limita al canal correspondiente */
+        EXISTS
+        (
+            SELECT 1
+            FROM STRING_SPLIT(ISNULL(@CanalesCsv, ''), ',') c
+            WHERE ISNULL(LTRIM(RTRIM(c.value)), '') <> ''
+              AND UPPER(LTRIM(RTRIM(c.value))) LIKE 'CEDIS%'
+              AND
+              (
+                  UPPER(LTRIM(RTRIM(ISNULL(t.Canal, '')))) =
+                  UPPER(LTRIM(RTRIM(c.value)))
+
+                  OR 'CEDIS-' + UPPER(LTRIM(RTRIM(ISNULL(t.Canal, '')))) =
+                  UPPER(LTRIM(RTRIM(c.value)))
+
+                  OR REPLACE(
+                         UPPER(LTRIM(RTRIM(ISNULL(t.Canal, '')))),
+                         'CEDIS-',
+                         ''
+                     ) =
+                     REPLACE(
+                         UPPER(LTRIM(RTRIM(c.value))),
+                         'CEDIS-',
+                         ''
+                     )
+              )
+        )
     )
 ORDER BY
     t.Origen,
     t.Anio,
     t.Mes,
-    ISNULL(t.Cliente, ''),
     ISNULL(t.Canal, ''),
     t.SKU;
 ";
@@ -14955,23 +15155,42 @@ SELECT
     YEAR(b.FechaDevolucion) AS Anio,
     MONTH(b.FechaDevolucion) AS Mes,
     UPPER(LTRIM(RTRIM(b.Articulo))) AS Sku,
-    SUM(CAST(ISNULL(b.Peso, 0) AS DECIMAL(18,4))) AS Kg,
+    SUM(
+        CAST(
+            ISNULL(b.Peso, 0)
+            AS DECIMAL(18,4)
+        )
+    ) AS Kg,
     b.CodigoSap AS ClienteId,
     b.Cliente,
     c.VendedorId,
     c.VendedorNombre,
     ISNULL(c.U_CANAL, '') AS Canal
-FROM dbo.DevolucionMeat b
-INNER JOIN dbo.ClienteSap c 
-    ON UPPER(LTRIM(RTRIM(b.CodigoSap))) = UPPER(LTRIM(RTRIM(c.Cliente)))
+FROM dbo.DevolucionMeat AS b
+INNER JOIN dbo.ClienteSap AS c
+    ON UPPER(LTRIM(RTRIM(b.CodigoSap))) =
+       UPPER(LTRIM(RTRIM(c.Cliente)))
 WHERE b.FechaDevolucion IS NOT NULL
   AND b.FechaDevolucion >= @FechaInicio
   AND b.FechaDevolucion < @FechaFin
 
+  /* Excluir almacenes cuyo nombre comience con FRIGORIFICO */
+  AND ISNULL(
+        UPPER(LTRIM(RTRIM(b.AlmacenDevolucionNombre))),
+        ''
+      ) NOT LIKE 'FRIGORIFICO%'
+
+  /* Solo remisiones SUC01 y SUC02 */
+  AND
+  (
+      b.Remision LIKE '%SUC01%'
+      OR b.Remision LIKE '%SUC02%'
+  )
+
   AND EXISTS
   (
       SELECT 1
-      FROM dbo.Subpedido a
+      FROM dbo.Subpedido AS a
       WHERE a.U_DocMeat = b.SolicitudSurtidoId
   )
 
@@ -14980,9 +15199,17 @@ WHERE b.FechaDevolucion IS NOT NULL
       NOT EXISTS
       (
           SELECT 1
-          FROM STRING_SPLIT(ISNULL(@CanalesCsv, ''), ',') cc
-          WHERE ISNULL(LTRIM(RTRIM(cc.value)), '') <> ''
-            AND UPPER(LTRIM(RTRIM(cc.value))) LIKE 'CEDIS%'
+          FROM STRING_SPLIT(
+              ISNULL(@CanalesCsv, ''),
+              ','
+          ) AS cc
+          WHERE ISNULL(
+                    LTRIM(RTRIM(cc.value)),
+                    ''
+                ) <> ''
+            AND UPPER(
+                    LTRIM(RTRIM(cc.value))
+                ) LIKE 'CEDIS%'
       )
 
       OR
@@ -14990,19 +15217,66 @@ WHERE b.FechaDevolucion IS NOT NULL
       EXISTS
       (
           SELECT 1
-          FROM STRING_SPLIT(ISNULL(@CanalesCsv, ''), ',') cc
-          WHERE ISNULL(LTRIM(RTRIM(cc.value)), '') <> ''
-            AND UPPER(LTRIM(RTRIM(cc.value))) LIKE 'CEDIS%'
+          FROM STRING_SPLIT(
+              ISNULL(@CanalesCsv, ''),
+              ','
+          ) AS cc
+          WHERE ISNULL(
+                    LTRIM(RTRIM(cc.value)),
+                    ''
+                ) <> ''
+
+            AND UPPER(
+                    LTRIM(RTRIM(cc.value))
+                ) LIKE 'CEDIS%'
+
             AND
             (
-                UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, '')))) =
-                UPPER(LTRIM(RTRIM(cc.value)))
+                UPPER(
+                    LTRIM(
+                        RTRIM(
+                            ISNULL(c.U_CANAL, '')
+                        )
+                    )
+                ) =
+                UPPER(
+                    LTRIM(RTRIM(cc.value))
+                )
 
-                OR 'CEDIS-' + UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, '')))) =
-                UPPER(LTRIM(RTRIM(cc.value)))
+                OR
 
-                OR REPLACE(UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, '')))), 'CEDIS-', '') =
-                   REPLACE(UPPER(LTRIM(RTRIM(cc.value))), 'CEDIS-', '')
+                'CEDIS-' +
+                UPPER(
+                    LTRIM(
+                        RTRIM(
+                            ISNULL(c.U_CANAL, '')
+                        )
+                    )
+                ) =
+                UPPER(
+                    LTRIM(RTRIM(cc.value))
+                )
+
+                OR
+
+                REPLACE(
+                    UPPER(
+                        LTRIM(
+                            RTRIM(
+                                ISNULL(c.U_CANAL, '')
+                            )
+                        )
+                    ),
+                    'CEDIS-',
+                    ''
+                ) =
+                REPLACE(
+                    UPPER(
+                        LTRIM(RTRIM(cc.value))
+                    ),
+                    'CEDIS-',
+                    ''
+                )
             )
       )
   )
@@ -15153,7 +15427,7 @@ ResumenFinal AS (
         p.CajasSurtidas,
         ROUND((ISNULL(p.KgSurtidos, 0) * 100.0) / NULLIF(p.KgPedidos, 0), 2) AS GAPKg,
         ROUND((ISNULL(p.CajasSurtidas, 0) * 100.0) / NULLIF(p.CajasPedidas, 0), 2) AS GAPCajas,
-        c.FechaEmbarque AS Fecha,
+        c.FechaEntrega AS Fecha,
         'OV' AS Tipo
     FROM PedidosOV p
     INNER JOIN OrdenVenta c 

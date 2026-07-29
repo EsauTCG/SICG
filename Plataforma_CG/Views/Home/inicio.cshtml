@@ -1343,11 +1343,30 @@ modulos.forEach(mod => {
     grouped[section].push(mod);
 });
 
-const sectionNames = [
+const sectionNamesBase = [
     ...SECTION_ORDER.filter(section => grouped[section]?.length),
+
     ...Object.keys(grouped)
         .filter(section => !SECTION_ORDER.includes(section))
         .sort((a, b) => a.localeCompare(b))
+];
+
+function esCategoriaSistema(nombre) {
+    const valor = normalizeText(nombre);
+
+    return valor === "sistema" ||
+           valor === "sistemas" ||
+           valor === "gestion de sistemas";
+}
+
+const sectionNames = [
+    ...sectionNamesBase.filter(
+        section => !esCategoriaSistema(section)
+    ),
+
+    ...sectionNamesBase.filter(
+        section => esCategoriaSistema(section)
+    )
 ];
 
 sectionNames.forEach((section, index) => {

@@ -1481,6 +1481,37 @@
         cursor: pointer;
     }
 
+    .trz-btn-autocomplete {
+        min-height: 34px;
+        padding: 0 16px;
+        border: 1px solid #0f653c;
+        background: linear-gradient(180deg, #20a966 0%, #147a46 100%);
+        color: #fff;
+        font-weight: 900;
+        border-radius: 4px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        box-shadow: 0 3px 10px rgba(20,122,70,.22);
+    }
+
+    .trz-btn-autocomplete:hover {
+        filter: brightness(1.05);
+    }
+
+    .trz-btn-autocomplete:disabled {
+        opacity: .58;
+        cursor: not-allowed;
+        filter: grayscale(.15);
+    }
+
+    .trz-btn-autocomplete.is-busy {
+        background: linear-gradient(180deg, #2479bd 0%, #145789 100%);
+        border-color: #0e4c79;
+    }
+
     .trz-summary {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
@@ -2651,6 +2682,25 @@
 
             <div class="trz-footer">
                 <button type="button"
+                        id="btnVerJsonAutocompletarSap"
+                        class="trz-btn-close"
+                        style="display:none;"
+                        title="Muestra el JSON exacto que se enviaría sin crear documentos en SAP."
+                        onclick="verJsonAutocompletarSap()">
+                    📄 Ver JSON
+                </button>
+
+                <button type="button"
+                        id="btnAutocompletarSap"
+                        class="trz-btn-autocomplete"
+                        style="display:none;"
+                        title="Genera en SAP únicamente los SKU, lotes y KG faltantes; después envía la entrega."
+                        onclick="autocompletarYEnviarSap()">
+                    <span id="btnAutocompletarSapIcon">⚡</span>
+                    <span id="btnAutocompletarSapText">Autocompletar faltantes y enviar</span>
+                </button>
+
+                <button type="button"
                         class="trz-btn-close"
                         data-bs-dismiss="modal">
                     Cerrar
@@ -2848,6 +2898,16 @@
                 const RESERVE_AFTER_MINUTES = 20;
                 let trazabilidadRequestSeq = 0;
 
+                let trazabilidadActualRef = '';
+                let trazabilidadActualDetalle = [];
+                let trazabilidadActualDevolucionesOk = false;
+                let autocompletarSapBusy = false;
+                let permisosAutocompletarSap = {
+                    puedeLeer: false,
+                    puedeEscribir: false,
+                    puedeEliminar: false
+                };
+
                 // =========================================================
                 // AJUSTE TEMPORAL DE ENVÍO SAP
                 // =========================================================
@@ -2879,7 +2939,7 @@
                 }
 
                 function setSendButtonsDisabled(disabled) {
-                    document.querySelectorAll('.btn-enviar, .js-send-one, #btnAuto')
+                    document.querySelectorAll('.btn-enviar, .js-send-one, #btnAuto, #btnAutocompletarSap, #btnVerJsonAutocompletarSap')
                         .forEach(btn => {
                             if (!btn) return;
                             btn.disabled = !!disabled;
@@ -3328,6 +3388,11 @@
             }
 
             function prepararModalTrazabilidad(ref) {
+                trazabilidadActualRef = ref || '';
+                trazabilidadActualDetalle = [];
+                trazabilidadActualDevolucionesOk = false;
+                actualizarBotonAutocompletarSap();
+
                 document.getElementById('trzRef').textContent = ref || '-';
 
                 document.getElementById('trzTotalPartidas').textContent = '…';
@@ -3466,6 +3531,10 @@
                         'Los lotes están disponibles. Consultando devoluciones Meat vs SAP…';
                 }
 
+                trazabilidadActualRef = ref || '';
+                trazabilidadActualDetalle = detalle;
+                actualizarBotonAutocompletarSap();
+
                 return {
                     ok: !hayErrorTrazabilidad,
                     hayError: hayErrorTrazabilidad,
@@ -3474,6 +3543,10 @@
             }
 
             function renderizarErrorTrazabilidad(error) {
+                trazabilidadActualDetalle = [];
+                trazabilidadActualDevolucionesOk = false;
+                actualizarBotonAutocompletarSap();
+
                 document.getElementById('trzTotalPartidas').textContent = '0';
                 document.getElementById('trzKgSolicitados').textContent = '0.00';
                 document.getElementById('trzKgFaltantes').textContent = '0.00';
@@ -3668,12 +3741,396 @@
                         'Las devoluciones están correctas; revisa lotes, kilos y disponibilidad SAP.';
                 }
 
+                trazabilidadActualDevolucionesOk = !hayErrorDevolucion;
+                actualizarBotonAutocompletarSap();
+
                 return {
                     ok: okGeneral,
                     hayError: hayErrorDevolucion,
                     devoluciones,
                     devolucionError
                 };
+            }
+
+
+            function obtenerFaltantesAutocompletarSap() {
+                return (trazabilidadActualDetalle || [])
+                    .map(x => ({
+                        articulo: String(
+                            getPropValue(x, 'articulo', 'Articulo', '')
+                        ).trim(),
+                        almacen: String(
+                            getPropValue(x, 'almacen', 'Almacen', '')
+                        ).trim(),
+                        lote: String(
+                            getPropValue(x, 'lote', 'Lote', '')
+                        ).trim(),
+                        kg: toNumber(
+                            getPropValue(
+                                x,
+                                'kgFaltantes',
+                                'KgFaltantes',
+                                0
+                            )
+                        )
+                    }))
+                    .filter(x =>
+                        x.kg > 0.01 &&
+                        x.articulo &&
+                        x.almacen &&
+                        x.lote &&
+                        x.lote !== '-'
+                    );
+            }
+
+            function actualizarBotonAutocompletarSap() {
+                const btn =
+                    document.getElementById('btnAutocompletarSap');
+                const icon =
+                    document.getElementById('btnAutocompletarSapIcon');
+                const text =
+                    document.getElementById('btnAutocompletarSapText');
+
+                if (!btn || !icon || !text)
+                    return;
+
+                const faltantes =
+                    obtenerFaltantesAutocompletarSap();
+
+                const kgTotal = faltantes.reduce(
+                    (sum, x) => sum + x.kg,
+                    0
+                );
+
+                const puedeVer =
+                    Boolean(permisosAutocompletarSap?.puedeLeer);
+
+                const btnJson =
+                    document.getElementById(
+                        'btnVerJsonAutocompletarSap'
+                    );
+
+                if (btnJson) {
+                    const mostrarJson =
+                        puedeVer &&
+                        kgTotal > 0.01;
+
+                    btnJson.style.display =
+                        mostrarJson
+                            ? 'inline-flex'
+                            : 'none';
+
+                    btnJson.disabled =
+                        !mostrarJson ||
+                        autocompletarSapBusy;
+
+                    btnJson.title =
+                        mostrarJson
+                            ? 'Muestra el JSON exacto que se enviaría a ' +
+                              'PurchaseDeliveryNotes sin crear documentos.'
+                            : 'No existen faltantes válidos para generar JSON.';
+                }
+
+                if (!puedeVer || kgTotal <= 0.01) {
+                    btn.style.display = 'none';
+                    btn.disabled = true;
+                    return;
+                }
+
+                btn.style.display = 'inline-flex';
+
+                if (autocompletarSapBusy) {
+                    btn.disabled = true;
+                    btn.classList.add('is-busy');
+                    icon.textContent = '⏳';
+                    text.textContent =
+                        'Autocompletando y enviando...';
+                    return;
+                }
+
+                btn.classList.remove('is-busy');
+                icon.textContent = '⚡';
+                text.textContent =
+                    `Autocompletar ${formatKg(kgTotal)} KG y enviar`;
+
+                if (!permisosAutocompletarSap?.puedeEscribir) {
+                    btn.disabled = true;
+                    btn.title =
+                        'Tienes permiso de lectura, pero no permiso ' +
+                        'ESCRIBIR en AUTOCOMPLETAR_SAP.';
+                    return;
+                }
+
+                if (!trazabilidadActualDevolucionesOk) {
+                    btn.disabled = true;
+                    btn.title =
+                        'Espera la validación de devoluciones o corrige ' +
+                        'las diferencias antes de autocompletar.';
+                    return;
+                }
+
+                btn.disabled = false;
+                btn.title =
+                    'Genera una entrada PurchaseDeliveryNotes a precio ' +
+                    '0.01 únicamente por los SKU, lotes y KG faltantes; ' +
+                    'después vuelve a validar y envía la entrega.';
+            }
+
+            function verJsonAutocompletarSap() {
+                const referencia =
+                    trazabilidadActualRef || '';
+
+                if (!referencia) {
+                    alert(
+                        'No se encontró la referencia. ' +
+                        'Abre nuevamente la trazabilidad.'
+                    );
+                    return;
+                }
+
+                if (!permisosAutocompletarSap?.puedeLeer) {
+                    alert(
+                        'No tienes permiso LEER en ' +
+                        'AUTOCOMPLETAR_SAP.'
+                    );
+                    return;
+                }
+
+                const url =
+                    '@Url.Action("AutocompletarSapJson", "ProcesosCG")'
+                    + '?referencia='
+                    + encodeURIComponent(referencia)
+                    + '&source='
+                    + encodeURIComponent(SOURCE);
+
+                window.open(
+                    url,
+                    '_blank',
+                    'noopener,noreferrer'
+                );
+            }
+
+
+            async function cargarPermisosAutocompletarSap() {
+                try {
+                    const response = await fetch(
+                        '@Url.Action("ObtenerPermisosAutocompletarSap", "ProcesosCG")',
+                        {
+                            credentials: 'same-origin',
+                            cache: 'no-store'
+                        }
+                    );
+
+                    if (!response.ok) {
+                        permisosAutocompletarSap = {
+                            puedeLeer: false,
+                            puedeEscribir: false,
+                            puedeEliminar: false
+                        };
+                        actualizarBotonAutocompletarSap();
+                        return;
+                    }
+
+                    permisosAutocompletarSap =
+                        await response.json();
+
+                    actualizarBotonAutocompletarSap();
+                }
+                catch (error) {
+                    console.error(
+                        'Error al consultar AUTOCOMPLETAR_SAP:',
+                        error
+                    );
+
+                    permisosAutocompletarSap = {
+                        puedeLeer: false,
+                        puedeEscribir: false,
+                        puedeEliminar: false
+                    };
+
+                    actualizarBotonAutocompletarSap();
+                }
+            }
+
+            async function autocompletarYEnviarSap() {
+                if (autocompletarSapBusy)
+                    return;
+
+                const ref = trazabilidadActualRef;
+                const faltantes =
+                    obtenerFaltantesAutocompletarSap();
+
+                const kgTotal = faltantes.reduce(
+                    (sum, x) => sum + x.kg,
+                    0
+                );
+
+                if (!ref) {
+                    showLog(
+                        'danger',
+                        'No se encontró la referencia de la entrega.'
+                    );
+                    return;
+                }
+
+                if (!permisosAutocompletarSap?.puedeEscribir) {
+                    alert(
+                        'No tienes permiso ESCRIBIR en ' +
+                        'AUTOCOMPLETAR_SAP.'
+                    );
+                    return;
+                }
+
+                if (!trazabilidadActualDevolucionesOk) {
+                    alert(
+                        'Las devoluciones aún no están correctas o ' +
+                        'continúan validándose.'
+                    );
+                    return;
+                }
+
+                if (!faltantes.length || kgTotal <= 0.01) {
+                    alert(
+                        'No hay faltantes válidos para autocompletar.'
+                    );
+                    return;
+                }
+
+                const resumen = faltantes
+                    .map(x =>
+                        `${x.articulo} | ${x.almacen} | ` +
+                        `${x.lote} | ${formatKg(x.kg)} KG`
+                    )
+                    .join('\n');
+
+                const confirmar = confirm(
+                    'Se generará una entrada de mercancía en SAP ' +
+                    'con precio 0.01 por los faltantes exactos.\n\n' +
+                    `Referencia: ${ref}\n` +
+                    `Partidas: ${faltantes.length}\n` +
+                    `KG totales: ${formatKg(kgTotal)}\n\n` +
+                    resumen +
+                    '\n\nDespués se volverá a validar y, si todo está ' +
+                    'correcto, se enviará la entrega.\n\n' +
+                    '¿Continuar?'
+                );
+
+                if (!confirmar)
+                    return;
+
+                autocompletarSapBusy = true;
+                actualizarBotonAutocompletarSap();
+                setSendButtonsDisabled(true);
+
+                showLog(
+                    'info',
+                    `Autocompletando ${formatKg(kgTotal)} KG en SAP ` +
+                    `para ${ref}. Después se enviará la entrega...`
+                );
+
+                try {
+                    const response = await fetch(
+                        '@Url.Action("AutocompletarYEnviarEntregaSap", "ProcesosCG")',
+                        {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            cache: 'no-store',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                referencia: ref,
+                                source: SOURCE
+                            })
+                        }
+                    );
+
+                    const data = await readResponse(response);
+
+                    if (!response.ok || !data?.ok) {
+                        const mensaje =
+                            buildMsg(
+                                data,
+                                'No se pudo completar el inventario ' +
+                                'y enviar la entrega.'
+                            ) +
+                            (data?.detalle
+                                ? '\n' + (
+                                    typeof data.detalle === 'string'
+                                        ? data.detalle
+                                        : JSON.stringify(
+                                            data.detalle,
+                                            null,
+                                            2
+                                        )
+                                )
+                                : '');
+
+                        showLog('danger', mensaje);
+
+                        if (response.status === 403) {
+                            alert(
+                                'Acceso denegado. Se requiere ' +
+                                'AUTOCOMPLETAR_SAP / ESCRIBIR.'
+                            );
+                        } else {
+                            alert(mensaje);
+                        }
+
+                        return;
+                    }
+
+                    const mensaje =
+                        data?.msg ||
+                        'Inventario autocompletado y entrega enviada.';
+
+                    const documentos = [
+                        data?.entradaDocNum
+                            ? `Entrada SAP: ${data.entradaDocNum}`
+                            : '',
+                        data?.entregaDocNum
+                            ? `Entrega SAP: ${data.entregaDocNum}`
+                            : ''
+                    ].filter(Boolean).join(' | ');
+
+                    showLog(
+                        'success',
+                        mensaje +
+                        (documentos ? '\n' + documentos : '')
+                    );
+
+                    setRowStatus(
+                        ref,
+                        true,
+                        mensaje +
+                        (data?.entregaDocNum
+                            ? ` DocNum: ${data.entregaDocNum}`
+                            : '')
+                    );
+
+                    alert(
+                        mensaje +
+                        (documentos
+                            ? '\n\n' + documentos
+                            : '')
+                    );
+
+                    await validarTrazabilidad(ref, true);
+                }
+                catch (error) {
+                    const mensaje =
+                        'Error de red durante el autocompletado: ' +
+                        (error?.message || error);
+
+                    showLog('danger', mensaje);
+                    alert(mensaje);
+                }
+                finally {
+                    autocompletarSapBusy = false;
+                    setSendButtonsDisabled(false);
+                    actualizarBotonAutocompletarSap();
+                }
             }
 
             async function obtenerTrazabilidadRapida(ref) {
@@ -3732,35 +4189,40 @@
                 const requestId = ++trazabilidadRequestSeq;
 
                 if (mostrarModal) {
+                    // Abre el modal inmediatamente. No espera ninguna consulta.
                     prepararModalTrazabilidad(ref);
                 }
 
                 showLog(
                     'info',
-                    'Cargando trazabilidad: ' + ref +
-                    '. Las devoluciones se consultarán en segundo plano…'
+                    'Etapa 1 de 2: cargando lotes, fechas y disponibilidad SAP de ' +
+                    ref + '...'
                 );
 
-                // Ambas consultas comienzan de inmediato, pero la interfaz presenta
-                // el resultado de trazabilidad en cuanto está disponible.
-                const devolucionesPromise = obtenerDevolucionesEntrega(ref)
-                    .catch(error => ({
-                        httpOk: false,
-                        data: {
-                            ok: false,
-                            devoluciones: [],
-                            devolucionError: error?.message || String(error)
-                        }
-                    }));
+                let estadoTraza = {
+                    ok: false,
+                    hayError: true,
+                    detalle: []
+                };
 
-                let estadoTraza;
-
+                // =========================================================
+                // ETAPA 1: TRAZABILIDAD
+                // Primero termina y pinta lotes, fechas, KG y disponibilidad.
+                // Las devoluciones todavía NO se consultan, evitando que ambos
+                // procesos compitan por SQL, conexiones y Service Layer.
+                // =========================================================
                 try {
                     const trazaResponse = await obtenerTrazabilidadRapida(ref);
 
                     estadoTraza = {
-                        ok: Boolean(trazaResponse.httpOk && trazaResponse.data?.ok),
-                        hayError: !Boolean(trazaResponse.httpOk && trazaResponse.data?.ok),
+                        ok: Boolean(
+                            trazaResponse.httpOk &&
+                            trazaResponse.data?.ok
+                        ),
+                        hayError: !Boolean(
+                            trazaResponse.httpOk &&
+                            trazaResponse.data?.ok
+                        ),
                         detalle: getArrayProp(
                             trazaResponse.data,
                             'detalle',
@@ -3768,36 +4230,109 @@
                         )
                     };
 
-                    if (mostrarModal && requestId === trazabilidadRequestSeq) {
+                    if (
+                        mostrarModal &&
+                        requestId === trazabilidadRequestSeq
+                    ) {
                         estadoTraza = renderizarTrazabilidadRapida(
                             ref,
                             trazaResponse.data
                         );
                     }
-                } catch (error) {
+                }
+                catch (error) {
                     estadoTraza = {
                         ok: false,
                         hayError: true,
                         detalle: []
                     };
 
-                    if (mostrarModal && requestId === trazabilidadRequestSeq) {
+                    if (
+                        mostrarModal &&
+                        requestId === trazabilidadRequestSeq
+                    ) {
                         estadoTraza = renderizarErrorTrazabilidad(error);
                     }
                 }
 
-                const devResponse = await devolucionesPromise;
+                // Cede el control al navegador para que pinte la primera tabla
+                // antes de iniciar la segunda consulta pesada.
+                await new Promise(resolve =>
+                    window.setTimeout(resolve, 180)
+                );
+
+                if (
+                    mostrarModal &&
+                    requestId === trazabilidadRequestSeq
+                ) {
+                    const devBody = document.getElementById('devDetalleBody');
+
+                    if (devBody) {
+                        devBody.innerHTML = `
+                            <tr>
+                                <td colspan="9" class="loading-row">
+                                    <div class="trz-carga-progresiva">
+                                        <span class="trz-mini-spinner"></span>
+                                        Etapa 1 lista. Consultando ahora devoluciones Meat vs SAP…
+                                    </div>
+                                </td>
+                            </tr>`;
+                    }
+
+                    const alertText = document.getElementById('trzAlertText');
+
+                    if (alertText) {
+                        alertText.textContent =
+                            'Lotes, fechas, kilos y disponibilidad ya cargados. ' +
+                            'Ahora se consultan las devoluciones en segundo plano.';
+                    }
+                }
+
+                showLog(
+                    'info',
+                    'Etapa 1 lista. Etapa 2 de 2: consultando devoluciones de ' +
+                    ref + '...'
+                );
+
+                // =========================================================
+                // ETAPA 2: DEVOLUCIONES
+                // Comienza únicamente después de mostrar la trazabilidad.
+                // =========================================================
+                let devResponse;
+
+                try {
+                    devResponse = await obtenerDevolucionesEntrega(ref);
+                }
+                catch (error) {
+                    devResponse = {
+                        httpOk: false,
+                        data: {
+                            ok: false,
+                            devoluciones: [],
+                            devolucionError:
+                                error?.message || String(error)
+                        }
+                    };
+                }
+
                 const devData = devResponse.data || {
                     ok: false,
                     devoluciones: [],
-                    devolucionError: 'No se recibió respuesta de devoluciones.'
+                    devolucionError:
+                        'No se recibió respuesta de devoluciones.'
                 };
 
                 actualizarEstatusDevolucionFila(ref, devData);
 
                 let estadoDev = {
-                    ok: Boolean(devResponse.httpOk && devData?.ok),
-                    hayError: !Boolean(devResponse.httpOk && devData?.ok),
+                    ok: Boolean(
+                        devResponse.httpOk &&
+                        devData?.ok
+                    ),
+                    hayError: !Boolean(
+                        devResponse.httpOk &&
+                        devData?.ok
+                    ),
                     devoluciones: getArrayProp(
                         devData,
                         'devoluciones',
@@ -3811,26 +4346,34 @@
                     )
                 };
 
-                if (mostrarModal && requestId === trazabilidadRequestSeq) {
+                if (
+                    mostrarModal &&
+                    requestId === trazabilidadRequestSeq
+                ) {
                     estadoDev = renderizarDevolucionesTrazabilidad(
                         devData,
                         estadoTraza
                     );
                 }
 
-                const esOk = Boolean(estadoTraza?.ok && estadoDev?.ok);
+                const esOk = Boolean(
+                    estadoTraza?.ok &&
+                    estadoDev?.ok
+                );
 
                 if (esOk) {
                     showLog(
                         'success',
                         'Trazabilidad y devoluciones correctas: ' + ref
                     );
+
                     return true;
                 }
 
                 showLog(
                     'warning',
-                    'La entrega requiere revisión de trazabilidad o devoluciones: ' + ref
+                    'La entrega requiere revisión de trazabilidad o devoluciones: ' +
+                    ref
                 );
 
                 return false;
@@ -4253,7 +4796,10 @@
             let permisosEntregas = { puedeLeer: false, puedeEscribir: false, puedeEliminar: false };
 
             document.addEventListener("DOMContentLoaded", async () => {
-                await cargarPermisosEntregas();
+                await Promise.all([
+                    cargarPermisosEntregas(),
+                    cargarPermisosAutocompletarSap()
+                ]);
             });
 
             async function cargarPermisosEntregas() {

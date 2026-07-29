@@ -472,6 +472,146 @@
             font-weight: 780;
         }
 
+        /*
+         * Última lectura en vivo:
+         * conserva visible el código recién leído aunque el campo de captura
+         * se limpie inmediatamente para recibir la siguiente etiqueta.
+         */
+        .current-scan-live {
+            display: grid;
+            grid-template-columns: 42px minmax(0,1fr) auto;
+            align-items: center;
+            gap: 9px;
+            min-height: 68px;
+            margin-top: 9px;
+            padding: 10px;
+            border: 1px dashed #cfd5da;
+            border-radius: 12px;
+            background: #f8f9fa;
+            color: #596168;
+            transition: background-color .18s ease,
+                        border-color .18s ease,
+                        color .18s ease,
+                        box-shadow .18s ease;
+        }
+
+        .current-scan-live-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 38px;
+            height: 38px;
+            border-radius: 11px;
+            background: rgba(108,117,125,.10);
+            color: inherit;
+            font-size: 1rem;
+        }
+
+        .current-scan-live-main {
+            min-width: 0;
+        }
+
+        .current-scan-live-label {
+            color: inherit;
+            opacity: .72;
+            font-size: .63rem;
+            font-weight: 950;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+        }
+
+        .current-scan-live-code {
+            margin-top: 2px;
+            color: inherit;
+            font-size: .96rem;
+            font-weight: 950;
+            line-height: 1.18;
+            overflow-wrap: anywhere;
+        }
+
+        .current-scan-live-detail {
+            margin-top: 3px;
+            color: inherit;
+            opacity: .76;
+            font-size: .69rem;
+            font-weight: 800;
+            line-height: 1.25;
+        }
+
+        .current-scan-live-time {
+            margin-top: 2px;
+            color: inherit;
+            opacity: .58;
+            font-size: .62rem;
+            font-weight: 850;
+        }
+
+        .current-scan-live-state {
+            align-self: start;
+            white-space: nowrap;
+        }
+
+        .current-scan-live.is-pending {
+            border-style: solid;
+            border-color: #ffe08a;
+            background: #fff8e1;
+            color: #664d03;
+        }
+
+        .current-scan-live.is-validating {
+            border-style: solid;
+            border-color: #9ec5fe;
+            background: #eaf3ff;
+            color: #084298;
+        }
+
+        .current-scan-live.is-ok {
+            border-style: solid;
+            border-color: #75b798;
+            background: #d1e7dd;
+            color: #0f5132;
+            box-shadow: 0 7px 18px rgba(25,135,84,.12);
+        }
+
+        .current-scan-live.is-warn,
+        .current-scan-live.is-dup {
+            border-style: solid;
+            border-color: #ffda6a;
+            background: #fff3cd;
+            color: #664d03;
+        }
+
+        .current-scan-live.is-error {
+            border-style: solid;
+            border-color: #ea868f;
+            background: #f8d7da;
+            color: #842029;
+        }
+
+        @@media (max-width: 430px) {
+            .current-scan-live {
+                grid-template-columns: 36px minmax(0,1fr);
+                min-height: 72px;
+                padding: 9px;
+            }
+
+            .current-scan-live-icon {
+                width: 34px;
+                height: 34px;
+            }
+
+            .current-scan-live-state {
+                grid-column: 1 / -1;
+                justify-self: start;
+                margin-left: 45px;
+                margin-top: -4px;
+            }
+
+            .current-scan-live-code {
+                font-size: .87rem;
+            }
+        }
+
         .kpis {
             display: grid;
             grid-template-columns: repeat(5,minmax(0,1fr));
@@ -2575,6 +2715,180 @@
             }
         }
 
+
+        /* =========================================================
+           FIX MÓVIL — STOCK CONTADO POR SKU
+           La regla de escritorio min-width:760px tenía mayor
+           especificidad y ensanchaba las tarjetas fuera del viewport.
+           ========================================================= */
+        @@media (max-width: 768px) {
+            #reportModal,
+            #reportModal .report-shell,
+            #reportModal .report-wrap,
+            #reportModal .r-card,
+            #reportModal .report-section,
+            #reportModal .report-section-body,
+            #reportModal .report-stock-table-full {
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            #reportModal .report-wrap {
+                overflow-x: hidden !important;
+                padding-left: max(7px, env(safe-area-inset-left)) !important;
+                padding-right: max(7px, env(safe-area-inset-right)) !important;
+            }
+
+            #reportModal .report-section {
+                overflow: hidden !important;
+            }
+
+            #reportModal .report-section > summary {
+                width: 100%;
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+
+            #reportModal .report-section > summary > span:first-child {
+                min-width: 0;
+                overflow-wrap: anywhere;
+            }
+
+            #reportModal .report-section > summary > .r-muted {
+                flex: 0 0 auto;
+                max-width: 35%;
+                text-align: right;
+                white-space: normal;
+                overflow-wrap: anywhere;
+            }
+
+            #reportModal .report-stock-table-full {
+                max-height: min(58dvh, 560px);
+                overflow-x: hidden !important;
+                overflow-y: auto !important;
+                overscroll-behavior: contain;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            /* Anula específicamente el min-width:760px de escritorio. */
+            #reportModal .report-stock-table-full .report-stock-sku-table {
+                display: block !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: 100% !important;
+                table-layout: fixed;
+            }
+
+            #reportModal .report-stock-sku-table thead {
+                display: none !important;
+            }
+
+            #reportModal .report-stock-sku-table tbody {
+                display: grid !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: 100% !important;
+                gap: 9px;
+            }
+
+            #reportModal .report-stock-sku-table tr {
+                display: block !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: 100% !important;
+                overflow: hidden;
+                box-sizing: border-box;
+                border: 1px solid #e4e7ea;
+                border-radius: 12px;
+                background: #fff;
+                box-shadow: 0 4px 12px rgba(20,24,31,.05);
+            }
+
+            #reportModal .report-stock-sku-table td {
+                display: grid !important;
+                grid-template-columns: minmax(92px, 37%) minmax(0, 63%) !important;
+                align-items: start;
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: 100% !important;
+                min-height: 42px;
+                gap: 8px;
+                padding: 9px 10px !important;
+                box-sizing: border-box;
+                border-bottom: 1px solid #edf0f2;
+                text-align: left !important;
+                white-space: normal !important;
+                overflow: hidden;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+
+            #reportModal .report-stock-sku-table td:last-child {
+                border-bottom: 0;
+            }
+
+            #reportModal .report-stock-sku-table td::before {
+                content: attr(data-label);
+                min-width: 0;
+                color: #68717a;
+                font-size: .63rem;
+                font-weight: 950;
+                line-height: 1.25;
+                text-transform: uppercase;
+                overflow-wrap: anywhere;
+            }
+
+            #reportModal .report-stock-sku-table td > *,
+            #reportModal .report-stock-sku-table td b,
+            #reportModal .report-stock-sku-table td .r-muted {
+                min-width: 0 !important;
+                max-width: 100% !important;
+                white-space: normal !important;
+                overflow-wrap: anywhere !important;
+                word-break: break-word !important;
+            }
+
+            #reportModal .report-stock-sku-table td.num {
+                text-align: left !important;
+                font-variant-numeric: tabular-nums;
+            }
+
+            #reportModal .report-stock-sku-table .report-empty {
+                display: block !important;
+                width: 100% !important;
+                text-align: center !important;
+            }
+
+            #reportModal .report-stock-sku-table .report-empty::before {
+                content: none !important;
+            }
+        }
+
+        @@media (max-width: 430px) {
+            #reportModal .report-stock-table-full {
+                max-height: 55dvh;
+            }
+
+            #reportModal .report-stock-sku-table td {
+                grid-template-columns: minmax(82px, 35%) minmax(0, 65%) !important;
+                padding: 9px 8px !important;
+            }
+
+            #reportModal .report-section > summary {
+                padding: 10px 9px;
+                gap: 7px;
+                font-size: .88rem;
+            }
+
+            #reportModal .report-section > summary > .r-muted {
+                max-width: 30%;
+                font-size: .65rem;
+            }
+        }
+
         @@media print {
             body * {
                 visibility: hidden !important;
@@ -2735,6 +3049,39 @@
                    inputmode="text"
                    disabled />
 
+            <div id="currentScanLive"
+                 class="current-scan-live"
+                 aria-live="polite"
+                 aria-atomic="true">
+                <div class="current-scan-live-icon">
+                    <i id="currentScanLiveIcon"
+                       class="fa-solid fa-barcode"></i>
+                </div>
+
+                <div class="current-scan-live-main">
+                    <div class="current-scan-live-label">
+                        Última etiqueta leída
+                    </div>
+                    <div id="currentScanLiveCode"
+                         class="current-scan-live-code">
+                        Esperando lectura…
+                    </div>
+                    <div id="currentScanLiveDetail"
+                         class="current-scan-live-detail">
+                        El código aparecerá aquí inmediatamente al escanear.
+                    </div>
+                    <div id="currentScanLiveTime"
+                         class="current-scan-live-time"></div>
+                </div>
+
+                <div id="currentScanLiveState"
+                     class="current-scan-live-state">
+                    <span class="pill">
+                        LISTO
+                    </span>
+                </div>
+            </div>
+
             <div id="statusMsg" class="scan-status text-muted">
                 Selecciona los almacenes e inicia el inventario.
             </div>
@@ -2808,7 +3155,7 @@
             <button id="btnClear"
                     class="action-btn danger"
                     type="button"
-                    title="Limpiar únicamente el campo de captura">
+                    title="Ocultar únicamente las etiquetas escaneadas visibles">
                 <i class="fa-solid fa-eraser"></i>
                 <span>Limpiar campo</span>
             </button>
@@ -2869,7 +3216,7 @@
                         type="button"
                         class="btn btn-outline-danger btn-sm">
                     <i class="fa-solid fa-lock"></i>
-                    Cerrar sesión de inventario
+                    Cerrar mi sesión
                 </button>
             </div>
 
@@ -2884,7 +3231,7 @@
                                 <span>Avance por almacén</span>
                             </div>
                             <div class="section-subtitle mt-1">
-                                Inventario inicial, contadas, pendientes y avance.
+                                Avance de todas las sesiones del día para cada almacén seleccionado.
                             </div>
                         </div>
                     </div>
@@ -3133,6 +3480,11 @@
                     <div class="small text-muted mt-1">JPG, PNG o WEBP. Máximo 8 MB.</div>
                 </div>
 
+                <div id="incidentFormStatus"
+                     class="full alert alert-success py-2 mb-0 d-none"
+                     role="status"
+                     aria-live="polite"></div>
+
                 <div class="full d-flex justify-content-end">
                     <button id="btnSaveIncident"
                             type="submit"
@@ -3175,9 +3527,10 @@
             <div class="d-flex gap-2">
                 <button id="btnPdfReport"
                         class="btn btn-success btn-sm"
-                        type="button">
+                        type="button"
+                        title="Generar informe ejecutivo de auditoría">
                     <i class="fa-solid fa-file-pdf"></i>
-                    PDF completo
+                    Informe de auditoría
                 </button>
 
                 <button id="btnCloseReport"
@@ -3340,7 +3693,7 @@
 
                 <div class="report-section-body">
                     <div class="report-table-scroll report-stock-table-full">
-                        <table class="report-data-table">
+                        <table class="report-data-table report-stock-sku-table">
                             <thead>
                                 <tr>
                                     <th>Almacén</th>
@@ -3548,7 +3901,7 @@
 </div>
 
 @section Scripts {
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <!-- Chart.js se carga bajo demanda para no bloquear la apertura de la vista. -->
 
     <script>
         (() => {
@@ -3560,8 +3913,13 @@
 
             const REALTIME_BASE_URL = "/InventarioTiempoReal";
             const DASHBOARD_URL = `${REALTIME_BASE_URL}/Dashboard`;
-            const DASHBOARD_REFRESH_MS = 15000;
+            const DASHBOARD_REFRESH_MS = 30000;
+            const CHART_JS_URL =
+                "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js";
             const SESSION_STORAGE_KEY = "inventarioTiempoReal.sesionId";
+            const SESSION_SNAPSHOT_KEY =
+                "inventarioTiempoReal.sesionSnapshot.v1";
+            const SESSION_SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
             const PENDING_TRACKING_KEY = "inventarioTiempoReal.lecturasPendientes";
 
             const INCIDENT_TYPES = [
@@ -3583,6 +3941,19 @@
             const kOk = document.getElementById("kOk");
             const kBad = document.getElementById("kBad");
             const lastList = document.getElementById("lastList");
+
+            const currentScanLive =
+                document.getElementById("currentScanLive");
+            const currentScanLiveIcon =
+                document.getElementById("currentScanLiveIcon");
+            const currentScanLiveCode =
+                document.getElementById("currentScanLiveCode");
+            const currentScanLiveDetail =
+                document.getElementById("currentScanLiveDetail");
+            const currentScanLiveTime =
+                document.getElementById("currentScanLiveTime");
+            const currentScanLiveState =
+                document.getElementById("currentScanLiveState");
 
             const btnFlush = document.getElementById("btnFlush");
             const btnFlushText = document.getElementById("btnFlushText");
@@ -3621,6 +3992,7 @@
             const incidentForm = document.getElementById("incidentForm");
             const btnCloseIncidentForm = document.getElementById("btnCloseIncidentForm");
             const btnSaveIncident = document.getElementById("btnSaveIncident");
+            const incidentFormStatus = document.getElementById("incidentFormStatus");
             const incidentTypeInput = document.getElementById("incidentTypeInput");
             const incidentWarehouseInput = document.getElementById("incidentWarehouseInput");
             const incidentCodeInput = document.getElementById("incidentCodeInput");
@@ -3707,6 +4079,24 @@
 
             const SCAN_HISTORY_STORAGE_PREFIX =
                 "inventarioTiempoReal.historialEscaneos.v1.";
+            const SCAN_VISUAL_CUTOFF_PREFIX =
+                "inventarioTiempoReal.corteVisualEscaneados.v1.";
+            const SCAN_VISUAL_PENDING_PREFIX =
+                "inventarioTiempoReal.corteVisualPendiente.v1.";
+            const WAREHOUSE_KPI_STORAGE_PREFIX =
+                "inventarioTiempoReal.kpiAlmacen.v1.";
+
+            /* Sincronización incremental entre dispositivos: máximo aproximado de 2 s. */
+            const SHARED_HISTORY_REFRESH_MS = 2000;
+            const SHARED_HISTORY_INITIAL_LIMIT = 100;
+
+            /*
+             * El servidor conserva el total completo. En el DOM y en localStorage
+             * solo se mantienen las lecturas recientes para evitar congelar la
+             * pantalla al recuperar sesiones con cientos o miles de etiquetas.
+             */
+            const SCAN_HISTORY_VISIBLE_LIMIT = 250;
+            const SCAN_HISTORY_STORAGE_LIMIT = 300;
 
             const FLUSH_MS = 140;
             const DEDUPE_WINDOW_MS = 900;
@@ -3746,6 +4136,7 @@
             let reportIncidentLoaded = false;
             let reportReadingLoaded = false;
             let reportQueryVersion = 0;
+            let chartJsPromise = null;
             const REPORT_PAGE_SIZE = 50;
 
             const pendingScanVisuals = new Map();
@@ -3753,9 +4144,128 @@
             let scanInputFlashTimer = null;
             let scanHistorySaveTimer = null;
             let restoringScanHistory = false;
+            let latestScanLiveOrder = 0;
+
+            let sharedHistoryTimer = null;
+            let sharedHistoryBusy = false;
+            let sharedHistoryTotal = 0;
+
+            /*
+             * Conteo correcto usado exclusivamente por el KPI FALTAN.
+             * Se separa de "Guardadas" para no descontar etiquetas sobrantes,
+             * mezcladas o pendientes de validación.
+             */
+            let correctCountForMissing = 0;
+            let missingCountReady = false;
+
+            let lastServerReadingId = 0;
+            let sharedHistoryWarehouseId = "";
+            let scanListVisualCutoffId = 0;
+            let scanListAwaitingCutoffSync = false;
+            const serverReadingIds = new Set();
 
             let inventoryConfirmResolver = null;
             let inventoryConfirmPreviousFocus = null;
+            let sessionHydrationVersion = 0;
+
+            function ensureChartJsLoaded() {
+                if (window.Chart) {
+                    return Promise.resolve(window.Chart);
+                }
+
+                if (chartJsPromise) {
+                    return chartJsPromise;
+                }
+
+                chartJsPromise = new Promise((resolve, reject) => {
+                    const existing = document.getElementById(
+                        "inventarioChartJs"
+                    );
+
+                    const resolveIfReady = () => {
+                        if (window.Chart) {
+                            resolve(window.Chart);
+                        } else {
+                            reject(new Error(
+                                "Chart.js terminó de cargar, pero no quedó disponible."
+                            ));
+                        }
+                    };
+
+                    if (existing) {
+                        existing.addEventListener(
+                            "load",
+                            resolveIfReady,
+                            { once: true }
+                        );
+                        existing.addEventListener(
+                            "error",
+                            () => reject(new Error(
+                                "No fue posible cargar Chart.js."
+                            )),
+                            { once: true }
+                        );
+                        return;
+                    }
+
+                    const script = document.createElement("script");
+                    script.id = "inventarioChartJs";
+                    script.src = CHART_JS_URL;
+                    script.async = true;
+
+                    const timeoutId = window.setTimeout(() => {
+                        script.remove();
+                        chartJsPromise = null;
+                        reject(new Error(
+                            "Chart.js tardó demasiado en responder."
+                        ));
+                    }, 8000);
+
+                    script.addEventListener("load", () => {
+                        window.clearTimeout(timeoutId);
+                        resolveIfReady();
+                    }, { once: true });
+
+                    script.addEventListener("error", () => {
+                        window.clearTimeout(timeoutId);
+                        script.remove();
+                        chartJsPromise = null;
+                        reject(new Error(
+                            "No fue posible cargar Chart.js."
+                        ));
+                    }, { once: true });
+
+                    document.head.appendChild(script);
+                }).catch(error => {
+                    chartJsPromise = null;
+                    throw error;
+                });
+
+                return chartJsPromise;
+            }
+
+            function renderChartsWhenReady(callback) {
+                ensureChartJsLoaded()
+                    .then(() => {
+                        requestAnimationFrame(() => {
+                            try {
+                                callback();
+                            } catch (error) {
+                                console.warn(
+                                    "No fue posible dibujar la gráfica.",
+                                    error
+                                );
+                            }
+                        });
+                    })
+                    .catch(error => {
+                        /*
+                         * Las gráficas son secundarias. Si el CDN falla, la
+                         * captura de inventario continúa funcionando.
+                         */
+                        console.warn(error?.message || error);
+                    });
+            }
 
             function showSessionWarning(message) {
                 sessionWarning.textContent = message || "";
@@ -3951,11 +4461,305 @@
                 ).toString().trim();
             }
 
+            function saveSessionSnapshot(session) {
+                const storages = [sessionStorage, localStorage];
+
+                try {
+                    if (!session?.id) {
+                        storages.forEach(storage => {
+                            storage.removeItem(SESSION_SNAPSHOT_KEY);
+                        });
+                        return;
+                    }
+
+                    const payload = JSON.stringify({
+                        version: 2,
+                        savedAt: Date.now(),
+                        session
+                    });
+
+                    storages.forEach(storage => {
+                        storage.setItem(SESSION_SNAPSHOT_KEY, payload);
+                    });
+                } catch (error) {
+                    console.warn(
+                        "No fue posible guardar la sesión para la carga rápida.",
+                        error
+                    );
+                }
+            }
+
+            function readSessionSnapshot() {
+                const storages = [sessionStorage, localStorage];
+
+                for (const storage of storages) {
+                    try {
+                        const raw = storage.getItem(SESSION_SNAPSHOT_KEY);
+                        if (!raw) continue;
+
+                        const parsed = JSON.parse(raw);
+                        const session = parsed?.session || parsed;
+                        const savedAt = Number(parsed?.savedAt || 0);
+
+                        if (
+                            savedAt > 0 &&
+                            Date.now() - savedAt > SESSION_SNAPSHOT_MAX_AGE_MS
+                        ) {
+                            storage.removeItem(SESSION_SNAPSHOT_KEY);
+                            continue;
+                        }
+
+                        if (!session?.id) {
+                            storage.removeItem(SESSION_SNAPSHOT_KEY);
+                            continue;
+                        }
+
+                        /*
+                         * Si provino de localStorage, hidrata sessionStorage para
+                         * que las siguientes aperturas de esta pestaña sean
+                         * instantáneas. El backend valida la sesión enseguida.
+                         */
+                        sessionStorage.setItem(
+                            SESSION_STORAGE_KEY,
+                            String(session.id)
+                        );
+                        sessionStorage.setItem(
+                            SESSION_SNAPSHOT_KEY,
+                            raw
+                        );
+
+                        return session;
+                    } catch (error) {
+                        try {
+                            storage.removeItem(SESSION_SNAPSHOT_KEY);
+                        } catch {
+                            // Sin acción: es únicamente una caché de interfaz.
+                        }
+                    }
+                }
+
+                return null;
+            }
+
+            function getScanVisualCutoffKey(
+                sessionId = activeSession?.id,
+                warehouseId = currentWarehouseId()
+            ) {
+                const sid = Number(sessionId || 0);
+                const wid = normalize(warehouseId || "");
+
+                return sid > 0 && wid
+                    ? `${SCAN_VISUAL_CUTOFF_PREFIX}${sid}.${wid}`
+                    : "";
+            }
+
+            function readScanVisualCutoff(
+                sessionId = activeSession?.id,
+                warehouseId = currentWarehouseId()
+            ) {
+                const key = getScanVisualCutoffKey(sessionId, warehouseId);
+                if (!key) return 0;
+
+                try {
+                    return Math.max(
+                        0,
+                        Math.trunc(Number(sessionStorage.getItem(key) || 0))
+                    );
+                } catch {
+                    return 0;
+                }
+            }
+
+            function saveScanVisualCutoff(
+                value,
+                sessionId = activeSession?.id,
+                warehouseId = currentWarehouseId()
+            ) {
+                const key = getScanVisualCutoffKey(sessionId, warehouseId);
+                if (!key) return;
+
+                try {
+                    sessionStorage.setItem(
+                        key,
+                        String(Math.max(0, Math.trunc(Number(value || 0))))
+                    );
+                } catch {
+                    // El corte es únicamente visual; no afecta el inventario.
+                }
+            }
+
+            function getScanVisualPendingKey(
+                sessionId = activeSession?.id,
+                warehouseId = currentWarehouseId()
+            ) {
+                const sid = Number(sessionId || 0);
+                const wid = normalize(warehouseId || "");
+
+                return sid > 0 && wid
+                    ? `${SCAN_VISUAL_PENDING_PREFIX}${sid}.${wid}`
+                    : "";
+            }
+
+            function readScanVisualPending() {
+                const key = getScanVisualPendingKey();
+                if (!key) return false;
+
+                try {
+                    return sessionStorage.getItem(key) === "1";
+                } catch {
+                    return false;
+                }
+            }
+
+            function saveScanVisualPending(value) {
+                const key = getScanVisualPendingKey();
+                if (!key) return;
+
+                try {
+                    if (value) {
+                        sessionStorage.setItem(key, "1");
+                    } else {
+                        sessionStorage.removeItem(key);
+                    }
+                } catch {
+                    // El indicador es exclusivamente visual.
+                }
+            }
+
+            function syncScanVisualCutoff() {
+                scanListVisualCutoffId = readScanVisualCutoff();
+                scanListAwaitingCutoffSync = readScanVisualPending();
+            }
+
             function getScanHistoryStorageKey(sessionId = activeSession?.id) {
                 const id = Number(sessionId || 0);
                 return id > 0
                     ? `${SCAN_HISTORY_STORAGE_PREFIX}${id}`
                     : "";
+            }
+
+            function getWarehouseKpiStorageKey(
+                sessionId = activeSession?.id,
+                warehouseId = currentWarehouseId()
+            ) {
+                const sid = Number(sessionId || 0);
+                const wid = normalize(warehouseId || "");
+
+                if (sid <= 0 || !wid) return "";
+
+                return `${WAREHOUSE_KPI_STORAGE_PREFIX}${sid}.${encodeURIComponent(wid)}`;
+            }
+
+            function readWarehouseKpiSnapshot(
+                sessionId = activeSession?.id,
+                warehouseId = currentWarehouseId()
+            ) {
+                const key = getWarehouseKpiStorageKey(
+                    sessionId,
+                    warehouseId
+                );
+
+                if (!key) return null;
+
+                try {
+                    const raw = localStorage.getItem(key);
+                    if (!raw) return null;
+
+                    const parsed = JSON.parse(raw);
+                    const savedAt = Number(parsed?.savedAt || 0);
+
+                    if (
+                        savedAt > 0 &&
+                        Date.now() - savedAt >
+                            SESSION_SNAPSHOT_MAX_AGE_MS
+                    ) {
+                        localStorage.removeItem(key);
+                        return null;
+                    }
+
+                    return {
+                        total: Math.max(
+                            0,
+                            Number(parsed?.total || 0)
+                        ),
+                        correctas: Math.max(
+                            0,
+                            Number(parsed?.correctas || 0)
+                        ),
+                        revisar: Math.max(
+                            0,
+                            Number(parsed?.revisar || 0)
+                        )
+                    };
+                } catch (error) {
+                    console.warn(
+                        "No fue posible leer el KPI rápido del almacén.",
+                        error
+                    );
+                    return null;
+                }
+            }
+
+            function saveWarehouseKpiSnapshot() {
+                if (
+                    !activeSession?.id ||
+                    !currentWarehouseId() ||
+                    !missingCountReady
+                ) {
+                    return;
+                }
+
+                const key = getWarehouseKpiStorageKey();
+                if (!key) return;
+
+                try {
+                    localStorage.setItem(
+                        key,
+                        JSON.stringify({
+                            version: 1,
+                            savedAt: Date.now(),
+                            sessionId: Number(activeSession.id),
+                            warehouseId: currentWarehouseId(),
+                            total: Math.max(
+                                0,
+                                Number(sharedHistoryTotal || 0)
+                            ),
+                            correctas: Math.max(
+                                0,
+                                Number(correctCountForMissing || 0)
+                            ),
+                            revisar: Math.max(
+                                0,
+                                Number(badCount || 0)
+                            )
+                        })
+                    );
+                } catch (error) {
+                    console.warn(
+                        "No fue posible guardar el KPI rápido del almacén.",
+                        error
+                    );
+                }
+            }
+
+            function restoreWarehouseKpiSnapshot() {
+                const cached = readWarehouseKpiSnapshot();
+
+                if (!cached) {
+                    sharedHistoryTotal = 0;
+                    correctCountForMissing = 0;
+                    missingCountReady = false;
+                    okCount = 0;
+                    badCount = 0;
+                    return false;
+                }
+
+                sharedHistoryTotal = cached.total;
+                correctCountForMissing = cached.correctas;
+                missingCountReady = true;
+                okCount = cached.correctas;
+                badCount = cached.revisar;
+                return true;
             }
 
             function readScanHistory(sessionId) {
@@ -3971,6 +4775,20 @@
                         ? parsed
                         : parsed?.rows;
 
+                    const storedWarehouseId = Array.isArray(parsed)
+                        ? ""
+                        : normalize(parsed?.warehouseId || "");
+
+                    const activeWarehouseId = normalize(currentWarehouseId());
+
+                    if (
+                        storedWarehouseId &&
+                        activeWarehouseId &&
+                        storedWarehouseId !== activeWarehouseId
+                    ) {
+                        return [];
+                    }
+
                     return Array.isArray(rows) ? rows : [];
                 } catch (error) {
                     console.warn("No fue posible leer el historial de escaneos.", error);
@@ -3979,16 +4797,56 @@
             }
 
             function collectScanHistory() {
-                return Array.from(lastList.children).map((item, index) => ({
-                    order: Number(item.dataset.scanOrder || index + 1),
+                const children = Array.from(lastList.children);
+                const recent = children.slice(-SCAN_HISTORY_STORAGE_LIMIT);
+
+                return recent.map((item, index) => ({
+                    order: Number(
+                        item.dataset.scanOrder ||
+                        children.length - recent.length + index + 1
+                    ),
                     time: item.dataset.scanTime || "",
                     code: item.dataset.scanCode || "",
                     label: item.dataset.scanLabel || "",
                     kind: item.dataset.scanKind || "err",
                     sku: item.dataset.scanSku || "",
                     producto: item.dataset.scanProduct || "",
-                    pesoNeto: toNumber(item.dataset.scanWeight)
+                    pesoNeto: toNumber(item.dataset.scanWeight),
+                    serverReadingId: Number(
+                        item.dataset.serverReadingId || 0
+                    ),
+                    afterVisualClear:
+                        item.dataset.scanAfterVisualClear === "1"
                 }));
+            }
+
+            function trimVisibleScanHistory() {
+                if (!lastList) return;
+
+                while (
+                    lastList.children.length >
+                    SCAN_HISTORY_VISIBLE_LIMIT
+                ) {
+                    const removable = Array.from(lastList.children)
+                        .find(item =>
+                            item.dataset.scanKind !== "pending" &&
+                            item.dataset.scanKind !== "validating"
+                        );
+
+                    if (!removable) break;
+
+                    const serverId = Number(
+                        removable.dataset.serverReadingId || 0
+                    );
+
+                    if (serverId > 0) {
+                        serverReadingIds.delete(serverId);
+                    }
+
+                    removable.remove();
+                }
+
+                updateScanListCount();
             }
 
             function persistScanHistoryNow() {
@@ -4001,8 +4859,10 @@
                     localStorage.setItem(
                         key,
                         JSON.stringify({
-                            version: 1,
+                            version: 2,
                             sessionId: Number(activeSession.id),
+                            warehouseId: currentWarehouseId(),
+                            visualCutoffId: scanListVisualCutoffId,
                             updatedAt: new Date().toISOString(),
                             rows: collectScanHistory()
                         })
@@ -4033,11 +4893,29 @@
             }
 
             function restoreScanHistory(sessionId) {
-                const rows = readScanHistory(sessionId)
+                const allRows = readScanHistory(sessionId)
+                    .filter(row => {
+                        if (row?.afterVisualClear === true) return true;
+                        if (scanListVisualCutoffId <= 0) return true;
+
+                        const serverId = Number(row?.serverReadingId || 0);
+                        return serverId > scanListVisualCutoffId;
+                    })
                     .slice()
                     .sort((a, b) =>
                         toNumber(a?.order) - toNumber(b?.order)
                     );
+
+                /*
+                 * El total sigue disponible para el contador, pero solo se
+                 * construyen las tarjetas recientes. Así el navegador no queda
+                 * bloqueado procesando miles de nodos antes de pintar la sesión.
+                 */
+                const rows = allRows.slice(-SCAN_HISTORY_VISIBLE_LIMIT);
+                sharedHistoryTotal = Math.max(
+                    sharedHistoryTotal,
+                    allRows.length
+                );
 
                 restoringScanHistory = true;
 
@@ -4046,16 +4924,43 @@
                     pendingScanVisuals.clear();
                     scanSequence = 0;
                     queue = [];
+                    latestScanLiveOrder = 0;
+                    lastServerReadingId = 0;
+                    serverReadingIds.clear();
+                    sharedHistoryWarehouseId = currentWarehouseId();
+
+                    const fragment = document.createDocumentFragment();
 
                     for (const stored of rows) {
                         const li = document.createElement("li");
                         const order = Math.max(
                             1,
-                            Math.trunc(toNumber(stored?.order) || scanSequence + 1)
+                            Math.trunc(
+                                toNumber(stored?.order) ||
+                                scanSequence + 1
+                            )
                         );
 
                         li.dataset.scanOrder = String(order);
                         li.dataset.scanTime = stored?.time || "";
+
+                        const serverReadingId = Number(
+                            stored?.serverReadingId || 0
+                        );
+
+                        if (serverReadingId > 0) {
+                            li.dataset.serverReadingId =
+                                String(serverReadingId);
+                            serverReadingIds.add(serverReadingId);
+                            lastServerReadingId = Math.max(
+                                lastServerReadingId,
+                                serverReadingId
+                            );
+                        }
+
+                        if (stored?.afterVisualClear === true) {
+                            li.dataset.scanAfterVisualClear = "1";
+                        }
 
                         renderScanVisual(
                             li,
@@ -4069,26 +4974,50 @@
                             }
                         );
 
-                        lastList.appendChild(li);
+                        fragment.appendChild(li);
                         scanSequence = Math.max(scanSequence, order);
 
                         if (
                             li.dataset.scanKind === "pending" ||
                             li.dataset.scanKind === "validating"
                         ) {
-                            const code = normalize(li.dataset.scanCode || "");
-                            const pendingRows = pendingScanVisuals.get(code) || [];
+                            const code = normalize(
+                                li.dataset.scanCode || ""
+                            );
+                            const pendingRows =
+                                pendingScanVisuals.get(code) || [];
                             pendingRows.push(li);
                             pendingScanVisuals.set(code, pendingRows);
                         }
                     }
 
-                    okCount = rows.filter(row => row?.kind === "ok").length;
-                    badCount = rows.filter(row =>
-                        ["dup", "warn", "err"].includes(row?.kind)
-                    ).length;
+                    lastList.appendChild(fragment);
+
+                    if (!missingCountReady) {
+                        okCount = allRows.filter(
+                            row => row?.kind === "ok"
+                        ).length;
+                        badCount = allRows.filter(row =>
+                            ["dup", "warn", "err"].includes(row?.kind)
+                        ).length;
+
+                        /*
+                         * Valor provisional mientras llega el resumen ligero
+                         * del servidor. En cuanto responde LecturasSesion se
+                         * sustituye por el conteo correcto real.
+                         */
+                        correctCountForMissing = okCount;
+                    }
 
                     renderKpis();
+                    updateScanListCount();
+
+                    const latestStoredRow = lastList.lastElementChild;
+                    if (latestStoredRow) {
+                        renderCurrentScanLive(latestStoredRow);
+                    } else {
+                        resetCurrentScanLive();
+                    }
 
                     requestAnimationFrame(() => {
                         lastList.scrollTop = lastList.scrollHeight;
@@ -4096,6 +5025,213 @@
                 } finally {
                     restoringScanHistory = false;
                 }
+
+                return lastList.children.length;
+            }
+
+            function stopSharedHistoryTimer() {
+                if (sharedHistoryTimer) {
+                    clearInterval(sharedHistoryTimer);
+                    sharedHistoryTimer = null;
+                }
+            }
+
+            function formatServerScanTime(value) {
+                if (!value) return "";
+
+                const date = new Date(value);
+                if (Number.isNaN(date.getTime())) return "";
+
+                return date.toLocaleTimeString("es-MX", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit"
+                });
+            }
+
+            function findLocalScanForServerRow(code) {
+                const normalized = normalize(code);
+
+                return Array.from(lastList.children)
+                    .reverse()
+                    .find(item =>
+                        normalize(item.dataset.scanCode || "") === normalized &&
+                        !item.dataset.serverReadingId &&
+                        item.dataset.scanKind !== "dup"
+                    ) || null;
+            }
+
+            function applyServerReading(row, makeLatest = false) {
+                const id = Number(row?.id || 0);
+                const code = normalize(
+                    row?.codigoEtiqueta || row?.codigo || row?.code || ""
+                );
+
+                if (!code || id <= 0 || serverReadingIds.has(id)) {
+                    return null;
+                }
+
+                if (id <= scanListVisualCutoffId) {
+                    const localRow = findLocalScanForServerRow(code);
+
+                    if (localRow?.dataset?.scanAfterVisualClear === "1") {
+                        localRow.dataset.serverReadingId = String(id);
+                        schedulePersistScanHistory();
+                    }
+
+                    serverReadingIds.add(id);
+                    lastServerReadingId = Math.max(lastServerReadingId, id);
+                    return localRow || null;
+                }
+
+                let li = findLocalScanForServerRow(code);
+
+                if (!li) {
+                    li = document.createElement("li");
+                    lastList.appendChild(li);
+                }
+
+                li.dataset.serverReadingId = String(id);
+                li.dataset.scanTime =
+                    formatServerScanTime(row?.fechaRegistro) ||
+                    li.dataset.scanTime ||
+                    "";
+
+                renderScanVisual(
+                    li,
+                    code,
+                    row?.msg || "Etiqueta guardada en el avance compartido del almacén.",
+                    String(row?.kind || "ok").toLowerCase(),
+                    {
+                        sku: row?.sku || "",
+                        producto: row?.producto || "",
+                        pesoNeto: row?.pesoNeto ?? 0
+                    }
+                );
+
+                serverReadingIds.add(id);
+                lastServerReadingId = Math.max(lastServerReadingId, id);
+
+                if (makeLatest) {
+                    renderCurrentScanLive(li);
+                }
+
+                trimVisibleScanHistory();
+                return li;
+            }
+
+            async function loadSharedScanHistory(reset = false) {
+                if (!activeSession?.id || sharedHistoryBusy) return;
+
+                const warehouseId = normalize(currentWarehouseId());
+                if (!warehouseId) return;
+
+                if (sharedHistoryWarehouseId !== warehouseId) {
+                    reset = true;
+                }
+
+                sharedHistoryBusy = true;
+
+                const requestedSessionId = Number(activeSession.id);
+                const requestedWarehouseId = warehouseId;
+
+                try {
+                    const afterId = reset ? 0 : lastServerReadingId;
+                    const url =
+                        `${REALTIME_BASE_URL}/LecturasSesion` +
+                        `?sesionId=${encodeURIComponent(activeSession.id)}` +
+                        `&almacenId=${encodeURIComponent(warehouseId)}` +
+                        `&despuesDeId=${encodeURIComponent(afterId)}` +
+                        `&limite=${SHARED_HISTORY_INITIAL_LIMIT}`;
+
+                    const data = await getJson(url);
+
+                    if (
+                        Number(activeSession?.id || 0) !== requestedSessionId ||
+                        normalize(currentWarehouseId()) !== requestedWarehouseId
+                    ) {
+                        return;
+                    }
+
+                    const rows = Array.isArray(data?.rows) ? data.rows : [];
+
+                    if (reset) {
+                        lastList.innerHTML = "";
+                        pendingScanVisuals.clear();
+                        serverReadingIds.clear();
+                        scanSequence = 0;
+                        latestScanLiveOrder = 0;
+                        lastServerReadingId = 0;
+                        sharedHistoryWarehouseId = warehouseId;
+                    }
+
+                    if (scanListAwaitingCutoffSync) {
+                        const maxReturnedId = rows.reduce(
+                            (maxId, row) =>
+                                Math.max(maxId, Number(row?.id || 0)),
+                            scanListVisualCutoffId
+                        );
+
+                        scanListVisualCutoffId = Math.max(
+                            scanListVisualCutoffId,
+                            maxReturnedId
+                        );
+
+                        saveScanVisualCutoff(scanListVisualCutoffId);
+
+                        if (rows.length < SHARED_HISTORY_INITIAL_LIMIT) {
+                            scanListAwaitingCutoffSync = false;
+                            saveScanVisualPending(false);
+                        }
+                    }
+
+                    sharedHistoryTotal = Number(data?.total || 0);
+                    okCount = Number(data?.correctas || 0);
+                    badCount = Number(data?.revisar || 0);
+                    correctCountForMissing = okCount;
+                    missingCountReady = true;
+                    saveWarehouseKpiSnapshot();
+
+                    rows.forEach((row, index) => {
+                        applyServerReading(
+                            row,
+                            index === rows.length - 1
+                        );
+                    });
+
+                    if (rows.length === 0 && reset) {
+                        resetCurrentScanLive(
+                            "Sin lecturas guardadas",
+                            "La primera etiqueta aparecerá aquí al escanear."
+                        );
+                    }
+
+                    updateScanListCount();
+                    renderKpis();
+
+                    requestAnimationFrame(() => {
+                        lastList.scrollTop = lastList.scrollHeight;
+                    });
+                } catch (error) {
+                    console.warn(
+                        "No se pudo sincronizar el avance compartido del almacén.",
+                        error
+                    );
+                } finally {
+                    sharedHistoryBusy = false;
+                }
+            }
+
+            function startSharedHistoryTimer() {
+                stopSharedHistoryTimer();
+
+                if (!activeSession?.id) return;
+
+                sharedHistoryTimer = setInterval(() => {
+                    if (document.visibilityState === "visible") {
+                        loadSharedScanHistory(false);
+                    }
+                }, SHARED_HISTORY_REFRESH_MS);
             }
 
             function setScannerEnabled(enabled) {
@@ -4130,6 +5266,7 @@
                 const pending = queue.length;
 
                 btnFlush.disabled = !sessionOpen || busy;
+                btnClear.disabled = busy || pending > 0;
                 btnFlush.classList.toggle("has-pending", sessionOpen && pending > 0 && !busy);
                 btnFlush.classList.toggle("inventory-busy", sessionOpen && busy);
 
@@ -4418,15 +5555,32 @@
                 repAlmacen.value = exists ? current : "ALL";
             }
 
-            function applyActiveSession(session) {
-                const previousSessionId = Number(activeSession?.id || 0);
+            function applyActiveSession(session, options = {}) {
+                const deferRemoteSync = Boolean(
+                    options.deferRemoteSync
+                );
+                const previousSessionId = Number(
+                    activeSession?.id || 0
+                );
+                const hydrationVersion = ++sessionHydrationVersion;
                 activeSession = session || null;
 
                 if (!activeSession) {
+                    stopSharedHistoryTimer();
+                    sharedHistoryTotal = 0;
+                    correctCountForMissing = 0;
+                    missingCountReady = false;
+                    lastServerReadingId = 0;
+                    sharedHistoryWarehouseId = "";
+                    serverReadingIds.clear();
+
                     sessionSetupBlock.classList.remove("d-none");
                     sessionActiveBlock.classList.add("d-none");
                     sessionStorage.removeItem(SESSION_STORAGE_KEY);
                     localStorage.removeItem(SESSION_STORAGE_KEY);
+                    saveSessionSnapshot(null);
+                    scanListVisualCutoffId = 0;
+                    scanListAwaitingCutoffSync = false;
 
                     dashboardData = {
                         resumenAlmacenes: [],
@@ -4437,29 +5591,46 @@
 
                     populateWarehouseSelects([]);
                     setScannerEnabled(false);
+                    resetCurrentScanLive(
+                        "Sin sesión activa",
+                        "Inicia un inventario para comenzar a leer etiquetas."
+                    );
                     renderKpis();
                     return;
                 }
 
-                sessionStorage.setItem(SESSION_STORAGE_KEY, String(activeSession.id));
-                localStorage.setItem(SESSION_STORAGE_KEY, String(activeSession.id));
+                sessionStorage.setItem(
+                    SESSION_STORAGE_KEY,
+                    String(activeSession.id)
+                );
+                localStorage.setItem(
+                    SESSION_STORAGE_KEY,
+                    String(activeSession.id)
+                );
+                saveSessionSnapshot(activeSession);
 
                 closeWarehouseMultiSelect();
                 sessionSetupBlock.classList.add("d-none");
                 sessionActiveBlock.classList.remove("d-none");
-                sessionFolio.textContent = activeSession.folio || `Sesión ${activeSession.id}`;
+                sessionFolio.textContent =
+                    activeSession.folio ||
+                    `Sesión ${activeSession.id}`;
 
-                const warehouses = Array.isArray(activeSession.almacenes)
+                const warehouses = Array.isArray(
+                    activeSession.almacenes
+                )
                     ? activeSession.almacenes
                     : [];
 
                 const totalExpected = warehouses.reduce(
-                    (sum, item) => sum + toNumber(item.totalEsperado),
+                    (sum, item) =>
+                        sum + toNumber(item.totalEsperado),
                     0
                 );
 
                 const totalKg = warehouses.reduce(
-                    (sum, item) => sum + toNumber(item.kgEsperados),
+                    (sum, item) =>
+                        sum + toNumber(item.kgEsperados),
                     0
                 );
 
@@ -4473,8 +5644,13 @@
                         ${formatNumber(warehouses.length)} almacén(es)
                     </span>
                     <span class="session-badge">
+                        <i class="fa-solid fa-users"></i>
+                        Avance compartido por almacén
+                    </span>
+                    <span class="session-badge">
                         <i class="fa-solid fa-box"></i>
-                        ${formatNumber(totalExpected)} etiquetas/cajas iniciales
+                        ${formatNumber(totalExpected)}
+                        etiquetas/cajas iniciales
                     </span>
                     <span class="session-badge">
                         <i class="fa-solid fa-weight-hanging"></i>
@@ -4483,35 +5659,85 @@
 
                 populateWarehouseSelects(warehouses);
 
-                const currentSessionId = Number(activeSession.id || 0);
-                if (
-                    currentSessionId > 0 &&
-                    (
-                        previousSessionId !== currentSessionId ||
-                        lastList.children.length === 0
-                    )
-                ) {
-                    restoreScanHistory(currentSessionId);
-                }
+                /*
+                 * Pinta FALTAN inmediatamente con el último conteo confirmado
+                 * del almacén. La consulta incremental lo valida en segundo
+                 * plano sin bloquear la vista.
+                 */
+                restoreWarehouseKpiSnapshot();
 
-                setScannerEnabled(String(activeSession.estatus || "").toUpperCase() === "ABIERTO");
+                const currentSessionId = Number(
+                    activeSession.id || 0
+                );
+                syncScanVisualCutoff();
+
+                setScannerEnabled(
+                    String(
+                        activeSession.estatus || ""
+                    ).toUpperCase() === "ABIERTO"
+                );
                 showSessionWarning("");
                 renderKpis();
 
                 setStatus(
-                    `Listo. Almacén activo: ${currentWarehouseName()}`,
+                    `Listo. Almacén activo: ${
+                        currentWarehouseName()
+                    }`,
                     "muted"
                 );
 
-                /*
-                 * No bloquea el inicio del lector. La cantidad pendiente se
-                 * reconcilia en segundo plano con los registros de SQL Server.
-                 */
-                setTimeout(() => {
-                    if (activeSession) {
-                        loadRealtimeDashboard(true);
+                const needsHistoryRestore =
+                    currentSessionId > 0 &&
+                    (
+                        previousSessionId !== currentSessionId ||
+                        lastList.children.length === 0
+                    );
+
+                const startRemoteSync = restoredHistoryCount => {
+                    if (
+                        deferRemoteSync ||
+                        hydrationVersion !==
+                            sessionHydrationVersion ||
+                        Number(activeSession?.id || 0) !==
+                            currentSessionId
+                    ) {
+                        return;
                     }
-                }, 0);
+
+                    loadSharedScanHistory(
+                        restoredHistoryCount === 0
+                    );
+                    startSharedHistoryTimer();
+                };
+
+                if (!needsHistoryRestore) {
+                    startRemoteSync(lastList.children.length);
+                    return;
+                }
+
+                /*
+                 * Primero se deja pintar la sesión activa. Después se hidratan
+                 * las tarjetas locales. Antes, este trabajo síncrono bloqueaba
+                 * el hilo principal y la pantalla parecía atorada aunque la API
+                 * ya hubiera respondido.
+                 */
+                requestAnimationFrame(() => {
+                    setTimeout(() => {
+                        if (
+                            hydrationVersion !==
+                                sessionHydrationVersion ||
+                            Number(activeSession?.id || 0) !==
+                                currentSessionId
+                        ) {
+                            return;
+                        }
+
+                        const restoredHistoryCount =
+                            restoreScanHistory(currentSessionId);
+
+                        startRemoteSync(restoredHistoryCount);
+                    }, 0);
+                });
             }
 
             async function loadAllowedWarehouses() {
@@ -4525,18 +5751,37 @@
             }
 
             async function restoreSession() {
+                /*
+                 * Se prioriza el id conocido para que SQL Server no tenga que
+                 * buscar primero entre todas las sesiones abiertas. Si el id ya
+                 * no es válido, el backend devuelve la sesión correcta o null.
+                 */
                 const storedId =
-                    localStorage.getItem(SESSION_STORAGE_KEY) ||
                     sessionStorage.getItem(SESSION_STORAGE_KEY) ||
-                    "";
+                    localStorage.getItem(SESSION_STORAGE_KEY) ||
+                    String(activeSession?.id || "");
 
                 const suffix = storedId
                     ? `?sesionId=${encodeURIComponent(storedId)}`
                     : "";
 
-                const data = await getJson(
-                    `${REALTIME_BASE_URL}/SesionActiva${suffix}${suffix ? "&" : "?"}_=${Date.now()}`
+                let data = await getJson(
+                    `${REALTIME_BASE_URL}/SesionActiva${suffix}${
+                        suffix ? "&" : "?"
+                    }_=${Date.now()}`
                 );
+
+                /*
+                 * Si el id local quedó obsoleto, se consulta una vez la sesión
+                 * abierta real del usuario en vez de dejar la pantalla vacía.
+                 */
+                if (storedId && !data?.sesion) {
+                    data = await getJson(
+                        `${REALTIME_BASE_URL}/SesionActiva?_=${
+                            Date.now()
+                        }`
+                    );
+                }
 
                 applyActiveSession(data?.sesion || null);
             }
@@ -4545,24 +5790,68 @@
                 setScannerEnabled(false);
                 showSessionWarning("");
 
-                try {
-                    await loadAllowedWarehouses();
-                    await restoreSession();
+                /*
+                 * La caché se pinta antes de cualquier consulta HTTP. Así la
+                 * sesión y el historial local aparecen aun cuando SQL Server o
+                 * la red estén tardando.
+                 */
+                const cachedSession = readSessionSnapshot();
+                if (cachedSession) {
+                    applyActiveSession(cachedSession, {
+                        deferRemoteSync: true
+                    });
+                    setStatus(
+                        `Sesión recuperada. Validando ${currentWarehouseName()}…`,
+                        "muted"
+                    );
+                } else {
+                    setStatus(
+                        "Recuperando la sesión activa…",
+                        "muted"
+                    );
+                }
 
-                    if (activeSession) {
-                        await retryPendingSessionRegistrations();
-                    } else {
-                        warehouseSummaryBody.innerHTML = `
-                            <tr>
-                                <td colspan="5" class="empty-state">
-                                    Selecciona los almacenes e inicia el inventario.
-                                </td>
-                            </tr>`;
-                    }
+                /*
+                 * La sesión tiene prioridad. Los almacenes permitidos se
+                 * actualizan después y nunca bloquean la apertura del lector.
+                 */
+                try {
+                    await restoreSession();
                 } catch (error) {
                     showSessionWarning(
-                        `No se pudo preparar la sesión de inventario. ${error?.message || ""}`
+                        `No se pudo validar la sesión activa. ${error?.message || ""}`
                     );
+
+                    /*
+                     * Si existía una caché reciente se conserva visible. No se
+                     * borra la pantalla por una falla temporal de red.
+                     */
+                    if (!cachedSession) {
+                        applyActiveSession(null);
+                    }
+                }
+
+                loadAllowedWarehouses()
+                    .catch(error => {
+                        showSessionWarning(
+                            `La sesión está disponible, pero no se actualizaron los almacenes permitidos. ${error?.message || ""}`
+                        );
+                    });
+
+                if (activeSession) {
+                    retryPendingSessionRegistrations().catch(error => {
+                        console.warn(
+                            "No fue posible reintentar registros pendientes.",
+                            error
+                        );
+                    });
+                } else {
+                    warehouseSummaryBody.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="empty-state">
+                                Selecciona los almacenes e inicia el inventario.
+                            </td>
+                        </tr>`;
                 }
             }
 
@@ -4631,14 +5920,14 @@
 
                 const confirmed = await showInventoryConfirm({
                     variant: "danger",
-                    title: "Cerrar sesión de inventario",
+                    title: "Cerrar mi sesión",
                     message:
-                        "¿Confirmas que deseas cerrar esta sesión de inventario?",
+                        "¿Confirmas que deseas cerrar tu sesión de inventario?",
                     detail:
-                        "Después de cerrarla ya no se podrán agregar nuevas lecturas. Los registros guardados permanecerán disponibles en la reportería.",
-                    acceptText: "Sí, cerrar sesión",
-                    cancelText: "Continuar inventariando",
-                    icon: "fa-solid fa-lock"
+                        "Solo se cerrará tu sesión. Las lecturas y el avance del almacén permanecerán disponibles para las demás personas.",
+                    acceptText: "Sí, cerrar mi sesión",
+                    cancelText: "Seguir inventariando",
+                    icon: "fa-solid fa-right-from-bracket"
                 });
 
                 if (!confirmed) {
@@ -4660,7 +5949,7 @@
                     await loadAllowedWarehouses();
                     renderWarehouseChoices();
                     showSessionWarning(
-                        "Sesión cerrada correctamente. Puedes iniciar un inventario nuevo."
+                        "Tu sesión se cerró. El avance del almacén sigue guardado y aparecerá al crear una nueva sesión para ese mismo almacén y fecha."
                     );
                 } catch (error) {
                     showSessionWarning(
@@ -4669,7 +5958,7 @@
                 } finally {
                     btnCloseSession.disabled = false;
                     btnCloseSession.innerHTML =
-                        `<i class="fa-solid fa-lock"></i> Cerrar sesión de inventario`;
+                        `<i class="fa-solid fa-right-from-bracket"></i> Cerrar mi sesión`;
                 }
             }
 
@@ -4778,6 +6067,12 @@
                 );
 
                 incidentForm.reset();
+
+                if (incidentFormStatus) {
+                    incidentFormStatus.classList.add("d-none");
+                    incidentFormStatus.textContent = "";
+                }
+
                 incidentWarehouseInput.value = currentWarehouseId();
 
                 if (latestCode) {
@@ -4802,6 +6097,12 @@
                 incidentFormModal.classList.remove("show");
                 incidentFormModal.setAttribute("aria-hidden", "true");
                 incidentForm.reset();
+
+                if (incidentFormStatus) {
+                    incidentFormStatus.classList.add("d-none");
+                    incidentFormStatus.textContent = "";
+                }
+
                 syncInventoryModalBodyLock();
             }
 
@@ -4833,9 +6134,24 @@
                         throw new Error(data?.message || raw || "No se pudo guardar la incidencia.");
                     }
 
-                    hideIncidentForm();
-                    await loadRealtimeDashboard(true);
+                    if (
+                        dashboardModal.classList.contains("show")
+                    ) {
+                        await loadRealtimeDashboard(true);
+                    }
+
+                    // El modal permanece abierto. Solo la X puede cerrarlo.
+                    incidentForm.reset();
+                    incidentWarehouseInput.value = currentWarehouseId();
+
+                    if (incidentFormStatus) {
+                        incidentFormStatus.textContent =
+                            "Incidencia registrada correctamente. Puedes capturar otra o cerrar con la X.";
+                        incidentFormStatus.classList.remove("d-none");
+                    }
+
                     setStatus("Incidencia registrada correctamente.", "ok");
+                    setTimeout(() => incidentTypeInput.focus(), 80);
                 } catch (error) {
                     alert(error?.message || "No se pudo guardar la incidencia.");
                 } finally {
@@ -4974,9 +6290,6 @@
                     0
                 );
 
-                let countedBoxes = 0;
-                let missingBoxes = totalBoxes;
-
                 if (dashboardWarehouse) {
                     totalBoxes = toNumber(
                         dashboardWarehouse?.ubicaciones ??
@@ -4984,23 +6297,44 @@
                         dashboardWarehouse?.locations ??
                         totalBoxes
                     );
+                }
 
+                /*
+                 * FALTAN ya no espera al Dashboard pesado.
+                 *
+                 * - En este equipo cambia al terminar de validar la etiqueta.
+                 * - En los demás equipos cambia con LecturasSesion (máx. ~2 s).
+                 * - Al reabrir la vista usa el último conteo confirmado guardado
+                 *   localmente y después lo valida contra SQL Server.
+                 */
+                let countedBoxes;
+
+                if (missingCountReady) {
+                    countedBoxes = correctCountForMissing;
+                } else if (dashboardWarehouse) {
                     countedBoxes = toNumber(
                         dashboardWarehouse?.contadas ??
                         dashboardWarehouse?.counted ??
                         dashboardWarehouse?.ubicacionesContadas ??
                         0
                     );
-
-                    const explicitMissing =
-                        dashboardWarehouse?.pendientes ??
-                        dashboardWarehouse?.pending ??
-                        dashboardWarehouse?.ubicacionesPendientes;
-
-                    missingBoxes = explicitMissing == null
-                        ? Math.max(totalBoxes - countedBoxes, 0)
-                        : Math.max(toNumber(explicitMissing), 0);
+                } else {
+                    /*
+                     * Provisional: historial local reciente. El servidor
+                     * reemplaza este dato en la primera sincronización.
+                     */
+                    countedBoxes = okCount;
                 }
+
+                countedBoxes = Math.min(
+                    Math.max(toNumber(countedBoxes), 0),
+                    Math.max(totalBoxes, 0)
+                );
+
+                const missingBoxes = Math.max(
+                    totalBoxes - countedBoxes,
+                    0
+                );
 
                 kTotalBoxes.textContent = formatNumber(totalBoxes);
                 kMissingBoxes.textContent = formatNumber(missingBoxes);
@@ -5012,7 +6346,7 @@
 
                 kMissingBoxes.closest(".kpi")?.setAttribute(
                     "title",
-                    `${currentWarehouseName()}: ${formatNumber(missingBoxes)} cajas pendientes por escanear`
+                    `${currentWarehouseName()}: ${formatNumber(missingBoxes)} faltan · ${formatNumber(countedBoxes)} correctas`
                 );
             }
 
@@ -5067,12 +6401,120 @@
                 }
             }
 
+            function currentScanLiveClass(kind) {
+                const normalized = (kind || "").toLowerCase();
+
+                if (normalized === "pending") return "is-pending";
+                if (normalized === "validating") return "is-validating";
+                if (normalized === "ok") return "is-ok";
+                if (normalized === "warn") return "is-warn";
+                if (normalized === "dup") return "is-dup";
+                if (normalized === "err" || normalized === "error") {
+                    return "is-error";
+                }
+
+                return "";
+            }
+
+            function currentScanLiveIconClass(kind) {
+                const normalized = (kind || "").toLowerCase();
+
+                if (normalized === "pending") {
+                    return "fa-solid fa-magnifying-glass fa-beat-fade";
+                }
+
+                if (normalized === "validating") {
+                    return "fa-solid fa-rotate fa-spin";
+                }
+
+                if (normalized === "ok") {
+                    return "fa-solid fa-circle-check";
+                }
+
+                if (normalized === "warn" || normalized === "dup") {
+                    return "fa-solid fa-triangle-exclamation";
+                }
+
+                if (normalized === "err" || normalized === "error") {
+                    return "fa-solid fa-circle-xmark";
+                }
+
+                return "fa-solid fa-barcode";
+            }
+
+            function resetCurrentScanLive(
+                code = "Esperando lectura…",
+                detail = "El código aparecerá aquí inmediatamente al escanear."
+            ) {
+                latestScanLiveOrder = 0;
+
+                currentScanLive.className = "current-scan-live";
+                currentScanLiveIcon.className = "fa-solid fa-barcode";
+                currentScanLiveCode.textContent = code;
+                currentScanLiveDetail.textContent = detail;
+                currentScanLiveTime.textContent = "";
+                currentScanLiveState.innerHTML =
+                    `<span class="pill">LISTO</span>`;
+            }
+
+            function renderCurrentScanLive(li) {
+                if (!li) {
+                    resetCurrentScanLive();
+                    return;
+                }
+
+                const order = Number(li.dataset.scanOrder || 0);
+                const kind = (li.dataset.scanKind || "pending").toLowerCase();
+                const code = li.dataset.scanCode || "";
+                const label = li.dataset.scanLabel || "";
+                const time = li.dataset.scanTime || "";
+
+                latestScanLiveOrder = order;
+
+                currentScanLive.className = [
+                    "current-scan-live",
+                    currentScanLiveClass(kind)
+                ].filter(Boolean).join(" ");
+
+                currentScanLiveIcon.className =
+                    currentScanLiveIconClass(kind);
+
+                currentScanLiveCode.textContent =
+                    code || "Etiqueta sin código";
+
+                currentScanLiveDetail.textContent =
+                    label || "Lectura recibida.";
+
+                currentScanLiveTime.textContent =
+                    time ? `Leída a las ${time}` : "";
+
+                currentScanLiveState.innerHTML = getScanPill(kind);
+            }
+
             function updateScanListCount() {
                 if (!scanListCount) return;
 
-                const count = lastList?.children?.length || 0;
+                const visible = lastList?.children?.length || 0;
+
+                if (
+                    scanListVisualCutoffId > 0 ||
+                    scanListAwaitingCutoffSync
+                ) {
+                    scanListCount.textContent =
+                        `${visible} ${visible === 1 ? "registro" : "registros"}`;
+                    return;
+                }
+
+                const total = Math.max(sharedHistoryTotal, visible);
+
+                if (total > visible) {
+                    scanListCount.textContent =
+                        `${visible} visibles · ${total} guardados`;
+                    return;
+                }
+
                 scanListCount.textContent =
-                    `${count} ${count === 1 ? "registro" : "registros"}`;
+                    `${visible} ${visible === 1 ? "registro" : "registros"}`;
             }
 
             function normalizeScanMetadata(metadata, li) {
@@ -5171,23 +6613,51 @@
                     </div>
                     <div>${getScanPill(kind)}</div>`;
 
-                updateScanListCount();
+                if (!restoringScanHistory) {
+                    updateScanListCount();
+                }
 
-                if (li.isConnected) {
+                if (
+                    !restoringScanHistory &&
+                    latestScanLiveOrder > 0 &&
+                    Number(li.dataset.scanOrder || 0) === latestScanLiveOrder
+                ) {
+                    renderCurrentScanLive(li);
+                }
+
+                if (li.isConnected && !restoringScanHistory) {
                     schedulePersistScanHistory();
                 }
             }
 
-            function pushLast(code, label, kind, metadata = null) {
+            function pushLast(
+                code,
+                label,
+                kind,
+                metadata = null,
+                makeLatest = true
+            ) {
                 const li = document.createElement("li");
+
+                if (
+                    scanListVisualCutoffId > 0 ||
+                    scanListAwaitingCutoffSync
+                ) {
+                    li.dataset.scanAfterVisualClear = "1";
+                }
+
                 renderScanVisual(li, code, label, kind, metadata);
                 lastList.appendChild(li);
 
+                if (makeLatest) {
+                    renderCurrentScanLive(li);
+                }
+
                 /*
-                 * No se recorta el listado. Todas las etiquetas de la sesión
-                 * permanecen visibles y se respaldan en el navegador.
+                 * El total completo permanece en SQL Server. La pantalla conserva
+                 * únicamente las tarjetas recientes para mantener fluida la vista.
                  */
-                updateScanListCount();
+                trimVisibleScanHistory();
                 schedulePersistScanHistory();
 
                 requestAnimationFrame(() => {
@@ -5201,7 +6671,7 @@
                 const normalized = normalize(code);
                 const li = pushLast(
                     normalized,
-                    `Consultando ${currentWarehouseName()}…`,
+                    `Lectura recibida. Consultando ${currentWarehouseName()}…`,
                     "pending"
                 );
 
@@ -5430,34 +6900,57 @@
                 return data;
             }
 
-            async function getJson(url) {
-                const response = await fetch(url, {
-                    method: "GET",
-                    headers: {
-                        "Accept": "application/json"
-                    },
-                    cache: "no-store"
-                });
+            async function getJson(url, timeoutMs = 15000) {
+                const controller = new AbortController();
+                const timeoutId = window.setTimeout(
+                    () => controller.abort(),
+                    timeoutMs
+                );
 
-                const raw = await response.text();
-
-                let data = null;
                 try {
-                    data = raw ? JSON.parse(raw) : null;
-                } catch {
-                    data = null;
-                }
+                    const response = await fetch(url, {
+                        method: "GET",
+                        headers: {
+                            "Accept": "application/json"
+                        },
+                        cache: "no-store",
+                        signal: controller.signal
+                    });
 
-                if (!response.ok) {
-                    throw new Error(
-                        `HTTP ${response.status}: ${
-                            (data?.msg || data?.message || raw || "")
-                                .substring(0, 240)
-                        }`
-                    );
-                }
+                    const raw = await response.text();
 
-                return data;
+                    let data = null;
+                    try {
+                        data = raw ? JSON.parse(raw) : null;
+                    } catch {
+                        data = null;
+                    }
+
+                    if (!response.ok) {
+                        throw new Error(
+                            `HTTP ${response.status}: ${
+                                (
+                                    data?.msg ||
+                                    data?.message ||
+                                    raw ||
+                                    ""
+                                ).substring(0, 240)
+                            }`
+                        );
+                    }
+
+                    return data;
+                } catch (error) {
+                    if (error?.name === "AbortError") {
+                        throw new Error(
+                            "La consulta tardó demasiado en responder."
+                        );
+                    }
+
+                    throw error;
+                } finally {
+                    window.clearTimeout(timeoutId);
+                }
             }
 
             async function flush(force) {
@@ -5596,6 +7089,17 @@
                                 : [];
 
                             if (trackingResults.length > 0) {
+                                const newlyCorrect = trackingResults.filter(
+                                    result =>
+                                        String(
+                                            result?.kind || "ok"
+                                        ).toLowerCase() === "ok"
+                                ).length;
+
+                                if (missingCountReady && newlyCorrect > 0) {
+                                    correctCountForMissing += newlyCorrect;
+                                }
+
                                 for (const result of trackingResults) {
                                     const code = normalize(
                                         result.codigoEtiqueta ||
@@ -5649,6 +7153,10 @@
                             }
                         }
 
+                        if (missingCountReady) {
+                            saveWarehouseKpiSnapshot();
+                        }
+
                         renderKpis();
 
                         setStatus(
@@ -5657,6 +7165,7 @@
                         );
 
                         scheduleDashboardRefreshAfterScan();
+                        setTimeout(() => loadSharedScanHistory(false), 250);
                     }
                 } catch (error) {
                     setStatus(
@@ -5677,7 +7186,10 @@
             }
 
             function scheduleDashboardRefreshAfterScan() {
-                if (!activeSession) {
+                if (
+                    !activeSession ||
+                    !dashboardModal.classList.contains("show")
+                ) {
                     return;
                 }
 
@@ -5685,14 +7197,13 @@
                     clearTimeout(dashboardAfterScanTimer);
                 }
 
-                /*
-                 * Se ejecuta en segundo plano. No bloquea el escáner ni obliga
-                 * a que el modal de reportería esté abierto.
-                 */
                 dashboardAfterScanTimer = setTimeout(() => {
                     dashboardAfterScanTimer = null;
 
-                    if (activeSession) {
+                    if (
+                        activeSession &&
+                        dashboardModal.classList.contains("show")
+                    ) {
                         loadRealtimeDashboard(true);
                     }
                 }, DASHBOARD_AFTER_SCAN_MS);
@@ -5776,16 +7287,30 @@
 
                     renderKpis();
                     renderWarehouseSummary(dashboardData.resumenAlmacenes);
-                    renderAgingChart(dashboardData.antiguedad);
                     renderIncidentCounts(
                         dashboardData.incidenciasResumen,
                         dashboardData.incidencias
                     );
                     renderIncidents();
-                    renderDifferencesChart(
-                        dashboardData.incidenciasResumen,
-                        dashboardData.incidencias
-                    );
+
+                    /*
+                     * Las gráficas se dibujan cuando Chart.js esté disponible.
+                     * Su descarga no bloquea la sesión ni el escáner.
+                     */
+                    const chartSnapshot = dashboardData;
+                    renderChartsWhenReady(() => {
+                        if (dashboardData !== chartSnapshot) return;
+
+                        renderAgingChart(chartSnapshot.antiguedad);
+                        renderDifferencesChart(
+                            chartSnapshot.incidenciasResumen,
+                            chartSnapshot.incidencias
+                        );
+
+                        if (dashboardModal.classList.contains("show")) {
+                            resizeDashboardCharts();
+                        }
+                    });
 
                     dashboardUpdated.textContent =
                         `Última actualización: ${
@@ -6355,6 +7880,7 @@
                     if (
                         document.visibilityState === "visible" &&
                         activeSession &&
+                        dashboardModal.classList.contains("show") &&
                         !reportModal.classList.contains("show") &&
                         !photoModal.classList.contains("show") &&
                         !incidentFormModal.classList.contains("show") &&
@@ -7168,7 +8694,21 @@
                         data?.resumenAlmacenes
                     );
 
-                    renderReportAging(data?.antiguedad);
+                    const reportAgingRows =
+                        Array.isArray(data?.antiguedad)
+                            ? data.antiguedad
+                            : [];
+
+                    renderChartsWhenReady(() => {
+                        if (
+                            queryVersion !== reportQueryVersion ||
+                            !reportModal.classList.contains("show")
+                        ) {
+                            return;
+                        }
+
+                        renderReportAging(reportAgingRows);
+                    });
 
                     renderReportStock(
                         data?.stockPorSku,
@@ -7429,20 +8969,43 @@
 
             btnClear.addEventListener("click", () => {
                 /*
-                 * Solo limpia el campo de captura. El historial de etiquetas,
-                 * sus datos y sus estados permanecen visibles.
+                 * Únicamente vacía las tarjetas visibles de "Etiquetas
+                 * escaneadas". No modifica el input, la cola, los KPI, la
+                 * sesión, el inventario ni los registros de SQL Server.
                  */
-                input.value = "";
+                if (busy || queue.length > 0) {
+                    input.focus();
+                    return;
+                }
 
-                setStatus(
-                    "Campo limpio. El historial de etiquetas se conserva.",
-                    "muted"
+                const visibleServerIds = Array.from(lastList.children)
+                    .map(item => Number(item.dataset.serverReadingId || 0))
+                    .filter(id => id > 0);
+
+                scanListVisualCutoffId = Math.max(
+                    scanListVisualCutoffId,
+                    lastServerReadingId,
+                    ...visibleServerIds
                 );
 
-                requestAnimationFrame(() => {
-                    lastList.scrollTop = lastList.scrollHeight;
-                });
+                saveScanVisualCutoff(scanListVisualCutoffId);
 
+                /*
+                 * Normalmente lastServerReadingId ya representa la última
+                 * lectura cargada. Solo se solicita una sincronización de corte
+                 * cuando el historial provino de una caché antigua sin IDs.
+                 */
+                scanListAwaitingCutoffSync =
+                    scanListVisualCutoffId <= 0 &&
+                    lastList.children.length > 0;
+                saveScanVisualPending(scanListAwaitingCutoffSync);
+
+                lastList.innerHTML = "";
+                pendingScanVisuals.clear();
+                scanSequence = 0;
+
+                updateScanListCount();
+                schedulePersistScanHistory();
                 input.focus();
             });
 
@@ -7509,6 +9072,8 @@
 
             activeWarehouseSelect.addEventListener("change", () => {
                 incidentWarehouseInput.value = currentWarehouseId();
+                syncScanVisualCutoff();
+                restoreWarehouseKpiSnapshot();
                 renderKpis();
 
                 setStatus(
@@ -7520,7 +9085,11 @@
                  * Refresca los valores del almacén recién seleccionado sin
                  * interrumpir la captura del handheld.
                  */
-                loadRealtimeDashboard(true);
+                if (dashboardModal.classList.contains("show")) {
+                    loadRealtimeDashboard(true);
+                }
+
+                loadSharedScanHistory(true);
                 input.focus();
             });
 
@@ -7530,7 +9099,9 @@
 
             incidentFormModal.addEventListener("click", event => {
                 if (event.target === incidentFormModal) {
-                    hideIncidentForm();
+                    // No cerrar al tocar fuera. Solo el botón X cierra el modal.
+                    event.preventDefault();
+                    event.stopPropagation();
                 }
             });
 
@@ -7617,7 +9188,9 @@
                 }
 
                 if (incidentFormModal.classList.contains("show")) {
-                    hideIncidentForm();
+                    // No cerrar con Escape. Solo el botón X cierra el modal.
+                    event.preventDefault();
+                    btnCloseIncidentForm.focus();
                     return;
                 }
 
@@ -7723,40 +9296,21 @@
                 renderReportReadingsPage();
             });
 
-            if (btnPdfReport) {
-                btnPdfReport.addEventListener("click", () => {
-                    const from =
-                        repDesde?.value ||
-                        toDateInputValue(new Date());
+document.addEventListener("visibilitychange", () => {
+                if (document.visibilityState !== "visible") {
+                    return;
+                }
 
-                    const to =
-                        repHasta?.value ||
-                        from;
-
-                    const selectedWarehouse =
-                        repAlmacen?.value ||
-                        "ALL";
-
-                    const url =
-                        `${REALTIME_BASE_URL}/ReporteHistoricoPdf` +
-                        `?almacen=${encodeURIComponent(selectedWarehouse)}` +
-                        `&desde=${encodeURIComponent(from)}` +
-                        `&hasta=${encodeURIComponent(to)}`;
-
-                    window.open(url, "_blank");
-                });
-            }
-
-            document.addEventListener("visibilitychange", () => {
-                if (
-                    document.visibilityState === "visible" &&
-                    dashboardModal.classList.contains("show")
-                ) {
+                if (dashboardModal.classList.contains("show")) {
                     loadRealtimeDashboard(true);
                 }
+
+                loadSharedScanHistory(false);
             });
 
             window.addEventListener("beforeunload", () => {
+                stopSharedHistoryTimer();
+
                 if (scanHistorySaveTimer) {
                     clearTimeout(scanHistorySaveTimer);
                     scanHistorySaveTimer = null;
@@ -7775,4 +9329,6 @@
             startDashboardTimer();
         })();
     </script>
+
+    <script src="~/js/inventario-auditoria.js" asp-append-version="true"></script>
 }

@@ -258,16 +258,37 @@ namespace Plataforma_CG.Controllers
         private readonly IWebHostEnvironment _environment;
         private readonly ILogger<InventarioTiempoRealController> _logger;
 
+        // Se conserva la cadena original tomada de appsettings.json.
+        // No se copia desde DbConnection después de que Entity Framework la abrió,
+        // porque SqlClient puede ocultar la contraseña cuando Persist Security Info=False.
+        private readonly string _defaultConnectionString;
+
         public InventarioTiempoRealController(
             AppDbContext context,
             IConfiguration configuration,
             IWebHostEnvironment environment,
             ILogger<InventarioTiempoRealController> logger)
         {
-            _context = context;
-            _configuration = configuration;
-            _environment = environment;
-            _logger = logger;
+            _context = context ??
+                throw new ArgumentNullException(nameof(context));
+
+            _configuration = configuration ??
+                throw new ArgumentNullException(nameof(configuration));
+
+            _environment = environment ??
+                throw new ArgumentNullException(nameof(environment));
+
+            _logger = logger ??
+                throw new ArgumentNullException(nameof(logger));
+
+            _defaultConnectionString =
+                _configuration.GetConnectionString("DefaultConnection")
+                ?? throw new InvalidOperationException(
+                    "No se encontró la cadena de conexión " +
+                    "'DefaultConnection' en appsettings.json.");
+
+            // Valida desde el arranque que la cadena tenga formato SQL Server.
+            _ = new SqlConnectionStringBuilder(_defaultConnectionString);
         }
 
         // =============================================================
@@ -470,6 +491,41 @@ namespace Plataforma_CG.Controllers
             public decimal PesoNeto { get; set; }
             public int Insertada { get; set; }
             public int EsIncidencia { get; set; }
+        }
+
+        private sealed class LecturaSesionCompartidaDbRow
+        {
+            public long Id { get; set; }
+            public int SesionId { get; set; }
+            public string AlmacenId { get; set; } = "";
+            public string AlmacenNombre { get; set; } = "";
+            public string CodigoEtiqueta { get; set; } = "";
+            public string Sku { get; set; } = "";
+            public string Producto { get; set; } = "";
+            public decimal PesoNeto { get; set; }
+            public bool EsEsperado { get; set; }
+            public bool EsAlmacenCorrecto { get; set; }
+            public string UsuarioRegistro { get; set; } = "";
+            public DateTime FechaRegistro { get; set; }
+        }
+
+        private sealed class LecturaSesionCompartidaResumenDbRow
+        {
+            public long Total { get; set; }
+            public long UltimoId { get; set; }
+            public long Correctas { get; set; }
+            public long Revisar { get; set; }
+        }
+
+        private sealed class CampanaAlmacenDbRow
+        {
+            public int SesionReferenciaId { get; set; }
+            public string AlmacenId { get; set; } = "";
+            public string AlmacenNombre { get; set; } = "";
+            public decimal TotalEsperado { get; set; }
+            public decimal KgEsperados { get; set; }
+            public DateTime FechaInicio { get; set; }
+            public int TieneFotografia { get; set; }
         }
 
         private sealed class ReporteSesionAlmacenDbRow
@@ -702,8 +758,9 @@ namespace Plataforma_CG.Controllers
 
         private SqlConnection CrearConexion()
         {
-            var connectionString = _context.Database.GetDbConnection().ConnectionString;
-            return new SqlConnection(connectionString);
+            // Siempre crea la conexión desde la cadena original de configuración.
+            // Esto evita perder Password después de que EF Core haya usado su conexión.
+            return new SqlConnection(_defaultConnectionString);
         }
 
         private static string NormalizarPlanta(string? value)
@@ -1302,6 +1359,167 @@ ORDER BY AlmacenNombre;";
             return (sesion, almacenes);
         }
 
+        /// <summary>
+        /// Obtiene la fotografía de referencia existente para cada almacén
+        /// durante una fecha de inventario. La sesión continúa siendo individual
+        /// por usuario; solamente el avance y las lecturas se comparten por
+        /// FechaInicio.Date + AlmacenId.
+        /// </summary>
+        private async Task<Dictionary<string, CampanaAlmacenDbRow>>
+            ObtenerCampanasAlmacenDelDiaAsync(
+                SqlConnection cn,
+                IReadOnlyCollection<string> almacenes,
+                DateTime fechaInventario,
+                CancellationToken ct,
+                SqlTransaction? tx = null)
+        {
+            var normalizados = almacenes
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(Norm)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            if (normalizados.Length == 0)
+            {
+                return new Dictionary<string, CampanaAlmacenDbRow>(
+                    StringComparer.OrdinalIgnoreCase);
+            }
+
+            const string sql = @"
+;WITH Base AS
+(
+    SELECT
+        SesionReferenciaId = sa.SesionId,
+        AlmacenId =
+            UPPER(LTRIM(RTRIM(CONVERT(NVARCHAR(100), sa.AlmacenId)))),
+        sa.AlmacenNombre,
+        sa.TotalEsperado,
+        sa.KgEsperados,
+        s.FechaInicio,
+        TieneFotografia = CASE
+            WHEN EXISTS
+            (
+                SELECT 1
+                FROM dbo.InventarioConteoEsperado e WITH (NOLOCK)
+                WHERE e.SesionId = sa.SesionId
+                  AND UPPER(LTRIM(RTRIM(
+                        CONVERT(NVARCHAR(100), e.AlmacenId)
+                      ))) =
+                      UPPER(LTRIM(RTRIM(
+                        CONVERT(NVARCHAR(100), sa.AlmacenId)
+                      )))
+            )
+                THEN 1
+            ELSE 0
+        END
+    FROM dbo.InventarioConteoSesionAlmacen sa WITH (NOLOCK)
+    INNER JOIN dbo.InventarioConteoSesion s WITH (NOLOCK)
+        ON s.Id = sa.SesionId
+    WHERE s.FechaInicio >= @Desde
+      AND s.FechaInicio < @Hasta
+      AND UPPER(LTRIM(RTRIM(
+            CONVERT(NVARCHAR(100), sa.AlmacenId)
+          ))) IN @Almacenes
+),
+Ranked AS
+(
+    SELECT
+        *,
+        rn = ROW_NUMBER() OVER
+        (
+            PARTITION BY AlmacenId
+            ORDER BY
+                TieneFotografia DESC,
+                FechaInicio ASC,
+                SesionReferenciaId ASC
+        )
+    FROM Base
+)
+SELECT
+    SesionReferenciaId,
+    AlmacenId,
+    AlmacenNombre,
+    TotalEsperado,
+    KgEsperados,
+    FechaInicio,
+    TieneFotografia
+FROM Ranked
+WHERE rn = 1;";
+
+            var desde = fechaInventario.Date;
+            var hasta = desde.AddDays(1);
+
+            var rows = (await cn.QueryAsync<CampanaAlmacenDbRow>(
+                new CommandDefinition(
+                    sql,
+                    new
+                    {
+                        Desde = desde,
+                        Hasta = hasta,
+                        Almacenes = normalizados
+                    },
+                    transaction: tx,
+                    commandTimeout: 30,
+                    cancellationToken: ct))).ToList();
+
+            return rows
+                .Where(x => !string.IsNullOrWhiteSpace(x.AlmacenId))
+                .GroupBy(x => Norm(x.AlmacenId))
+                .ToDictionary(
+                    x => x.Key,
+                    x => x.First(),
+                    StringComparer.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Serializa la creación de la campaña implícita fecha + almacén.
+        /// Evita que dos usuarios que presionen Iniciar al mismo tiempo tomen
+        /// dos fotografías iniciales para el mismo almacén.
+        /// </summary>
+        private static async Task AdquirirBloqueosCampanaAsync(
+            SqlConnection cn,
+            SqlTransaction tx,
+            IReadOnlyCollection<string> almacenes,
+            DateTime fechaInventario,
+            CancellationToken ct)
+        {
+            const string sql = @"
+DECLARE @Resultado INT;
+
+EXEC @Resultado = sys.sp_getapplock
+    @Resource = @Recurso,
+    @LockMode = 'Exclusive',
+    @LockOwner = 'Transaction',
+    @LockTimeout = 30000;
+
+SELECT @Resultado;";
+
+            foreach (var almacen in almacenes
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(Norm)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x))
+            {
+                var recurso =
+                    $"INV-CAMPANA:{fechaInventario:yyyyMMdd}:{almacen}";
+
+                var resultado = await cn.ExecuteScalarAsync<int>(
+                    new CommandDefinition(
+                        sql,
+                        new { Recurso = recurso },
+                        transaction: tx,
+                        commandTimeout: 35,
+                        cancellationToken: ct));
+
+                if (resultado < 0)
+                {
+                    throw new InvalidOperationException(
+                        $"No fue posible bloquear la creación del inventario " +
+                        $"para el almacén '{almacen}'. Código SQL: {resultado}.");
+                }
+            }
+        }
+
         private async Task<bool> UsuarioPuedeConsultarSesionAsync(
             IReadOnlyCollection<SesionAlmacenDbRow> almacenes,
             CancellationToken ct)
@@ -1367,6 +1585,8 @@ SELECT TOP (1) Id
 FROM dbo.InventarioConteoSesion
 WHERE Estatus = 'ABIERTO'
   AND UsuarioInicio = @Usuario
+  AND FechaInicio >= CONVERT(date, SYSDATETIME())
+  AND FechaInicio < DATEADD(day, 1, CONVERT(date, SYSDATETIME()))
 ORDER BY FechaInicio DESC, Id DESC;";
 
                 id = await cn.ExecuteScalarAsync<int?>(
@@ -1460,7 +1680,9 @@ ORDER BY FechaInicio DESC, Id DESC;";
                 return BadRequest(new
                 {
                     ok = false,
-                    message = "Uno o más almacenes no existen en la sección Warehouses de appsettings.json."
+                    message =
+                        "Uno o más almacenes no existen en la sección " +
+                        "Warehouses de appsettings.json."
                 });
             }
 
@@ -1470,55 +1692,63 @@ ORDER BY FechaInicio DESC, Id DESC;";
                 usuario = "SYSTEM";
             }
 
+            var fechaInventario = DateTime.Today;
+
             await using var cn = CrearConexion();
             await cn.OpenAsync(ct);
 
-            // Evita abrir varias sesiones accidentales para el mismo usuario.
-            const string sqlSesionAbierta = @"
-SELECT TOP (1) Id
-FROM dbo.InventarioConteoSesion
+            /*
+             * Las sesiones son individuales. Las sesiones abiertas de fechas
+             * anteriores se cierran sin borrar lecturas ni fotografías.
+             */
+            const string sqlCerrarDiasAnteriores = @"
+UPDATE dbo.InventarioConteoSesion
+SET
+    Estatus = 'CERRADO',
+    FechaCierre = ISNULL(
+        FechaCierre,
+        DATEADD(
+            second,
+            -1,
+            CONVERT(datetime2, CONVERT(date, SYSDATETIME()))
+        )
+    ),
+    UsuarioCierre = CASE
+        WHEN NULLIF(
+            LTRIM(RTRIM(ISNULL(UsuarioCierre, ''))),
+            ''
+        ) IS NULL
+            THEN 'CIERRE AUTOMATICO POR FECHA'
+        ELSE UsuarioCierre
+    END
 WHERE Estatus = 'ABIERTO'
-  AND UsuarioInicio = @Usuario
-ORDER BY FechaInicio DESC, Id DESC;";
+  AND FechaInicio < CONVERT(date, SYSDATETIME());";
 
-            var sesionAbiertaId = await cn.ExecuteScalarAsync<int?>(
+            await cn.ExecuteAsync(
                 new CommandDefinition(
-                    sqlSesionAbierta,
-                    new { Usuario = usuario },
+                    sqlCerrarDiasAnteriores,
                     cancellationToken: ct));
 
-            if (sesionAbiertaId.HasValue && sesionAbiertaId.Value > 0)
-            {
-                var (sesionExistente, almacenesExistentes) =
-                    await ObtenerSesionAsync(cn, sesionAbiertaId.Value, ct);
-
-                return Conflict(new
-                {
-                    ok = false,
-                    message = "Ya tienes una sesión de inventario abierta. Se puede continuar sin crear otra.",
-                    sesion = sesionExistente == null
-                        ? null
-                        : ProyectarSesion(sesionExistente, almacenesExistentes)
-                });
-            }
-
             /*
-             * Antes de crear la sesión se consulta el inventario vigente directamente
-             * en Meat/TIF_Meat. Es la misma fuente y condición utilizadas por
-             * ProcesosCgController.InventarioCamaras:
-             *
-             *     Produccion.Estatus = 1
-             *     Produccion.Almacen = Almacen.AlmacenId
-             *     Almacen.Nombre = almacén seleccionado
-             *
-             * El resumen por SKU sirve para visualizar el inventario, pero para el
-             * conteo físico se necesita además el detalle por CodigoEtiqueta.
+             * Revisa qué almacenes ya tienen una fotografía inicial hoy.
+             * Solo los almacenes nuevos consultan Meat/TIF_Meat.
              */
+            var campanasPrevias =
+                await ObtenerCampanasAlmacenDelDiaAsync(
+                    cn,
+                    solicitados,
+                    fechaInventario,
+                    ct);
+
+            var almacenesSinCampana = seleccionados
+                .Where(x => !campanasPrevias.ContainsKey(Norm(x.Id)))
+                .ToList();
+
             var snapshots = new List<InventarioRealAlmacenSnapshot>();
 
             try
             {
-                foreach (var almacen in seleccionados)
+                foreach (var almacen in almacenesSinCampana)
                 {
                     var snapshot = await ObtenerInventarioRealAlmacenAsync(
                         almacen,
@@ -1532,7 +1762,8 @@ ORDER BY FechaInicio DESC, Id DESC;";
                             message =
                                 $"No se encontró el almacén '{almacen.Name}' " +
                                 "en CommerciaNet ni en TIF_CommerciaNet. " +
-                                "Revisa que Warehouses:Name coincida exactamente con Almacen.Nombre.",
+                                "Revisa que Warehouses:Name coincida " +
+                                "exactamente con Almacen.Nombre.",
                             almacenId = almacen.Id,
                             almacen = almacen.Name
                         });
@@ -1554,7 +1785,6 @@ ORDER BY FechaInicio DESC, Id DESC;";
                 });
             }
 
-            // Une la fotografía de todos los almacenes seleccionados.
             var esperadosSinDepurar = snapshots
                 .SelectMany(snapshot => snapshot.Detalle.Select(item =>
                     new InventarioEsperadoFuenteRow
@@ -1588,7 +1818,8 @@ ORDER BY FechaInicio DESC, Id DESC;";
             if (etiquetasDuplicadas.Count > 0)
             {
                 _logger.LogWarning(
-                    "Se detectaron {Cantidad} etiquetas repetidas entre almacenes al crear la fotografía. Ejemplos: {Ejemplos}",
+                    "Se detectaron {Cantidad} etiquetas repetidas entre " +
+                    "almacenes al crear la fotografía. Ejemplos: {Ejemplos}",
                     etiquetasDuplicadas.Count,
                     string.Join(
                         " | ",
@@ -1597,21 +1828,49 @@ ORDER BY FechaInicio DESC, Id DESC;";
                             .Select(x => $"{x.Codigo}: {x.Almacenes}")));
             }
 
-            // La tabla de fotografía tiene llave única SesionId + CodigoEtiqueta.
-            // Conservamos una sola ubicación por etiqueta; un duplicado en la fuente
-            // debe revisarse como inconsistencia de inventario.
-            var esperados = esperadosSinDepurar
-                .GroupBy(
-                    x => x.CodigoEtiqueta,
-                    StringComparer.OrdinalIgnoreCase)
-                .Select(g => g.First())
-                .ToList();
-
             await using var tx =
                 (SqlTransaction)await cn.BeginTransactionAsync(ct);
 
             try
             {
+                /*
+                 * Un bloqueo independiente por fecha + almacén evita que dos
+                 * usuarios creen simultáneamente dos fotografías iniciales.
+                 */
+                await AdquirirBloqueosCampanaAsync(
+                    cn,
+                    tx,
+                    solicitados,
+                    fechaInventario,
+                    ct);
+
+                var campanasFinales =
+                    await ObtenerCampanasAlmacenDelDiaAsync(
+                        cn,
+                        solicitados,
+                        fechaInventario,
+                        ct,
+                        tx);
+
+                var almacenesNuevos = seleccionados
+                    .Where(x =>
+                        !campanasFinales.ContainsKey(Norm(x.Id)))
+                    .Select(x => Norm(x.Id))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                /*
+                 * Si otro usuario creó una campaña mientras se consultaba Meat,
+                 * su fotografía se convierte en la referencia y no se duplica.
+                 */
+                var esperados = esperadosSinDepurar
+                    .Where(x =>
+                        almacenesNuevos.Contains(Norm(x.AlmacenId)))
+                    .GroupBy(
+                        x => x.CodigoEtiqueta,
+                        StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.First())
+                    .ToList();
+
                 var ahora = DateTime.Now;
                 var folio =
                     $"INV-{ahora:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}"[..31]
@@ -1666,13 +1925,31 @@ VALUES
 
                 foreach (var almacen in seleccionados)
                 {
-                    var detalleAlmacen = esperados
-                        .Where(x =>
-                            Norm(x.AlmacenId) == Norm(almacen.Id))
-                        .ToList();
+                    var almacenId = Norm(almacen.Id);
 
-                    var totalEsperado = detalleAlmacen.Count;
-                    var kgEsperados = detalleAlmacen.Sum(x => x.PesoNeto);
+                    decimal totalEsperado;
+                    decimal kgEsperados;
+
+                    if (
+                        campanasFinales.TryGetValue(
+                            almacenId,
+                            out var campana)
+                    )
+                    {
+                        totalEsperado = campana.TotalEsperado;
+                        kgEsperados = campana.KgEsperados;
+                    }
+                    else
+                    {
+                        var detalleAlmacen = esperados
+                            .Where(x =>
+                                Norm(x.AlmacenId) == almacenId)
+                            .ToList();
+
+                        totalEsperado = detalleAlmacen.Count;
+                        kgEsperados =
+                            detalleAlmacen.Sum(x => x.PesoNeto);
+                    }
 
                     await cn.ExecuteAsync(
                         new CommandDefinition(
@@ -1689,6 +1966,11 @@ VALUES
                             cancellationToken: ct));
                 }
 
+                /*
+                 * La fotografía se guarda una sola vez por almacén y fecha.
+                 * Las sesiones posteriores comparten esas etiquetas esperadas,
+                 * pero conservan su propio SesionId y UsuarioInicio.
+                 */
                 await InsertarEsperadosAsync(
                     cn,
                     tx,
@@ -1700,8 +1982,16 @@ VALUES
 
                 foreach (var snapshot in snapshots)
                 {
+                    if (!almacenesNuevos.Contains(
+                            Norm(snapshot.Almacen.Id)))
+                    {
+                        continue;
+                    }
+
                     _logger.LogInformation(
-                        "Fotografía inventario creada. Sesion={SesionId}, Planta={Planta}, Almacen={Almacen}, Cajas={Cajas}, Kg={Kg}",
+                        "Fotografía inventario creada. " +
+                        "Sesion={SesionId}, Planta={Planta}, " +
+                        "Almacen={Almacen}, Cajas={Cajas}, Kg={Kg}",
                         nuevoSesionId,
                         snapshot.Planta,
                         snapshot.Almacen.Name,
@@ -1712,30 +2002,66 @@ VALUES
                 var (sesion, almacenes) =
                     await ObtenerSesionAsync(cn, nuevoSesionId, ct);
 
+                var detalleCampanas = seleccionados.Select(almacen =>
+                {
+                    var id = Norm(almacen.Id);
+                    var compartida =
+                        campanasFinales.TryGetValue(
+                            id,
+                            out var campana);
+
+                    var snapshot = snapshots.FirstOrDefault(x =>
+                        Norm(x.Almacen.Id) == id);
+
+                    return new
+                    {
+                        id = almacen.Id,
+                        nombre = almacen.Name,
+                        planta = compartida
+                            ? ""
+                            : snapshot?.Planta ?? "",
+                        fotografiaExistente = compartida,
+                        sesionReferenciaId =
+                            compartida
+                                ? campana!.SesionReferenciaId
+                                : nuevoSesionId,
+                        cajas = compartida
+                            ? campana!.TotalEsperado
+                            : snapshot?.Detalle.Count ?? 0,
+                        kg = compartida
+                            ? campana!.KgEsperados
+                            : snapshot?.Detalle.Sum(
+                                x => x.PesoNeto) ?? 0
+                    };
+                }).ToList();
+
                 return Ok(new
                 {
                     ok = true,
+                    sesionPropia = true,
+                    compartidaPorFechaYAlmacen = true,
+                    fechaInventario = fechaInventario,
+                    message =
+                        "Se creó tu sesión. El avance y las lecturas " +
+                        "se comparten únicamente con usuarios que " +
+                        "inventarían los mismos almacenes durante esta fecha.",
                     sesion = sesion == null
                         ? null
                         : ProyectarSesion(sesion, almacenes),
-                    fuente = "Produccion activa de Meat/TIF_Meat",
-                    almacenesFuente = snapshots.Select(x => new
-                    {
-                        id = x.Almacen.Id,
-                        nombre = x.Almacen.Name,
-                        planta = x.Planta,
-                        cajas = x.Detalle.Count,
-                        kg = x.Detalle.Sum(y => y.PesoNeto)
-                    }),
+                    fuente =
+                        "Producción activa de Meat/TIF_Meat y " +
+                        "fotografías existentes del día",
+                    almacenesFuente = detalleCampanas,
                     etiquetasDuplicadas = etiquetasDuplicadas.Count
                 });
             }
             catch (Exception ex)
             {
                 await tx.RollbackAsync(ct);
+
                 _logger.LogError(
                     ex,
-                    "Error al iniciar la sesión de inventario.");
+                    "Error al iniciar la sesión individual de inventario.");
 
                 return StatusCode(500, new
                 {
@@ -1815,7 +2141,7 @@ VALUES
                 return BadRequest(new
                 {
                     ok = false,
-                    message = "La sesión ya está cerrada."
+                    message = "Tu sesión de inventario ya está cerrada."
                 });
             }
 
@@ -1836,19 +2162,18 @@ VALUES
                 return BadRequest(new
                 {
                     ok = false,
-                    message = "El almacén activo no pertenece a esta sesión."
+                    message =
+                        "El almacén activo no pertenece a tu sesión."
                 });
             }
 
+            var fechaDesde = sesion.FechaInicio.Date;
+            var fechaHasta = fechaDesde.AddDays(1);
+
             /*
-             * Esta operación se realiza en un solo viaje a SQL Server.
-             * Antes se ejecutaban hasta tres consultas por cada etiqueta y, si no
-             * estaba en la fotografía, también se consultaban P1 y TIF en línea.
-             *
-             * La fotografía inicial ya contiene las etiquetas esperadas, por lo
-             * que el match normal debe resolverse solamente contra SIGO.
-             * Una etiqueta ajena se registra inmediatamente como sobrante, sin
-             * bloquear al lector consultando las bases Meat de ambas plantas.
+             * La lectura se atribuye a la sesión individual del usuario, pero
+             * duplicados, fotografía esperada y avance se validan contra todas
+             * las sesiones de la misma fecha y almacén.
              */
             const string sql = @"
 SET NOCOUNT ON;
@@ -1870,11 +2195,71 @@ WHERE NULLIF(
     ''
 ) IS NOT NULL;
 
+/*
+ * Bloqueo lógico por fecha + almacén + etiqueta. Impide que dos
+ * dispositivos registren simultáneamente la misma caja en sesiones
+ * individuales diferentes.
+ */
+DECLARE
+    @CodigoLock NVARCHAR(200),
+    @Recurso NVARCHAR(255),
+    @ResultadoLock INT;
+
+DECLARE cursor_codigos CURSOR LOCAL FAST_FORWARD FOR
+SELECT CodigoEtiqueta
+FROM @Codigos
+ORDER BY Orden;
+
+OPEN cursor_codigos;
+FETCH NEXT FROM cursor_codigos INTO @CodigoLock;
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    SET @Recurso =
+        'INVSCAN:' +
+        CONVERT(
+            VARCHAR(64),
+            HASHBYTES(
+                'SHA2_256',
+                CONCAT(
+                    CONVERT(CHAR(8), @FechaDesde, 112),
+                    '|',
+                    @AlmacenId,
+                    '|',
+                    @CodigoLock
+                )
+            ),
+            2
+        );
+
+    EXEC @ResultadoLock = sys.sp_getapplock
+        @Resource = @Recurso,
+        @LockMode = 'Exclusive',
+        @LockOwner = 'Transaction',
+        @LockTimeout = 15000;
+
+    IF @ResultadoLock < 0
+    BEGIN
+        CLOSE cursor_codigos;
+        DEALLOCATE cursor_codigos;
+
+        THROW 51001,
+            'No fue posible bloquear una etiqueta para su registro.',
+            1;
+    END;
+
+    FETCH NEXT FROM cursor_codigos INTO @CodigoLock;
+END;
+
+CLOSE cursor_codigos;
+DEALLOCATE cursor_codigos;
+
 DECLARE @Estado TABLE
 (
     Orden                    INT            NOT NULL,
     CodigoEtiqueta           NVARCHAR(200)  NOT NULL PRIMARY KEY,
     YaExistia                BIT            NOT NULL,
+    UsuarioExistente         NVARCHAR(200)  NULL,
     EsperadoId               BIGINT         NULL,
     AlmacenEsperadoId        NVARCHAR(100)  NULL,
     AlmacenEsperadoNombre    NVARCHAR(200)  NULL,
@@ -1889,6 +2274,7 @@ INSERT INTO @Estado
     Orden,
     CodigoEtiqueta,
     YaExistia,
+    UsuarioExistente,
     EsperadoId,
     AlmacenEsperadoId,
     AlmacenEsperadoNombre,
@@ -1900,21 +2286,64 @@ INSERT INTO @Estado
 SELECT
     c.Orden,
     c.CodigoEtiqueta,
-    CASE WHEN l.Id IS NULL THEN 0 ELSE 1 END,
-    e.Id,
-    e.AlmacenId,
-    e.AlmacenNombre,
-    e.Sku,
-    e.Producto,
-    e.PesoNeto,
-    e.FechaProduccion
+    CASE WHEN lectura.Id IS NULL THEN 0 ELSE 1 END,
+    lectura.UsuarioRegistro,
+    esperado.Id,
+    esperado.AlmacenId,
+    esperado.AlmacenNombre,
+    esperado.Sku,
+    esperado.Producto,
+    esperado.PesoNeto,
+    esperado.FechaProduccion
 FROM @Codigos c
-LEFT JOIN dbo.InventarioConteoLectura l WITH (UPDLOCK, HOLDLOCK)
-    ON l.SesionId = @SesionId
-   AND l.CodigoEtiqueta = c.CodigoEtiqueta
-LEFT JOIN dbo.InventarioConteoEsperado e WITH (NOLOCK)
-    ON e.SesionId = @SesionId
-   AND e.CodigoEtiqueta = c.CodigoEtiqueta;
+OUTER APPLY
+(
+    SELECT TOP (1)
+        l.Id,
+        UsuarioRegistro =
+            ISNULL(l.UsuarioRegistro, '')
+    FROM dbo.InventarioConteoLectura l
+        WITH (UPDLOCK, HOLDLOCK)
+    INNER JOIN dbo.InventarioConteoSesion s
+        WITH (UPDLOCK, HOLDLOCK)
+        ON s.Id = l.SesionId
+    WHERE s.FechaInicio >= @FechaDesde
+      AND s.FechaInicio < @FechaHasta
+      AND UPPER(LTRIM(RTRIM(
+            CONVERT(NVARCHAR(100), l.AlmacenId)
+          ))) = @AlmacenId
+      AND l.CodigoEtiqueta = c.CodigoEtiqueta
+    ORDER BY l.Id ASC
+) lectura
+OUTER APPLY
+(
+    SELECT TOP (1)
+        e.Id,
+        AlmacenId =
+            UPPER(LTRIM(RTRIM(
+                CONVERT(NVARCHAR(100), e.AlmacenId)
+            ))),
+        e.AlmacenNombre,
+        e.Sku,
+        e.Producto,
+        e.PesoNeto,
+        e.FechaProduccion
+    FROM dbo.InventarioConteoEsperado e WITH (NOLOCK)
+    INNER JOIN dbo.InventarioConteoSesion s WITH (NOLOCK)
+        ON s.Id = e.SesionId
+    WHERE s.FechaInicio >= @FechaDesde
+      AND s.FechaInicio < @FechaHasta
+      AND e.CodigoEtiqueta = c.CodigoEtiqueta
+    ORDER BY
+        CASE
+            WHEN UPPER(LTRIM(RTRIM(
+                CONVERT(NVARCHAR(100), e.AlmacenId)
+            ))) = @AlmacenId
+                THEN 0
+            ELSE 1
+        END,
+        e.Id ASC
+) esperado;
 
 INSERT INTO dbo.InventarioConteoLectura
 (
@@ -1964,14 +2393,33 @@ SELECT
     END,
     Msg = CASE
         WHEN e.YaExistia = 1
-            THEN 'La etiqueta ya estaba contada en esta sesión.'
+            THEN
+                'La etiqueta ya fue contada hoy en este almacén'
+                + CASE
+                    WHEN NULLIF(
+                        LTRIM(RTRIM(ISNULL(e.UsuarioExistente, ''))),
+                        ''
+                    ) IS NULL
+                        THEN '.'
+                    ELSE
+                        ' por ' +
+                        LTRIM(RTRIM(e.UsuarioExistente)) +
+                        '.'
+                  END
         WHEN e.EsperadoId IS NULL
-            THEN 'Producto sobrante: la etiqueta no formaba parte de la fotografía inicial.'
+            THEN
+                'Producto sobrante: la etiqueta no formaba parte '
+                + 'de la fotografía inicial de hoy.'
         WHEN e.AlmacenEsperadoId <> @AlmacenId
-            THEN 'Producto mezclado: se esperaba en '
-                 + ISNULL(e.AlmacenEsperadoNombre, 'otro almacén')
-                 + ' y se contó en ' + @AlmacenNombre + '.'
-        ELSE 'Etiqueta localizada y registrada correctamente.'
+            THEN
+                'Producto mezclado: se esperaba en '
+                + ISNULL(
+                    e.AlmacenEsperadoNombre,
+                    'otro almacén'
+                  )
+                + ' y se contó en ' + @AlmacenNombre + '.'
+        ELSE
+            'Etiqueta localizada y registrada correctamente.'
     END,
     Sku = ISNULL(e.Sku, ''),
     Producto = ISNULL(e.Producto, ''),
@@ -1979,7 +2427,8 @@ SELECT
     Insertada = CASE WHEN e.YaExistia = 0 THEN 1 ELSE 0 END,
     EsIncidencia = CASE
         WHEN e.YaExistia = 0
-         AND (
+         AND
+         (
                 e.EsperadoId IS NULL
              OR e.AlmacenEsperadoId <> @AlmacenId
          )
@@ -1994,33 +2443,46 @@ ORDER BY e.Orden;";
 
             try
             {
-                var resultados = (await cn.QueryAsync<RegistrarLecturaResultadoDbRow>(
-                    new CommandDefinition(
-                        sql,
-                        new
-                        {
-                            SesionId = request.SesionId,
-                            AlmacenId = almacenActivo.AlmacenId,
-                            AlmacenNombre = almacenActivo.AlmacenNombre,
-                            UsuarioRegistro = UsuarioActual(),
-                            CodigosJson = JsonSerializer.Serialize(codigos)
-                        },
-                        transaction: tx,
-                        commandTimeout: 30,
-                        cancellationToken: ct))).ToList();
+                var resultados =
+                    (await cn.QueryAsync<
+                        RegistrarLecturaResultadoDbRow>(
+                        new CommandDefinition(
+                            sql,
+                            new
+                            {
+                                SesionId = request.SesionId,
+                                AlmacenId =
+                                    Norm(almacenActivo.AlmacenId),
+                                AlmacenNombre =
+                                    almacenActivo.AlmacenNombre,
+                                UsuarioRegistro = UsuarioActual(),
+                                CodigosJson =
+                                    JsonSerializer.Serialize(codigos),
+                                FechaDesde = fechaDesde,
+                                FechaHasta = fechaHasta
+                            },
+                            transaction: tx,
+                            commandTimeout: 45,
+                            cancellationToken: ct))).ToList();
 
                 await tx.CommitAsync(ct);
 
                 return Ok(new
                 {
                     ok = true,
-                    insertadas = resultados.Sum(x => x.Insertada),
+                    sesionId = request.SesionId,
+                    fechaInventario = fechaDesde,
+                    almacenId = almacenId,
+                    compartidaPorFechaYAlmacen = true,
+                    insertadas =
+                        resultados.Sum(x => x.Insertada),
                     duplicadas = resultados.Count(x =>
                         string.Equals(
                             x.Kind,
                             "dup",
                             StringComparison.OrdinalIgnoreCase)),
-                    incidencias = resultados.Sum(x => x.EsIncidencia),
+                    incidencias =
+                        resultados.Sum(x => x.EsIncidencia),
                     results = resultados.Select(x => new
                     {
                         codigoEtiqueta = x.CodigoEtiqueta,
@@ -2038,8 +2500,10 @@ ORDER BY e.Orden;";
 
                 _logger.LogError(
                     ex,
-                    "Error al registrar lecturas de forma masiva en la sesión {SesionId}.",
-                    request.SesionId);
+                    "Error al registrar lecturas en la sesión " +
+                    "{SesionId}, almacén {AlmacenId}.",
+                    request.SesionId,
+                    almacenId);
 
                 return StatusCode(500, new
                 {
@@ -2047,6 +2511,295 @@ ORDER BY e.Orden;";
                     message = ex.GetBaseException().Message
                 });
             }
+        }
+
+        // =============================================================
+        //  HISTORIAL COMPARTIDO DE LECTURAS DE LA SESIÓN
+        // =============================================================
+        [HttpGet]
+        public async Task<IActionResult> LecturasSesion(
+            int sesionId,
+            string? almacenId = null,
+            long despuesDeId = 0,
+            int limite = 500,
+            CancellationToken ct = default)
+        {
+            if (sesionId <= 0)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    message = "La sesión es obligatoria."
+                });
+            }
+
+            limite = Math.Clamp(limite, 50, 1000);
+            var almacenNormalizado = Norm(almacenId);
+
+            await using var cn = CrearConexion();
+            await cn.OpenAsync(ct);
+
+            var (sesion, almacenes) = await ObtenerSesionAsync(
+                cn,
+                sesionId,
+                ct);
+
+            if (sesion == null)
+            {
+                return NotFound(new
+                {
+                    ok = false,
+                    message = "No se encontró la sesión de inventario."
+                });
+            }
+
+            if (!await UsuarioPuedeConsultarSesionAsync(almacenes, ct))
+            {
+                return StatusCode(403, new
+                {
+                    ok = false,
+                    message = "No tienes permiso para consultar esta sesión."
+                });
+            }
+
+            if (
+                !string.IsNullOrWhiteSpace(almacenNormalizado) &&
+                !almacenes.Any(x =>
+                    Norm(x.AlmacenId) == almacenNormalizado)
+            )
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    message = "El almacén no pertenece a tu sesión."
+                });
+            }
+
+            var fechaDesde = sesion.FechaInicio.Date;
+            var fechaHasta = fechaDesde.AddDays(1);
+
+            /*
+             * Se devuelven las lecturas de todas las sesiones de la misma fecha,
+             * pero únicamente para los almacenes que pertenecen a la sesión del
+             * usuario solicitante.
+             */
+            const string sql = @"
+SELECT
+    Total = COUNT_BIG(1),
+    UltimoId = ISNULL(MAX(l.Id), 0),
+    Correctas = ISNULL(SUM(CONVERT(BIGINT, CASE
+        WHEN l.EsEsperado = 1
+         AND l.EsAlmacenCorrecto = 1
+            THEN 1
+        ELSE 0
+    END)), 0),
+    Revisar = ISNULL(SUM(CONVERT(BIGINT, CASE
+        WHEN l.EsEsperado = 0
+          OR l.EsAlmacenCorrecto = 0
+            THEN 1
+        ELSE 0
+    END)), 0)
+FROM dbo.InventarioConteoLectura l WITH (NOLOCK)
+INNER JOIN dbo.InventarioConteoSesion s WITH (NOLOCK)
+    ON s.Id = l.SesionId
+WHERE s.FechaInicio >= @FechaDesde
+  AND s.FechaInicio < @FechaHasta
+  AND EXISTS
+  (
+      SELECT 1
+      FROM dbo.InventarioConteoSesionAlmacen propia WITH (NOLOCK)
+      WHERE propia.SesionId = @SesionId
+        AND UPPER(LTRIM(RTRIM(
+            CONVERT(NVARCHAR(100), propia.AlmacenId)
+        ))) =
+        UPPER(LTRIM(RTRIM(
+            CONVERT(NVARCHAR(100), l.AlmacenId)
+        )))
+  )
+  AND
+  (
+      @AlmacenId = ''
+      OR UPPER(LTRIM(RTRIM(
+            CONVERT(NVARCHAR(100), l.AlmacenId)
+          ))) = @AlmacenId
+  );
+
+IF @DespuesDeId > 0
+BEGIN
+    SELECT TOP (@Limite)
+        l.Id,
+        l.SesionId,
+        l.AlmacenId,
+        l.AlmacenNombre,
+        l.CodigoEtiqueta,
+        ISNULL(l.Sku, '') AS Sku,
+        ISNULL(l.Producto, '') AS Producto,
+        ISNULL(l.PesoNeto, 0) AS PesoNeto,
+        l.EsEsperado,
+        l.EsAlmacenCorrecto,
+        ISNULL(l.UsuarioRegistro, '') AS UsuarioRegistro,
+        l.FechaRegistro
+    FROM dbo.InventarioConteoLectura l WITH (NOLOCK)
+    INNER JOIN dbo.InventarioConteoSesion s WITH (NOLOCK)
+        ON s.Id = l.SesionId
+    WHERE s.FechaInicio >= @FechaDesde
+      AND s.FechaInicio < @FechaHasta
+      AND l.Id > @DespuesDeId
+      AND EXISTS
+      (
+          SELECT 1
+          FROM dbo.InventarioConteoSesionAlmacen propia WITH (NOLOCK)
+          WHERE propia.SesionId = @SesionId
+            AND UPPER(LTRIM(RTRIM(
+                CONVERT(NVARCHAR(100), propia.AlmacenId)
+            ))) =
+            UPPER(LTRIM(RTRIM(
+                CONVERT(NVARCHAR(100), l.AlmacenId)
+            )))
+      )
+      AND
+      (
+          @AlmacenId = ''
+          OR UPPER(LTRIM(RTRIM(
+                CONVERT(NVARCHAR(100), l.AlmacenId)
+              ))) = @AlmacenId
+      )
+    ORDER BY l.Id ASC;
+END
+ELSE
+BEGIN
+    SELECT
+        x.Id,
+        x.SesionId,
+        x.AlmacenId,
+        x.AlmacenNombre,
+        x.CodigoEtiqueta,
+        x.Sku,
+        x.Producto,
+        x.PesoNeto,
+        x.EsEsperado,
+        x.EsAlmacenCorrecto,
+        x.UsuarioRegistro,
+        x.FechaRegistro
+    FROM
+    (
+        SELECT TOP (@Limite)
+            l.Id,
+            l.SesionId,
+            l.AlmacenId,
+            l.AlmacenNombre,
+            l.CodigoEtiqueta,
+            ISNULL(l.Sku, '') AS Sku,
+            ISNULL(l.Producto, '') AS Producto,
+            ISNULL(l.PesoNeto, 0) AS PesoNeto,
+            l.EsEsperado,
+            l.EsAlmacenCorrecto,
+            ISNULL(l.UsuarioRegistro, '') AS UsuarioRegistro,
+            l.FechaRegistro
+        FROM dbo.InventarioConteoLectura l WITH (NOLOCK)
+        INNER JOIN dbo.InventarioConteoSesion s WITH (NOLOCK)
+            ON s.Id = l.SesionId
+        WHERE s.FechaInicio >= @FechaDesde
+          AND s.FechaInicio < @FechaHasta
+          AND EXISTS
+          (
+              SELECT 1
+              FROM dbo.InventarioConteoSesionAlmacen propia WITH (NOLOCK)
+              WHERE propia.SesionId = @SesionId
+                AND UPPER(LTRIM(RTRIM(
+                    CONVERT(NVARCHAR(100), propia.AlmacenId)
+                ))) =
+                UPPER(LTRIM(RTRIM(
+                    CONVERT(NVARCHAR(100), l.AlmacenId)
+                )))
+          )
+          AND
+          (
+              @AlmacenId = ''
+              OR UPPER(LTRIM(RTRIM(
+                    CONVERT(NVARCHAR(100), l.AlmacenId)
+                  ))) = @AlmacenId
+          )
+        ORDER BY l.Id DESC
+    ) x
+    ORDER BY x.Id ASC;
+END;";
+
+            using var grid = await cn.QueryMultipleAsync(
+                new CommandDefinition(
+                    sql,
+                    new
+                    {
+                        SesionId = sesionId,
+                        AlmacenId = almacenNormalizado,
+                        DespuesDeId = Math.Max(0, despuesDeId),
+                        Limite = limite,
+                        FechaDesde = fechaDesde,
+                        FechaHasta = fechaHasta
+                    },
+                    commandTimeout: 30,
+                    cancellationToken: ct));
+
+            var resumen =
+                await grid.ReadFirstAsync<
+                    LecturaSesionCompartidaResumenDbRow>();
+
+            var rows = (
+                await grid.ReadAsync<LecturaSesionCompartidaDbRow>()
+            ).ToList();
+
+            var ultimoDevuelto = rows.Count > 0
+                ? rows.Max(x => x.Id)
+                : Math.Max(0, despuesDeId);
+
+            return Ok(new
+            {
+                ok = true,
+                sesionId,
+                fechaInventario = fechaDesde,
+                almacenId = almacenNormalizado,
+                compartidaPorFechaYAlmacen = true,
+                total = resumen.Total,
+                correctas = resumen.Correctas,
+                revisar = resumen.Revisar,
+                ultimoId = ultimoDevuelto,
+                ultimoIdDisponible = resumen.UltimoId,
+                rows = rows.Select(x =>
+                {
+                    var kind =
+                        x.EsEsperado && x.EsAlmacenCorrecto
+                            ? "ok"
+                            : "warn";
+
+                    var message = !x.EsEsperado
+                        ? "Producto sobrante: no estaba en la fotografía inicial."
+                        : !x.EsAlmacenCorrecto
+                            ? "Producto mezclado: se contó en un almacén distinto al esperado."
+                            : "Etiqueta localizada y registrada correctamente.";
+
+                    if (!string.IsNullOrWhiteSpace(x.UsuarioRegistro))
+                    {
+                        message +=
+                            $" Escaneó: {x.UsuarioRegistro.Trim()}.";
+                    }
+
+                    return new
+                    {
+                        id = x.Id,
+                        x.SesionId,
+                        almacenId = x.AlmacenId,
+                        almacen = x.AlmacenNombre,
+                        codigoEtiqueta = x.CodigoEtiqueta,
+                        x.Sku,
+                        x.Producto,
+                        x.PesoNeto,
+                        kind,
+                        msg = message,
+                        usuarioRegistro = x.UsuarioRegistro,
+                        fechaRegistro = x.FechaRegistro
+                    };
+                })
+            });
         }
 
         // =============================================================
@@ -2069,7 +2822,8 @@ ORDER BY e.Orden;";
             await using var cn = CrearConexion();
             await cn.OpenAsync(ct);
 
-            var (sesion, almacenes) = await ObtenerSesionAsync(cn, sesionId, ct);
+            var (sesion, almacenes) =
+                await ObtenerSesionAsync(cn, sesionId, ct);
 
             if (sesion == null)
             {
@@ -2089,71 +2843,145 @@ ORDER BY e.Orden;";
                 });
             }
 
-            const string sqlResumen = @"
+            var fechaDesde = sesion.FechaInicio.Date;
+            var fechaHasta = fechaDesde.AddDays(1);
+
+            /*
+             * El tablero pertenece a la sesión individual, pero agrega lecturas
+             * e incidencias de todas las sesiones que trabajan los mismos
+             * almacenes durante la misma fecha.
+             */
+            const string sql = @"
+SET NOCOUNT ON;
+
+CREATE TABLE #AlmacenesSesion
+(
+    AlmacenId       NVARCHAR(100)  NOT NULL PRIMARY KEY,
+    AlmacenNombre   NVARCHAR(300)  NOT NULL,
+    TotalEsperado   DECIMAL(18,3)  NOT NULL,
+    KgEsperados     DECIMAL(18,3)  NOT NULL
+);
+
+INSERT INTO #AlmacenesSesion
+(
+    AlmacenId,
+    AlmacenNombre,
+    TotalEsperado,
+    KgEsperados
+)
 SELECT
-    sa.AlmacenId,
-    Almacen = sa.AlmacenNombre,
-    Ubicaciones = sa.TotalEsperado,
-    sa.KgEsperados,
-    Contadas = COUNT(CASE
-        WHEN l.EsEsperado = 1
-         AND l.EsAlmacenCorrecto = 1
-         AND l.AlmacenId = sa.AlmacenId
-        THEN 1 END),
+    UPPER(LTRIM(RTRIM(
+        CONVERT(NVARCHAR(100), sa.AlmacenId)
+    ))),
+    sa.AlmacenNombre,
+    ISNULL(sa.TotalEsperado, 0),
+    ISNULL(sa.KgEsperados, 0)
+FROM dbo.InventarioConteoSesionAlmacen sa WITH (NOLOCK)
+WHERE sa.SesionId = @SesionId;
+
+
+/* 1. AVANCE COMPARTIDO POR ALMACÉN */
+;WITH Lecturas AS
+(
+    SELECT
+        AlmacenId =
+            UPPER(LTRIM(RTRIM(
+                CONVERT(NVARCHAR(100), l.AlmacenId)
+            ))),
+        Contadas = SUM(CASE
+            WHEN l.EsEsperado = 1
+             AND l.EsAlmacenCorrecto = 1
+                THEN 1
+            ELSE 0
+        END)
+    FROM dbo.InventarioConteoLectura l WITH (NOLOCK)
+    INNER JOIN dbo.InventarioConteoSesion s WITH (NOLOCK)
+        ON s.Id = l.SesionId
+    INNER JOIN #AlmacenesSesion a
+        ON a.AlmacenId =
+           UPPER(LTRIM(RTRIM(
+               CONVERT(NVARCHAR(100), l.AlmacenId)
+           )))
+    WHERE s.FechaInicio >= @FechaDesde
+      AND s.FechaInicio < @FechaHasta
+    GROUP BY UPPER(LTRIM(RTRIM(
+        CONVERT(NVARCHAR(100), l.AlmacenId)
+    )))
+)
+SELECT
+    a.AlmacenId,
+    Almacen = a.AlmacenNombre,
+    Ubicaciones = a.TotalEsperado,
+    a.KgEsperados,
+    Contadas = ISNULL(l.Contadas, 0),
     Pendientes = CAST(
         CASE
-            WHEN sa.TotalEsperado - COUNT(CASE
-                WHEN l.EsEsperado = 1
-                 AND l.EsAlmacenCorrecto = 1
-                 AND l.AlmacenId = sa.AlmacenId
-                THEN 1 END) < 0
-            THEN 0
-            ELSE sa.TotalEsperado - COUNT(CASE
-                WHEN l.EsEsperado = 1
-                 AND l.EsAlmacenCorrecto = 1
-                 AND l.AlmacenId = sa.AlmacenId
-                THEN 1 END)
+            WHEN a.TotalEsperado - ISNULL(l.Contadas, 0) < 0
+                THEN 0
+            ELSE a.TotalEsperado - ISNULL(l.Contadas, 0)
         END
-    AS DECIMAL(18,3)),
+        AS DECIMAL(18,3)
+    ),
     Avance = CAST(
         CASE
-            WHEN sa.TotalEsperado <= 0 THEN 0
+            WHEN a.TotalEsperado <= 0
+                THEN 0
             ELSE
-                COUNT(CASE
-                    WHEN l.EsEsperado = 1
-                     AND l.EsAlmacenCorrecto = 1
-                     AND l.AlmacenId = sa.AlmacenId
-                    THEN 1 END) * 100.0 / sa.TotalEsperado
+                ISNULL(l.Contadas, 0) * 100.0
+                / a.TotalEsperado
         END
-    AS DECIMAL(10,2))
-FROM dbo.InventarioConteoSesionAlmacen sa
-LEFT JOIN dbo.InventarioConteoLectura l
-    ON l.SesionId = sa.SesionId
-WHERE sa.SesionId = @SesionId
-GROUP BY
-    sa.AlmacenId,
-    sa.AlmacenNombre,
-    sa.TotalEsperado,
-    sa.KgEsperados
-ORDER BY sa.AlmacenNombre;";
+        AS DECIMAL(10,2)
+    )
+FROM #AlmacenesSesion a
+LEFT JOIN Lecturas l
+    ON l.AlmacenId = a.AlmacenId
+ORDER BY a.AlmacenNombre;
 
-            var resumen = (await cn.QueryAsync<WarehouseSummaryDbRow>(
-                new CommandDefinition(
-                    sqlResumen,
-                    new { SesionId = sesionId },
-                    cancellationToken: ct))).ToList();
 
-            const string sqlAntiguedad = @"
-WITH Base AS
+/* 2. ANTIGÜEDAD DE LA FOTOGRAFÍA COMPARTIDA */
+;WITH EsperadosRanked AS
+(
+    SELECT
+        e.FechaProduccion,
+        rn = ROW_NUMBER() OVER
+        (
+            PARTITION BY
+                UPPER(LTRIM(RTRIM(
+                    CONVERT(NVARCHAR(100), e.AlmacenId)
+                ))),
+                e.CodigoEtiqueta
+            ORDER BY e.Id ASC
+        )
+    FROM dbo.InventarioConteoEsperado e WITH (NOLOCK)
+    INNER JOIN dbo.InventarioConteoSesion s WITH (NOLOCK)
+        ON s.Id = e.SesionId
+    INNER JOIN #AlmacenesSesion a
+        ON a.AlmacenId =
+           UPPER(LTRIM(RTRIM(
+               CONVERT(NVARCHAR(100), e.AlmacenId)
+           )))
+    WHERE s.FechaInicio >= @FechaDesde
+      AND s.FechaInicio < @FechaHasta
+),
+Base AS
 (
     SELECT
         Dias = CASE
             WHEN FechaProduccion IS NULL THEN 0
-            WHEN DATEDIFF(DAY, FechaProduccion, @FechaReferencia) < 0 THEN 0
-            ELSE DATEDIFF(DAY, FechaProduccion, @FechaReferencia)
+            WHEN DATEDIFF(
+                DAY,
+                FechaProduccion,
+                @FechaDesde
+            ) < 0
+                THEN 0
+            ELSE DATEDIFF(
+                DAY,
+                FechaProduccion,
+                @FechaDesde
+            )
         END
-    FROM dbo.InventarioConteoEsperado
-    WHERE SesionId = @SesionId
+    FROM EsperadosRanked
+    WHERE rn = 1
 ),
 Rangos AS
 (
@@ -2167,19 +2995,27 @@ Conteo AS
 (
     SELECT
         Rango = CASE
-            WHEN Dias BETWEEN 0 AND 15 THEN '0-15 días'
-            WHEN Dias BETWEEN 16 AND 30 THEN '16-30 días'
-            WHEN Dias BETWEEN 31 AND 60 THEN '31-60 días'
-            WHEN Dias BETWEEN 61 AND 90 THEN '61-90 días'
+            WHEN Dias BETWEEN 0 AND 15
+                THEN '0-15 días'
+            WHEN Dias BETWEEN 16 AND 30
+                THEN '16-30 días'
+            WHEN Dias BETWEEN 31 AND 60
+                THEN '31-60 días'
+            WHEN Dias BETWEEN 61 AND 90
+                THEN '61-90 días'
             ELSE 'Más de 90 días'
         END,
         Cantidad = COUNT(1)
     FROM Base
     GROUP BY CASE
-        WHEN Dias BETWEEN 0 AND 15 THEN '0-15 días'
-        WHEN Dias BETWEEN 16 AND 30 THEN '16-30 días'
-        WHEN Dias BETWEEN 31 AND 60 THEN '31-60 días'
-        WHEN Dias BETWEEN 61 AND 90 THEN '61-90 días'
+        WHEN Dias BETWEEN 0 AND 15
+            THEN '0-15 días'
+        WHEN Dias BETWEEN 16 AND 30
+            THEN '16-30 días'
+        WHEN Dias BETWEEN 31 AND 60
+            THEN '31-60 días'
+        WHEN Dias BETWEEN 61 AND 90
+            THEN '61-90 días'
         ELSE 'Más de 90 días'
     END
 )
@@ -2187,108 +3023,107 @@ SELECT
     r.Rango,
     Cantidad = ISNULL(c.Cantidad, 0)
 FROM Rangos r
-LEFT JOIN Conteo c ON c.Rango = r.Rango
-ORDER BY r.Orden;";
+LEFT JOIN Conteo c
+    ON c.Rango = r.Rango
+ORDER BY r.Orden;
 
-            var antiguedad = (await cn.QueryAsync<AgingDbRow>(
-                new CommandDefinition(
-                    sqlAntiguedad,
-                    new
-                    {
-                        SesionId = sesionId,
-                        FechaReferencia = sesion.FechaInicio.Date
-                    },
-                    cancellationToken: ct))).ToList();
 
-            // El pendiente del resumen representa lo que aún no se ha localizado
-            // correctamente. También funciona cuando no fue posible obtener
-            // fotografía individual y el respaldo proviene de InventarioSigo.
-            var faltantes = Convert.ToInt32(
-                Math.Ceiling(resumen.Sum(x => x.Pendientes)));
+/* 3. RESUMEN DE INCIDENCIAS COMPARTIDAS */
+;WITH Conteos AS
+(
+    SELECT
+        Tipo = ISNULL(
+            NULLIF(LTRIM(RTRIM(i.Tipo)), ''),
+            'Incidencia'
+        ),
+        Cantidad = COUNT(1)
+    FROM dbo.InventarioConteoIncidencia i WITH (NOLOCK)
+    INNER JOIN dbo.InventarioConteoSesion s WITH (NOLOCK)
+        ON s.Id = i.SesionId
+    INNER JOIN #AlmacenesSesion a
+        ON a.AlmacenId =
+           UPPER(LTRIM(RTRIM(
+               CONVERT(NVARCHAR(100), i.AlmacenId)
+           )))
+    WHERE s.FechaInicio >= @FechaDesde
+      AND s.FechaInicio < @FechaHasta
+    GROUP BY ISNULL(
+        NULLIF(LTRIM(RTRIM(i.Tipo)), ''),
+        'Incidencia'
+    )
 
-            const string sqlSobrantes = @"
-SELECT COUNT(1)
-FROM dbo.InventarioConteoLectura
-WHERE SesionId = @SesionId
-  AND EsEsperado = 0;";
+    UNION ALL
 
-            var sobrantes = await cn.ExecuteScalarAsync<int>(
-                new CommandDefinition(
-                    sqlSobrantes,
-                    new { SesionId = sesionId },
-                    cancellationToken: ct));
-
-            const string sqlMezclados = @"
-SELECT COUNT(1)
-FROM dbo.InventarioConteoLectura
-WHERE SesionId = @SesionId
-  AND EsEsperado = 1
-  AND EsAlmacenCorrecto = 0;";
-
-            var mezclados = await cn.ExecuteScalarAsync<int>(
-                new CommandDefinition(
-                    sqlMezclados,
-                    new { SesionId = sesionId },
-                    cancellationToken: ct));
-
-            const string sqlManualResumen = @"
+    SELECT
+        Tipo = CASE
+            WHEN l.EsEsperado = 0
+                THEN 'Producto sobrante'
+            ELSE 'Producto mezclado'
+        END,
+        Cantidad = COUNT(1)
+    FROM dbo.InventarioConteoLectura l WITH (NOLOCK)
+    INNER JOIN dbo.InventarioConteoSesion s WITH (NOLOCK)
+        ON s.Id = l.SesionId
+    INNER JOIN #AlmacenesSesion a
+        ON a.AlmacenId =
+           UPPER(LTRIM(RTRIM(
+               CONVERT(NVARCHAR(100), l.AlmacenId)
+           )))
+    WHERE s.FechaInicio >= @FechaDesde
+      AND s.FechaInicio < @FechaHasta
+      AND
+      (
+           l.EsEsperado = 0
+        OR
+        (
+            l.EsEsperado = 1
+            AND l.EsAlmacenCorrecto = 0
+        )
+      )
+    GROUP BY CASE
+        WHEN l.EsEsperado = 0
+            THEN 'Producto sobrante'
+        ELSE 'Producto mezclado'
+    END
+)
 SELECT
     Tipo,
-    Cantidad = COUNT(1)
-FROM dbo.InventarioConteoIncidencia
-WHERE SesionId = @SesionId
-GROUP BY Tipo;";
+    Cantidad = CONVERT(INT, SUM(Cantidad))
+FROM Conteos
+GROUP BY Tipo;
 
-            var resumenManual = (await cn.QueryAsync<IncidenciaResumenDbRow>(
-                new CommandDefinition(
-                    sqlManualResumen,
-                    new { SesionId = sesionId },
-                    cancellationToken: ct))).ToList();
 
-            var mapaIncidencias = TiposIncidenciaPermitidos
-                .ToDictionary(x => x, _ => 0, StringComparer.OrdinalIgnoreCase);
-
-            mapaIncidencias["Producto no localizado"] += faltantes;
-            mapaIncidencias["Producto sobrante"] += sobrantes;
-            mapaIncidencias["Producto mezclado"] += mezclados;
-
-            foreach (var item in resumenManual)
-            {
-                if (!mapaIncidencias.ContainsKey(item.Tipo))
-                {
-                    mapaIncidencias[item.Tipo] = 0;
-                }
-
-                mapaIncidencias[item.Tipo] += item.Cantidad;
-            }
-
-            const string sqlManualDetalle = @"
+/* 4. INCIDENCIAS MANUALES COMPARTIDAS */
 SELECT TOP (300)
-    Id,
-    Tipo,
-    ISNULL(CodigoEtiqueta, '') AS CodigoEtiqueta,
-    ISNULL(Producto, '') AS Producto,
-    ISNULL(PesoKg, 0) AS PesoKg,
-    ISNULL(AlmacenNombre, '') AS Almacen,
-    ISNULL(Ubicacion, '') AS Ubicacion,
-    ISNULL(Comentario, '') AS Comentario,
-    ISNULL(FotoUrl, '') AS FotoUrl,
-    FechaRegistro AS Fecha
-FROM dbo.InventarioConteoIncidencia
-WHERE SesionId = @SesionId
-ORDER BY FechaRegistro DESC, Id DESC;";
+    i.Id,
+    i.Tipo,
+    ISNULL(i.CodigoEtiqueta, '') AS CodigoEtiqueta,
+    ISNULL(i.Producto, '') AS Producto,
+    ISNULL(i.PesoKg, 0) AS PesoKg,
+    ISNULL(i.AlmacenNombre, '') AS Almacen,
+    ISNULL(i.Ubicacion, '') AS Ubicacion,
+    ISNULL(i.Comentario, '') AS Comentario,
+    ISNULL(i.FotoUrl, '') AS FotoUrl,
+    i.FechaRegistro AS Fecha
+FROM dbo.InventarioConteoIncidencia i WITH (NOLOCK)
+INNER JOIN dbo.InventarioConteoSesion s WITH (NOLOCK)
+    ON s.Id = i.SesionId
+INNER JOIN #AlmacenesSesion a
+    ON a.AlmacenId =
+       UPPER(LTRIM(RTRIM(
+           CONVERT(NVARCHAR(100), i.AlmacenId)
+       )))
+WHERE s.FechaInicio >= @FechaDesde
+  AND s.FechaInicio < @FechaHasta
+ORDER BY i.FechaRegistro DESC, i.Id DESC;
 
-            var incidencias = (await cn.QueryAsync<IncidenciaDbRow>(
-                new CommandDefinition(
-                    sqlManualDetalle,
-                    new { SesionId = sesionId },
-                    cancellationToken: ct))).ToList();
 
-            const string sqlLecturasIncidencia = @"
+/* 5. SOBRANTES Y MEZCLADAS COMPARTIDAS */
 SELECT TOP (300)
     Id = -l.Id,
     Tipo = CASE
-        WHEN l.EsEsperado = 0 THEN 'Producto sobrante'
+        WHEN l.EsEsperado = 0
+            THEN 'Producto sobrante'
         ELSE 'Producto mezclado'
     END,
     l.CodigoEtiqueta,
@@ -2298,27 +3133,69 @@ SELECT TOP (300)
     '' AS Ubicacion,
     Comentario = CASE
         WHEN l.EsEsperado = 0
-            THEN 'La etiqueta no formaba parte de la fotografía inicial.'
-        ELSE 'Se contó en un almacén diferente al esperado.'
+            THEN
+                'La etiqueta no formaba parte de la fotografía inicial.'
+        ELSE
+                'Se contó en un almacén diferente al esperado.'
     END,
     '' AS FotoUrl,
     l.FechaRegistro AS Fecha
-FROM dbo.InventarioConteoLectura l
-WHERE l.SesionId = @SesionId
+FROM dbo.InventarioConteoLectura l WITH (NOLOCK)
+INNER JOIN dbo.InventarioConteoSesion s WITH (NOLOCK)
+    ON s.Id = l.SesionId
+INNER JOIN #AlmacenesSesion a
+    ON a.AlmacenId =
+       UPPER(LTRIM(RTRIM(
+           CONVERT(NVARCHAR(100), l.AlmacenId)
+       )))
+WHERE s.FechaInicio >= @FechaDesde
+  AND s.FechaInicio < @FechaHasta
   AND
   (
        l.EsEsperado = 0
-    OR (l.EsEsperado = 1 AND l.EsAlmacenCorrecto = 0)
+    OR
+    (
+        l.EsEsperado = 1
+        AND l.EsAlmacenCorrecto = 0
+    )
   )
-ORDER BY l.FechaRegistro DESC, l.Id DESC;";
+ORDER BY l.FechaRegistro DESC, l.Id DESC;
 
-            incidencias.AddRange(await cn.QueryAsync<IncidenciaDbRow>(
-                new CommandDefinition(
-                    sqlLecturasIncidencia,
-                    new { SesionId = sesionId },
-                    cancellationToken: ct)));
 
-            const string sqlFaltantesDetalle = @"
+/* 6. FALTANTES DE LA CAMPAÑA FECHA + ALMACÉN */
+;WITH EsperadosRanked AS
+(
+    SELECT
+        e.Id,
+        AlmacenId =
+            UPPER(LTRIM(RTRIM(
+                CONVERT(NVARCHAR(100), e.AlmacenId)
+            ))),
+        e.AlmacenNombre,
+        e.CodigoEtiqueta,
+        e.Sku,
+        e.Producto,
+        e.PesoNeto,
+        rn = ROW_NUMBER() OVER
+        (
+            PARTITION BY
+                UPPER(LTRIM(RTRIM(
+                    CONVERT(NVARCHAR(100), e.AlmacenId)
+                ))),
+                e.CodigoEtiqueta
+            ORDER BY e.Id ASC
+        )
+    FROM dbo.InventarioConteoEsperado e WITH (NOLOCK)
+    INNER JOIN dbo.InventarioConteoSesion s WITH (NOLOCK)
+        ON s.Id = e.SesionId
+    INNER JOIN #AlmacenesSesion a
+        ON a.AlmacenId =
+           UPPER(LTRIM(RTRIM(
+               CONVERT(NVARCHAR(100), e.AlmacenId)
+           )))
+    WHERE s.FechaInicio >= @FechaDesde
+      AND s.FechaInicio < @FechaHasta
+)
 SELECT TOP (300)
     Id = -1000000000 - e.Id,
     Tipo = 'Producto no localizado',
@@ -2327,31 +3204,84 @@ SELECT TOP (300)
     ISNULL(e.PesoNeto, 0) AS PesoKg,
     e.AlmacenNombre AS Almacen,
     '' AS Ubicacion,
-    Comentario = 'Pendiente de localizar y contar en la sesión actual.',
+    Comentario =
+        'Pendiente de localizar en el inventario compartido del almacén.',
     '' AS FotoUrl,
-    @Fecha AS Fecha
-FROM dbo.InventarioConteoEsperado e
-WHERE e.SesionId = @SesionId
+    @Ahora AS Fecha
+FROM EsperadosRanked e
+WHERE e.rn = 1
   AND NOT EXISTS
   (
       SELECT 1
-      FROM dbo.InventarioConteoLectura l
-      WHERE l.SesionId = e.SesionId
+      FROM dbo.InventarioConteoLectura l WITH (NOLOCK)
+      INNER JOIN dbo.InventarioConteoSesion s WITH (NOLOCK)
+          ON s.Id = l.SesionId
+      WHERE s.FechaInicio >= @FechaDesde
+        AND s.FechaInicio < @FechaHasta
+        AND UPPER(LTRIM(RTRIM(
+            CONVERT(NVARCHAR(100), l.AlmacenId)
+        ))) = e.AlmacenId
         AND l.CodigoEtiqueta = e.CodigoEtiqueta
         AND l.EsEsperado = 1
         AND l.EsAlmacenCorrecto = 1
   )
 ORDER BY e.AlmacenNombre, e.CodigoEtiqueta;";
 
-            incidencias.AddRange(await cn.QueryAsync<IncidenciaDbRow>(
+            using var grid = await cn.QueryMultipleAsync(
                 new CommandDefinition(
-                    sqlFaltantesDetalle,
+                    sql,
                     new
                     {
                         SesionId = sesionId,
-                        Fecha = DateTime.Now
+                        FechaDesde = fechaDesde,
+                        FechaHasta = fechaHasta,
+                        Ahora = DateTime.Now
                     },
-                    cancellationToken: ct)));
+                    commandTimeout: 90,
+                    cancellationToken: ct));
+
+            var resumen =
+                (await grid.ReadAsync<WarehouseSummaryDbRow>())
+                .ToList();
+
+            var antiguedad =
+                (await grid.ReadAsync<AgingDbRow>())
+                .ToList();
+
+            var resumenIncidencias =
+                (await grid.ReadAsync<IncidenciaResumenDbRow>())
+                .ToList();
+
+            var incidencias =
+                (await grid.ReadAsync<IncidenciaDbRow>())
+                .ToList();
+
+            incidencias.AddRange(
+                await grid.ReadAsync<IncidenciaDbRow>());
+
+            incidencias.AddRange(
+                await grid.ReadAsync<IncidenciaDbRow>());
+
+            var faltantes = Convert.ToInt32(
+                Math.Ceiling(resumen.Sum(x => x.Pendientes)));
+
+            var mapaIncidencias = TiposIncidenciaPermitidos
+                .ToDictionary(
+                    x => x,
+                    _ => 0,
+                    StringComparer.OrdinalIgnoreCase);
+
+            mapaIncidencias["Producto no localizado"] += faltantes;
+
+            foreach (var item in resumenIncidencias)
+            {
+                if (!mapaIncidencias.ContainsKey(item.Tipo))
+                {
+                    mapaIncidencias[item.Tipo] = 0;
+                }
+
+                mapaIncidencias[item.Tipo] += item.Cantidad;
+            }
 
             incidencias = incidencias
                 .OrderByDescending(x => x.Fecha)
@@ -2359,24 +3289,35 @@ ORDER BY e.AlmacenNombre, e.CodigoEtiqueta;";
                 .Take(600)
                 .ToList();
 
-            var totalEsperado = resumen.Sum(x => x.Ubicaciones);
-            var totalContado = resumen.Sum(x => x.Contadas);
-            var totalPendiente = resumen.Sum(x => x.Pendientes);
+            var totalEsperado =
+                resumen.Sum(x => x.Ubicaciones);
+
+            var totalContado =
+                resumen.Sum(x => x.Contadas);
+
+            var totalPendiente =
+                resumen.Sum(x => x.Pendientes);
+
             var avanceGeneral = totalEsperado > 0
-                ? Math.Round(totalContado * 100m / totalEsperado, 2)
+                ? Math.Round(
+                    totalContado * 100m / totalEsperado,
+                    2)
                 : 0m;
 
             return Ok(new
             {
                 ok = true,
                 fechaActualizacion = DateTime.Now,
+                fechaInventario = fechaDesde,
+                compartidaPorFechaYAlmacen = true,
                 sesion = new
                 {
                     id = sesion.Id,
                     folio = sesion.Folio,
                     estatus = sesion.Estatus,
                     fechaInicio = sesion.FechaInicio,
-                    fechaCierre = sesion.FechaCierre
+                    fechaCierre = sesion.FechaCierre,
+                    usuarioInicio = sesion.UsuarioInicio
                 },
                 totalEsperado,
                 totalContado,
@@ -2393,11 +3334,12 @@ ORDER BY e.AlmacenNombre, e.CodigoEtiqueta;";
                     avance = x.Avance
                 }),
                 antiguedad,
-                incidenciasResumen = mapaIncidencias.Select(x => new
-                {
-                    tipo = x.Key,
-                    cantidad = x.Value
-                }),
+                incidenciasResumen =
+                    mapaIncidencias.Select(x => new
+                    {
+                        tipo = x.Key,
+                        cantidad = x.Value
+                    }),
                 incidencias
             });
         }
@@ -3031,6 +3973,41 @@ INSERT INTO #SesionesFiltradas (SesionId)
 SELECT DISTINCT SesionId
 FROM #AlmacenesFiltrados;
 
+/*
+ * Una campaña representa un almacén en una fecha. Puede tener varias
+ * sesiones de usuario, pero la fotografía inicial se cuenta una sola vez.
+ */
+CREATE TABLE #CampanasFiltradas
+(
+    FechaInventario DATE           NOT NULL,
+    AlmacenId       NVARCHAR(100)  NOT NULL,
+    AlmacenNombre   NVARCHAR(300)  NOT NULL,
+    TotalEsperado   DECIMAL(18,3)  NOT NULL,
+    KgEsperados     DECIMAL(18,3)  NOT NULL,
+    PRIMARY KEY (FechaInventario, AlmacenId)
+);
+
+INSERT INTO #CampanasFiltradas
+(
+    FechaInventario,
+    AlmacenId,
+    AlmacenNombre,
+    TotalEsperado,
+    KgEsperados
+)
+SELECT
+    CONVERT(date, s.FechaInicio),
+    af.AlmacenId,
+    MAX(af.AlmacenNombre),
+    MAX(af.TotalEsperado),
+    MAX(af.KgEsperados)
+FROM #AlmacenesFiltrados af
+INNER JOIN dbo.InventarioConteoSesion s
+    ON s.Id = af.SesionId
+GROUP BY
+    CONVERT(date, s.FechaInicio),
+    af.AlmacenId;
+
 
 /* 1. SESIONES */
 SELECT
@@ -3053,61 +4030,86 @@ ORDER BY
 
 
 /* 2. RESUMEN POR ALMACÉN */
-;WITH LecturasAgg AS
+;WITH SesionesAgg AS
 (
     SELECT
-        l.SesionId,
+        FechaInventario = CONVERT(date, s.FechaInicio),
+        af.AlmacenId,
+        Sesiones = COUNT(DISTINCT af.SesionId)
+    FROM #AlmacenesFiltrados af
+    INNER JOIN dbo.InventarioConteoSesion s
+        ON s.Id = af.SesionId
+    GROUP BY
+        CONVERT(date, s.FechaInicio),
+        af.AlmacenId
+),
+LecturasAgg AS
+(
+    SELECT
+        FechaInventario = CONVERT(date, s.FechaInicio),
         l.AlmacenId,
         Contadas = SUM(CASE
             WHEN l.EsEsperado = 1
              AND l.EsAlmacenCorrecto = 1
-            THEN 1 ELSE 0 END),
+                THEN 1
+            ELSE 0
+        END),
         KgContados = SUM(CASE
             WHEN l.EsEsperado = 1
              AND l.EsAlmacenCorrecto = 1
-            THEN ISNULL(l.PesoNeto, 0) ELSE 0 END),
+                THEN ISNULL(l.PesoNeto, 0)
+            ELSE 0
+        END),
         Sobrantes = SUM(CASE
             WHEN l.EsEsperado = 0
-            THEN 1 ELSE 0 END),
+                THEN 1
+            ELSE 0
+        END),
         Mezcladas = SUM(CASE
             WHEN l.EsEsperado = 1
              AND l.EsAlmacenCorrecto = 0
-            THEN 1 ELSE 0 END)
+                THEN 1
+            ELSE 0
+        END)
     FROM dbo.InventarioConteoLectura l
-    INNER JOIN #AlmacenesFiltrados af
-        ON af.SesionId = l.SesionId
-       AND af.AlmacenId = l.AlmacenId
+    INNER JOIN dbo.InventarioConteoSesion s
+        ON s.Id = l.SesionId
+    INNER JOIN #CampanasFiltradas cf
+        ON cf.FechaInventario = CONVERT(date, s.FechaInicio)
+       AND cf.AlmacenId = l.AlmacenId
     GROUP BY
-        l.SesionId,
+        CONVERT(date, s.FechaInicio),
         l.AlmacenId
 ),
 IncidenciasAgg AS
 (
     SELECT
-        i.SesionId,
+        FechaInventario = CONVERT(date, s.FechaInicio),
         i.AlmacenId,
         IncidenciasManuales = COUNT(1)
     FROM dbo.InventarioConteoIncidencia i
-    INNER JOIN #AlmacenesFiltrados af
-        ON af.SesionId = i.SesionId
-       AND af.AlmacenId = i.AlmacenId
+    INNER JOIN dbo.InventarioConteoSesion s
+        ON s.Id = i.SesionId
+    INNER JOIN #CampanasFiltradas cf
+        ON cf.FechaInventario = CONVERT(date, s.FechaInicio)
+       AND cf.AlmacenId = i.AlmacenId
     GROUP BY
-        i.SesionId,
+        CONVERT(date, s.FechaInicio),
         i.AlmacenId
 )
 SELECT
-    af.AlmacenId,
-    Almacen = MAX(af.AlmacenNombre),
-    Sesiones = COUNT(DISTINCT af.SesionId),
-    CajasIniciales = SUM(af.TotalEsperado),
-    KgIniciales = SUM(af.KgEsperados),
+    cf.AlmacenId,
+    Almacen = MAX(cf.AlmacenNombre),
+    Sesiones = SUM(ISNULL(sa.Sesiones, 0)),
+    CajasIniciales = SUM(cf.TotalEsperado),
+    KgIniciales = SUM(cf.KgEsperados),
     Contadas = SUM(ISNULL(la.Contadas, 0)),
     KgContados = SUM(ISNULL(la.KgContados, 0)),
     Pendientes = SUM(
         CASE
-            WHEN af.TotalEsperado - ISNULL(la.Contadas, 0) < 0
+            WHEN cf.TotalEsperado - ISNULL(la.Contadas, 0) < 0
                 THEN 0
-            ELSE af.TotalEsperado - ISNULL(la.Contadas, 0)
+            ELSE cf.TotalEsperado - ISNULL(la.Contadas, 0)
         END
     ),
     Sobrantes = SUM(ISNULL(la.Sobrantes, 0)),
@@ -3116,21 +4118,26 @@ SELECT
         SUM(CONVERT(INT, ISNULL(ia.IncidenciasManuales, 0))),
     Avance = CAST(
         CASE
-            WHEN SUM(af.TotalEsperado) <= 0 THEN 0
+            WHEN SUM(cf.TotalEsperado) <= 0
+                THEN 0
             ELSE
                 SUM(ISNULL(la.Contadas, 0)) * 100.0
-                / SUM(af.TotalEsperado)
+                / SUM(cf.TotalEsperado)
         END
-    AS DECIMAL(10,2))
-FROM #AlmacenesFiltrados af
+        AS DECIMAL(10,2)
+    )
+FROM #CampanasFiltradas cf
+LEFT JOIN SesionesAgg sa
+    ON sa.FechaInventario = cf.FechaInventario
+   AND sa.AlmacenId = cf.AlmacenId
 LEFT JOIN LecturasAgg la
-    ON la.SesionId = af.SesionId
-   AND la.AlmacenId = af.AlmacenId
+    ON la.FechaInventario = cf.FechaInventario
+   AND la.AlmacenId = cf.AlmacenId
 LEFT JOIN IncidenciasAgg ia
-    ON ia.SesionId = af.SesionId
-   AND ia.AlmacenId = af.AlmacenId
-GROUP BY af.AlmacenId
-ORDER BY MAX(af.AlmacenNombre);
+    ON ia.FechaInventario = cf.FechaInventario
+   AND ia.AlmacenId = cf.AlmacenId
+GROUP BY cf.AlmacenId
+ORDER BY MAX(cf.AlmacenNombre);
 
 
 /* 3. STOCK CONTADO POR SKU */
@@ -4557,6 +5564,11 @@ FETCH NEXT @TamanoPagina ROWS ONLY;
                 });
             }
 
+            /*
+             * Solamente se cierra la sesión individual del usuario.
+             * Las sesiones de otras personas y el avance compartido del
+             * almacén permanecen activos y conservan todas sus lecturas.
+             */
             const string sql = @"
 UPDATE dbo.InventarioConteoSesion
 SET
@@ -4579,7 +5591,12 @@ WHERE Id = @SesionId
             return Ok(new
             {
                 ok = true,
-                cerrada = updated > 0
+                cerrada = updated > 0,
+                sesionId = request.SesionId,
+                message =
+                    "Tu sesión se cerró. El avance y las lecturas " +
+                    "de los almacenes continúan disponibles para " +
+                    "las demás personas que siguen inventariando."
             });
         }
     }

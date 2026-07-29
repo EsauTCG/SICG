@@ -3897,6 +3897,12 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
             total,
             capturadas,
             completo = total > 0 && capturadas == total,
+
+            // Se usarán para actualizar visualmente las filas
+            // sin tener que recargar la página.
+            fechaGuardado = fecha.ToString("yyyy-MM-dd HH:mm"),
+            usuario,
+
             message = $"Temperaturas guardadas: {capturadas}/{total} SKU(s)."
         });
     }
