@@ -6267,33 +6267,36 @@ body:has(#inventarioSistemasApp) .container-fluid {
                     });
                 }
 
-                if (controlEstaAsignado(item)) {
-                    const tieneFoto = controlTexto(item.fotoUsuario) !== '';
-                    const tieneDocumento =
-                        controlTexto(item.firmaDigital) !== '' ||
-                        controlTexto(item.documentoComodato) !== '';
+             if (controlEstaAsignado(item)) {
+            // Evaluamos exactamente lo que nos manda el controlador limpio
+            const tieneFoto = item.fotoUsuario === 'OK';
+            const tieneFirma = item.firmaDigital === 'OK';
+            const tieneComodato = item.documentoComodato === 'OK';
 
-                    if (!tieneFoto || !tieneDocumento) {
-                        itemsDocumentalmenteIncompletos.add(idLlave);
-                        itemsValorEnRiesgo.set(idLlave, costo);
+            // Ahora exigimos que los 3 existan obligatoriamente
+            if (!tieneFoto || !tieneFirma || !tieneComodato) {
+                itemsDocumentalmenteIncompletos.add(idLlave);
+                itemsValorEnRiesgo.set(idLlave, costo);
 
-                        const faltantes = [];
-                        if (!tieneFoto) faltantes.push('foto');
-                        if (!tieneDocumento) faltantes.push('firma o comodato');
+                // Armamos la lista de exactamente qué le falta
+                const faltantes = [];
+                if (!tieneFoto) faltantes.push('foto');
+                if (!tieneFirma) faltantes.push('firma digital');
+                if (!tieneComodato) faltantes.push('PDF de comodato');
 
-                        controlAgregarHallazgo(hallazgos, {
-                            nivel: 'ALTO',
-                            tipo: 'Resguardo incompleto: ' + faltantes.join(' y '),
-                            itemId: item.id,
-                            sap: sap,
-                            nombre: nombre,
-                            responsable: responsable,
-                            ubicacion: ubicacion,
-                            valor: costo,
-                            accion: 'Actualizar expediente del responsable y obtener evidencia.'
-                        });
-                    }
-                }
+                controlAgregarHallazgo(hallazgos, {
+                    nivel: 'ALTO',
+                    tipo: 'Resguardo incompleto: ' + faltantes.join(', '),
+                    itemId: item.id,
+                    sap: sap,
+                    nombre: nombre,
+                    responsable: responsable,
+                    ubicacion: ubicacion,
+                    valor: costo,
+                    accion: 'Actualizar expediente del responsable y obtener evidencia faltante.'
+                });
+            }
+        }
 
                 if (item.enRecuperacion) {
                     itemsDocumentalmenteIncompletos.add(idLlave);
@@ -7662,9 +7665,13 @@ body:has(#inventarioSistemasApp) .container-fluid {
 
             consultarModal.show();
         }
-
         function editarArticulo(id) {
-            consultarModal.hide();
+            // Cerramos el modal de detalles
+            if (consultarModal) consultarModal.hide();
+
+            // Cerramos el modal del explorador que estaba de fondo
+            if (exploradorModal) exploradorModal.hide();
+
             const item = datosInventario.find(i => i.id === id);
             idArticuloEditando = item.id;
 
@@ -7703,6 +7710,11 @@ body:has(#inventarioSistemasApp) .container-fluid {
             toggleTipoEntrada();
 
             $('#btnGuardarAlta').html('<i class="bi bi-save"></i> Actualizar Equipo').removeClass('btn-brand').addClass('btn-warning text-dark');
+
+            // Hacemos scroll suave hacia el formulario de edicion para guiar al usuario
+            setTimeout(() => {
+                document.getElementById('movimientos')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 300);
         }
 
 

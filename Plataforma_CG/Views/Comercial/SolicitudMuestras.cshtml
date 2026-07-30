@@ -1732,7 +1732,13 @@
                 <div class="header-actions no-print">
                     <span id="mainPrintCounter" style="display:none; font-size:12px; color:#5c1a1a; font-weight:bold; align-self:center; margin-right:10px;"></span>
                     <button class="secondary" type="button" id="btnHistProduccion" onclick="abrirHistorial('produccion')">Ver historial (0)</button>
-                    <input type="text" id="printerIp" placeholder="IP impresora" style="width:140px; height:26px; font-size:11px; padding:2px 6px; border:1px solid #b48787; background:#fffdfd;" />
+                    <select id="plantaSelect" style="width:75px; height:26px; font-size:11px; padding:0 4px; border:1px solid #b48787; background:#fffdfd;">
+                        <option value="P1">P1</option>
+                        <option value="TIF">TIF</option>
+                    </select>
+                    <select id="printerSelect" style="width:200px; height:26px; font-size:11px; padding:0 4px; border:1px solid #b48787; background:#fffdfd;">
+                        <option value="">Cargando...</option>
+                    </select>
                     <button class="secondary" type="button" onclick="imprimirEtiquetas(false)">Imprimir etiquetas</button>
                 </div>
             </div>
@@ -1870,25 +1876,53 @@
 </div>
 
 <div class="modal-backdrop-custom" id="modalAdminPermisos">
-    <div class="modal-custom" style="max-width: 700px;">
+    <div class="modal-custom" style="max-width: 750px;">
         <div class="modal-head" style="position: sticky; top: 0; z-index: 10;">
-            <h3>Configurar permisos del módulo</h3>
+            <h3>Administración del módulo</h3>
             <button type="button" class="secondary" onclick="document.getElementById('modalAdminPermisos').classList.remove('show')">Cerrar</button>
         </div>
         <div style="padding: 10px;">
-            <table style="width:100%; border-collapse:collapse;">
-                <thead>
-                    <tr style="background:var(--bg);">
-                        <th style="text-align:left;padding:8px;">Perfil</th>
-                        <th style="text-align:center;padding:8px;">Vendedor</th>
-                        <th style="text-align:center;padding:8px;">Planeación</th>
-                        <th style="text-align:center;padding:8px;">Producción</th>
-                        <th style="text-align:center;padding:8px;">Prod. Línea</th>
-                        <th style="text-align:center;padding:8px;">Prod. Nuevo</th>
-                    </tr>
-                </thead>
-                <tbody id="tbodyPermisosMuestras"></tbody>
-            </table>
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <button type="button" class="secondary" id="btnAdminTabPermisos" onclick="adminTab('permisos')">Permisos</button>
+                <button type="button" class="secondary" id="btnAdminTabImpresoras" onclick="adminTab('impresoras')">Impresoras</button>
+            </div>
+            <div id="adminTabPermisos">
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead>
+                        <tr style="background:var(--bg);">
+                            <th style="text-align:left;padding:8px;">Perfil</th>
+                            <th style="text-align:center;padding:8px;">Vendedor</th>
+                            <th style="text-align:center;padding:8px;">Planeación</th>
+                            <th style="text-align:center;padding:8px;">Producción</th>
+                            <th style="text-align:center;padding:8px;">Prod. Línea</th>
+                            <th style="text-align:center;padding:8px;">Prod. Nuevo</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyPermisosMuestras"></tbody>
+                </table>
+            </div>
+            <div id="adminTabImpresoras" style="display:none;">
+                <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center; flex-wrap:wrap;">
+                    <select id="adminImpPlanta" style="height:30px; font-size:13px;">
+                        <option value="P1">P1</option>
+                        <option value="TIF">TIF</option>
+                    </select>
+                    <input type="text" id="adminImpNombre" placeholder="Nombre impresora" style="flex:1; min-width:150px; height:30px; font-size:13px; padding:0 6px;" />
+                    <input type="text" id="adminImpIP" placeholder="IP" style="width:140px; height:30px; font-size:13px; padding:0 6px;" />
+                    <button type="button" class="success" onclick="adminGuardarImpresora()">Agregar</button>
+                </div>
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead>
+                        <tr style="background:var(--bg);">
+                            <th style="text-align:left;padding:6px;">Planta</th>
+                            <th style="text-align:left;padding:6px;">Nombre</th>
+                            <th style="text-align:left;padding:6px;">IP</th>
+                            <th style="text-align:center;padding:6px;">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyAdminImpresoras"></tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
@@ -3088,7 +3122,7 @@
                     data-req="${req.id}" data-client="${safeClient}" data-seller="${safeSeller}"
                     data-skureq="${item.sku}" data-skuwork="${item.workSku || item.sku}"
                     data-product="${safeProduct}" data-species="${especie}" data-spec="${safeSpec}"
-                    data-date="${fechaProc}" data-op="${label.operator || ''}" data-chain="${label.code}" data-temp="${temp}" data-peso="${label.pesoReal != null ? label.pesoReal : ''}"
+                    data-date="${fechaProc}" data-reqdate="${req.requestedDate || ''}" data-op="${label.operator || ''}" data-chain="${label.code}" data-temp="${temp}" data-peso="${label.pesoReal != null ? label.pesoReal : ''}"
                     data-notes="${safeNotes}"
                     style="position: absolute; top: 12px; right: 12px; width: 18px; height: 18px; cursor: pointer; z-index: 10;">
             `;
@@ -3290,8 +3324,44 @@
                     }
                 }
 
+                const PRINTER_LS_KEY = 'printerMuestras';
+
+                function getSavedPrinter(plant) {
+                    try { const m = JSON.parse(localStorage.getItem(PRINTER_LS_KEY) || '{}'); return m?.[plant] || ''; } catch { return ''; }
+                }
+
+                function savePrinter(plant, name) {
+                    try { const m = JSON.parse(localStorage.getItem(PRINTER_LS_KEY) || '{}'); m[plant] = name || ''; localStorage.setItem(PRINTER_LS_KEY, JSON.stringify(m)); } catch {}
+                }
+
+                async function loadPrinters() {
+                    const plant = document.getElementById('plantaSelect')?.value || 'P1';
+                    const sel = document.getElementById('printerSelect');
+                    if (!sel) return;
+                    sel.innerHTML = '<option value="">Cargando...</option>';
+                    try {
+                        const resp = await fetch('@Url.Action("InstalledPrintersMuestras", "Comercial")?source=' + encodeURIComponent(plant));
+                        const data = await resp.json();
+                        const list = data?.impresoras || [];
+                        if (!list.length) {
+                            sel.innerHTML = '<option value="">(sin impresoras)</option>';
+                            return;
+                        }
+                        sel.innerHTML = list.map(p =>
+                            `<option value="${p.ip}" data-name="${(p.nombre||'').replace(/"/g,'&quot;')}" ${p.ip ? '' : 'style="color:#999;"'}>${(p.nombre||'').replace(/"/g,'&quot;')}${p.ip ? '' : ' (sin IP)'}</option>`
+                        ).join('');
+                        const saved = getSavedPrinter(plant);
+                        if (saved) {
+                            const opts = Array.from(sel.options);
+                            const found = opts.find(o => o.dataset.name === saved);
+                            if (found) found.selected = true;
+                        }
+                    } catch (e) {
+                        sel.innerHTML = '<option value="">(error al cargar)</option>';
+                    }
+                }
+
                                 window.imprimirEtiquetas = async function(esHistorial = false) {
-            // Solo toma los checkboxes de la pantalla que estás viendo
             const contenedor = esHistorial ? '#historialContentContainer' : '#productionList';
             const checkboxes = document.querySelectorAll(`${contenedor} .print-cb:checked`);
 
@@ -3300,12 +3370,14 @@
                 return;
             }
 
-            const ip = (document.getElementById('printerIp')?.value || '').trim();
+            const sel = document.getElementById('printerSelect');
+            const ip = sel?.value || '';
+            const printerName = sel?.options[sel.selectedIndex]?.dataset?.name || '';
             if (!ip) {
-                toast('Ingresa la IP de la impresora Zebra.');
+                toast('La impresora seleccionada no tiene IP configurada. Agrégala en Permisos > Impresoras.');
                 return;
             }
-            localStorage.setItem('printerIpMuestras', ip);
+            savePrinter(document.getElementById('plantaSelect')?.value || 'P1', printerName);
 
             const etiquetas = [];
             checkboxes.forEach(cb => {
@@ -3314,7 +3386,7 @@
                     solicitudId: d.req || '', seller: d.seller || '', client: d.client || '',
                     product: d.product || '', species: d.species || '', spec: d.spec || '',
                     lote: cb.value || '', skuRequerido: d.skureq || '', skuTrabajo: d.skuwork || '',
-                    fechaProduccion: d.date || '', operario: d.op || '', temperatura: d.temp || '',
+                    fechaProduccion: d.date || '', fechaRequerida: d.reqdate || '', operario: d.op || '', temperatura: d.temp || '',
                     peso: d.peso || '', notes: d.notes || ''
                 });
             });
@@ -4365,6 +4437,8 @@
                 }
 
                 async function abrirAdminPermisos() {
+                    adminTab('permisos');
+                    await cargarAdminImpresoras();
                     try {
                         const res = await fetch('@Url.Action("ObtenerPerfilesMuestras", "Comercial")');
                         const data = await res.json();
@@ -4408,6 +4482,73 @@
                         qs('#modalAdminPermisos').classList.add('show');
                     } catch (e) { toast('Error al cargar'); }
                 }
+
+                window.adminTab = function (tab) {
+                    document.getElementById('adminTabPermisos').style.display = tab === 'permisos' ? '' : 'none';
+                    document.getElementById('adminTabImpresoras').style.display = tab === 'impresoras' ? '' : 'none';
+                    const btnPermisos = document.getElementById('btnAdminTabPermisos');
+                    const btnImpresoras = document.getElementById('btnAdminTabImpresoras');
+                    btnPermisos.className = tab === 'permisos' ? 'primary' : 'secondary';
+                    btnImpresoras.className = tab === 'impresoras' ? 'primary' : 'secondary';
+                };
+
+                window.cargarAdminImpresoras = async function () {
+                    try {
+                        const r = await fetch('@Url.Action("ListarImpresorasMuestras", "Comercial")');
+                        const data = await r.json();
+                        if (!data.ok) { toast('Error al cargar impresoras'); return; }
+                        const list = data.data || [];
+                        const tbody = document.getElementById('tbodyAdminImpresoras');
+                        tbody.innerHTML = list.length === 0
+                            ? '<tr><td colspan="4" style="text-align:center;padding:20px;color:#888;">Sin impresoras registradas</td></tr>'
+                            : list.map(p =>
+                                `<tr>
+                                    <td style="padding:6px;">${p.planta}</td>
+                                    <td style="padding:6px;">${p.nombre}</td>
+                                    <td style="padding:6px;">${p.ip}</td>
+                                    <td style="text-align:center;padding:6px;">
+                                        <button type="button" class="danger" style="font-size:12px;padding:2px 8px;" onclick="adminEliminarImpresora(${p.id})">Eliminar</button>
+                                    </td>
+                                </tr>`
+                            ).join('');
+                        if (typeof loadPrinters === 'function') loadPrinters();
+                    } catch (e) { toast('Error al cargar impresoras'); }
+                };
+
+                window.adminGuardarImpresora = async function () {
+                    const planta = document.getElementById('adminImpPlanta').value;
+                    const nombre = document.getElementById('adminImpNombre').value.trim();
+                    const ip = document.getElementById('adminImpIP').value.trim();
+                    if (!nombre || !ip) { toast('Nombre e IP son obligatorios'); return; }
+                    try {
+                        const r = await fetch('@Url.Action("GuardarImpresoraMuestra", "Comercial")', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ id: 0, planta, nombre, ip, activo: true })
+                        });
+                        const result = await r.json();
+                        if (!result.ok) { toast('Error: ' + result.mensaje); return; }
+                        toast('Impresora guardada');
+                        document.getElementById('adminImpNombre').value = '';
+                        document.getElementById('adminImpIP').value = '';
+                        await cargarAdminImpresoras();
+                    } catch (e) { toast('Error al guardar'); }
+                };
+
+                window.adminEliminarImpresora = async function (id) {
+                    if (!confirm('¿Eliminar esta impresora?')) return;
+                    try {
+                        const r = await fetch('@Url.Action("EliminarImpresoraMuestra", "Comercial")', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ id: id })
+                        });
+                        const result = await r.json();
+                        if (!result.ok) { toast('Error: ' + result.mensaje); return; }
+                        toast('Impresora eliminada');
+                        await cargarAdminImpresoras();
+                    } catch (e) { toast('Error al eliminar'); }
+                };
 
                 async function loadClientesDestinatario() {
                     const btn = document.getElementById('destinatarioBtn');
@@ -4478,8 +4619,17 @@
                     await loadArticulos();
                     await loadData();
                     loadClientesDestinatario();
-                    const ipGuardada = localStorage.getItem('printerIpMuestras');
-                    if (ipGuardada) { const el = document.getElementById('printerIp'); if (el) el.value = ipGuardada; }
+                    await loadPrinters();
+                    const plantSel = document.getElementById('plantaSelect');
+                    if (plantSel) plantSel.addEventListener('change', () => loadPrinters());
+                    const printerSel = document.getElementById('printerSelect');
+                    if (printerSel) {
+                        printerSel.addEventListener('change', () => {
+                            const plant = document.getElementById('plantaSelect')?.value || 'P1';
+                            const name = printerSel.options[printerSel.selectedIndex]?.dataset?.name || '';
+                            if (name) savePrinter(plant, name);
+                        });
+                    }
                     const overlay = document.getElementById('loadingOverlay');
                     if (overlay) { overlay.style.opacity = '0'; setTimeout(() => overlay.remove(), 300); }
                 }
