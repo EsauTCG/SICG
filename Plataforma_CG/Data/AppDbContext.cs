@@ -29,6 +29,8 @@ namespace Plataforma_CG.Data
         public DbSet<Presentacion> Presentacion { get; set; }
         public DbSet<ClienteSap> ClienteSap { get; set; }
 
+        public DbSet<ImpresoraMuestra> ImpresoraMuestras { get; set; }
+
         public DbSet<CatalogoPrecioSap> CatalogoPrecioSap { get; set; }
 
         public DbSet<PedidoVenta> PedidoVenta { get; set; }

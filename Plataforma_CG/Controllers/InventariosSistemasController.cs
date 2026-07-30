@@ -57,7 +57,10 @@ namespace Plataforma_CG.Controllers
                         i.StockMinimo,
                         i.IP,
 
-                        
+                        FotoUsuario = string.IsNullOrWhiteSpace(i.FotoUsuario) ? "" : "OK",
+                        DocumentoComodato = string.IsNullOrWhiteSpace(i.DocumentoComodato) ? "" : "OK",
+                        FirmaDigital = string.IsNullOrWhiteSpace(i.FirmaDigital) ? "" : "OK",
+
                         i.EnRecuperacion,
                         i.EnReparacion,
                         i.MotivoFalla,
@@ -66,7 +69,7 @@ namespace Plataforma_CG.Controllers
 
                         HistorialCount = i.RegistrosHistorial.Count()
                     })
-                    .OrderBy(i => i.Nombre)
+                    .OrderBy(i => i.IdArticuloSap)
                     .ToList();
 
                 var movimientos = _context.MovimientoInventario

@@ -32,6 +32,12 @@ namespace Plataforma_CG.Controllers.Comercial.Muestras
                 string skuReq = LimpiarTextoZpl(model.SkuRequerido);
                 string skuTrab = LimpiarTextoZpl(model.SkuTrabajo);
                 string fecha = LimpiarTextoZpl(model.FechaProduccion);
+                string fechaReq = LimpiarTextoZpl(model.FechaRequerida);
+                string fechaReqText = "";
+                if (fechaReq.Length >= 10)
+                {
+                    fechaReqText = " | Fecha Req: " + fechaReq.Substring(0, 10);
+                }
                 string operario = LimpiarTextoZpl(model.Operario);
                 string spec = LimpiarTextoZpl(model.Spec);
                 string temp = ExtraerTemperatura(model.Temperatura);
@@ -80,9 +86,10 @@ namespace Plataforma_CG.Controllers.Comercial.Muestras
 ^FO195,{726 + nOff}^A0N,28,28^FR^FD{skuTrab}^FS
 
 ^FX --- Cuadricula de Detalles (Derecha) ---
-^FO400,{610 + nOff}^A0N,22,22^FDFecha Prod: {fecha}^FS
-^FO400,{650 + nOff}^A0N,22,22^FDOperario: {operario}^FS
-^FO400,{690 + nOff}^FB380,7,2,L^A0N,18,18^FDEsp: {specLine}^FS
+^FO400,{610 + nOff}^A0N,22,22^FD{fechaReqText}^FS
+^FO400,{650 + nOff}^A0N,22,22^FDFecha Prod: {fecha}^FS
+^FO400,{690 + nOff}^A0N,22,22^FDOperario: {operario}^FS
+^FO400,{730 + nOff}^FB380,7,2,L^A0N,18,18^FDEsp: {specLine}^FSnomas me 
 
 ^FX --- Temperatura ---
 ^FO30,{890 + nOff}^A0N,32,32^FDProducto {temp}^FS
