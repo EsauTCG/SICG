@@ -126,26 +126,22 @@ namespace Plataforma_CG.Controllers
             IPresupuestoSettingsService settings,
             PresupuestoAdminService presAdmin,
              ISapDireccionesSyncService direccionesSync,   // 👈 AQUÍ
-             IMemoryCache cache
-
-
-
+                IMemoryCache cache
             )
 
         {
-            _context = context;  // 👈 inicializa aquí
+            _context = context;
             _config = configOptions?.Value ?? new SeriesSettings();
             _sap = sap ?? throw new ArgumentNullException(nameof(sap));
-            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration)); // 👈 nuevo
+            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
             _sync = sync ?? throw new ArgumentNullException(nameof(sync));
             _logger = logger;
             _httpClient = (httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory))).CreateClient("SapServiceLayer");
-            _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory)); // 👈 GUÁRDALO
+            _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
             _settings = settings;
             _presAdmin = presAdmin;
-            _direccionesSync = direccionesSync; // 👈 AQUÍ
+            _direccionesSync = direccionesSync;
             _cache = cache;
-
         }
 
         // ── Helper caché  ◄─── AQUÍ, antes de los endpoints ──────────
@@ -21241,6 +21237,74 @@ WHERE rn = 1;";
                 etiquetas = resultado,
                 advertencias
             });
+        }
+
+        [HttpGet("Comercial/InstalledPrintersMuestras")]
+        public async Task<IActionResult> InstalledPrintersMuestras(string source = "P1")
+        {
+            source = string.IsNullOrWhiteSpace(source) ? "P1" : source.Trim().ToUpperInvariant();
+            if (source != "TIF") source = "P1";
+            try
+            {
+                var list = await _context.ImpresoraMuestras
+                    .Where(p => p.Planta == source && p.Activo)
+                    .OrderBy(p => p.Nombre)
+                    .ToListAsync();
+
+                var result = list.Select(p => new { nombre = p.Nombre, ip = p.IP }).ToList();
+                return Ok(new { ok = true, source, impresoras = result });
+            }
+            catch (Exception ex)
+            {
+                return Ok(new { ok = false, source, impresoras = new List<object>(), mensaje = ex.Message });
+            }
+        }
+
+        [HttpGet("Comercial/ListarImpresorasMuestras")]
+        public async Task<IActionResult> ListarImpresorasMuestras()
+        {
+            var list = await _context.ImpresoraMuestras
+                .OrderBy(p => p.Planta).ThenBy(p => p.Nombre)
+                .ToListAsync();
+            return Json(new { ok = true, data = list });
+        }
+
+        [HttpPost("Comercial/GuardarImpresoraMuestra")]
+        public async Task<IActionResult> GuardarImpresoraMuestra([FromBody] ImpresoraMuestra model)
+        {
+            if (string.IsNullOrWhiteSpace(model.Nombre) || string.IsNullOrWhiteSpace(model.IP))
+                return Json(new { ok = false, mensaje = "Nombre e IP son obligatorios." });
+
+            if (model.Id == 0)
+            {
+                _context.ImpresoraMuestras.Add(model);
+            }
+            else
+            {
+                var existing = await _context.ImpresoraMuestras.FindAsync(model.Id);
+                if (existing == null)
+                    return Json(new { ok = false, mensaje = "No encontrada." });
+                existing.Planta = model.Planta;
+                existing.Nombre = model.Nombre;
+                existing.IP = model.IP;
+                existing.Activo = model.Activo;
+            }
+            await _context.SaveChangesAsync();
+            return Json(new { ok = true });
+        }
+
+        [HttpPost("Comercial/EliminarImpresoraMuestra")]
+        public async Task<IActionResult> EliminarImpresoraMuestra([FromBody] ImpresoraMuestra model)
+        {
+            int id = model?.Id ?? 0;
+            if (id == 0) return Json(new { ok = false, mensaje = "ID inválido." });
+
+            var entity = await _context.ImpresoraMuestras.FindAsync(id);
+            if (entity == null) return Json(new { ok = false, mensaje = "No encontrada." });
+
+            _context.ImpresoraMuestras.Remove(entity);
+            await _context.SaveChangesAsync();
+            return Json(new { ok = true });
         }
 
         [HttpPost("Comercial/ImprimirEtiquetaMuestra")]

@@ -12,6 +12,7 @@ namespace Plataforma_CG.Models
         public string SkuRequerido { get; set; } = "";
         public string SkuTrabajo { get; set; } = "";
         public string FechaProduccion { get; set; } = "";
+        public string FechaRequerida { get; set; } = "";
         public string Operario { get; set; } = "";
         public string Temperatura { get; set; } = "";
         public string Peso { get; set; } = "";
