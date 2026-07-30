@@ -1,18 +1,60 @@
-﻿namespace Plataforma_CG.AccesoDatos.Operaciones
+﻿using Microsoft.Extensions.Configuration;
+using System.IO;
+
+namespace Plataforma_CG.AccesoDatos.Operaciones
 {
     public class InyeccionAPI
     {
-        public HttpClient Client(int op)
+        private readonly string _baseUrl;
+        private readonly string _baseUrlWrite;
+
+        public InyeccionAPI()
         {
-            var http= new HttpClient();
-            switch (op) //Switch por la posibilidad de acceder a distintas API's 
+            var builder = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json")
+                .Build();
+            _baseUrl = builder["InyeccionesApi:BaseUrl"] ?? "http://10.1.1.2:252/";
+            _baseUrlWrite = builder["InyeccionesApi:BaseUrlWrite"] ?? _baseUrl;
+        }
+
+        public InyeccionAPI(IConfiguration configuration)
+        {
+            _baseUrl = configuration["InyeccionesApi:BaseUrl"] ?? "http://10.1.1.2:252/";
+            _baseUrlWrite = configuration["InyeccionesApi:BaseUrlWrite"] ?? _baseUrl;
+        }
+
+        public string BaseUrl
+        {
+            get
             {
-                default:
-                    {
-                        http.BaseAddress = new Uri("http://10.1.1.2:252/");
-                    }
-                    break;
+                if (!_baseUrl.EndsWith("/"))
+                    return _baseUrl + "/";
+                return _baseUrl;
             }
+        }
+
+        public string BaseUrlWrite
+        {
+            get
+            {
+                if (!_baseUrlWrite.EndsWith("/"))
+                    return _baseUrlWrite + "/";
+                return _baseUrlWrite;
+            }
+        }
+
+        public HttpClient Client()
+        {
+            var http = new HttpClient();
+            http.BaseAddress = new Uri(BaseUrl);
+            return http;
+        }
+
+        public HttpClient ClientWrite()
+        {
+            var http = new HttpClient();
+            http.BaseAddress = new Uri(BaseUrlWrite);
             return http;
         }
     }

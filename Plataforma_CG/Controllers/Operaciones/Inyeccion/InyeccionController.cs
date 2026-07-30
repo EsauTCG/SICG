@@ -76,11 +76,77 @@ namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
         }
 
         [HttpPost("Imprimir")]
-        public async Task<IActionResult> Imprimir(string ip, string lote, string prod, [FromBody] EntradaModel model)
+        public IActionResult Imprimir(
+            string ip,
+            string lote,
+            string prod,
+            [FromBody] EntradaModel model)
         {
             try
             {
-                var resultado = co.Impresion(1, model, ip, lote, prod);
+                if (model == null)
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "No se recibieron los datos de la etiqueta."
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(ip))
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "No se recibió la IP de la impresora."
+                    });
+                }
+
+                if (model.Id <= 0)
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "La etiqueta no contiene un Id de entrada válido."
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(model.SKU))
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "La etiqueta no contiene SKU."
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(prod))
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "La etiqueta no contiene el nombre del producto."
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(lote))
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "La etiqueta no contiene el lote."
+                    });
+                }
+
+                // Se imprime exactamente la fotografía enviada por el front.
+                // No se vuelve a consultar la entrada ni el catálogo de productos.
+                var resultado = co.Impresion(
+                    1,
+                    model,
+                    ip.Trim(),
+                    lote.Trim(),
+                    prod.Trim()
+                );
 
                 if (!resultado.ok)
                 {
@@ -94,7 +160,10 @@ namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
                 return Ok(new
                 {
                     success = true,
-                    message = resultado.mensaje
+                    message = resultado.mensaje,
+                    id = model.Id,
+                    sku = model.SKU,
+                    producto = prod.Trim()
                 });
             }
             catch (Exception ex)
@@ -102,7 +171,7 @@ namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
                 return StatusCode(500, new
                 {
                     success = false,
-                    message = $"Error: {ex.Message}"
+                    message = $"Error al imprimir la entrada {model?.Id}: {ex.Message}"
                 });
             }
         }

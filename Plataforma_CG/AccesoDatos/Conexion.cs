@@ -44,18 +44,9 @@
         {
             return cadenaODBCSAP;
         }
-        public HttpClient ConAPI(int op=0)
+        public HttpClient ConAPI(int op = 0)
         {
-            var http = new HttpClient();
-            switch (op) // Este switch tiene proyección a posibles distintas conexiones de API
-            {
-                default:
-                    {
-                        http.BaseAddress = new Uri("http://10.1.1.2:252/");
-                    }break;
-            }
-
-            return http;
+            return new Operaciones.InyeccionAPI().Client();
         }
     }
 }
