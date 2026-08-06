@@ -4,6 +4,50 @@
 }
 
 <style>
+    /* =========================================================
+           FULLSCREEN RESPONSIVE: ELIMINA MÁRGENES DEL LAYOUT MAESTRO
+           ========================================================= */
+    html, body {
+        background: #f0dede !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow-x: hidden;
+    }
+
+        body > .container,
+        body > .container-fluid,
+        main.container,
+        main.container-fluid,
+        main[role="main"],
+        .container,
+        .container-fluid,
+        .pb-3,
+        .content-wrapper,
+        .main-content,
+        .page-content,
+        .content,
+        .content-body {
+            width: 100% !important;
+            max-width: none !important;
+            min-width: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: transparent !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+        }
+
+    main, main::before, main::after {
+        background: transparent !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    /* =========================================================
+           VARIABLES Y DISEÑO BASE
+           ========================================================= */
     :root {
         --bg: #f0dede;
         --panel: #f8eeee;
@@ -15,14 +59,15 @@
     }
 
     .app-shell {
-        width: 100%;
+        width: 100% !important;
+        max-width: 100% !important;
         margin: 0;
         padding: 0;
         font-family: var(--font);
         font-size: 11px;
         color: var(--text);
         background: var(--bg);
-        min-height: 85vh;
+        min-height: calc(100vh - 60px);
         display: flex;
         flex-direction: column;
     }
@@ -35,10 +80,11 @@
     .module-header {
         background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
         border-bottom: 1px solid #4a0000;
-        padding: 10px 15px;
+        /* TRUCO: 60px de la barra de SIGO + 10px de padding interno = 70px */
+        padding: 70px 15px 10px 15px !important;
         box-shadow: 0 4px 8px rgba(0,0,0,.15);
         position: sticky;
-        top: 0;
+        top: 0 !important;
         z-index: 100;
     }
 
@@ -86,6 +132,7 @@
     .module-main {
         padding: 12px;
         flex: 1;
+        width: 100%;
     }
 
     /* BOTONES */
@@ -156,7 +203,7 @@
 
     .grid-superior {
         display: grid;
-        grid-template-columns: 1fr 220px;
+        grid-template-columns: 1fr 160px 220px 160px;
         gap: 10px;
         align-items: end;
     }
@@ -170,9 +217,10 @@
 
     .panel-lateral {
         position: sticky;
-        top: 58px;
+        /* Compensa el top para que no se oculte tras el header */
+        top: 125px;
         background: var(--panel);
-        height: calc(100vh - 240px);
+        height: calc(100vh - 160px);
         display: flex;
         flex-direction: column;
     }
@@ -203,17 +251,18 @@
         }
 
     /* TABLAS */
-    /* TABLAS */
-    .table-wrap { 
-        width: 100%; 
-        border: 1px solid var(--line); 
-        background: #fffafa; 
-        height: calc(100vh - 240px); /* Ajuste dinámico que calcula el espacio sobrante */
-        overflow-y: auto; 
+    .table-wrap {
+        width: 100%;
+        border: 1px solid var(--line);
+        background: #fffafa;
+        height: calc(100vh - 210px);
+        overflow-y: auto;
+        overflow-x: auto;
     }
 
     table {
         width: 100%;
+        min-width: 800px;
         border-collapse: separate;
         border-spacing: 0;
     }
@@ -254,6 +303,7 @@
         gap: 2px;
         min-height: 50px;
     }
+
     /* INDICADORES */
     .input-precio {
         width: 85px;
@@ -365,6 +415,65 @@
         .toast.show {
             opacity: 1;
         }
+
+    /* =========================================================
+           DISEÑO RESPONSIVO (MÓVILES Y TABLETS)
+           ========================================================= */
+    @@media (max-width: 1200px) {
+        .split-layout
+
+    {
+        grid-template-columns: 1fr;
+    }
+
+    .panel-lateral {
+        position: static;
+        height: auto;
+    }
+
+    .table-wrap {
+        height: 55vh;
+    }
+
+    }
+
+    @@media (max-width: 900px) {
+        .grid-superior
+
+    {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    }
+
+    @@media (max-width: 600px) {
+        .grid-superior
+
+    {
+        grid-template-columns: 1fr;
+    }
+
+    .header-content {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+        .header-content > div:last-child {
+            flex-wrap: wrap;
+            justify-content: stretch;
+            width: 100%;
+        }
+
+        .header-content .btn, .header-content select {
+            flex: 1 1 auto;
+        }
+
+    .module-header {
+        padding-top: 60px !important;
+    }
+
+    }
 </style>
 
 <div class="app-shell">
@@ -386,9 +495,12 @@
                 <input type="file" id="inputCargaMasiva" accept=".csv" style="display: none;" onchange="procesarArchivoCSV(event)">
                 <button type="button" class="btn btn-sec" onclick="qs('#inputCargaMasiva').click()">Cargar CSV</button>
                 <button type="button" class="btn" style="background: linear-gradient(#fff, #fed7aa); border-color: #ea580c; color: #9a3412;" onclick="abrirModalAlertas()">
-                     Alertas Precios
+                    Alertas Precios
                 </button>
                 <button type="button" class="btn btn-log" onclick="abrirBitacoraGeneral()">Bitácora general</button>
+                <button type="button" class="btn btn-green" onclick="descargarExcelPrecios()">
+                    <i class="bi bi-file-earmark-excel"></i> Descargar Lista
+                </button>
             </div>
         </div>
     </header>
@@ -398,10 +510,19 @@
         <div id="alertaPreciosBanner" style="display: none; background: #fffbeb; border: 1px solid #fef08a; padding: 10px 15px; margin-bottom: 10px; color: #854d0e; border-radius: 4px; font-size: 12px; align-items: center; justify-content: space-between;">
         </div>
         <div class="card">
-            <div class="grid-superior" style="grid-template-columns: 1fr 160px 220px;">
+            <div class="grid-superior" style="grid-template-columns: 1fr 160px 220px 160px;">
                 <div>
                     <label>Buscar por código SKU o descripción del producto</label>
                     <input type="text" id="filtroTexto" placeholder="Teclee para filtrar la lista en tiempo real..." autocomplete="off">
+                </div>
+                <div>
+                    <label>ESTATUS DEL ARTÍCULO</label>
+                    <select id="filtroEstatus" onchange="aplicarFiltrosTabla()">
+                        <option value="">Todos los estatus</option>
+                        <option value="1">Activo</option>
+                        <option value="2">Pausado</option>
+                        <option value="0">Inactivo</option>
+                    </select>
                 </div>
                 <div>
                     <label>Filtrar por Categoría</label>
@@ -431,20 +552,21 @@
                                 <th style="width: 70px;">SKU</th>
                                 <th>Descripción SAP</th>
                                 <th style="width: 100px;">Categoría</th>
-                                <th style="width: 85px; text-align: right;">Base ($)</th>
+                                <th style="width: 85px; text-align: right;">Precio Actual ($)</th>
                                 <th style="width: 95px; text-align: right;">Nuevo ($)</th>
                                 <th style="width: 120px; text-align: center;">Variación</th>
+                                <th style="width: 95px; text-align: center;">Estatus</th>
                                 <th style="width: 125px; text-align: center;">Acciones</th>
                             </tr>
                         </thead>
                         <tbody id="tablaBody">
-                            <tr><td colspan="7" style="text-align: center;">Estableciendo conexión con SQL Server...</td></tr>
+                            <tr><td colspan="9" style="text-align: center;">Estableciendo conexión con SQL Server...</td></tr>
                         </tbody>
                     </table>
                 </div>
-                <div class="paginador">
+                <div class="paginador" style="display:flex; justify-content:center; gap:10px; margin-top:10px; align-items:center;">
                     <button type="button" class="btn btn-sec" onclick="cambiarPagina(-1)">Anterior</button>
-                    <span class="pag-texto" id="lblPaginacion">Página 1 de 1</span>
+                    <span class="pag-texto" id="lblPaginacion" style="font-weight:bold;">Página 1 de 1</span>
                     <button type="button" class="btn btn-sec" onclick="cambiarPagina(1)">Siguiente</button>
                 </div>
             </div>
@@ -469,6 +591,20 @@
 
                     <hr style="border: 0; border-top: 1px dashed var(--line); margin: 2px 0;">
 
+                    <div>
+                        <label>Cambiar estatus de marcados</label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                            <select id="opEstatus">
+                                <option value="1">Activo</option>
+                                <option value="2">Pausado</option>
+                                <option value="0">Inactivo</option>
+                            </select>
+                            <button type="button" class="btn btn-sec" style="height: 28px; font-size: 10px;" onclick="aplicarEstatusMasivo()">Aplicar</button>
+                        </div>
+                    </div>
+
+                    <hr style="border: 0; border-top: 1px dashed var(--line); margin: 2px 0;">
+
                     <div style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
                             <label style="margin: 0;">Previsualizar Selección</label>
@@ -486,6 +622,9 @@
                         <button type="button" class="btn btn-sec" style="height: 28px; font-size: 10px;" onclick="deshacerMasivo()">Deshacer masivo</button>
                         <button type="button" class="btn btn-green" id="btnGuardarMasivo" style="height: 28px; font-size: 10px;" onclick="guardarMasivoOficial()">Guardar masivo</button>
                     </div>
+                    <label style="display: flex; align-items: center; gap: 6px; font-size: 10px; cursor: pointer; color: #8b0000; font-weight: bold;" title="Al guardar masivo, aplicar los precios en TIF y P1">
+                        <input type="checkbox" id="chkAmbas" style="width: 14px; height: 14px;"> Aplicar en ambas plantas
+                    </label>
                 </div>
             </div>
 
@@ -525,10 +664,10 @@
             </div>
         </div>
 
-            <div id="bannerResumenHistorial" style="display: none; background: #fefce8; border: 1px solid #fef08a; padding: 8px 12px; margin-bottom: 10px; color: #713f12;"></div>
+        <div id="bannerResumenHistorial" style="display: none; background: #fefce8; border: 1px solid #fef08a; padding: 8px 12px; margin-bottom: 10px; color: #713f12;"></div>
 
-            <div class="table-wrap" style="flex: 1; max-height: 56vh;">
-                <table style="margin:0; width:100%;">
+        <div class="table-wrap" style="flex: 1; max-height: 56vh;">
+            <table style="margin:0; width:100%;">
                 <thead>
                     <tr>
                         <th style="width: 130px;">Fecha / Hora</th>
@@ -540,11 +679,11 @@
                         <th style="text-align: center; width: 95px;">Impacto</th>
                     </tr>
                 </thead>
-                    <tbody id="modalLogBody"></tbody>
-                </table>
-            </div>
+                <tbody id="modalLogBody"></tbody>
+            </table>
         </div>
     </div>
+</div>
 </div>
 <!-- MODAL DE CONFIGURACIÓN DE ALERTAS -->
 <div class="modal-backdrop-custom" id="modalAlertasPrecios" onclick="cerrarModalAlertas(event)">
@@ -597,7 +736,7 @@
         let paginaActual = 1;
         const itemsPorPagina = 100;
 
-                        async function descargarPreciosCommerciaNet() {
+        async function descargarPreciosCommerciaNet() {
             const tbody = qs('#tablaBody');
             const planta = qs('#selPlanta').value; // Leer planta activa
 
@@ -613,7 +752,8 @@
                         Sku: x.Sku || x.sku || '',
                         Nombre: x.Nombre || x.nombre || '',
                         CategoriaMaster: x.CategoriaMaster || x.categoriaMaster || '(SIN MASTER)',
-                        Precio: Number(x.Precio || x.precio || 0)
+                        Precio: Number(x.Precio || x.precio || 0),
+                        Estatus: (x.Estatus != null || x.estatus != null) && String(x.Estatus || x.estatus).trim() !== '' ? String(x.Estatus || x.estatus).trim() : '1'
                     }));
 
                     const categoriasUnicas = [...new Set(catalogoOriginal.map(x => x.CategoriaMaster))].sort();
@@ -624,14 +764,14 @@
                     inventarioTrabajo = JSON.parse(JSON.stringify(catalogoOriginal));
                     aplicarFiltrosTabla();
                 } else {
-                    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px;">0 registros en planta ' + planta + '.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:20px;">0 registros en planta ' + planta + '.</td></tr>';
                 }
             } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:20px; color:#b30000;">Error SQL: ${e.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:20px; color:#b30000;">Error SQL: ${e.message}</td></tr>`;
             }
         }
 
-                        function dibujarTabla() {
+        function dibujarTabla() {
             const body = qs('#tablaBody');
             const totalPaginas = Math.ceil(indicesFiltrados.length / itemsPorPagina) || 1;
             if(paginaActual > totalPaginas) paginaActual = totalPaginas;
@@ -639,7 +779,7 @@
             const indicesBloque = indicesFiltrados.slice(inicio, inicio + itemsPorPagina);
 
             if(indicesBloque.length === 0) {
-                body.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:15px; color:#666;">No hay coincidencias de búsqueda.</td></tr>';
+                body.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:15px; color:#666;">No hay coincidencias de búsqueda.</td></tr>';
             } else {
                 body.innerHTML = indicesBloque.map(idx => {
                     const prod = inventarioTrabajo[idx];
@@ -651,6 +791,9 @@
                     if (dif > 0) badge = `<span class="badge-dif b-up">+$${dif.toFixed(2)} (+${pct}%)</span>`;
                     if (dif < 0) badge = `<span class="badge-dif b-down">-$${Math.abs(dif).toFixed(2)} (${pct}%)</span>`;
                     const isChecked = skusSeleccionados.has(idx) ? 'checked' : '';
+                    const est = String(prod.Estatus || '1');
+                    const optEstatus = [['1','Activo'],['2','Pausado'],['0','Inactivo']]
+                        .map(o => `<option value="${o[0]}" ${est === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('');
 
                     return `
                         <tr class="fila-producto" data-idx="${idx}">
@@ -663,6 +806,11 @@
                                 <input type="number" step="0.01" class="input-precio" value="${prod.Precio.toFixed(2)}" oninput="cambioManualVisual(${idx}, this.value)" />
                             </td>
                             <td style="text-align: center;" class="celda-dif">${badge}</td>
+                            <td style="text-align: center;">
+                                <select class="sel-estatus" data-idx="${idx}" onchange="cambioEstatusSku(${idx}, this.value)" style="height: 22px; font-size: 10px; padding: 0 2px; width: 82px;">
+                                    ${optEstatus}
+                                </select>
+                            </td>
                             <td style="text-align: center; white-space: nowrap;">
                                 <button type="button" class="btn btn-green" style="height:20px; padding:0 6px; font-size:10px;" onclick="guardarFilaIndividual(${idx})">Guardar</button>
                                 <button type="button" class="btn btn-sec" style="height:20px; padding:0 5px; font-size:10px;" onclick="restaurarFila(${idx})">Deshacer</button>
@@ -686,10 +834,11 @@
             dibujarTabla();
         }
 
-                function aplicarFiltrosTabla() {
+        function aplicarFiltrosTabla() {
             const texto = qs('#filtroTexto').value.toLowerCase().trim();
             const estado = qs('#filtroEstado').value;
             const master = qs('#filtroMaster').value;
+            const estatus = qs('#filtroEstatus').value;
             indicesFiltrados = [];
 
             inventarioTrabajo.forEach((prod, idx) => {
@@ -703,12 +852,13 @@
                 let pasaMaster = true;
                 if(master !== 'todas') pasaMaster = prod.CategoriaMaster === master;
 
-                // Deben cumplirse los tres filtros
-                if(pasaTexto && pasaEstado && pasaMaster) {
+                let pasaEstatus = true;
+                if(estatus !== '') pasaEstatus = String(prod.Estatus || '1') === estatus;
+
+                if(pasaTexto && pasaEstado && pasaMaster && pasaEstatus) {
                     indicesFiltrados.push(idx);
                 }
             });
-
             paginaActual = 1;
             dibujarTabla();
         }
@@ -755,7 +905,7 @@
             dibujarTabla();
         }
 
-                function actualizarBandejaTagsUI() {
+        function actualizarBandejaTagsUI() {
             const cont = qs('#contenedorTags');
             qs('#kpiSeleccionados').textContent = `${skusSeleccionados.size} activos`;
 
@@ -775,7 +925,7 @@
                 if (v > 0) {
                     if (operacion === 'sumar') precioSimulado = base + v;
                     else if (operacion === 'restar') precioSimulado = base - v;
-                    else if (operacion === 'fijar') precioSimulado = v; // LÓGICA DE PRECIO FIJO
+                    else if (operacion === 'fijar') precioSimulado = v;
 
                     precioSimulado = Math.round(precioSimulado * 100) / 100;
                     if (precioSimulado < 0) precioSimulado = 0;
@@ -811,7 +961,7 @@
                 let calc = catalogoOriginal[idx].Precio;
                 if (operacion === 'sumar') calc = calc + v;
                 else if (operacion === 'restar') calc = calc - v;
-                else if (operacion === 'fijar') calc = v; // APLICACIÓN DE PRECIO FIJO
+                else if (operacion === 'fijar') calc = v;
 
                 calc = Math.round(calc * 100) / 100;
                 if(calc < 0) calc = 0;
@@ -829,10 +979,81 @@
             mostrarToast("Selección revertida");
         }
 
+        function nombreEstatus(e) {
+            const map = { '1': 'Activo', '2': 'Pausado', '0': 'Inactivo' };
+            return map[String(e)] || String(e || '');
+        }
+
+        async function cambioEstatusSku(idx, nuevoEstatus) {
+            const prod = inventarioTrabajo[idx];
+            const anterior = String(prod.Estatus || '1');
+            if (anterior === String(nuevoEstatus)) return;
+
+            if (!confirm(`¿Cambiar estatus de ${prod.Sku} de ${nombreEstatus(anterior)} a ${nombreEstatus(nuevoEstatus)}?`)) {
+                const sel = qs(`.sel-estatus[data-idx="${idx}"]`);
+                if (sel) sel.value = anterior;
+                return;
+            }
+
+            try {
+                const res = await fetch('@Url.Action("CambiarEstatusArticulos", "Comercial")', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ skus: [prod.Sku], estatus: nuevoEstatus, planta: qs('#selPlanta').value })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    prod.Estatus = String(nuevoEstatus);
+                    catalogoOriginal[idx].Estatus = String(nuevoEstatus);
+                    aplicarFiltrosTabla();
+                    mostrarToast(`Estatus de ${prod.Sku} actualizado a ${nombreEstatus(nuevoEstatus)}`);
+                } else {
+                    alert("Error: " + data.mensaje);
+                    const sel = qs(`.sel-estatus[data-idx="${idx}"]`);
+                    if (sel) sel.value = anterior;
+                }
+            } catch (e) {
+                alert("Error de red al cambiar estatus");
+                const sel = qs(`.sel-estatus[data-idx="${idx}"]`);
+                if (sel) sel.value = anterior;
+            }
+        }
+
+        async function aplicarEstatusMasivo() {
+            if (skusSeleccionados.size === 0) { mostrarToast("Seleccione al menos un artículo"); return; }
+            const nuevoEstatus = qs('#opEstatus').value;
+            if (!confirm(`¿Cambiar estatus de ${skusSeleccionados.size} SKU(s) a ${nombreEstatus(nuevoEstatus)}?`)) return;
+
+            const skus = Array.from(skusSeleccionados).map(idx => inventarioTrabajo[idx].Sku);
+            try {
+                const res = await fetch('@Url.Action("CambiarEstatusArticulos", "Comercial")', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ skus: skus, estatus: nuevoEstatus, planta: qs('#selPlanta').value })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    skus.forEach(sku => {
+                        const i = inventarioTrabajo.findIndex(p => p.Sku === sku);
+                        if (i !== -1) {
+                            inventarioTrabajo[i].Estatus = String(nuevoEstatus);
+                            catalogoOriginal[i].Estatus = String(nuevoEstatus);
+                        }
+                    });
+                    aplicarFiltrosTabla();
+                    mostrarToast(`Estatus actualizado en ${data.actualizados} SKU(s)`);
+                } else {
+                    alert("Error: " + data.mensaje);
+                }
+            } catch (e) {
+                alert("Error de red al cambiar estatus");
+            }
+        }
+
 
         // --- LOGS SIGO ---
 
-                async function abrirBitacoraGeneral() {
+        async function abrirBitacoraGeneral() {
             qs('#txtTituloModalLog').textContent = "Tráfico General de Ajustes de Precios";
             qs('#bannerResumenHistorial').style.display = 'none';
             qs('#inputBuscarSkuLog').value = '';
@@ -851,7 +1072,7 @@
             }
         }
 
-                async function ejecutarRastreoProfundo(skuDirecto = null) {
+        async function ejecutarRastreoProfundo(skuDirecto = null) {
             const sku = skuDirecto || qs('#inputBuscarSkuLog').value.trim();
             if(!sku) { mostrarToast("Escriba un SKU para rastrear"); return; }
 
@@ -938,25 +1159,28 @@
 
         function siEsEnterBuscar(e) { if(e.key === 'Enter') { e.preventDefault(); ejecutarRastreoProfundo(); } }
 
-
-                async function guardarMasivoOficial() {
+        async function guardarMasivoOficial() {
             const listos = inventarioTrabajo.filter((prod, i) => prod.Precio !== catalogoOriginal[i].Precio).map(x => ({ Sku: x.Sku, Precio: x.Precio }));
             if (!listos.length) { mostrarToast("No hay precios alterados para enviar"); return; }
             const planta = qs('#selPlanta').value;
-            if (!confirm(`¿Impactar ${listos.length} precios en ${planta} y auditar en SIGO?`)) return;
+            const ambas = qs('#chkAmbas') && qs('#chkAmbas').checked;
+            const destino = ambas ? 'TIF y P1' : planta;
+            if (!confirm(`¿Impactar ${listos.length} precios en ${destino} y auditar en SIGO?`)) return;
 
             const btn = qs('#btnGuardarMasivo');
             if(btn) { btn.disabled = true; btn.textContent = "..."; }
 
             try {
                 // Enviar parametro planta en la URL
-                const res = await fetch(`@Url.Action("GuardarPreciosMasivo", "Comercial")?planta=${planta}`, {
+                let url = `@Url.Action("GuardarPreciosMasivo", "Comercial")?planta=${planta}`;
+                if (ambas) url += '&ambas=true';
+                const res = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(listos)
                 });
                 const data = await res.json();
-                if (data.ok) { mostrarToast("Cambios guardados en " + planta); skusSeleccionados.clear(); descargarPreciosCommerciaNet();
+                if (data.ok) { mostrarToast("Cambios guardados en " + destino); skusSeleccionados.clear(); descargarPreciosCommerciaNet();
                         localStorage.setItem('ultimaActualizacionPrecios', new Date().toISOString());
         verificarAlertaPrecios();
                 } else { alert("Error: " + data.mensaje); }
@@ -985,7 +1209,7 @@
             } catch(e) { mostrarToast("Error de conexión"); }
         }
 
-                function procesarArchivoCSV(e) {
+        function procesarArchivoCSV(e) {
             const archivo = e.target.files[0];
             if (!archivo) return;
 
@@ -998,8 +1222,8 @@
                 for (let i = 0; i < lineas.length; i++) {
                     const columnas = lineas[i].split(',');
                     if (columnas.length >= 2) {
-                        const skuFila = columnas[0].trim();
-                        const precioFila = parseFloat(columnas[1].trim());
+                        const skuFila = columnas[0].trim().replace(/^"|"$/g, '');
+                        const precioFila = parseFloat(columnas[1].trim().replace(/^"|"$/g, ''));
 
                         if (skuFila && !isNaN(precioFila) && precioFila >= 0) {
                             const idx = inventarioTrabajo.findIndex(p => p.Sku === skuFila);
@@ -1014,24 +1238,57 @@
 
                 qs('#inputCargaMasiva').value = '';
                 dibujarTabla();
-                mostrarToast(`Precios cargados: ${aplicados}. Recuerde Guardar Masivo.`);
+                const ambas = qs('#chkAmbas') && qs('#chkAmbas').checked;
+                mostrarToast(`Precios cargados: ${aplicados}. Recuerde Guardar Masivo${ambas ? ' (aplicará en ambas plantas)' : ''}.`);
             };
 
             lector.readAsText(archivo);
         }
-                function cambiarPlanta() {
+
+        function cambiarPlanta() {
             skusSeleccionados.clear();
             descargarPreciosCommerciaNet();
             mostrarToast("Cambiando a planta: " + qs('#selPlanta').value);
         }
-        // --- UTILIDADES ---
 
+        // --- UTILIDADES ---
         function cerrarModalLog(e) { if(e.target.id === 'modalLogPrecios') qs('#modalLogPrecios').classList.remove('show'); }
         function actualizarMetricas() { qs('#kpiModificados').textContent = `${inventarioTrabajo.filter((p, i) => p.Precio !== catalogoOriginal[i].Precio).length} / ${inventarioTrabajo.length}`; }
         function restaurarFila(idx) { inventarioTrabajo[idx].Precio = catalogoOriginal[idx].Precio; dibujarTabla(); }
         function mostrarToast(t) { const b = qs('#toast'); b.textContent = t; b.classList.add('show'); setTimeout(()=>b.classList.remove('show'), 2200); }
 
         qs('#filtroTexto').addEventListener('input', aplicarFiltrosTabla);
+
+        // NUEVA FUNCIÓN PARA EXPORTAR CSV DIRECTAMENTE DE LA TABLA
+        // Formato re-cargable: col0 = SKU, col1 = Precio (igual que "Cargar CSV")
+        function descargarExcelPrecios() {
+            let csv = "SKU,Precio,Descripción SAP,Categoría,Estatus\n";
+            const filas = document.querySelectorAll("#tablaBody tr.fila-producto");
+
+            filas.forEach(fila => {
+                if (fila.style.display !== 'none') {
+                    const celdas = fila.querySelectorAll("td");
+
+                    const sku = celdas[1].innerText.trim();
+                    const desc = celdas[2].innerText.trim().replace(/"/g, '""');
+                    const cat = celdas[3].innerText.trim();
+                    const inputNuevo = fila.querySelector("input[type='number']");
+                    const nuevo = inputNuevo ? inputNuevo.value : celdas[5].innerText.trim();
+                    const estatus = celdas[7].innerText.trim();
+
+                    csv += `${sku},${nuevo},"${desc}","${cat}","${estatus}"\n`;
+                }
+            });
+
+            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "Lista_Precios_SIGO.csv";
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        }
+
         // --- LÓGICA DE ALERTAS DE PRECIOS CONECTADA A BD ---
 
         let configAlertaDb = { meses: 3, dias: 7, ultimaAct: null };
@@ -1122,7 +1379,7 @@
                     body: JSON.stringify(payload)
                 });
                 const data = await res.json();
-     
+
                 if (data.ok) {
                     qs('#modalAlertasPrecios').classList.remove('show');
                     mostrarToast('Regla de alertas sincronizada con el servidor');
