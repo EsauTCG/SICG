@@ -7510,19 +7510,17 @@ OPTION (RECOMPILE);";
             {
                 planta = string.IsNullOrWhiteSpace(planta) ? "TIF" : planta.ToUpper();
 
-                // Ajuste de cadena de conexion
-                string nombreCadena = (planta == "P1") ? "CadenaMeatP1" : "CadenaMeatTIF";
-                string cs = _configuration.GetConnectionString(nombreCadena);
-
-                string dbEmpaque = (planta == "P1") ? "Meat" : "TIF_Meat";
-                using var cn = new Microsoft.Data.SqlClient.SqlConnection(cs);
+                // El log de auditoría vive en SIGO (DefaultConnection). En productivo SIGO
+                // está en un servidor distinto al de Meat, así que no se puede usar SIGO.dbo
+                // sobre la conexión Meat.
+                var csSigo = _configuration.GetConnectionString("DefaultConnection");
+                using var cn = new Microsoft.Data.SqlClient.SqlConnection(csSigo);
                 await cn.OpenAsync();
 
                 // Consulta base
                 string sql = $@"
-    SELECT TOP 200 l.*, e.Nombre AS NombreEmpaque
-    FROM SIGO.dbo.EmpaqueArticuloLog l
-    LEFT JOIN [{dbEmpaque}].dbo.Empaque e ON l.EmpaqueId = e.EmpaqueId
+    SELECT TOP 200 l.*
+    FROM EmpaqueArticuloLog l
     WHERE l.Planta = @Planta ";
 
                 // Filtro condicional
@@ -7534,7 +7532,26 @@ OPTION (RECOMPILE);";
                 sql += " ORDER BY l.FechaHora DESC";
 
                 // Ejecutar consulta
-                var historial = await cn.QueryAsync<EmpaqueArticuloLogVM>(sql, new { Planta = planta, Sku = sku });
+                var historial = (await cn.QueryAsync<EmpaqueArticuloLogVM>(sql, new { Planta = planta, Sku = sku })).ToList();
+
+                // Nombres de empaque: la tabla Empaque vive en la BD Meat de la planta,
+                // así que se carga por separado y se cruza en memoria.
+                if (historial.Any())
+                {
+                    string nombreCadena = (planta == "P1") ? "CadenaMeatP1" : "CadenaMeatTIF";
+                    string csMeat = _configuration.GetConnectionString(nombreCadena);
+                    string dbEmpaque = (planta == "P1") ? "Meat" : "TIF_Meat";
+                    using var cnMeat = new Microsoft.Data.SqlClient.SqlConnection(csMeat);
+                    await cnMeat.OpenAsync();
+
+                    var empaques = await cnMeat.QueryAsync<(int EmpaqueId, string Nombre)>($"SELECT EmpaqueId, Nombre FROM [{dbEmpaque}].dbo.Empaque");
+                    var mapa = empaques.ToDictionary(x => x.EmpaqueId, x => x.Nombre);
+                    foreach (var r in historial)
+                    {
+                        if (r.EmpaqueId.HasValue && mapa.TryGetValue(r.EmpaqueId.Value, out var nom))
+                            r.NombreEmpaque = nom;
+                    }
+                }
 
                 return Json(new { ok = true, data = historial });
             }
@@ -7556,6 +7573,10 @@ OPTION (RECOMPILE);";
 
             using var cn = new Microsoft.Data.SqlClient.SqlConnection(cs);
             await cn.OpenAsync();
+
+            var csSigo = _configuration.GetConnectionString("DefaultConnection");
+            using var cnSigo = new Microsoft.Data.SqlClient.SqlConnection(csSigo);
+            await cnSigo.OpenAsync();
 
             using var tx = cn.BeginTransaction();
 
@@ -7612,7 +7633,7 @@ OPTION (RECOMPILE);";
                                     PesoMax = payload.PesoMax ?? 0
                                 }, tx);
 
-                            await cn.ExecuteAsync("INSERT INTO SIGO.dbo.EmpaqueArticuloLog (Planta, Sku, EmpaqueId, Operacion, ValoresAnteriores, ValoresNuevos, Usuario) VALUES (@Planta, @Sku, @EmpId, 'UPDATE', '', @Nuevos, @Usuario)",
+                            await cnSigo.ExecuteAsync("INSERT INTO EmpaqueArticuloLog (Planta, Sku, EmpaqueId, Operacion, ValoresAnteriores, ValoresNuevos, Usuario) VALUES (@Planta, @Sku, @EmpId, 'UPDATE', '', @Nuevos, @Usuario)",
                                 new
                                 {
                                     Planta = planta,
@@ -7620,7 +7641,7 @@ OPTION (RECOMPILE);";
                                     EmpId = idInt.Value,
                                     Nuevos = JsonSerializer.Serialize(new { payload.PzaMin, payload.PzaDef, payload.PzaMax, payload.PesoMin, payload.PesoMax }),
                                     Usuario = usuario
-                                }, tx);
+                                });
                         }
                         else
                         {
@@ -7641,7 +7662,7 @@ OPTION (RECOMPILE);";
                                     PesoMax = payload.PesoMax ?? 0
                                 }, tx);
 
-                            await cn.ExecuteAsync("INSERT INTO SIGO.dbo.EmpaqueArticuloLog (Planta, Sku, EmpaqueId, Operacion, ValoresAnteriores, ValoresNuevos, Usuario) VALUES (@Planta, @Sku, @EmpId, 'INSERT', '', @Nuevos, @Usuario)",
+                            await cnSigo.ExecuteAsync("INSERT INTO EmpaqueArticuloLog (Planta, Sku, EmpaqueId, Operacion, ValoresAnteriores, ValoresNuevos, Usuario) VALUES (@Planta, @Sku, @EmpId, 'INSERT', '', @Nuevos, @Usuario)",
                                 new
                                 {
                                     Planta = planta,
@@ -7649,7 +7670,7 @@ OPTION (RECOMPILE);";
                                     EmpId = idInt.Value,
                                     Nuevos = JsonSerializer.Serialize(new { payload.PzaMin, payload.PzaDef, payload.PzaMax, payload.PesoMin, payload.PesoMax }),
                                     Usuario = usuario
-                                }, tx);
+                                });
                         }
                     }
 
@@ -7679,7 +7700,7 @@ OPTION (RECOMPILE);";
                                     PesoMax = payload.PesoExtMax ?? 0
                                 }, tx);
 
-                            await cn.ExecuteAsync("INSERT INTO SIGO.dbo.EmpaqueArticuloLog (Planta, Sku, EmpaqueId, Operacion, ValoresAnteriores, ValoresNuevos, Usuario) VALUES (@Planta, @Sku, @EmpId, 'UPDATE', '', @Nuevos, @Usuario)",
+                            await cnSigo.ExecuteAsync("INSERT INTO EmpaqueArticuloLog (Planta, Sku, EmpaqueId, Operacion, ValoresAnteriores, ValoresNuevos, Usuario) VALUES (@Planta, @Sku, @EmpId, 'UPDATE', '', @Nuevos, @Usuario)",
                                 new
                                 {
                                     Planta = planta,
@@ -7687,7 +7708,7 @@ OPTION (RECOMPILE);";
                                     EmpId = idExt.Value,
                                     Nuevos = JsonSerializer.Serialize(new { payload.BolsaMin, payload.BolsaDef, payload.BolsaMax, payload.PesoExtMin, payload.PesoExtMax }),
                                     Usuario = usuario
-                                }, tx);
+                                });
                         }
                         else
                         {
@@ -7708,7 +7729,7 @@ OPTION (RECOMPILE);";
                                     PesoMax = payload.PesoExtMax ?? 0
                                 }, tx);
 
-                            await cn.ExecuteAsync("INSERT INTO SIGO.dbo.EmpaqueArticuloLog (Planta, Sku, EmpaqueId, Operacion, ValoresAnteriores, ValoresNuevos, Usuario) VALUES (@Planta, @Sku, @EmpId, 'INSERT', '', @Nuevos, @Usuario)",
+                            await cnSigo.ExecuteAsync("INSERT INTO EmpaqueArticuloLog (Planta, Sku, EmpaqueId, Operacion, ValoresAnteriores, ValoresNuevos, Usuario) VALUES (@Planta, @Sku, @EmpId, 'INSERT', '', @Nuevos, @Usuario)",
                                 new
                                 {
                                     Planta = planta,
@@ -7716,7 +7737,7 @@ OPTION (RECOMPILE);";
                                     EmpId = idExt.Value,
                                     Nuevos = JsonSerializer.Serialize(new { payload.BolsaMin, payload.BolsaDef, payload.BolsaMax, payload.PesoExtMin, payload.PesoExtMax }),
                                     Usuario = usuario
-                                }, tx);
+                                });
                         }
                     }
                 }
@@ -7742,6 +7763,11 @@ OPTION (RECOMPILE);";
 
             using var cn = new Microsoft.Data.SqlClient.SqlConnection(cs);
             await cn.OpenAsync();
+
+            var csSigo = _configuration.GetConnectionString("DefaultConnection");
+            using var cnSigo = new Microsoft.Data.SqlClient.SqlConnection(csSigo);
+            await cnSigo.OpenAsync();
+
             using var tx = cn.BeginTransaction();
 
             try
@@ -7761,8 +7787,8 @@ OPTION (RECOMPILE);";
                         await cn.ExecuteAsync("DELETE FROM EmpaqueArticulo WHERE Articulo = @Sku AND EmpaqueId = @EmpId",
                             new { Sku = sku, EmpId = idInt.Value }, tx);
 
-                        await cn.ExecuteAsync("INSERT INTO SIGO.dbo.EmpaqueArticuloLog (Planta, Sku, EmpaqueId, Operacion, ValoresAnteriores, ValoresNuevos, Usuario) VALUES (@Planta, @Sku, @EmpId, 'DELETE', '', '', @Usuario)",
-                            new { Planta = planta, Sku = sku, EmpId = idInt.Value, Usuario = usuario }, tx);
+                        await cnSigo.ExecuteAsync("INSERT INTO EmpaqueArticuloLog (Planta, Sku, EmpaqueId, Operacion, ValoresAnteriores, ValoresNuevos, Usuario) VALUES (@Planta, @Sku, @EmpId, 'DELETE', '', '', @Usuario)",
+                            new { Planta = planta, Sku = sku, EmpId = idInt.Value, Usuario = usuario });
                     }
 
                     // Borra la caja si fue seleccionada
@@ -7771,8 +7797,8 @@ OPTION (RECOMPILE);";
                         await cn.ExecuteAsync("DELETE FROM EmpaqueArticulo WHERE Articulo = @Sku AND EmpaqueId = @EmpId",
                             new { Sku = sku, EmpId = idExt.Value }, tx);
 
-                        await cn.ExecuteAsync("INSERT INTO SIGO.dbo.EmpaqueArticuloLog (Planta, Sku, EmpaqueId, Operacion, ValoresAnteriores, ValoresNuevos, Usuario) VALUES (@Planta, @Sku, @EmpId, 'DELETE', '', '', @Usuario)",
-                            new { Planta = planta, Sku = sku, EmpId = idExt.Value, Usuario = usuario }, tx);
+                        await cnSigo.ExecuteAsync("INSERT INTO EmpaqueArticuloLog (Planta, Sku, EmpaqueId, Operacion, ValoresAnteriores, ValoresNuevos, Usuario) VALUES (@Planta, @Sku, @EmpId, 'DELETE', '', '', @Usuario)",
+                            new { Planta = planta, Sku = sku, EmpId = idExt.Value, Usuario = usuario });
                     }
                 }
 
@@ -7799,6 +7825,11 @@ OPTION (RECOMPILE);";
 
             using var cn = new Microsoft.Data.SqlClient.SqlConnection(cs);
             await cn.OpenAsync();
+
+            var csSigo = _configuration.GetConnectionString("DefaultConnection");
+            using var cnSigo = new Microsoft.Data.SqlClient.SqlConnection(csSigo);
+            await cnSigo.OpenAsync();
+
             using var tx = cn.BeginTransaction();
 
             try
@@ -7888,16 +7919,16 @@ OPTION (RECOMPILE);";
                             await cn.ExecuteAsync(@"UPDATE EmpaqueArticulo SET PiezaMinima=@PzMin, PiezaDefault=@PzDef, PiezaMaxima=@PzMax, PesoMinimo=@PesoMin, PesoMaximo=@PesoMax, FechaHora=GETDATE() WHERE LTRIM(RTRIM(Articulo))=@Sku AND EmpaqueId=@EmpId",
                                 new { Sku = sku, EmpId = idInt.Value, PzMin = pzMin, PzDef = pzDef, PzMax = pzMax, PesoMin = pesoMin, PesoMax = pesoMax }, tx);
 
-                            await cn.ExecuteAsync("INSERT INTO SIGO.dbo.EmpaqueArticuloLog (Planta, Sku, EmpaqueId, Operacion, ValoresAnteriores, ValoresNuevos, Usuario) VALUES (@Planta, @Sku, @EmpId, 'UPDATE', '', @Nuevos, @Usuario)",
-                                new { Planta = planta, Sku = sku, EmpId = idInt.Value, Nuevos = JsonSerializer.Serialize(new { pzMin, pzDef, pzMax, pesoMin, pesoMax }), Usuario = usuario }, tx);
+                            await cnSigo.ExecuteAsync("INSERT INTO EmpaqueArticuloLog (Planta, Sku, EmpaqueId, Operacion, ValoresAnteriores, ValoresNuevos, Usuario) VALUES (@Planta, @Sku, @EmpId, 'UPDATE', '', @Nuevos, @Usuario)",
+                                new { Planta = planta, Sku = sku, EmpId = idInt.Value, Nuevos = JsonSerializer.Serialize(new { pzMin, pzDef, pzMax, pesoMin, pesoMax }), Usuario = usuario });
                         }
                         else
                         {
                             await cn.ExecuteAsync(@"INSERT INTO EmpaqueArticulo (EmpaqueId, Articulo, PiezaMinima, PiezaDefault, PiezaMaxima, PesoMinimo, PesoMaximo, FechaHora) VALUES (@EmpId, @Sku, @PzMin, @PzDef, @PzMax, @PesoMin, @PesoMax, GETDATE())",
                                 new { Sku = sku, EmpId = idInt.Value, PzMin = pzMin, PzDef = pzDef, PzMax = pzMax, PesoMin = pesoMin, PesoMax = pesoMax }, tx);
 
-                            await cn.ExecuteAsync("INSERT INTO SIGO.dbo.EmpaqueArticuloLog (Planta, Sku, EmpaqueId, Operacion, ValoresAnteriores, ValoresNuevos, Usuario) VALUES (@Planta, @Sku, @EmpId, 'INSERT', '', @Nuevos, @Usuario)",
-                                new { Planta = planta, Sku = sku, EmpId = idInt.Value, Nuevos = JsonSerializer.Serialize(new { pzMin, pzDef, pzMax, pesoMin, pesoMax }), Usuario = usuario }, tx);
+                            await cnSigo.ExecuteAsync("INSERT INTO EmpaqueArticuloLog (Planta, Sku, EmpaqueId, Operacion, ValoresAnteriores, ValoresNuevos, Usuario) VALUES (@Planta, @Sku, @EmpId, 'INSERT', '', @Nuevos, @Usuario)",
+                                new { Planta = planta, Sku = sku, EmpId = idInt.Value, Nuevos = JsonSerializer.Serialize(new { pzMin, pzDef, pzMax, pesoMin, pesoMax }), Usuario = usuario });
                         }
                     }
 
@@ -7910,16 +7941,16 @@ OPTION (RECOMPILE);";
                             await cn.ExecuteAsync(@"UPDATE EmpaqueArticulo SET PiezaMinima=@BsMin, PiezaDefault=@BsDef, PiezaMaxima=@BsMax, PesoMinimo=@PesoExtMin, PesoMaximo=@PesoExtMax, FechaHora=GETDATE() WHERE LTRIM(RTRIM(Articulo))=@Sku AND EmpaqueId=@EmpId",
                                 new { Sku = sku, EmpId = idExt.Value, BsMin = bsMin, BsDef = bsDef, BsMax = bsMax, PesoExtMin = pesoExtMin, PesoExtMax = pesoExtMax }, tx);
 
-                            await cn.ExecuteAsync("INSERT INTO SIGO.dbo.EmpaqueArticuloLog (Planta, Sku, EmpaqueId, Operacion, ValoresAnteriores, ValoresNuevos, Usuario) VALUES (@Planta, @Sku, @EmpId, 'UPDATE', '', @Nuevos, @Usuario)",
-                                new { Planta = planta, Sku = sku, EmpId = idExt.Value, Nuevos = JsonSerializer.Serialize(new { bsMin, bsDef, bsMax, pesoExtMin, pesoExtMax }), Usuario = usuario }, tx);
+                            await cnSigo.ExecuteAsync("INSERT INTO EmpaqueArticuloLog (Planta, Sku, EmpaqueId, Operacion, ValoresAnteriores, ValoresNuevos, Usuario) VALUES (@Planta, @Sku, @EmpId, 'UPDATE', '', @Nuevos, @Usuario)",
+                                new { Planta = planta, Sku = sku, EmpId = idExt.Value, Nuevos = JsonSerializer.Serialize(new { bsMin, bsDef, bsMax, pesoExtMin, pesoExtMax }), Usuario = usuario });
                         }
                         else
                         {
                             await cn.ExecuteAsync(@"INSERT INTO EmpaqueArticulo (EmpaqueId, Articulo, PiezaMinima, PiezaDefault, PiezaMaxima, PesoMinimo, PesoMaximo, FechaHora) VALUES (@EmpId, @Sku, @BsMin, @BsDef, @BsMax, @PesoExtMin, @PesoExtMax, GETDATE())",
                                 new { Sku = sku, EmpId = idExt.Value, BsMin = bsMin, BsDef = bsDef, BsMax = bsMax, PesoExtMin = pesoExtMin, PesoExtMax = pesoExtMax }, tx);
 
-                            await cn.ExecuteAsync("INSERT INTO SIGO.dbo.EmpaqueArticuloLog (Planta, Sku, EmpaqueId, Operacion, ValoresAnteriores, ValoresNuevos, Usuario) VALUES (@Planta, @Sku, @EmpId, 'INSERT', '', @Nuevos, @Usuario)",
-                                new { Planta = planta, Sku = sku, EmpId = idExt.Value, Nuevos = JsonSerializer.Serialize(new { bsMin, bsDef, bsMax, pesoExtMin, pesoExtMax }), Usuario = usuario }, tx);
+                            await cnSigo.ExecuteAsync("INSERT INTO EmpaqueArticuloLog (Planta, Sku, EmpaqueId, Operacion, ValoresAnteriores, ValoresNuevos, Usuario) VALUES (@Planta, @Sku, @EmpId, 'INSERT', '', @Nuevos, @Usuario)",
+                                new { Planta = planta, Sku = sku, EmpId = idExt.Value, Nuevos = JsonSerializer.Serialize(new { bsMin, bsDef, bsMax, pesoExtMin, pesoExtMax }), Usuario = usuario });
                         }
                     }
                     procesados++;
