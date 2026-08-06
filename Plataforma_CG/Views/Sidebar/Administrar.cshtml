@@ -1,572 +1,500 @@
 ﻿@model Plataforma_CG.Models.ViewModels.SideAdminViewModel
+@using System.Linq
+
 @{
     ViewData["Title"] = "Administrar Sidebar";
     Layout = "~/Views/Shared/_Layout2.cshtml";
+
+    var totalCategorias = Model.CategoriasExistentes.Count();
+    var totalModulos = Model.ModulosExistentes.Count();
+    var totalPadres = Model.ModulosExistentes.Count(m => m.PadreId == null);
+    var totalHijos = Model.ModulosExistentes.Count(m => m.PadreId != null);
 }
+
+@await Html.PartialAsync("_KpiAdminTheme")
 
 <style>
-    /* === Tema SAP-like (CARNES G) === */
-    :root {
-        --brand-grad: linear-gradient(90deg,#8B0000 0%,#5a0000 50%,#1a0000 100%);
-        --brand: linear-gradient(90deg, #8B0000 0%, #5a0000 50%, #1a0000 100%);
-        --pane: #fff;
-        --bar: #e6e9ef;
-        --bar-2: #dde2ea;
-        --line: #d8dce3;
-        --ink: #20262e;
-        --muted: #636d7b;
-        --radius: 10px;
-        --shadow: 0 1px 0 rgba(0,0,0,.05), 0 12px 24px rgba(0,0,0,.06);
-        --shadow-sm: 0 6px 16px rgba(0,0,0,.06);
+    /* ============================================================
+           ADMINISTRACIÓN SIDEBAR - NUEVO DISEÑO
+        ============================================================ */
+
+    .sidebar-admin-page .dashboard-panel {
+        overflow: visible;
     }
 
-    .container-sap {
-        max-width: 1200px;
-        margin: 1.25rem auto 2rem;
+    .sidebar-form-panel {
+        background: var(--kpi-panel-soft);
+        border: 1px solid var(--kpi-border);
+        border-radius: 14px;
+        padding: 1rem;
     }
 
-    .sap-titlebar {
-        background: linear-gradient(#eef1f6,#e7ebf2);
-        border: 1px solid var(--bar-2);
-        border-radius: var(--radius);
-        padding: .85rem 1rem;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .75rem;
-        flex-wrap: wrap;
-        box-shadow: var(--shadow);
+    .sidebar-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 1rem;
     }
 
-        .sap-titlebar .title {
-            margin: 0;
+    .module-list {
+        border: 1px solid var(--kpi-border);
+        border-radius: 14px;
+        overflow: hidden;
+        background: var(--kpi-card-bg);
+        box-shadow: var(--kpi-shadow);
+    }
+
+        .module-list .list-group-item {
+            background: var(--kpi-card-bg);
+            color: var(--kpi-text);
+            border-color: var(--kpi-border);
             display: flex;
             align-items: center;
-            gap: .55rem;
-            font-weight: 800;
-            color: #2b3642;
+            justify-content: space-between;
+            gap: 0.85rem;
+            flex-wrap: wrap;
+            padding: 0.85rem 1rem;
+            transition: background .2s ease, border-color .2s ease, transform .2s ease;
         }
 
-        .sap-titlebar .sub {
-            font-size: .92rem;
-            color: var(--muted);
-        }
-
-    .sap-toolbar {
-        background: var(--bar);
-        border: 1px solid var(--bar-2);
-        border-top: none;
-        border-radius: 0 0 var(--radius) var(--radius);
-        padding: .45rem .65rem;
-        display: flex;
-        flex-wrap: wrap;
-        gap: .45rem;
-        box-shadow: var(--shadow);
-    }
-
-    .tbtn {
-        display: inline-flex;
-        align-items: center;
-        gap: .45rem;
-        height: 34px;
-        padding: 0 .65rem;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background: #fff;
-        color: #1e2a35;
-        font-size: .92rem;
-        transition: .15s ease;
-        text-decoration:none;
-    }
-
-        .tbtn:hover {
-            background: #f8fafc;
-            border-color: #cfd6e2;
-        }
-
-        .tbtn.primary {
-            background: var(--brand-grad);
-            color: #fff;
-            border: none;
-        }
-
-    .sap-card {
-        background: var(--pane);
-        border: 1px solid var(--line);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow);
-        margin-top: 1rem;
-    }
-
-    .sap-card-head {
-        padding: .75rem 1rem;
-        border-bottom: 1px solid var(--line);
-        background: linear-gradient(#f6f8fb,#eef2f7);
-        font-weight: 800;
-        color: #2b3642;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .5rem;
-        flex-wrap: wrap;
-    }
-
-    .form-label {
-        font-weight: 600;
-        color: var(--ink);
-    }
-
-    .form-control, .form-select {
-        border-radius: 8px;
-        border-color: var(--line);
-    }
-
-    .list-group-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: .5rem;
-    }
-
-        .list-group-item i {
-            color: var(--brand);
-        }
-
-    #lista-modulos li {
-        cursor: grab;
-        transition: background .2s ease;
-    }
-
-        #lista-modulos li:active {
-            cursor: grabbing;
-            background: #f1f3f6;
-        }
-
-    .lista-categoria {
-        border: 1px solid var(--bar-2);
-        border-radius: 8px;
-        margin-top: .5rem;
-        background: #fdfdfd;
-    }
-
-        .lista-categoria li {
-            cursor: grab;
-            transition: background .2s ease;
-        }
-
-            .lista-categoria li:active {
-                cursor: grabbing;
-                background: #f1f3f6;
+            .module-list .list-group-item:hover {
+                background: var(--kpi-active-bg);
+                border-color: var(--kpi-border-strong);
             }
 
-    .sap-toolbar .side {
-        margin-left: auto;
+            .module-list .list-group-item:active {
+                cursor: grabbing;
+            }
+
+    .module-main {
         display: flex;
         align-items: center;
+        gap: 0.8rem;
+        min-width: 0;
+        flex: 1;
     }
 
-        /* (opcional) si quieres que no se baje tan fácil en pantallas medianas */
-        .sap-toolbar .side .tbtn {
-            white-space: nowrap;
+    .module-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 11px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(122,11,11,0.10);
+        color: var(--brand-main);
+        border: 1px solid rgba(122,11,11,0.18);
+        flex-shrink: 0;
+    }
+
+    body[data-theme="dark"] .module-icon {
+        background: rgba(248,113,113,0.12);
+        color: #fca5a5;
+        border-color: rgba(248,113,113,0.30);
+    }
+
+    .module-title {
+        color: var(--kpi-text-strong);
+        font-weight: 900;
+        line-height: 1.15;
+        margin: 0;
+        word-break: break-word;
+    }
+
+    .module-url {
+        color: var(--kpi-text-muted);
+        font-size: 0.78rem;
+        margin: 0.25rem 0 0;
+        font-weight: 700;
+        word-break: break-all;
+    }
+
+    .module-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        flex-shrink: 0;
+    }
+
+    .category-block {
+        border: 1px solid var(--kpi-border);
+        border-radius: 16px;
+        background: var(--kpi-card-bg);
+        box-shadow: var(--kpi-shadow);
+        overflow: hidden;
+        margin: 1rem;
+    }
+
+    .category-head {
+        background: var(--kpi-panel-bg);
+        border-bottom: 1px solid var(--kpi-border);
+        padding: 0.9rem 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .category-title {
+        color: var(--kpi-text-strong);
+        font-weight: 900;
+        text-transform: uppercase;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        letter-spacing: .2px;
+    }
+
+    .category-count {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        border-radius: 999px;
+        padding: 0.32rem 0.65rem;
+        font-size: 0.74rem;
+        font-weight: 900;
+        background: rgba(122,11,11,0.08);
+        color: var(--brand-main);
+        border: 1px solid rgba(122,11,11,0.18);
+        white-space: nowrap;
+    }
+
+    body[data-theme="dark"] .category-count {
+        background: rgba(248,113,113,0.12);
+        color: #fecaca;
+        border-color: rgba(248,113,113,0.30);
+    }
+
+    .category-body {
+        padding: 1rem;
+    }
+
+    .section-label {
+        color: var(--kpi-text-muted);
+        font-size: 0.74rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        margin: 0 0 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .empty-mini {
+        border: 1px dashed var(--kpi-border);
+        border-radius: 12px;
+        color: var(--kpi-text-muted);
+        background: var(--kpi-panel-soft);
+        padding: 0.85rem 1rem;
+        font-size: 0.82rem;
+        font-weight: 700;
+        text-align: center;
+    }
+
+    .sortable-ghost,
+    .bg-light {
+        background: rgba(122,11,11,0.10) !important;
+        border: 1px dashed var(--brand-main) !important;
+        color: var(--kpi-text-strong) !important;
+    }
+
+    body[data-theme="dark"] .sortable-ghost,
+    body[data-theme="dark"] .bg-light {
+        background: rgba(248,113,113,0.18) !important;
+        border-color: rgba(248,113,113,0.45) !important;
+        color: #ffffff !important;
+    }
+
+    .search-sidebar-wrap {
+        min-width: 280px;
+        max-width: 420px;
+    }
+
+    .sidebar-alert {
+        display: none;
+    }
+
+    @@media (max-width: 768px) {
+        .module-list .list-group-item {
+            align-items: flex-start;
         }
 
+        .module-actions {
+            width: 100%;
+            justify-content: flex-end;
+        }
+
+        .category-block {
+            margin: 0.75rem;
+        }
+
+        .search-sidebar-wrap {
+            min-width: 100%;
+            max-width: 100%;
+        }
+    }
+
     /* ============================================================
-       DARK MODE - ADMINISTRAR SIDEBAR
-============================================================ */
+       FIX DRAG & DROP SORTABLE
+    ============================================================ */
 
-body[data-theme="dark"] {
-    --pane: #111827;
-    --bar: #172033;
-    --bar-2: rgba(255,255,255,0.12);
-    --line: rgba(255,255,255,0.12);
-    --ink: #f9fafb;
-    --muted: #cbd5e1;
-    --shadow: 0 14px 34px rgba(0,0,0,.42);
-    --shadow-sm: 0 10px 26px rgba(0,0,0,.34);
-}
-
-/* Fondo general */
-body[data-theme="dark"] .layout-main-content {
-    background: #0f172a !important;
-}
-
-body[data-theme="dark"] .layout-main-content .layout-container-fluid {
-    background: transparent !important;
-    box-shadow: none !important;
-}
-
-body[data-theme="dark"] .container-sap {
-    color: #e5e7eb !important;
-}
-
-/* Titlebar */
-body[data-theme="dark"] .sap-titlebar {
-    background: linear-gradient(180deg, #1f2937 0%, #111827 100%) !important;
-    border-color: rgba(255,255,255,0.12) !important;
-    box-shadow: var(--shadow) !important;
-}
-
-body[data-theme="dark"] .sap-titlebar .title {
-    color: #f9fafb !important;
-}
-
-body[data-theme="dark"] .sap-titlebar .title i {
-    color: #fca5a5 !important;
-}
-
-body[data-theme="dark"] .sap-titlebar .sub {
-    color: #cbd5e1 !important;
-}
-
-/* Toolbar */
-body[data-theme="dark"] .sap-toolbar {
-    background: #172033 !important;
-    border-color: rgba(255,255,255,0.12) !important;
-    box-shadow: var(--shadow-sm) !important;
-}
-
-/* Botones custom */
-body[data-theme="dark"] .tbtn {
-    background: #0b1220 !important;
-    color: #e5e7eb !important;
-    border-color: rgba(203,213,225,0.28) !important;
-}
-
-body[data-theme="dark"] .tbtn:hover {
-    background: rgba(248,113,113,0.14) !important;
-    color: #ffffff !important;
-    border-color: rgba(248,113,113,0.55) !important;
-}
-
-body[data-theme="dark"] .tbtn.primary {
-    background: linear-gradient(90deg, #991b1b 0%, #7f1d1d 50%, #450a0a 100%) !important;
-    color: #ffffff !important;
-    border-color: rgba(248,113,113,0.45) !important;
-}
-
-body[data-theme="dark"] .tbtn.primary:hover {
-    filter: brightness(1.08);
-}
-
-/* Botón volver */
-body[data-theme="dark"] .btn-secondary {
-    background: #334155 !important;
-    border-color: #475569 !important;
-    color: #ffffff !important;
-}
-
-body[data-theme="dark"] .btn-secondary:hover {
-    background: #475569 !important;
-    border-color: #64748b !important;
-}
-
-/* Cards */
-body[data-theme="dark"] .sap-card {
-    background: #111827 !important;
-    color: #e5e7eb !important;
-    border-color: rgba(255,255,255,0.12) !important;
-    box-shadow: var(--shadow) !important;
-}
-
-body[data-theme="dark"] .sap-card-head {
-    background: linear-gradient(180deg, #1f2937 0%, #172033 100%) !important;
-    color: #f9fafb !important;
-    border-bottom-color: rgba(255,255,255,0.12) !important;
-}
-
-body[data-theme="dark"] .sap-card-head i {
-    color: #fca5a5 !important;
-}
-
-/* Formularios */
-body[data-theme="dark"] .form-label {
-    color: #f9fafb !important;
-}
-
-body[data-theme="dark"] .form-control,
-body[data-theme="dark"] .form-select {
-    background: #0b1220 !important;
-    color: #f9fafb !important;
-    border-color: rgba(203,213,225,0.28) !important;
-    box-shadow: none !important;
-}
-
-body[data-theme="dark"] .form-control:focus,
-body[data-theme="dark"] .form-select:focus {
-    background: #0f172a !important;
-    color: #ffffff !important;
-    border-color: #ef4444 !important;
-    box-shadow: 0 0 0 .2rem rgba(239,68,68,.22) !important;
-}
-
-body[data-theme="dark"] .form-control::placeholder {
-    color: #94a3b8 !important;
-}
-
-body[data-theme="dark"] .form-select {
-    color-scheme: dark;
-}
-
-body[data-theme="dark"] .form-select option {
-    background: #111827 !important;
-    color: #f9fafb !important;
-}
-
-/* Botones Bootstrap */
-body[data-theme="dark"] .btn-outline-primary {
-    background: #0b1220 !important;
-    color: #bfdbfe !important;
-    border-color: rgba(96,165,250,0.45) !important;
-}
-
-body[data-theme="dark"] .btn-outline-primary:hover {
-    background: rgba(37,99,235,0.28) !important;
-    color: #ffffff !important;
-    border-color: rgba(147,197,253,0.70) !important;
-}
-
-body[data-theme="dark"] .btn-outline-danger {
-    background: #0b1220 !important;
-    color: #fca5a5 !important;
-    border-color: rgba(248,113,113,0.45) !important;
-}
-
-body[data-theme="dark"] .btn-outline-danger:hover {
-    background: rgba(220,38,38,0.28) !important;
-    color: #ffffff !important;
-    border-color: rgba(248,113,113,0.75) !important;
-}
-
-/* Listas */
-body[data-theme="dark"] .lista-categoria,
-body[data-theme="dark"] .list-group,
-body[data-theme="dark"] .list-group-flush {
-    background: #111827 !important;
-    border-color: rgba(255,255,255,0.12) !important;
-}
-
-body[data-theme="dark"] .list-group-item {
-    background: #111827 !important;
-    color: #e5e7eb !important;
-    border-color: rgba(255,255,255,0.12) !important;
-}
-
-body[data-theme="dark"] .list-group-item:hover {
-    background: #172033 !important;
-}
-
-body[data-theme="dark"] #lista-modulos li:active,
-body[data-theme="dark"] .lista-categoria li:active {
-    background: rgba(248,113,113,0.14) !important;
-}
-
-body[data-theme="dark"] .list-group-item strong {
-    color: #f9fafb !important;
-}
-
-body[data-theme="dark"] .list-group-item small,
-body[data-theme="dark"] .text-muted {
-    color: #cbd5e1 !important;
-}
-
-body[data-theme="dark"] .list-group-item i {
-    color: #fca5a5 !important;
-}
-
-/* Bloques de categoría que traen bg-white */
-body[data-theme="dark"] .bg-white {
-    background: #111827 !important;
-    color: #e5e7eb !important;
-}
-
-body[data-theme="dark"] .border {
-    border-color: rgba(255,255,255,0.12) !important;
-}
-
-body[data-theme="dark"] .border-bottom {
-    border-bottom-color: rgba(255,255,255,0.12) !important;
-}
-
-body[data-theme="dark"] .shadow-sm {
-    box-shadow: var(--shadow-sm) !important;
-}
-
-/* Títulos de categorías */
-body[data-theme="dark"] .text-secondary {
-    color: #cbd5e1 !important;
-}
-
-body[data-theme="dark"] h6,
-body[data-theme="dark"] h6 i {
-    color: #e5e7eb !important;
-}
-
-body[data-theme="dark"] h6.text-secondary {
-    color: #f9fafb !important;
-}
-
-body[data-theme="dark"] h6.text-secondary i {
-    color: #fca5a5 !important;
-}
-
-/* Ghost de Sortable */
-body[data-theme="dark"] .bg-light,
-body[data-theme="dark"] .sortable-ghost {
-    background: rgba(248,113,113,0.18) !important;
-    color: #ffffff !important;
-    border-color: rgba(248,113,113,0.45) !important;
-}
-
-/* Alert/confirm no se pueden estilizar mucho por ser nativos,
-   pero dejamos preparado por si luego cambias a toast/modal */
-body[data-theme="dark"] .alert {
-    background: #172033 !important;
-    color: #f9fafb !important;
-    border-color: rgba(255,255,255,0.12) !important;
-}
-
-/* Responsive */
-@@media (max-width: 768px) {
-    body[data-theme="dark"] .sap-titlebar,
-    body[data-theme="dark"] .sap-toolbar,
-    body[data-theme="dark"] .sap-card {
-        border-left-color: rgba(255,255,255,0.10) !important;
-        border-right-color: rgba(255,255,255,0.10) !important;
+    .module-list .list-group-item {
+        cursor: grab;
+        user-select: none;
     }
 
-    body[data-theme="dark"] .sap-toolbar .side {
-        margin-left: 0;
-        width: 100%;
+        .module-list .list-group-item:active {
+            cursor: grabbing;
+        }
+
+    .module-actions,
+    .module-actions button {
+        cursor: pointer;
     }
 
-    body[data-theme="dark"] .sap-toolbar .side .tbtn {
-        width: 100%;
-        justify-content: center;
+    .sortable-chosen {
+        background: rgba(122,11,11,0.08) !important;
+        border-color: var(--brand-main) !important;
     }
-}
+
+    .sortable-drag {
+        opacity: 0.95;
+        box-shadow: var(--kpi-shadow-strong);
+    }
+
+    .sortable-ghost {
+        opacity: 0.45;
+        background: rgba(122,11,11,0.12) !important;
+        border: 1px dashed var(--brand-main) !important;
+    }
+
+    body[data-theme="dark"] .sortable-chosen,
+    body[data-theme="dark"] .sortable-ghost {
+        background: rgba(248,113,113,0.18) !important;
+        border-color: rgba(248,113,113,0.45) !important;
+    }
+
 </style>
 
-<div class="container-sap">
+<div class="container-fluid py-4 px-3 px-md-4 container-custom sidebar-admin-page">
 
-    <!-- Titlebar -->
-    <div class="sap-titlebar">
+    <div class="top-banner d-flex justify-content-between align-items-center flex-wrap gap-3 shadow-sm">
         <div>
-            <h4 class="title"><i class="bi bi-ui-checks-grid"></i> Administración del Sidebar</h4>
-            <p class="sub mb-0">Agrega, edita o elimina módulos y submódulos visibles en el menú lateral.</p>
+            <h2 class="fw-bold mb-1">
+                <i class="bi bi-ui-checks-grid me-2"></i> Administración del Sidebar
+            </h2>
+            <p class="mb-0" style="font-size: 0.85rem; opacity: 0.85;">
+                Agrega, edita, elimina y ordena los módulos visibles en el menú lateral del sistema.
+            </p>
         </div>
-        <div class="actions">
-            <a class="btn btn-secondary btn-sm" href="@Url.Action("Inicio", "Home")">
+
+        <div>
+            <a class="btn btn-sm btn-outline-light fw-bold px-3 border-2" href="@Url.Action("Inicio", "Home")">
                 <i class="bi bi-arrow-left-circle me-1"></i> Volver al inicio
             </a>
         </div>
     </div>
 
-    <!-- Toolbar -->
-    <div class="sap-toolbar">
-        <button class="tbtn primary" type="button" onclick="document.getElementById('formModulo').scrollIntoView({behavior:'smooth'})">
-            <i class="bi bi-plus-circle"></i><span>Crear nuevo módulo</span>
-        </button>
-        <button type="button" class="tbtn" onclick="location.href='@Url.Action("Categorias", "Sidebar")'">
-            <i class="bi bi-folder-plus"></i><span>Administrar categorías</span>
-        </button>
-        <button type="button" class="tbtn" onclick="location.reload()">
-            <i class="bi bi-arrow-clockwise"></i><span>Refrescar</span>
-        </button>
+    <div class="d-flex flex-wrap gap-3 mb-4">
 
-        <div class="side">
-            <a class="tbtn" href="@Url.Action("AdminSidebar", "SidebarAdmin")">
-                <i class="bi bi-file-earmark-medical-fill"></i><span>Otorgar Vistas</span>
-            </a>
+        <div class="action-group shadow-sm">
+            <div class="action-label">
+                <i class="bi bi-sliders me-1"></i> Acciones
+            </div>
+
+            <div class="d-flex gap-2">
+                <button class="btn-rojo" type="button" onclick="document.getElementById('formModulo').scrollIntoView({ behavior: 'smooth', block: 'start' })">
+                    <i class="bi bi-plus-circle"></i> Crear módulo
+                </button>
+
+                <button type="button" class="btn-rojo" onclick="location.href='@Url.Action("Categorias", "Sidebar")'">
+                    <i class="bi bi-folder-plus"></i> Categorías
+                </button>
+
+                <button type="button" class="btn-rojo" onclick="location.reload()">
+                    <i class="bi bi-arrow-clockwise"></i> Refrescar
+                </button>
+            </div>
+        </div>
+
+        <div class="action-group shadow-sm">
+            <div class="action-label">
+                <i class="bi bi-shield-check me-1"></i> Permisos
+            </div>
+
+            <div class="d-flex gap-2">
+                <a class="btn-rojo" href="@Url.Action("AdminSidebar", "SidebarAdmin")">
+                    <i class="bi bi-file-earmark-medical-fill"></i> Otorgar vistas
+                </a>
+            </div>
+        </div>
+
+        <div class="action-group shadow-sm">
+            <div class="action-label">
+                <i class="bi bi-search me-1"></i> Buscar
+            </div>
+
+            <div class="search-sidebar-wrap">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text">
+                        <i class="bi bi-funnel"></i>
+                    </span>
+                    <input id="searchSidebar"
+                           type="search"
+                           class="form-control"
+                           placeholder="Buscar módulo, categoría o URL..." />
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+            <div class="stat-card">
+                <div class="stat-label">Categorías</div>
+                <div class="stat-value">@totalCategorias</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Módulos</div>
+                <div class="stat-value">@totalModulos</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Padres</div>
+                <div class="stat-value">@totalPadres</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Submódulos</div>
+                <div class="stat-value">@totalHijos</div>
+            </div>
         </div>
 
     </div>
 
-    <!-- Card principal -->
-    <div class="sap-card">
-        <div class="sap-card-head">
-            <span><i class="bi bi-pencil-square me-1"></i> Crear o Editar módulo</span>
+    <div id="sidebarAlert" class="alert sidebar-alert"></div>
+
+    <div class="dashboard-panel mb-4">
+        <div class="dashboard-panel-head">
+            <div>
+                <h6 class="dashboard-panel-title">
+                    <i class="bi bi-pencil-square me-1"></i> Crear nuevo módulo
+                </h6>
+                <p class="dashboard-panel-subtitle">
+                    Registra módulos principales o submódulos asociados a una categoría.
+                </p>
+            </div>
         </div>
 
-        <div class="p-3">
+        <div class="p-3 p-md-4">
             <form id="formModulo">
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label">Nombre del módulo o submódulo</label>
-                        <input type="text" id="nombre" class="form-control" required>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Ícono (FontAwesome)</label>
-                        <input type="text" id="icono" class="form-control" placeholder="fas fa-box">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">URL (opcional)</label>
-                        <input type="text" id="url" class="form-control" placeholder="/Controlador/Acción">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Categoría</label>
-                        <select id="categoriaId" class="form-select">
-                            <option value="">(Sin categoría)</option>
-                            @foreach (var c in Model.CategoriasExistentes)
-                            {
-                                <option value="@c.Id">@c.Nombre</option>
-                            }
-                        </select>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Módulo Padre</label>
-                        <select id="padreId" class="form-select">
-                            <option value="">(Ninguno, será módulo principal)</option>
-                            @foreach (var m in Model.ModulosExistentes)
-                            {
-                                <option value="@m.Id">@m.Nombre</option>
-                            }
-                        </select>
-                    </div>
-                </div>
+                @Html.AntiForgeryToken()
 
-                <div class="text-end mt-4">
-                    <button type="submit" class="btn btn-outline-primary">
-                        <i class="bi bi-save me-1"></i> Guardar
-                    </button>
+                <div class="sidebar-form-panel">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small">NOMBRE DEL MÓDULO O SUBMÓDULO</label>
+                            <input type="text"
+                                   id="nombre"
+                                   class="form-control"
+                                   placeholder="Ej. Reportes de calidad"
+                                   required />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small">ÍCONO FONT AWESOME</label>
+                            <input type="text"
+                                   id="icono"
+                                   class="form-control"
+                                   placeholder="fas fa-box" />
+                            <small class="text-muted">Ejemplo: <code>fas fa-box</code>, <code>bi bi-grid</code></small>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small">URL OPCIONAL</label>
+                            <input type="text"
+                                   id="url"
+                                   class="form-control"
+                                   placeholder="/Controlador/Accion" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small">CATEGORÍA</label>
+                            <select id="categoriaId" class="form-select">
+                                <option value="">(Sin categoría)</option>
+
+                                @foreach (var c in Model.CategoriasExistentes)
+                                {
+                                    <option value="@c.Id">@c.Nombre</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small">MÓDULO PADRE</label>
+                            <select id="padreId" class="form-select">
+                                <option value="">(Ninguno, será módulo principal)</option>
+
+                                @foreach (var m in Model.ModulosExistentes)
+                                {
+                                    <option value="@m.Id">@m.Nombre</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-md-6 d-flex align-items-end justify-content-md-end">
+                            <button type="submit" class="btn btn-brand fw-bold px-4">
+                                <i class="bi bi-save me-1"></i> Guardar módulo
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </form>
         </div>
     </div>
 
-
-
-
-    <!-- ================================
-     ORDENAR MÓDULOS PRINCIPALES (PADRES)
-     ================================ -->
-    <div class="sap-card mt-4">
-        <div class="sap-card-head">
-            <span><i class="bi bi-list-nested me-2"></i> Ordenar módulos principales</span>
+    <div class="dashboard-panel mb-4">
+        <div class="dashboard-panel-head">
+            <div>
+                <h6 class="dashboard-panel-title">
+                    <i class="bi bi-list-nested me-1"></i> Orden global de módulos principales
+                </h6>
+                <p class="dashboard-panel-subtitle">
+                    Arrastra los módulos padres para definir su posición principal en el sidebar.
+                </p>
+            </div>
         </div>
 
         <div class="p-3">
-            <p class="text-muted small mb-2">
-                Arrastra los módulos principales para definir el orden en que aparecerán en el sidebar.
-            </p>
-
-            <ul class="list-group list-group-flush lista-categoria" id="lista-padres-global">
+            <ul class="list-group list-group-flush module-list lista-padres" id="lista-padres-global">
                 @foreach (var padre in Model.ModulosExistentes
                                 .Where(m => m.PadreId == null)
                                 .OrderBy(m => m.Orden))
                 {
-                    <li class="list-group-item d-flex justify-content-between align-items-center" data-id="@padre.Id">
-                        <div class="d-flex align-items-center gap-2 flex-wrap">
-                            <i class="@padre.Icono"></i>
-                            <strong>@padre.Nombre</strong>
-                            <small class="text-muted">(@padre.Url)</small>
+                    <li class="list-group-item sidebar-search-item" data-id="@padre.Id">
+                        <div class="module-main">
+                            <div class="module-icon">
+                                <i class="@padre.Icono"></i>
+                            </div>
+
+                            <div>
+                                <p class="module-title">@padre.Nombre</p>
+                                <p class="module-url">
+                                    @(string.IsNullOrWhiteSpace(padre.Url) ? "(sin URL)" : padre.Url)
+                                </p>
+                            </div>
                         </div>
-                        <div class="d-flex gap-2">
-                            <button class="btn btn-sm btn-outline-primary"
+
+                        <div class="module-actions">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-primary fw-bold"
                                     onclick="location.href='@Url.Action("EditarModulo", "Sidebar")?id=@padre.Id'">
                                 <i class="bi bi-pencil-square"></i>
                             </button>
-                            <button class="btn btn-sm btn-outline-danger btn-eliminar" data-id="@padre.Id">
+
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-danger fw-bold btn-eliminar"
+                                    data-id="@padre.Id">
                                 <i class="bi bi-trash"></i>
                             </button>
                         </div>
@@ -576,24 +504,22 @@ body[data-theme="dark"] .alert {
         </div>
     </div>
 
-
-
-
-
-    <!-- ================================
-         LISTADO DE MÓDULOS AGRUPADOS POR CATEGORÍA
-         ================================ -->
-    <div class="sap-card mt-4">
-        <div class="sap-card-head">
-            <span><i class="bi bi-list-ul me-2"></i> Organización de Módulos</span>
+    <div class="dashboard-panel">
+        <div class="dashboard-panel-head">
+            <div>
+                <h6 class="dashboard-panel-title">
+                    <i class="bi bi-diagram-3 me-1"></i> Organización por categoría
+                </h6>
+                <p class="dashboard-panel-subtitle">
+                    Consulta y ordena módulos principales y submódulos dentro de cada categoría.
+                </p>
+            </div>
         </div>
 
         @{
-            // Agrupar por categoría
             var grupos = Model.ModulosExistentes
             .GroupBy(m => m.CategoriaId)
-            .OrderBy(g => g.Key ?? int.MaxValue); // 👈 los sin categoría al final
-
+            .OrderBy(g => g.Key ?? int.MaxValue);
         }
 
         @foreach (var grupo in grupos)
@@ -601,79 +527,154 @@ body[data-theme="dark"] .alert {
             var categoria = Model.CategoriasExistentes.FirstOrDefault(c => c.Id == grupo.Key);
             string nombreCategoria = categoria?.Nombre ?? "Sin Categoría";
             string iconoCategoria = categoria?.Icono ?? "bi bi-folder";
+            string categoriaKey = grupo.Key?.ToString() ?? "sin_categoria";
 
-            // Separar padres e hijos dentro de esta categoría
-            var padres = grupo.Where(m => m.PadreId == null).OrderBy(m => m.Orden);
-            var hijos = grupo.Where(m => m.PadreId != null).OrderBy(m => m.Orden);
+            var padres = grupo.Where(m => m.PadreId == null).OrderBy(m => m.Orden).ToList();
+            var hijos = grupo.Where(m => m.PadreId != null).OrderBy(m => m.Orden).ToList();
+            var totalGrupo = padres.Count + hijos.Count;
 
-            <div class="mt-4 border rounded p-3 shadow-sm bg-white">
-                <h6 class="fw-bold text-uppercase text-secondary mb-2 border-bottom pb-1 d-flex align-items-center gap-2">
-                    <i class="@iconoCategoria"></i> @nombreCategoria
-                </h6>
+            <div class="category-block sidebar-search-block">
+                <div class="category-head">
+                    <h6 class="category-title">
+                        <i class="@iconoCategoria"></i> @nombreCategoria
+                    </h6>
 
-                <!-- Módulos principales -->
-                <div class="mb-3">
-                    <h6 class="text-muted fw-bold small text-uppercase">Módulos Principales</h6>
-                    <ul class="list-group list-group-flush lista-categoria lista-padres" id="padres-@nombreCategoria.Replace(" ", "_")">
-                        @foreach (var modulo in padres)
-                        {
-                            <li class="list-group-item d-flex justify-content-between align-items-center" data-id="@modulo.Id">
-                                <div class="d-flex align-items-center gap-2 flex-wrap">
-                                    <i class="@modulo.Icono"></i>
-                                    <strong>@modulo.Nombre</strong>
-                                    <small class="text-muted">(@modulo.Url)</small>
-                                </div>
-                                <div class="d-flex gap-2">
-                                    <button class="btn btn-sm btn-outline-primary"
-                                            onclick="location.href='@Url.Action("EditarModulo", "Sidebar")?id=@modulo.Id'">
-                                        <i class="bi bi-pencil-square"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-danger btn-eliminar" data-id="@modulo.Id">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
-                            </li>
-                        }
-                    </ul>
+                    <span class="category-count">
+                        <i class="bi bi-boxes"></i> @totalGrupo elementos
+                    </span>
                 </div>
 
-                <!-- Submódulos -->
-                <div>
-                    <h6 class="text-muted fw-bold small text-uppercase">Submódulos</h6>
-                    <ul class="list-group list-group-flush lista-categoria lista-hijos" id="hijos-@nombreCategoria.Replace(" ", "_")">
-                        @foreach (var modulo in hijos)
+                <div class="category-body">
+                    <div class="mb-3">
+                        <p class="section-label">
+                            <i class="bi bi-folder2-open"></i> Módulos principales
+                        </p>
+
+                        @if (!padres.Any())
                         {
-                            <li class="list-group-item d-flex justify-content-between align-items-center" data-id="@modulo.Id">
-                                <div class="d-flex align-items-center gap-2 flex-wrap">
-                                    <i class="@modulo.Icono"></i>
-                                    <strong>@modulo.Nombre</strong>
-                                    <small class="text-muted">(@modulo.Url)</small>
-                                </div>
-                                <div class="d-flex gap-2">
-                                    <button class="btn btn-sm btn-outline-primary"
-                                            onclick="location.href='@Url.Action("EditarModulo", "Sidebar")?id=@modulo.Id'">
-                                        <i class="bi bi-pencil-square"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-danger btn-eliminar" data-id="@modulo.Id">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
-                            </li>
+                            <div class="empty-mini">
+                                No hay módulos principales en esta categoría.
+                            </div>
                         }
-                    </ul>
+                        else
+                        {
+                            <ul class="list-group list-group-flush module-list lista-padres" id="padres-@categoriaKey">
+                                @foreach (var modulo in padres)
+                                {
+                                    <li class="list-group-item sidebar-search-item" data-id="@modulo.Id">
+                                        <div class="module-main">
+                                            <div class="module-icon">
+                                                <i class="@modulo.Icono"></i>
+                                            </div>
+
+                                            <div>
+                                                <p class="module-title">@modulo.Nombre</p>
+                                                <p class="module-url">
+                                                    @(string.IsNullOrWhiteSpace(modulo.Url) ? "(sin URL)" : modulo.Url)
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div class="module-actions">
+                                            <button type="button"
+                                                    class="btn btn-sm btn-outline-primary fw-bold"
+                                                    onclick="location.href='@Url.Action("EditarModulo", "Sidebar")?id=@modulo.Id'">
+                                                <i class="bi bi-pencil-square"></i>
+                                            </button>
+
+                                            <button type="button"
+                                                    class="btn btn-sm btn-outline-danger fw-bold btn-eliminar"
+                                                    data-id="@modulo.Id">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+
+                    <div>
+                        <p class="section-label">
+                            <i class="bi bi-node-plus"></i> Submódulos
+                        </p>
+
+                        @if (!hijos.Any())
+                        {
+                            <div class="empty-mini">
+                                No hay submódulos en esta categoría.
+                            </div>
+                        }
+                        else
+                        {
+                            <ul class="list-group list-group-flush module-list lista-hijos" id="hijos-@categoriaKey">
+                                @foreach (var modulo in hijos)
+                                {
+                                    <li class="list-group-item sidebar-search-item" data-id="@modulo.Id">
+                                        <div class="module-main">
+                                            <div class="module-icon">
+                                                <i class="@modulo.Icono"></i>
+                                            </div>
+
+                                            <div>
+                                                <p class="module-title">@modulo.Nombre</p>
+                                                <p class="module-url">
+                                                    @(string.IsNullOrWhiteSpace(modulo.Url) ? "(sin URL)" : modulo.Url)
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div class="module-actions">
+                                            <button type="button"
+                                                    class="btn btn-sm btn-outline-primary fw-bold"
+                                                    onclick="location.href='@Url.Action("EditarModulo", "Sidebar")?id=@modulo.Id'">
+                                                <i class="bi bi-pencil-square"></i>
+                                            </button>
+
+                                            <button type="button"
+                                                    class="btn btn-sm btn-outline-danger fw-bold btn-eliminar"
+                                                    data-id="@modulo.Id">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
                 </div>
             </div>
         }
-
     </div>
-
 
 </div>
 
 @section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
 
     <script>
+        const tokenSidebar = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+
+        function mostrarSidebarAlert(mensaje, tipo = "info") {
+            const alert = document.getElementById("sidebarAlert");
+            if (!alert) return;
+
+            const icono = tipo === "danger"
+                ? "bi-exclamation-triangle-fill"
+                : tipo === "success"
+                    ? "bi-check-circle-fill"
+                    : "bi-info-circle-fill";
+
+            alert.className = `alert alert-${tipo} sidebar-alert`;
+            alert.innerHTML = `<i class="bi ${icono} me-2"></i>${mensaje}`;
+            alert.style.display = "block";
+
+            setTimeout(() => {
+                alert.style.display = "none";
+            }, 3500);
+        }
+
         document.getElementById("formModulo").addEventListener("submit", async e => {
             e.preventDefault();
 
@@ -685,87 +686,176 @@ body[data-theme="dark"] .alert {
                 CategoriaId: document.getElementById("categoriaId").value || null
             };
 
-            const res = await fetch("/Sidebar/CrearModulo", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(data)
-            });
+            try {
+                const res = await fetch("/Sidebar/CrearModulo", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "RequestVerificationToken": tokenSidebar || ""
+                    },
+                    body: JSON.stringify(data)
+                });
 
-            const result = await res.json();
-            alert(result.mensaje);
-            if (res.ok) location.reload();
-        });
-
-        document.querySelectorAll(".btn-eliminar").forEach(btn => {
-            btn.addEventListener("click", async () => {
-                const li = btn.closest("li");
-                const id = li.dataset.id;
-                const nombre = li.querySelector("strong").innerText;
-
-                if (!confirm(`¿Seguro que deseas eliminar el módulo "${nombre}"?`)) return;
-
-                const res = await fetch(`/Sidebar/EliminarModulo?id=${id}`, { method: "POST" });
                 const result = await res.json();
 
                 if (!res.ok) {
-                    alert(result.mensaje);
+                    mostrarSidebarAlert(result.mensaje || "No se pudo guardar el módulo.", "danger");
                     return;
                 }
 
-                alert(result.mensaje);
-                li.remove();
-            });
+                mostrarSidebarAlert(result.mensaje || "Módulo guardado correctamente.", "success");
+
+                setTimeout(() => {
+                    location.reload();
+                }, 650);
+            }
+            catch (error) {
+                console.error(error);
+                mostrarSidebarAlert("Ocurrió un error al guardar el módulo.", "danger");
+            }
         });
 
-        // ================================
-        // DRAG & DROP ORDENAMIENTO POR CATEGORÍA
-        // ================================
+        function inicializarEliminar() {
+            document.querySelectorAll(".btn-eliminar").forEach(btn => {
+                btn.addEventListener("click", async () => {
+                    const li = btn.closest("li");
+                    const id = li.dataset.id;
+                    const nombre = li.querySelector(".module-title")?.innerText || "este módulo";
 
-        document.querySelectorAll('.lista-padres, .lista-hijos').forEach(lista => {
-            new Sortable(lista, {
-                animation: 150,
-                ghostClass: 'bg-light',
-                onEnd: async function () {
-                    const nuevoOrden = Array.from(lista.querySelectorAll('li')).map(li => parseInt(li.dataset.id));
+                    if (!confirm(`¿Seguro que deseas eliminar el módulo "${nombre}"?`)) return;
 
-                    const res = await fetch('/Sidebar/ActualizarOrden', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(nuevoOrden)
-                    });
+                    try {
+                        const res = await fetch(`/Sidebar/EliminarModulo?id=${id}`, {
+                            method: "POST",
+                            headers: {
+                                "RequestVerificationToken": tokenSidebar || ""
+                            }
+                        });
 
-                    const result = await res.json();
-                    console.log(`[${lista.id}] -> ${result.mensaje}`);
-                }
-            });
-        });
+                        const result = await res.json();
 
+                        if (!res.ok) {
+                            mostrarSidebarAlert(result.mensaje || "No se pudo eliminar el módulo.", "danger");
+                            return;
+                        }
 
-        // ================================
-        // DRAG & DROP GLOBAL PARA MÓDULOS PADRES
-        // ================================
-        const listaPadresGlobal = document.getElementById("lista-padres-global");
-        if (listaPadresGlobal) {
-            new Sortable(listaPadresGlobal, {
-                animation: 150,
-                ghostClass: 'bg-light',
-                onEnd: async function () {
-                    const nuevoOrden = Array.from(listaPadresGlobal.querySelectorAll('li'))
-                        .map(li => parseInt(li.dataset.id));
+                        mostrarSidebarAlert(result.mensaje || "Módulo eliminado correctamente.", "success");
 
-                    const res = await fetch('/Sidebar/ActualizarOrden', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(nuevoOrden)
-                    });
+                        li.style.transition = "opacity .25s ease, transform .25s ease";
+                        li.style.opacity = "0";
+                        li.style.transform = "translateX(20px)";
 
-                    const result = await res.json();
-                    console.log(`[Orden global] -> ${result.mensaje}`);
-                }
+                        setTimeout(() => {
+                            li.remove();
+                        }, 250);
+                    }
+                    catch (error) {
+                        console.error(error);
+                        mostrarSidebarAlert("Ocurrió un error al eliminar el módulo.", "danger");
+                    }
+                });
             });
         }
 
+        inicializarEliminar();
 
 
+
+        function inicializarSortableSidebar() {
+            if (typeof Sortable === "undefined") {
+                console.error("SortableJS no está cargado. Revisa que el script de Sortable exista en la vista o en el Layout.");
+                mostrarSidebarAlert("No se pudo activar el arrastre: SortableJS no está cargado.", "danger");
+                return;
+            }
+
+            const listasOrdenables = document.querySelectorAll(
+                "#lista-padres-global, .category-block .lista-padres, .category-block .lista-hijos"
+            );
+
+            listasOrdenables.forEach(lista => {
+                if (!lista || lista.dataset.sortableReady === "1") return;
+
+                lista.dataset.sortableReady = "1";
+
+                new Sortable(lista, {
+                    animation: 150,
+                    ghostClass: "sortable-ghost",
+                    chosenClass: "sortable-chosen",
+                    dragClass: "sortable-drag",
+                    forceFallback: true,
+                    fallbackOnBody: true,
+                    swapThreshold: 0.65,
+
+                    // Evita que al presionar editar/eliminar intente arrastrar
+                    filter: "button, a, input, select, textarea",
+                    preventOnFilter: false,
+
+                    onEnd: async function () {
+                        const nuevoOrden = Array.from(lista.querySelectorAll("li[data-id]"))
+                            .map(li => parseInt(li.dataset.id))
+                            .filter(id => !isNaN(id));
+
+                        if (!nuevoOrden.length) {
+                            mostrarSidebarAlert("No se encontraron módulos para ordenar.", "danger");
+                            return;
+                        }
+
+                        try {
+                            const res = await fetch("@Url.Action("ActualizarOrden", "Sidebar")", {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                    "RequestVerificationToken": tokenSidebar || ""
+                                },
+                                body: JSON.stringify(nuevoOrden)
+                            });
+
+                            const result = await res.json();
+
+                            console.log(`[${lista.id}] ->`, result);
+
+                            if (res.ok) {
+                                const esGlobal = lista.id === "lista-padres-global";
+                                mostrarSidebarAlert(
+                                    esGlobal
+                                        ? "Orden global actualizado correctamente."
+                                        : "Orden actualizado correctamente.",
+                                    "success"
+                                );
+                            } else {
+                                mostrarSidebarAlert(result.mensaje || "No se pudo actualizar el orden.", "danger");
+                            }
+                        }
+                        catch (error) {
+                            console.error(error);
+                            mostrarSidebarAlert("Error al actualizar el orden.", "danger");
+                        }
+                    }
+                });
+            });
+        }
+
+        document.addEventListener("DOMContentLoaded", inicializarSortableSidebar);
+
+        const searchSidebar = document.getElementById("searchSidebar");
+
+        searchSidebar?.addEventListener("input", () => {
+            const txt = (searchSidebar.value || "").toLowerCase().trim();
+
+            document.querySelectorAll(".sidebar-search-item").forEach(item => {
+                const contenido = item.textContent.toLowerCase();
+                item.style.display = !txt || contenido.includes(txt) ? "" : "none";
+            });
+
+            document.querySelectorAll(".sidebar-search-block").forEach(block => {
+                const visibles = Array.from(block.querySelectorAll(".sidebar-search-item"))
+                    .some(item => item.style.display !== "none");
+
+                const contenidoBloque = block.textContent.toLowerCase();
+                const coincideCategoria = !txt || contenidoBloque.includes(txt);
+
+                block.style.display = visibles || coincideCategoria ? "" : "none";
+            });
+        });
     </script>
 }
