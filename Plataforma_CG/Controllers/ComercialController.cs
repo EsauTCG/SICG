@@ -19766,7 +19766,8 @@ ORDER BY s.CreatedAt DESC";
         SELECT 
             p.ArticuloId AS Sku,
             ISNULL(a.Nombre, 'PRODUCTO SIN DESCRIPCION') AS Nombre,
-            p.Publico AS Precio
+            p.Publico AS Precio,
+            ISNULL(NULLIF(LTRIM(RTRIM(a.Estatus)), ''), '1') AS Estatus
         FROM [{dbCatalogo}].[dbo].[Precio] p
         LEFT JOIN [{dbCatalogo}].[dbo].[Articulo] a ON p.ArticuloId = a.ArticuloId
         WHERE p.EmpresaId = 'CARNG' AND p.ZonaId = 'GUA' AND p.Criterio = 'NV1'";
@@ -19780,14 +19781,15 @@ ORDER BY s.CreatedAt DESC";
                 var sqlSigo = "SELECT ProductoCodigo AS Sku, U_MASTER AS CategoriaMaster FROM ArticuloSap";
                 var articulosSap = await connSigo.QueryAsync(sqlSigo);
 
-                var listaFinal = precios.Select(p => {
+                    var listaFinal = precios.Select(p => {
                     var sapData = articulosSap.FirstOrDefault(s => s.Sku == p.Sku);
                     return new
                     {
                         Sku = p.Sku,
                         Nombre = p.Nombre,
                         CategoriaMaster = sapData != null ? sapData.CategoriaMaster : "(SIN MASTER)",
-                        Precio = p.Precio
+                        Precio = p.Precio,
+                        Estatus = (string)p.Estatus
                     };
                 });
 
@@ -19847,7 +19849,7 @@ ORDER BY s.CreatedAt DESC";
         }
 
         [HttpPost("Comercial/GuardarPreciosMasivo")]
-        public async Task<IActionResult> GuardarPreciosMasivo([FromBody] List<DtoAjustePrecio> paquete, [FromQuery] string planta = "TIF")
+        public async Task<IActionResult> GuardarPreciosMasivo([FromBody] List<DtoAjustePrecio> paquete, [FromQuery] string planta = "TIF", [FromQuery] bool ambas = false)
         {
             if (paquete == null || !paquete.Any())
                 return Json(new { ok = false, mensaje = "Sin datos para actualizar." });
@@ -19856,47 +19858,62 @@ ORDER BY s.CreatedAt DESC";
 
             // Validar planta para guardado
             planta = string.IsNullOrWhiteSpace(planta) ? "TIF" : planta.ToUpper();
-            string nombreCadena = (planta == "P1") ? "CadenaMeatP1" : "CadenaMeatTIF";
-            string dbCatalogo = (planta == "P1") ? "CommerciaNet" : "TIF_CommerciaNet";
 
-            using var connMeat = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString(nombreCadena));
+            var plantasDestino = new List<(string Planta, string Cadena, string Db)>();
+            if (ambas)
+            {
+                plantasDestino.Add(("TIF", "CadenaMeatTIF", "TIF_CommerciaNet"));
+                plantasDestino.Add(("P1", "CadenaMeatP1", "CommerciaNet"));
+            }
+            else
+            {
+                string nombreCadena = (planta == "P1") ? "CadenaMeatP1" : "CadenaMeatTIF";
+                string dbCatalogo = (planta == "P1") ? "CommerciaNet" : "TIF_CommerciaNet";
+                plantasDestino.Add((planta, nombreCadena, dbCatalogo));
+            }
+
             using var connSigo = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
-
-            await connMeat.OpenAsync();
             await connSigo.OpenAsync();
-
-            using var txMeat = connMeat.BeginTransaction();
             using var txSigo = connSigo.BeginTransaction();
 
-            try
-            {
-                var sqlSelectBase = $@"
-        SELECT Publico FROM [{dbCatalogo}].[dbo].[Precio] 
-        WHERE ArticuloId = @Sku AND EmpresaId = 'CARNG' AND ZonaId = 'GUA' AND Criterio = 'NV1'";
-
-                var sqlUpdateMeat = $@"
-        UPDATE [{dbCatalogo}].[dbo].[Precio] 
-        SET Publico = @Precio, FechaHora = GETDATE()
-        WHERE ArticuloId = @Sku AND EmpresaId = 'CARNG' AND ZonaId = 'GUA' AND Criterio = 'NV1'";
-
-                var sqlLogSigo = @"
+            var sqlLogSigo = @"
 INSERT INTO LogAjustePrecios (ArticuloId, PrecioAnterior, PrecioNuevo, Usuario, FechaHora, Planta)
 VALUES (@Sku, @PrecioAnterior, @PrecioNuevo, @Usuario, GETDATE(), @Planta)";
 
-                foreach (var item in paquete)
+            try
+            {
+                foreach (var destino in plantasDestino)
                 {
-                    var precioAnterior = await connMeat.QueryFirstOrDefaultAsync<decimal>(sqlSelectBase, new { Sku = item.Sku }, txMeat);
+                    using var connMeat = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString(destino.Cadena));
+                    await connMeat.OpenAsync();
+                    using var txMeat = connMeat.BeginTransaction();
 
-                    await connMeat.ExecuteAsync(sqlUpdateMeat, item, txMeat);
+                    var sqlSelectBase = $@"
+        SELECT Publico FROM [{destino.Db}].[dbo].[Precio] 
+        WHERE ArticuloId = @Sku AND EmpresaId = 'CARNG' AND ZonaId = 'GUA' AND Criterio = 'NV1'";
 
-                    await connSigo.ExecuteAsync(sqlLogSigo, new
+                    var sqlUpdateMeat = $@"
+        UPDATE [{destino.Db}].[dbo].[Precio] 
+        SET Publico = @Precio, FechaHora = GETDATE()
+        WHERE ArticuloId = @Sku AND EmpresaId = 'CARNG' AND ZonaId = 'GUA' AND Criterio = 'NV1'";
+
+                    foreach (var item in paquete)
                     {
-                        Sku = item.Sku,
-                        PrecioAnterior = precioAnterior,
-                        PrecioNuevo = item.Precio,
-                        Usuario = nombreUsuario,
-                        Planta = planta
-                    }, txSigo);
+                        var precioAnterior = await connMeat.QueryFirstOrDefaultAsync<decimal>(sqlSelectBase, new { Sku = item.Sku }, txMeat);
+
+                        await connMeat.ExecuteAsync(sqlUpdateMeat, item, txMeat);
+
+                        await connSigo.ExecuteAsync(sqlLogSigo, new
+                        {
+                            Sku = item.Sku,
+                            PrecioAnterior = precioAnterior,
+                            PrecioNuevo = item.Precio,
+                            Usuario = nombreUsuario,
+                            Planta = destino.Planta
+                        }, txSigo);
+                    }
+
+                    txMeat.Commit();
                 }
 
                 // NUEVO: ACTUALIZAMOS LA FECHA DE LA ÚLTIMA CONFIGURACIÓN
@@ -19906,14 +19923,54 @@ SET UltimaActualizacion = GETDATE(), ActualizadoPor = @Usuario
 WHERE Id = 1";
                 await connSigo.ExecuteAsync(sqlUpdateConfig, new { Usuario = nombreUsuario }, txSigo);
 
-                txMeat.Commit();
                 txSigo.Commit();
                 return Json(new { ok = true });
             }
             catch (Exception ex)
             {
-                txMeat.Rollback();
                 txSigo.Rollback();
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+        public class DtoCambioEstatus
+        {
+            public List<string> Skus { get; set; } = new();
+            public string Estatus { get; set; } = "";
+            public string Planta { get; set; } = "TIF";
+        }
+
+        [HttpPost("Comercial/CambiarEstatusArticulos")]
+        public async Task<IActionResult> CambiarEstatusArticulos([FromBody] DtoCambioEstatus data)
+        {
+            try
+            {
+                var skus = data.Skus?.Select(s => s?.Trim() ?? "").Where(s => s != "").ToList() ?? new List<string>();
+                if (skus.Count == 0)
+                    return Json(new { ok = false, mensaje = "Sin SKUs para actualizar." });
+
+                var estatus = (data.Estatus ?? "").Trim();
+                if (estatus != "1" && estatus != "2" && estatus != "0")
+                    return Json(new { ok = false, mensaje = "Estatus inválido. Use 1 (Activo), 2 (Pausado) o 0 (Inactivo)." });
+
+                var planta = string.IsNullOrWhiteSpace(data.Planta) ? "TIF" : data.Planta.ToUpper();
+                string nombreCadena = (planta == "P1") ? "CadenaMeatP1" : "CadenaMeatTIF";
+                string dbCatalogo = (planta == "P1") ? "CommerciaNet" : "TIF_CommerciaNet";
+
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString(nombreCadena));
+                await conn.OpenAsync();
+
+                var sql = $@"
+        UPDATE [{dbCatalogo}].[dbo].[Articulo]
+        SET Estatus = @Estatus
+        WHERE ArticuloId IN @Skus";
+
+                var filas = await conn.ExecuteAsync(sql, new { Estatus = estatus, Skus = skus });
+
+                return Json(new { ok = true, actualizados = filas });
+            }
+            catch (Exception ex)
+            {
                 return Json(new { ok = false, mensaje = ex.Message });
             }
         }
