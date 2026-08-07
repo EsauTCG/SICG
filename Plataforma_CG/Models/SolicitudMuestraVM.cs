@@ -23,6 +23,25 @@ namespace Plataforma_CG.Models
         public int? OrdenVentaId { get; set; }
         public string OvConsecutivo { get; set; }
 
+        // Nuevos campos del formato de solicitud de muestras
+        public string IdentificacionCliente { get; set; }
+        public string FechaEmbarque { get; set; }
+        public string DiaMuestras { get; set; }
+        public string TipoProduccion { get; set; }
+        public string PlantaOrigen { get; set; }
+        public string Proceso { get; set; }
+        public string PorcentajeInyeccion { get; set; }
+        public string Empaque { get; set; }
+        public string Manejo { get; set; }
+        public string ProcesoDeshuese { get; set; }
+        public string MasterNombre { get; set; }
+        public string CodigoMuestra { get; set; }
+        public string NombreMuestra { get; set; }
+        public string EspecificacionRequerida { get; set; }
+        public string Participacion { get; set; }
+        public string VolumenSemanal { get; set; }
+        public string VolumenMensual { get; set; }
+
         public PlaneacionVM Planning { get; set; }
         public List<ItemMuestraVM> Items { get; set; } = new List<ItemMuestraVM>();
     }
