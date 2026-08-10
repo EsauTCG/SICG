@@ -20357,6 +20357,10 @@ SELECT
     s.Species,
     s.RequestedDate, s.[Route], s.Destination, s.Priority, s.Notes,
     s.Stage, s.Location,
+    s.IdentificacionCliente, s.FechaEmbarque, s.DiaMuestras, s.TipoProduccion, s.PlantaOrigen,
+    s.Proceso, s.PorcentajeInyeccion, s.Empaque, s.Manejo, s.ProcesoDeshuese, s.MasterNombre,
+    s.CodigoMuestra, s.NombreMuestra, s.EspecificacionRequerida, s.Participacion,
+    s.VolumenSemanal, s.VolumenMensual,
     s.Plan_ProcessDate AS ProcessDate, s.Plan_Shift AS Shift,
     s.Plan_Line AS Line, s.Plan_Planner AS Planner, s.Plan_Especificacion AS Especificacion,
     s.Plan_ReleasedAt AS ReleasedAt,
@@ -20392,6 +20396,23 @@ ORDER BY s.CreatedAt DESC";
                         Stage = s.Stage ?? "Pendiente",
                         Location = s.Location ?? "",
                         OvConsecutivo = s.OvConsecutivo ?? "",
+                        IdentificacionCliente = (s.IdentificacionCliente as string) ?? "",
+                        FechaEmbarque = s.FechaEmbarque is DateTime fechaEmb ? fechaEmb.ToString("yyyy-MM-dd") : "",
+                        DiaMuestras = (s.DiaMuestras as string) ?? "",
+                        TipoProduccion = (s.TipoProduccion as string) ?? "",
+                        PlantaOrigen = (s.PlantaOrigen as string) ?? "",
+                        Proceso = (s.Proceso as string) ?? "",
+                        PorcentajeInyeccion = s.PorcentajeInyeccion is decimal pctIny ? pctIny.ToString("0.##") : "",
+                        Empaque = (s.Empaque as string) ?? "",
+                        Manejo = (s.Manejo as string) ?? "",
+                        ProcesoDeshuese = (s.ProcesoDeshuese as string) ?? "",
+                        MasterNombre = (s.MasterNombre as string) ?? "",
+                        CodigoMuestra = (s.CodigoMuestra as string) ?? "",
+                        NombreMuestra = (s.NombreMuestra as string) ?? "",
+                        EspecificacionRequerida = (s.EspecificacionRequerida as string) ?? "",
+                        Participacion = (s.Participacion as string) ?? "",
+                        VolumenSemanal = (s.VolumenSemanal as string) ?? "",
+                        VolumenMensual = (s.VolumenMensual as string) ?? "",
                         Planning = s.ProcessDate != null ? new Plataforma_CG.Models.PlaneacionVM
                         {
                             ProcessDate = s.ProcessDate,
@@ -20518,10 +20539,18 @@ ORDER BY s.CreatedAt DESC";
                 var sqlSolicitud = @"
        INSERT INTO SolicitudMuestras 
            (Id, CreatedAt, CreatedBy, Seller, Client, Species, RequestedDate, 
-            Route, Destination, Priority, Notes, Stage, Location)
+            Route, Destination, Priority, Notes, Stage, Location,
+            IdentificacionCliente, FechaEmbarque, DiaMuestras, TipoProduccion, PlantaOrigen,
+            Proceso, PorcentajeInyeccion, Empaque, Manejo, ProcesoDeshuese, MasterNombre,
+            CodigoMuestra, NombreMuestra, EspecificacionRequerida, Participacion,
+            VolumenSemanal, VolumenMensual)
        VALUES 
            (@Id, @CreatedAt, @CreatedBy, @Seller, @Client, @Species, @RequestedDate,
-            @Route, @Destination, @Priority, @Notes, @Stage, @Location)";
+            @Route, @Destination, @Priority, @Notes, @Stage, @Location,
+            @IdentificacionCliente, @FechaEmbarque, @DiaMuestras, @TipoProduccion, @PlantaOrigen,
+            @Proceso, @PorcentajeInyeccion, @Empaque, @Manejo, @ProcesoDeshuese, @MasterNombre,
+            @CodigoMuestra, @NombreMuestra, @EspecificacionRequerida, @Participacion,
+            @VolumenSemanal, @VolumenMensual)";
 
                 await conn.ExecuteAsync(sqlSolicitud, new
                 {
@@ -20537,7 +20566,24 @@ ORDER BY s.CreatedAt DESC";
                     nuevaSolicitud.Priority,
                     nuevaSolicitud.Notes,
                     Stage = "Planeación pendiente",
-                    Location = "Comercial"
+                    Location = "Comercial",
+                    IdentificacionCliente = nuevaSolicitud.IdentificacionCliente ?? "",
+                    FechaEmbarque = DateTime.TryParse(nuevaSolicitud.FechaEmbarque, out var fechaEmbarque) ? (object)fechaEmbarque : DBNull.Value,
+                    DiaMuestras = nuevaSolicitud.DiaMuestras ?? "",
+                    TipoProduccion = nuevaSolicitud.TipoProduccion ?? "",
+                    PlantaOrigen = nuevaSolicitud.PlantaOrigen ?? "",
+                    Proceso = nuevaSolicitud.Proceso ?? "",
+                    PorcentajeInyeccion = decimal.TryParse(nuevaSolicitud.PorcentajeInyeccion, out var pctIny) ? (object)pctIny : DBNull.Value,
+                    Empaque = nuevaSolicitud.Empaque ?? "",
+                    Manejo = nuevaSolicitud.Manejo ?? "",
+                    ProcesoDeshuese = nuevaSolicitud.ProcesoDeshuese ?? "",
+                    MasterNombre = nuevaSolicitud.MasterNombre ?? "",
+                    CodigoMuestra = nuevaSolicitud.CodigoMuestra ?? "",
+                    NombreMuestra = nuevaSolicitud.NombreMuestra ?? "",
+                    EspecificacionRequerida = nuevaSolicitud.EspecificacionRequerida ?? "",
+                    Participacion = nuevaSolicitud.Participacion ?? "",
+                    VolumenSemanal = nuevaSolicitud.VolumenSemanal ?? "",
+                    VolumenMensual = nuevaSolicitud.VolumenMensual ?? ""
                 });
 
                 if (nuevaSolicitud.Items != null && nuevaSolicitud.Items.Any())
@@ -24359,13 +24405,6 @@ WHERE rn = 1;";
     }
 
 }
-
-
-
-
-
-
-
 
 
 
