@@ -24,6 +24,9 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using Tesseract;
 using UglyToad.PdfPig;
+using PdfSharp.Drawing;
+using PdfSharp.Drawing.Layout;
+using Plataforma_CG.ViewModels;
 
 
 namespace Plataforma_CG.Controllers
@@ -85,6 +88,9 @@ namespace Plataforma_CG.Controllers
         private const string KEY_INV_ACT = "cache_inv_actual";
         private const string KEY_VENTA_REAL = "cache_venta_real_resumen";
 
+        private readonly IWebHostEnvironment _environment;
+
+
         private async Task<(bool puedeLeer, bool puedeEscribir, bool puedeEliminar)> ObtenerPermisoModuloAsync(string claveModulo)
         {
             var login = (User?.Identity?.Name ?? "").Trim();
@@ -126,7 +132,8 @@ namespace Plataforma_CG.Controllers
             IPresupuestoSettingsService settings,
             PresupuestoAdminService presAdmin,
              ISapDireccionesSyncService direccionesSync,   // 👈 AQUÍ
-                IMemoryCache cache
+                IMemoryCache cache,
+                IWebHostEnvironment environment
             )
 
         {
@@ -142,6 +149,7 @@ namespace Plataforma_CG.Controllers
             _presAdmin = presAdmin;
             _direccionesSync = direccionesSync;
             _cache = cache;
+            _environment = environment;
         }
 
         // ── Helper caché  ◄─── AQUÍ, antes de los endpoints ──────────
@@ -949,7 +957,7 @@ presupuestos_normales AS (
 ),
 
 -- =====================================================
--- ORDEN DE VENTA (MATRIZ) - INCLUYE ESTATUS 5
+-- ORDEN DE VENTA (MATRIZ) - INCLUYE ESTATUS 5 Y 6
 -- =====================================================
 ov AS (
     SELECT
@@ -962,7 +970,7 @@ ov AS (
     FROM dbo.OrdenVenta o
     INNER JOIN dbo.Series ser ON o.Serie = ser.NombreSerie
     WHERE o.FechaEntrega IS NOT NULL
-      AND o.Estatus BETWEEN 1 AND 5
+      AND o.Estatus BETWEEN 1 AND 6
       AND ser.Sucursal = 'MATRIZ'
 ),
 
@@ -1011,7 +1019,7 @@ ov_surtido_agg AS (
 
 -- =====================================================
 -- OV PENDIENTE POR OV+SKU (pedido - surtido validado)
--- + excepción estatus=5 con surtido relacionado => pendiente=0
+-- + excepción estatus 5/6 con surtido relacionado => pendiente=0
 -- =====================================================
 ov_pendiente_sku AS (
     SELECT
@@ -1024,7 +1032,7 @@ ov_pendiente_sku AS (
         KgPendiente =
             CAST(
                 CASE
-                    WHEN ov.Estatus = 5 AND os.Id IS NOT NULL THEN 0
+                    WHEN ov.Estatus IN (5, 6) AND os.Id IS NOT NULL THEN 0
                     ELSE
                         CASE
                             WHEN (p.KgPedido - ISNULL(sa.KgSurtido,0)) < 0 THEN 0
@@ -1949,9 +1957,13 @@ ORDER BY
                 ? $"Pedido guardado. Consecutivo: {pedido.Consecutivo}"
                 : $"Pedido guardado (sin datos de SAP). Consecutivo: {pedido.Consecutivo}";
 
-            if (accion == "salir") return RedirectToAction("Inicio", "Home");
-            if (accion == "nuevo") return RedirectToAction("OrdenVenta", "Comercial");
-            return RedirectToAction("Index", "Pedidos");
+            return RedirectToAction(
+     nameof(VistaPreviaOrden),
+     new
+     {
+         id = pedido.Id,
+         siguiente = accion
+     });
         }
 
         [HttpPost("Comercial/CrearSolicitudDesdeOV")]
@@ -2913,7 +2925,7 @@ ov AS (
     FROM dbo.OrdenVenta o
     INNER JOIN dbo.Series ser ON o.Serie = ser.NombreSerie
     WHERE o.FechaEntrega IS NOT NULL
-      AND o.Estatus BETWEEN 1 AND 5
+      AND o.Estatus BETWEEN 1 AND 6
       AND ser.Sucursal = 'MATRIZ'
 ),
 ov_con_surtido AS (
@@ -2957,7 +2969,7 @@ ov_pendiente_sku AS (
         KgPendiente =
             CAST(
                 CASE
-                    WHEN ov.Estatus = 5 AND os.Id IS NOT NULL THEN 0
+                    WHEN ov.Estatus IN (5, 6) AND os.Id IS NOT NULL THEN 0
                     ELSE
                         CASE
                             WHEN (p.KgPedido - ISNULL(sa.KgSurtido,0)) < 0 THEN 0
@@ -3680,8 +3692,8 @@ ORDER BY t.SKU;
                 from t in _context.Transferencias
                 join td in _context.TransferenciaDetalles on t.Id equals td.TransferenciaId
                 join se in _context.Series on t.Sucursal equals se.Sucursal
-                where t.Estatus != 0
-                && t.Estatus != 5
+                where t.Estatus >= 1
+                && t.Estatus <= 4
                 && (td.AutorizacionPresupuestoLinea == null
                || td.AutorizacionPresupuestoLinea == false)
                 let fecha = t.FechaSolicitud ?? DateTime.MinValue    // 👈 normalizamos a DateTime
@@ -7577,6 +7589,1023 @@ GROUP BY
 
 
 
+
+        // ============================================================
+        // HISTÓRICO / AUDITORÍA RESUMIDA DEL CATÁLOGO DE PRECIOS
+        // Una fila por Lote + SKU + Lista + cambio de precio.
+        // La lista de clientes se consulta únicamente bajo demanda.
+        // ============================================================
+        [Authorize]
+        [HttpGet("Comercial/ObtenerHistoricoCatalogoPrecios")]
+        public async Task<IActionResult> ObtenerHistoricoCatalogoPrecios(
+            int page = 1,
+            int pageSize = 50,
+            string search = "",
+            string sku = "",
+            string cliente = "",
+            string accion = "CAMBIOS",
+            string usuario = "",
+            int? priceListNum = null,
+            DateTime? fechaDesde = null,
+            DateTime? fechaHasta = null,
+            Guid? loteId = null,
+            CancellationToken ct = default)
+        {
+            try
+            {
+                page = Math.Max(1, page);
+                pageSize = Math.Clamp(pageSize, 20, 200);
+
+                search = (search ?? "").Trim();
+                sku = (sku ?? "").Trim();
+                cliente = (cliente ?? "").Trim();
+                accion = (accion ?? "").Trim().ToUpperInvariant();
+                usuario = (usuario ?? "").Trim();
+
+                var fechaDesdeNormalizada = fechaDesde?.Date;
+                var fechaHastaExclusiva = fechaHasta?.Date.AddDays(1);
+                var offset = (page - 1) * pageSize;
+
+                // Se arma solamente con fragmentos controlados; todos los valores
+                // del usuario siguen entrando como parámetros SQL.
+                var filtros = new List<string> { "1 = 1" };
+                var parametros = new DynamicParameters();
+
+                if (!string.IsNullOrWhiteSpace(search))
+                {
+                    var filtroSearch = @"
+(
+       h.ProductoCodigo LIKE @SearchLike
+    OR h.ProductoNombre LIKE @SearchLike
+    OR h.Master LIKE @SearchLike
+    OR h.Cliente LIKE @SearchLike
+    OR h.PriceListName LIKE @SearchLike
+    OR h.Usuario LIKE @SearchLike
+    OR EXISTS
+      (
+          SELECT 1
+          FROM dbo.ClienteSap cs
+          WHERE cs.Cliente = h.Cliente
+            AND cs.Nombrecliente LIKE @SearchLike
+      )";
+
+                    if (Guid.TryParse(search, out var loteBuscado))
+                    {
+                        filtroSearch += "\n    OR h.LoteId = @SearchLote";
+                        parametros.Add("SearchLote", loteBuscado);
+                    }
+
+                    filtroSearch += "\n)";
+                    filtros.Add(filtroSearch);
+                    parametros.Add("SearchLike", "%" + search + "%");
+                }
+
+                if (!string.IsNullOrWhiteSpace(sku))
+                {
+                    // Búsqueda por prefijo: permite Index Seek y también escribir
+                    // solo una parte inicial del código.
+                    filtros.Add("h.ProductoCodigo LIKE @SkuPrefix");
+                    parametros.Add("SkuPrefix", sku + "%");
+                }
+
+                if (!string.IsNullOrWhiteSpace(cliente))
+                {
+                    filtros.Add(@"
+(
+       h.Cliente LIKE @ClientePrefix
+    OR EXISTS
+      (
+          SELECT 1
+          FROM dbo.ClienteSap cs
+          WHERE cs.Cliente = h.Cliente
+            AND cs.Nombrecliente LIKE @ClienteLike
+      )
+)");
+                    parametros.Add("ClientePrefix", cliente + "%");
+                    parametros.Add("ClienteLike", "%" + cliente + "%");
+                }
+
+                if (accion == "CAMBIOS")
+                {
+                    // Reporte operativo: por defecto no trae miles de registros
+                    // donde el precio no cambió.
+                    filtros.Add("h.Accion IN ('INSERT', 'UPDATE')");
+                }
+                else if (!string.IsNullOrWhiteSpace(accion))
+                {
+                    filtros.Add("h.Accion = @Accion");
+                    parametros.Add("Accion", accion);
+                }
+
+                if (!string.IsNullOrWhiteSpace(usuario))
+                {
+                    filtros.Add("h.Usuario LIKE @UsuarioPrefix");
+                    parametros.Add("UsuarioPrefix", usuario + "%");
+                }
+
+                if (priceListNum.HasValue)
+                {
+                    filtros.Add("h.PriceListNum = @PriceListNum");
+                    parametros.Add("PriceListNum", priceListNum.Value);
+                }
+
+                if (fechaDesdeNormalizada.HasValue)
+                {
+                    filtros.Add("h.FechaGuardado >= @FechaDesde");
+                    parametros.Add("FechaDesde", fechaDesdeNormalizada.Value);
+                }
+
+                if (fechaHastaExclusiva.HasValue)
+                {
+                    filtros.Add("h.FechaGuardado < @FechaHastaExclusiva");
+                    parametros.Add("FechaHastaExclusiva", fechaHastaExclusiva.Value);
+                }
+
+                if (loteId.HasValue)
+                {
+                    filtros.Add("h.LoteId = @LoteId");
+                    parametros.Add("LoteId", loteId.Value);
+                }
+
+                parametros.Add("Offset", offset);
+                parametros.Add("PageSize", pageSize);
+
+                var whereSql = string.Join("\nAND ", filtros);
+
+                var sql = $@"
+SET NOCOUNT ON;
+
+SELECT
+    MaxId = MAX(h.Id),
+    h.LoteId,
+    h.ProductoCodigo,
+    ProductoNombre = MAX(ISNULL(h.ProductoNombre, '')),
+    Master = MAX(ISNULL(h.Master, '')),
+    h.PriceListNum,
+    PriceListName = MAX(ISNULL(h.PriceListName, '')),
+    h.PrecioAnterior,
+    h.PrecioNuevo,
+    Diferencia = CAST(
+        ISNULL(h.PrecioNuevo, 0) - ISNULL(h.PrecioAnterior, 0)
+        AS DECIMAL(18, 4)
+    ),
+    VariacionPct = CAST(
+        CASE
+            WHEN NULLIF(h.PrecioAnterior, 0) IS NULL THEN NULL
+            ELSE
+                ((h.PrecioNuevo - h.PrecioAnterior)
+                 / NULLIF(h.PrecioAnterior, 0)) * 100
+        END
+        AS DECIMAL(18, 2)
+    ),
+    FechaPrecioAnterior = MAX(h.FechaPrecioAnterior),
+    FechaGuardado = MAX(h.FechaGuardado),
+    FechaCorte = MAX(h.FechaCorte),
+    FechaUso = MAX(h.FechaUso),
+    Usuario = MAX(ISNULL(h.Usuario, '')),
+    h.Accion,
+    ClientesAfectados = COUNT(DISTINCT NULLIF(LTRIM(RTRIM(h.Cliente)), ''))
+INTO #ResumenHistorico
+FROM dbo.CatalogoPrecioSapHistorico h
+WHERE {whereSql}
+GROUP BY
+    h.LoteId,
+    h.ProductoCodigo,
+    h.PriceListNum,
+    h.PrecioAnterior,
+    h.PrecioNuevo,
+    h.Accion
+OPTION (RECOMPILE);
+
+SELECT
+    Total = COUNT_BIG(1),
+    ImpactosClientes = ISNULL(SUM(CONVERT(BIGINT, ClientesAfectados)), 0),
+    Insertados = ISNULL(SUM(CASE WHEN Accion = 'INSERT' THEN 1 ELSE 0 END), 0),
+    Actualizados = ISNULL(SUM(CASE WHEN Accion = 'UPDATE' THEN 1 ELSE 0 END), 0),
+    SinCambio = ISNULL(SUM(CASE WHEN Accion = 'SIN_CAMBIO' THEN 1 ELSE 0 END), 0),
+    Subidas = ISNULL(SUM(CASE WHEN PrecioAnterior IS NOT NULL AND PrecioNuevo > PrecioAnterior THEN 1 ELSE 0 END), 0),
+    Bajadas = ISNULL(SUM(CASE WHEN PrecioAnterior IS NOT NULL AND PrecioNuevo < PrecioAnterior THEN 1 ELSE 0 END), 0)
+FROM #ResumenHistorico;
+
+SELECT
+    MaxId,
+    LoteId,
+    ProductoCodigo,
+    ProductoNombre,
+    Master,
+    PriceListNum,
+    PriceListName,
+    PrecioAnterior,
+    PrecioNuevo,
+    Diferencia,
+    VariacionPct,
+    FechaPrecioAnterior,
+    FechaGuardado,
+    FechaCorte,
+    FechaUso,
+    Usuario,
+    Accion,
+    ClientesAfectados
+FROM #ResumenHistorico
+ORDER BY FechaGuardado DESC, MaxId DESC
+OFFSET @Offset ROWS
+FETCH NEXT @PageSize ROWS ONLY;";
+
+                await using var cn = new SqlConnection(
+                    _configuration.GetConnectionString("DefaultConnection")
+                );
+
+                await cn.OpenAsync(ct);
+
+                var command = new CommandDefinition(
+                    sql,
+                    parametros,
+                    commandTimeout: 120,
+                    cancellationToken: ct
+                );
+
+                using var multi = await cn.QueryMultipleAsync(command);
+
+                var resumen = await multi.ReadFirstAsync();
+                var registros = (await multi.ReadAsync()).ToList();
+                var total = Convert.ToInt64(resumen.Total);
+
+                return Json(new
+                {
+                    page,
+                    pageSize,
+                    total,
+                    resumen,
+                    registros
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                return StatusCode(499, new
+                {
+                    error = "La consulta del histórico fue cancelada."
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error al consultar el resumen de CatalogoPreciosSapHistorico."
+                );
+
+                return StatusCode(500, new
+                {
+                    error = "No se pudo consultar el histórico resumido de precios.",
+                    detalle = ex.Message
+                });
+            }
+        }
+
+
+        // ============================================================
+        // EXPORTAR HISTÓRICO / AUDITORÍA DE PRECIOS A EXCEL
+        // Exporta TODOS los registros que cumplen los filtros actuales.
+        // Incluye resumen, cambios por SKU y detalle cliente-SKU.
+        // ============================================================
+        private sealed class HistoricoPrecioExcelKpiDto
+        {
+            public long Total { get; set; }
+            public long ImpactosClientes { get; set; }
+            public long Insertados { get; set; }
+            public long Actualizados { get; set; }
+            public long SinCambio { get; set; }
+            public long Subidas { get; set; }
+            public long Bajadas { get; set; }
+        }
+
+        private sealed class HistoricoPrecioExcelResumenDto
+        {
+            public long MaxId { get; set; }
+            public Guid? LoteId { get; set; }
+            public string ProductoCodigo { get; set; } = "";
+            public string ProductoNombre { get; set; } = "";
+            public string Master { get; set; } = "";
+            public int PriceListNum { get; set; }
+            public string PriceListName { get; set; } = "";
+            public decimal? PrecioAnterior { get; set; }
+            public decimal? PrecioNuevo { get; set; }
+            public decimal Diferencia { get; set; }
+            public decimal? VariacionPct { get; set; }
+            public DateTime? FechaPrecioAnterior { get; set; }
+            public DateTime? FechaGuardado { get; set; }
+            public DateTime? FechaCorte { get; set; }
+            public DateTime? FechaUso { get; set; }
+            public string Usuario { get; set; } = "";
+            public string Accion { get; set; } = "";
+            public long ClientesAfectados { get; set; }
+        }
+
+        private sealed class HistoricoPrecioExcelDetalleDto
+        {
+            public long MaxId { get; set; }
+            public Guid? LoteId { get; set; }
+            public string ProductoCodigo { get; set; } = "";
+            public string ProductoNombre { get; set; } = "";
+            public string Master { get; set; } = "";
+            public int PriceListNum { get; set; }
+            public string PriceListName { get; set; } = "";
+            public string Cliente { get; set; } = "";
+            public string ClienteNombre { get; set; } = "";
+            public decimal? PrecioAnterior { get; set; }
+            public decimal? PrecioNuevo { get; set; }
+            public decimal Diferencia { get; set; }
+            public decimal? VariacionPct { get; set; }
+            public DateTime? FechaPrecioAnterior { get; set; }
+            public DateTime? FechaGuardado { get; set; }
+            public DateTime? FechaCorte { get; set; }
+            public DateTime? FechaUso { get; set; }
+            public string Usuario { get; set; } = "";
+            public string Accion { get; set; } = "";
+        }
+
+        [Authorize]
+        [HttpGet("Comercial/ExportarHistoricoCatalogoPreciosExcel")]
+        public async Task<IActionResult> ExportarHistoricoCatalogoPreciosExcel(
+            string search = "",
+            string sku = "",
+            string cliente = "",
+            string accion = "CAMBIOS",
+            string usuario = "",
+            int? priceListNum = null,
+            DateTime? fechaDesde = null,
+            DateTime? fechaHasta = null,
+            Guid? loteId = null,
+            CancellationToken ct = default)
+        {
+            try
+            {
+                search = (search ?? "").Trim();
+                sku = (sku ?? "").Trim();
+                cliente = (cliente ?? "").Trim();
+                accion = (accion ?? "").Trim().ToUpperInvariant();
+                usuario = (usuario ?? "").Trim();
+
+                var fechaDesdeNormalizada = fechaDesde?.Date;
+                var fechaHastaExclusiva = fechaHasta?.Date.AddDays(1);
+
+                var filtros = new List<string> { "1 = 1" };
+                var parametros = new DynamicParameters();
+
+                if (!string.IsNullOrWhiteSpace(search))
+                {
+                    var filtroSearch = @"
+(
+       h.ProductoCodigo LIKE @SearchLike
+    OR h.ProductoNombre LIKE @SearchLike
+    OR h.Master LIKE @SearchLike
+    OR h.Cliente LIKE @SearchLike
+    OR h.PriceListName LIKE @SearchLike
+    OR h.Usuario LIKE @SearchLike
+    OR EXISTS
+      (
+          SELECT 1
+          FROM dbo.ClienteSap cs
+          WHERE cs.Cliente = h.Cliente
+            AND cs.Nombrecliente LIKE @SearchLike
+      )";
+
+                    if (Guid.TryParse(search, out var loteBuscado))
+                    {
+                        filtroSearch += "\n    OR h.LoteId = @SearchLote";
+                        parametros.Add("SearchLote", loteBuscado);
+                    }
+
+                    filtroSearch += "\n)";
+                    filtros.Add(filtroSearch);
+                    parametros.Add("SearchLike", "%" + search + "%");
+                }
+
+                if (!string.IsNullOrWhiteSpace(sku))
+                {
+                    filtros.Add("h.ProductoCodigo LIKE @SkuPrefix");
+                    parametros.Add("SkuPrefix", sku + "%");
+                }
+
+                if (!string.IsNullOrWhiteSpace(cliente))
+                {
+                    filtros.Add(@"
+(
+       h.Cliente LIKE @ClientePrefix
+    OR EXISTS
+      (
+          SELECT 1
+          FROM dbo.ClienteSap cs
+          WHERE cs.Cliente = h.Cliente
+            AND cs.Nombrecliente LIKE @ClienteLike
+      )
+)");
+                    parametros.Add("ClientePrefix", cliente + "%");
+                    parametros.Add("ClienteLike", "%" + cliente + "%");
+                }
+
+                if (accion == "CAMBIOS")
+                {
+                    filtros.Add("h.Accion IN ('INSERT', 'UPDATE')");
+                }
+                else if (!string.IsNullOrWhiteSpace(accion))
+                {
+                    filtros.Add("h.Accion = @Accion");
+                    parametros.Add("Accion", accion);
+                }
+
+                if (!string.IsNullOrWhiteSpace(usuario))
+                {
+                    filtros.Add("h.Usuario LIKE @UsuarioPrefix");
+                    parametros.Add("UsuarioPrefix", usuario + "%");
+                }
+
+                if (priceListNum.HasValue)
+                {
+                    filtros.Add("h.PriceListNum = @PriceListNum");
+                    parametros.Add("PriceListNum", priceListNum.Value);
+                }
+
+                if (fechaDesdeNormalizada.HasValue)
+                {
+                    filtros.Add("h.FechaGuardado >= @FechaDesde");
+                    parametros.Add("FechaDesde", fechaDesdeNormalizada.Value);
+                }
+
+                if (fechaHastaExclusiva.HasValue)
+                {
+                    filtros.Add("h.FechaGuardado < @FechaHastaExclusiva");
+                    parametros.Add("FechaHastaExclusiva", fechaHastaExclusiva.Value);
+                }
+
+                if (loteId.HasValue)
+                {
+                    filtros.Add("h.LoteId = @LoteId");
+                    parametros.Add("LoteId", loteId.Value);
+                }
+
+                var whereSql = string.Join("\nAND ", filtros);
+
+                var sql = $@"
+SET NOCOUNT ON;
+
+-- Una fila por cliente afectado dentro de cada cambio.
+SELECT
+    MaxId = MAX(h.Id),
+    h.LoteId,
+    h.ProductoCodigo,
+    ProductoNombre = MAX(ISNULL(h.ProductoNombre, '')),
+    Master = MAX(ISNULL(h.Master, '')),
+    h.PriceListNum,
+    PriceListName = MAX(ISNULL(h.PriceListName, '')),
+    Cliente = ISNULL(NULLIF(LTRIM(RTRIM(h.Cliente)), ''), ''),
+    ClienteNombre = MAX(ISNULL(c.Nombrecliente, '')),
+    h.PrecioAnterior,
+    h.PrecioNuevo,
+    Diferencia = CAST(
+        ISNULL(h.PrecioNuevo, 0) - ISNULL(h.PrecioAnterior, 0)
+        AS DECIMAL(18, 4)
+    ),
+    VariacionPct = CAST(
+        CASE
+            WHEN NULLIF(h.PrecioAnterior, 0) IS NULL THEN NULL
+            ELSE
+                ((h.PrecioNuevo - h.PrecioAnterior)
+                 / NULLIF(h.PrecioAnterior, 0)) * 100
+        END
+        AS DECIMAL(18, 2)
+    ),
+    FechaPrecioAnterior = MAX(h.FechaPrecioAnterior),
+    FechaGuardado = MAX(h.FechaGuardado),
+    FechaCorte = MAX(h.FechaCorte),
+    FechaUso = MAX(h.FechaUso),
+    Usuario = MAX(ISNULL(h.Usuario, '')),
+    h.Accion
+INTO #DetalleHistorico
+FROM dbo.CatalogoPrecioSapHistorico h
+OUTER APPLY
+(
+    SELECT TOP (1)
+        cs.Nombrecliente
+    FROM dbo.ClienteSap cs
+    WHERE cs.Cliente = h.Cliente
+    ORDER BY cs.Nombrecliente
+) c
+WHERE {whereSql}
+GROUP BY
+    h.LoteId,
+    h.ProductoCodigo,
+    h.PriceListNum,
+    ISNULL(NULLIF(LTRIM(RTRIM(h.Cliente)), ''), ''),
+    h.PrecioAnterior,
+    h.PrecioNuevo,
+    h.Accion
+OPTION (RECOMPILE);
+
+-- Una fila por SKU + lista + lote + cambio de precio, igual que la pantalla.
+SELECT
+    MaxId = MAX(MaxId),
+    LoteId,
+    ProductoCodigo,
+    ProductoNombre = MAX(ProductoNombre),
+    Master = MAX(Master),
+    PriceListNum,
+    PriceListName = MAX(PriceListName),
+    PrecioAnterior,
+    PrecioNuevo,
+    Diferencia = MAX(Diferencia),
+    VariacionPct = MAX(VariacionPct),
+    FechaPrecioAnterior = MAX(FechaPrecioAnterior),
+    FechaGuardado = MAX(FechaGuardado),
+    FechaCorte = MAX(FechaCorte),
+    FechaUso = MAX(FechaUso),
+    Usuario = MAX(Usuario),
+    Accion,
+    ClientesAfectados = COUNT(DISTINCT NULLIF(Cliente, ''))
+INTO #ResumenHistorico
+FROM #DetalleHistorico
+GROUP BY
+    LoteId,
+    ProductoCodigo,
+    PriceListNum,
+    PrecioAnterior,
+    PrecioNuevo,
+    Accion;
+
+SELECT
+    Total = COUNT_BIG(1),
+    ImpactosClientes = ISNULL(SUM(CONVERT(BIGINT, ClientesAfectados)), 0),
+    Insertados = ISNULL(SUM(CASE WHEN Accion = 'INSERT' THEN 1 ELSE 0 END), 0),
+    Actualizados = ISNULL(SUM(CASE WHEN Accion = 'UPDATE' THEN 1 ELSE 0 END), 0),
+    SinCambio = ISNULL(SUM(CASE WHEN Accion = 'SIN_CAMBIO' THEN 1 ELSE 0 END), 0),
+    Subidas = ISNULL(SUM(CASE WHEN PrecioAnterior IS NOT NULL AND PrecioNuevo > PrecioAnterior THEN 1 ELSE 0 END), 0),
+    Bajadas = ISNULL(SUM(CASE WHEN PrecioAnterior IS NOT NULL AND PrecioNuevo < PrecioAnterior THEN 1 ELSE 0 END), 0)
+FROM #ResumenHistorico;
+
+SELECT
+    MaxId,
+    LoteId,
+    ProductoCodigo,
+    ProductoNombre,
+    Master,
+    PriceListNum,
+    PriceListName,
+    PrecioAnterior,
+    PrecioNuevo,
+    Diferencia,
+    VariacionPct,
+    FechaPrecioAnterior,
+    FechaGuardado,
+    FechaCorte,
+    FechaUso,
+    Usuario,
+    Accion,
+    ClientesAfectados
+FROM #ResumenHistorico
+ORDER BY FechaGuardado DESC, MaxId DESC;
+
+SELECT
+    MaxId,
+    LoteId,
+    ProductoCodigo,
+    ProductoNombre,
+    Master,
+    PriceListNum,
+    PriceListName,
+    Cliente,
+    ClienteNombre,
+    PrecioAnterior,
+    PrecioNuevo,
+    Diferencia,
+    VariacionPct,
+    FechaPrecioAnterior,
+    FechaGuardado,
+    FechaCorte,
+    FechaUso,
+    Usuario,
+    Accion
+FROM #DetalleHistorico
+ORDER BY FechaGuardado DESC, MaxId DESC, ProductoCodigo, Cliente;";
+
+                await using var cn = new SqlConnection(
+                    _configuration.GetConnectionString("DefaultConnection")
+                );
+
+                await cn.OpenAsync(ct);
+
+                using var multi = await cn.QueryMultipleAsync(
+                    new CommandDefinition(
+                        sql,
+                        parametros,
+                        commandTimeout: 180,
+                        cancellationToken: ct
+                    )
+                );
+
+                var kpi = await multi.ReadFirstAsync<HistoricoPrecioExcelKpiDto>();
+                var cambios = (await multi.ReadAsync<HistoricoPrecioExcelResumenDto>()).ToList();
+                var detalle = (await multi.ReadAsync<HistoricoPrecioExcelDetalleDto>()).ToList();
+
+                // Excel admite un máximo de 1,048,576 filas por hoja.
+                if (detalle.Count > 1_048_000)
+                {
+                    return BadRequest(new
+                    {
+                        error = "La exportación supera el límite de filas de Excel.",
+                        detalle = "Reduce el rango de fechas o aplica filtros por SKU, cliente o lista."
+                    });
+                }
+
+                using var workbook = new XLWorkbook();
+                var colorVino = XLColor.FromHtml("#8B0000");
+                var colorVinoClaro = XLColor.FromHtml("#F4E4E4");
+                var colorVerdeClaro = XLColor.FromHtml("#E2F0D9");
+                var colorRojoClaro = XLColor.FromHtml("#FCE4D6");
+
+                static void AplicarBordes(IXLRange rango)
+                {
+                    rango.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                    rango.Style.Border.InsideBorder = XLBorderStyleValues.Hair;
+                    rango.Style.Border.OutsideBorderColor = XLColor.LightGray;
+                    rango.Style.Border.InsideBorderColor = XLColor.LightGray;
+                }
+
+                void AplicarEncabezado(IXLWorksheet hoja, int fila, int columnas)
+                {
+                    var rango = hoja.Range(fila, 1, fila, columnas);
+                    rango.Style.Font.Bold = true;
+                    rango.Style.Font.FontColor = XLColor.White;
+                    rango.Style.Fill.BackgroundColor = colorVino;
+                    rango.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                    rango.Style.Alignment.WrapText = true;
+                    hoja.Row(fila).Height = 28;
+                }
+
+                static void LimitarAnchos(IXLWorksheet hoja, double maximo = 45)
+                {
+                    hoja.ColumnsUsed().AdjustToContents();
+                    foreach (var columna in hoja.ColumnsUsed())
+                    {
+                        if (columna.Width > maximo)
+                            columna.Width = maximo;
+                    }
+                }
+
+                // ----------------------------------------------------
+                // HOJA 1: RESUMEN DE LA EXPORTACIÓN
+                // ----------------------------------------------------
+                var wsResumen = workbook.Worksheets.Add("Resumen");
+                wsResumen.Range("A1:G1").Merge();
+                wsResumen.Cell("A1").Value = "HISTÓRICO Y AUDITORÍA DE PRECIOS";
+                wsResumen.Cell("A1").Style.Font.Bold = true;
+                wsResumen.Cell("A1").Style.Font.FontSize = 16;
+                wsResumen.Cell("A1").Style.Font.FontColor = XLColor.White;
+                wsResumen.Cell("A1").Style.Fill.BackgroundColor = colorVino;
+                wsResumen.Cell("A1").Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                wsResumen.Row(1).Height = 28;
+
+                wsResumen.Cell("A3").Value = "Generado por";
+                wsResumen.Cell("B3").Value = User?.Identity?.Name ?? "Usuario no identificado";
+                wsResumen.Cell("A4").Value = "Fecha de exportación";
+                wsResumen.Cell("B4").Value = DateTime.Now;
+                wsResumen.Cell("B4").Style.DateFormat.Format = "dd/MM/yyyy HH:mm:ss";
+
+                wsResumen.Cell("A6").Value = "FILTROS APLICADOS";
+                wsResumen.Range("A6:B6").Merge();
+                wsResumen.Range("A6:B6").Style.Font.Bold = true;
+                wsResumen.Range("A6:B6").Style.Font.FontColor = XLColor.White;
+                wsResumen.Range("A6:B6").Style.Fill.BackgroundColor = colorVino;
+
+                var filtrosExcel = new (string Campo, string Valor)[]
+                {
+                    ("SKU", string.IsNullOrWhiteSpace(sku) ? "Todos" : sku),
+                    ("Cliente", string.IsNullOrWhiteSpace(cliente) ? "Todos" : cliente),
+                    ("Búsqueda general", string.IsNullOrWhiteSpace(search) ? "Sin filtro" : search),
+                    ("Acción", string.IsNullOrWhiteSpace(accion) ? "Todas" : accion),
+                    ("Usuario", string.IsNullOrWhiteSpace(usuario) ? "Todos" : usuario),
+                    ("Id lista", priceListNum?.ToString() ?? "Todas"),
+                    ("Desde", fechaDesde?.ToString("dd/MM/yyyy") ?? "Sin límite"),
+                    ("Hasta", fechaHasta?.ToString("dd/MM/yyyy") ?? "Sin límite"),
+                    ("Lote", loteId?.ToString() ?? "Todos")
+                };
+
+                var filaFiltro = 7;
+                foreach (var filtro in filtrosExcel)
+                {
+                    wsResumen.Cell(filaFiltro, 1).Value = filtro.Campo;
+                    wsResumen.Cell(filaFiltro, 2).Value = filtro.Valor;
+                    wsResumen.Cell(filaFiltro, 1).Style.Font.Bold = true;
+                    wsResumen.Cell(filaFiltro, 1).Style.Fill.BackgroundColor = colorVinoClaro;
+                    filaFiltro++;
+                }
+                AplicarBordes(wsResumen.Range(7, 1, filaFiltro - 1, 2));
+
+                var filaKpi = filaFiltro + 2;
+                var titulosKpi = new[]
+                {
+                    "Cambios de SKU",
+                    "Impactos cliente-SKU",
+                    "Insertados",
+                    "Actualizados",
+                    "Sin cambio",
+                    "Aumentos",
+                    "Reducciones"
+                };
+                var valoresKpi = new long[]
+                {
+                    kpi.Total,
+                    kpi.ImpactosClientes,
+                    kpi.Insertados,
+                    kpi.Actualizados,
+                    kpi.SinCambio,
+                    kpi.Subidas,
+                    kpi.Bajadas
+                };
+
+                for (var col = 1; col <= titulosKpi.Length; col++)
+                {
+                    wsResumen.Cell(filaKpi, col).Value = titulosKpi[col - 1];
+                    wsResumen.Cell(filaKpi + 1, col).Value = valoresKpi[col - 1];
+                    wsResumen.Cell(filaKpi + 1, col).Style.Font.Bold = true;
+                    wsResumen.Cell(filaKpi + 1, col).Style.Font.FontSize = 14;
+                    wsResumen.Cell(filaKpi + 1, col).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                }
+                AplicarEncabezado(wsResumen, filaKpi, 7);
+                AplicarBordes(wsResumen.Range(filaKpi, 1, filaKpi + 1, 7));
+                LimitarAnchos(wsResumen, 30);
+                wsResumen.Column(2).Width = 38;
+
+                // ----------------------------------------------------
+                // HOJA 2: CAMBIOS RESUMIDOS POR SKU
+                // ----------------------------------------------------
+                var wsCambios = workbook.Worksheets.Add("Cambios SKU");
+                var encabezadosCambios = new[]
+                {
+                    "Fecha actualización", "Acción", "SKU", "Producto", "Master",
+                    "Id lista", "Lista", "Precio anterior", "Precio nuevo", "Diferencia",
+                    "Variación", "Fecha precio anterior", "Fecha corte", "Fecha uso",
+                    "Usuario", "Clientes afectados", "Lote"
+                };
+
+                for (var col = 1; col <= encabezadosCambios.Length; col++)
+                    wsCambios.Cell(1, col).Value = encabezadosCambios[col - 1];
+
+                AplicarEncabezado(wsCambios, 1, encabezadosCambios.Length);
+
+                var fila = 2;
+                foreach (var x in cambios)
+                {
+                    if (x.FechaGuardado.HasValue) wsCambios.Cell(fila, 1).Value = x.FechaGuardado.Value;
+                    wsCambios.Cell(fila, 2).Value = x.Accion;
+                    wsCambios.Cell(fila, 3).Value = x.ProductoCodigo;
+                    wsCambios.Cell(fila, 4).Value = x.ProductoNombre;
+                    wsCambios.Cell(fila, 5).Value = x.Master;
+                    wsCambios.Cell(fila, 6).Value = x.PriceListNum;
+                    wsCambios.Cell(fila, 7).Value = x.PriceListName;
+                    if (x.PrecioAnterior.HasValue) wsCambios.Cell(fila, 8).Value = x.PrecioAnterior.Value;
+                    if (x.PrecioNuevo.HasValue) wsCambios.Cell(fila, 9).Value = x.PrecioNuevo.Value;
+                    wsCambios.Cell(fila, 10).Value = x.Diferencia;
+                    if (x.VariacionPct.HasValue) wsCambios.Cell(fila, 11).Value = x.VariacionPct.Value / 100m;
+                    if (x.FechaPrecioAnterior.HasValue) wsCambios.Cell(fila, 12).Value = x.FechaPrecioAnterior.Value;
+                    if (x.FechaCorte.HasValue) wsCambios.Cell(fila, 13).Value = x.FechaCorte.Value;
+                    if (x.FechaUso.HasValue) wsCambios.Cell(fila, 14).Value = x.FechaUso.Value;
+                    wsCambios.Cell(fila, 15).Value = x.Usuario;
+                    wsCambios.Cell(fila, 16).Value = x.ClientesAfectados;
+                    wsCambios.Cell(fila, 17).Value = x.LoteId?.ToString() ?? "";
+
+                    if (x.Diferencia > 0)
+                        wsCambios.Range(fila, 10, fila, 11).Style.Fill.BackgroundColor = colorVerdeClaro;
+                    else if (x.Diferencia < 0)
+                        wsCambios.Range(fila, 10, fila, 11).Style.Fill.BackgroundColor = colorRojoClaro;
+
+                    fila++;
+                }
+
+                var ultimaFilaCambios = Math.Max(1, fila - 1);
+                wsCambios.Range(1, 1, ultimaFilaCambios, encabezadosCambios.Length).SetAutoFilter();
+                AplicarBordes(wsCambios.Range(1, 1, ultimaFilaCambios, encabezadosCambios.Length));
+                wsCambios.SheetView.FreezeRows(1);
+                wsCambios.Column(1).Style.DateFormat.Format = "dd/MM/yyyy HH:mm:ss";
+                wsCambios.Columns(8, 10).Style.NumberFormat.Format = "$#,##0.0000";
+                wsCambios.Column(11).Style.NumberFormat.Format = "0.00%";
+                wsCambios.Column(12).Style.DateFormat.Format = "dd/MM/yyyy HH:mm:ss";
+                wsCambios.Columns(13, 14).Style.DateFormat.Format = "dd/MM/yyyy";
+                wsCambios.Columns(4, 7).Style.Alignment.WrapText = true;
+                LimitarAnchos(wsCambios);
+
+                // ----------------------------------------------------
+                // HOJA 3: DETALLE DE CADA CLIENTE AFECTADO
+                // ----------------------------------------------------
+                var wsDetalle = workbook.Worksheets.Add("Detalle cliente-SKU");
+                var encabezadosDetalle = new[]
+                {
+                    "Fecha actualización", "Acción", "SKU", "Producto", "Master",
+                    "Id lista", "Lista", "Cliente", "Nombre cliente", "Precio anterior",
+                    "Precio nuevo", "Diferencia", "Variación", "Fecha precio anterior",
+                    "Fecha corte", "Fecha uso", "Usuario", "Lote"
+                };
+
+                for (var col = 1; col <= encabezadosDetalle.Length; col++)
+                    wsDetalle.Cell(1, col).Value = encabezadosDetalle[col - 1];
+
+                AplicarEncabezado(wsDetalle, 1, encabezadosDetalle.Length);
+
+                fila = 2;
+                foreach (var x in detalle)
+                {
+                    if (x.FechaGuardado.HasValue) wsDetalle.Cell(fila, 1).Value = x.FechaGuardado.Value;
+                    wsDetalle.Cell(fila, 2).Value = x.Accion;
+                    wsDetalle.Cell(fila, 3).Value = x.ProductoCodigo;
+                    wsDetalle.Cell(fila, 4).Value = x.ProductoNombre;
+                    wsDetalle.Cell(fila, 5).Value = x.Master;
+                    wsDetalle.Cell(fila, 6).Value = x.PriceListNum;
+                    wsDetalle.Cell(fila, 7).Value = x.PriceListName;
+                    wsDetalle.Cell(fila, 8).Value = x.Cliente;
+                    wsDetalle.Cell(fila, 9).Value = x.ClienteNombre;
+                    if (x.PrecioAnterior.HasValue) wsDetalle.Cell(fila, 10).Value = x.PrecioAnterior.Value;
+                    if (x.PrecioNuevo.HasValue) wsDetalle.Cell(fila, 11).Value = x.PrecioNuevo.Value;
+                    wsDetalle.Cell(fila, 12).Value = x.Diferencia;
+                    if (x.VariacionPct.HasValue) wsDetalle.Cell(fila, 13).Value = x.VariacionPct.Value / 100m;
+                    if (x.FechaPrecioAnterior.HasValue) wsDetalle.Cell(fila, 14).Value = x.FechaPrecioAnterior.Value;
+                    if (x.FechaCorte.HasValue) wsDetalle.Cell(fila, 15).Value = x.FechaCorte.Value;
+                    if (x.FechaUso.HasValue) wsDetalle.Cell(fila, 16).Value = x.FechaUso.Value;
+                    wsDetalle.Cell(fila, 17).Value = x.Usuario;
+                    wsDetalle.Cell(fila, 18).Value = x.LoteId?.ToString() ?? "";
+
+                    if (x.Diferencia > 0)
+                        wsDetalle.Range(fila, 12, fila, 13).Style.Fill.BackgroundColor = colorVerdeClaro;
+                    else if (x.Diferencia < 0)
+                        wsDetalle.Range(fila, 12, fila, 13).Style.Fill.BackgroundColor = colorRojoClaro;
+
+                    fila++;
+                }
+
+                var ultimaFilaDetalle = Math.Max(1, fila - 1);
+                wsDetalle.Range(1, 1, ultimaFilaDetalle, encabezadosDetalle.Length).SetAutoFilter();
+                AplicarBordes(wsDetalle.Range(1, 1, ultimaFilaDetalle, encabezadosDetalle.Length));
+                wsDetalle.SheetView.FreezeRows(1);
+                wsDetalle.Column(1).Style.DateFormat.Format = "dd/MM/yyyy HH:mm:ss";
+                wsDetalle.Columns(10, 12).Style.NumberFormat.Format = "$#,##0.0000";
+                wsDetalle.Column(13).Style.NumberFormat.Format = "0.00%";
+                wsDetalle.Column(14).Style.DateFormat.Format = "dd/MM/yyyy HH:mm:ss";
+                wsDetalle.Columns(15, 16).Style.DateFormat.Format = "dd/MM/yyyy";
+                wsDetalle.Columns(4, 7).Style.Alignment.WrapText = true;
+                wsDetalle.Column(9).Style.Alignment.WrapText = true;
+                LimitarAnchos(wsDetalle);
+
+                workbook.Properties.Title = "Histórico y auditoría de precios";
+                workbook.Properties.Subject = "Exportación de cambios de precio y clientes afectados";
+                workbook.Properties.Author = User?.Identity?.Name ?? "Plataforma CG";
+
+                using var stream = new MemoryStream();
+                workbook.SaveAs(stream);
+
+                var nombreArchivo = $"Auditoria_Precios_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+
+                _logger.LogInformation(
+                    "Usuario {Usuario} exportó auditoría de precios. Cambios={Cambios}, Detalle={Detalle}, Desde={Desde}, Hasta={Hasta}.",
+                    User?.Identity?.Name,
+                    cambios.Count,
+                    detalle.Count,
+                    fechaDesde,
+                    fechaHasta
+                );
+
+                return File(
+                    stream.ToArray(),
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    nombreArchivo
+                );
+            }
+            catch (OperationCanceledException)
+            {
+                return StatusCode(499, new
+                {
+                    error = "La exportación del histórico fue cancelada."
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al exportar el histórico de precios a Excel.");
+
+                return StatusCode(500, new
+                {
+                    error = "No se pudo generar el archivo Excel de auditoría.",
+                    detalle = ex.Message
+                });
+            }
+        }
+
+
+        // ============================================================
+        // CLIENTES AFECTADOS POR UN CAMBIO ESPECÍFICO
+        // Solo se ejecuta cuando el usuario abre el detalle de una fila.
+        // ============================================================
+        [Authorize]
+        [HttpGet("Comercial/ObtenerClientesAfectadosHistoricoPrecios")]
+        public async Task<IActionResult> ObtenerClientesAfectadosHistoricoPrecios(
+            Guid loteId,
+            string sku,
+            int priceListNum,
+            string accion,
+            decimal? precioAnterior,
+            decimal? precioNuevo,
+            CancellationToken ct = default)
+        {
+            try
+            {
+                sku = (sku ?? "").Trim();
+                accion = (accion ?? "").Trim().ToUpperInvariant();
+
+                if (loteId == Guid.Empty)
+                    return BadRequest(new { error = "El lote es obligatorio." });
+
+                if (string.IsNullOrWhiteSpace(sku))
+                    return BadRequest(new { error = "El SKU es obligatorio." });
+
+                const string sql = @"
+SELECT DISTINCT
+    Cliente = LTRIM(RTRIM(h.Cliente)),
+    ClienteNombre = ISNULL(c.Nombrecliente, '')
+FROM dbo.CatalogoPrecioSapHistorico h
+OUTER APPLY
+(
+    SELECT TOP (1)
+        cs.Nombrecliente
+    FROM dbo.ClienteSap cs
+    WHERE cs.Cliente = h.Cliente
+    ORDER BY cs.Nombrecliente
+) c
+WHERE h.LoteId = @LoteId
+  AND h.ProductoCodigo = @Sku
+  AND h.PriceListNum = @PriceListNum
+  AND h.Accion = @Accion
+  AND
+  (
+      (@PrecioAnterior IS NULL AND h.PrecioAnterior IS NULL)
+      OR h.PrecioAnterior = @PrecioAnterior
+  )
+  AND
+  (
+      (@PrecioNuevo IS NULL AND h.PrecioNuevo IS NULL)
+      OR h.PrecioNuevo = @PrecioNuevo
+  )
+  AND NULLIF(LTRIM(RTRIM(h.Cliente)), '') IS NOT NULL
+ORDER BY Cliente;
+";
+
+                await using var cn = new SqlConnection(
+                    _configuration.GetConnectionString("DefaultConnection")
+                );
+
+                await cn.OpenAsync(ct);
+
+                var clientes = (await cn.QueryAsync(
+                    new CommandDefinition(
+                        sql,
+                        new
+                        {
+                            LoteId = loteId,
+                            Sku = sku,
+                            PriceListNum = priceListNum,
+                            Accion = accion,
+                            PrecioAnterior = precioAnterior,
+                            PrecioNuevo = precioNuevo
+                        },
+                        commandTimeout: 60,
+                        cancellationToken: ct
+                    )
+                )).ToList();
+
+                return Json(new
+                {
+                    total = clientes.Count,
+                    clientes
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                return StatusCode(499, new
+                {
+                    error = "La consulta de clientes fue cancelada."
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error al consultar clientes afectados del lote {LoteId}, SKU {Sku}.",
+                    loteId,
+                    sku
+                );
+
+                return StatusCode(500, new
+                {
+                    error = "No se pudieron consultar los clientes afectados.",
+                    detalle = ex.Message
+                });
+            }
+        }
+
         //======================================
         // REPORTE DE PRESUPUESTO POR MES
         //======================================
@@ -10437,7 +11466,7 @@ OPTION (RECOMPILE);";
           UPDATE ordenventa
              SET Estatus = 5
            WHERE Id = @p0
-             AND Estatus <> 5
+             AND Estatus NOT IN (5, 6)
              AND NOT EXISTS (
                   SELECT 1
                     FROM subpedido s
@@ -11279,7 +12308,7 @@ FROM dbo.OrdenVenta o
 INNER JOIN dbo.Series ser
     ON o.Serie = ser.NombreSerie
 WHERE o.FechaEntrega IS NOT NULL
-  AND o.Estatus BETWEEN 1 AND 5
+  AND o.Estatus BETWEEN 1 AND 6
   AND ser.Sucursal = 'MATRIZ';
 
 CREATE CLUSTERED INDEX IX_tmp_ov
@@ -11346,7 +12375,7 @@ SELECT
     KgPendiente =
         CAST(
             CASE
-                WHEN ov.Estatus = 5 AND os.Id IS NOT NULL THEN 0
+                WHEN ov.Estatus IN (5, 6) AND os.Id IS NOT NULL THEN 0
                 ELSE CASE
                     WHEN (p.KgPedido - ISNULL(sa.KgSurtido, 0)) < 0 THEN 0
                     ELSE (p.KgPedido - ISNULL(sa.KgSurtido, 0))
@@ -14240,7 +15269,7 @@ ov AS (
     FROM dbo.OrdenVenta o
     INNER JOIN dbo.Series ser ON o.Serie = ser.NombreSerie
     WHERE o.FechaEntrega IS NOT NULL
-      AND o.Estatus BETWEEN 1 AND 5
+      AND o.Estatus BETWEEN 1 AND 6
       AND ser.Sucursal = 'MATRIZ'
       AND TRY_CONVERT(date, o.FechaEntrega) >= @Desde
       AND TRY_CONVERT(date, o.FechaEntrega) <  @Hasta
@@ -14285,7 +15314,7 @@ ov_pendiente_sku AS (
         KgPendiente =
             CAST(
                 CASE
-                    WHEN ov.Estatus = 5 AND os.Id IS NOT NULL THEN 0
+                    WHEN ov.Estatus IN (5, 6) AND os.Id IS NOT NULL THEN 0
                     ELSE
                         CASE
                             WHEN (p.KgPedido - ISNULL(sa.KgSurtido,0)) < 0 THEN 0
@@ -16234,7 +17263,7 @@ PedidosOV AS (
         KgPendiente = SUM(
             CAST(
                 CASE
-                    WHEN o.Estatus = 5 AND os.Id IS NOT NULL THEN 0
+                    WHEN o.Estatus IN (5, 6) AND os.Id IS NOT NULL THEN 0
                     ELSE CASE
                         WHEN (CAST(op.Peso AS DECIMAL(18,4)) - ISNULL(sa.KgSurtido, 0)) < 0 THEN 0
                         ELSE (CAST(op.Peso AS DECIMAL(18,4)) - ISNULL(sa.KgSurtido, 0))
@@ -16277,7 +17306,7 @@ PedidosOV AS (
        AND sa.SKU = UPPER(LTRIM(RTRIM(op.ProductoCodigo)))
     WHERE o.FechaEntrega IS NOT NULL
       AND TRY_CONVERT(DATE, o.FechaEntrega) >= @FechaCorte
-      AND o.Estatus BETWEEN 1 AND 5
+      AND o.Estatus BETWEEN 1 AND 6
       AND ser.Sucursal = ''MATRIZ''
     GROUP BY
         UPPER(LTRIM(RTRIM(op.ProductoCodigo)))
@@ -19042,7 +20071,7 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
                ("planeacion", "SOLICITUD_MUESTRAS_PLANEACION"),
                ("produccion", "SOLICITUD_MUESTRAS_PRODUCCION"),
                ("tracking",   "SOLICITUD_MUESTRAS_TRACKING"),
-               ("prod_linea", "SOLICITUD_MUESTRAS_PROD_LINEA"), 
+               ("prod_linea", "SOLICITUD_MUESTRAS_PROD_LINEA"),
                ("prod_nuevo", "SOLICITUD_MUESTRAS_PROD_NUEVO")
             };
 
@@ -19781,7 +20810,7 @@ ORDER BY s.CreatedAt DESC";
                 var sqlSigo = "SELECT ProductoCodigo AS Sku, U_MASTER AS CategoriaMaster FROM ArticuloSap";
                 var articulosSap = await connSigo.QueryAsync(sqlSigo);
 
-                    var listaFinal = precios.Select(p => {
+                var listaFinal = precios.Select(p => {
                     var sapData = articulosSap.FirstOrDefault(s => s.Sku == p.Sku);
                     return new
                     {
@@ -22087,6 +23116,1243 @@ WHERE rn = 1;";
                 stream.ToArray(),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 $"Catalogo_Proveedores_SAP_{DateTime.Now:yyyy-MM-dd}.xlsx");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ActualizarObservacionOV(
+    int ordenVentaId,
+    string? observacion)
+        {
+            if (ordenVentaId <= 0)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    msg = "La orden de venta no es válida."
+                });
+            }
+
+            observacion = (observacion ?? string.Empty).Trim();
+
+            if (observacion.Length > 500)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    msg = "La observación no puede superar 500 caracteres."
+                });
+            }
+
+            try
+            {
+                string connectionString =
+                    _configuration.GetConnectionString("DefaultConnection")
+                    ?? throw new InvalidOperationException(
+                        "No se encontró la cadena de conexión."
+                    );
+
+                await using SqlConnection connection =
+                    new(connectionString);
+
+                await connection.OpenAsync();
+
+                const string sql = """
+            UPDATE OrdenVenta
+            SET
+                Observacion = @Observacion
+            WHERE Id = @OrdenVentaId;
+            """;
+
+                await using SqlCommand command =
+                    new(sql, connection);
+
+                command.Parameters.Add(
+                    "@OrdenVentaId",
+                    SqlDbType.Int
+                ).Value = ordenVentaId;
+
+                command.Parameters.Add(
+                    "@Observacion",
+                    SqlDbType.NVarChar,
+                    500
+                ).Value = string.IsNullOrWhiteSpace(observacion)
+                    ? DBNull.Value
+                    : observacion;
+
+                int registrosActualizados =
+                    await command.ExecuteNonQueryAsync();
+
+                if (registrosActualizados == 0)
+                {
+                    return NotFound(new
+                    {
+                        ok = false,
+                        msg = "No se encontró la orden de venta."
+                    });
+                }
+
+                return Json(new
+                {
+                    ok = true,
+                    observacion
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = "Ocurrió un error al actualizar la observación.",
+                    detalle = ex.Message
+                });
+            }
+        }
+
+        private async Task<OrdenVentaDocumentoViewModel?>
+    ObtenerDocumentoOrdenAsync(
+        int id,
+        CancellationToken ct = default)
+        {
+            var orden = await _context.OrdenVenta
+                .AsNoTracking()
+                .Include(x => x.Productos)
+                .FirstOrDefaultAsync(x => x.Id == id, ct);
+
+            if (orden == null)
+            {
+                return null;
+            }
+
+            string clienteNombre = await _context.ClienteSap
+                .AsNoTracking()
+                .Where(x => x.Cliente == orden.Cliente)
+                .Select(x => x.Nombrecliente)
+                .FirstOrDefaultAsync(ct)
+                ?? string.Empty;
+
+            var lineas = orden.Productos
+                .Where(x => x.Eliminado != true)
+                .OrderBy(x => x.Id)
+                .Select((x, index) =>
+                    new OrdenVentaDocumentoLineaViewModel
+                    {
+                        Numero = index + 1,
+                        ProductoCodigo =
+                            x.ProductoCodigo ?? string.Empty,
+
+                        ProductoNombre =
+                            x.ProductoNombre ?? string.Empty,
+
+                        Cajas = Convert.ToDecimal(x.Cajas),
+
+                        Peso = Convert.ToDecimal(x.Peso),
+
+                        Precio = Convert.ToDecimal(x.Precio)
+                    })
+                .ToList();
+
+            return new OrdenVentaDocumentoViewModel
+            {
+                Id = orden.Id,
+                Consecutivo = orden.Consecutivo ?? string.Empty,
+                FechaRegistro = orden.FechaRegistro ?? DateTime.Now,
+                FechaEntrega = orden.FechaEntrega,
+                FechaEmbarque = orden.FechaEmbarque,
+
+                HoraEmbarque =
+                    Convert.ToString(
+                        orden.HoraEmbarque,
+                        CultureInfo.InvariantCulture)
+                    ?? string.Empty,
+
+                Cliente = orden.Cliente ?? string.Empty,
+                ClienteNombre = clienteNombre,
+                Vendedor = orden.Vendedor ?? string.Empty,
+                Serie = orden.Serie ?? string.Empty,
+                Ruta = orden.Ruta ?? string.Empty,
+                Presentacion = orden.Presentacion ?? string.Empty,
+                Observacion = orden.Observacion ?? string.Empty,
+                Estatus = orden.Estatus,
+                Productos = lineas
+            };
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> VistaPreviaOrden(
+    int id,
+    string siguiente = "salir",
+    CancellationToken ct = default)
+        {
+            var model =
+                await ObtenerDocumentoOrdenAsync(id, ct);
+
+            if (model == null)
+            {
+                return NotFound(
+                    "No se encontró la orden de venta.");
+            }
+
+            model.Siguiente =
+                siguiente is "nuevo" or "salir"
+                    ? siguiente
+                    : "salir";
+
+            return View(
+                "~/Views/Comercial/VistaPreviaOrden.cshtml",
+                model);
+        }
+
+        private byte[] CrearPdfOrdenVenta(
+    OrdenVentaDocumentoViewModel model)
+        {
+            using var documento = new PdfSharp.Pdf.PdfDocument();
+
+            documento.Info.Title =
+                $"Orden de venta {model.Consecutivo}";
+
+            documento.Info.Author =
+                "Carnes G S.A. de C.V.";
+
+            var colorVino =
+                XColor.FromArgb(139, 0, 0);
+
+            var colorVinoOscuro =
+                XColor.FromArgb(80, 0, 0);
+
+            var colorGris =
+                XColor.FromArgb(242, 242, 242);
+
+            var colorLinea =
+                XColor.FromArgb(205, 205, 205);
+
+            var brushVino =
+                new XSolidBrush(colorVino);
+
+            var brushVinoOscuro =
+                new XSolidBrush(colorVinoOscuro);
+
+            var brushGris =
+                new XSolidBrush(colorGris);
+
+            var penLinea =
+                new XPen(colorLinea, 0.7);
+
+            var penVino =
+                new XPen(colorVino, 0.8);
+
+            var fontTitulo =
+                new XFont(
+                    "Arial",
+                    19,
+                    XFontStyleEx.Bold);
+
+            var fontSubtitulo =
+                new XFont(
+                    "Arial",
+                    10,
+                    XFontStyleEx.Regular);
+
+            var fontSeccion =
+                new XFont(
+                    "Arial",
+                    9,
+                    XFontStyleEx.Bold);
+
+            var fontNormal =
+                new XFont(
+                    "Arial",
+                    8.5,
+                    XFontStyleEx.Regular);
+
+            var fontNormalBold =
+                new XFont(
+                    "Arial",
+                    8.5,
+                    XFontStyleEx.Bold);
+
+            var fontTabla =
+                new XFont(
+                    "Arial",
+                    8,
+                    XFontStyleEx.Regular);
+
+            var fontTablaBold =
+                new XFont(
+                    "Arial",
+                    8,
+                    XFontStyleEx.Bold);
+
+            string logoPath = Path.Combine(
+                _environment.WebRootPath,
+                "images",
+                "logoPDF.png");
+
+            XImage? logo = null;
+
+            if (System.IO.File.Exists(logoPath))
+            {
+                logo = XImage.FromFile(logoPath);
+            }
+
+            PdfPage? pagina = null;
+            XGraphics? gfx = null;
+
+            double y = 0;
+            int numeroPagina = 0;
+
+            const double margen = 36;
+            const double altoPie = 28;
+
+            double[] anchos =
+            {
+        28,   // #
+        78,   // SKU
+        322,  // Descripción
+        60,   // Cajas
+        80,   // Peso
+        90,   // Precio
+        112   // Importe
+    };
+
+            void DibujarPie()
+            {
+                if (gfx == null || pagina == null)
+                {
+                    return;
+                }
+
+                double altoPagina =
+                    pagina.Height.Point;
+
+                gfx.DrawLine(
+                    penLinea,
+                    margen,
+                    altoPagina - altoPie,
+                    pagina.Width.Point - margen,
+                    altoPagina - altoPie);
+
+                gfx.DrawString(
+                    "Carnes G S.A. de C.V. · Documento generado por Plataforma CG",
+                    fontNormal,
+                    XBrushes.Gray,
+                    new XRect(
+                        margen,
+                        altoPagina - 23,
+                        600,
+                        15),
+                    XStringFormats.CenterLeft);
+
+                gfx.DrawString(
+                    $"Página {numeroPagina}",
+                    fontNormal,
+                    XBrushes.Gray,
+                    new XRect(
+                        pagina.Width.Point - 130,
+                        altoPagina - 23,
+                        94,
+                        15),
+                    XStringFormats.CenterRight);
+            }
+
+            void DibujarEncabezado()
+            {
+                if (gfx == null || pagina == null)
+                {
+                    return;
+                }
+
+                double anchoPagina =
+                    pagina.Width.Point;
+
+                gfx.DrawRectangle(
+                    brushVinoOscuro,
+                    0,
+                    0,
+                    anchoPagina,
+                    72);
+
+                if (logo != null)
+                {
+                    double proporcion =
+                        logo.PixelWidth > 0
+                            ? (double)logo.PixelHeight /
+                              logo.PixelWidth
+                            : 0.5;
+
+                    double anchoLogo = 92;
+                    double altoLogo = anchoLogo * proporcion;
+
+                    if (altoLogo > 52)
+                    {
+                        altoLogo = 52;
+                    }
+
+                    gfx.DrawImage(
+                        logo,
+                        margen,
+                        10,
+                        anchoLogo,
+                        altoLogo);
+                }
+
+                double inicioTitulo =
+                    logo != null
+                        ? 145
+                        : margen;
+
+                gfx.DrawString(
+                    "ORDEN DE VENTA",
+                    fontTitulo,
+                    XBrushes.White,
+                    new XRect(
+                        inicioTitulo,
+                        12,
+                        370,
+                        26),
+                    XStringFormats.CenterLeft);
+
+                gfx.DrawString(
+                    "Carnes G S.A. de C.V.",
+                    fontSubtitulo,
+                    XBrushes.White,
+                    new XRect(
+                        inicioTitulo,
+                        40,
+                        370,
+                        18),
+                    XStringFormats.CenterLeft);
+
+                gfx.DrawString(
+                    model.Consecutivo,
+                    fontTitulo,
+                    XBrushes.White,
+                    new XRect(
+                        anchoPagina - 310,
+                        16,
+                        270,
+                        28),
+                    XStringFormats.CenterRight);
+
+                gfx.DrawString(
+                    $"Registro: {model.FechaRegistro:dd/MM/yyyy HH:mm}",
+                    fontSubtitulo,
+                    XBrushes.White,
+                    new XRect(
+                        anchoPagina - 310,
+                        44,
+                        270,
+                        16),
+                    XStringFormats.CenterRight);
+
+                y = 84;
+            }
+
+            void DibujarCampo(
+                double x,
+                double posicionY,
+                double ancho,
+                string etiqueta,
+                string valor)
+            {
+                if (gfx == null)
+                {
+                    return;
+                }
+
+                const double alto = 42;
+
+                gfx.DrawRectangle(
+                    penLinea,
+                    XBrushes.White,
+                    x,
+                    posicionY,
+                    ancho,
+                    alto);
+
+                gfx.DrawString(
+                    etiqueta.ToUpperInvariant(),
+                    fontSeccion,
+                    brushVino,
+                    new XRect(
+                        x + 6,
+                        posicionY + 4,
+                        ancho - 12,
+                        12),
+                    XStringFormats.TopLeft);
+
+                var formatter =
+                    new XTextFormatter(gfx)
+                    {
+                        Alignment =
+                            XParagraphAlignment.Left
+                    };
+
+                formatter.DrawString(
+                    string.IsNullOrWhiteSpace(valor)
+                        ? "—"
+                        : valor,
+                    fontNormal,
+                    XBrushes.Black,
+                    new XRect(
+                        x + 6,
+                        posicionY + 18,
+                        ancho - 12,
+                        20));
+            }
+
+            void DibujarDatosOrden()
+            {
+                if (pagina == null)
+                {
+                    return;
+                }
+
+                double anchoDisponible =
+                    pagina.Width.Point -
+                    (margen * 2);
+
+                double separacion = 6;
+
+                double anchoColumna =
+                    (anchoDisponible -
+                     (separacion * 3)) / 4;
+
+                double x1 = margen;
+                double x2 = x1 + anchoColumna + separacion;
+                double x3 = x2 + anchoColumna + separacion;
+                double x4 = x3 + anchoColumna + separacion;
+
+                DibujarCampo(
+                    x1,
+                    y,
+                    anchoColumna,
+                    "Cliente",
+                    $"{model.Cliente} - {model.ClienteNombre}");
+
+                DibujarCampo(
+                    x2,
+                    y,
+                    anchoColumna,
+                    "Vendedor",
+                    model.Vendedor);
+
+                DibujarCampo(
+                    x3,
+                    y,
+                    anchoColumna,
+                    "Serie",
+                    model.Serie);
+
+                DibujarCampo(
+                    x4,
+                    y,
+                    anchoColumna,
+                    "Fecha de entrega",
+                    model.FechaEntrega?
+                        .ToString("dd/MM/yyyy")
+                    ?? "—");
+
+                y += 48;
+
+                DibujarCampo(
+                    x1,
+                    y,
+                    anchoColumna,
+                    "Fecha de embarque",
+                    model.FechaEmbarque?
+                        .ToString("dd/MM/yyyy")
+                    ?? "—");
+
+                DibujarCampo(
+                    x2,
+                    y,
+                    anchoColumna,
+                    "Hora de embarque",
+                    model.HoraEmbarque);
+
+                DibujarCampo(
+                    x3,
+                    y,
+                    anchoColumna,
+                    "Presentación",
+                    model.Presentacion);
+
+                DibujarCampo(
+                    x4,
+                    y,
+                    anchoColumna,
+                    "Estatus",
+                    model.EstatusTexto);
+
+                y += 53;
+            }
+
+            void DibujarEncabezadoTabla()
+            {
+                if (gfx == null)
+                {
+                    return;
+                }
+
+                string[] titulos =
+                {
+            "#",
+            "SKU",
+            "DESCRIPCIÓN",
+            "CAJAS",
+            "PESO KG",
+            "PRECIO",
+            "IMPORTE"
+        };
+
+                double x = margen;
+                const double alto = 25;
+
+                for (int i = 0;
+                     i < titulos.Length;
+                     i++)
+                {
+                    gfx.DrawRectangle(
+                        penVino,
+                        brushVino,
+                        x,
+                        y,
+                        anchos[i],
+                        alto);
+
+                    gfx.DrawString(
+                        titulos[i],
+                        fontTablaBold,
+                        XBrushes.White,
+                        new XRect(
+                            x + 3,
+                            y,
+                            anchos[i] - 6,
+                            alto),
+                        i >= 3
+                            ? XStringFormats.CenterRight
+                            : XStringFormats.CenterLeft);
+
+                    x += anchos[i];
+                }
+
+                y += alto;
+            }
+
+            void NuevaPagina(
+                bool incluirDatos,
+                bool incluirTabla)
+            {
+                gfx?.Dispose();
+
+                pagina = documento.AddPage();
+                pagina.Size = PdfSharp.PageSize.A4;
+                pagina.Orientation = PdfSharp.PageOrientation.Landscape;
+
+                gfx =
+                    XGraphics.FromPdfPage(pagina);
+
+                numeroPagina++;
+
+                DibujarEncabezado();
+
+                if (incluirDatos)
+                {
+                    DibujarDatosOrden();
+                }
+
+                if (incluirTabla)
+                {
+                    DibujarEncabezadoTabla();
+                }
+
+                DibujarPie();
+            }
+
+            NuevaPagina(
+                incluirDatos: true,
+                incluirTabla: true);
+
+            foreach (var producto in model.Productos)
+            {
+                if (pagina == null || gfx == null)
+                {
+                    break;
+                }
+
+                const double altoFila = 31;
+
+                if (y + altoFila >
+                    pagina.Height.Point -
+                    altoPie -
+                    12)
+                {
+                    NuevaPagina(
+                        incluirDatos: false,
+                        incluirTabla: true);
+                }
+
+                double x = margen;
+
+                for (int i = 0;
+                     i < anchos.Length;
+                     i++)
+                {
+                    gfx.DrawRectangle(
+                        penLinea,
+                        XBrushes.White,
+                        x,
+                        y,
+                        anchos[i],
+                        altoFila);
+
+                    x += anchos[i];
+                }
+
+                x = margen;
+
+                gfx.DrawString(
+                    producto.Numero.ToString(),
+                    fontTabla,
+                    XBrushes.Black,
+                    new XRect(
+                        x + 4,
+                        y,
+                        anchos[0] - 8,
+                        altoFila),
+                    XStringFormats.CenterLeft);
+
+                x += anchos[0];
+
+                gfx.DrawString(
+                    producto.ProductoCodigo,
+                    fontTablaBold,
+                    XBrushes.Black,
+                    new XRect(
+                        x + 4,
+                        y,
+                        anchos[1] - 8,
+                        altoFila),
+                    XStringFormats.CenterLeft);
+
+                x += anchos[1];
+
+                var formatter =
+                    new XTextFormatter(gfx)
+                    {
+                        Alignment =
+                            XParagraphAlignment.Left
+                    };
+
+                formatter.DrawString(
+                    producto.ProductoNombre,
+                    fontTabla,
+                    XBrushes.Black,
+                    new XRect(
+                        x + 4,
+                        y + 4,
+                        anchos[2] - 8,
+                        altoFila - 7));
+
+                x += anchos[2];
+
+                gfx.DrawString(
+                    producto.Cajas.ToString("N0"),
+                    fontTabla,
+                    XBrushes.Black,
+                    new XRect(
+                        x + 4,
+                        y,
+                        anchos[3] - 8,
+                        altoFila),
+                    XStringFormats.CenterRight);
+
+                x += anchos[3];
+
+                gfx.DrawString(
+                    producto.Peso.ToString("N2"),
+                    fontTabla,
+                    XBrushes.Black,
+                    new XRect(
+                        x + 4,
+                        y,
+                        anchos[4] - 8,
+                        altoFila),
+                    XStringFormats.CenterRight);
+
+                x += anchos[4];
+
+                gfx.DrawString(
+                    producto.Precio.ToString("C2"),
+                    fontTabla,
+                    XBrushes.Black,
+                    new XRect(
+                        x + 4,
+                        y,
+                        anchos[5] - 8,
+                        altoFila),
+                    XStringFormats.CenterRight);
+
+                x += anchos[5];
+
+                gfx.DrawString(
+                    producto.Importe.ToString("C2"),
+                    fontTablaBold,
+                    XBrushes.Black,
+                    new XRect(
+                        x + 4,
+                        y,
+                        anchos[6] - 8,
+                        altoFila),
+                    XStringFormats.CenterRight);
+
+                y += altoFila;
+            }
+
+            if (pagina != null &&
+                y + 100 >
+                pagina.Height.Point -
+                altoPie)
+            {
+                NuevaPagina(
+                    incluirDatos: false,
+                    incluirTabla: false);
+            }
+
+            if (gfx != null && pagina != null)
+            {
+                double anchoTabla =
+                    anchos.Sum();
+
+                const double altoTotal = 29;
+
+                gfx.DrawRectangle(
+                    penVino,
+                    brushGris,
+                    margen,
+                    y,
+                    anchoTabla,
+                    altoTotal);
+
+                gfx.DrawString(
+                    "TOTALES",
+                    fontNormalBold,
+                    brushVinoOscuro,
+                    new XRect(
+                        margen + 6,
+                        y,
+                        350,
+                        altoTotal),
+                    XStringFormats.CenterLeft);
+
+                gfx.DrawString(
+                    $"Cajas: {model.TotalCajas:N0}",
+                    fontNormalBold,
+                    XBrushes.Black,
+                    new XRect(
+                        margen + 350,
+                        y,
+                        100,
+                        altoTotal),
+                    XStringFormats.CenterRight);
+
+                gfx.DrawString(
+                    $"Peso: {model.TotalPeso:N2} kg",
+                    fontNormalBold,
+                    XBrushes.Black,
+                    new XRect(
+                        margen + 455,
+                        y,
+                        135,
+                        altoTotal),
+                    XStringFormats.CenterRight);
+
+                gfx.DrawString(
+                    model.TotalImporte.ToString("C2"),
+                    fontSeccion,
+                    brushVinoOscuro,
+                    new XRect(
+                        margen + 595,
+                        y,
+                        anchoTabla - 595,
+                        altoTotal),
+                    XStringFormats.CenterRight);
+
+                y += altoTotal + 12;
+
+                gfx.DrawString(
+                    "RUTA / DESTINO",
+                    fontSeccion,
+                    brushVino,
+                    new XRect(
+                        margen,
+                        y,
+                        180,
+                        14),
+                    XStringFormats.TopLeft);
+
+                y += 15;
+
+                gfx.DrawString(
+                    string.IsNullOrWhiteSpace(model.Ruta)
+                        ? "Sin dirección registrada."
+                        : model.Ruta,
+                    fontNormal,
+                    XBrushes.Black,
+                    new XRect(
+                        margen,
+                        y,
+                        anchoTabla,
+                        18),
+                    XStringFormats.TopLeft);
+
+                y += 25;
+
+                gfx.DrawString(
+                    "OBSERVACIONES",
+                    fontSeccion,
+                    brushVino,
+                    new XRect(
+                        margen,
+                        y,
+                        180,
+                        14),
+                    XStringFormats.TopLeft);
+
+                y += 15;
+
+                gfx.DrawRectangle(
+                    penLinea,
+                    XBrushes.White,
+                    margen,
+                    y,
+                    anchoTabla,
+                    44);
+
+                var formatterObservacion =
+                    new XTextFormatter(gfx)
+                    {
+                        Alignment =
+                            XParagraphAlignment.Left
+                    };
+
+                formatterObservacion.DrawString(
+                    string.IsNullOrWhiteSpace(
+                        model.Observacion)
+                        ? "Sin observaciones."
+                        : model.Observacion,
+                    fontNormal,
+                    XBrushes.Black,
+                    new XRect(
+                        margen + 6,
+                        y + 6,
+                        anchoTabla - 12,
+                        32));
+            }
+
+            gfx?.Dispose();
+            logo?.Dispose();
+
+            using var stream =
+                new MemoryStream();
+
+            documento.Save(stream);
+
+            return stream.ToArray();
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> OrdenVentaPdf(
+    int id,
+    bool descargar = false,
+    CancellationToken ct = default)
+        {
+            var model =
+                await ObtenerDocumentoOrdenAsync(id, ct);
+
+            if (model == null)
+            {
+                return NotFound(
+                    "No se encontró la orden de venta.");
+            }
+
+            byte[] archivo =
+                CrearPdfOrdenVenta(model);
+
+            string nombre =
+                $"{model.Consecutivo}_OrdenVenta.pdf";
+
+            if (descargar)
+            {
+                return File(
+                    archivo,
+                    "application/pdf",
+                    nombre);
+            }
+
+            Response.Headers.ContentDisposition =
+                $"inline; filename=\"{nombre}\"";
+
+            return File(
+                archivo,
+                "application/pdf");
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> OrdenVentaExcel(
+    int id,
+    CancellationToken ct = default)
+        {
+            var model =
+                await ObtenerDocumentoOrdenAsync(id, ct);
+
+            if (model == null)
+            {
+                return NotFound(
+                    "No se encontró la orden de venta.");
+            }
+
+            using var workbook =
+                new XLWorkbook();
+
+            var hoja =
+                workbook.Worksheets.Add(
+                    "Orden de Venta");
+
+            var vino =
+                XLColor.FromHtml("#8B0000");
+
+            var vinoOscuro =
+                XLColor.FromHtml("#5C0000");
+
+            var rosa =
+                XLColor.FromHtml("#F6E7E7");
+
+            hoja.Range("A1:G1").Merge();
+
+            hoja.Cell("A1").Value =
+                "CARNES G S.A. DE C.V.";
+
+            hoja.Cell("A1").Style.Font.Bold = true;
+            hoja.Cell("A1").Style.Font.FontSize = 18;
+            hoja.Cell("A1").Style.Font.FontColor =
+                XLColor.White;
+
+            hoja.Cell("A1").Style.Fill.BackgroundColor =
+                vinoOscuro;
+
+            hoja.Cell("A1").Style.Alignment.Horizontal =
+                XLAlignmentHorizontalValues.Center;
+
+            hoja.Row(1).Height = 30;
+
+            hoja.Range("A2:G2").Merge();
+
+            hoja.Cell("A2").Value =
+                $"ORDEN DE VENTA {model.Consecutivo}";
+
+            hoja.Cell("A2").Style.Font.Bold = true;
+            hoja.Cell("A2").Style.Font.FontSize = 14;
+            hoja.Cell("A2").Style.Font.FontColor =
+                vino;
+
+            hoja.Cell("A2").Style.Alignment.Horizontal =
+                XLAlignmentHorizontalValues.Center;
+
+            hoja.Cell("A4").Value = "Cliente:";
+            hoja.Cell("B4").Value =
+                $"{model.Cliente} - {model.ClienteNombre}";
+
+            hoja.Cell("E4").Value = "Vendedor:";
+            hoja.Cell("F4").Value = model.Vendedor;
+
+            hoja.Cell("A5").Value = "Serie:";
+            hoja.Cell("B5").Value = model.Serie;
+
+            hoja.Cell("C5").Value = "Fecha entrega:";
+            hoja.Cell("D5").Value =
+                model.FechaEntrega;
+
+            hoja.Cell("E5").Value = "Estatus:";
+            hoja.Cell("F5").Value =
+                model.EstatusTexto;
+
+            hoja.Cell("A6").Value = "Ruta:";
+            hoja.Range("B6:G6").Merge();
+            hoja.Cell("B6").Value = model.Ruta;
+
+            hoja.Cell("A7").Value = "Observación:";
+            hoja.Range("B7:G7").Merge();
+
+            hoja.Cell("B7").Value =
+                string.IsNullOrWhiteSpace(
+                    model.Observacion)
+                    ? "Sin observaciones."
+                    : model.Observacion;
+
+            hoja.Range("A4:G7")
+                .Style.Border.OutsideBorder =
+                XLBorderStyleValues.Thin;
+
+            hoja.Range("A4:G7")
+                .Style.Border.InsideBorder =
+                XLBorderStyleValues.Thin;
+
+            hoja.Range("A4:A7").Style.Font.Bold = true;
+
+            hoja.Range("A4:A7")
+                .Style.Fill.BackgroundColor = rosa;
+
+            int filaEncabezado = 9;
+
+            string[] encabezados =
+            {
+        "#",
+        "SKU",
+        "Descripción",
+        "Cajas",
+        "Peso kg",
+        "Precio",
+        "Importe"
+    };
+
+            for (int columna = 0;
+                 columna < encabezados.Length;
+                 columna++)
+            {
+                var celda =
+                    hoja.Cell(
+                        filaEncabezado,
+                        columna + 1);
+
+                celda.Value =
+                    encabezados[columna];
+
+                celda.Style.Font.Bold = true;
+                celda.Style.Font.FontColor =
+                    XLColor.White;
+
+                celda.Style.Fill.BackgroundColor =
+                    vino;
+
+                celda.Style.Alignment.Horizontal =
+                    XLAlignmentHorizontalValues.Center;
+            }
+
+            int fila = filaEncabezado + 1;
+
+            foreach (var producto in model.Productos)
+            {
+                hoja.Cell(fila, 1).Value =
+                    producto.Numero;
+
+                hoja.Cell(fila, 2).Value =
+                    producto.ProductoCodigo;
+
+                hoja.Cell(fila, 3).Value =
+                    producto.ProductoNombre;
+
+                hoja.Cell(fila, 4).Value =
+                    producto.Cajas;
+
+                hoja.Cell(fila, 5).Value =
+                    producto.Peso;
+
+                hoja.Cell(fila, 6).Value =
+                    producto.Precio;
+
+                hoja.Cell(fila, 7).Value =
+                    producto.Importe;
+
+                fila++;
+            }
+
+            hoja.Cell(fila, 3).Value =
+                "TOTALES";
+
+            hoja.Cell(fila, 3).Style.Font.Bold = true;
+
+            hoja.Cell(fila, 4).Value =
+                model.TotalCajas;
+
+            hoja.Cell(fila, 5).Value =
+                model.TotalPeso;
+
+            hoja.Cell(fila, 7).Value =
+                model.TotalImporte;
+
+            hoja.Range(
+                filaEncabezado,
+                1,
+                fila,
+                7)
+                .Style.Border.OutsideBorder =
+                XLBorderStyleValues.Thin;
+
+            hoja.Range(
+                filaEncabezado,
+                1,
+                fila,
+                7)
+                .Style.Border.InsideBorder =
+                XLBorderStyleValues.Thin;
+
+            hoja.Range(
+                fila,
+                1,
+                fila,
+                7)
+                .Style.Fill.BackgroundColor =
+                rosa;
+
+            hoja.Range(
+                fila,
+                1,
+                fila,
+                7)
+                .Style.Font.Bold = true;
+
+            hoja.Column(4).Style.NumberFormat.Format =
+                "#,##0";
+
+            hoja.Column(5).Style.NumberFormat.Format =
+                "#,##0.00";
+
+            hoja.Column(6).Style.NumberFormat.Format =
+                "$#,##0.00";
+
+            hoja.Column(7).Style.NumberFormat.Format =
+                "$#,##0.00";
+
+            hoja.Column(1).Width = 7;
+            hoja.Column(2).Width = 16;
+            hoja.Column(3).Width = 48;
+            hoja.Column(4).Width = 13;
+            hoja.Column(5).Width = 15;
+            hoja.Column(6).Width = 16;
+            hoja.Column(7).Width = 18;
+
+            hoja.Column(3).Style.Alignment.WrapText =
+                true;
+
+            hoja.SheetView.FreezeRows(
+                filaEncabezado);
+
+            hoja.PageSetup.PageOrientation =
+                XLPageOrientation.Landscape;
+
+            hoja.PageSetup.FitToPages(1, 0);
+
+            using var stream =
+                new MemoryStream();
+
+            workbook.SaveAs(stream);
+
+            return File(
+                stream.ToArray(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                $"{model.Consecutivo}_OrdenVenta.xlsx");
         }
 
 

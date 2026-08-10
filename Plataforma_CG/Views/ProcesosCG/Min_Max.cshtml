@@ -3,1084 +3,19 @@
     ViewData["Title"] = "Planeación Ejecutiva de Inventario";
 }
 
-<style>
-    :root {
-        --mm-brand: #8b0000;
-        --mm-brand-dark: #530000;
-        --mm-brand-soft: #fff1f1;
-        --mm-bg: #f4e7e7;
-        --mm-panel: #ffffff;
-        --mm-line: #dfc8c8;
-        --mm-text: #321515;
-        --mm-muted: #745858;
-        --mm-danger: #b42318;
-        --mm-warning: #9a6700;
-        --mm-success: #247a3d;
-        --mm-purple: #6842a8;
-        --mm-blue: #175cd3;
-        --mm-gray: #667085;
-        --mm-shadow: 0 12px 30px rgba(78, 20, 20, .10);
-    }
-
-    html,
-    body {
-        min-height: 100%;
-    }
-
-    .minmax-root,
-    .minmax-root * {
-        box-sizing: border-box;
-    }
-
-    /*
-       Se conserva la vista dentro del flujo normal de _Layout2.
-       Estas clases solamente eliminan límites de ancho y envolturas
-       decorativas; no alteran margin-left, transform ni posición del layout,
-       por lo que el sidebar puede abrir y cerrar normalmente.
-    */
-    .mm-minmax-host {
-        width: 100% !important;
-        max-width: none !important;
-    }
-
-    .mm-minmax-host-clean {
-        padding-left: 0 !important;
-        padding-right: 0 !important;
-        border: 0 !important;
-        border-radius: 0 !important;
-        background: transparent !important;
-        box-shadow: none !important;
-    }
-
-    .minmax-root {
-        width: 100%;
-        max-width: none;
-        min-width: 0;
-        min-height: calc(100dvh - var(--layout2-offset, 72px));
-        margin: 0;
-        padding: 0;
-        overflow: visible;
-        color: var(--mm-text);
-        background:
-            radial-gradient(circle at top right, rgba(139, 0, 0, .08), transparent 34%),
-            var(--mm-bg);
-        font-family: Inter, "Segoe UI", Arial, sans-serif;
-    }
-
-    .minmax-root:fullscreen,
-    .minmax-root:-webkit-full-screen {
-        position: fixed !important;
-        inset: 0 !important;
-        z-index: 99999 !important;
-        width: 100vw !important;
-        height: 100dvh !important;
-        min-height: 100dvh !important;
-        overflow: auto !important;
-        background: var(--mm-bg);
-    }
-
-    .minmax-shell {
-        width: 100%;
-        min-width: 0;
-        min-height: calc(100dvh - var(--layout2-offset, 72px));
-        display: flex;
-        flex-direction: column;
-        overflow: visible;
-        border: 0;
-        border-radius: 0;
-        background: transparent;
-        box-shadow: none;
-    }
-
-    .minmax-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 14px;
-        padding: 14px 16px;
-        color: #fff;
-        background: linear-gradient(110deg, #a70000, var(--mm-brand) 55%, var(--mm-brand-dark));
-        border-bottom: 1px solid #4d0000;
-    }
-
-    .minmax-title {
-        min-width: 0;
-    }
-
-    .minmax-title h1 {
-        margin: 0;
-        font-size: 1.1rem;
-        font-weight: 950;
-        letter-spacing: .01em;
-    }
-
-    .minmax-title small {
-        display: block;
-        margin-top: 4px;
-        opacity: .88;
-        font-size: .75rem;
-        font-weight: 650;
-    }
-
-    .minmax-live {
-        flex: 0 0 auto;
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        padding: .38rem .62rem;
-        border: 1px solid rgba(255,255,255,.26);
-        border-radius: 999px;
-        background: rgba(255,255,255,.13);
-        font-size: .72rem;
-        font-weight: 900;
-        white-space: nowrap;
-    }
-
-    .minmax-live-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: #6ee7b7;
-        box-shadow: 0 0 0 4px rgba(110,231,183,.16);
-    }
-
-    .minmax-body {
-        flex: 1 1 auto;
-        min-width: 0;
-        min-height: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        padding: 8px;
-        overflow: visible;
-    }
-
-    .mm-card {
-        border: 1px solid var(--mm-line);
-        border-radius: 13px;
-        background: var(--mm-panel);
-        box-shadow: 0 5px 14px rgba(69, 22, 22, .05);
-    }
-
-    .mm-card-title {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 9px;
-        padding: 9px 11px;
-        border-bottom: 1px solid #ecdada;
-        background: linear-gradient(180deg, #fff, #fff6f6);
-        font-size: .82rem;
-        font-weight: 950;
-    }
-
-    .mm-card-title i {
-        color: var(--mm-brand);
-    }
-
-    .mm-filters {
-        display: grid;
-        grid-template-columns:
-            minmax(210px, 1.25fr)
-            140px
-            175px
-            175px
-            165px
-            auto;
-        gap: 8px;
-        align-items: end;
-        padding: 10px;
-    }
-
-    .mm-field label {
-        display: block;
-        margin-bottom: 4px;
-        color: #653939;
-        font-size: .68rem;
-        font-weight: 900;
-        text-transform: uppercase;
-        letter-spacing: .025em;
-    }
-
-    .mm-field input,
-    .mm-field select {
-        width: 100%;
-        min-height: 38px;
-        padding: .42rem .58rem;
-        border: 1px solid #d4b5b5;
-        border-radius: 9px;
-        background: #fff;
-        color: #321515;
-        font-size: .78rem;
-        font-weight: 750;
-    }
-
-    .mm-field input:focus,
-    .mm-field select:focus {
-        outline: none;
-        border-color: var(--mm-brand);
-        box-shadow: 0 0 0 3px rgba(139,0,0,.10);
-    }
-
-    .mm-actions {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 6px;
-        flex-wrap: wrap;
-    }
-
-    .mm-btn {
-        min-height: 38px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        padding: .45rem .70rem;
-        border: 1px solid #d0b2b2;
-        border-radius: 9px;
-        background: linear-gradient(#fff, #f4e5e5);
-        color: #522323;
-        font-size: .72rem;
-        font-weight: 900;
-        cursor: pointer;
-        white-space: nowrap;
-    }
-
-    .mm-btn:hover {
-        filter: brightness(.985);
-    }
-
-    .mm-btn:disabled {
-        cursor: wait;
-        opacity: .58;
-    }
-
-    .mm-btn.primary {
-        color: #fff;
-        border-color: #700000;
-        background: linear-gradient(180deg, #ad0000, #740000);
-    }
-
-    .mm-btn.success {
-        color: #fff;
-        border-color: #1d6c36;
-        background: linear-gradient(180deg, #2f8d4b, #236b39);
-    }
-
-    .mm-btn.dark {
-        color: #fff;
-        border-color: #343a40;
-        background: #343a40;
-    }
-
-    .mm-kpis {
-        display: grid;
-        grid-template-columns: repeat(7, minmax(150px, 1fr));
-        gap: 10px;
-        padding: 10px;
-    }
-
-    .mm-kpi {
-        position: relative;
-        min-width: 0;
-        min-height: 122px;
-        padding: 14px 16px;
-        border: 1px solid rgba(255,255,255,.16);
-        border-radius: 18px;
-        color: #fff;
-        overflow: hidden;
-        box-shadow: 0 16px 28px rgba(70, 12, 12, .16), inset 0 1px 0 rgba(255,255,255,.12);
-        background: linear-gradient(135deg, #5c0000 0%, #8b0000 60%, #3c0505 100%);
-    }
-
-    .mm-kpi::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(135deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,0) 52%);
-        pointer-events: none;
-    }
-
-    .mm-kpi::after {
-        content: "";
-        position: absolute;
-        right: -42px;
-        bottom: -56px;
-        width: 156px;
-        height: 156px;
-        border-radius: 999px;
-        background: rgba(255,255,255,.10);
-        border: 22px solid rgba(255,255,255,.08);
-        pointer-events: none;
-    }
-
-    .mm-kpi > span,
-    .mm-kpi > strong,
-    .mm-kpi > em {
-        position: relative;
-        z-index: 1;
-    }
-
-    .mm-kpi span {
-        display: block;
-        color: rgba(255,255,255,.92);
-        font-size: .64rem;
-        font-weight: 900;
-        text-transform: uppercase;
-        line-height: 1.15;
-        letter-spacing: .04em;
-    }
-
-    .mm-kpi strong {
-        display: block;
-        margin-top: 8px;
-        color: #fff;
-        font-size: clamp(1.45rem, 1.8vw, 2.15rem);
-        font-weight: 950;
-        line-height: 1;
-        font-variant-numeric: tabular-nums;
-        text-shadow: 0 2px 10px rgba(0,0,0,.18);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .mm-kpi em {
-        display: block;
-        margin-top: 8px;
-        color: rgba(255,255,255,.86);
-        font-size: .79rem;
-        font-style: normal;
-        font-weight: 800;
-        line-height: 1.2;
-    }
-
-    .mm-kpi.general {
-        background: linear-gradient(135deg, #7a0000 0%, #c21414 58%, #5b0707 100%);
-    }
-
-    .mm-kpi.bajo {
-        background: linear-gradient(135deg, #8f0000 0%, #d03535 56%, #640909 100%);
-    }
-
-    .mm-kpi.alerta {
-        background: linear-gradient(135deg, #b06d00 0%, #d99a15 56%, #7d4b00 100%);
-    }
-
-    .mm-kpi.ok {
-        background: linear-gradient(135deg, #12855b 0%, #28a46b 56%, #0b6944 100%);
-    }
-
-    .mm-kpi.sobre {
-        background: linear-gradient(135deg, #0fa7a2 0%, #26c3bf 54%, #0a7b78 100%);
-    }
-
-    .mm-kpi.sin {
-        background: linear-gradient(135deg, #17753a 0%, #2e9353 56%, #0f5b2d 100%);
-    }
-
-    .mm-kpi.kg {
-        background: linear-gradient(135deg, #175cd3 0%, #3b7af0 56%, #1343a0 100%);
-    }
-
-    .mm-summary-grid {
-        display: grid;
-        grid-template-columns: minmax(310px, .75fr) minmax(460px, 1.25fr);
-        gap: 9px;
-    }
-
-    .mm-chart-card {
-        min-width: 0;
-        padding: 10px;
-    }
-
-    .mm-chart-heading {
-        margin: 0 0 9px;
-        color: #5d2a2a;
-        font-size: .72rem;
-        font-weight: 950;
-        text-transform: uppercase;
-    }
-
-    .mm-status-list,
-    .mm-top-list {
-        display: grid;
-        gap: 7px;
-    }
-
-    .mm-status-row {
-        display: grid;
-        grid-template-columns: 145px minmax(80px,1fr) 45px;
-        gap: 7px;
-        align-items: center;
-        font-size: .71rem;
-    }
-
-    .mm-top-row {
-        display: grid;
-        grid-template-columns: 76px minmax(120px,1fr) 88px;
-        gap: 7px;
-        align-items: center;
-        font-size: .70rem;
-    }
-
-    .mm-bar {
-        height: 15px;
-        overflow: hidden;
-        border: 1px solid #dfcccc;
-        border-radius: 999px;
-        background: #f7eeee;
-    }
-
-    .mm-bar-fill {
-        height: 100%;
-        min-width: 2px;
-        border-radius: inherit;
-    }
-
-    .fill-BAJO { background: #dc2626; }
-    .fill-MIN { background: #f59e0b; }
-    .fill-OK { background: #16a34a; }
-    .fill-SOBRE { background: #7c3aed; }
-    .fill-NOPROD { background: #475467; }
-    .fill-SIN { background: #98a2b3; }
-
-    .mm-top-name {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .mm-detail-card {
-        flex: 0 0 auto;
-        min-height: 260px;
-        display: flex;
-        flex-direction: column;
-        overflow: visible;
-    }
-
-    .mm-table-wrap {
-        width: 100%;
-        min-height: 230px;
-        overflow-x: auto;
-        overflow-y: visible;
-        background: #fff;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    .mm-table {
-        width: max-content;
-        min-width: 100%;
-        border-collapse: separate;
-        border-spacing: 0;
-        font-size: .72rem;
-    }
-
-    .mm-table th {
-        position: sticky;
-        top: 0;
-        z-index: 20;
-        padding: 8px 7px;
-        border-right: 1px solid #7d3030;
-        border-bottom: 1px solid #4d0000;
-        background: linear-gradient(180deg, #a90000, #720000);
-        color: #fff;
-        text-align: left;
-        font-size: .65rem;
-        font-weight: 950;
-        text-transform: uppercase;
-        white-space: nowrap;
-    }
-
-    .mm-table th.mm-sortable {
-        cursor: pointer;
-        user-select: none;
-        transition: filter .16s ease, box-shadow .16s ease;
-    }
-
-    .mm-table th.mm-sortable:hover {
-        filter: brightness(1.13);
-        box-shadow: inset 0 -3px 0 rgba(255,255,255,.72);
-    }
-
-    .mm-sort-head {
-        display: inline-flex;
-        align-items: center;
-        justify-content: flex-start;
-        gap: 5px;
-        width: 100%;
-    }
-
-    .mm-table th.num .mm-sort-head {
-        justify-content: flex-end;
-    }
-
-    .mm-sort-indicator {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 11px;
-        color: rgba(255,255,255,.54);
-        font-size: .69rem;
-        line-height: 1;
-    }
-
-    .mm-table th.mm-sort-active .mm-sort-indicator {
-        color: #fff;
-        text-shadow: 0 1px 3px rgba(0,0,0,.45);
-    }
-
-    .mm-table th.mm-sort-active {
-        background: linear-gradient(180deg, #d10000, #870000) !important;
-        box-shadow: inset 0 -3px 0 rgba(255,255,255,.75);
-    }
-
-    .mm-table td {
-        padding: 7px;
-        border-right: 1px solid #eadbdb;
-        border-bottom: 1px solid #eadbdb;
-        background: #fff;
-        color: #291515;
-        white-space: nowrap;
-        vertical-align: middle;
-    }
-
-    .mm-table tbody tr:nth-child(even) td {
-        background: #fff8f8;
-    }
-
-    .mm-table tbody tr:hover td {
-        background: #ffefef;
-    }
-
-    .mm-table .num {
-        text-align: right;
-        font-variant-numeric: tabular-nums;
-    }
-
-    .mm-table .product {
-        min-width: 280px;
-        max-width: 380px;
-        white-space: normal;
-        line-height: 1.2;
-        font-weight: 750;
-    }
-
-    .mm-table .sticky-clas,
-    .mm-table .sticky-master,
-    .mm-table .sticky-sku {
-        position: sticky;
-        z-index: 12;
-    }
-
-    .mm-table .sticky-clas {
-        left: 0;
-        width: 125px;
-        min-width: 125px;
-    }
-
-    .mm-table .sticky-master {
-        left: 125px;
-        width: 135px;
-        min-width: 135px;
-    }
-
-    .mm-table .sticky-sku {
-        left: 260px;
-        width: 80px;
-        min-width: 80px;
-        font-weight: 950;
-    }
-
-    .mm-table th.sticky-clas,
-    .mm-table th.sticky-master,
-    .mm-table th.sticky-sku {
-        z-index: 30;
-    }
-
-    .mm-table tbody .sticky-clas,
-    .mm-table tbody .sticky-master,
-    .mm-table tbody .sticky-sku {
-        background: inherit;
-    }
-
-    .mm-badge {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 112px;
-        padding: .25rem .48rem;
-        border: 1px solid transparent;
-        border-radius: 999px;
-        font-size: .62rem;
-        font-weight: 950;
-        white-space: nowrap;
-    }
-
-    .status-BAJO {
-        color: #9f1710;
-        border-color: #f0a6a1;
-        background: #fee4e2;
-    }
-
-    .status-MIN {
-        color: #805600;
-        border-color: #f2cc69;
-        background: #fff2c7;
-    }
-
-    .status-OK {
-        color: #196c34;
-        border-color: #88c999;
-        background: #e0f4e5;
-    }
-
-    .status-SOBRE {
-        color: #5e3999;
-        border-color: #bea6df;
-        background: #eee5fb;
-    }
-
-    .status-NOPROD,
-    .status-SIN {
-        color: #475467;
-        border-color: #cbd0d8;
-        background: #f2f4f7;
-    }
-
-    .mm-gap-negative {
-        color: var(--mm-danger);
-        font-weight: 900;
-    }
-
-    .mm-gap-positive {
-        color: var(--mm-success);
-        font-weight: 900;
-    }
-
-    .mm-loading {
-        padding: 28px 12px !important;
-        text-align: center !important;
-        color: var(--mm-muted) !important;
-    }
-
-    .mm-footer {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        padding: 8px 11px;
-        border-top: 1px solid #dbbebe;
-        background: linear-gradient(#f7eaea, #edd7d7);
-        color: #5d3434;
-        font-size: .67rem;
-        font-weight: 750;
-    }
-
-    .mm-modal {
-        position: fixed;
-        inset: 0;
-        z-index: 7800;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        padding: 14px;
-        background: rgba(20, 7, 7, .66);
-        backdrop-filter: blur(3px);
-    }
-
-    .mm-modal.show {
-        display: flex;
-    }
-
-    .mm-modal-shell {
-        width: min(1180px, 100%);
-        max-height: 94vh;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-        border-radius: 16px;
-        background: #f7f2f2;
-        box-shadow: 0 30px 80px rgba(0,0,0,.38);
-    }
-
-    .mm-modal-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        padding: 11px 13px;
-        border-bottom: 1px solid #e3d2d2;
-        background: #fff;
-    }
-
-    .mm-modal-header strong {
-        color: #371616;
-        font-size: .92rem;
-    }
-
-    .mm-modal-body {
-        min-height: 0;
-        overflow: auto;
-        padding: 11px;
-    }
-
-    .mm-catalog-grid {
-        display: grid;
-        grid-template-columns: minmax(400px, .85fr) minmax(480px, 1.15fr);
-        gap: 10px;
-    }
-
-    .mm-catalog-card {
-        overflow: hidden;
-        border: 1px solid #dfcccc;
-        border-radius: 12px;
-        background: #fff;
-    }
-
-    .mm-catalog-card h3 {
-        margin: 0;
-        padding: 9px 10px;
-        border-bottom: 1px solid #eadada;
-        background: #fff7f7;
-        color: #541f1f;
-        font-size: .78rem;
-        font-weight: 950;
-    }
-
-    .mm-catalog-scroll {
-        max-height: 66vh;
-        overflow: auto;
-    }
-
-    .mm-catalog-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: .70rem;
-    }
-
-    .mm-catalog-table th,
-    .mm-catalog-table td {
-        padding: 7px;
-        border-bottom: 1px solid #eadede;
-        text-align: left;
-        vertical-align: middle;
-    }
-
-    .mm-catalog-table th {
-        position: sticky;
-        top: 0;
-        z-index: 3;
-        background: #7b0000;
-        color: #fff;
-        font-size: .62rem;
-        text-transform: uppercase;
-    }
-
-    .mm-catalog-table input,
-    .mm-catalog-table select {
-        width: 100%;
-        min-height: 32px;
-        border: 1px solid #d2b9b9;
-        border-radius: 7px;
-        padding: .30rem .42rem;
-        font-size: .70rem;
-    }
-
-    .mm-catalog-search {
-        padding: 8px;
-        border-bottom: 1px solid #eadede;
-    }
-
-    .mm-catalog-search input {
-        width: 100%;
-        min-height: 35px;
-        border: 1px solid #d2b9b9;
-        border-radius: 8px;
-        padding: .38rem .55rem;
-        font-size: .73rem;
-    }
-
-    /* Laptop y pantallas medianas */
-    @@media (max-width: 1250px) {
-        .mm-filters {
-            grid-template-columns: repeat(3, minmax(160px, 1fr));
-        }
-
-        .mm-actions {
-            grid-column: 1 / -1;
-            justify-content: flex-start;
-        }
-
-        .mm-kpis {
-            grid-template-columns: repeat(4, minmax(115px, 1fr));
-        }
-    }
-
-    /* En resoluciones angostas se prioriza filtro, KPIs y tabla. */
-    @@media (max-width: 1100px) {
-        .mm-summary-grid {
-            display: none;
-        }
-    }
-
-    /* Laptop con poca altura: compacta sin recortar la tabla. */
-    @@media (max-height: 820px) and (min-width: 901px) {
-        .minmax-header {
-            padding: 9px 12px;
-        }
-
-        .minmax-title h1 {
-            font-size: .98rem;
-        }
-
-        .minmax-title small {
-            margin-top: 2px;
-            font-size: .67rem;
-        }
-
-        .minmax-body {
-            gap: 6px;
-            padding: 6px;
-        }
-
-        .mm-card-title {
-            padding: 6px 9px;
-        }
-
-        .mm-filters {
-            gap: 6px;
-            padding: 7px;
-        }
-
-        .mm-field input,
-        .mm-field select,
-        .mm-btn {
-            min-height: 34px;
-        }
-
-        .mm-kpis {
-            gap: 7px;
-            padding: 7px;
-        }
-
-        .mm-kpi {
-            min-height: 104px;
-            padding: 10px 11px;
-        }
-
-        .mm-kpi strong {
-            font-size: 1.18rem;
-        }
-
-        .mm-kpi em {
-            font-size: .72rem;
-        }
-
-        .mm-summary-grid {
-            display: none;
-        }
-
-        .mm-footer {
-            padding: 5px 9px;
-        }
-    }
-
-    /* Tablet y móvil: el contenido principal puede desplazarse verticalmente. */
-    @@media (max-width: 900px) {
-        .minmax-header {
-            align-items: flex-start;
-            gap: 8px;
-            padding: 10px 11px;
-        }
-
-        .minmax-title h1 {
-            font-size: .98rem;
-            line-height: 1.2;
-        }
-
-        .minmax-title small {
-            font-size: .66rem;
-        }
-
-        .minmax-body {
-            display: block;
-            padding: 6px;
-            overflow: visible;
-        }
-
-        .minmax-body > * + * {
-            margin-top: 7px;
-        }
-
-        .mm-filters {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
-        .mm-actions {
-            grid-column: 1 / -1;
-        }
-
-        .mm-kpis {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
-        .mm-summary-grid {
-            display: none;
-        }
-
-        .mm-detail-card {
-            min-height: 420px;
-            max-height: none;
-        }
-
-        .mm-table-wrap {
-            min-height: 360px;
-            max-height: none;
-        }
-
-        .mm-catalog-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .mm-top-list {
-            max-height: 250px;
-            overflow: auto;
-        }
-
-        .mm-modal {
-            padding: 0;
-        }
-
-        .mm-modal-shell {
-            width: 100vw;
-            height: 100dvh;
-            max-height: 100dvh;
-            border-radius: 0;
-        }
-    }
-
-    @@media (max-width: 700px) {
-        .mm-table {
-            font-size: .68rem;
-        }
-
-        .mm-table .sticky-clas {
-            left: 0;
-            width: 100px;
-            min-width: 100px;
-        }
-
-        .mm-table .sticky-master {
-            left: 100px;
-            width: 110px;
-            min-width: 110px;
-        }
-
-        .mm-table .sticky-sku {
-            left: 210px;
-            width: 70px;
-            min-width: 70px;
-        }
-
-        .mm-table .product {
-            min-width: 220px;
-            max-width: 280px;
-        }
-    }
-
-    @@media (max-width: 560px) {
-        .minmax-header {
-            align-items: center;
-        }
-
-        .minmax-title h1 {
-            font-size: .88rem;
-        }
-
-        .minmax-title small {
-            display: none;
-        }
-
-        .minmax-live {
-            padding: .34rem;
-        }
-
-        .minmax-live span:last-child {
-            display: none;
-        }
-
-        .mm-card-title {
-            padding: 8px 9px;
-        }
-
-        .mm-filters {
-            grid-template-columns: 1fr;
-            padding: 8px;
-        }
-
-        .mm-actions {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 6px;
-        }
-
-        .mm-btn {
-            width: 100%;
-            min-width: 0;
-        }
-
-        .mm-kpis {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            padding: 7px;
-        }
-
-        .mm-kpi {
-            min-height: 108px;
-            padding: 10px 11px;
-            border-radius: 16px;
-        }
-
-        .mm-kpi strong {
-            white-space: normal;
-        }
-
-        .mm-kpi.kg {
-            grid-column: 1 / -1;
-        }
-
-        .mm-footer {
-            align-items: flex-start;
-            flex-direction: column;
-            padding: 7px 9px;
-        }
-    }
-
-    @@media (max-width: 390px) {
-        .mm-actions {
-            grid-template-columns: 1fr;
-        }
-
-        .mm-kpis {
-            grid-template-columns: 1fr 1fr;
-        }
-
-        .mm-kpi span {
-            font-size: .57rem;
-        }
-    }
-</style>
+<link rel="stylesheet" href="~/css/inventario-minmax-grid.css" asp-append-version="true" />
 
 <div class="minmax-root">
     <div class="minmax-shell">
         <header class="minmax-header">
-            <div class="minmax-title">
-                <h1>
-                    <i class="fa-solid fa-chart-line me-1"></i>
-                    Indicador de Inventario Mínimo, Ideal y Máximo
-                </h1>
-                
+            <div class="minmax-heading">
+                <div class="minmax-heading-icon">
+                    <i class="fa-solid fa-chart-line"></i>
+                </div>
+                <div class="minmax-title">
+                    <h1>Indicador de Inventario Mínimo, Ideal y Máximo</h1>
+                    <small>Planeación operativa por clasificación, SKU, inventario actual y parámetros objetivo</small>
+                </div>
             </div>
 
             <div class="minmax-live">
@@ -1162,13 +97,6 @@
                                 type="button">
                             <i class="fa-solid fa-file-csv"></i>
                             CSV
-                        </button>
-
-                        <button id="btnFullscreen"
-                                class="mm-btn dark"
-                                type="button">
-                            <i class="fa-solid fa-expand"></i>
-                            Pantalla
                         </button>
                     </div>
                 </div>
@@ -1386,6 +314,346 @@
         </div>
     </div>
 </div>
+
+
+<script>
+(function () {
+    function prepararContenedorMinMax() {
+        const root = document.querySelector('.minmax-root');
+        if (!root) return;
+
+        let parent = root.parentElement;
+
+        while (parent && parent !== document.body) {
+            if (
+                parent.matches('.container, .container-fluid, .pb-3') ||
+                parent.matches('main[role="main"]')
+            ) {
+                parent.classList.add(
+                    'mm-minmax-host',
+                    'mm-minmax-host-clean'
+                );
+            }
+
+            parent = parent.parentElement;
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', prepararContenedorMinMax);
+    } else {
+        prepararContenedorMinMax();
+    }
+})();
+</script>
+
+
+<script>
+(function () {
+    'use strict';
+
+    const ROOT_SELECTOR = '.minmax-root';
+    const SIDEBAR_SELECTORS = [
+        '#sidebar',
+        '.sidebar',
+        '.main-sidebar',
+        '.app-sidebar',
+        '.sidebar-wrapper',
+        '.left-sidebar',
+        'aside',
+        '[id*="sidebar" i]',
+        '[class*="sidebar" i]',
+        '[data-sidebar]'
+    ].join(',');
+
+    let root = null;
+    let parent = null;
+    let sidebar = null;
+
+    let intervalId = 0;
+    let finalTimerId = 0;
+    let lastWidth = -1;
+    let lastLeft = -1;
+
+    function esSidebarValido(element) {
+        if (!element || !document.documentElement.contains(element)) {
+            return false;
+        }
+
+        if (root && (element === root || root.contains(element))) {
+            return false;
+        }
+
+        const style = window.getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        const viewportWidth = document.documentElement.clientWidth;
+        const viewportHeight = window.innerHeight;
+
+        return (
+            style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            Number.parseFloat(style.opacity || '1') > 0.05 &&
+            rect.left <= 10 &&
+            rect.width >= 150 &&
+            rect.width <= Math.min(470, viewportWidth * 0.60) &&
+            rect.height >= Math.max(400, viewportHeight * 0.52)
+        );
+    }
+
+    function buscarSidebar() {
+        let mejor = null;
+        let mejorPuntaje = -1;
+
+        document.querySelectorAll(SIDEBAR_SELECTORS).forEach(function (element) {
+            if (!esSidebarValido(element)) return;
+
+            const rect = element.getBoundingClientRect();
+            const puntaje = rect.height + (rect.width * 2);
+
+            if (puntaje > mejorPuntaje) {
+                mejor = element;
+                mejorPuntaje = puntaje;
+            }
+        });
+
+        if (mejor) return mejor;
+
+        /*
+         * Búsqueda geométrica de respaldo. Sólo se ejecuta cuando todavía
+         * no se conoce el sidebar; no se repite durante cada ajuste.
+         */
+        const puntosY = [
+            140,
+            Math.round(window.innerHeight * 0.40),
+            Math.round(window.innerHeight * 0.72)
+        ];
+
+        puntosY.some(function (y) {
+            return [5, 24, 70].some(function (x) {
+                const elementos = document.elementsFromPoint(x, y);
+
+                for (const element of elementos) {
+                    let actual = element;
+
+                    while (actual && actual !== document.body) {
+                        if (esSidebarValido(actual)) {
+                            mejor = actual;
+                            return true;
+                        }
+
+                        actual = actual.parentElement;
+                    }
+                }
+
+                return false;
+            });
+        });
+
+        return mejor;
+    }
+
+    function bordeDerechoSidebar() {
+        if (!sidebar || !esSidebarValido(sidebar)) {
+            sidebar = buscarSidebar();
+        }
+
+        if (!sidebar) return 0;
+
+        const rect = sidebar.getBoundingClientRect();
+
+        /*
+         * Cuando el menú está contraído fuera de pantalla, su borde derecho
+         * puede ser cero o negativo.
+         */
+        return Math.max(0, Math.round(rect.right));
+    }
+
+    function aplicarAjuste() {
+        root ??= document.querySelector(ROOT_SELECTOR);
+        if (!root) return;
+
+        parent = root.parentElement;
+        if (!parent) return;
+
+        const parentRect = parent.getBoundingClientRect();
+        const sidebarRight = bordeDerechoSidebar();
+
+        const targetLeft = Math.max(parentRect.left, sidebarRight);
+        const leftOffset = Math.max(
+            0,
+            Math.round(targetLeft - parentRect.left)
+        );
+
+        const availableWidth = Math.max(
+            320,
+            Math.floor(parentRect.right - targetLeft)
+        );
+
+        /*
+         * No escribir estilos cuando el valor no cambió. Esto evita
+         * recalcular toda la tabla y los KPIs innecesariamente.
+         */
+        if (
+            Math.abs(availableWidth - lastWidth) < 2 &&
+            Math.abs(leftOffset - lastLeft) < 2
+        ) {
+            return;
+        }
+
+        lastWidth = availableWidth;
+        lastLeft = leftOffset;
+
+        root.style.setProperty('position', 'relative', 'important');
+        root.style.setProperty('left', leftOffset + 'px', 'important');
+        root.style.setProperty('width', availableWidth + 'px', 'important');
+        root.style.setProperty('max-width', availableWidth + 'px', 'important');
+        root.style.setProperty('margin-left', '0', 'important');
+        root.style.setProperty('margin-right', '0', 'important');
+    }
+
+    function detenerSecuencia() {
+        if (intervalId) {
+            window.clearInterval(intervalId);
+            intervalId = 0;
+        }
+
+        if (finalTimerId) {
+            window.clearTimeout(finalTimerId);
+            finalTimerId = 0;
+        }
+    }
+
+    function ajustarDuranteTransicion() {
+        detenerSecuencia();
+
+        /*
+         * Se mide aproximadamente cada 70 ms, no en cada frame.
+         * Esto mantiene el movimiento del sidebar sin recalcular la vista
+         * completa decenas de veces por segundo.
+         */
+        aplicarAjuste();
+
+        intervalId = window.setInterval(aplicarAjuste, 70);
+
+        finalTimerId = window.setTimeout(function () {
+            detenerSecuencia();
+            aplicarAjuste();
+        }, 490);
+    }
+
+    function clickRelacionadoConSidebar(event) {
+        const target = event.target instanceof Element
+            ? event.target
+            : null;
+
+        if (!target) return false;
+
+        const control = target.closest(
+            'button, a, [role="button"], [aria-expanded], [aria-controls]'
+        );
+
+        if (!control) return false;
+
+        const descriptor = [
+            control.id,
+            control.className,
+            control.getAttribute('aria-controls'),
+            control.getAttribute('title'),
+            control.getAttribute('data-target'),
+            control.getAttribute('data-bs-target')
+        ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+
+        const rect = control.getBoundingClientRect();
+
+        return (
+            descriptor.includes('sidebar') ||
+            descriptor.includes('menu') ||
+            descriptor.includes('toggle') ||
+            descriptor.includes('collapse') ||
+            rect.left < 330
+        );
+    }
+
+    function iniciar() {
+        root = document.querySelector(ROOT_SELECTOR);
+        if (!root) return;
+
+        parent = root.parentElement;
+        sidebar = buscarSidebar();
+
+        aplicarAjuste();
+
+        window.addEventListener(
+            'resize',
+            ajustarDuranteTransicion,
+            { passive: true }
+        );
+
+        window.addEventListener(
+            'orientationchange',
+            ajustarDuranteTransicion,
+            { passive: true }
+        );
+
+        document.addEventListener('click', function (event) {
+            if (clickRelacionadoConSidebar(event)) {
+                /*
+                 * La clase del menú suele cambiar después del evento click.
+                 */
+                window.setTimeout(function () {
+                    sidebar = buscarSidebar() || sidebar;
+                    ajustarDuranteTransicion();
+                }, 0);
+            }
+        }, true);
+
+        /*
+         * Sólo se observan cambios del propio sidebar y del padre inmediato.
+         * Ya no se observa todo el documento ni todos sus estilos.
+         */
+        if ('ResizeObserver' in window) {
+            const resizeObserver = new ResizeObserver(
+                ajustarDuranteTransicion
+            );
+
+            if (parent) {
+                resizeObserver.observe(parent);
+            }
+
+            if (sidebar) {
+                resizeObserver.observe(sidebar);
+            }
+        }
+
+        if (sidebar) {
+            const mutationObserver = new MutationObserver(
+                ajustarDuranteTransicion
+            );
+
+            mutationObserver.observe(sidebar, {
+                attributes: true,
+                attributeFilter: [
+                    'class',
+                    'style',
+                    'aria-expanded',
+                    'aria-hidden',
+                    'data-state'
+                ]
+            });
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', iniciar, { once: true });
+    } else {
+        iniciar();
+    }
+})();
+</script>
+
 
 <script>
     (() => {
@@ -2393,80 +1661,6 @@
             URL.revokeObjectURL(url);
         }
 
-        const minmaxRoot = document.querySelector(".minmax-root");
-
-        function prepararContenedorLayout() {
-            if (!minmaxRoot) return;
-
-            let actual = minmaxRoot.parentElement;
-            let profundidad = 0;
-
-            while (actual && actual !== document.body && profundidad < 5) {
-                const clases = actual.classList;
-                const esContenedorAncho =
-                    clases.contains("container") ||
-                    clases.contains("container-sm") ||
-                    clases.contains("container-md") ||
-                    clases.contains("container-lg") ||
-                    clases.contains("container-xl") ||
-                    clases.contains("container-xxl") ||
-                    clases.contains("container-fluid");
-
-                const estilo = window.getComputedStyle(actual);
-                const maxWidthLimitado =
-                    estilo.maxWidth !== "none" &&
-                    Number.parseFloat(estilo.maxWidth) > 0;
-
-                if (esContenedorAncho || maxWidthLimitado) {
-                    actual.classList.add("mm-minmax-host");
-                }
-
-                /*
-                   Solo se limpia la envoltura inmediata o una envoltura que
-                   contiene exclusivamente esta vista. Así no se toca el
-                   content-wrapper que controla la apertura del sidebar.
-                */
-                const soloContieneLaVista =
-                    actual.children.length === 1 &&
-                    actual.contains(minmaxRoot);
-
-                if (profundidad === 0 || soloContieneLaVista) {
-                    actual.classList.add("mm-minmax-host-clean");
-                }
-
-                if (
-                    clases.contains("content-wrapper") ||
-                    clases.contains("main-content") ||
-                    clases.contains("page-wrapper") ||
-                    clases.contains("app-content")
-                ) {
-                    break;
-                }
-
-                actual = actual.parentElement;
-                profundidad += 1;
-            }
-        }
-
-        function actualizarBotonFullscreen() {
-            const button = el("btnFullscreen");
-            if (!button) return;
-
-            button.innerHTML = document.fullscreenElement
-                ? `<i class="fa-solid fa-compress"></i> Salir`
-                : `<i class="fa-solid fa-expand"></i> Pantalla`;
-        }
-
-        function toggleFullscreen() {
-            const target = minmaxRoot || document.documentElement;
-
-            if (!document.fullscreenElement) {
-                target.requestFullscreen?.().catch(console.warn);
-            } else {
-                document.exitFullscreen?.();
-            }
-        }
-
         let searchTimer = null;
 
         buscarInput.addEventListener("input", () => {
@@ -2500,9 +1694,7 @@
         btnCatalogo.addEventListener("click", abrirCatalogo);
         el("btnCerrarCatalogo").addEventListener("click", cerrarCatalogo);
         el("btnCsv").addEventListener("click", exportarCsv);
-        el("btnFullscreen").addEventListener("click", toggleFullscreen);
 
-        document.addEventListener("fullscreenchange", actualizarBotonFullscreen);
 
         el("catalogoSkuBuscar").addEventListener("input", () => {
             clearTimeout(searchTimer);
@@ -2541,9 +1733,7 @@
             }
         });
 
-        prepararContenedorLayout();
         mesInput.value = mesActual();
-        actualizarBotonFullscreen();
         actualizarIndicadoresOrden();
         cargarDatos();
     })();

@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration;
 using System.IO;
 
 namespace Plataforma_CG.AccesoDatos.Operaciones

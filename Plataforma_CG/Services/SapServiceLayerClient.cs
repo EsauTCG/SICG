@@ -13,6 +13,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using static System.Net.WebRequestMethods;
 
 namespace Plataforma_CG.Services
@@ -23,6 +24,7 @@ namespace Plataforma_CG.Services
         private readonly AppDbContext _context; // <- Aquí es donde se define
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _config;
+        private readonly SemaphoreSlim _loginGate = new(1, 1);
 
         //public SapServiceLayerClient(HttpClient httpClient, IConfiguration config)
         //{
@@ -47,45 +49,82 @@ namespace Plataforma_CG.Services
             }
         }
 
-        public async Task<(bool ok, string response, string? error)> PostJsonAsync(string relativeUrl, string json)
+        private static bool EsSesionSapExpirada(
+            HttpStatusCode statusCode,
+            string? response)
+        {
+            var texto = response ?? string.Empty;
+
+            return statusCode == HttpStatusCode.Unauthorized ||
+                   texto.Contains("\"code\":301", StringComparison.OrdinalIgnoreCase) ||
+                   texto.Contains("\"code\": 301", StringComparison.OrdinalIgnoreCase) ||
+                   texto.Contains(
+                       "Invalid session or session already timeout",
+                       StringComparison.OrdinalIgnoreCase) ||
+                   texto.Contains(
+                       "Invalid session",
+                       StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task ForzarLoginAsync()
+        {
+            _httpClient.DefaultRequestHeaders.Remove("Cookie");
+            await LoginAsync();
+        }
+
+        public async Task<(bool ok, string response, string? error)> PostJsonAsync(
+            string relativeUrl,
+            string json)
         {
             try
             {
-                var (ok, err) = await EnsureLoginAsync();
-                if (!ok)
-                    return (false, "", err);
-
-                // Si llega "/DeliveryNotes" => "DeliveryNotes"
                 var url = (relativeUrl ?? "").Trim();
+
                 if (!Uri.IsWellFormedUriString(url, UriKind.Absolute))
                     url = url.TrimStart('/');
 
-                var content = new StringContent(json ?? "", Encoding.UTF8, "application/json");
-
-                var resp = await _httpClient.PostAsync(url, content);
-
-                // Si expiró sesión, reintenta 1 vez
-                if (resp.StatusCode == HttpStatusCode.Unauthorized)
+                for (var intento = 0; intento < 2; intento++)
                 {
-                    await LoginAsync();
-                    content = new StringContent(json ?? "", Encoding.UTF8, "application/json");
-                    resp = await _httpClient.PostAsync(url, content);
+                    var (loginOk, loginError) = await EnsureLoginAsync();
+
+                    if (!loginOk)
+                        return (false, "", loginError);
+
+                    using var content = new StringContent(
+                        json ?? "",
+                        Encoding.UTF8,
+                        "application/json");
+
+                    using var resp = await _httpClient.PostAsync(url, content);
+                    var body = await resp.Content.ReadAsStringAsync();
+
+                    if (intento == 0 && EsSesionSapExpirada(resp.StatusCode, body))
+                    {
+                        await ForzarLoginAsync();
+                        continue;
+                    }
+
+                    if (!resp.IsSuccessStatusCode)
+                    {
+                        return (
+                            false,
+                            body,
+                            $"SAP SL {(int)resp.StatusCode} {resp.ReasonPhrase}");
+                    }
+
+                    return (true, body, null);
                 }
 
-                var body = await resp.Content.ReadAsStringAsync();
-
-                if (!resp.IsSuccessStatusCode)
-                    return (false, body, $"SAP SL {(int)resp.StatusCode} {resp.ReasonPhrase}");
-
-                return (true, body, null);
+                return (
+                    false,
+                    "",
+                    "No fue posible restablecer la sesión de SAP Service Layer.");
             }
             catch (Exception ex)
             {
                 return (false, "", ex.GetBaseException().Message);
             }
         }
-
-
 
 
         public SapServiceLayerClient(HttpClient httpClient, IConfiguration config, AppDbContext context)
@@ -101,61 +140,112 @@ namespace Plataforma_CG.Services
         // =========================
         public async Task LoginAsync()
         {
-            var settings = _config.GetSection("SapServiceLayer");
-            var payload = new
+            await _loginGate.WaitAsync();
+
+            try
             {
-                UserName = settings["UserName"],
-                Password = settings["Password"],
-                CompanyDB = settings["CompanyDB"]
-            };
+                var settings = _config.GetSection("SapServiceLayer");
+                var baseUrl = (settings["BaseUrl"] ?? "").TrimEnd('/');
 
-            var json = JsonSerializer.Serialize(payload);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-            
-            var response = await _httpClient.PostAsync($"{settings["BaseUrl"]}/Login", content);
+                if (string.IsNullOrWhiteSpace(baseUrl))
+                    throw new InvalidOperationException(
+                        "No está configurado SapServiceLayer:BaseUrl.");
 
-            response.EnsureSuccessStatusCode();
+                var payload = new
+                {
+                    UserName = settings["UserName"],
+                    Password = settings["Password"],
+                    CompanyDB = settings["CompanyDB"]
+                };
 
-            //var cookies = response.Headers.GetValues("Set-Cookie");
-            //var sessionCookie = cookies.FirstOrDefault(c => c.StartsWith("B1SESSION"));
+                var json = JsonSerializer.Serialize(payload);
 
-            //if (!string.IsNullOrEmpty(sessionCookie))
-            //{
-            //    var sessionId = sessionCookie.Split(';')[0];
-            //    _httpClient.DefaultRequestHeaders.Remove("Cookie"); // Limpia cookies previas
-            //    _httpClient.DefaultRequestHeaders.Add("Cookie", sessionId);
-            //}
+                using var content = new StringContent(
+                    json,
+                    Encoding.UTF8,
+                    "application/json");
 
-            var cookies = response.Headers.GetValues("Set-Cookie");
-            var sessionCookie = cookies.FirstOrDefault(c => c.StartsWith("B1SESSION"));
-            var routeCookie = cookies.FirstOrDefault(c => c.StartsWith("ROUTEID"));
+                using var response = await _httpClient.PostAsync(
+                    $"{baseUrl}/Login",
+                    content);
 
-            if (!string.IsNullOrEmpty(sessionCookie))
-            {
-                var sessionId = sessionCookie.Split(';')[0];
+                var body = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new InvalidOperationException(
+                        $"No fue posible iniciar sesión en SAP Service Layer. " +
+                        $"HTTP {(int)response.StatusCode}. {body}");
+                }
+
+                if (!response.Headers.TryGetValues("Set-Cookie", out var cookies))
+                {
+                    throw new InvalidOperationException(
+                        "SAP Service Layer no devolvió la cookie B1SESSION.");
+                }
+
+                var sessionCookie = cookies.FirstOrDefault(c =>
+                    c.StartsWith("B1SESSION", StringComparison.OrdinalIgnoreCase));
+
+                var routeCookie = cookies.FirstOrDefault(c =>
+                    c.StartsWith("ROUTEID", StringComparison.OrdinalIgnoreCase));
+
+                if (string.IsNullOrWhiteSpace(sessionCookie))
+                {
+                    throw new InvalidOperationException(
+                        "SAP Service Layer no devolvió una B1SESSION válida.");
+                }
+
+                var cookie = sessionCookie.Split(';')[0];
+
+                if (!string.IsNullOrWhiteSpace(routeCookie))
+                    cookie += "; " + routeCookie.Split(';')[0];
+
                 _httpClient.DefaultRequestHeaders.Remove("Cookie");
-                _httpClient.DefaultRequestHeaders.Add("Cookie", sessionId + (routeCookie != null ? "; " + routeCookie.Split(';')[0] : ""));
+                _httpClient.DefaultRequestHeaders.TryAddWithoutValidation(
+                    "Cookie",
+                    cookie);
             }
-
+            finally
+            {
+                _loginGate.Release();
+            }
         }
 
         private async Task<HttpResponseMessage> GetWithReLoginAsync(string url)
         {
-            var response = await _httpClient.GetAsync(url); // <- llamamos al HttpClient, no a nosotros mismos
-            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            for (var intento = 0; intento < 2; intento++)
             {
-                await LoginAsync();
-                response = await _httpClient.GetAsync(url);
+                var (loginOk, loginError) = await EnsureLoginAsync();
+
+                if (!loginOk)
+                    throw new InvalidOperationException(loginError);
+
+                var response = await _httpClient.GetAsync(url);
+                var body = await response.Content.ReadAsStringAsync();
+
+                if (intento == 0 && EsSesionSapExpirada(response.StatusCode, body))
+                {
+                    response.Dispose();
+                    await ForzarLoginAsync();
+                    continue;
+                }
+
+                return response;
             }
-            return response;
+
+            throw new InvalidOperationException(
+                "No fue posible restablecer la sesión de SAP Service Layer.");
         }
+
+
 
 
         //======================================
         // OBTIENE CLIENTES (BUSINESSPARTNERS) DE SAP
         //======================================
 
-  
+
         public async Task<List<ClienteViewModel>> ObtenerTodosClientesAsync()
         {
             if (!_httpClient.DefaultRequestHeaders.Contains("Cookie"))
@@ -206,7 +296,7 @@ namespace Plataforma_CG.Services
 
         //https://172.120.80.3:50000/b1s/v1/BusinessPartners? TESTEAR EN POSTMAN EL CATALOGO DE CLIENTES
 
-        
+
         public async Task<List<ClienteViewModel>> BuscarClientesPorNombreAsync(string term)
         {
             if (!_httpClient.DefaultRequestHeaders.Contains("Cookie"))
@@ -483,7 +573,7 @@ namespace Plataforma_CG.Services
         // DEVUELVE EL ID DEL VENDEDOR DE UN CLIENTE SAP
         //======================================
 
-       
+
         public async Task<int?> ObtenerVendedorClienteAsync(string cardCode)
         {
             if (!_httpClient.DefaultRequestHeaders.Contains("Cookie"))
@@ -510,7 +600,7 @@ namespace Plataforma_CG.Services
         //======================================
         // DEVUELVE EL NOMBRE DEL VENDEDOR A PARTIR DE UN ID
         //======================================
-       
+
         public async Task<string> ObtenerNombreVendedorAsync(int vendedorId)
         {
             if (vendedorId <= 0)
@@ -868,9 +958,9 @@ namespace Plataforma_CG.Services
 
 
 
-         //===================================================
-         //🔹 SINCRONIZADOR DE FACTURAS DE CLIENTE A SQL LOCAL
-         //===================================================
+        //===================================================
+        //🔹 SINCRONIZADOR DE FACTURAS DE CLIENTE A SQL LOCAL
+        //===================================================
         //public async Task<int> SincronizarInvoicesClienteAsync(string cardCode, string sqlConnectionString)
         //{
         //    // 1) Traer del SAP (tu método optimizado con $expand y LineNum)
@@ -1430,7 +1520,7 @@ namespace Plataforma_CG.Services
             {
                 var url =
                     $"{baseUrl}/BusinessPartners?" +
-                    "$filter=CardType eq 'C' and Valid eq 'tYES' " +                   
+                    "$filter=CardType eq 'C' and Valid eq 'tYES' " +
                     "&$select=CardCode,CardName,U_MT_Clasificacion,U_CANAL,SalesPersonCode,PriceListNum " +
                     "&$orderby=CardCode " +
                     $"&$top={bpBatch}&$skip={bpSkip}";
@@ -2011,30 +2101,45 @@ namespace Plataforma_CG.Services
         }
 
 
-        public async Task<(bool ok, string? response, string? error, int statusCode)> GetAsync(string endpoint)
+        public async Task<(
+            bool ok,
+            string? response,
+            string? error,
+            int statusCode)> GetAsync(string endpoint)
         {
             try
             {
-                // endpoint puede venir como "DeliveryNotes?$select=..."
-                var resp = await _httpClient.GetAsync(endpoint);
-
-                // si la sesión caducó, re-log y reintenta
-                if (resp.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                for (var intento = 0; intento < 2; intento++)
                 {
-                    await EnsureLoginAsync(); // SIN force
-                    resp = await _httpClient.GetAsync(endpoint);
+                    var (loginOk, loginError) = await EnsureLoginAsync();
+
+                    if (!loginOk)
+                        return (false, null, loginError, 0);
+
+                    using var resp = await _httpClient.GetAsync(endpoint);
+                    var body = await resp.Content.ReadAsStringAsync();
+
+                    if (intento == 0 && EsSesionSapExpirada(resp.StatusCode, body))
+                    {
+                        await ForzarLoginAsync();
+                        continue;
+                    }
+
+                    if (!resp.IsSuccessStatusCode)
+                        return (false, body, body, (int)resp.StatusCode);
+
+                    return (true, body, null, (int)resp.StatusCode);
                 }
 
-                var body = await resp.Content.ReadAsStringAsync();
-
-                if (!resp.IsSuccessStatusCode)
-                    return (false, body, body, (int)resp.StatusCode);
-
-                return (true, body, null, (int)resp.StatusCode);
+                return (
+                    false,
+                    null,
+                    "No fue posible restablecer la sesión de SAP Service Layer.",
+                    500);
             }
             catch (Exception ex)
             {
-                return (false, null, ex.Message, 0);
+                return (false, null, ex.GetBaseException().Message, 0);
             }
         }
 

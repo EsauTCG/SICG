@@ -1,4 +1,4 @@
-@model Plataforma_CG.ViewModels.IntegracionSapIndexVM
+﻿@model Plataforma_CG.ViewModels.IntegracionSapIndexVM
 @using System.Linq
 @{
     Layout = "~/Views/Shared/_Layout2.cshtml";
@@ -511,15 +511,606 @@
         .type-card { grid-template-columns: 40px minmax(0,1fr); }
         .type-meta { grid-column: 1 / -1; text-align: left; padding-left: 50px; }
     }
+
+    /* =========================================================
+       ESTRUCTURA TIPO AJUSTE DE PRECIOS SKU
+       Pantalla completa dentro del área real de _Layout2.
+       Se expande y se contrae automáticamente con el sidebar.
+       ========================================================= */
+
+    :root {
+        --layout-work-bg: #f0dede;
+        --layout-work-panel: #f8eeee;
+        --layout-work-surface: #fffafa;
+        --layout-work-line: #c79d9d;
+        --layout-work-line-dark: #8f4c4c;
+        --layout-work-text: #3b1717;
+        --layout-work-muted: #6a3a3a;
+        --layout-work-header: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%);
+        --layout-work-toolbar: linear-gradient(#fff6f6,#ecd8d8);
+        --layout-work-shadow:
+            0 0 0 1px rgba(255,255,255,.45) inset,
+            0 8px 18px rgba(70,12,12,.14);
+    }
+
+    html,
+    body {
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow-x: hidden !important;
+        background: transparent !important;
+    }
+
+    /*
+     * Se conserva el comportamiento estable de Ajuste de Precios:
+     * el módulo mide el 100% de su padre y el padre es quien responde
+     * al abrir o cerrar el sidebar de _Layout2.
+     */
+    .container,
+    .container-fluid {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .sap-page {
+        position: relative !important;
+        inset: auto !important;
+        transform: none !important;
+
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        min-height: calc(100vh - 60px) !important;
+        min-height: calc(100dvh - 60px) !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+
+        display: flex !important;
+        flex-direction: column !important;
+
+        background: var(--layout-work-bg) !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+    }
+
+    .sap-shell {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        min-height: calc(100vh - 60px) !important;
+        min-height: calc(100dvh - 60px) !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+
+        display: flex !important;
+        flex-direction: column !important;
+        flex: 1 1 auto !important;
+
+        border: 1px solid var(--layout-work-line-dark) !important;
+        border-radius: 0 !important;
+        background: var(--layout-work-panel) !important;
+        color: var(--layout-work-text) !important;
+        box-shadow: var(--layout-work-shadow) !important;
+        overflow: hidden !important;
+        box-sizing: border-box !important;
+
+        container-type: inline-size;
+        container-name: integraciones-sap;
+    }
+
+    .sap-shell *,
+    .sap-page * {
+        box-sizing: border-box;
+    }
+
+    /* ENCABEZADO */
+    .sap-header {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        min-height: 58px !important;
+
+        margin: 0 !important;
+        padding: 10px 12px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 12px !important;
+        flex-wrap: wrap !important;
+        flex: 0 0 auto !important;
+
+        border-bottom: 1px solid #4a0000 !important;
+        background: var(--layout-work-header) !important;
+        color: #fff !important;
+        box-shadow: none !important;
+    }
+
+    .sap-title-block {
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+        min-width: 0 !important;
+        flex: 1 1 420px !important;
+    }
+
+    .sap-title-icon {
+        width: 38px !important;
+        height: 38px !important;
+        flex: 0 0 38px !important;
+
+        display: grid !important;
+        place-items: center !important;
+
+        border: 1px solid rgba(255,255,255,.30) !important;
+        border-radius: 0 !important;
+        background: rgba(255,255,255,.12) !important;
+        color: #fff !important;
+        font-size: 18px !important;
+    }
+
+    .sap-title-wrap {
+        min-width: 0 !important;
+    }
+
+    .sap-title {
+        margin: 0 !important;
+        color: #fff !important;
+        font-size: 16px !important;
+        line-height: 1.15 !important;
+        font-weight: 800 !important;
+        overflow-wrap: anywhere;
+    }
+
+    .sap-subtitle {
+        margin-top: 2px !important;
+        color: #f4d7d7 !important;
+        font-size: 10px !important;
+        line-height: 1.2 !important;
+    }
+
+    .sap-context {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        gap: 6px !important;
+        flex-wrap: wrap !important;
+        min-width: 0 !important;
+    }
+
+    .sap-chip {
+        padding: 5px 9px !important;
+        border: 1px solid rgba(255,255,255,.35) !important;
+        border-radius: 0 !important;
+        background: rgba(0,0,0,.15) !important;
+        color: #fff !important;
+        font-size: 10px !important;
+        font-weight: 700 !important;
+        white-space: nowrap !important;
+    }
+
+    /* CUERPO PRINCIPAL */
+    .sap-body {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+
+        margin: 0 !important;
+        padding: 8px !important;
+
+        display: flex !important;
+        flex-direction: column !important;
+        flex: 1 1 auto !important;
+
+        background: var(--layout-work-bg) !important;
+        overflow: hidden !important;
+    }
+
+    .type-grid,
+    .filter-grid,
+    .metrics,
+    .panel,
+    .table-toolbar,
+    .table-wrap,
+    .statusbar {
+        max-width: 100% !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
+    }
+
+    .type-grid {
+        grid-template-columns: repeat(3,minmax(0,1fr)) !important;
+        gap: 8px !important;
+        margin-bottom: 8px !important;
+        flex: 0 0 auto !important;
+    }
+
+    .type-card {
+        min-width: 0 !important;
+        min-height: 70px !important;
+        padding: 9px !important;
+        grid-template-columns: 40px minmax(0,1fr) auto !important;
+
+        border: 1px solid var(--layout-work-line) !important;
+        border-radius: 0 !important;
+        background: linear-gradient(180deg,#fffafa,#f1dede) !important;
+        box-shadow: none !important;
+    }
+
+    .type-card.active {
+        border-color: #8b0000 !important;
+        box-shadow: inset 4px 0 0 #8b0000 !important;
+        background: linear-gradient(180deg,#fffafa,#ecd7d7) !important;
+    }
+
+    .type-icon {
+        width: 38px !important;
+        height: 38px !important;
+        border-radius: 0 !important;
+        background: var(--layout-work-header) !important;
+        font-size: 16px !important;
+    }
+
+    .type-name {
+        color: var(--layout-work-text) !important;
+        font-size: 12px !important;
+    }
+
+    .type-desc,
+    .type-meta {
+        color: var(--layout-work-muted) !important;
+        font-size: 9px !important;
+    }
+
+    .type-meta strong {
+        color: #8b0000 !important;
+        font-size: 10px !important;
+    }
+
+    .panel {
+        border: 1px solid var(--layout-work-line) !important;
+        border-radius: 0 !important;
+        background: var(--layout-work-surface) !important;
+        box-shadow: none !important;
+    }
+
+    .panel-title {
+        min-height: 29px !important;
+        padding: 6px 8px !important;
+        border-bottom: 1px solid #4a0000 !important;
+        background: var(--layout-work-header) !important;
+        color: #fff !important;
+        font-size: 11px !important;
+        font-weight: 800 !important;
+    }
+
+    .filter-grid {
+        width: 100% !important;
+        padding: 8px !important;
+        gap: 7px !important;
+
+        grid-template-columns:
+            minmax(120px,.8fr)
+            minmax(170px,1.1fr)
+            minmax(120px,.75fr)
+            minmax(120px,.75fr)
+            minmax(125px,.8fr)
+            minmax(300px,1.6fr) !important;
+
+        border-bottom: 0 !important;
+        background: var(--layout-work-toolbar) !important;
+    }
+
+    .field {
+        min-width: 0 !important;
+    }
+
+    .field label {
+        margin-bottom: 3px !important;
+        color: var(--layout-work-text) !important;
+        font-size: 10px !important;
+        font-weight: 800 !important;
+    }
+
+    .field input,
+    .field select {
+        width: 100% !important;
+        min-width: 0 !important;
+        height: 30px !important;
+        min-height: 30px !important;
+        padding: 3px 7px !important;
+
+        border: 1px solid var(--layout-work-line-dark) !important;
+        border-radius: 0 !important;
+        background: var(--layout-work-surface) !important;
+        color: var(--layout-work-text) !important;
+
+        font-size: 11px !important;
+        box-shadow: none !important;
+    }
+
+    .actions {
+        min-width: 0 !important;
+    }
+
+    .btn {
+        min-height: 30px !important;
+        height: 30px !important;
+        padding: 0 10px !important;
+        border-radius: 0 !important;
+        font-size: 10px !important;
+        box-shadow: none !important;
+    }
+
+    .metrics {
+        grid-template-columns: repeat(5,minmax(0,1fr)) !important;
+        gap: 8px !important;
+        margin-bottom: 8px !important;
+        flex: 0 0 auto !important;
+    }
+
+    .metric {
+        min-width: 0 !important;
+        min-height: 68px !important;
+        padding: 8px 9px !important;
+
+        border: 1px solid var(--layout-work-line) !important;
+        border-radius: 0 !important;
+        background: var(--layout-work-surface) !important;
+        box-shadow: inset 0 3px 0 #d5aaaa !important;
+    }
+
+    .metric-value {
+        margin-top: 5px !important;
+        color: #8b0000 !important;
+        font-size: 20px !important;
+    }
+
+    .metric-label,
+    .metric-note {
+        color: var(--layout-work-muted) !important;
+        font-size: 9px !important;
+    }
+
+    /*
+     * El último panel ocupa el resto del alto disponible.
+     * Así se comporta como la tabla principal de Ajuste de Precios.
+     */
+    .sap-body > .panel:last-of-type {
+        display: flex !important;
+        flex-direction: column !important;
+        flex: 1 1 auto !important;
+        min-height: 310px !important;
+        margin-bottom: 0 !important;
+        overflow: hidden !important;
+    }
+
+    .table-toolbar {
+        width: 100% !important;
+        padding: 7px 8px !important;
+        gap: 8px !important;
+        flex: 0 0 auto !important;
+
+        border-bottom: 1px solid var(--layout-work-line) !important;
+        background: var(--layout-work-toolbar) !important;
+    }
+
+    .selection-info,
+    .auto-state-label {
+        color: var(--layout-work-muted) !important;
+        font-size: 10px !important;
+    }
+
+    .table-wrap {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        min-height: 260px !important;
+        max-height: none !important;
+
+        flex: 1 1 auto !important;
+        overflow: auto !important;
+        overscroll-behavior-inline: contain;
+        scrollbar-gutter: stable;
+
+        border-top: 0 !important;
+        background: var(--layout-work-surface) !important;
+    }
+
+    table {
+        width: 100% !important;
+        min-width: 1260px !important;
+        color: var(--layout-work-text) !important;
+        background: var(--layout-work-surface) !important;
+        font-size: 10px !important;
+    }
+
+    thead th {
+        padding: 6px 5px !important;
+        border-right: 1px solid rgba(0,0,0,.35) !important;
+        border-bottom: 1px solid rgba(0,0,0,.45) !important;
+        background: var(--layout-work-header) !important;
+        color: #fff !important;
+        font-size: 10px !important;
+        font-weight: 800 !important;
+    }
+
+    tbody td {
+        padding: 5px !important;
+        border-right: 1px solid var(--layout-work-line) !important;
+        border-bottom: 1px solid var(--layout-work-line) !important;
+        background: var(--layout-work-surface) !important;
+        color: var(--layout-work-text) !important;
+        font-size: 10px !important;
+    }
+
+    tbody tr:nth-child(even) td {
+        background: #f1dede !important;
+    }
+
+    tbody tr:hover td {
+        background: #f4dddd !important;
+    }
+
+    .statusbar {
+        width: 100% !important;
+        padding: 6px 9px !important;
+        flex: 0 0 auto !important;
+
+        border-top: 1px solid var(--layout-work-line) !important;
+        background: var(--layout-work-toolbar) !important;
+        color: var(--layout-work-muted) !important;
+        font-size: 9px !important;
+    }
+
+    .modal-card {
+        border: 1px solid #5c0000 !important;
+        border-radius: 0 !important;
+    }
+
+    .modal-head {
+        background: var(--layout-work-header) !important;
+        border-bottom: 1px solid #5c0000 !important;
+    }
+
+    /*
+     * Estas reglas reaccionan al ancho real del módulo.
+     * Cuando el sidebar reduce el contenido, la vista se reorganiza
+     * aunque el ancho total del navegador siga siendo grande.
+     */
+    @@container integraciones-sap (max-width: 1250px) {
+        .filter-grid {
+            grid-template-columns: repeat(3,minmax(0,1fr)) !important;
+        }
+
+        .filter-grid > .actions {
+            grid-column: 1 / -1 !important;
+            justify-content: flex-end !important;
+        }
+
+        .metrics {
+            grid-template-columns: repeat(3,minmax(0,1fr)) !important;
+        }
+
+        .sap-context .sap-chip:last-child {
+            display: none !important;
+        }
+    }
+
+    @@container integraciones-sap (max-width: 900px) {
+        .sap-header {
+            align-items: flex-start !important;
+        }
+
+        .sap-context {
+            width: 100% !important;
+            justify-content: flex-start !important;
+        }
+
+        .type-grid {
+            grid-template-columns: 1fr !important;
+        }
+
+        .filter-grid {
+            grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+        }
+
+        .metrics {
+            grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+        }
+
+        .table-toolbar {
+            align-items: stretch !important;
+            flex-direction: column !important;
+        }
+
+        .table-toolbar > .actions {
+            justify-content: flex-start !important;
+        }
+    }
+
+    @@container integraciones-sap (max-width: 620px) {
+        .filter-grid,
+        .metrics {
+            grid-template-columns: 1fr !important;
+        }
+
+        .filter-grid > .actions {
+            grid-column: auto !important;
+            justify-content: stretch !important;
+        }
+
+        .filter-grid > .actions .btn {
+            flex: 1 1 auto !important;
+        }
+
+        .sap-context {
+            display: none !important;
+        }
+
+        .type-card {
+            grid-template-columns: 38px minmax(0,1fr) !important;
+        }
+
+        .type-meta {
+            grid-column: 1 / -1 !important;
+            padding-left: 48px !important;
+            text-align: left !important;
+        }
+
+        .table-toolbar > .actions {
+            flex-direction: column !important;
+            align-items: stretch !important;
+        }
+
+        .table-toolbar > .actions > * {
+            width: 100% !important;
+        }
+    }
+
+    @@media (max-width: 700px) {
+        .sap-body {
+            padding: 6px !important;
+        }
+
+        .modal-backdrop {
+            padding: 0 !important;
+        }
+
+        .modal-card {
+            width: 100vw !important;
+            max-width: 100vw !important;
+            min-height: 100dvh !important;
+            max-height: 100dvh !important;
+            border-left: 0 !important;
+            border-right: 0 !important;
+        }
+    }
+
 </style>
 
 <div class="sap-page">
     <div class="sap-shell">
         <header class="sap-header">
-            <div class="sap-title-wrap">
-                <h1 class="sap-title"><i class="fa-solid fa-arrows-rotate"></i> Integraciones de inventario SAP</h1>
-                <div class="sap-subtitle">Consulta, valida y envía movimientos de mercancía desde Meat hacia SAP Business One.</div>
+            <div class="sap-title-block">
+                <div class="sap-title-icon">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                </div>
+                <div class="sap-title-wrap">
+                    <h1 class="sap-title">Integraciones de inventario SAP</h1>
+                    <div class="sap-subtitle">Consulta, valida y envía movimientos de mercancía desde Meat hacia SAP Business One.</div>
+                </div>
             </div>
+
             <div class="sap-context">
                 <span class="sap-chip"><i class="fa-solid fa-industry"></i> Planta: @Model.Filtro.Source</span>
                 <span class="sap-chip"><i class="fa-solid fa-database"></i> Base: @Model.BaseDatos</span>

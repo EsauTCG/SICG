@@ -1,6 +1,7 @@
 using ClosedXML.Excel;
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -40,6 +41,42 @@ namespace Plataforma_CG.Controllers
         // Evita dobles autocompletados simultáneos para la misma entrega.
         private static readonly ConcurrentDictionary<string, SemaphoreSlim>
             AutocompletarSapGates = new(StringComparer.OrdinalIgnoreCase);
+
+
+        // =======================================================
+        // AJUSTE DE COMPARATIVA EN SEGUNDO PLANO
+        // =======================================================
+        // La ejecución se desacopla de la petición HTTP para que el usuario
+        // pueda cerrar el modal, cambiar de pestaña o navegar por la aplicación.
+        // El estado se conserva en memoria mientras la aplicación permanezca activa.
+        private const int TamanoLoteAjusteComparativaPredeterminado = 2000;
+        private const int TamanoLoteAjusteComparativaMaximo = 2000;
+        private const int MaximoCodigosAjusteComparativa = 250000;
+        private const int PausaEntreLotesAjusteMs = 200;
+
+        private sealed class AjusteComparativaTrabajo
+        {
+            public string JobId { get; set; } = "";
+            public string Usuario { get; set; } = "";
+            public int CodigosSolicitados { get; set; }
+            public int CodigosProcesados { get; set; }
+            public int TamanoLote { get; set; } = TamanoLoteAjusteComparativaPredeterminado;
+            public int LoteActual { get; set; }
+            public int TotalLotes { get; set; }
+            public string Estado { get; set; } = "PENDIENTE";
+            public string Mensaje { get; set; } = "Trabajo pendiente de iniciar.";
+            public string Detalle { get; set; } = "";
+            public DateTime FechaCreacion { get; set; } = DateTime.Now;
+            public DateTime? FechaInicio { get; set; }
+            public DateTime? FechaFin { get; set; }
+            public long? DuracionMs { get; set; }
+            public object SyncRoot { get; } = new();
+        }
+
+        private static readonly ConcurrentDictionary<string, AjusteComparativaTrabajo>
+            AjustesComparativaTrabajos = new(StringComparer.OrdinalIgnoreCase);
+
+        private static readonly object AjustesComparativaTrabajosLock = new();
 
         private readonly IEntregasSapService _data;
         private readonly ISapServiceLayerClient _sap;
@@ -110,11 +147,10 @@ namespace Plataforma_CG.Controllers
     T0.""ItemCode"" AS ""Articulo"",
     T0.""WhsCode"" AS ""Almacen"",
     T1.""DistNumber"" AS ""Lote"",
-    SUM(IFNULL(T0.""Quantity"", 0)) AS ""CantidadSap"",
-    SUM(IFNULL(T0.""CommitQty"", 0)) AS ""ComprometidoSap"",
-    SUM(IFNULL(T0.""Quantity"", 0) - IFNULL(T0.""CommitQty"", 0)) AS ""DisponibleSap""
-FROM OBTQ T0
-INNER JOIN OBTN T1
+    SUM(T0.""Quantity"") AS ""CantidadSap"",
+    SUM(T0.""CommitQty"") AS ""ComprometidoSap""
+FROM ""OBTQ"" T0
+INNER JOIN ""OBTN"" T1
     ON T0.""ItemCode"" = T1.""ItemCode""
    AND T0.""SysNumber"" = T1.""SysNumber""
 WHERE
@@ -1090,6 +1126,8 @@ ORDER BY
             string json,
             string source)
         {
+            var relojTotal = Stopwatch.StartNew();
+
             if (string.IsNullOrWhiteSpace(json) || json.Trim() == "{}")
             {
                 return new List<TrazabilidadSapVM>
@@ -1187,60 +1225,64 @@ ORDER BY
                 };
             }
 
-            // La fecha de producción se obtiene exclusivamente de la base Meat
-            // correspondiente a la planta (CadenaMeatP1 o CadenaMeatTIF).
-            var fechasProduccionMeat = await ObtenerFechasProduccionMeatAsync(
+            /*
+             * OPTIMIZACIÓN IMPORTANTE
+             * -----------------------
+             * Antes se descargaba TODO el inventario positivo del almacén
+             * PLAP1GEN o PLATIFGE y después se filtraba en memoria. En almacenes
+             * grandes esto obliga a recorrer muchas páginas de Service Layer.
+             *
+             * Ahora se utiliza CG_INV_LOTE_DISPONIBLE para consultar únicamente
+             * cada combinación exacta Artículo + Almacén + Lote requerida por la
+             * entrega. Las consultas se ejecutan con concurrencia limitada para
+             * acelerar el modal sin saturar SAP Service Layer.
+             */
+            var maxParalelas = Math.Clamp(
+                _configuration.GetValue<int?>(
+                    "SapServiceLayer:MaxConsultasTrazabilidadParalelas") ?? 4,
+                1,
+                8);
+
+            using var limiteSap = new SemaphoreSlim(maxParalelas, maxParalelas);
+
+            var tareaFechas = ObtenerFechasProduccionMeatAsync(
                 source,
                 agrupado.Select(x => x.Lote));
 
-            var resultado = new List<TrazabilidadSapVM>();
-
-            // Antes se ejecutaba la SQLQuery completa de SAP una vez por cada lote.
-            // Ahora se carga una sola vez por almacén y después se filtra en memoria.
-            // Esto reduce de forma importante el tiempo de la primera fase del modal.
-            var inventarioSapPorAlmacen =
-                new Dictionary<string, List<InventarioSapConciliacionRow>>(
-                    StringComparer.OrdinalIgnoreCase);
-
-            var almacenes = agrupado
-                .Select(x => NormalizeKey(x.WhsCode))
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            foreach (var almacen in almacenes)
+            var tareasSap = agrupado.Select(async x =>
             {
-                inventarioSapPorAlmacen[almacen] =
-                    await ObtenerInventarioSapConciliacionAsync(
-                        almacen,
-                        articulo: "",
-                        lote: "");
-            }
+                await limiteSap.WaitAsync();
 
-            foreach (var x in agrupado)
-            {
-                inventarioSapPorAlmacen.TryGetValue(
-                    NormalizeKey(x.WhsCode),
-                    out var sapInv);
+                try
+                {
+                    var sap = await ObtenerInventarioSapLoteExactoAsync(
+                        x.ItemCode,
+                        x.WhsCode,
+                        x.Lote);
 
-                sapInv ??= new List<InventarioSapConciliacionRow>();
-
-                var sap = sapInv
-                    .Where(r =>
-                        NormalizeKey(r.ProductoCodigo) == NormalizeKey(x.ItemCode) &&
-                        NormLoteInv(r.Lote) == NormLoteInv(x.Lote))
-                    .GroupBy(r => KeyInv(r.Sucursal, r.ProductoCodigo, r.Lote))
-                    .Select(g => new InventarioSapConciliacionRow
+                    return new
                     {
-                        Sucursal = g.First().Sucursal,
-                        ProductoCodigo = g.First().ProductoCodigo,
-                        DescripcionSap = g.First().DescripcionSap,
-                        Lote = g.First().Lote,
-                        CantidadSap = g.Sum(r => r.CantidadSap),
-                        ComprometidoSap = g.Sum(r => r.ComprometidoSap),
-                        DisponibleSap = g.Sum(r => r.DisponibleSap)
-                    })
-                    .FirstOrDefault();
+                        x.ItemCode,
+                        x.WhsCode,
+                        x.Lote,
+                        x.Kg,
+                        Sap = sap
+                    };
+                }
+                finally
+                {
+                    limiteSap.Release();
+                }
+            }).ToArray();
+
+            var consultasSap = await Task.WhenAll(tareasSap);
+            var fechasProduccionMeat = await tareaFechas;
+
+            var resultado = new List<TrazabilidadSapVM>(consultasSap.Length);
+
+            foreach (var x in consultasSap)
+            {
+                var sap = x.Sap;
 
                 decimal cantidadSap = sap?.CantidadSap ?? 0m;
                 decimal comprometidoSap = sap?.ComprometidoSap ?? 0m;
@@ -1299,10 +1341,86 @@ ORDER BY
                 });
             }
 
+            relojTotal.Stop();
+
+            _logger.LogInformation(
+                "Trazabilidad SAP exacta terminada. Source={Source} Partidas={Partidas} Paralelas={Paralelas} DuracionMs={DuracionMs}",
+                source,
+                agrupado.Count,
+                maxParalelas,
+                relojTotal.ElapsedMilliseconds);
+
             return resultado
                 .OrderBy(x => x.Articulo)
                 .ThenBy(x => x.Lote)
                 .ToList();
+        }
+
+        private async Task<InventarioSapConciliacionRow?> ObtenerInventarioSapLoteExactoAsync(
+            string articulo,
+            string almacen,
+            string lote)
+        {
+            articulo = (articulo ?? "").Trim();
+            almacen = (almacen ?? "").Trim();
+            lote = (lote ?? "").Trim();
+
+            if (string.IsNullOrWhiteSpace(articulo) ||
+                string.IsNullOrWhiteSpace(almacen) ||
+                string.IsNullOrWhiteSpace(lote))
+            {
+                return null;
+            }
+
+            var rows = await EjecutarSapSqlQueryListAsync(
+                SAP_SQL_INV_LOTE_DISPONIBLE,
+                new Dictionary<string, string>
+                {
+                    ["itemCode"] = articulo,
+                    ["whsCode"] = almacen,
+                    ["lote"] = lote
+                });
+
+            var inventario = rows
+                .Select(x =>
+                {
+                    var cantidad = JsonDecimal(x, "CantidadSap");
+                    var comprometido = JsonDecimal(x, "ComprometidoSap");
+                    // CG_INV_LOTE_DISPONIBLE devuelve CantidadSap y ComprometidoSap.
+                    // El disponible se calcula localmente porque SAP Service Layer rechazó
+                    // la expresión SUM(IFNULL(Quantity,0) - IFNULL(CommitQty,0)).
+                    var disponible = cantidad - comprometido;
+
+                    return new InventarioSapConciliacionRow
+                    {
+                        Sucursal = JsonStr(x, "Almacen"),
+                        ProductoCodigo = JsonStr(x, "Articulo"),
+                        DescripcionSap = "",
+                        Lote = JsonStr(x, "Lote"),
+                        CantidadSap = cantidad,
+                        ComprometidoSap = comprometido,
+                        DisponibleSap = disponible
+                    };
+                })
+                .Where(x =>
+                    NormalizeKey(x.ProductoCodigo) == NormalizeKey(articulo) &&
+                    NormalizeKey(x.Sucursal) == NormalizeKey(almacen) &&
+                    NormLoteInv(x.Lote) == NormLoteInv(lote))
+                .ToList();
+
+            if (inventario.Count == 0)
+                return null;
+
+            return new InventarioSapConciliacionRow
+            {
+                Sucursal = inventario[0].Sucursal,
+                ProductoCodigo = inventario[0].ProductoCodigo,
+                DescripcionSap = inventario[0].DescripcionSap,
+                Lote = inventario[0].Lote,
+                CantidadSap = inventario.Sum(x => x.CantidadSap),
+                ComprometidoSap = inventario.Sum(x => x.ComprometidoSap),
+                DisponibleSap = inventario.Sum(x => x.DisponibleSap)
+            };
         }
 
         private static string SqlText(string value)
@@ -1333,8 +1451,11 @@ ORDER BY
             }
             else
             {
-                var paramList = string.Join(",", parameters.Select(x =>
-                    $"{x.Key}={SapSqlParamValue(x.Value)}"));
+                // SAP Service Layer exige separar parámetros con &.
+                // Los parámetros de texto deben enviarse entre comillas simples:
+                // itemCode='N057'&whsCode='PLATIFGE'&lote='DEST00002676'
+                var paramList = string.Join("&", parameters.Select(x =>
+                    $"{x.Key}={SapSqlStringParamValue(x.Value)}"));
 
                 var body = JsonSerializer.Serialize(new { ParamList = paramList });
                 var p = await _sap.PostJsonAsync(endpoint, body);
@@ -1435,13 +1556,17 @@ ORDER BY
         //  "ParamList": "sucursal,articulo,lote",
         //  "SqlText": "SELECT T0."WhsCode" AS "Sucursal", T0."ItemCode" AS "ProductoCodigo", IFNULL(T1."ItemName", '') AS "DescripcionSap", IFNULL(NULLIF(T2."DistNumber", ''), '-') AS "Lote", SUM(IFNULL(T0."Quantity", 0)) AS "CantidadSap", SUM(IFNULL(T0."CommitQty", 0)) AS "ComprometidoSap", SUM(IFNULL(T0."Quantity", 0) - IFNULL(T0."CommitQty", 0)) AS "DisponibleSap" FROM OBTQ T0 INNER JOIN OITM T1 ON T1."ItemCode" = T0."ItemCode" INNER JOIN OBTN T2 ON T2."ItemCode" = T0."ItemCode" AND T2."SysNumber" = T0."SysNumber" WHERE T0."Quantity" > 0 AND (:sucursal = '' OR T0."WhsCode" = :sucursal) AND (:articulo = '' OR UPPER(T0."ItemCode") LIKE '%' || UPPER(:articulo) || '%') AND (:lote = '' OR UPPER(T2."DistNumber") LIKE '%' || UPPER(:lote) || '%') GROUP BY T0."WhsCode", T0."ItemCode", T1."ItemName", T2."DistNumber" ORDER BY T0."WhsCode", T0."ItemCode", T2."DistNumber""
         //}
-        private static string SapSqlParamValue(string value)
+        private static string SapSqlStringParamValue(string value)
         {
-            return (value ?? string.Empty)
+            // Escapa comillas simples para mantener un valor de texto válido
+            // dentro de ParamList y elimina saltos de línea.
+            var limpio = (value ?? string.Empty)
                 .Trim()
-                .Replace(",", " ")
                 .Replace("\r", " ")
-                .Replace("\n", " ");
+                .Replace("\n", " ")
+                .Replace("'", "''");
+
+            return $"'{limpio}'";
         }
 
         private static bool TryGetJsonProperty(JsonElement row, string name, out JsonElement value)
@@ -3555,16 +3680,12 @@ ORDER BY ProduccionId DESC;";
         }
 
 
+
         /// <summary>
-        /// Flujo controlado:
-        /// 1) reconstruye y valida la entrega;
-        /// 2) calcula faltantes por SKU, almacén y lote;
-        /// 3) genera una entrada PurchaseDeliveryNotes a $0.01;
-        /// 4) espera a que SAP refleje el inventario;
-        /// 5) revalida trazabilidad y devoluciones;
-        /// 6) envía la DeliveryNote.
-        ///
-        /// El cliente nunca manda los KG: el servidor vuelve a calcularlos.
+        /// Completa únicamente los SKU/lotes faltantes, confirma que SAP ya
+        /// reflejó los KG y después envía la entrega. Si SAP creó el documento
+        /// pero falla una operación posterior —por ejemplo la bitácora local—,
+        /// se vuelve a consultar SAP antes de responder error.
         /// </summary>
         [HttpPost("AutocompletarYEnviarEntregaSap")]
         [RevisarPermiso("AUTOCOMPLETAR_SAP", "ESCRIBIR")]
@@ -3577,6 +3698,7 @@ ORDER BY ProduccionId DESC;";
                 return BadRequest(new
                 {
                     ok = false,
+                    fase = "VALIDACION_SOLICITUD",
                     msg = "La referencia de la entrega es obligatoria."
                 });
             }
@@ -3593,10 +3715,13 @@ ORDER BY ProduccionId DESC;";
                 return StatusCode(409, new
                 {
                     ok = false,
+                    fase = "BLOQUEO_CONCURRENCIA",
                     msg = "Esta entrega ya tiene un autocompletado en proceso."
                 });
             }
 
+            string faseActual = "INICIO";
+            string jsonEntrega = "";
             string jsonEntrada = "";
             string? respuestaEntrada = null;
             string? respuestaEntrega = null;
@@ -3607,10 +3732,14 @@ ORDER BY ProduccionId DESC;";
             int? entregaDocNum = null;
             decimal kgAutocompletados = 0m;
             int lineasAutocompletadas = 0;
+            bool entradaCreada = false;
+            bool entradaYaExistia = false;
 
             try
             {
-                var jsonEntrega = await _data.BuildJsonAsync(
+                faseActual = "CONSTRUIR_ENTREGA";
+
+                jsonEntrega = await _data.BuildJsonAsync(
                     referencia,
                     source);
 
@@ -3620,12 +3749,13 @@ ORDER BY ProduccionId DESC;";
                     return BadRequest(new
                     {
                         ok = false,
+                        fase = faseActual,
                         msg = "No se pudo construir el JSON de la entrega."
                     });
                 }
 
-                // Primero se revisan devoluciones. No se crea inventario si hay
-                // una devolución pendiente o una diferencia que deba resolverse.
+                faseActual = "VALIDAR_DEVOLUCIONES_INICIALES";
+
                 var devolucionesIniciales =
                     await ValidarDevolucionesAplicadasDesdeJsonAsync(
                         jsonEntrega,
@@ -3638,12 +3768,15 @@ ORDER BY ProduccionId DESC;";
                     return BadRequest(new
                     {
                         ok = false,
+                        fase = faseActual,
                         msg =
                             "No se creó la entrada porque la entrega tiene " +
                             "devoluciones pendientes o diferencias contra SAP.",
                         devoluciones = devolucionesIniciales
                     });
                 }
+
+                faseActual = "CALCULAR_FALTANTES";
 
                 var trazabilidadInicial =
                     await ValidarTrazabilidadDesdeJsonAsync(
@@ -3680,8 +3813,6 @@ ORDER BY ProduccionId DESC;";
                     .ThenBy(x => x.Lote)
                     .ToList();
 
-                // Si la trazabilidad contiene estados inválidos sin una línea
-                // utilizable, no se debe inventar artículo, almacén o lote.
                 var erroresSinLinea = trazabilidadInicial
                     .Where(x =>
                         x.Estatus == "JSON SIN LOTES" ||
@@ -3699,6 +3830,7 @@ ORDER BY ProduccionId DESC;";
                     return BadRequest(new
                     {
                         ok = false,
+                        fase = faseActual,
                         msg =
                             "La trazabilidad contiene partidas incompletas. " +
                             "No es seguro generar la entrada automática.",
@@ -3717,17 +3849,17 @@ ORDER BY ProduccionId DESC;";
                     return BadRequest(new
                     {
                         ok = false,
+                        fase = faseActual,
                         msg =
                             $"El faltante de {kgAutocompletados:N3} KG supera " +
                             $"el máximo permitido de {maxKg:N3} KG."
                     });
                 }
 
-                var entradaCreada = false;
-                var entradaYaExistia = false;
-
                 if (faltantes.Count > 0)
                 {
+                    faseActual = "CREAR_ENTRADA_INVENTARIO";
+
                     var precio = _configuration.GetValue<decimal?>(
                         "AutocompletarSap:Precio") ?? 0.01m;
 
@@ -3746,8 +3878,6 @@ ORDER BY ProduccionId DESC;";
                         source,
                         faltantes);
 
-                    // La clave depende de los faltantes exactos. Repetir el mismo
-                    // intento no duplica; un faltante diferente genera otra firma.
                     uDocMeatEntrada = $"ACSP.{source}.{firma}";
                     var numAtCardEntrada = $"AUTO-{source}-{firma}";
 
@@ -3787,9 +3917,8 @@ ORDER BY ProduccionId DESC;";
 
                         if (!postEntrada.ok)
                         {
-                            // SAP puede crear el documento y perderse la respuesta.
                             var existenteDespuesError =
-                                await BuscarPurchaseDeliveryNoteEnSapAsync(
+                                await ConfirmarPurchaseDeliveryNoteConReintentosAsync(
                                     uDocMeatEntrada,
                                     numAtCardEntrada);
 
@@ -3814,6 +3943,7 @@ ORDER BY ProduccionId DESC;";
                                 return BadRequest(new
                                 {
                                     ok = false,
+                                    fase = faseActual,
                                     msg =
                                         "SAP rechazó la entrada automática. " +
                                         "La entrega no fue enviada.",
@@ -3838,19 +3968,37 @@ ORDER BY ProduccionId DESC;";
                             (entradaDocEntry, entradaDocNum) =
                                 LeerDocEntryDocNumSap(
                                     postEntrada.response);
+
+                            if (!entradaDocEntry.HasValue ||
+                                !entradaDocNum.HasValue)
+                            {
+                                var confirmacionEntrada =
+                                    await ConfirmarPurchaseDeliveryNoteConReintentosAsync(
+                                        uDocMeatEntrada,
+                                        numAtCardEntrada);
+
+                                if (confirmacionEntrada.found)
+                                {
+                                    entradaDocEntry ??=
+                                        confirmacionEntrada.docEntry;
+                                    entradaDocNum ??=
+                                        confirmacionEntrada.docNum;
+                                }
+                            }
                         }
                     }
 
-                    // Service Layer puede tardar un momento en reflejar el lote.
+                    faseActual = "REVALIDAR_KG_EN_SAP";
+
                     var intentos = Math.Clamp(
                         _configuration.GetValue<int?>(
-                            "AutocompletarSap:IntentosRevalidacion") ?? 6,
+                            "AutocompletarSap:IntentosRevalidacion") ?? 8,
                         1,
                         20);
 
                     var esperaMs = Math.Clamp(
                         _configuration.GetValue<int?>(
-                            "AutocompletarSap:EsperaRevalidacionMs") ?? 750,
+                            "AutocompletarSap:EsperaRevalidacionMs") ?? 900,
                         200,
                         10000);
 
@@ -3897,20 +4045,23 @@ ORDER BY ProduccionId DESC;";
                         return StatusCode(409, new
                         {
                             ok = false,
+                            fase = faseActual,
                             entradaCreada,
                             entradaYaExistia,
                             entradaDocEntry,
                             entradaDocNum,
                             kgAutocompletados,
+                            lineasAutocompletadas,
                             msg =
-                                "La entrada fue procesada, pero la trazabilidad " +
-                                "todavía no está completa. No se envió la entrega.",
+                                "La entrada fue procesada, pero SAP todavía " +
+                                "reporta faltantes. La entrega no fue enviada.",
                             detalle = trazabilidadFinal
                         });
                     }
                 }
 
-                // Validación final, justo antes de la entrega.
+                faseActual = "VALIDACION_FINAL_ANTES_ENVIO";
+
                 jsonEntrega = await _data.BuildJsonAsync(
                     referencia,
                     source);
@@ -3926,12 +4077,21 @@ ORDER BY ProduccionId DESC;";
                     return StatusCode(409, new
                     {
                         ok = false,
+                        fase = faseActual,
+                        entradaCreada,
+                        entradaYaExistia,
+                        entradaDocEntry,
+                        entradaDocNum,
+                        kgAutocompletados,
+                        lineasAutocompletadas,
                         msg =
                             "La trazabilidad cambió antes del envío. " +
                             "No se envió la entrega.",
                         detalle = trazabilidadConfirmada
                     });
                 }
+
+                faseActual = "VALIDAR_DEVOLUCIONES_FINALES";
 
                 var devolucionesFinales =
                     await ValidarDevolucionesAplicadasDesdeJsonAsync(
@@ -3945,12 +4105,22 @@ ORDER BY ProduccionId DESC;";
                     return StatusCode(409, new
                     {
                         ok = false,
+                        fase = faseActual,
+                        entradaCreada,
+                        entradaYaExistia,
+                        entradaDocEntry,
+                        entradaDocNum,
+                        kgAutocompletados,
+                        lineasAutocompletadas,
                         msg =
                             "La entrada quedó aplicada, pero las devoluciones " +
                             "ya no están conciliadas. No se envió la entrega.",
-                        devoluciones = devolucionesFinales
+                        devoluciones = devolucionesFinales,
+                        detalle = trazabilidadConfirmada
                     });
                 }
+
+                faseActual = "ENVIAR_ENTREGA";
 
                 var envioEntrega =
                     await EnviarEntregaAutocompletadaAsync(
@@ -3983,25 +4153,38 @@ ORDER BY ProduccionId DESC;";
                     return BadRequest(new
                     {
                         ok = false,
+                        fase = faseActual,
                         entradaCreada,
                         entradaYaExistia,
                         entradaDocEntry,
                         entradaDocNum,
                         kgAutocompletados,
+                        lineasAutocompletadas,
+                        entregaConfirmadaSap =
+                            envioEntrega.ConfirmadaEnSap,
                         msg =
-                            "El inventario quedó completado, pero SAP rechazó " +
-                            "la entrega.",
+                            "El inventario quedó completado, pero no fue " +
+                            "posible confirmar la entrega en SAP.",
                         error = envioEntrega.Error,
-                        detalle = envioEntrega.Respuesta
+                        detalle = envioEntrega.Respuesta,
+                        trazabilidadAntesEnvio =
+                            trazabilidadConfirmada
                     });
                 }
+
+                faseActual = "COMPLETADO";
 
                 return Ok(new
                 {
                     ok = true,
-                    msg = faltantes.Count > 0
-                        ? "Se completó el inventario faltante y se envió la entrega."
-                        : "La trazabilidad ya estaba completa y se envió la entrega.",
+                    fase = faseActual,
+                    msg = envioEntrega.RecuperadoTrasError
+                        ? "SAP creó la entrega. Se confirmó después de una respuesta o proceso posterior con error."
+                        : faltantes.Count > 0
+                            ? "Se completó el inventario faltante, se validaron los lotes con KG y se envió la entrega."
+                            : envioEntrega.YaExistia
+                                ? "La trazabilidad estaba completa y la entrega ya existía en SAP."
+                                : "La trazabilidad ya estaba completa y se envió la entrega.",
                     referencia,
                     source,
                     entradaCreada,
@@ -4010,7 +4193,19 @@ ORDER BY ProduccionId DESC;";
                     entradaDocNum,
                     kgAutocompletados,
                     lineasAutocompletadas,
+                    lotesValidados = trazabilidadConfirmada.Count,
+                    kgDisponiblesValidados =
+                        trazabilidadConfirmada.Sum(x => x.DisponibleSap),
+                    trazabilidadAntesEnvio =
+                        trazabilidadConfirmada,
                     entregaYaExistia = envioEntrega.YaExistia,
+                    entregaConfirmadaSap =
+                        envioEntrega.ConfirmadaEnSap,
+                    recuperadoTrasError =
+                        envioEntrega.RecuperadoTrasError,
+                    advertencia = envioEntrega.RecuperadoTrasError
+                        ? envioEntrega.Error
+                        : null,
                     entregaDocEntry,
                     entregaDocNum
                 });
@@ -4019,15 +4214,96 @@ ORDER BY ProduccionId DESC;";
             {
                 _logger.LogError(
                     ex,
-                    "Error en autocompletado SAP. Ref={Referencia} Source={Source}",
+                    "Error en autocompletado SAP. Fase={Fase} Ref={Referencia} Source={Source}",
+                    faseActual,
                     referencia,
                     source);
+
+                // Última salvaguarda: antes de responder 500, se consulta SAP.
+                // Esto evita decir "no se envió" cuando SAP sí alcanzó a crear
+                // la DeliveryNote y el error ocurrió al guardar una bitácora,
+                // interpretar la respuesta o ejecutar otra tarea posterior.
+                try
+                {
+                    var (uDocMeat, numAtCard) =
+                        ExtraerClavesDocumentoSap(jsonEntrega);
+
+                    var confirmacion =
+                        await ConfirmarEntregaSapConReintentosAsync(
+                            uDocMeat,
+                            numAtCard,
+                            4,
+                            600);
+
+                    if (confirmacion.found)
+                    {
+                        entregaDocEntry = confirmacion.docEntry;
+                        entregaDocNum = confirmacion.docNum;
+
+                        await TryUpsertEntregaSapLogAsync(
+                            referencia,
+                            source,
+                            true,
+                            "Entrega confirmada en SAP después de un error posterior.",
+                            entregaDocEntry,
+                            entregaDocNum);
+
+                        await RegistrarAutocompletarSapLogAsync(
+                            referencia,
+                            source,
+                            true,
+                            "Entrega confirmada en SAP después de un error posterior: " +
+                            ex.GetBaseException().Message,
+                            uDocMeatEntrada,
+                            entradaDocEntry,
+                            entradaDocNum,
+                            entregaDocEntry,
+                            entregaDocNum,
+                            kgAutocompletados,
+                            lineasAutocompletadas,
+                            jsonEntrada,
+                            respuestaEntrada,
+                            respuestaEntrega);
+
+                        return Ok(new
+                        {
+                            ok = true,
+                            fase = "CONFIRMADA_TRAS_ERROR",
+                            msg =
+                                "La entrega sí quedó creada en SAP. " +
+                                "Ocurrió un error posterior y se confirmó el documento antes de responder.",
+                            referencia,
+                            source,
+                            entradaCreada,
+                            entradaYaExistia,
+                            entradaDocEntry,
+                            entradaDocNum,
+                            kgAutocompletados,
+                            lineasAutocompletadas,
+                            entregaYaExistia = true,
+                            entregaConfirmadaSap = true,
+                            recuperadoTrasError = true,
+                            advertencia =
+                                ex.GetBaseException().Message,
+                            entregaDocEntry,
+                            entregaDocNum
+                        });
+                    }
+                }
+                catch (Exception exConfirmacion)
+                {
+                    _logger.LogWarning(
+                        exConfirmacion,
+                        "No se pudo confirmar en SAP después del error. Ref={Referencia} Source={Source}",
+                        referencia,
+                        source);
+                }
 
                 await RegistrarAutocompletarSapLogAsync(
                     referencia,
                     source,
                     false,
-                    ex.GetBaseException().Message,
+                    $"Fase {faseActual}: {ex.GetBaseException().Message}",
                     uDocMeatEntrada,
                     entradaDocEntry,
                     entradaDocNum,
@@ -4042,8 +4318,20 @@ ORDER BY ProduccionId DESC;";
                 return StatusCode(500, new
                 {
                     ok = false,
+                    fase = faseActual,
                     msg =
-                        "Error interno al autocompletar inventario y enviar la entrega.",
+                        "No se pudo completar el proceso. " +
+                        "Se verificó SAP y no fue posible confirmar la entrega.",
+                    referencia,
+                    source,
+                    entradaCreada,
+                    entradaYaExistia,
+                    entradaDocEntry,
+                    entradaDocNum,
+                    entregaDocEntry,
+                    entregaDocNum,
+                    kgAutocompletados,
+                    lineasAutocompletadas,
                     error = ex.GetBaseException().Message,
                     inner = ex.InnerException?.Message
                 });
@@ -4053,6 +4341,7 @@ ORDER BY ProduccionId DESC;";
                 gate.Release();
             }
         }
+
 
         private static string CrearFirmaAutocompletar(
             string referencia,
@@ -4254,6 +4543,7 @@ ORDER BY ProduccionId DESC;";
             return (false, null, null, response.response);
         }
 
+
         private async Task<AutocompletarEnvioEntregaResultado>
             EnviarEntregaAutocompletadaAsync(
                 string referencia,
@@ -4263,109 +4553,304 @@ ORDER BY ProduccionId DESC;";
             var (uDocMeat, numAtCard) =
                 ExtraerClavesDocumentoSap(jsonEntrega);
 
-            var existente = await BuscarEntregaEnSapAsync(
-                uDocMeat,
-                numAtCard);
-
-            if (existente.found)
+            if (string.IsNullOrWhiteSpace(uDocMeat) &&
+                string.IsNullOrWhiteSpace(numAtCard))
             {
-                var mensaje =
-                    "La entrega ya existía en SAP. No se volvió a crear.";
-
-                await UpsertEntregaSapLogAsync(
-                    referencia,
-                    source,
-                    true,
-                    mensaje,
-                    existente.docEntry,
-                    existente.docNum);
-
                 return new AutocompletarEnvioEntregaResultado
                 {
-                    Ok = true,
-                    YaExistia = true,
-                    Mensaje = mensaje,
-                    DocEntry = existente.docEntry,
-                    DocNum = existente.docNum
+                    Ok = false,
+                    ConfirmadaEnSap = false,
+                    Mensaje =
+                        "El JSON no contiene U_DocMeat ni NumAtCard; " +
+                        "no se puede confirmar de forma segura el documento."
                 };
             }
 
-            var post = await _sap.PostJsonAsync(
-                "DeliveryNotes",
-                jsonEntrega);
-
-            if (!post.ok)
+            try
             {
-                var existenteDespuesError =
-                    await BuscarEntregaEnSapAsync(
-                        uDocMeat,
-                        numAtCard);
+                var existente = await BuscarEntregaEnSapAsync(
+                    uDocMeat,
+                    numAtCard);
 
-                if (existenteDespuesError.found)
+                if (existente.found)
                 {
                     var mensaje =
-                        "SAP devolvió un error, pero se confirmó que la " +
-                        "entrega ya existe.";
+                        "La entrega ya existía en SAP. No se volvió a crear.";
 
-                    await UpsertEntregaSapLogAsync(
+                    await TryUpsertEntregaSapLogAsync(
                         referencia,
                         source,
                         true,
                         mensaje,
-                        existenteDespuesError.docEntry,
-                        existenteDespuesError.docNum);
+                        existente.docEntry,
+                        existente.docNum);
 
                     return new AutocompletarEnvioEntregaResultado
                     {
                         Ok = true,
                         YaExistia = true,
+                        ConfirmadaEnSap = true,
                         Mensaje = mensaje,
-                        DocEntry =
+                        DocEntry = existente.docEntry,
+                        DocNum = existente.docNum
+                    };
+                }
+
+                var post = await _sap.PostJsonAsync(
+                    "DeliveryNotes",
+                    jsonEntrega);
+
+                if (!post.ok)
+                {
+                    var existenteDespuesError =
+                        await ConfirmarEntregaSapConReintentosAsync(
+                            uDocMeat,
+                            numAtCard);
+
+                    if (existenteDespuesError.found)
+                    {
+                        var mensaje =
+                            "SAP devolvió error o perdió la respuesta, " +
+                            "pero la entrega fue confirmada en SAP.";
+
+                        await TryUpsertEntregaSapLogAsync(
+                            referencia,
+                            source,
+                            true,
+                            mensaje,
                             existenteDespuesError.docEntry,
-                        DocNum =
-                            existenteDespuesError.docNum,
+                            existenteDespuesError.docNum);
+
+                        return new AutocompletarEnvioEntregaResultado
+                        {
+                            Ok = true,
+                            YaExistia = true,
+                            ConfirmadaEnSap = true,
+                            RecuperadoTrasError = true,
+                            Mensaje = mensaje,
+                            DocEntry =
+                                existenteDespuesError.docEntry,
+                            DocNum =
+                                existenteDespuesError.docNum,
+                            Error = post.error,
+                            Respuesta = post.response
+                        };
+                    }
+
+                    await TryUpsertEntregaSapLogAsync(
+                        referencia,
+                        source,
+                        false,
+                        post.error ?? "SAP rechazó la entrega.");
+
+                    return new AutocompletarEnvioEntregaResultado
+                    {
+                        Ok = false,
+                        ConfirmadaEnSap = false,
+                        Mensaje =
+                            "SAP rechazó la entrega y no se encontró " +
+                            "el documento en la consulta de confirmación.",
                         Error = post.error,
                         Respuesta = post.response
                     };
                 }
 
-                await UpsertEntregaSapLogAsync(
+                var (docEntry, docNum) =
+                    LeerDocEntryDocNumSap(post.response);
+
+                // Aunque el POST fue OK, se consulta nuevamente cuando la
+                // respuesta no contiene los identificadores esperados.
+                if (!docEntry.HasValue || !docNum.HasValue)
+                {
+                    var confirmacion =
+                        await ConfirmarEntregaSapConReintentosAsync(
+                            uDocMeat,
+                            numAtCard);
+
+                    if (confirmacion.found)
+                    {
+                        docEntry ??= confirmacion.docEntry;
+                        docNum ??= confirmacion.docNum;
+                    }
+                }
+
+                await TryUpsertEntregaSapLogAsync(
+                    referencia,
+                    source,
+                    true,
+                    "Entrega enviada después del autocompletado.",
+                    docEntry,
+                    docNum);
+
+                return new AutocompletarEnvioEntregaResultado
+                {
+                    Ok = true,
+                    ConfirmadaEnSap = true,
+                    Mensaje =
+                        "Entrega enviada después del autocompletado.",
+                    DocEntry = docEntry,
+                    DocNum = docNum,
+                    Respuesta = post.response
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Excepción al enviar entrega autocompletada. Se verificará SAP. Ref={Referencia} Source={Source}",
+                    referencia,
+                    source);
+
+                try
+                {
+                    var confirmacion =
+                        await ConfirmarEntregaSapConReintentosAsync(
+                            uDocMeat,
+                            numAtCard);
+
+                    if (confirmacion.found)
+                    {
+                        var mensaje =
+                            "La entrega fue confirmada en SAP después " +
+                            "de una excepción local o de comunicación.";
+
+                        await TryUpsertEntregaSapLogAsync(
+                            referencia,
+                            source,
+                            true,
+                            mensaje,
+                            confirmacion.docEntry,
+                            confirmacion.docNum);
+
+                        return new AutocompletarEnvioEntregaResultado
+                        {
+                            Ok = true,
+                            YaExistia = true,
+                            ConfirmadaEnSap = true,
+                            RecuperadoTrasError = true,
+                            Mensaje = mensaje,
+                            Error = ex.GetBaseException().Message,
+                            DocEntry = confirmacion.docEntry,
+                            DocNum = confirmacion.docNum
+                        };
+                    }
+                }
+                catch (Exception exConfirmacion)
+                {
+                    _logger.LogWarning(
+                        exConfirmacion,
+                        "Falló la confirmación posterior de la entrega. Ref={Referencia}",
+                        referencia);
+                }
+
+                await TryUpsertEntregaSapLogAsync(
                     referencia,
                     source,
                     false,
-                    post.error ?? "SAP rechazó la entrega.");
+                    ex.GetBaseException().Message);
 
                 return new AutocompletarEnvioEntregaResultado
                 {
                     Ok = false,
+                    ConfirmadaEnSap = false,
                     Mensaje =
-                        "SAP rechazó la entrega.",
-                    Error = post.error,
-                    Respuesta = post.response
+                        "Ocurrió una excepción y no se pudo confirmar " +
+                        "la entrega en SAP.",
+                    Error = ex.GetBaseException().Message
                 };
             }
-
-            var (docEntry, docNum) =
-                LeerDocEntryDocNumSap(post.response);
-
-            await UpsertEntregaSapLogAsync(
-                referencia,
-                source,
-                true,
-                "Entrega enviada después del autocompletado.",
-                docEntry,
-                docNum);
-
-            return new AutocompletarEnvioEntregaResultado
-            {
-                Ok = true,
-                Mensaje =
-                    "Entrega enviada después del autocompletado.",
-                DocEntry = docEntry,
-                DocNum = docNum,
-                Respuesta = post.response
-            };
         }
+
+        private async Task<(bool found, int? docEntry, int? docNum)>
+            ConfirmarEntregaSapConReintentosAsync(
+                string uDocMeat,
+                string numAtCard,
+                int intentos = 6,
+                int esperaMs = 650)
+        {
+            intentos = Math.Clamp(intentos, 1, 12);
+            esperaMs = Math.Clamp(esperaMs, 100, 5000);
+
+            for (var intento = 1; intento <= intentos; intento++)
+            {
+                var resultado =
+                    await BuscarEntregaEnSapAsync(
+                        uDocMeat,
+                        numAtCard);
+
+                if (resultado.found)
+                    return resultado;
+
+                if (intento < intentos)
+                    await Task.Delay(esperaMs);
+            }
+
+            return (false, null, null);
+        }
+
+        private async Task<(
+            bool found,
+            int? docEntry,
+            int? docNum,
+            string? response)>
+            ConfirmarPurchaseDeliveryNoteConReintentosAsync(
+                string uDocMeat,
+                string numAtCard,
+                int intentos = 6,
+                int esperaMs = 650)
+        {
+            intentos = Math.Clamp(intentos, 1, 12);
+            esperaMs = Math.Clamp(esperaMs, 100, 5000);
+
+            for (var intento = 1; intento <= intentos; intento++)
+            {
+                var resultado =
+                    await BuscarPurchaseDeliveryNoteEnSapAsync(
+                        uDocMeat,
+                        numAtCard);
+
+                if (resultado.found)
+                    return resultado;
+
+                if (intento < intentos)
+                    await Task.Delay(esperaMs);
+            }
+
+            return (false, null, null, null);
+        }
+
+        private async Task TryUpsertEntregaSapLogAsync(
+            string referencia,
+            string source,
+            bool estatus,
+            string? mensaje = null,
+            int? docEntry = null,
+            int? docNum = null)
+        {
+            try
+            {
+                await UpsertEntregaSapLogAsync(
+                    referencia,
+                    source,
+                    estatus,
+                    mensaje,
+                    docEntry,
+                    docNum);
+            }
+            catch (Exception ex)
+            {
+                // Una falla en SQL local no puede convertir un documento
+                // ya creado en SAP en un falso "no enviado".
+                _logger.LogWarning(
+                    ex,
+                    "SAP respondió, pero no se pudo actualizar EntregaSapLog. Ref={Referencia} Source={Source} DocEntry={DocEntry} DocNum={DocNum}",
+                    referencia,
+                    source,
+                    docEntry,
+                    docNum);
+            }
+        }
+
 
         private static (string uDocMeat, string numAtCard)
             ExtraerClavesDocumentoSap(string json)
@@ -4593,6 +5078,8 @@ VALUES
         {
             public bool Ok { get; set; }
             public bool YaExistia { get; set; }
+            public bool ConfirmadaEnSap { get; set; }
+            public bool RecuperadoTrasError { get; set; }
             public string Mensaje { get; set; } = "";
             public string? Error { get; set; }
             public string? Respuesta { get; set; }
@@ -4665,11 +5152,911 @@ ORDER BY FechaEjecucion DESC, Id DESC;")).ToList();
 
         //Modal ComparativaCosteo 
 
-        [HttpPost("ConsultarComparativaCosteo")]
-        public async Task<IActionResult> ConsultarComparativaCosteo([FromBody] ComparativaCosteoFiltroVM filtro)
+
+        public sealed class ComparativaCosteoConsultaRequest
         {
-            using var cn = new SqlConnection(
-                _configuration.GetConnectionString("CadenaMeatP1"));
+            public string TipoPeriodo { get; set; } = "MES";
+            public DateTime FechaBase { get; set; }
+            public decimal Tolerancia { get; set; }
+            public string EstadoCosto { get; set; } = "PENDIENTES";
+            public int Pagina { get; set; } = 1;
+            public int TamanoPagina { get; set; } = 200;
+        }
+
+        private sealed class ComparativaCosteoResumenDbRow
+        {
+            public long TotalGeneral { get; set; }
+            public long TotalFiltrado { get; set; }
+            public long MismoCosto { get; set; }
+            public long CostoDiferente { get; set; }
+            public long SinCostoTIF { get; set; }
+            public long SinCostoP1 { get; set; }
+            public long SinCostoAmbos { get; set; }
+            public long TotalAjustables { get; set; }
+            public long TotalSinCostoTIF { get; set; }
+        }
+
+        private sealed class ComparativaCosteoPaginaResultado
+        {
+            public List<ComparativaCosteoRowVM> Datos { get; set; } = new();
+            public List<string> CodigosAjustables { get; set; } = new();
+            public long TotalGeneral { get; set; }
+            public long TotalFiltrado { get; set; }
+            public long MismoCosto { get; set; }
+            public long CostoDiferente { get; set; }
+            public long SinCostoTIF { get; set; }
+            public long SinCostoP1 { get; set; }
+            public long SinCostoAmbos { get; set; }
+            public long TotalAjustables { get; set; }
+            public long TotalSinCostoTIF { get; set; }
+            public int Pagina { get; set; }
+            public int TamanoPagina { get; set; }
+            public int TotalPaginas { get; set; }
+            public bool LimiteAjustablesExcedido { get; set; }
+        }
+
+        [HttpPost("ConsultarComparativaCosteo")]
+        public async Task<IActionResult> ConsultarComparativaCosteo(
+            [FromBody] ComparativaCosteoConsultaRequest filtro)
+        {
+            try
+            {
+                var resultado = await ObtenerComparativaCosteoPaginadaAsync(filtro);
+
+                return Json(new
+                {
+                    ok = true,
+                    total = resultado.TotalFiltrado,
+                    totalGeneral = resultado.TotalGeneral,
+                    pagina = resultado.Pagina,
+                    tamanoPagina = resultado.TamanoPagina,
+                    totalPaginas = resultado.TotalPaginas,
+                    datos = resultado.Datos,
+                    codigosAjustables = resultado.CodigosAjustables,
+                    limiteAjustablesExcedido = resultado.LimiteAjustablesExcedido,
+                    resumen = new
+                    {
+                        totalGeneral = resultado.TotalGeneral,
+                        totalFiltrado = resultado.TotalFiltrado,
+                        mismoCosto = resultado.MismoCosto,
+                        costoDiferente = resultado.CostoDiferente,
+                        sinCostoTIF = resultado.SinCostoTIF,
+                        sinCostoP1 = resultado.SinCostoP1,
+                        sinCostoAmbos = resultado.SinCostoAmbos,
+                        totalAjustables = resultado.TotalAjustables,
+                        totalSinCostoTIF = resultado.TotalSinCostoTIF
+                    }
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = ex.Message,
+                    detalle = ex.Message,
+                    tipoError = ex.GetType().FullName
+                });
+            }
+            catch (SqlException ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error SQL al consultar comparativa. Número={Numero}, Línea={Linea}, Procedimiento={Procedimiento}, Servidor={Servidor}",
+                    ex.Number,
+                    ex.LineNumber,
+                    ex.Procedure,
+                    ex.Server);
+
+                var esTimeout = ex.Number == -2;
+
+                return StatusCode(esTimeout ? StatusCodes.Status504GatewayTimeout : StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        ok = false,
+                        mensaje = esTimeout
+                            ? "La consulta de comparativa excedió el tiempo permitido."
+                            : "Ocurrió un error SQL al consultar la comparativa de costeo.",
+                        detalle = ex.Message,
+                        numeroSql = ex.Number,
+                        lineaSql = ex.LineNumber,
+                        procedimiento = ex.Procedure,
+                        servidor = ex.Server,
+                        tipoError = ex.GetType().FullName
+                    });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al consultar comparativa de costeo");
+
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    ok = false,
+                    mensaje = "No se pudo consultar la comparativa de costeo.",
+                    detalle = ex.Message,
+                    tipoError = ex.GetType().FullName
+                });
+            }
+        }
+
+        [HttpPost("ExportarComparativaCosteoExcel")]
+        public async Task<IActionResult> ExportarComparativaCosteoExcel(
+            [FromBody] ComparativaCosteoFiltroVM filtro)
+        {
+            try
+            {
+                var resultadoConsulta = await ObtenerComparativaCosteoPaginadaAsync(
+                    new ComparativaCosteoConsultaRequest
+                    {
+                        TipoPeriodo = filtro.TipoPeriodo,
+                        FechaBase = filtro.FechaBase,
+                        Tolerancia = filtro.Tolerancia,
+                        EstadoCosto = filtro.EstadoCosto ?? "",
+                        Pagina = 1,
+                        TamanoPagina = 1000000
+                    },
+                    exportarTodo: true);
+
+                var datos = resultadoConsulta.Datos;
+
+                using var workbook = new XLWorkbook();
+                var ws = workbook.Worksheets.Add("Comparativa costeo");
+
+                ws.Cell(1, 1).Value = "Comparativa de Costeo TIF vs P1";
+                ws.Range(1, 1, 1, 6).Merge();
+                ws.Cell(1, 1).Style.Font.Bold = true;
+                ws.Cell(1, 1).Style.Font.FontSize = 16;
+                ws.Cell(1, 1).Style.Font.FontColor = XLColor.White;
+                ws.Cell(1, 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#8B0000");
+                ws.Cell(1, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+                var tipoPeriodo = (filtro.TipoPeriodo ?? "").Trim().ToUpperInvariant();
+                var estadoCosto = string.IsNullOrWhiteSpace(filtro.EstadoCosto)
+                    ? "Todos"
+                    : filtro.EstadoCosto.Trim();
+
+                ws.Cell(3, 1).Value = "Periodo";
+                ws.Cell(3, 2).Value = tipoPeriodo;
+                ws.Cell(3, 3).Value = "Fecha base";
+                ws.Cell(3, 4).Value = filtro.FechaBase;
+                ws.Cell(3, 4).Style.DateFormat.Format = "dd/MM/yyyy";
+                ws.Cell(4, 1).Value = "Tolerancia";
+                ws.Cell(4, 2).Value = filtro.Tolerancia;
+                ws.Cell(4, 3).Value = "Estado";
+                ws.Cell(4, 4).Value = estadoCosto;
+                ws.Cell(5, 1).Value = "Registros";
+                ws.Cell(5, 2).Value = datos.Count;
+                ws.Cell(5, 3).Value = "Generado";
+                ws.Cell(5, 4).Value = DateTime.Now;
+                ws.Cell(5, 4).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
+
+                ws.Range(3, 1, 5, 1).Style.Font.Bold = true;
+                ws.Range(3, 3, 5, 3).Style.Font.Bold = true;
+                ws.Range(3, 1, 5, 4).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                ws.Range(3, 1, 5, 4).Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+
+                var propiedades = typeof(ComparativaCosteoRowVM)
+                    .GetProperties()
+                    .Where(p => p.CanRead)
+                    .ToArray();
+
+                const int filaEncabezado = 7;
+
+                for (var columna = 0; columna < propiedades.Length; columna++)
+                {
+                    var celda = ws.Cell(filaEncabezado, columna + 1);
+                    celda.Value = propiedades[columna].Name;
+                    celda.Style.Font.Bold = true;
+                    celda.Style.Font.FontColor = XLColor.White;
+                    celda.Style.Fill.BackgroundColor = XLColor.FromHtml("#8B0000");
+                    celda.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                }
+
+                for (var i = 0; i < datos.Count; i++)
+                {
+                    for (var columna = 0; columna < propiedades.Length; columna++)
+                    {
+                        var valor = propiedades[columna].GetValue(datos[i]);
+                        var celda = ws.Cell(filaEncabezado + i + 1, columna + 1);
+
+                        switch (valor)
+                        {
+                            case null:
+                                celda.Value = "";
+                                break;
+                            case DateTime fecha:
+                                celda.Value = fecha;
+                                celda.Style.DateFormat.Format = "dd/MM/yyyy";
+                                break;
+                            case decimal numeroDecimal:
+                                celda.Value = numeroDecimal;
+                                celda.Style.NumberFormat.Format = "#,##0.00";
+                                break;
+                            case double numeroDouble:
+                                celda.Value = numeroDouble;
+                                celda.Style.NumberFormat.Format = "#,##0.00";
+                                break;
+                            case float numeroFloat:
+                                celda.Value = numeroFloat;
+                                celda.Style.NumberFormat.Format = "#,##0.00";
+                                break;
+                            case int numeroEntero:
+                                celda.Value = numeroEntero;
+                                break;
+                            case long numeroLargo:
+                                celda.Value = numeroLargo;
+                                break;
+                            case bool valorBool:
+                                celda.Value = valorBool ? "Sí" : "No";
+                                break;
+                            default:
+                                celda.Value = Convert.ToString(valor) ?? "";
+                                break;
+                        }
+                    }
+                }
+
+                var ultimaFila = Math.Max(filaEncabezado, filaEncabezado + datos.Count);
+                var ultimaColumna = Math.Max(1, propiedades.Length);
+                var rangoDatos = ws.Range(filaEncabezado, 1, ultimaFila, ultimaColumna);
+                rangoDatos.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                rangoDatos.Style.Border.InsideBorder = XLBorderStyleValues.Hair;
+                rangoDatos.SetAutoFilter();
+
+                ws.SheetView.FreezeRows(filaEncabezado);
+                ws.Columns(1, ultimaColumna).AdjustToContents();
+
+                foreach (var columna in ws.Columns(1, ultimaColumna))
+                {
+                    if (columna.Width > 38)
+                        columna.Width = 38;
+                }
+
+                using var stream = new MemoryStream();
+                workbook.SaveAs(stream);
+
+                var nombre = $"Comparativa_Costeo_{tipoPeriodo}_{filtro.FechaBase:yyyyMMdd}.xlsx";
+
+                return File(
+                    stream.ToArray(),
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    nombre);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = ex.Message,
+                    detalle = ex.Message,
+                    tipoError = ex.GetType().FullName
+                });
+            }
+            catch (SqlException ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error SQL al exportar comparativa. Número={Numero}, Línea={Linea}, Procedimiento={Procedimiento}, Servidor={Servidor}",
+                    ex.Number,
+                    ex.LineNumber,
+                    ex.Procedure,
+                    ex.Server);
+
+                var esTimeout = ex.Number == -2;
+
+                return StatusCode(esTimeout ? StatusCodes.Status504GatewayTimeout : StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        ok = false,
+                        mensaje = esTimeout
+                            ? "La consulta para generar el Excel excedió el tiempo permitido."
+                            : "Ocurrió un error SQL al generar el archivo de Excel.",
+                        detalle = ex.Message,
+                        numeroSql = ex.Number,
+                        lineaSql = ex.LineNumber,
+                        procedimiento = ex.Procedure,
+                        servidor = ex.Server,
+                        tipoError = ex.GetType().FullName
+                    });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al exportar comparativa de costeo a Excel");
+
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    ok = false,
+                    mensaje = "No se pudo generar el archivo de Excel.",
+                    detalle = ex.Message,
+                    tipoError = ex.GetType().FullName
+                });
+            }
+        }
+
+
+        public sealed class AjustarComparativaCosteoRequest
+        {
+            public List<string> CodigosEtiqueta { get; set; } = new();
+            public int TamanoLote { get; set; } = TamanoLoteAjusteComparativaPredeterminado;
+        }
+
+        private static int ObtenerTamanoLoteAjusteComparativa(
+            AjustarComparativaCosteoRequest? request)
+        {
+            var solicitado = request?.TamanoLote ?? TamanoLoteAjusteComparativaPredeterminado;
+
+            if (solicitado <= 0)
+                solicitado = TamanoLoteAjusteComparativaPredeterminado;
+
+            return Math.Clamp(
+                solicitado,
+                100,
+                TamanoLoteAjusteComparativaMaximo);
+        }
+
+        private static List<string> NormalizarCodigosAjusteComparativa(
+            AjustarComparativaCosteoRequest? request)
+        {
+            var codigos = (request?.CodigosEtiqueta ?? new List<string>())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (codigos.Count == 0)
+                throw new ArgumentException(
+                    "No hay códigos de etiqueta pendientes para ajustar.");
+
+            if (codigos.Count > MaximoCodigosAjusteComparativa)
+                throw new ArgumentException(
+                    $"Por seguridad, solamente se pueden recibir hasta {MaximoCodigosAjusteComparativa:N0} etiquetas por trabajo.");
+
+            var codigoInvalido = codigos.FirstOrDefault(x =>
+                x.Length > 100 ||
+                x.Contains(',') ||
+                x.Contains(';') ||
+                x.Any(char.IsControl));
+
+            if (codigoInvalido != null)
+            {
+                throw new ArgumentException(
+                    $"El código de etiqueta '{codigoInvalido}' contiene caracteres no permitidos o excede 100 caracteres.");
+            }
+
+            return codigos;
+        }
+
+        private static void LimpiarAjustesComparativaAntiguos()
+        {
+            var limite = DateTime.Now.AddHours(-24);
+
+            foreach (var item in AjustesComparativaTrabajos.ToArray())
+            {
+                var trabajo = item.Value;
+                bool terminado;
+                DateTime fechaReferencia;
+
+                lock (trabajo.SyncRoot)
+                {
+                    terminado = trabajo.Estado == "COMPLETADO" || trabajo.Estado == "ERROR";
+                    fechaReferencia = trabajo.FechaFin ?? trabajo.FechaCreacion;
+                }
+
+                if (terminado && fechaReferencia < limite)
+                    AjustesComparativaTrabajos.TryRemove(item.Key, out _);
+            }
+        }
+
+        private static async Task EjecutarLoteAjusteComparativaSqlAsync(
+            string cadenaP1,
+            IReadOnlyList<string> codigosLote,
+            CancellationToken cancellationToken)
+        {
+            if (codigosLote == null || codigosLote.Count == 0)
+                return;
+
+            var codigosParametro = string.Join(",", codigosLote);
+
+            using var cn = new SqlConnection(cadenaP1);
+            await cn.OpenAsync(cancellationToken);
+
+            if (!string.Equals(cn.Database, "Meat", StringComparison.OrdinalIgnoreCase))
+                cn.ChangeDatabase("Meat");
+
+            var comando = new CommandDefinition(
+                commandText: "dbo.meat_CostoTIF",
+                parameters: new
+                {
+                    FechaDesde = (DateTime?)null,
+                    FechaHasta = (DateTime?)null,
+                    CodigosEtiqueta = codigosParametro
+                },
+                commandType: CommandType.StoredProcedure,
+                commandTimeout: 0,
+                cancellationToken: cancellationToken);
+
+            await cn.ExecuteAsync(comando);
+        }
+
+        private static async Task EjecutarAjusteComparativaSegundoPlanoAsync(
+            AjusteComparativaTrabajo trabajo,
+            string cadenaP1,
+            IReadOnlyList<string> codigos,
+            int tamanoLote,
+            ILogger<ProcesosCgController> logger)
+        {
+            var reloj = Stopwatch.StartNew();
+            var totalLotes = (int)Math.Ceiling(codigos.Count / (double)tamanoLote);
+
+            lock (trabajo.SyncRoot)
+            {
+                trabajo.Estado = "EJECUTANDO";
+                trabajo.CodigosProcesados = 0;
+                trabajo.TamanoLote = tamanoLote;
+                trabajo.LoteActual = 0;
+                trabajo.TotalLotes = totalLotes;
+                trabajo.Mensaje =
+                    $"Preparando {totalLotes:N0} lote(s) secuencial(es) de hasta {tamanoLote:N0} etiquetas.";
+                trabajo.FechaInicio = DateTime.Now;
+            }
+
+            try
+            {
+                logger.LogWarning(
+                    "Inicio de ajuste por lotes. JobId={JobId}, Usuario={Usuario}, Etiquetas={Cantidad}, TamanoLote={TamanoLote}, TotalLotes={TotalLotes}",
+                    trabajo.JobId,
+                    trabajo.Usuario,
+                    trabajo.CodigosSolicitados,
+                    tamanoLote,
+                    totalLotes);
+
+                for (var indiceLote = 0; indiceLote < totalLotes; indiceLote++)
+                {
+                    var lote = codigos
+                        .Skip(indiceLote * tamanoLote)
+                        .Take(tamanoLote)
+                        .ToArray();
+
+                    lock (trabajo.SyncRoot)
+                    {
+                        trabajo.LoteActual = indiceLote + 1;
+                        trabajo.Mensaje =
+                            $"Procesando lote {trabajo.LoteActual:N0} de {totalLotes:N0}: " +
+                            $"{lote.Length:N0} etiqueta(s). " +
+                            $"Avance confirmado: {trabajo.CodigosProcesados:N0} de {trabajo.CodigosSolicitados:N0}.";
+                    }
+
+                    logger.LogInformation(
+                        "Ajuste comparativa. JobId={JobId}, Lote={LoteActual}/{TotalLotes}, EtiquetasLote={EtiquetasLote}, ProcesadasAntes={ProcesadasAntes}",
+                        trabajo.JobId,
+                        indiceLote + 1,
+                        totalLotes,
+                        lote.Length,
+                        indiceLote * tamanoLote);
+
+                    await EjecutarLoteAjusteComparativaSqlAsync(
+                        cadenaP1,
+                        lote,
+                        CancellationToken.None);
+
+                    lock (trabajo.SyncRoot)
+                    {
+                        trabajo.CodigosProcesados =
+                            Math.Min(
+                                trabajo.CodigosSolicitados,
+                                trabajo.CodigosProcesados + lote.Length);
+
+                        trabajo.Mensaje =
+                            $"Lote {trabajo.LoteActual:N0} de {totalLotes:N0} terminado. " +
+                            $"Procesadas {trabajo.CodigosProcesados:N0} de {trabajo.CodigosSolicitados:N0} etiquetas.";
+                    }
+
+                    if (indiceLote + 1 < totalLotes && PausaEntreLotesAjusteMs > 0)
+                    {
+                        await Task.Delay(
+                            PausaEntreLotesAjusteMs,
+                            CancellationToken.None);
+                    }
+                }
+
+                reloj.Stop();
+
+                lock (trabajo.SyncRoot)
+                {
+                    trabajo.Estado = "COMPLETADO";
+                    trabajo.CodigosProcesados = trabajo.CodigosSolicitados;
+                    trabajo.LoteActual = totalLotes;
+                    trabajo.Mensaje =
+                        $"El ajuste terminó correctamente en {totalLotes:N0} lote(s) de hasta {tamanoLote:N0} etiquetas.";
+                    trabajo.Detalle = "";
+                    trabajo.FechaFin = DateTime.Now;
+                    trabajo.DuracionMs = reloj.ElapsedMilliseconds;
+                }
+
+                logger.LogWarning(
+                    "Fin de ajuste por lotes. JobId={JobId}, Usuario={Usuario}, Etiquetas={Cantidad}, TotalLotes={TotalLotes}, DuracionMs={DuracionMs}",
+                    trabajo.JobId,
+                    trabajo.Usuario,
+                    trabajo.CodigosSolicitados,
+                    totalLotes,
+                    reloj.ElapsedMilliseconds);
+            }
+            catch (Exception ex)
+            {
+                reloj.Stop();
+
+                int loteError;
+                int procesados;
+
+                lock (trabajo.SyncRoot)
+                {
+                    loteError = trabajo.LoteActual;
+                    procesados = trabajo.CodigosProcesados;
+                    trabajo.Estado = "ERROR";
+                    trabajo.Mensaje = ex is SqlException
+                        ? $"Ocurrió un error SQL en el lote {loteError:N0} de {totalLotes:N0}."
+                        : $"No se pudo ajustar la comparativa en el lote {loteError:N0} de {totalLotes:N0}.";
+                    trabajo.Detalle =
+                        $"{ex.Message} Procesadas antes del error: {procesados:N0} de {trabajo.CodigosSolicitados:N0}.";
+                    trabajo.FechaFin = DateTime.Now;
+                    trabajo.DuracionMs = reloj.ElapsedMilliseconds;
+                }
+
+                logger.LogError(
+                    ex,
+                    "Error de ajuste por lotes. JobId={JobId}, Usuario={Usuario}, Lote={LoteActual}/{TotalLotes}, Procesadas={Procesadas}, Etiquetas={Cantidad}",
+                    trabajo.JobId,
+                    trabajo.Usuario,
+                    loteError,
+                    totalLotes,
+                    procesados,
+                    trabajo.CodigosSolicitados);
+            }
+        }
+
+        [HttpPost("IniciarAjusteComparativaCosteo")]
+        public IActionResult IniciarAjusteComparativaCosteo(
+            [FromBody] AjustarComparativaCosteoRequest request)
+        {
+            try
+            {
+                var codigos = NormalizarCodigosAjusteComparativa(request);
+                var tamanoLote = ObtenerTamanoLoteAjusteComparativa(request);
+                var totalLotes = (int)Math.Ceiling(codigos.Count / (double)tamanoLote);
+                var cadenaP1 = _configuration.GetConnectionString("CadenaMeatP1");
+
+                if (string.IsNullOrWhiteSpace(cadenaP1))
+                {
+                    throw new InvalidOperationException(
+                        "No está configurada la cadena de conexión 'CadenaMeatP1'.");
+                }
+
+                LimpiarAjustesComparativaAntiguos();
+
+                var usuario = User?.Identity?.Name ?? "sistema";
+                AjusteComparativaTrabajo trabajo;
+
+                lock (AjustesComparativaTrabajosLock)
+                {
+                    var activo = AjustesComparativaTrabajos.Values.FirstOrDefault(x =>
+                    {
+                        lock (x.SyncRoot)
+                        {
+                            return string.Equals(
+                                       x.Usuario,
+                                       usuario,
+                                       StringComparison.OrdinalIgnoreCase) &&
+                                   (x.Estado == "PENDIENTE" || x.Estado == "EJECUTANDO");
+                        }
+                    });
+
+                    if (activo != null)
+                    {
+                        return StatusCode(StatusCodes.Status409Conflict, new
+                        {
+                            ok = false,
+                            yaExiste = true,
+                            jobId = activo.JobId,
+                            estado = activo.Estado,
+                            codigosSolicitados = activo.CodigosSolicitados,
+                            codigosProcesados = activo.CodigosProcesados,
+                            tamanoLote = activo.TamanoLote,
+                            loteActual = activo.LoteActual,
+                            totalLotes = activo.TotalLotes,
+                            mensaje = "Ya existe un ajuste de comparativa en proceso para este usuario."
+                        });
+                    }
+
+                    trabajo = new AjusteComparativaTrabajo
+                    {
+                        JobId = Guid.NewGuid().ToString("N"),
+                        Usuario = usuario,
+                        CodigosSolicitados = codigos.Count,
+                        CodigosProcesados = 0,
+                        TamanoLote = tamanoLote,
+                        LoteActual = 0,
+                        TotalLotes = totalLotes,
+                        Estado = "PENDIENTE",
+                        Mensaje =
+                            $"El ajuste fue recibido: {totalLotes:N0} lote(s) secuencial(es) de hasta {tamanoLote:N0} etiquetas.",
+                        FechaCreacion = DateTime.Now
+                    };
+
+                    AjustesComparativaTrabajos[trabajo.JobId] = trabajo;
+                }
+
+                var logger = _logger;
+                var codigosTrabajo = codigos.ToArray();
+
+                _ = Task.Run(() => EjecutarAjusteComparativaSegundoPlanoAsync(
+                    trabajo,
+                    cadenaP1,
+                    codigosTrabajo,
+                    tamanoLote,
+                    logger));
+
+                return Accepted(new
+                {
+                    ok = true,
+                    jobId = trabajo.JobId,
+                    estado = trabajo.Estado,
+                    codigosSolicitados = trabajo.CodigosSolicitados,
+                    codigosProcesados = trabajo.CodigosProcesados,
+                    tamanoLote = trabajo.TamanoLote,
+                    loteActual = trabajo.LoteActual,
+                    totalLotes = trabajo.TotalLotes,
+                    mensaje =
+                        $"El ajuste inició en segundo plano en {trabajo.TotalLotes:N0} lote(s) de hasta {trabajo.TamanoLote:N0} etiquetas. " +
+                        "Puedes cerrar el modal o cambiar de pestaña."
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { ok = false, mensaje = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "No se pudo iniciar el ajuste de comparativa en segundo plano");
+
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    ok = false,
+                    mensaje = "No se pudo iniciar el ajuste de la comparativa.",
+                    detalle = ex.Message
+                });
+            }
+        }
+
+        [HttpGet("EstadoAjusteComparativaCosteo")]
+        public IActionResult EstadoAjusteComparativaCosteo([FromQuery] string jobId)
+        {
+            LimpiarAjustesComparativaAntiguos();
+
+            jobId = (jobId ?? "").Trim();
+
+            if (string.IsNullOrWhiteSpace(jobId) ||
+                !AjustesComparativaTrabajos.TryGetValue(jobId, out var trabajo))
+            {
+                return NotFound(new
+                {
+                    ok = false,
+                    mensaje = "No se encontró el trabajo de ajuste solicitado. Es posible que la aplicación se haya reiniciado."
+                });
+            }
+
+            var usuario = User?.Identity?.Name ?? "sistema";
+
+            lock (trabajo.SyncRoot)
+            {
+                if (!string.Equals(
+                        trabajo.Usuario,
+                        usuario,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return NotFound(new
+                    {
+                        ok = false,
+                        mensaje = "No se encontró el trabajo de ajuste solicitado."
+                    });
+                }
+
+                var terminado = trabajo.Estado == "COMPLETADO" || trabajo.Estado == "ERROR";
+
+                return Ok(new
+                {
+                    ok = true,
+                    jobId = trabajo.JobId,
+                    estado = trabajo.Estado,
+                    terminado,
+                    exito = trabajo.Estado == "COMPLETADO",
+                    mensaje = trabajo.Mensaje,
+                    detalle = trabajo.Detalle,
+                    codigosSolicitados = trabajo.CodigosSolicitados,
+                    codigosProcesados = trabajo.CodigosProcesados,
+                    tamanoLote = trabajo.TamanoLote,
+                    loteActual = trabajo.LoteActual,
+                    totalLotes = trabajo.TotalLotes,
+                    porcentaje = trabajo.CodigosSolicitados <= 0
+                        ? 0
+                        : Math.Round(
+                            trabajo.CodigosProcesados * 100.0 /
+                            trabajo.CodigosSolicitados,
+                            2),
+                    fechaCreacion = trabajo.FechaCreacion,
+                    fechaInicio = trabajo.FechaInicio,
+                    fechaFin = trabajo.FechaFin,
+                    duracionMs = trabajo.DuracionMs
+                });
+            }
+        }
+
+
+        [HttpPost("AjustarComparativaCosteo")]
+        public async Task<IActionResult> AjustarComparativaCosteo(
+            [FromBody] AjustarComparativaCosteoRequest request)
+        {
+            var reloj = Stopwatch.StartNew();
+
+            try
+            {
+                var codigos = NormalizarCodigosAjusteComparativa(request);
+                var tamanoLote = ObtenerTamanoLoteAjusteComparativa(request);
+                var totalLotes = (int)Math.Ceiling(codigos.Count / (double)tamanoLote);
+
+                var cadenaP1 = _configuration.GetConnectionString("CadenaMeatP1");
+
+                if (string.IsNullOrWhiteSpace(cadenaP1))
+                {
+                    throw new InvalidOperationException(
+                        "No está configurada la cadena de conexión 'CadenaMeatP1'.");
+                }
+
+                var usuario = User?.Identity?.Name ?? "sistema";
+
+                _logger.LogWarning(
+                    "Inicio de ajuste síncrono por lotes. Usuario={Usuario}, Etiquetas={Cantidad}, TamanoLote={TamanoLote}, TotalLotes={TotalLotes}",
+                    usuario,
+                    codigos.Count,
+                    tamanoLote,
+                    totalLotes);
+
+                for (var indiceLote = 0; indiceLote < totalLotes; indiceLote++)
+                {
+                    var lote = codigos
+                        .Skip(indiceLote * tamanoLote)
+                        .Take(tamanoLote)
+                        .ToArray();
+
+                    await EjecutarLoteAjusteComparativaSqlAsync(
+                        cadenaP1,
+                        lote,
+                        HttpContext.RequestAborted);
+
+                    if (indiceLote + 1 < totalLotes && PausaEntreLotesAjusteMs > 0)
+                    {
+                        await Task.Delay(
+                            PausaEntreLotesAjusteMs,
+                            HttpContext.RequestAborted);
+                    }
+                }
+
+                reloj.Stop();
+
+                _logger.LogWarning(
+                    "Fin de ajuste síncrono por lotes. Usuario={Usuario}, Etiquetas={Cantidad}, TotalLotes={TotalLotes}, DuracionMs={DuracionMs}",
+                    usuario,
+                    codigos.Count,
+                    totalLotes,
+                    reloj.ElapsedMilliseconds);
+
+                return Ok(new
+                {
+                    ok = true,
+                    mensaje =
+                        $"El procedimiento terminó correctamente en {totalLotes:N0} lote(s) de hasta {tamanoLote:N0} etiquetas.",
+                    codigosSolicitados = codigos.Count,
+                    codigosProcesados = codigos.Count,
+                    tamanoLote,
+                    totalLotes,
+                    duracionMs = reloj.ElapsedMilliseconds
+                });
+            }
+            catch (SqlException ex)
+            {
+                reloj.Stop();
+
+                _logger.LogError(
+                    ex,
+                    "Error SQL al ajustar comparativa. Número={Numero}, Línea={Linea}, Procedimiento={Procedimiento}, Servidor={Servidor}",
+                    ex.Number,
+                    ex.LineNumber,
+                    ex.Procedure,
+                    ex.Server);
+
+                var esTimeout = ex.Number == -2;
+
+                return StatusCode(
+                    esTimeout
+                        ? StatusCodes.Status504GatewayTimeout
+                        : StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        ok = false,
+                        mensaje = esTimeout
+                            ? "El ajuste de la comparativa excedió el tiempo permitido."
+                            : "Ocurrió un error SQL al ajustar la comparativa.",
+                        detalle = ex.Message,
+                        numeroSql = ex.Number,
+                        lineaSql = ex.LineNumber,
+                        procedimiento = ex.Procedure,
+                        servidor = ex.Server,
+                        tipoError = ex.GetType().FullName
+                    });
+            }
+            catch (Exception ex)
+            {
+                reloj.Stop();
+
+                _logger.LogError(ex, "Error al ajustar comparativa de costeo");
+
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    ok = false,
+                    mensaje = "No se pudo ajustar la comparativa de costeo.",
+                    detalle = ex.Message,
+                    tipoError = ex.GetType().FullName
+                });
+            }
+        }
+
+        private async Task<ComparativaCosteoPaginaResultado> ObtenerComparativaCosteoPaginadaAsync(
+            ComparativaCosteoConsultaRequest filtro,
+            bool exportarTodo = false)
+        {
+            if (filtro == null)
+                throw new ArgumentException("Captura los filtros de la comparativa.");
+
+            var tipoPeriodo = (filtro.TipoPeriodo ?? "").Trim().ToUpperInvariant();
+
+            if (tipoPeriodo != "DIA" && tipoPeriodo != "SEMANA" && tipoPeriodo != "MES")
+                throw new ArgumentException("El periodo debe ser Día, Semana o Mes.");
+
+            if (filtro.FechaBase == default)
+                throw new ArgumentException("Captura la fecha base de la comparativa.");
+
+            if (filtro.Tolerancia < 0)
+                throw new ArgumentException("La tolerancia no puede ser negativa.");
+
+            var estadoCosto = (filtro.EstadoCosto ?? "").Trim().ToUpperInvariant();
+
+            var estadosPermitidos = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "",
+                "PENDIENTES",
+                "100% MISMO COSTO",
+                "COSTO DIFERENTE",
+                "SIN COSTO EN TIF",
+                "SIN COSTO EN P1",
+                "SIN COSTO EN TIF Y P1"
+            };
+
+            if (!estadosPermitidos.Contains(estadoCosto))
+                throw new ArgumentException("El estado seleccionado no es válido.");
+
+            var pagina = exportarTodo ? 1 : Math.Max(1, filtro.Pagina);
+            var tamanoPagina = exportarTodo
+                ? 1000000
+                : Math.Clamp(filtro.TamanoPagina <= 0 ? 200 : filtro.TamanoPagina, 50, 1000);
+
+            var offset = exportarTodo ? 0 : (pagina - 1) * tamanoPagina;
+
+            var cadenaP1 = _configuration.GetConnectionString("CadenaMeatP1");
+
+            if (string.IsNullOrWhiteSpace(cadenaP1))
+                throw new InvalidOperationException(
+                    "No está configurada la cadena de conexión 'CadenaMeatP1'.");
+
+            using var cn = new SqlConnection(cadenaP1);
 
             var sql = @"SET NOCOUNT ON;
  
@@ -5048,19 +6435,21 @@ Resultado AS
         ) AS DiferenciaCosto,
  
         CASE
-            WHEN TieneCostoTIF = 0
-                 AND TieneCostoP1 = 0
+            /* Un costo nulo, cero o negativo NO se considera un costo válido,
+               aunque ya exista un registro físico en Costeo/ProduccionCosteo. */
+            WHEN ISNULL(CostoTIF, 0) <= 0
+                 AND ISNULL(CostoP1, 0) <= 0
                 THEN 'SIN COSTO EN TIF Y P1'
- 
-            WHEN TieneCostoTIF = 0
+
+            WHEN ISNULL(CostoTIF, 0) <= 0
                 THEN 'SIN COSTO EN TIF'
- 
-            WHEN TieneCostoP1 = 0
+
+            WHEN ISNULL(CostoP1, 0) <= 0
                 THEN 'SIN COSTO EN P1'
- 
+
             WHEN ABS(CostoP1 - CostoTIF) <= @Tolerancia
                 THEN '100% MISMO COSTO'
- 
+
             ELSE 'COSTO DIFERENTE'
         END AS EstadoCosto,
  
@@ -5076,47 +6465,244 @@ WHERE NumeroRegistro = 1
 )
 
 SELECT *
-FROM Resultado
+INTO #Resultado
+FROM Resultado;
 
+CREATE CLUSTERED INDEX IX_Resultado_Orden
+    ON #Resultado(FechaTIF DESC, CodigoEtiqueta);
+
+CREATE NONCLUSTERED INDEX IX_Resultado_Estado
+    ON #Resultado(EstadoCosto)
+    INCLUDE (CostoTIF, CostoP1);
+
+DECLARE @EstadoFiltro varchar(50) =
+    UPPER(LTRIM(RTRIM(ISNULL(@EstadoCosto, ''))));
+
+/*==============================================================
+  1) RESUMEN COMPLETO DEL PERIODO Y DEL FILTRO
+==============================================================*/
+SELECT
+    COUNT_BIG(*) AS TotalGeneral,
+
+    COALESCE(SUM(CONVERT(bigint,
+        CASE WHEN EstadoCosto = '100% MISMO COSTO' THEN 1 ELSE 0 END)), 0)
+        AS MismoCosto,
+
+    COALESCE(SUM(CONVERT(bigint,
+        CASE WHEN EstadoCosto = 'COSTO DIFERENTE' THEN 1 ELSE 0 END)), 0)
+        AS CostoDiferente,
+
+    COALESCE(SUM(CONVERT(bigint,
+        CASE WHEN EstadoCosto = 'SIN COSTO EN TIF' THEN 1 ELSE 0 END)), 0)
+        AS SinCostoTIF,
+
+    COALESCE(SUM(CONVERT(bigint,
+        CASE WHEN EstadoCosto = 'SIN COSTO EN P1' THEN 1 ELSE 0 END)), 0)
+        AS SinCostoP1,
+
+    COALESCE(SUM(CONVERT(bigint,
+        CASE WHEN EstadoCosto = 'SIN COSTO EN TIF Y P1' THEN 1 ELSE 0 END)), 0)
+        AS SinCostoAmbos,
+
+    (
+        SELECT COUNT_BIG(*)
+        FROM #Resultado AS rf
+        WHERE
+        (
+            @EstadoFiltro = ''
+            OR
+            (
+                @EstadoFiltro = 'PENDIENTES'
+                AND rf.EstadoCosto <> '100% MISMO COSTO'
+            )
+            OR
+            (
+                @EstadoFiltro <> 'PENDIENTES'
+                AND rf.EstadoCosto = @EstadoFiltro
+            )
+        )
+    ) AS TotalFiltrado,
+
+    (
+        SELECT COUNT_BIG(*)
+        FROM
+        (
+            SELECT DISTINCT ra.CodigoEtiqueta
+            FROM #Resultado AS ra
+            WHERE
+            (
+                @EstadoFiltro = ''
+                OR
+                (
+                    @EstadoFiltro = 'PENDIENTES'
+                    AND ra.EstadoCosto <> '100% MISMO COSTO'
+                )
+                OR
+                (
+                    @EstadoFiltro <> 'PENDIENTES'
+                    AND ra.EstadoCosto = @EstadoFiltro
+                )
+            )
+            AND ISNULL(ra.CostoTIF, 0) > 0
+            AND
+            (
+                ISNULL(ra.CostoP1, 0) <= 0
+                OR ra.EstadoCosto = 'COSTO DIFERENTE'
+            )
+        ) AS Ajustables
+    ) AS TotalAjustables,
+
+    (
+        SELECT COUNT_BIG(*)
+        FROM
+        (
+            SELECT DISTINCT rst.CodigoEtiqueta
+            FROM #Resultado AS rst
+            WHERE
+            (
+                @EstadoFiltro = ''
+                OR
+                (
+                    @EstadoFiltro = 'PENDIENTES'
+                    AND rst.EstadoCosto <> '100% MISMO COSTO'
+                )
+                OR
+                (
+                    @EstadoFiltro <> 'PENDIENTES'
+                    AND rst.EstadoCosto = @EstadoFiltro
+                )
+            )
+            AND ISNULL(rst.CostoTIF, 0) <= 0
+        ) AS SinCostoOrigen
+    ) AS TotalSinCostoTIF
+FROM #Resultado;
+
+/*==============================================================
+  2) SOLAMENTE LA PÁGINA SOLICITADA
+==============================================================*/
+SELECT
+    CodigoEtiqueta,
+    LoteTIF,
+    LoteP1,
+    SKUTIF,
+    SKUP1,
+    ProductoTIF,
+    ProductoP1,
+    PesoTIF,
+    PesoP1,
+    DiferenciaPeso,
+    CostoTIF,
+    CostoP1,
+    DiferenciaCosto,
+    EstadoCosto,
+    ProduccionIdTIF,
+    ProduccionIdP1,
+    FechaTIF
+FROM #Resultado
 WHERE
 (
-    @EstadoCosto IS NULL
-    OR @EstadoCosto = ''
-    OR EstadoCosto = @EstadoCosto
+    @EstadoFiltro = ''
+    OR
+    (
+        @EstadoFiltro = 'PENDIENTES'
+        AND EstadoCosto <> '100% MISMO COSTO'
+    )
+    OR
+    (
+        @EstadoFiltro <> 'PENDIENTES'
+        AND EstadoCosto = @EstadoFiltro
+    )
 )
- 
 ORDER BY
     FechaTIF DESC,
     CodigoEtiqueta
- 
-OPTION (RECOMPILE);";
+OFFSET @Offset ROWS
+FETCH NEXT @TamanoPagina ROWS ONLY
+OPTION (RECOMPILE);
+
+/*==============================================================
+  3) CÓDIGOS AJUSTABLES DEL FILTRO COMPLETO
+     No depende de la página visible.
+==============================================================*/
+SELECT DISTINCT
+    CodigoEtiqueta
+FROM #Resultado
+WHERE
+(
+    @EstadoFiltro = ''
+    OR
+    (
+        @EstadoFiltro = 'PENDIENTES'
+        AND EstadoCosto <> '100% MISMO COSTO'
+    )
+    OR
+    (
+        @EstadoFiltro <> 'PENDIENTES'
+        AND EstadoCosto = @EstadoFiltro
+    )
+)
+AND ISNULL(CostoTIF, 0) > 0
+AND
+(
+    ISNULL(CostoP1, 0) <= 0
+    OR EstadoCosto = 'COSTO DIFERENTE'
+)
+ORDER BY CodigoEtiqueta;
+";
 
             var parametros = new
             {
-                TipoPeriodo = filtro.TipoPeriodo,
-                FechaBase = filtro.FechaBase,
+                TipoPeriodo = tipoPeriodo,
+                FechaBase = filtro.FechaBase.Date,
                 Tolerancia = filtro.Tolerancia,
-                EstadoCosto = filtro.EstadoCosto
+                EstadoCosto = estadoCosto,
+                Offset = offset,
+                TamanoPagina = tamanoPagina
             };
 
-            var datos = await cn.QueryAsync<ComparativaCosteoRowVM>(
+            using var multi = await cn.QueryMultipleAsync(
                 sql,
-                parametros
-                );
+                parametros,
+                commandTimeout: exportarTodo ? 600 : 300);
 
-            var primerRegistro = datos.FirstOrDefault();
+            var resumen = await multi.ReadFirstOrDefaultAsync<ComparativaCosteoResumenDbRow>()
+                ?? new ComparativaCosteoResumenDbRow();
 
+            var datos = (await multi.ReadAsync<ComparativaCosteoRowVM>()).ToList();
+            var codigosAjustables = (await multi.ReadAsync<string>())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
+            var totalPaginas = exportarTodo || resumen.TotalFiltrado <= 0
+                ? (resumen.TotalFiltrado > 0 ? 1 : 0)
+                : (int)Math.Ceiling(resumen.TotalFiltrado / (double)tamanoPagina);
 
-            return Json(new
+            if (!exportarTodo && totalPaginas > 0 && pagina > totalPaginas)
             {
-                ok = true,
-                datos
-            });
+                pagina = totalPaginas;
+            }
 
-
+            return new ComparativaCosteoPaginaResultado
+            {
+                Datos = datos,
+                CodigosAjustables = codigosAjustables,
+                TotalGeneral = resumen.TotalGeneral,
+                TotalFiltrado = resumen.TotalFiltrado,
+                MismoCosto = resumen.MismoCosto,
+                CostoDiferente = resumen.CostoDiferente,
+                SinCostoTIF = resumen.SinCostoTIF,
+                SinCostoP1 = resumen.SinCostoP1,
+                SinCostoAmbos = resumen.SinCostoAmbos,
+                TotalAjustables = resumen.TotalAjustables,
+                TotalSinCostoTIF = resumen.TotalSinCostoTIF,
+                Pagina = pagina,
+                TamanoPagina = tamanoPagina,
+                TotalPaginas = totalPaginas,
+                LimiteAjustablesExcedido = resumen.TotalAjustables > codigosAjustables.Count
+            };
         }
-
 
 
         [HttpPost("EjecutarCosteo")]

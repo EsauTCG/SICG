@@ -1,4 +1,90 @@
 ﻿// ===============================
+// CARGAR SEGUNDA VISTA PARCIAL
+// ===============================
+// ===============================
+// CARGAR DETALLES POR CLASIFICACIÓN
+// ===============================
+async function cargarDetallesClasificacionMensual() {
+
+    const contenedores = document.querySelectorAll(".detalle-clasificacion-container");
+
+    for (const fila of contenedores) {
+
+        const clasificacionId = fila.dataset.clasificacionId;
+        const fecha = fila.dataset.fecha;
+
+        const contenedor = fila.querySelector(".contenedor-detalle-mensual");
+
+        try {
+
+            const response = await fetch(
+                `/Planeacion/CargarDetalleClasificacionMensual?clasificacionId=${clasificacionId}&fecha=${encodeURIComponent(fecha)}`
+            );
+
+            if (!response.ok)
+                throw new Error();
+
+            contenedor.innerHTML = await response.text();
+
+            // Inicializar únicamente esta clasificación
+            const wrapper = contenedor.querySelector(".js-planeacion-mensual");
+
+            if (wrapper) {
+                await inicializarDetalleMensual(wrapper);
+            }
+
+        }
+        catch {
+
+            contenedor.innerHTML = `
+                <div class="alert alert-danger m-2">
+                    Error al cargar el detalle.
+                </div>`;
+        }
+    }
+}
+
+
+// ===============================
+// INICIALIZAR UNA CLASIFICACIÓN
+// ===============================
+async function inicializarDetalleMensual(wrapper) {
+
+    recalcularPlantillaMensual(wrapper);
+    await cargarInyeccionesMensuales(wrapper);
+    await cargarCatalogoConversionesMes();
+
+    // Aquí irán agregándose todas las funciones propias
+    // de la vista mensual.
+    //
+    // await cargarCatalogoMensual(wrapper);
+    // inicializarBuscadorMensual(wrapper);
+    // inicializarMastersMensual(wrapper);
+    // recalcularTotalesMensuales(wrapper);
+}
+
+
+// ===============================
+// INICIALIZAR TODA LA PLANTILLA
+// ===============================
+async function inicializarPlantillaMensual() {
+
+    await cargarDetallesClasificacionMensual();
+
+}
+
+
+
+
+
+
+// Ejecutar automáticamente cuando la parcial ya exista en el DOM
+queueMicrotask(() => {
+    inicializarPlantillaMensual();
+});
+
+
+// ===============================
 // RECÁLCULO AUTOMÁTICO
 // ===============================
 document.addEventListener("input", function (e) {
@@ -27,8 +113,10 @@ function recalcularFila(fila) {
 
     fila.querySelector(".peso-total").value =
         pesoTotal.toFixed(2);
+
     recalcularSubclasificacion(fila);
 }
+
 function recalcularSubclasificacion(filaDetalle) {
 
     let subclasRow = filaDetalle.previousElementSibling;
@@ -67,7 +155,6 @@ function recalcularSubclasificacion(filaDetalle) {
         ? totalPeso / totalCanales
         : 0;
 
-    // 🔹 actualizar fila principal
     subclasRow.querySelector(".cantidad").value =
         totalCanales;
 
@@ -77,7 +164,6 @@ function recalcularSubclasificacion(filaDetalle) {
     subclasRow.querySelector(".peso-promedio").value =
         pesoProm.toFixed(2);
 
-    // 🔥 NUEVO: recalcular porcentajes
     detalles.forEach(d => {
 
         const canalesDetalle = parseFloat(
@@ -89,6 +175,7 @@ function recalcularSubclasificacion(filaDetalle) {
             : 0;
 
         const inputPorc = d.querySelector(".porcentaje");
+
         if (inputPorc)
             inputPorc.value = porcentaje.toFixed(2);
     });
@@ -105,7 +192,7 @@ function guardarPlantillaMensual() {
 
     filas.forEach(fila => {
 
-        const tdNombre = fila.querySelector("td"); // primer td
+        const tdNombre = fila.querySelector("td");
 
         lista.push({
             Id: parseInt(fila.dataset.id) || 0,
@@ -117,6 +204,7 @@ function guardarPlantillaMensual() {
             PesoTotal: parseFloat(fila.querySelector(".peso-total")?.value) || 0,
             Porcentaje: parseFloat(fila.querySelector(".porcentaje")?.value) || 0,
         });
+
     });
 
     console.log("📦 Enviando planeación mensual:", lista);
@@ -142,7 +230,6 @@ function guardarPlantillaMensual() {
 }
 
 
-
 // ===============================
 // REGRESAR A SEMANAL
 // ===============================
@@ -155,5 +242,7 @@ function volverASemanalDesdePlaneador() {
     }
 
     const contenedor = document.getElementById("contenedor-planeador");
-    if (contenedor) contenedor.innerHTML = "";
+
+    if (contenedor)
+        contenedor.innerHTML = "";
 }

@@ -12,6 +12,9 @@ using System.Text.Json;
 using Plataforma_CG.ViewModels;
 using System.Globalization;
 using static Plataforma_CG.Models.Embarque;
+using MD = MigraDoc.DocumentObjectModel;
+using MDT = MigraDoc.DocumentObjectModel.Tables;
+using MDR = MigraDoc.Rendering;
 
 public class EmbarquesController : Controller
 {
@@ -146,17 +149,17 @@ public class EmbarquesController : Controller
     }
 
     // ============================================================
-// CREAR EMBARQUE - PÁGINA INICIAL LIGERA
-// ============================================================
-[HttpGet]
-[Authorize(Roles = "Administracion de Ventas,Administrador")]
-public async Task<IActionResult> Crear(CancellationToken cancellationToken)
-{
-    // Solo obtenemos los conteos.
-    // Ya no cargamos miles de registros al abrir la página.
-    var totalOrdenes = await _ovContext.OrdenVenta
-        .AsNoTracking()
-        .CountAsync(o => o.Estatus == 5, cancellationToken);
+    // CREAR EMBARQUE - PÁGINA INICIAL LIGERA
+    // ============================================================
+    [HttpGet]
+    [Authorize(Roles = "Administracion de Ventas,Administrador")]
+    public async Task<IActionResult> Crear(CancellationToken cancellationToken)
+    {
+        // Solo obtenemos los conteos.
+        // Ya no cargamos miles de registros al abrir la página.
+        var totalOrdenes = await _ovContext.OrdenVenta
+            .AsNoTracking()
+            .CountAsync(o => o.Estatus == 5, cancellationToken);
 
         var transferenciasYaEnEmbarque = await _qrContext.EmbarqueDocumento
             .AsNoTracking()
@@ -173,13 +176,13 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
                 cancellationToken);
 
         var viewModel = new CrearEmbarqueViewModel
-    {
-        TotalOrdenes = totalOrdenes,
-        TotalTransferencias = totalTransferencias
-    };
+        {
+            TotalOrdenes = totalOrdenes,
+            TotalTransferencias = totalTransferencias
+        };
 
-    return View(viewModel);
-}
+        return View(viewModel);
+    }
 
     // ============================================================
     // CONSULTAR OV DISPONIBLES CON FILTROS Y PAGINACIÓN
@@ -1697,7 +1700,7 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
                     .Distinct()
                     .Count(),
 
-                     Detalles = p.Productos
+                    Detalles = p.Productos
                     .OrderBy(d => d.Id)
                     .Select(d => new
                     {
@@ -3228,9 +3231,9 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
         ? embarque.NombreEmbarque
         : embarque.Consecutivo;
 
-            nombreBaseExcel = LimpiarNombreArchivo(nombreBaseExcel);
+        nombreBaseExcel = LimpiarNombreArchivo(nombreBaseExcel);
 
-            var fileName = $"{nombreBaseExcel}_{DateTime.Now:yyyyMMdd_HHmm}.xlsx";
+        var fileName = $"{nombreBaseExcel}_{DateTime.Now:yyyyMMdd_HHmm}.xlsx";
 
         return File(
             stream.ToArray(),
@@ -4206,6 +4209,725 @@ public async Task<IActionResult> Crear(CancellationToken cancellationToken)
         }
 
         return productos;
+    }
+
+    // ============================================================
+    // PDF DE TEMPERATURAS - HISTÓRICO DE CALIDAD
+    //
+    // NuGet requerido:
+    // PDFsharp-MigraDoc 6.2.4
+    //
+    // En Windows / IIS, en Program.cs, antes de app.Run():
+    //
+    // PdfSharp.Fonts.GlobalFontSettings.UseWindowsFontsUnderWindows = true;
+    //
+    // ============================================================
+    [HttpGet]
+    public async Task<IActionResult> DescargarTemperaturasPdf(int id)
+    {
+        var embarque = await _qrContext.Embarque
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == id);
+
+        if (embarque == null)
+            return NotFound();
+
+        var productos = await ConstruirProductosTemperaturaCalidad(id);
+
+        // ============================================================
+        // AGRUPAR: 1 TARIMA = 1 TEMPERATURA
+        // ============================================================
+        var tarimas = productos
+            .GroupBy(x =>
+                string.IsNullOrWhiteSpace(x.Tarima)
+                    ? $"__SIN_TARIMA__|{x.TipoDocumento}|{x.DocumentoId}|{x.OrigenDetalleId}"
+                    : $"{x.TipoDocumento}|{x.DocumentoId}|{x.Tarima.Trim().ToUpperInvariant()}")
+            .Select(g =>
+            {
+                var items = g.ToList();
+
+                var ultimaCaptura = items
+                    .Where(x => x.Temperatura.HasValue)
+                    .OrderByDescending(
+                        x => x.FechaUltimaCaptura ?? DateTime.MinValue)
+                    .FirstOrDefault();
+
+                var productosTarima = items
+                    .GroupBy(x => new
+                    {
+                        Codigo = (x.ProductoCodigo ?? "").Trim(),
+                        Nombre = (x.ProductoNombre ?? "").Trim()
+                    })
+                    .Select(pg => new
+                    {
+                        pg.Key.Codigo,
+                        pg.Key.Nombre,
+                        Cajas = pg.Sum(x => x.Cajas),
+                        Kilos = pg.Sum(x => x.Kilos)
+                    })
+                    .OrderBy(x => x.Codigo)
+                    .ToList();
+
+                return new
+                {
+                    TipoDocumento = items.First().TipoDocumento,
+                    DocumentoId = items.First().DocumentoId,
+                    DocumentoConsecutivo =
+                        items.First().DocumentoConsecutivo ?? "",
+                    DocumentoCliente =
+                        items.First().DocumentoCliente ?? "",
+
+                    Tarima = items
+                        .Select(x => x.Tarima)
+                        .FirstOrDefault(
+                            x => !string.IsNullOrWhiteSpace(x))
+                        ?? "Sin código",
+
+                    Productos = productosTarima,
+
+                    TotalCajas = items.Sum(x => x.Cajas),
+                    TotalKilos = items.Sum(x => x.Kilos),
+
+                    Temperatura = ultimaCaptura?.Temperatura,
+
+                    Observaciones =
+                        ultimaCaptura?.Observaciones
+                        ?? items
+                            .Select(x => x.Observaciones)
+                            .FirstOrDefault(
+                                x => !string.IsNullOrWhiteSpace(x)),
+
+                    FechaCaptura =
+                        ultimaCaptura?.FechaUltimaCaptura,
+
+                    UsuarioCaptura =
+                        ultimaCaptura?.UsuarioUltimaCaptura
+                        ?? items
+                            .Select(x => x.UsuarioUltimaCaptura)
+                            .FirstOrDefault(
+                                x => !string.IsNullOrWhiteSpace(x))
+                };
+            })
+            .OrderBy(x => x.TipoDocumento == "OV" ? 0 : 1)
+            .ThenBy(x => x.DocumentoConsecutivo)
+            .ThenBy(x => x.Tarima)
+            .ToList();
+
+        if (!tarimas.Any())
+        {
+            TempData["Error"] =
+                "El embarque seleccionado no tiene temperaturas para generar el PDF.";
+
+            return RedirectToAction(nameof(Calidad));
+        }
+
+        var consecutivo =
+            string.IsNullOrWhiteSpace(embarque.Consecutivo)
+                ? $"EMB-{embarque.Id}"
+                : embarque.Consecutivo.Trim();
+
+        var nombreEmbarque =
+            string.IsNullOrWhiteSpace(embarque.NombreEmbarque)
+                ? ""
+                : embarque.NombreEmbarque.Trim();
+
+        var totalCajas = tarimas.Sum(x => x.TotalCajas);
+        var totalKilos = tarimas.Sum(x => x.TotalKilos);
+        var tarimasCapturadas =
+            tarimas.Count(x => x.Temperatura.HasValue);
+
+        // ============================================================
+        // DOCUMENTO PDF
+        // ============================================================
+        var document = new MD.Document();
+
+        document.Info.Title =
+            $"Temperaturas - {consecutivo}";
+
+        document.Info.Subject =
+            "Reporte de temperaturas por tarima";
+
+        // Estilo general
+        var normal = document.Styles[MD.StyleNames.Normal];
+
+        normal.Font.Name = "Arial";
+        normal.Font.Size = 8.5;
+
+        var section = document.AddSection();
+
+        section.PageSetup.PageFormat =
+            MD.PageFormat.A4;
+
+        section.PageSetup.Orientation =
+            MD.Orientation.Portrait;
+
+        section.PageSetup.TopMargin =
+            MD.Unit.FromCentimeter(1.1);
+
+        section.PageSetup.BottomMargin =
+            MD.Unit.FromCentimeter(1.1);
+
+        section.PageSetup.LeftMargin =
+            MD.Unit.FromCentimeter(1.2);
+
+        section.PageSetup.RightMargin =
+            MD.Unit.FromCentimeter(1.2);
+
+        // ============================================================
+        // ENCABEZADO
+        // ============================================================
+        var eyebrow = section.AddParagraph();
+
+        eyebrow.AddText("CONTROL DE CALIDAD");
+
+        eyebrow.Format.Font.Size = 8;
+        eyebrow.Format.Font.Bold = true;
+        eyebrow.Format.Font.Color = MD.Colors.DarkRed;
+        eyebrow.Format.SpaceAfter =
+            MD.Unit.FromPoint(2);
+
+        var titulo = section.AddParagraph();
+
+        titulo.AddText(
+            "Reporte de temperaturas por tarima");
+
+        titulo.Format.Font.Size = 18;
+        titulo.Format.Font.Bold = true;
+        titulo.Format.Font.Color = MD.Colors.Black;
+        titulo.Format.SpaceAfter =
+            MD.Unit.FromPoint(2);
+
+        var sub = section.AddParagraph();
+
+        sub.AddText($"Embarque #{consecutivo}");
+
+        if (!string.IsNullOrWhiteSpace(nombreEmbarque))
+            sub.AddText($" · {nombreEmbarque}");
+
+        sub.Format.Font.Size = 9;
+        sub.Format.Font.Color = MD.Colors.Gray;
+        sub.Format.SpaceAfter =
+            MD.Unit.FromPoint(8);
+
+        // Línea superior
+        var linea = section.AddTable();
+
+        linea.AddColumn(
+            MD.Unit.FromCentimeter(18.6));
+
+        linea.Borders.Visible = false;
+
+        var lineaRow = linea.AddRow();
+
+        lineaRow.Height =
+            MD.Unit.FromPoint(2);
+
+        lineaRow.Cells[0].Shading.Color =
+            MD.Colors.DarkRed;
+
+        var espacioLinea = section.AddParagraph();
+
+        espacioLinea.Format.SpaceAfter =
+            MD.Unit.FromPoint(3);
+
+        // ============================================================
+        // RESUMEN
+        // ============================================================
+        var resumen = section.AddTable();
+
+        resumen.Borders.Width = 0.5;
+        resumen.Borders.Color =
+            MD.Colors.LightGray;
+
+        resumen.TopPadding =
+            MD.Unit.FromPoint(5);
+
+        resumen.BottomPadding =
+            MD.Unit.FromPoint(5);
+
+        resumen.LeftPadding =
+            MD.Unit.FromPoint(5);
+
+        resumen.RightPadding =
+            MD.Unit.FromPoint(5);
+
+        for (var i = 0; i < 4; i++)
+        {
+            resumen.AddColumn(
+                MD.Unit.FromCentimeter(4.65));
+        }
+
+        var resumenRow = resumen.AddRow();
+
+        resumenRow.Shading.Color =
+            MD.Colors.WhiteSmoke;
+
+        AgregarCeldaResumenPdf(
+            resumenRow.Cells[0],
+            "Fecha de validación",
+            embarque.FechaValidacionCalidad
+                ?.ToString("dd/MM/yyyy HH:mm")
+            ?? "-");
+
+        AgregarCeldaResumenPdf(
+            resumenRow.Cells[1],
+            "Validó",
+            string.IsNullOrWhiteSpace(
+                embarque.UsuarioValidaCalidad)
+                    ? "Sistema"
+                    : embarque.UsuarioValidaCalidad);
+
+        AgregarCeldaResumenPdf(
+            resumenRow.Cells[2],
+            "Tarimas",
+            $"{tarimasCapturadas} / {tarimas.Count}");
+
+        AgregarCeldaResumenPdf(
+            resumenRow.Cells[3],
+            "Totales",
+            $"{totalCajas} cajas · {totalKilos:N2} kg");
+
+        var espacioResumen =
+            section.AddParagraph();
+
+        espacioResumen.Format.SpaceAfter =
+            MD.Unit.FromPoint(5);
+
+        // ============================================================
+        // DETALLE POR TARIMA
+        // ============================================================
+        foreach (var tarima in tarimas)
+        {
+            var tipoDocumento =
+                tarima.TipoDocumento == "OV"
+                    ? "Orden de Venta"
+                    : "Transferencia";
+
+            var documentoTexto =
+                string.IsNullOrWhiteSpace(
+                    tarima.DocumentoConsecutivo)
+                    ? $"ID {tarima.DocumentoId}"
+                    : tarima.DocumentoConsecutivo;
+
+            // --------------------------------------------------------
+            // CABECERA TARIMA / TEMPERATURA
+            // --------------------------------------------------------
+            var cabecera = section.AddTable();
+
+            cabecera.Borders.Width = 0.75;
+            cabecera.Borders.Color =
+                MD.Colors.LightGray;
+
+            cabecera.TopPadding =
+                MD.Unit.FromPoint(6);
+
+            cabecera.BottomPadding =
+                MD.Unit.FromPoint(6);
+
+            cabecera.LeftPadding =
+                MD.Unit.FromPoint(7);
+
+            cabecera.RightPadding =
+                MD.Unit.FromPoint(7);
+
+            cabecera.AddColumn(
+                MD.Unit.FromCentimeter(12.7));
+
+            cabecera.AddColumn(
+                MD.Unit.FromCentimeter(5.9));
+
+            var cabeceraRow =
+                cabecera.AddRow();
+
+            cabeceraRow.Shading.Color =
+                MD.Colors.WhiteSmoke;
+
+            var pTarima =
+                cabeceraRow.Cells[0]
+                    .AddParagraph();
+
+            var labelTarima =
+                pTarima.AddFormattedText(
+                    "TARIMA\n");
+
+            labelTarima.Font.Size = 7;
+            labelTarima.Font.Bold = true;
+            labelTarima.Font.Color =
+                MD.Colors.Gray;
+
+            var codigoTarima =
+                pTarima.AddFormattedText(
+                    tarima.Tarima);
+
+            codigoTarima.Font.Size = 13;
+            codigoTarima.Font.Bold = true;
+            codigoTarima.Font.Color =
+                MD.Colors.DarkRed;
+
+            var pTemp =
+                cabeceraRow.Cells[1]
+                    .AddParagraph();
+
+            pTemp.Format.Alignment =
+                MD.ParagraphAlignment.Center;
+
+            var labelTemp =
+                pTemp.AddFormattedText(
+                    "TEMPERATURA\n");
+
+            labelTemp.Font.Size = 7;
+            labelTemp.Font.Bold = true;
+            labelTemp.Font.Color =
+                MD.Colors.Gray;
+
+            var valorTemperatura =
+                tarima.Temperatura.HasValue
+                    ? $"{tarima.Temperatura.Value:N2} °C"
+                    : "Sin captura";
+
+            var valorTemp =
+                pTemp.AddFormattedText(
+                    valorTemperatura);
+
+            valorTemp.Font.Size = 13;
+            valorTemp.Font.Bold = true;
+
+            valorTemp.Font.Color =
+                tarima.Temperatura.HasValue
+                    ? MD.Colors.DarkGreen
+                    : MD.Colors.DarkRed;
+
+            // --------------------------------------------------------
+            // METADATA TARIMA
+            // --------------------------------------------------------
+            var meta = section.AddTable();
+
+            meta.Borders.Width = 0.5;
+            meta.Borders.Color =
+                MD.Colors.LightGray;
+
+            meta.TopPadding =
+                MD.Unit.FromPoint(4);
+
+            meta.BottomPadding =
+                MD.Unit.FromPoint(4);
+
+            meta.LeftPadding =
+                MD.Unit.FromPoint(5);
+
+            meta.RightPadding =
+                MD.Unit.FromPoint(5);
+
+            meta.AddColumn(
+                MD.Unit.FromCentimeter(4.65));
+
+            meta.AddColumn(
+                MD.Unit.FromCentimeter(7.45));
+
+            meta.AddColumn(
+                MD.Unit.FromCentimeter(2.7));
+
+            meta.AddColumn(
+                MD.Unit.FromCentimeter(3.8));
+
+            var metaRow = meta.AddRow();
+
+            AgregarCeldaResumenPdf(
+                metaRow.Cells[0],
+                "Documento",
+                $"{tipoDocumento} · {documentoTexto}");
+
+            AgregarCeldaResumenPdf(
+                metaRow.Cells[1],
+                "Cliente / Sucursal",
+                string.IsNullOrWhiteSpace(
+                    tarima.DocumentoCliente)
+                    ? "-"
+                    : tarima.DocumentoCliente);
+
+            AgregarCeldaResumenPdf(
+                metaRow.Cells[2],
+                "Cajas",
+                tarima.TotalCajas.ToString());
+
+            AgregarCeldaResumenPdf(
+                metaRow.Cells[3],
+                "Kilos",
+                $"{tarima.TotalKilos:N2} kg");
+
+            // --------------------------------------------------------
+            // PRODUCTOS / SKUS
+            // --------------------------------------------------------
+            var tablaProductos =
+                section.AddTable();
+
+            tablaProductos.Borders.Width = 0.5;
+            tablaProductos.Borders.Color =
+                MD.Colors.LightGray;
+
+            tablaProductos.TopPadding =
+                MD.Unit.FromPoint(4);
+
+            tablaProductos.BottomPadding =
+                MD.Unit.FromPoint(4);
+
+            tablaProductos.LeftPadding =
+                MD.Unit.FromPoint(5);
+
+            tablaProductos.RightPadding =
+                MD.Unit.FromPoint(5);
+
+            tablaProductos.AddColumn(
+                MD.Unit.FromCentimeter(3.0));
+
+            tablaProductos.AddColumn(
+                MD.Unit.FromCentimeter(10.0));
+
+            tablaProductos.AddColumn(
+                MD.Unit.FromCentimeter(2.3));
+
+            tablaProductos.AddColumn(
+                MD.Unit.FromCentimeter(3.3));
+
+            var header =
+                tablaProductos.AddRow();
+
+            header.HeadingFormat = true;
+            header.Shading.Color =
+                MD.Colors.WhiteSmoke;
+
+            AgregarEncabezadoPdf(
+                header.Cells[0],
+                "SKU",
+                MD.ParagraphAlignment.Left);
+
+            AgregarEncabezadoPdf(
+                header.Cells[1],
+                "Producto",
+                MD.ParagraphAlignment.Left);
+
+            AgregarEncabezadoPdf(
+                header.Cells[2],
+                "Cajas",
+                MD.ParagraphAlignment.Right);
+
+            AgregarEncabezadoPdf(
+                header.Cells[3],
+                "Kilos",
+                MD.ParagraphAlignment.Right);
+
+            foreach (var producto
+                     in tarima.Productos)
+            {
+                var row =
+                    tablaProductos.AddRow();
+
+                AgregarDatoPdf(
+                    row.Cells[0],
+                    string.IsNullOrWhiteSpace(
+                        producto.Codigo)
+                        ? "S/SKU"
+                        : producto.Codigo,
+                    MD.ParagraphAlignment.Left);
+
+                AgregarDatoPdf(
+                    row.Cells[1],
+                    string.IsNullOrWhiteSpace(
+                        producto.Nombre)
+                        ? "Producto sin descripción"
+                        : producto.Nombre,
+                    MD.ParagraphAlignment.Left);
+
+                AgregarDatoPdf(
+                    row.Cells[2],
+                    producto.Cajas.ToString(),
+                    MD.ParagraphAlignment.Right);
+
+                AgregarDatoPdf(
+                    row.Cells[3],
+                    producto.Kilos.ToString("N2"),
+                    MD.ParagraphAlignment.Right);
+            }
+
+            // --------------------------------------------------------
+            // OBSERVACIONES / CAPTURA
+            // --------------------------------------------------------
+            var pieTarima =
+                section.AddTable();
+
+            pieTarima.Borders.Width = 0.5;
+            pieTarima.Borders.Color =
+                MD.Colors.LightGray;
+
+            pieTarima.TopPadding =
+                MD.Unit.FromPoint(5);
+
+            pieTarima.BottomPadding =
+                MD.Unit.FromPoint(5);
+
+            pieTarima.LeftPadding =
+                MD.Unit.FromPoint(5);
+
+            pieTarima.RightPadding =
+                MD.Unit.FromPoint(5);
+
+            pieTarima.AddColumn(
+                MD.Unit.FromCentimeter(9.3));
+
+            pieTarima.AddColumn(
+                MD.Unit.FromCentimeter(9.3));
+
+            var pieRow =
+                pieTarima.AddRow();
+
+            AgregarCeldaResumenPdf(
+                pieRow.Cells[0],
+                "Observaciones",
+                string.IsNullOrWhiteSpace(
+                    tarima.Observaciones)
+                    ? "Sin observaciones"
+                    : tarima.Observaciones);
+
+            var fechaCapturaTexto =
+                tarima.FechaCaptura.HasValue
+                    ? tarima.FechaCaptura.Value
+                        .ToString("dd/MM/yyyy HH:mm")
+                    : "-";
+
+            var usuarioCapturaTexto =
+                string.IsNullOrWhiteSpace(
+                    tarima.UsuarioCaptura)
+                    ? "-"
+                    : tarima.UsuarioCaptura;
+
+            AgregarCeldaResumenPdf(
+                pieRow.Cells[1],
+                "Captura",
+                $"{fechaCapturaTexto} · {usuarioCapturaTexto}");
+
+            var separador =
+                section.AddParagraph();
+
+            separador.Format.SpaceAfter =
+                MD.Unit.FromPoint(6);
+        }
+
+        // ============================================================
+        // FOOTER
+        // ============================================================
+        var footer =
+            section.Footers.Primary
+                .AddParagraph();
+
+        footer.AddText(
+            $"Reporte de temperaturas · Embarque #{consecutivo} · Página ");
+
+        footer.AddPageField();
+
+        footer.Format.Font.Size = 7;
+        footer.Format.Font.Color =
+            MD.Colors.Gray;
+
+        footer.Format.Alignment =
+            MD.ParagraphAlignment.Center;
+
+        // ============================================================
+        // RENDER PDF
+        // ============================================================
+        var renderer =
+            new MDR.PdfDocumentRenderer
+            {
+                Document = document
+            };
+
+        renderer.RenderDocument();
+
+        using var stream =
+            new MemoryStream();
+
+        renderer.PdfDocument.Save(stream);
+
+        var invalidos =
+            Path.GetInvalidFileNameChars();
+
+        var consecutivoSeguro =
+            new string(
+                consecutivo
+                    .Select(c =>
+                        invalidos.Contains(c)
+                            ? '_'
+                            : c)
+                    .ToArray());
+
+        return File(
+            stream.ToArray(),
+            "application/pdf",
+            $"Temperaturas_{consecutivoSeguro}.pdf"
+        );
+    }
+
+    // ============================================================
+    // HELPERS PDF
+    // Los dejamos como métodos privados del Controller para evitar
+    // problemas con funciones locales y tipos ambiguos.
+    // ============================================================
+    private static void AgregarCeldaResumenPdf(
+        MDT.Cell cell,
+        string etiqueta,
+        string? valor)
+    {
+        var p = cell.AddParagraph();
+
+        var label =
+            p.AddFormattedText(
+                etiqueta.ToUpperInvariant()
+                + "\n");
+
+        label.Font.Size = 6.8;
+        label.Font.Bold = true;
+        label.Font.Color =
+            MD.Colors.Gray;
+
+        var value =
+            p.AddFormattedText(
+                string.IsNullOrWhiteSpace(valor)
+                    ? "-"
+                    : valor);
+
+        value.Font.Size = 8.3;
+        value.Font.Bold = true;
+        value.Font.Color =
+            MD.Colors.Black;
+    }
+
+    private static void AgregarEncabezadoPdf(
+        MDT.Cell cell,
+        string texto,
+        MD.ParagraphAlignment alignment)
+    {
+        var p =
+            cell.AddParagraph(texto);
+
+        p.Format.Alignment = alignment;
+        p.Format.Font.Size = 7;
+        p.Format.Font.Bold = true;
+        p.Format.Font.Color =
+            MD.Colors.Gray;
+    }
+
+    private static void AgregarDatoPdf(
+        MDT.Cell cell,
+        string? texto,
+        MD.ParagraphAlignment alignment)
+    {
+        var p =
+            cell.AddParagraph(
+                texto ?? "");
+
+        p.Format.Alignment = alignment;
+        p.Format.Font.Size = 8;
+        p.Format.Font.Color =
+            MD.Colors.Black;
     }
 
     public class GuardarTemperaturasSkuRequest

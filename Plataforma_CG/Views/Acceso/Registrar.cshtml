@@ -1,0 +1,621 @@
+﻿@model Plataforma_CG.Controllers.RegistroUsuarioViewModel
+
+@{
+    Layout = null;
+    ViewData["Title"] = "Registro de Usuario";
+}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"] - SIGO</title>
+    <link rel="icon" type="image/png" href="~/images/ico_sigo.ico" />
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+    <style>
+        * { box-sizing: border-box; }
+
+        html, body {
+            margin: 0;
+            width: 100%;
+            min-height: 100%;
+            font-family: "Segoe UI", Arial, sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background: #08080a;
+            color: #20242a;
+        }
+
+        .registro-page {
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            background: linear-gradient(
+                105deg,
+                #5c000d 0%,
+                #47000b 15%,
+                #320008 30%,
+                #210007 44%,
+                #150307 57%,
+                #0d080a 70%,
+                #09090b 84%,
+                #08080a 100%
+            );
+        }
+
+        .registro-container {
+            width: 100%;
+            max-width: 1080px;
+            min-height: 620px;
+            display: grid;
+            grid-template-columns: minmax(340px, .92fr) minmax(440px, 1.08fr);
+            overflow: hidden;
+            background: #fff;
+            border: 1px solid rgba(255,255,255,.10);
+            border-radius: 22px;
+            box-shadow: 0 30px 85px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.03);
+        }
+
+        .registro-imagen-panel {
+            position: relative;
+            min-height: 620px;
+            overflow: hidden;
+            background: linear-gradient(145deg, #000 0%, #080808 38%, #151515 68%, #000 100%);
+        }
+
+        .registro-imagen {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+            opacity: .84;
+            filter: contrast(1.08) saturate(.88) brightness(.76);
+            transform: scale(1.01);
+        }
+
+        .registro-imagen-panel::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            pointer-events: none;
+            background:
+                linear-gradient(90deg,
+                    rgba(0,0,0,.88) 0%,
+                    rgba(0,0,0,.58) 35%,
+                    rgba(0,0,0,.24) 68%,
+                    rgba(0,0,0,.38) 100%),
+                linear-gradient(180deg,
+                    rgba(0,0,0,.12) 0%,
+                    rgba(0,0,0,.16) 42%,
+                    rgba(0,0,0,.90) 100%);
+        }
+
+        .registro-imagen-panel::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            pointer-events: none;
+            background: radial-gradient(circle at 78% 18%, rgba(255,255,255,.10), transparent 28%);
+        }
+
+        .registro-imagen-overlay {
+            position: absolute;
+            z-index: 2;
+            left: 38px;
+            right: 38px;
+            bottom: 42px;
+            color: #fff;
+        }
+
+        .registro-logo {
+            display: block;
+            width: 126px;
+            max-height: 80px;
+            object-fit: contain;
+            object-position: left center;
+            margin-bottom: 24px;
+            filter: drop-shadow(0 10px 20px rgba(0,0,0,.35));
+        }
+
+        .registro-imagen-overlay h2 {
+            margin: 0 0 10px;
+            font-size: 30px;
+            line-height: 1.12;
+            font-weight: 800;
+            letter-spacing: -.02em;
+        }
+
+        .registro-imagen-overlay p {
+            margin: 0;
+            max-width: 360px;
+            color: rgba(255,255,255,.80);
+            font-size: 13.5px;
+            line-height: 1.65;
+        }
+
+        .registro-info-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 24px;
+        }
+
+        .registro-info-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: rgba(255,255,255,.86);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .registro-info-item i {
+            width: 28px;
+            height: 28px;
+            display: grid;
+            place-items: center;
+            flex-shrink: 0;
+            border-radius: 50%;
+            background: rgba(255,255,255,.09);
+            border: 1px solid rgba(255,255,255,.10);
+            font-size: 11px;
+        }
+
+        .registro-form-panel {
+            padding: 52px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            background: linear-gradient(180deg, #fff 0%, #fbfbfc 100%);
+        }
+
+        .registro-header { margin-bottom: 28px; }
+
+        .registro-kicker {
+            margin-bottom: 7px;
+            color: #8b0000;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: .14em;
+            text-transform: uppercase;
+        }
+
+        .registro-header h1 {
+            margin: 0;
+            color: #20242a;
+            font-size: 30px;
+            font-weight: 800;
+            line-height: 1.15;
+            letter-spacing: -.02em;
+        }
+
+        .registro-header p {
+            margin: 8px 0 0;
+            color: #777e87;
+            font-size: 13px;
+            line-height: 1.55;
+        }
+
+        .validation-summary-errors {
+            margin-bottom: 18px;
+            padding: 11px 13px;
+            border: 1px solid #efc4c0;
+            border-radius: 9px;
+            background: #fff3f2;
+            color: #a52a20;
+            font-size: 12px;
+        }
+
+        .validation-summary-errors ul { margin: 0; padding-left: 18px; }
+        .validation-summary-valid { display: none; }
+
+        .field-validation-error,
+        .text-danger {
+            display: block;
+            margin-top: 5px;
+            color: #b42318;
+            font-size: 11px;
+        }
+
+        .input-validation-error {
+            border-color: #c0392b !important;
+            box-shadow: 0 0 0 3px rgba(192,57,43,.08) !important;
+        }
+
+        .registro-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0,1fr));
+            gap: 18px;
+        }
+
+        .registro-field { min-width: 0; }
+        .registro-field.full { grid-column: 1 / -1; }
+
+        .registro-field label {
+            display: block;
+            margin-bottom: 6px;
+            color: #414750;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .registro-input-wrap { position: relative; }
+
+        .registro-input-wrap > i:first-child {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 1;
+            color: #9298a1;
+            font-size: 13px;
+            pointer-events: none;
+        }
+
+        .registro-input {
+            width: 100%;
+            min-height: 47px;
+            padding: 10px 43px 10px 40px;
+            border: 1px solid #d8dce2;
+            border-radius: 10px;
+            background: #fff;
+            color: #252a31;
+            outline: none;
+            font-size: 13px;
+            transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+        }
+
+        .registro-input::placeholder { color: #adb2ba; }
+        .registro-input:hover { border-color: #c9cdd3; }
+
+        .registro-input:focus {
+            border-color: #8b0000;
+            background: #fff;
+            box-shadow: 0 0 0 3px rgba(139,0,0,.08);
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 32px;
+            height: 32px;
+            display: grid;
+            place-items: center;
+            border: 0;
+            border-radius: 7px;
+            background: transparent;
+            color: #858b94;
+            cursor: pointer;
+            transition: color .15s ease, background .15s ease;
+        }
+
+        .password-toggle:hover {
+            color: #8b0000;
+            background: #f3f4f5;
+        }
+
+        .password-help {
+            margin-top: 6px;
+            color: #91969e;
+            font-size: 10.5px;
+            line-height: 1.45;
+        }
+
+        .registro-actions {
+            margin-top: 29px;
+            padding-top: 22px;
+            border-top: 1px solid #eceef1;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+        }
+
+        .volver-login {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            color: #717780;
+            font-size: 12px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: color .15s ease;
+        }
+
+        .volver-login:hover { color: #8b0000; }
+
+        .btn-registro {
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 11px 25px;
+            border: 0;
+            border-radius: 9px;
+            background: linear-gradient(135deg, #8b0000 0%, #600000 100%);
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 9px 22px rgba(139,0,0,.23);
+            transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+        }
+
+        .btn-registro:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.06);
+            box-shadow: 0 12px 28px rgba(139,0,0,.30);
+        }
+
+        .btn-registro:active { transform: translateY(0); }
+
+        .registro-security {
+            margin-top: 17px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            color: #9398a0;
+            font-size: 10.5px;
+        }
+
+        .registro-security i { color: #568c6d; }
+
+        @@media (max-width: 850px) {
+            .registro-page { padding: 18px; }
+
+            .registro-container {
+                grid-template-columns: 1fr;
+                max-width: 620px;
+                min-height: auto;
+            }
+
+            .registro-imagen-panel { min-height: 280px; }
+            .registro-imagen { object-position: center 30%; }
+
+            .registro-imagen-overlay {
+                left: 28px;
+                right: 28px;
+                bottom: 28px;
+            }
+
+            .registro-info-list { display: none; }
+            .registro-logo { width: 105px; margin-bottom: 16px; }
+            .registro-imagen-overlay h2 { font-size: 24px; }
+            .registro-form-panel { padding: 36px 30px; }
+        }
+
+        @@media (max-width: 540px) {
+            .registro-page { padding: 0; }
+
+            .registro-container {
+                min-height: 100vh;
+                border-radius: 0;
+                border: 0;
+            }
+
+            .registro-imagen-panel { min-height: 220px; }
+
+            .registro-imagen-overlay {
+                left: 22px;
+                right: 22px;
+                bottom: 22px;
+            }
+
+            .registro-imagen-overlay p { font-size: 12px; }
+            .registro-form-panel { padding: 30px 20px; }
+            .registro-header h1 { font-size: 26px; }
+            .registro-grid { grid-template-columns: 1fr; }
+            .registro-field.full { grid-column: auto; }
+
+            .registro-actions {
+                flex-direction: column-reverse;
+                align-items: stretch;
+            }
+
+            .btn-registro { width: 100%; }
+            .volver-login { justify-content: center; }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="registro-page">
+        <div class="registro-container">
+
+            <section class="registro-imagen-panel">
+                <img src="@Url.Content("~/images/corte2.png")"
+                     alt="SIGO - Registro de usuario"
+                     class="registro-imagen" />
+
+                <div class="registro-imagen-overlay">
+                    <img src="@Url.Content("~/images/logoPDF.png")"
+                         alt="Carnes G"
+                         class="registro-logo" />
+
+                    <h2>Bienvenido a SIGO</h2>
+
+                    <p>
+                        Solicita tu acceso a nuestra plataforma.
+                        Tu cuenta será revisada y autorizada por un administrador.
+                    </p>
+
+                    <div class="registro-info-list">
+                        <div class="registro-info-item">
+                            <i class="fa-solid fa-shield-halved"></i>
+                            <span>Acceso seguro y controlado</span>
+                        </div>
+
+                        <div class="registro-info-item">
+                            <i class="fa-solid fa-user-check"></i>
+                            <span>Autorización por administrador</span>
+                        </div>
+
+                        <div class="registro-info-item">
+                            <i class="fa-solid fa-lock"></i>
+                            <span>Permisos según tu perfil</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <main class="registro-form-panel">
+                <div class="registro-header">
+                    <div class="registro-kicker">Registro de usuario</div>
+                    <h1>Crea tu cuenta</h1>
+                    <p>Completa la información para solicitar acceso al sistema.</p>
+                </div>
+
+                <form method="post"
+                      action="/Acceso/Registrar"
+                      autocomplete="off">
+
+                    @Html.AntiForgeryToken()
+
+                    <div asp-validation-summary="ModelOnly"></div>
+
+                    <div class="registro-grid">
+
+                        <div class="registro-field full">
+                            <label asp-for="Nombre"></label>
+
+                            <div class="registro-input-wrap">
+                                <i class="fa-solid fa-user"></i>
+                                <input asp-for="Nombre"
+                                       class="registro-input"
+                                       autocomplete="name"
+                                       placeholder="Nombre completo" />
+                            </div>
+
+                            <span asp-validation-for="Nombre"></span>
+                        </div>
+
+                        <div class="registro-field full">
+                            <label asp-for="Usuario"></label>
+
+                            <div class="registro-input-wrap">
+                                <i class="fa-solid fa-id-badge"></i>
+                                <input asp-for="Usuario"
+                                       class="registro-input"
+                                       autocomplete="username"
+                                       placeholder="Nombre de usuario" />
+                            </div>
+
+                            <span asp-validation-for="Usuario"></span>
+                        </div>
+
+                        <div class="registro-field">
+                            <label asp-for="Password"></label>
+
+                            <div class="registro-input-wrap">
+                                <i class="fa-solid fa-lock"></i>
+
+                                <input asp-for="Password"
+                                       type="password"
+                                       id="Password"
+                                       class="registro-input"
+                                       autocomplete="new-password"
+                                       placeholder="Contraseña" />
+
+                                <button type="button"
+                                        class="password-toggle"
+                                        onclick="togglePassword('Password', this)"
+                                        aria-label="Mostrar u ocultar contraseña"
+                                        title="Mostrar contraseña">
+                                    <i class="fa-solid fa-eye"></i>
+                                </button>
+                            </div>
+
+                            <span asp-validation-for="Password"></span>
+                            <div class="password-help">Utiliza al menos 8 caracteres.</div>
+                        </div>
+
+                        <div class="registro-field">
+                            <label asp-for="ConfirmarPassword"></label>
+
+                            <div class="registro-input-wrap">
+                                <i class="fa-solid fa-lock"></i>
+
+                                <input asp-for="ConfirmarPassword"
+                                       type="password"
+                                       id="ConfirmarPassword"
+                                       class="registro-input"
+                                       autocomplete="new-password"
+                                       placeholder="Repite la contraseña" />
+
+                                <button type="button"
+                                        class="password-toggle"
+                                        onclick="togglePassword('ConfirmarPassword', this)"
+                                        aria-label="Mostrar u ocultar contraseña"
+                                        title="Mostrar contraseña">
+                                    <i class="fa-solid fa-eye"></i>
+                                </button>
+                            </div>
+
+                            <span asp-validation-for="ConfirmarPassword"></span>
+                        </div>
+                    </div>
+
+                    <div class="registro-actions">
+                        <a href="/" class="volver-login">
+                            <i class="fa-solid fa-arrow-left"></i>
+                            Ya tengo una cuenta
+                        </a>
+
+                        <button type="submit" class="btn-registro">
+                            <i class="fa-solid fa-user-plus"></i>
+                            Crear cuenta
+                        </button>
+                    </div>
+
+                    <div class="registro-security">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <span>La cuenta quedará pendiente de autorización.</span>
+                    </div>
+                </form>
+            </main>
+
+        </div>
+    </div>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
+    <script src="~/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.min.js"></script>
+
+    <script>
+        function togglePassword(inputId, button) {
+            const input = document.getElementById(inputId);
+            const icon = button.querySelector("i");
+
+            if (!input || !icon) return;
+
+            if (input.type === "password") {
+                input.type = "text";
+                icon.classList.remove("fa-eye");
+                icon.classList.add("fa-eye-slash");
+                button.title = "Ocultar contraseña";
+            } else {
+                input.type = "password";
+                icon.classList.remove("fa-eye-slash");
+                icon.classList.add("fa-eye");
+                button.title = "Mostrar contraseña";
+            }
+        }
+    </script>
+</body>
+</html>

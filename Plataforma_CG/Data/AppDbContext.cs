@@ -1,8 +1,10 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using DocumentFormat.OpenXml.InkML;
+using Microsoft.EntityFrameworkCore;
 using Plataforma_CG.Data.Entities;
 using Plataforma_CG.Models;
 using Plataforma_CG.Models.Chat;
 using Plataforma_CG.Models.Reportes;
+using Plataforma_CG.Services;
 using Plataforma_CG.ViewModels;
 using Plataforma_CG.Views.Sidebar;
 
@@ -43,7 +45,7 @@ namespace Plataforma_CG.Data
         public DbSet<Subpedido> Subpedidos => Set<Subpedido>();
         public DbSet<SubpedidoProducto> SubpedidoProductos => Set<SubpedidoProducto>();
 
-        public DbSet<Transferencia> Transferencias { get; set; }       
+        public DbSet<Transferencia> Transferencias { get; set; }
 
         public DbSet<TransferenciaDetalle> TransferenciaDetalles { get; set; }
 
@@ -143,6 +145,18 @@ namespace Plataforma_CG.Data
         public DbSet<UsuarioSerie> UsuarioSeries { get; set; }
 
         public DbSet<ProveedorSap> ProveedorSap { get; set; }
+
+        // Agregar dentro de AppDbContext:
+        public DbSet<CompraTiSolicitud> CompraTiSolicitudes { get; set; }
+        public DbSet<CompraTiDetalle> CompraTiDetalles { get; set; }
+        public DbSet<CompraTiCotizacion> CompraTiCotizaciones { get; set; }
+        public DbSet<CompraTiFactura> CompraTiFacturas { get; set; }
+        public DbSet<CompraTiRecepcion> CompraTiRecepciones { get; set; }
+        public DbSet<CompraTiAutorizacion> CompraTiAutorizaciones { get; set; }
+        public DbSet<CompraTiBitacora> CompraTiBitacoras { get; set; }
+
+        public DbSet<CompraTiOrdenCompraSap> CompraTiOrdenesCompraSap { get; set; }
+
 
         // =========================
         // ======= MODEL CONFIG =====
@@ -505,6 +519,166 @@ namespace Plataforma_CG.Data
                 entity.Property(x => x.Pais).HasMaxLength(100);
                 entity.Property(x => x.CodigoPostal).HasMaxLength(20);
             });
+
+
+            // =========================
+            // Compras TI
+            // =========================
+            modelBuilder.Entity<CompraTiSolicitud>(e =>
+            {
+                e.ToTable("CompraTiSolicitud");
+                e.HasKey(x => x.Id);
+
+                e.HasIndex(x => x.Folio).IsUnique();
+                e.HasIndex(x => x.SolicitudSap).IsUnique();
+                e.HasIndex(x => new { x.Estatus, x.FechaCreacion });
+                e.HasIndex(x => new { x.ProveedorSapCodigo, x.FechaCreacion });
+
+                e.Property(x => x.SubtotalCotizado).HasColumnType("decimal(19,4)");
+                e.Property(x => x.IvaCotizado).HasColumnType("decimal(19,4)");
+                e.Property(x => x.TotalCotizado).HasColumnType("decimal(19,4)");
+                e.Property(x => x.SubtotalFactura).HasColumnType("decimal(19,4)");
+                e.Property(x => x.IvaFactura).HasColumnType("decimal(19,4)");
+                e.Property(x => x.TotalFactura).HasColumnType("decimal(19,4)");
+                e.Property(x => x.DiferenciaFacturaCotizacion).HasColumnType("decimal(19,4)");
+
+                e.Property(x => x.FechaLiberacionPago).HasColumnType("datetime2(0)");
+                e.Property(x => x.FechaCreacion).HasColumnType("datetime2(0)");
+                e.Property(x => x.FechaModificacion).HasColumnType("datetime2(0)");
+
+                e.Property(x => x.RowVersion)
+                    .IsRowVersion()
+                    .IsConcurrencyToken();
+            });
+
+            modelBuilder.Entity<CompraTiDetalle>(e =>
+            {
+                e.ToTable("CompraTiDetalle");
+                e.HasKey(x => x.Id);
+                e.HasIndex(x => x.SolicitudId);
+
+                e.Property(x => x.CantidadSolicitada).HasColumnType("decimal(19,4)");
+                e.Property(x => x.CantidadRecibida).HasColumnType("decimal(19,4)");
+                e.Property(x => x.PrecioUnitarioCotizado).HasColumnType("decimal(19,4)");
+                e.Property(x => x.PrecioUnitarioFacturado).HasColumnType("decimal(19,4)");
+
+                e.HasOne<CompraTiSolicitud>()
+                    .WithMany()
+                    .HasForeignKey(x => x.SolicitudId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<CompraTiCotizacion>(e =>
+            {
+                e.ToTable("CompraTiCotizacion");
+                e.HasKey(x => x.Id);
+                e.HasIndex(x => new { x.SolicitudId, x.FechaRegistro });
+
+                e.Property(x => x.FechaCotizacion).HasColumnType("date");
+                e.Property(x => x.VigenciaHasta).HasColumnType("date");
+                e.Property(x => x.Subtotal).HasColumnType("decimal(19,4)");
+                e.Property(x => x.Iva).HasColumnType("decimal(19,4)");
+                e.Property(x => x.Total).HasColumnType("decimal(19,4)");
+                e.Property(x => x.HashSha256)
+                    .HasColumnType("char(64)")
+                    .IsUnicode(false);
+                e.Property(x => x.FechaRegistro).HasColumnType("datetime2(0)");
+
+                e.HasOne<CompraTiSolicitud>()
+                    .WithMany()
+                    .HasForeignKey(x => x.SolicitudId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<CompraTiFactura>(e =>
+            {
+                e.ToTable("CompraTiFactura");
+                e.HasKey(x => x.Id);
+                e.HasIndex(x => new { x.SolicitudId, x.FechaRegistro });
+                e.HasIndex(x => x.Uuid)
+                    .IsUnique()
+                    .HasFilter("[Uuid] <> ''");
+
+                e.Property(x => x.FechaFactura).HasColumnType("date");
+                e.Property(x => x.Subtotal).HasColumnType("decimal(19,4)");
+                e.Property(x => x.Iva).HasColumnType("decimal(19,4)");
+                e.Property(x => x.Total).HasColumnType("decimal(19,4)");
+                e.Property(x => x.DiferenciaContraCotizacion).HasColumnType("decimal(19,4)");
+                e.Property(x => x.FechaRegistro).HasColumnType("datetime2(0)");
+
+                e.HasOne<CompraTiSolicitud>()
+                    .WithMany()
+                    .HasForeignKey(x => x.SolicitudId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<CompraTiRecepcion>(e =>
+            {
+                e.ToTable("CompraTiRecepcion");
+                e.HasKey(x => x.Id);
+                e.HasIndex(x => new { x.SolicitudId, x.FechaRecepcion });
+                e.Property(x => x.FechaRecepcion).HasColumnType("datetime2(0)");
+
+                e.HasOne<CompraTiSolicitud>()
+                    .WithMany()
+                    .HasForeignKey(x => x.SolicitudId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<CompraTiAutorizacion>(e =>
+            {
+                e.ToTable("CompraTiAutorizacion");
+                e.HasKey(x => x.Id);
+                e.HasIndex(x => new { x.SolicitudId, x.Fecha });
+                e.Property(x => x.Fecha).HasColumnType("datetime2(0)");
+
+                e.HasOne<CompraTiSolicitud>()
+                    .WithMany()
+                    .HasForeignKey(x => x.SolicitudId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<CompraTiBitacora>(e =>
+            {
+                e.ToTable("CompraTiBitacora");
+                e.HasKey(x => x.Id);
+                e.HasIndex(x => new { x.SolicitudId, x.Fecha });
+                e.Property(x => x.Fecha).HasColumnType("datetime2(0)");
+
+                e.HasOne<CompraTiSolicitud>()
+                    .WithMany()
+                    .HasForeignKey(x => x.SolicitudId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<CompraTiOrdenCompraSap>(e =>
+            {
+                e.ToTable("CompraTiOrdenCompraSap");
+                e.HasKey(x => x.Id);
+
+                e.HasIndex(x => new { x.SolicitudId, x.DocEntry })
+                    .IsUnique();
+
+                e.HasIndex(x => new { x.DocNum, x.Activa });
+
+                e.Property(x => x.FechaDocumento)
+                    .HasColumnType("date");
+
+                e.Property(x => x.FechaEntrega)
+                    .HasColumnType("date");
+
+                e.Property(x => x.Total)
+                    .HasColumnType("decimal(19,4)");
+
+                e.Property(x => x.FechaUltimaConsulta)
+                    .HasColumnType("datetime2(0)");
+
+                e.HasOne<CompraTiSolicitud>()
+                    .WithMany()
+                    .HasForeignKey(x => x.SolicitudId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
 
 
 

@@ -48,5 +48,12 @@
         {
             return new Operaciones.InyeccionAPI().Client();
         }
+        public HttpClient APIPlan()
+        {
+            var http = new HttpClient();
+            http.BaseAddress = new Uri("http://10.2.1.81:257/");
+
+            return http;
+        }
     }
 }

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Plataforma_CG.Data;
@@ -10,6 +10,16 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.NetworkInformation;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
+using Plataforma_CG.Services;
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Text.Json;
+using System.Xml;
+using System.Xml.Linq;
 
 namespace Plataforma_CG.Controllers
 {
@@ -17,11 +27,19 @@ namespace Plataforma_CG.Controllers
     {
         private readonly AppDbContext _context;
         private readonly IWebHostEnvironment _env;
+        private readonly ILogger<InventariosSistemasController> _logger;
+        private readonly SapServiceLayerClient _sap;
 
-        public InventariosSistemasController(AppDbContext context, IWebHostEnvironment env)
+        public InventariosSistemasController(
+            AppDbContext context,
+            IWebHostEnvironment env,
+            ILogger<InventariosSistemasController> logger,
+            SapServiceLayerClient sap)
         {
-            _context = context;
-            _env = env;
+            _context = context ?? throw new ArgumentNullException(nameof(context));
+            _env = env ?? throw new ArgumentNullException(nameof(env));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _sap = sap ?? throw new ArgumentNullException(nameof(sap));
         }
 
         public IActionResult InventariosSis() => View();
@@ -56,6 +74,7 @@ namespace Plataforma_CG.Controllers
                         i.Stock,
                         i.StockMinimo,
                         i.IP,
+
 
                         FotoUsuario = string.IsNullOrWhiteSpace(i.FotoUsuario) ? "" : "OK",
                         DocumentoComodato = string.IsNullOrWhiteSpace(i.DocumentoComodato) ? "" : "OK",
@@ -281,7 +300,7 @@ namespace Plataforma_CG.Controllers
                 modelo.FirmaDigital = modelo.FirmaDigital ?? "";
                 modelo.HistorialAsignaciones = modelo.HistorialAsignaciones ?? new List<string>();
                 modelo.IP = modelo.IP ?? "";
-             //agre
+                //agre
                 if (!string.IsNullOrWhiteSpace(modelo.IdArticuloSap))
                 {
                     bool sapDuplicado = _context.InventarioSistemas
@@ -292,7 +311,7 @@ namespace Plataforma_CG.Controllers
                         return Json(new { ok = false, mensaje = $"El ID SAP '{modelo.IdArticuloSap}' ya se encuentra registrado en otro artículo." });
                     }
                 }
-                
+
 
                 if (modelo.Id == 0)
                 {
@@ -385,7 +404,7 @@ namespace Plataforma_CG.Controllers
                                 return Json(new { ok = false, mensaje = "Operación denegada: No hay stock disponible de este artículo." });
                             }
 
-                            
+
                             original.Stock -= 1;
 
                             _context.MovimientoInventario.Add(new MovimientoInventario
@@ -395,7 +414,7 @@ namespace Plataforma_CG.Controllers
                                 TipoMovimiento = "SALIDA",
                                 Cantidad = 1,
                                 Fecha = DateTime.Now,
-                                Referencia = $"Entregado a: {modelo.Asignacion}" 
+                                Referencia = $"Entregado a: {modelo.Asignacion}"
                             });
 
                             original.Asignacion = modelo.Asignacion;
@@ -797,17 +816,17 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                
+
                 if (!int.TryParse(id, out int vlanIdNumerico))
                 {
                     return Json(new { ok = false, mensaje = "El ID de la VLAN debe ser un número." });
                 }
 
-              
+
                 var nuevaVlan = new VlanRed
                 {
                     Planta = planta,
-                    VlanId = vlanIdNumerico.ToString(), 
+                    VlanId = vlanIdNumerico.ToString(),
                     Nombre = nombre
                 };
 
@@ -818,7 +837,7 @@ namespace Plataforma_CG.Controllers
             }
             catch (Exception ex)
             {
-                
+
                 var mensajeError = ex.InnerException?.Message ?? ex.Message;
                 return Json(new { ok = false, mensaje = "Error en SQL: " + mensajeError });
             }
@@ -888,7 +907,7 @@ namespace Plataforma_CG.Controllers
                     original.FechaModificacion = DateTime.Now;
                     original.ModificadoPor = usuarioReal;
                     original.Usuario = modelo.Usuario ?? "";
-    original.Area = modelo.Area ?? "";
+                    original.Area = modelo.Area ?? "";
                 }
 
                 _context.SaveChanges();
@@ -1037,7 +1056,7 @@ namespace Plataforma_CG.Controllers
                         Referencia = $"RECUPERADO: Devuelto por {exUsuario}. Disponible nuevamente."
                     });
 
-                
+
                     _context.RegistroHistorial.Add(new RegistroHistorial
                     {
                         InventarioSistemasId = e.Id,
@@ -1920,6 +1939,2833 @@ END;";
         }
 
 
+
+
+        // =========================================================================================
+        // MÓDULO CONTROL DE COMPRAS TI
+        // Solicitud SAP -> Cotización -> Autorización -> Recepción -> Factura -> Pago
+        // Reutiliza ProveedorSap, ArticuloSap y SapServiceLayerClient.
+        // =========================================================================================
+
+        private const string MODULO_COMPRAS_TI = "MODULO_COMPRAS_TI";
+        private const decimal TOLERANCIA_CONCILIACION = 0.02m;
+        private const int SAP_OBJETO_SOLICITUD_COMPRA = 1470000113;
+
+        [HttpGet("/InventariosSistemas/ControlCompras")]
+        [RevisarPermiso(MODULO_COMPRAS_TI, "LEER")]
+        public IActionResult ControlComprasTi()
+        {
+            return View("~/Views/InventariosSistemas/ControlCompras.cshtml");
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ObtenerPermisosVistaComprasTi()
+        {
+            var login = (User?.Identity?.Name ?? "").Trim();
+
+            var permiso = await (
+                from u in _context.UsuarioSQL
+                join p in _context.Perfiles on u.PerfilId equals p.Id
+                join ppm in _context.PerfilPermisoModulo on p.Id equals ppm.PerfilId
+                join m in _context.ModulosSistema on ppm.ModuloId equals m.Id
+                where (u.Usuario == login || u.Nombre == login)
+                      && m.Clave == MODULO_COMPRAS_TI
+                      && ppm.Activo
+                      && m.Activo
+                select new
+                {
+                    ppm.PuedeLeer,
+                    ppm.PuedeEscribir,
+                    ppm.PuedeEliminar
+                }
+            ).FirstOrDefaultAsync();
+
+            if (permiso == null)
+            {
+                return Json(new
+                {
+                    puedeLeer = false,
+                    puedeEscribir = false,
+                    puedeEliminar = false
+                });
+            }
+
+            return Json(new
+            {
+                puedeLeer = permiso.PuedeLeer,
+                puedeEscribir = permiso.PuedeEscribir,
+                puedeEliminar = permiso.PuedeEliminar
+            });
+        }
+
+        [HttpGet]
+        [RevisarPermiso(MODULO_COMPRAS_TI, "LEER")]
+        public async Task<IActionResult> GetDashboardComprasTi(
+            CancellationToken ct = default)
+        {
+            var query = _context.CompraTiSolicitudes.AsNoTracking();
+
+            var total = await query.CountAsync(ct);
+            var pendientesAutorizacion = await query.CountAsync(x =>
+                x.Estatus == "COTIZACION_REGISTRADA", ct);
+            var pendientesOrdenCompra = await query.CountAsync(x =>
+                x.Autorizada &&
+                !x.LiberadaPago &&
+                !_context.CompraTiOrdenesCompraSap.Any(o =>
+                    o.SolicitudId == x.Id &&
+                    o.Activa &&
+                    !o.Cancelada), ct);
+
+            var pendientesRecepcion = await query.CountAsync(x =>
+                x.Autorizada && !x.RecibidaConforme && !x.LiberadaPago, ct);
+            var diferencias = await query.CountAsync(x =>
+                x.Estatus == "DIFERENCIA_FACTURA", ct);
+            var listasPago = await query.CountAsync(x =>
+                x.Autorizada && x.RecibidaConforme && x.ConciliacionOk &&
+                !x.LiberadaPago && x.TotalFactura > 0, ct);
+            var liberadasPago = await query.CountAsync(x => x.LiberadaPago, ct);
+
+            return Json(new
+            {
+                ok = true,
+                total,
+                pendientesAutorizacion,
+                pendientesOrdenCompra,
+                pendientesRecepcion,
+                diferencias,
+                listasPago,
+                liberadasPago
+            });
+        }
+
+        [HttpGet]
+        [RevisarPermiso(MODULO_COMPRAS_TI, "LEER")]
+        public async Task<IActionResult> GetSolicitudesCompraTi(
+            int page = 1,
+            int pageSize = 50,
+            string search = "",
+            string estatus = "",
+            CancellationToken ct = default)
+        {
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 50;
+            if (pageSize > 200) pageSize = 200;
+
+            search = (search ?? "").Trim().ToLowerInvariant();
+            estatus = (estatus ?? "").Trim().ToUpperInvariant();
+
+            var query = _context.CompraTiSolicitudes.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                query = query.Where(x =>
+                    (x.Folio ?? "").ToLower().Contains(search) ||
+                    (x.SolicitudSap ?? "").ToLower().Contains(search) ||
+                    (x.Titulo ?? "").ToLower().Contains(search) ||
+                    (x.ProveedorSapCodigo ?? "").ToLower().Contains(search) ||
+                    (x.ProveedorNombreSnapshot ?? "").ToLower().Contains(search) ||
+                    (x.Solicitante ?? "").ToLower().Contains(search));
+            }
+
+            if (!string.IsNullOrWhiteSpace(estatus))
+                query = query.Where(x => x.Estatus == estatus);
+
+            var total = await query.CountAsync(ct);
+
+            var solicitudes = await query
+                .OrderByDescending(x => x.FechaCreacion)
+                .ThenByDescending(x => x.Id)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(x => new
+                {
+                    x.Id,
+                    x.Folio,
+                    x.SolicitudSap,
+                    x.SolicitudSapDocEntry,
+                    x.SolicitudSapFecha,
+                    x.SolicitudSapEstatus,
+                    x.SolicitudSapSolicitante,
+                    x.TipoCompra,
+                    x.Titulo,
+                    x.CentroCosto,
+                    x.Planta,
+                    x.Solicitante,
+                    x.ProveedorSapCodigo,
+                    x.ProveedorNombreSnapshot,
+                    x.Moneda,
+                    x.Estatus,
+                    x.TotalCotizado,
+                    x.TotalFactura,
+                    x.DiferenciaFacturaCotizacion,
+                    x.Autorizada,
+                    x.RecibidaConforme,
+                    x.ConciliacionOk,
+                    x.LiberadaPago,
+                    x.FechaCreacion,
+                    x.FechaModificacion,
+                    Cotizaciones = _context.CompraTiCotizaciones.Count(c => c.SolicitudId == x.Id),
+                    Facturas = _context.CompraTiFacturas.Count(f => f.SolicitudId == x.Id),
+                    Recepciones = _context.CompraTiRecepciones.Count(r => r.SolicitudId == x.Id),
+                    OrdenesCompraSap = _context.CompraTiOrdenesCompraSap.Count(o =>
+                        o.SolicitudId == x.Id &&
+                        o.Activa),
+                    OrdenCompraSapDocNum = _context.CompraTiOrdenesCompraSap
+                        .Where(o =>
+                            o.SolicitudId == x.Id &&
+                            o.Activa)
+                        .OrderByDescending(o => o.DocEntry)
+                        .Select(o => (int?)o.DocNum)
+                        .FirstOrDefault()
+                })
+                .ToListAsync(ct);
+
+            return Json(new
+            {
+                ok = true,
+                total,
+                page,
+                pageSize,
+                solicitudes
+            });
+        }
+
+        [HttpGet]
+        [RevisarPermiso(MODULO_COMPRAS_TI, "LEER")]
+        public async Task<IActionResult> GetDetalleCompraTi(
+            int id,
+            CancellationToken ct = default)
+        {
+            var solicitud = await _context.CompraTiSolicitudes
+                .AsNoTracking()
+                .Where(x => x.Id == id)
+                .Select(x => new
+                {
+                    x.Id,
+                    x.Folio,
+                    x.SolicitudSap,
+                    x.SolicitudSapDocEntry,
+                    x.SolicitudSapFecha,
+                    x.SolicitudSapEstatus,
+                    x.SolicitudSapSolicitante,
+                    x.TipoCompra,
+                    x.Titulo,
+                    x.Justificacion,
+                    x.CentroCosto,
+                    x.Planta,
+                    x.Solicitante,
+                    x.ProveedorSapCodigo,
+                    x.ProveedorNombreSnapshot,
+                    x.ProveedorRfcSnapshot,
+                    x.Moneda,
+                    x.Estatus,
+                    x.SubtotalCotizado,
+                    x.IvaCotizado,
+                    x.TotalCotizado,
+                    x.SubtotalFactura,
+                    x.IvaFactura,
+                    x.TotalFactura,
+                    x.DiferenciaFacturaCotizacion,
+                    x.Autorizada,
+                    x.RecibidaConforme,
+                    x.ConciliacionOk,
+                    x.LiberadaPago,
+                    x.FechaLiberacionPago,
+                    x.LiberadoPagoPor,
+                    x.FechaCreacion,
+                    x.FechaModificacion,
+                    x.CreadoPor,
+                    x.ModificadoPor
+                })
+                .FirstOrDefaultAsync(ct);
+
+            if (solicitud == null)
+                return NotFound(new { ok = false, mensaje = "Expediente no encontrado." });
+
+            var detalles = await _context.CompraTiDetalles
+                .AsNoTracking()
+                .Where(x => x.SolicitudId == id && x.Activo)
+                .OrderBy(x => x.Id)
+                .ToListAsync(ct);
+
+            var cotizaciones = await _context.CompraTiCotizaciones
+                .AsNoTracking()
+                .Where(x => x.SolicitudId == id)
+                .OrderByDescending(x => x.FechaRegistro)
+                .ToListAsync(ct);
+
+            var recepciones = await _context.CompraTiRecepciones
+                .AsNoTracking()
+                .Where(x => x.SolicitudId == id)
+                .OrderByDescending(x => x.FechaRecepcion)
+                .ToListAsync(ct);
+
+            var facturas = await _context.CompraTiFacturas
+                .AsNoTracking()
+                .Where(x => x.SolicitudId == id)
+                .OrderByDescending(x => x.FechaRegistro)
+                .ToListAsync(ct);
+
+            var ordenesCompraSap = await _context.CompraTiOrdenesCompraSap
+                .AsNoTracking()
+                .Where(x =>
+                    x.SolicitudId == id &&
+                    x.Activa)
+                .OrderByDescending(x => x.DocEntry)
+                .ToListAsync(ct);
+
+            var autorizaciones = await _context.CompraTiAutorizaciones
+                .AsNoTracking()
+                .Where(x => x.SolicitudId == id)
+                .OrderByDescending(x => x.Fecha)
+                .ToListAsync(ct);
+
+            var bitacora = await _context.CompraTiBitacoras
+                .AsNoTracking()
+                .Where(x => x.SolicitudId == id)
+                .OrderByDescending(x => x.Fecha)
+                .Take(300)
+                .ToListAsync(ct);
+
+            var bloqueosPago = ObtenerBloqueosPago(
+                solicitud.Autorizada,
+                solicitud.RecibidaConforme,
+                solicitud.ConciliacionOk,
+                solicitud.TotalFactura,
+                solicitud.LiberadaPago);
+
+            var tieneOrdenCompraSap = ordenesCompraSap.Any(x => !x.Cancelada);
+
+            var seguimiento = new[]
+            {
+                new
+                {
+                    orden = 1,
+                    etapa = "SOLICITUD SAP",
+                    completada = solicitud.SolicitudSapDocEntry.HasValue,
+                    detalle = solicitud.SolicitudSapDocEntry.HasValue
+                        ? $"Solicitud {solicitud.SolicitudSap} ligada."
+                        : "Falta ligar la solicitud SAP."
+                },
+                new
+                {
+                    orden = 2,
+                    etapa = "COTIZACIÓN",
+                    completada = cotizaciones.Count > 0,
+                    detalle = cotizaciones.Count > 0
+                        ? $"{cotizaciones.Count} cotización(es) registrada(s)."
+                        : "Falta registrar la cotización."
+                },
+                new
+                {
+                    orden = 3,
+                    etapa = "AUTORIZACIÓN",
+                    completada = solicitud.Autorizada,
+                    detalle = solicitud.Autorizada
+                        ? "Compra autorizada."
+                        : "Falta autorización."
+                },
+                new
+                {
+                    orden = 4,
+                    etapa = "ORDEN DE COMPRA SAP",
+                    completada = tieneOrdenCompraSap,
+                    detalle = tieneOrdenCompraSap
+                        ? $"{ordenesCompraSap.Count(x => !x.Cancelada)} orden(es) de compra relacionada(s)."
+                        : "SAP todavía no reporta una orden de compra relacionada."
+                },
+                new
+                {
+                    orden = 5,
+                    etapa = "RECEPCIÓN",
+                    completada = solicitud.RecibidaConforme,
+                    detalle = solicitud.RecibidaConforme
+                        ? "Recepción conforme."
+                        : "Falta recepción conforme."
+                },
+                new
+                {
+                    orden = 6,
+                    etapa = "FACTURA Y CONCILIACIÓN",
+                    completada = solicitud.ConciliacionOk,
+                    detalle = solicitud.ConciliacionOk
+                        ? "Factura conciliada."
+                        : facturas.Count > 0
+                            ? "La factura tiene diferencias o validaciones pendientes."
+                            : "Falta registrar la factura."
+                },
+                new
+                {
+                    orden = 7,
+                    etapa = "PAGO",
+                    completada = solicitud.LiberadaPago,
+                    detalle = solicitud.LiberadaPago
+                        ? "Expediente liberado a pago."
+                        : "Pendiente de liberación a pago."
+                }
+            };
+
+            var pendientesSeguimiento = seguimiento
+                .Where(x => !x.completada)
+                .OrderBy(x => x.orden)
+                .Select(x => x.detalle)
+                .ToList();
+
+            return Json(new
+            {
+                ok = true,
+                solicitud,
+                detalles,
+                cotizaciones,
+                recepciones,
+                facturas,
+                ordenesCompraSap,
+                autorizaciones,
+                bitacora,
+                seguimiento,
+                pendientesSeguimiento,
+                bloqueosPago,
+                puedeLiberarPago = bloqueosPago.Count == 0
+            });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RevisarPermiso(MODULO_COMPRAS_TI, "ESCRIBIR")]
+        public async Task<IActionResult> SincronizarProveedoresComprasTi(
+            CancellationToken ct = default)
+        {
+            try
+            {
+                var resultado = await _sap.SincronizarProveedoresAsync(ct);
+
+                return Json(new
+                {
+                    ok = true,
+                    mensaje = "Catálogo de proveedores sincronizado correctamente.",
+                    totalSap = resultado.totalSap,
+                    insertados = resultado.insertados,
+                    actualizados = resultado.actualizados,
+                    fueraDeSap = resultado.fueraDeSap,
+                    fecha = DateTime.Now
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sincronizando proveedores desde Compras TI.");
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    mensaje = ex.GetBaseException().Message
+                });
+            }
+        }
+
+
+        // =========================================================================================
+        // CATÁLOGOS Y SOLICITUDES DE COMPRA DESDE SAP BUSINESS ONE
+        // =========================================================================================
+
+        [HttpGet]
+        [RevisarPermiso(MODULO_COMPRAS_TI, "LEER")]
+        public async Task<IActionResult> BuscarSolicitudesCompraSapTi(
+            string term = "",
+            int top = 80,
+            bool incluirCerradas = false,
+            CancellationToken ct = default)
+        {
+            term = (term ?? "").Trim();
+            top = Math.Clamp(top, 10, 150);
+
+            try
+            {
+                string endpoint;
+
+                if (int.TryParse(term, out var numeroSap) && numeroSap > 0)
+                {
+                    var filter = $"DocNum eq {numeroSap} or DocEntry eq {numeroSap}";
+                    endpoint =
+                        "PurchaseRequests" +
+                        $"?$filter={Uri.EscapeDataString(filter)}" +
+                        "&$orderby=DocEntry desc" +
+                        "&$top=20";
+                }
+                else
+                {
+                    endpoint =
+                        "PurchaseRequests" +
+                        "?$orderby=DocEntry desc" +
+                        $"&$top={top}";
+                }
+
+                var sap = await _sap.GetAsync(endpoint);
+
+                if (!sap.ok || string.IsNullOrWhiteSpace(sap.response))
+                {
+                    return StatusCode(
+                        sap.statusCode > 0 ? sap.statusCode : 502,
+                        new
+                        {
+                            ok = false,
+                            mensaje = "No se pudieron consultar las solicitudes de compra en SAP.",
+                            error = sap.error,
+                            detalle = sap.response
+                        });
+                }
+
+                using var doc = JsonDocument.Parse(sap.response);
+                var root = doc.RootElement;
+
+                var solicitudes = new List<SapCompraSolicitudVm>();
+
+                if (root.TryGetProperty("value", out var value) &&
+                    value.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var row in value.EnumerateArray())
+                    {
+                        var item = MapearSolicitudCompraSapTi(row);
+
+                        if (!incluirCerradas &&
+                            (item.Cancelada ||
+                             string.Equals(item.Estado, "CERRADA", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            continue;
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(term) &&
+                            !int.TryParse(term, out _))
+                        {
+                            var searchable = string.Join(
+                                " ",
+                                item.DocEntry,
+                                item.DocNum,
+                                item.Solicitante,
+                                item.Comentarios,
+                                item.PrimeraDescripcion,
+                                item.CentroCosto,
+                                item.ProveedorPreferido,
+                                string.Join(" ", item.Detalles.Select(x =>
+                                    $"{x.ItemCode} {x.Descripcion} {x.CentroCostoSap} {x.ProveedorPreferidoSap}")));
+
+                            if (!searchable.Contains(
+                                    term,
+                                    StringComparison.OrdinalIgnoreCase))
+                            {
+                                continue;
+                            }
+                        }
+
+                        solicitudes.Add(item);
+                    }
+                }
+
+                var result = solicitudes
+                    .OrderByDescending(x => x.DocEntry)
+                    .Take(top)
+                    .Select(x => new
+                    {
+                        x.DocEntry,
+                        x.DocNum,
+                        x.FechaDocumento,
+                        x.FechaRequerida,
+                        x.Estado,
+                        x.Cancelada,
+                        x.Solicitante,
+                        x.Comentarios,
+                        x.PrimeraDescripcion,
+                        x.Lineas,
+                        x.CentroCosto,
+                        x.ProveedorPreferido,
+                        x.PlantaSugerida,
+                        x.TipoCompraSugerido
+                    })
+                    .ToList();
+
+                return Json(new
+                {
+                    ok = true,
+                    total = result.Count,
+                    solicitudes = result
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error consultando solicitudes de compra SAP para Compras TI. Term={Term}",
+                    term);
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    mensaje = "No se pudieron consultar las solicitudes de compra en SAP.",
+                    error = ex.GetBaseException().Message
+                });
+            }
+        }
+
+        [HttpGet]
+        [RevisarPermiso(MODULO_COMPRAS_TI, "LEER")]
+        public async Task<IActionResult> ObtenerSolicitudCompraSapTi(
+            int docEntry,
+            CancellationToken ct = default)
+        {
+            if (docEntry <= 0)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "El DocEntry de la solicitud SAP no es válido."
+                });
+            }
+
+            try
+            {
+                var raw = await ObtenerSolicitudCompraSapRawAsync(docEntry, ct);
+                var solicitud = MapearSolicitudCompraSapTi(raw);
+
+                ProveedorSap? proveedorPreferido = null;
+
+                if (!string.IsNullOrWhiteSpace(solicitud.ProveedorPreferido))
+                {
+                    proveedorPreferido = await _context.ProveedorSap
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(x =>
+                            x.Proveedor == solicitud.ProveedorPreferido &&
+                            x.Activo &&
+                            x.ExisteEnSap &&
+                            !x.Congelado &&
+                            x.GrupoNombre != null &&
+                            EF.Functions.Like(x.GrupoNombre, "%PROVEEDOR%") &&
+                            EF.Functions.Like(x.GrupoNombre, "%CONSUMIBLE%"),
+                            ct);
+                }
+
+                var ordenesCompra = await ObtenerOrdenesCompraRelacionadasSapAsync(
+                    docEntry,
+                    ct);
+
+                return Json(new
+                {
+                    ok = true,
+                    solicitud = new
+                    {
+                        docEntry = solicitud.DocEntry,
+                        docNum = solicitud.DocNum,
+                        fechaDocumento = solicitud.FechaDocumento,
+                        fechaRequerida = solicitud.FechaRequerida,
+                        estado = solicitud.Estado,
+                        cancelada = solicitud.Cancelada,
+                        solicitante = solicitud.Solicitante,
+                        comentarios = solicitud.Comentarios,
+                        primeraDescripcion = solicitud.PrimeraDescripcion,
+                        lineas = solicitud.Lineas,
+                        centroCosto = solicitud.CentroCosto,
+
+                        // Nombres diferentes para evitar colisión con System.Text.Json.
+                        proveedorPreferidoCodigoSap = solicitud.ProveedorPreferido,
+                        proveedorPreferidoDisponible = proveedorPreferido != null,
+                        proveedorPreferidoDetalle = proveedorPreferido == null
+                            ? null
+                            : new
+                            {
+                                codigo = proveedorPreferido.Proveedor,
+                                nombre = proveedorPreferido.NombreProveedor,
+                                rfc = proveedorPreferido.RFC,
+                                moneda = proveedorPreferido.Moneda,
+                                grupo = proveedorPreferido.GrupoNombre,
+                                condicionPago = proveedorPreferido.CondicionPagoNombre
+                            },
+
+                        plantaSugerida = solicitud.PlantaSugerida,
+                        tipoCompraSugerido = solicitud.TipoCompraSugerido
+                    },
+                    detalles = solicitud.Detalles,
+                    ordenesCompra
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return StatusCode(502, new
+                {
+                    ok = false,
+                    mensaje = ex.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error consultando solicitud de compra SAP. DocEntry={DocEntry}",
+                    docEntry);
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    mensaje = "No se pudo consultar el detalle de la solicitud SAP.",
+                    error = ex.GetBaseException().Message
+                });
+            }
+        }
+
+
+        [HttpGet]
+        [RevisarPermiso(MODULO_COMPRAS_TI, "LEER")]
+        public async Task<IActionResult> ObtenerOrdenesCompraRelacionadasSapTi(
+            int solicitudSapDocEntry,
+            CancellationToken ct = default)
+        {
+            if (solicitudSapDocEntry <= 0)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "El DocEntry de la solicitud SAP no es válido."
+                });
+            }
+
+            try
+            {
+                var ordenes = await ObtenerOrdenesCompraRelacionadasSapAsync(
+                    solicitudSapDocEntry,
+                    ct);
+
+                return Json(new
+                {
+                    ok = true,
+                    solicitudSapDocEntry,
+                    total = ordenes.Count,
+                    ordenes
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error consultando órdenes de compra relacionadas. Solicitud DocEntry={DocEntry}",
+                    solicitudSapDocEntry);
+
+                return StatusCode(502, new
+                {
+                    ok = false,
+                    mensaje = "No se pudieron consultar las órdenes de compra relacionadas en SAP.",
+                    error = ex.GetBaseException().Message
+                });
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RevisarPermiso(MODULO_COMPRAS_TI, "ESCRIBIR")]
+        public async Task<IActionResult> SincronizarOrdenesCompraSapTi(
+            int solicitudId,
+            CancellationToken ct = default)
+        {
+            if (solicitudId <= 0)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "El expediente no es válido."
+                });
+            }
+
+            var solicitud = await _context.CompraTiSolicitudes
+                .FirstOrDefaultAsync(x => x.Id == solicitudId, ct);
+
+            if (solicitud == null)
+            {
+                return NotFound(new
+                {
+                    ok = false,
+                    mensaje = "Expediente no encontrado."
+                });
+            }
+
+            if (!solicitud.SolicitudSapDocEntry.HasValue ||
+                solicitud.SolicitudSapDocEntry.Value <= 0)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "El expediente no tiene un DocEntry de solicitud SAP."
+                });
+            }
+
+            try
+            {
+                var resultado = await SincronizarOrdenesCompraSapAsync(
+                    solicitud,
+                    ct);
+
+                return Json(new
+                {
+                    ok = true,
+                    mensaje = resultado.total > 0
+                        ? $"Se sincronizaron {resultado.total} orden(es) de compra SAP."
+                        : "SAP todavía no reporta órdenes de compra relacionadas.",
+                    resultado.total,
+                    resultado.insertadas,
+                    resultado.actualizadas,
+                    resultado.desactivadas,
+                    ordenes = resultado.ordenes
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error sincronizando órdenes SAP del expediente {SolicitudId}",
+                    solicitudId);
+
+                return StatusCode(502, new
+                {
+                    ok = false,
+                    mensaje = "No se pudieron sincronizar las órdenes de compra SAP.",
+                    error = ex.GetBaseException().Message
+                });
+            }
+        }
+
+        [HttpGet]
+        [RevisarPermiso(MODULO_COMPRAS_TI, "LEER")]
+        public async Task<IActionResult> ObtenerCentrosCostoSapTi(
+            string term = "",
+            int dimension = 0,
+            CancellationToken ct = default)
+        {
+            term = (term ?? "").Trim();
+
+            try
+            {
+                var endpoint =
+                    "ProfitCenters" +
+                    "?$orderby=CenterCode" +
+                    "&$top=500";
+
+                var sap = await _sap.GetAsync(endpoint);
+
+                if (!sap.ok || string.IsNullOrWhiteSpace(sap.response))
+                {
+                    return StatusCode(
+                        sap.statusCode > 0 ? sap.statusCode : 502,
+                        new
+                        {
+                            ok = false,
+                            mensaje = "No se pudieron consultar los centros de costo en SAP.",
+                            error = sap.error,
+                            detalle = sap.response
+                        });
+                }
+
+                using var doc = JsonDocument.Parse(sap.response);
+                var root = doc.RootElement;
+                var centros = new List<SapCentroCostoVm>();
+
+                if (root.TryGetProperty("value", out var value) &&
+                    value.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var row in value.EnumerateArray())
+                    {
+                        var codigo = SapStringCompraTi(row, "CenterCode");
+                        var nombre = SapStringCompraTi(row, "CenterName");
+                        var grupo = SapStringCompraTi(row, "GroupCode");
+                        var dim = SapIntCompraTi(row, "InWhichDimension", "Dimension") ?? 0;
+                        var activa = SapActivoCompraTi(row, "Active");
+                        var desde = SapDateCompraTi(row, "EffectiveFrom");
+                        var hasta = SapDateCompraTi(row, "EffectiveTo");
+
+                        if (string.IsNullOrWhiteSpace(codigo))
+                            continue;
+
+                        if (!activa)
+                            continue;
+
+                        var hoy = DateTime.Today;
+
+                        if (desde.HasValue && desde.Value.Date > hoy)
+                            continue;
+
+                        if (hasta.HasValue &&
+                            hasta.Value.Year > 1900 &&
+                            hasta.Value.Date < hoy)
+                        {
+                            continue;
+                        }
+
+                        if (dimension > 0 && dim > 0 && dim != dimension)
+                            continue;
+
+                        if (!string.IsNullOrWhiteSpace(term) &&
+                            !codigo.Contains(term, StringComparison.OrdinalIgnoreCase) &&
+                            !nombre.Contains(term, StringComparison.OrdinalIgnoreCase) &&
+                            !grupo.Contains(term, StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+
+                        centros.Add(new SapCentroCostoVm
+                        {
+                            Codigo = codigo,
+                            Nombre = nombre,
+                            Grupo = grupo,
+                            Dimension = dim,
+                            VigenciaDesde = desde,
+                            VigenciaHasta = hasta
+                        });
+                    }
+                }
+
+                var result = centros
+                    .OrderBy(x => x.Dimension)
+                    .ThenBy(x => x.Codigo)
+                    .Take(300)
+                    .ToList();
+
+                return Json(new
+                {
+                    ok = true,
+                    total = result.Count,
+                    centros = result
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error consultando centros de costo SAP para Compras TI.");
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    mensaje = "No se pudieron consultar los centros de costo en SAP.",
+                    error = ex.GetBaseException().Message
+                });
+            }
+        }
+
+        [HttpGet]
+        [RevisarPermiso(MODULO_COMPRAS_TI, "LEER")]
+        public async Task<IActionResult> ObtenerProveedoresComprasTi(
+     string term = "",
+     CancellationToken ct = default)
+        {
+            term = (term ?? string.Empty).Trim();
+
+            var query = _context.ProveedorSap
+                .AsNoTracking()
+                .Where(x =>
+                    x.Activo &&
+                    x.ExisteEnSap &&
+                    !x.Congelado &&
+                    x.GrupoNombre != null &&
+                    (
+                        EF.Functions.Like(x.GrupoNombre, "%PROVEEDOR%") ||
+                        EF.Functions.Like(x.GrupoNombre, "%CONSUMIBLE%")
+                    ));
+
+            if (!string.IsNullOrWhiteSpace(term))
+            {
+                query = query.Where(x =>
+                    EF.Functions.Like(x.Proveedor ?? "", $"%{term}%") ||
+                    EF.Functions.Like(x.NombreProveedor ?? "", $"%{term}%") ||
+                    EF.Functions.Like(x.RFC ?? "", $"%{term}%"));
+            }
+
+            var proveedores = await query
+                .OrderBy(x => x.NombreProveedor)
+                .Take(50)
+                .Select(x => new
+                {
+                    id = x.Proveedor,
+
+                    text =
+                        (x.NombreProveedor ?? "SIN NOMBRE") +
+                        " (" + x.Proveedor + ")",
+
+                    codigo = x.Proveedor,
+                    nombre = x.NombreProveedor,
+                    rfc = x.RFC,
+                    moneda = x.Moneda,
+                    grupo = x.GrupoNombre,
+                    condicionPago = x.CondicionPagoNombre,
+                    correo = x.Correo
+                })
+                .ToListAsync(ct);
+
+            return Json(proveedores);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RevisarPermiso(MODULO_COMPRAS_TI, "ESCRIBIR")]
+        public async Task<IActionResult> AsignarProveedorCompraTi(
+            int solicitudId,
+            string proveedorSapCodigo,
+            CancellationToken ct = default)
+        {
+            proveedorSapCodigo = (proveedorSapCodigo ?? "")
+                .Trim()
+                .ToUpperInvariant();
+
+            if (solicitudId <= 0 || string.IsNullOrWhiteSpace(proveedorSapCodigo))
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "La solicitud y el proveedor son obligatorios."
+                });
+            }
+
+            var solicitud = await _context.CompraTiSolicitudes
+                .FirstOrDefaultAsync(x => x.Id == solicitudId, ct);
+
+            if (solicitud == null)
+                return NotFound(new { ok = false, mensaje = "Expediente no encontrado." });
+
+            if (ExpedienteCerradoComprasTi(solicitud))
+                return Conflict(new { ok = false, mensaje = "El expediente ya está cerrado." });
+
+            if (solicitud.Autorizada)
+            {
+                return Conflict(new
+                {
+                    ok = false,
+                    mensaje = "No se puede cambiar el proveedor después de autorizar la compra."
+                });
+            }
+
+            var proveedor = await _context.ProveedorSap
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x =>
+                    x.Proveedor == proveedorSapCodigo &&
+                    x.Activo &&
+                    x.ExisteEnSap &&
+                    !x.Congelado &&
+                    x.GrupoNombre != null &&
+                    EF.Functions.Like(x.GrupoNombre, "%PROVEEDOR%") &&
+                    EF.Functions.Like(x.GrupoNombre, "%CONSUMIBLE%"),
+                    ct);
+
+            if (proveedor == null)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "El proveedor no está disponible o su grupo no contiene PROVEEDOR y CONSUMIBLE."
+                });
+            }
+
+            solicitud.ProveedorSapCodigo = proveedor.Proveedor;
+            solicitud.ProveedorNombreSnapshot = proveedor.NombreProveedor ?? "";
+            solicitud.ProveedorRfcSnapshot = proveedor.RFC ?? "";
+            solicitud.Moneda = string.IsNullOrWhiteSpace(proveedor.Moneda)
+                ? "MXN"
+                : proveedor.Moneda.Trim().ToUpperInvariant();
+            solicitud.FechaModificacion = DateTime.Now;
+            solicitud.ModificadoPor = UsuarioActualComprasTi();
+
+            RegistrarBitacoraComprasTi(
+                solicitud.Id,
+                "PROVEEDOR_ASIGNADO",
+                $"Proveedor {proveedor.Proveedor} - {proveedor.NombreProveedor} asignado al expediente.");
+
+            await _context.SaveChangesAsync(ct);
+
+            return Json(new
+            {
+                ok = true,
+                codigo = solicitud.ProveedorSapCodigo,
+                nombre = solicitud.ProveedorNombreSnapshot,
+                rfc = solicitud.ProveedorRfcSnapshot,
+                moneda = solicitud.Moneda
+            });
+        }
+
+        [HttpGet]
+        [RevisarPermiso(MODULO_COMPRAS_TI, "LEER")]
+        public async Task<IActionResult> ObtenerArticulosSapComprasTi(
+            string term = "",
+            CancellationToken ct = default)
+        {
+            term = (term ?? string.Empty).Trim();
+
+            var query = _context.ArticuloSap.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(term))
+            {
+                query = query.Where(x =>
+                    (x.ProductoCodigo ?? "").Contains(term) ||
+                    (x.ProductoNombre ?? "").Contains(term));
+            }
+
+            var articulos = await query
+                .OrderBy(x => x.ProductoCodigo)
+                .Take(50)
+                .Select(x => new
+                {
+                    id = x.ProductoCodigo,
+                    text = x.ProductoCodigo + " - " + x.ProductoNombre,
+                    codigo = x.ProductoCodigo,
+                    nombre = x.ProductoNombre
+                })
+                .ToListAsync(ct);
+
+            return Json(articulos);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RevisarPermiso(MODULO_COMPRAS_TI, "ESCRIBIR")]
+        public async Task<IActionResult> CrearSolicitudCompraTi(
+            [FromBody] CrearCompraTiDto dto,
+            CancellationToken ct = default)
+        {
+            if (dto == null)
+                return BadRequest(new { ok = false, mensaje = "No se recibió información." });
+
+            dto.SolicitudSap = (dto.SolicitudSap ?? "").Trim().ToUpperInvariant();
+            dto.TipoCompra = (dto.TipoCompra ?? "").Trim().ToUpperInvariant();
+            dto.ProveedorSapCodigo = (dto.ProveedorSapCodigo ?? "").Trim().ToUpperInvariant();
+            dto.CentroCosto = (dto.CentroCosto ?? "").Trim().ToUpperInvariant();
+            dto.Planta = (dto.Planta ?? "").Trim().ToUpperInvariant();
+
+            if (dto.SolicitudSapDocEntry <= 0)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "Selecciona una solicitud directamente desde SAP."
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.SolicitudSap))
+                return BadRequest(new { ok = false, mensaje = "La solicitud SAP es obligatoria." });
+
+            if (!new[] { "ACTIVO_FIJO", "SERVICIO", "CONSUMIBLE" }.Contains(dto.TipoCompra))
+                return BadRequest(new { ok = false, mensaje = "Tipo de compra no válido." });
+
+            if (!new[] { "PLANTA 1", "TIF 776" }.Contains(dto.Planta))
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "La planta debe ser PLANTA 1 o TIF 776."
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.CentroCosto))
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "Selecciona un centro de costo del catálogo SAP."
+                });
+            }
+
+            if (dto.Detalles == null || dto.Detalles.Count == 0)
+                return BadRequest(new { ok = false, mensaje = "Debe existir al menos un concepto." });
+
+            if (dto.Detalles.Any(x => x.Cantidad <= 0 || string.IsNullOrWhiteSpace(x.Descripcion)))
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "Cada concepto debe tener descripción y cantidad mayor a cero."
+                });
+            }
+
+            JsonElement solicitudSapRaw;
+            SapCompraSolicitudVm solicitudSap;
+
+            try
+            {
+                solicitudSapRaw = await ObtenerSolicitudCompraSapRawAsync(
+                    dto.SolicitudSapDocEntry,
+                    ct);
+
+                solicitudSap = MapearSolicitudCompraSapTi(solicitudSapRaw);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(502, new
+                {
+                    ok = false,
+                    mensaje =
+                        "No fue posible confirmar la solicitud directamente en SAP. " +
+                        ex.GetBaseException().Message
+                });
+            }
+
+            if (!string.Equals(
+                    dto.SolicitudSap,
+                    solicitudSap.DocNum.ToString(CultureInfo.InvariantCulture),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return Conflict(new
+                {
+                    ok = false,
+                    mensaje =
+                        $"La solicitud seleccionada cambió. SAP reporta el número " +
+                        $"{solicitudSap.DocNum} para el DocEntry {solicitudSap.DocEntry}."
+                });
+            }
+
+            // Las solicitudes cerradas sí pueden ligarse para conservar la trazabilidad.
+            // Únicamente se bloquean las solicitudes canceladas.
+            if (solicitudSap.Cancelada)
+            {
+                return Conflict(new
+                {
+                    ok = false,
+                    mensaje =
+                        $"La solicitud SAP {solicitudSap.DocNum} está cancelada " +
+                        "y no puede ligarse a un expediente."
+                });
+            }
+
+            bool solicitudSapCerrada = string.Equals(
+                solicitudSap.Estado,
+                "CERRADA",
+                StringComparison.OrdinalIgnoreCase);
+
+            var duplicada = await _context.CompraTiSolicitudes
+                .AnyAsync(x =>
+                    x.SolicitudSap == dto.SolicitudSap ||
+                    x.SolicitudSapDocEntry == dto.SolicitudSapDocEntry,
+                    ct);
+
+            if (duplicada)
+            {
+                return Conflict(new
+                {
+                    ok = false,
+                    mensaje = "La solicitud SAP ya tiene un expediente."
+                });
+            }
+
+            ProveedorSap? proveedor = null;
+
+            if (!string.IsNullOrWhiteSpace(dto.ProveedorSapCodigo))
+            {
+                proveedor = await _context.ProveedorSap
+    .AsNoTracking()
+    .FirstOrDefaultAsync(
+        x => x.Proveedor == dto.ProveedorSapCodigo,
+        ct);
+
+                if (proveedor == null)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        mensaje =
+                            $"El proveedor con código '{dto.ProveedorSapCodigo}' " +
+                            "no existe en el catálogo local de proveedores SAP."
+                    });
+                }
+
+                if (!proveedor.Activo)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        mensaje =
+                            $"El proveedor '{proveedor.NombreProveedor}' está inactivo.",
+                        codigo = proveedor.Proveedor,
+                        grupo = proveedor.GrupoNombre
+                    });
+                }
+
+                if (!proveedor.ExisteEnSap)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        mensaje =
+                            $"El proveedor '{proveedor.NombreProveedor}' ya no existe en SAP.",
+                        codigo = proveedor.Proveedor,
+                        grupo = proveedor.GrupoNombre
+                    });
+                }
+
+                if (proveedor.Congelado)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        mensaje =
+                            $"El proveedor '{proveedor.NombreProveedor}' está congelado en SAP.",
+                        codigo = proveedor.Proveedor,
+                        grupo = proveedor.GrupoNombre
+                    });
+                }
+
+                var grupoProveedor = (proveedor.GrupoNombre ?? "")
+                    .Trim()
+                    .ToUpperInvariant();
+
+                var perteneceGrupoPermitido =
+                    grupoProveedor.Contains("PROVEEDOR") ||
+                    grupoProveedor.Contains("CONSUMIBLE");
+
+                if (!perteneceGrupoPermitido)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        mensaje =
+                            $"El proveedor '{proveedor.NombreProveedor}' pertenece al grupo " +
+                            $"'{proveedor.GrupoNombre}', que no está autorizado para Compras TI.",
+                        codigo = proveedor.Proveedor,
+                        grupo = proveedor.GrupoNombre
+                    });
+                }
+            }
+
+            var ordenesRelacionadasSap = new List<SapOrdenCompraVm>();
+            string advertenciaOrdenCompraSap = "";
+
+            try
+            {
+                ordenesRelacionadasSap = await ObtenerOrdenesCompraRelacionadasSapAsync(
+                    dto.SolicitudSapDocEntry,
+                    ct);
+            }
+            catch (Exception ex)
+            {
+                advertenciaOrdenCompraSap =
+                    "El expediente se guardará, pero no fue posible consultar las órdenes " +
+                    "de compra relacionadas en SAP: " +
+                    ex.GetBaseException().Message;
+
+                _logger.LogWarning(
+                    ex,
+                    "No se pudieron consultar órdenes SAP al crear el expediente. Solicitud DocEntry={DocEntry}",
+                    dto.SolicitudSapDocEntry);
+            }
+
+            await using var tx = await _context.Database.BeginTransactionAsync(ct);
+
+            try
+            {
+                var solicitud = new CompraTiSolicitud
+                {
+                    Folio = "TMP-" + Guid.NewGuid().ToString("N").Substring(0, 26),
+                    SolicitudSap = dto.SolicitudSap,
+                    SolicitudSapDocEntry = dto.SolicitudSapDocEntry,
+                    SolicitudSapFecha = solicitudSap.FechaDocumento,
+                    SolicitudSapEstatus = solicitudSap.Estado,
+                    SolicitudSapSolicitante = solicitudSap.Solicitante,
+                    SolicitudSapSnapshotJson = solicitudSapRaw.GetRawText(),
+                    TipoCompra = dto.TipoCompra,
+                    Titulo = (dto.Titulo ?? "").Trim(),
+                    Justificacion = (dto.Justificacion ?? "").Trim(),
+                    CentroCosto = dto.CentroCosto,
+                    Planta = dto.Planta,
+                    Solicitante = UsuarioActualComprasTi(),
+                    ProveedorSapCodigo = proveedor?.Proveedor,
+                    ProveedorNombreSnapshot = proveedor?.NombreProveedor ?? "",
+                    ProveedorRfcSnapshot = proveedor?.RFC ?? "",
+                    Moneda = string.IsNullOrWhiteSpace(proveedor?.Moneda)
+                        ? "MXN"
+                        : proveedor.Moneda.Trim().ToUpperInvariant(),
+                    Estatus = "BORRADOR",
+                    FechaCreacion = DateTime.Now,
+                    CreadoPor = UsuarioActualComprasTi()
+                };
+
+                _context.CompraTiSolicitudes.Add(solicitud);
+                await _context.SaveChangesAsync(ct);
+
+                solicitud.Folio = $"CTI-{solicitud.Id:D8}";
+
+                foreach (var linea in dto.Detalles)
+                {
+                    _context.CompraTiDetalles.Add(new CompraTiDetalle
+                    {
+                        SolicitudId = solicitud.Id,
+                        LineaSap = linea.LineaSap,
+                        ArticuloSapCodigo = NormalizarNullableComprasTi(linea.ArticuloSapCodigo),
+                        TipoLinea = NormalizarTipoLineaComprasTi(linea.TipoLinea, dto.TipoCompra),
+                        Descripcion = (linea.Descripcion ?? "").Trim(),
+                        CantidadSolicitada = linea.Cantidad,
+                        Unidad = string.IsNullOrWhiteSpace(linea.Unidad)
+                            ? "PZA"
+                            : linea.Unidad.Trim().ToUpperInvariant(),
+                        CentroCostoSap = NormalizarNullableComprasTi(linea.CentroCostoSap),
+                        AlmacenSap = NormalizarNullableComprasTi(linea.AlmacenSap),
+                        ProveedorPreferidoSap =
+                            NormalizarNullableComprasTi(linea.ProveedorPreferidoSap),
+                        Activo = true
+                    });
+                }
+
+                RegistrarBitacoraComprasTi(
+             solicitud.Id,
+             "SOLICITUD_SAP_LIGADA",
+             $"Solicitud SAP DocEntry {solicitud.SolicitudSapDocEntry}, " +
+             $"DocNum {solicitud.SolicitudSap}, " +
+             $"estado SAP {solicitud.SolicitudSapEstatus}, " +
+             $"fecha {solicitud.SolicitudSapFecha:dd/MM/yyyy}, " +
+             $"solicitante SAP {solicitud.SolicitudSapSolicitante}. " +
+             $"Planta {solicitud.Planta}; centro de costo {solicitud.CentroCosto}. " +
+             (solicitudSapCerrada
+                 ? "La solicitud se ligó estando cerrada en SAP para conservar su trazabilidad."
+                 : "La solicitud se ligó estando abierta en SAP."));
+
+                RegistrarBitacoraComprasTi(
+                    solicitud.Id,
+                    "SOLICITUD_CREADA",
+                    $"Expediente creado desde solicitud SAP {solicitud.SolicitudSap}.");
+
+                foreach (var ordenSap in ordenesRelacionadasSap)
+                {
+                    var entidadOrden = new CompraTiOrdenCompraSap
+                    {
+                        SolicitudId = solicitud.Id
+                    };
+
+                    AplicarDatosOrdenCompraSap(
+                        entidadOrden,
+                        ordenSap,
+                        UsuarioActualComprasTi());
+
+                    _context.CompraTiOrdenesCompraSap.Add(entidadOrden);
+                }
+
+                if (ordenesRelacionadasSap.Count > 0)
+                {
+                    RegistrarBitacoraComprasTi(
+                        solicitud.Id,
+                        "ORDEN_COMPRA_SAP_DETECTADA",
+                        $"Se detectaron {ordenesRelacionadasSap.Count} orden(es) de compra SAP " +
+                        $"relacionadas con la solicitud {solicitud.SolicitudSap}.");
+                }
+
+                await _context.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+
+                return Json(new
+                {
+                    ok = true,
+                    solicitudId = solicitud.Id,
+                    folio = solicitud.Folio,
+                    estatus = solicitud.Estatus,
+                    solicitudSapDocEntry = solicitud.SolicitudSapDocEntry,
+                    solicitudSap = solicitud.SolicitudSap,
+                    solicitudSapEstatus = solicitud.SolicitudSapEstatus,
+                    solicitudSapCerrada,
+                    mensaje = solicitudSapCerrada
+         ? "Expediente creado. La solicitud ya estaba cerrada en SAP y se ligó para trazabilidad."
+         : "Expediente creado correctamente."
+                });
+            }
+            catch (Exception ex)
+            {
+                await tx.RollbackAsync(ct);
+
+                _logger.LogError(
+                    ex,
+                    "Error creando expediente de compra TI para {SolicitudSap}",
+                    dto.SolicitudSap);
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    mensaje = ex.GetBaseException().Message
+                });
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RequestSizeLimit(30_000_000)]
+        [RevisarPermiso(MODULO_COMPRAS_TI, "ESCRIBIR")]
+        public async Task<IActionResult> RegistrarCotizacionCompraTi(
+            [FromForm] RegistrarCotizacionCompraTiDto dto,
+            CancellationToken ct = default)
+        {
+            if (dto == null)
+                return BadRequest(new { ok = false, mensaje = "No se recibió información." });
+
+            var solicitud = await _context.CompraTiSolicitudes
+                .FirstOrDefaultAsync(x => x.Id == dto.SolicitudId, ct);
+
+            if (solicitud == null)
+                return NotFound(new { ok = false, mensaje = "Expediente no encontrado." });
+
+            if (ExpedienteCerradoComprasTi(solicitud))
+                return Conflict(new { ok = false, mensaje = "El expediente ya está cerrado." });
+
+            if (string.IsNullOrWhiteSpace(solicitud.ProveedorSapCodigo))
+                return BadRequest(new { ok = false, mensaje = "Primero asigna un proveedor SAP al expediente." });
+
+            if (dto.Archivo == null || dto.Archivo.Length == 0)
+                return BadRequest(new { ok = false, mensaje = "La cotización es obligatoria." });
+
+            if (dto.Subtotal < 0 || dto.Iva < 0 || dto.Total <= 0)
+                return BadRequest(new { ok = false, mensaje = "Importes de cotización inválidos." });
+
+            var subtotal = RedondearImporte(dto.Subtotal);
+            var iva = RedondearImporte(dto.Iva);
+            var total = RedondearImporte(dto.Total);
+            var suma = RedondearImporte(subtotal + iva);
+
+            if (Math.Abs(suma - total) > TOLERANCIA_CONCILIACION)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = $"Subtotal + IVA ({suma:N2}) no coincide con el total ({total:N2})."
+                });
+            }
+
+            var hash = await CalcularSha256ComprasTiAsync(dto.Archivo, ct);
+            var documentoDuplicado = await _context.CompraTiCotizaciones
+                .AnyAsync(x => x.HashSha256 == hash, ct);
+
+            if (documentoDuplicado)
+            {
+                return Conflict(new
+                {
+                    ok = false,
+                    mensaje = "Esta cotización ya fue cargada anteriormente."
+                });
+            }
+
+            var ruta = await GuardarArchivoCompraTiAsync(
+                dto.Archivo,
+                solicitud.Folio,
+                "cotizaciones",
+                ct);
+
+            var cotizacionesAnteriores = await _context.CompraTiCotizaciones
+                .Where(x => x.SolicitudId == solicitud.Id &&
+                            x.Estatus != "RECHAZADA" &&
+                            x.Estatus != "SUSTITUIDA")
+                .ToListAsync(ct);
+
+            foreach (var anterior in cotizacionesAnteriores)
+                anterior.Estatus = "SUSTITUIDA";
+
+            _context.CompraTiCotizaciones.Add(new CompraTiCotizacion
+            {
+                SolicitudId = solicitud.Id,
+                ProveedorSapCodigo = solicitud.ProveedorSapCodigo,
+                NumeroCotizacion = (dto.NumeroCotizacion ?? "").Trim(),
+                FechaCotizacion = dto.FechaCotizacion ?? DateTime.Today,
+                VigenciaHasta = dto.VigenciaHasta,
+                Subtotal = subtotal,
+                Iva = iva,
+                Total = total,
+                Moneda = string.IsNullOrWhiteSpace(dto.Moneda)
+                    ? solicitud.Moneda
+                    : dto.Moneda.Trim().ToUpperInvariant(),
+                RutaArchivo = ruta,
+                HashSha256 = hash,
+                Estatus = "PENDIENTE_AUTORIZACION",
+                FechaRegistro = DateTime.Now,
+                RegistradoPor = UsuarioActualComprasTi()
+            });
+
+            solicitud.SubtotalCotizado = subtotal;
+            solicitud.IvaCotizado = iva;
+            solicitud.TotalCotizado = total;
+            solicitud.Autorizada = false;
+            solicitud.ConciliacionOk = false;
+            solicitud.Estatus = "COTIZACION_REGISTRADA";
+            solicitud.FechaModificacion = DateTime.Now;
+            solicitud.ModificadoPor = UsuarioActualComprasTi();
+
+            RegistrarBitacoraComprasTi(
+                solicitud.Id,
+                "COTIZACION_REGISTRADA",
+                $"Cotización por {total:N2} {solicitud.Moneda} registrada.");
+
+            await _context.SaveChangesAsync(ct);
+
+            return Json(new
+            {
+                ok = true,
+                solicitud.Id,
+                solicitud.Folio,
+                solicitud.Estatus,
+                subtotal,
+                iva,
+                total
+            });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RevisarPermiso(MODULO_COMPRAS_TI, "ESCRIBIR")]
+        public async Task<IActionResult> AutorizarCompraTi(
+            [FromBody] AutorizarCompraTiDto dto,
+            CancellationToken ct = default)
+        {
+            if (dto == null)
+                return BadRequest(new { ok = false, mensaje = "No se recibió información." });
+
+            var solicitud = await _context.CompraTiSolicitudes
+                .FirstOrDefaultAsync(x => x.Id == dto.SolicitudId, ct);
+
+            if (solicitud == null)
+                return NotFound(new { ok = false, mensaje = "Expediente no encontrado." });
+
+            if (ExpedienteCerradoComprasTi(solicitud))
+                return Conflict(new { ok = false, mensaje = "El expediente ya está cerrado." });
+
+            if (solicitud.TotalCotizado <= 0)
+                return BadRequest(new { ok = false, mensaje = "No existe una cotización válida." });
+
+            var cotizacion = await _context.CompraTiCotizaciones
+                .Where(x => x.SolicitudId == solicitud.Id && x.Estatus != "SUSTITUIDA")
+                .OrderByDescending(x => x.FechaRegistro)
+                .FirstOrDefaultAsync(ct);
+
+            if (cotizacion == null)
+                return BadRequest(new { ok = false, mensaje = "No se encontró la cotización vigente." });
+
+            var decision = dto.Autorizar ? "AUTORIZADA" : "RECHAZADA";
+
+            _context.CompraTiAutorizaciones.Add(new CompraTiAutorizacion
+            {
+                SolicitudId = solicitud.Id,
+                Etapa = "COTIZACION",
+                Decision = decision,
+                Comentario = (dto.Comentario ?? "").Trim(),
+                Usuario = UsuarioActualComprasTi(),
+                Fecha = DateTime.Now
+            });
+
+            cotizacion.Estatus = decision;
+            solicitud.Autorizada = dto.Autorizar;
+            solicitud.Estatus = dto.Autorizar ? "AUTORIZADA" : "RECHAZADA";
+            solicitud.FechaModificacion = DateTime.Now;
+            solicitud.ModificadoPor = UsuarioActualComprasTi();
+
+            RegistrarBitacoraComprasTi(
+                solicitud.Id,
+                "AUTORIZACION_" + decision,
+                string.IsNullOrWhiteSpace(dto.Comentario)
+                    ? decision
+                    : dto.Comentario.Trim());
+
+            await _context.SaveChangesAsync(ct);
+            return Json(new { ok = true, solicitud.Estatus });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RequestSizeLimit(30_000_000)]
+        [RevisarPermiso(MODULO_COMPRAS_TI, "ESCRIBIR")]
+        public async Task<IActionResult> RegistrarRecepcionCompraTi(
+            [FromForm] RegistrarRecepcionCompraTiDto dto,
+            CancellationToken ct = default)
+        {
+            if (dto == null)
+                return BadRequest(new { ok = false, mensaje = "No se recibió información." });
+
+            var solicitud = await _context.CompraTiSolicitudes
+                .FirstOrDefaultAsync(x => x.Id == dto.SolicitudId, ct);
+
+            if (solicitud == null)
+                return NotFound(new { ok = false, mensaje = "Expediente no encontrado." });
+
+            if (ExpedienteCerradoComprasTi(solicitud))
+                return Conflict(new { ok = false, mensaje = "El expediente ya está cerrado." });
+
+            if (!solicitud.Autorizada)
+                return BadRequest(new { ok = false, mensaje = "La compra todavía no está autorizada." });
+
+            if (dto.RecibidaConforme && dto.Evidencia == null)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "La evidencia de recepción es obligatoria."
+                });
+            }
+
+            var rutaEvidencia = dto.Evidencia == null
+                ? ""
+                : await GuardarArchivoCompraTiAsync(
+                    dto.Evidencia,
+                    solicitud.Folio,
+                    "recepciones",
+                    ct);
+
+            var recepcion = new CompraTiRecepcion
+            {
+                SolicitudId = solicitud.Id,
+                FechaRecepcion = dto.FechaRecepcion ?? DateTime.Now,
+                RecibidaConforme = dto.RecibidaConforme,
+                RecepcionParcial = dto.RecepcionParcial,
+                Observaciones = (dto.Observaciones ?? "").Trim(),
+                EvidenciaRuta = rutaEvidencia,
+                RecibidoPor = UsuarioActualComprasTi()
+            };
+
+            _context.CompraTiRecepciones.Add(recepcion);
+
+            solicitud.RecibidaConforme = dto.RecibidaConforme && !dto.RecepcionParcial;
+            solicitud.Estatus = dto.RecibidaConforme
+                ? (dto.RecepcionParcial ? "RECEPCION_PARCIAL" : "RECIBIDA_CONFORME")
+                : "RECEPCION_NO_CONFORME";
+            solicitud.FechaModificacion = DateTime.Now;
+            solicitud.ModificadoPor = UsuarioActualComprasTi();
+
+            RegistrarBitacoraComprasTi(
+                solicitud.Id,
+                solicitud.Estatus,
+                string.IsNullOrWhiteSpace(dto.Observaciones)
+                    ? "Recepción registrada."
+                    : dto.Observaciones.Trim());
+
+            await _context.SaveChangesAsync(ct);
+
+            return Json(new
+            {
+                ok = true,
+                recepcionId = recepcion.Id,
+                solicitud.RecibidaConforme,
+                solicitud.Estatus
+            });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RequestSizeLimit(40_000_000)]
+        [RevisarPermiso(MODULO_COMPRAS_TI, "ESCRIBIR")]
+        public async Task<IActionResult> RegistrarFacturaCompraTi(
+            [FromForm] RegistrarFacturaCompraTiDto dto,
+            CancellationToken ct = default)
+        {
+            if (dto == null)
+                return BadRequest(new { ok = false, mensaje = "No se recibió información." });
+
+            var solicitud = await _context.CompraTiSolicitudes
+                .FirstOrDefaultAsync(x => x.Id == dto.SolicitudId, ct);
+
+            if (solicitud == null)
+                return NotFound(new { ok = false, mensaje = "Expediente no encontrado." });
+
+            if (ExpedienteCerradoComprasTi(solicitud))
+                return Conflict(new { ok = false, mensaje = "El expediente ya está cerrado." });
+
+            if (!solicitud.Autorizada)
+                return BadRequest(new { ok = false, mensaje = "La compra todavía no está autorizada." });
+
+            if (dto.Pdf == null && dto.Xml == null)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "Adjunta al menos el PDF o el XML de la factura."
+                });
+            }
+
+            CfdiCompraTiAnalisis? analisisXml = null;
+            if (dto.Xml != null)
+            {
+                try
+                {
+                    analisisXml = await AnalizarCfdiCompraTiAsync(dto.Xml, ct);
+                }
+                catch (Exception ex)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        mensaje = "El XML no es un CFDI válido: " + ex.GetBaseException().Message
+                    });
+                }
+            }
+
+            var serie = analisisXml?.Serie ?? (dto.Serie ?? "").Trim();
+            var folio = analisisXml?.Folio ?? (dto.Folio ?? "").Trim();
+            var uuid = (analisisXml?.Uuid ?? dto.Uuid ?? "").Trim().ToUpperInvariant();
+            var rfcEmisor = (analisisXml?.RfcEmisor ?? dto.RfcEmisor ?? "").Trim().ToUpperInvariant();
+            var fechaFactura = analisisXml?.Fecha ?? dto.FechaFactura ?? DateTime.Today;
+            var subtotalFactura = RedondearImporte(analisisXml?.Subtotal ?? dto.Subtotal);
+            var ivaFactura = RedondearImporte(analisisXml?.Iva ?? dto.Iva);
+            var totalFactura = RedondearImporte(analisisXml?.Total ?? dto.Total);
+
+            if (subtotalFactura < 0 || ivaFactura < 0 || totalFactura <= 0)
+                return BadRequest(new { ok = false, mensaje = "Importes de factura inválidos." });
+
+            var sumaFactura = RedondearImporte(subtotalFactura + ivaFactura);
+            var aritmeticaFacturaOk = Math.Abs(sumaFactura - totalFactura) <= TOLERANCIA_CONCILIACION;
+
+            if (!string.IsNullOrWhiteSpace(uuid))
+            {
+                var uuidDuplicado = await _context.CompraTiFacturas
+                    .AnyAsync(x => x.Uuid == uuid, ct);
+
+                if (uuidDuplicado)
+                {
+                    return Conflict(new
+                    {
+                        ok = false,
+                        mensaje = "El UUID de esta factura ya está registrado."
+                    });
+                }
+            }
+
+            var diferenciaSubtotal = RedondearImporte(subtotalFactura - solicitud.SubtotalCotizado);
+            var diferenciaIva = RedondearImporte(ivaFactura - solicitud.IvaCotizado);
+            var diferenciaTotal = RedondearImporte(totalFactura - solicitud.TotalCotizado);
+
+            var rfcCoincide = string.IsNullOrWhiteSpace(solicitud.ProveedorRfcSnapshot) ||
+                              string.IsNullOrWhiteSpace(rfcEmisor) ||
+                              NormalizarRfc(solicitud.ProveedorRfcSnapshot) == NormalizarRfc(rfcEmisor);
+
+            var conciliacionOk =
+                aritmeticaFacturaOk &&
+                rfcCoincide &&
+                Math.Abs(diferenciaSubtotal) <= TOLERANCIA_CONCILIACION &&
+                Math.Abs(diferenciaIva) <= TOLERANCIA_CONCILIACION &&
+                Math.Abs(diferenciaTotal) <= TOLERANCIA_CONCILIACION;
+
+            var rutaPdf = dto.Pdf == null
+                ? ""
+                : await GuardarArchivoCompraTiAsync(
+                    dto.Pdf,
+                    solicitud.Folio,
+                    "facturas",
+                    ct);
+
+            var rutaXml = dto.Xml == null
+                ? ""
+                : await GuardarArchivoCompraTiAsync(
+                    dto.Xml,
+                    solicitud.Folio,
+                    "facturas",
+                    ct);
+
+            _context.CompraTiFacturas.Add(new CompraTiFactura
+            {
+                SolicitudId = solicitud.Id,
+                Serie = serie,
+                Folio = folio,
+                Uuid = uuid,
+                RfcEmisor = rfcEmisor,
+                FechaFactura = fechaFactura,
+                Subtotal = subtotalFactura,
+                Iva = ivaFactura,
+                Total = totalFactura,
+                RutaPdf = rutaPdf,
+                RutaXml = rutaXml,
+                DiferenciaContraCotizacion = diferenciaTotal,
+                ConciliacionOk = conciliacionOk,
+                FechaRegistro = DateTime.Now,
+                RegistradoPor = UsuarioActualComprasTi()
+            });
+
+            solicitud.SubtotalFactura = subtotalFactura;
+            solicitud.IvaFactura = ivaFactura;
+            solicitud.TotalFactura = totalFactura;
+            solicitud.DiferenciaFacturaCotizacion = diferenciaTotal;
+            solicitud.ConciliacionOk = conciliacionOk;
+            solicitud.Estatus = conciliacionOk
+                ? "FACTURA_CONCILIADA"
+                : "DIFERENCIA_FACTURA";
+            solicitud.FechaModificacion = DateTime.Now;
+            solicitud.ModificadoPor = UsuarioActualComprasTi();
+
+            var detalleConciliacion =
+                $"Factura: subtotal {subtotalFactura:N2}, IVA {ivaFactura:N2}, total {totalFactura:N2}. " +
+                $"Cotización: subtotal {solicitud.SubtotalCotizado:N2}, IVA {solicitud.IvaCotizado:N2}, total {solicitud.TotalCotizado:N2}. " +
+                $"Diferencias: subtotal {diferenciaSubtotal:N2}, IVA {diferenciaIva:N2}, total {diferenciaTotal:N2}. " +
+                $"RFC coincide: {(rfcCoincide ? "SÍ" : "NO")}.";
+
+            RegistrarBitacoraComprasTi(
+                solicitud.Id,
+                conciliacionOk ? "FACTURA_CONCILIADA" : "DIFERENCIA_FACTURA",
+                detalleConciliacion);
+
+            await _context.SaveChangesAsync(ct);
+
+            return Json(new
+            {
+                ok = true,
+                conciliacionOk,
+                valoresTomadosDeXml = analisisXml != null,
+                aritmeticaFacturaOk,
+                rfcCoincide,
+                diferenciaSubtotal,
+                diferenciaIva,
+                diferenciaTotal,
+                bloqueadaParaPago = !conciliacionOk,
+                solicitud.Estatus
+            });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RevisarPermiso(MODULO_COMPRAS_TI, "ESCRIBIR")]
+        public async Task<IActionResult> LiberarCompraTiAPago(
+            [FromBody] LiberarCompraTiPagoDto dto,
+            CancellationToken ct = default)
+        {
+            if (dto == null)
+                return BadRequest(new { ok = false, mensaje = "No se recibió información." });
+
+            var solicitud = await _context.CompraTiSolicitudes
+                .FirstOrDefaultAsync(x => x.Id == dto.SolicitudId, ct);
+
+            if (solicitud == null)
+                return NotFound(new { ok = false, mensaje = "Expediente no encontrado." });
+
+            var bloqueos = ObtenerBloqueosPago(
+                solicitud.Autorizada,
+                solicitud.RecibidaConforme,
+                solicitud.ConciliacionOk,
+                solicitud.TotalFactura,
+                solicitud.LiberadaPago);
+
+            if (bloqueos.Count > 0)
+            {
+                return Conflict(new
+                {
+                    ok = false,
+                    mensaje = "Expediente bloqueado.",
+                    bloqueos
+                });
+            }
+
+            solicitud.LiberadaPago = true;
+            solicitud.FechaLiberacionPago = DateTime.Now;
+            solicitud.LiberadoPagoPor = UsuarioActualComprasTi();
+            solicitud.Estatus = "LIBERADA_PAGO";
+            solicitud.FechaModificacion = DateTime.Now;
+            solicitud.ModificadoPor = UsuarioActualComprasTi();
+
+            _context.CompraTiAutorizaciones.Add(new CompraTiAutorizacion
+            {
+                SolicitudId = solicitud.Id,
+                Etapa = "PAGO",
+                Decision = "LIBERADA",
+                Comentario = (dto.Comentario ?? "").Trim(),
+                Usuario = UsuarioActualComprasTi(),
+                Fecha = DateTime.Now
+            });
+
+            RegistrarBitacoraComprasTi(
+                solicitud.Id,
+                "LIBERADA_PAGO",
+                string.IsNullOrWhiteSpace(dto.Comentario)
+                    ? "Expediente validado y liberado a pago."
+                    : dto.Comentario.Trim());
+
+            await _context.SaveChangesAsync(ct);
+
+            return Json(new
+            {
+                ok = true,
+                solicitud.Estatus,
+                solicitud.FechaLiberacionPago,
+                solicitud.LiberadoPagoPor
+            });
+        }
+
+
+
+        private sealed class SapOrdenCompraVm
+        {
+            public int DocEntry { get; set; }
+            public int DocNum { get; set; }
+            public DateTime? FechaDocumento { get; set; }
+            public DateTime? FechaEntrega { get; set; }
+            public string Estado { get; set; } = "";
+            public bool Cancelada { get; set; }
+            public string ProveedorCodigo { get; set; } = "";
+            public string ProveedorNombre { get; set; } = "";
+            public string Moneda { get; set; } = "MXN";
+            public decimal Total { get; set; }
+            public string Comentarios { get; set; } = "";
+            public List<SapOrdenCompraLineaVm> Detalles { get; set; } = new();
+        }
+
+        private sealed class SapOrdenCompraLineaVm
+        {
+            public int LineNum { get; set; }
+            public int BaseEntry { get; set; }
+            public int BaseLine { get; set; }
+            public int BaseType { get; set; }
+            public string ItemCode { get; set; } = "";
+            public string Descripcion { get; set; } = "";
+            public decimal Cantidad { get; set; }
+            public decimal ImporteLinea { get; set; }
+            public string Almacen { get; set; } = "";
+        }
+
+        private async Task<List<SapOrdenCompraVm>> ObtenerOrdenesCompraRelacionadasSapAsync(
+            int solicitudDocEntry,
+            CancellationToken ct)
+        {
+            if (solicitudDocEntry <= 0)
+                return new List<SapOrdenCompraVm>();
+
+            var queryPath =
+                "$crossjoin(PurchaseOrders,PurchaseOrders/DocumentLines)";
+
+            var queryOption =
+                "$expand=" +
+                "PurchaseOrders(" +
+                    "$select=DocEntry,DocNum,DocDate,DocDueDate,DocumentStatus,Cancelled," +
+                    "CardCode,CardName,DocCurrency,DocTotal,Comments" +
+                ")," +
+                "PurchaseOrders/DocumentLines(" +
+                    "$select=DocEntry,LineNum,BaseType,BaseEntry,BaseLine,ItemCode," +
+                    "ItemDescription,Quantity,LineTotal,WarehouseCode" +
+                ")" +
+                "&$filter=" +
+                "PurchaseOrders/DocEntry eq PurchaseOrders/DocumentLines/DocEntry " +
+                $"and PurchaseOrders/DocumentLines/BaseType eq {SAP_OBJETO_SOLICITUD_COMPRA} " +
+                $"and PurchaseOrders/DocumentLines/BaseEntry eq {solicitudDocEntry}";
+
+            var payload = JsonSerializer.Serialize(new
+            {
+                QueryPath = queryPath,
+                QueryOption = queryOption
+            });
+
+            var sap = await _sap.PostJsonAsync(
+                "QueryService_PostQuery",
+                payload);
+
+            if (!sap.ok || string.IsNullOrWhiteSpace(sap.response))
+            {
+                throw new InvalidOperationException(
+                    "SAP QueryService no pudo consultar las órdenes relacionadas. " +
+                    $"{sap.error}. {sap.response}");
+            }
+
+            using var document = JsonDocument.Parse(sap.response);
+
+            if (!document.RootElement.TryGetProperty("value", out var rows) ||
+                rows.ValueKind != JsonValueKind.Array)
+            {
+                return new List<SapOrdenCompraVm>();
+            }
+
+            var agrupadas = new Dictionary<int, SapOrdenCompraVm>();
+
+            foreach (var row in rows.EnumerateArray())
+            {
+                ct.ThrowIfCancellationRequested();
+
+                if (!row.TryGetProperty("PurchaseOrders", out var header) ||
+                    header.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                if (!row.TryGetProperty(
+                        "PurchaseOrders/DocumentLines",
+                        out var line) ||
+                    line.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var baseType = SapIntCompraTi(line, "BaseType") ?? 0;
+                var baseEntry = SapIntCompraTi(line, "BaseEntry") ?? 0;
+
+                if (baseType != SAP_OBJETO_SOLICITUD_COMPRA ||
+                    baseEntry != solicitudDocEntry)
+                {
+                    continue;
+                }
+
+                var docEntry = SapIntCompraTi(header, "DocEntry") ?? 0;
+                if (docEntry <= 0)
+                    continue;
+
+                if (!agrupadas.TryGetValue(docEntry, out var orden))
+                {
+                    var cancelada = SapSiCompraTi(
+                        header,
+                        "Cancelled",
+                        "Canceled");
+
+                    var docStatus = PrimerNoVacioCompraTi(
+                        SapStringCompraTi(header, "DocumentStatus"),
+                        SapStringCompraTi(header, "DocStatus"));
+
+                    orden = new SapOrdenCompraVm
+                    {
+                        DocEntry = docEntry,
+                        DocNum = SapIntCompraTi(header, "DocNum") ?? 0,
+                        FechaDocumento = SapDateCompraTi(
+                            header,
+                            "DocDate",
+                            "TaxDate"),
+                        FechaEntrega = SapDateCompraTi(
+                            header,
+                            "DocDueDate"),
+                        Cancelada = cancelada,
+                        Estado = cancelada
+                            ? "CANCELADA"
+                            : docStatus.Contains(
+                                "Close",
+                                StringComparison.OrdinalIgnoreCase)
+                                ? "CERRADA"
+                                : "ABIERTA",
+                        ProveedorCodigo = SapStringCompraTi(
+                            header,
+                            "CardCode"),
+                        ProveedorNombre = SapStringCompraTi(
+                            header,
+                            "CardName"),
+                        Moneda = PrimerNoVacioCompraTi(
+                            SapStringCompraTi(header, "DocCurrency"),
+                            "MXN"),
+                        Total = SapDecimalCompraTi(
+                            header,
+                            "DocTotal"),
+                        Comentarios = SapStringCompraTi(
+                            header,
+                            "Comments")
+                    };
+
+                    agrupadas[docEntry] = orden;
+                }
+
+                var lineNum = SapIntCompraTi(line, "LineNum") ?? 0;
+                var baseLine = SapIntCompraTi(line, "BaseLine") ?? -1;
+
+                if (orden.Detalles.Any(x =>
+                        x.LineNum == lineNum &&
+                        x.BaseLine == baseLine))
+                {
+                    continue;
+                }
+
+                orden.Detalles.Add(new SapOrdenCompraLineaVm
+                {
+                    LineNum = lineNum,
+                    BaseEntry = baseEntry,
+                    BaseLine = baseLine,
+                    BaseType = baseType,
+                    ItemCode = SapStringCompraTi(
+                        line,
+                        "ItemCode"),
+                    Descripcion = PrimerNoVacioCompraTi(
+                        SapStringCompraTi(line, "ItemDescription"),
+                        SapStringCompraTi(line, "Dscription")),
+                    Cantidad = SapDecimalCompraTi(
+                        line,
+                        "Quantity"),
+                    ImporteLinea = SapDecimalCompraTi(
+                        line,
+                        "LineTotal"),
+                    Almacen = SapStringCompraTi(
+                        line,
+                        "WarehouseCode",
+                        "WhsCode")
+                });
+            }
+
+            return agrupadas.Values
+                .OrderByDescending(x => x.DocEntry)
+                .ToList();
+        }
+
+        private static void AplicarDatosOrdenCompraSap(
+            CompraTiOrdenCompraSap destino,
+            SapOrdenCompraVm origen,
+            string usuario)
+        {
+            destino.DocEntry = origen.DocEntry;
+            destino.DocNum = origen.DocNum;
+            destino.FechaDocumento = origen.FechaDocumento;
+            destino.FechaEntrega = origen.FechaEntrega;
+            destino.Estado = origen.Estado;
+            destino.Cancelada = origen.Cancelada;
+            destino.ProveedorCodigo = origen.ProveedorCodigo;
+            destino.ProveedorNombre = origen.ProveedorNombre;
+            destino.Moneda = string.IsNullOrWhiteSpace(origen.Moneda)
+                ? "MXN"
+                : origen.Moneda;
+            destino.Total = origen.Total;
+            destino.LineasRelacionadas = origen.Detalles.Count;
+            destino.Comentarios = origen.Comentarios;
+            destino.SnapshotJson = JsonSerializer.Serialize(origen);
+            destino.Activa = true;
+            destino.FechaUltimaConsulta = DateTime.Now;
+            destino.ActualizadoPor = usuario;
+        }
+
+        private async Task<(
+            int total,
+            int insertadas,
+            int actualizadas,
+            int desactivadas,
+            List<CompraTiOrdenCompraSap> ordenes)>
+            SincronizarOrdenesCompraSapAsync(
+                CompraTiSolicitud solicitud,
+                CancellationToken ct)
+        {
+            if (!solicitud.SolicitudSapDocEntry.HasValue ||
+                solicitud.SolicitudSapDocEntry.Value <= 0)
+            {
+                return (
+                    0,
+                    0,
+                    0,
+                    0,
+                    new List<CompraTiOrdenCompraSap>());
+            }
+
+            var sapOrdenes = await ObtenerOrdenesCompraRelacionadasSapAsync(
+                solicitud.SolicitudSapDocEntry.Value,
+                ct);
+
+            var existentes = await _context.CompraTiOrdenesCompraSap
+                .Where(x => x.SolicitudId == solicitud.Id)
+                .ToListAsync(ct);
+
+            var existentesPorDocEntry = existentes
+                .ToDictionary(x => x.DocEntry);
+
+            var encontrados = new HashSet<int>();
+            var usuario = UsuarioActualComprasTi();
+
+            var insertadas = 0;
+            var actualizadas = 0;
+            var desactivadas = 0;
+
+            foreach (var sapOrden in sapOrdenes)
+            {
+                encontrados.Add(sapOrden.DocEntry);
+
+                if (!existentesPorDocEntry.TryGetValue(
+                        sapOrden.DocEntry,
+                        out var entidad))
+                {
+                    entidad = new CompraTiOrdenCompraSap
+                    {
+                        SolicitudId = solicitud.Id
+                    };
+
+                    _context.CompraTiOrdenesCompraSap.Add(entidad);
+                    existentes.Add(entidad);
+                    existentesPorDocEntry[sapOrden.DocEntry] = entidad;
+                    insertadas++;
+                }
+                else
+                {
+                    actualizadas++;
+                }
+
+                AplicarDatosOrdenCompraSap(
+                    entidad,
+                    sapOrden,
+                    usuario);
+            }
+
+            foreach (var entidad in existentes)
+            {
+                if (encontrados.Contains(entidad.DocEntry))
+                    continue;
+
+                if (entidad.Activa)
+                {
+                    entidad.Activa = false;
+                    entidad.FechaUltimaConsulta = DateTime.Now;
+                    entidad.ActualizadoPor = usuario;
+                    desactivadas++;
+                }
+            }
+
+            solicitud.FechaModificacion = DateTime.Now;
+            solicitud.ModificadoPor = usuario;
+
+            if (insertadas > 0 ||
+                actualizadas > 0 ||
+                desactivadas > 0)
+            {
+                RegistrarBitacoraComprasTi(
+                    solicitud.Id,
+                    "ORDENES_COMPRA_SAP_SINCRONIZADAS",
+                    $"Órdenes detectadas: {sapOrdenes.Count}; " +
+                    $"insertadas: {insertadas}; actualizadas: {actualizadas}; " +
+                    $"desactivadas: {desactivadas}.");
+            }
+
+            await _context.SaveChangesAsync(ct);
+
+            var activas = existentes
+                .Where(x => x.Activa)
+                .OrderByDescending(x => x.DocEntry)
+                .ToList();
+
+            return (
+                sapOrdenes.Count,
+                insertadas,
+                actualizadas,
+                desactivadas,
+                activas);
+        }
+
+        private sealed class SapCompraSolicitudVm
+        {
+            public int DocEntry { get; set; }
+            public int DocNum { get; set; }
+            public DateTime? FechaDocumento { get; set; }
+            public DateTime? FechaRequerida { get; set; }
+            public string Estado { get; set; } = "";
+            public bool Cancelada { get; set; }
+            public string Solicitante { get; set; } = "";
+            public string Comentarios { get; set; } = "";
+            public string PrimeraDescripcion { get; set; } = "";
+            public int Lineas { get; set; }
+            public string CentroCosto { get; set; } = "";
+            public string ProveedorPreferido { get; set; } = "";
+            public string PlantaSugerida { get; set; } = "PLANTA 1";
+            public string TipoCompraSugerido { get; set; } = "";
+            public List<SapCompraLineaVm> Detalles { get; set; } = new();
+        }
+
+        private sealed class SapCompraLineaVm
+        {
+            public int? LineaSap { get; set; }
+            public string ItemCode { get; set; } = "";
+            public string Descripcion { get; set; } = "";
+            public decimal Cantidad { get; set; }
+            public string Unidad { get; set; } = "PZA";
+            public string CentroCostoSap { get; set; } = "";
+            public string CentroCostoSap2 { get; set; } = "";
+            public string AlmacenSap { get; set; } = "";
+            public string ProveedorPreferidoSap { get; set; } = "";
+            public DateTime? FechaRequerida { get; set; }
+            public string TipoLinea { get; set; } = "ARTICULO";
+        }
+
+        private sealed class SapCentroCostoVm
+        {
+            public string Codigo { get; set; } = "";
+            public string Nombre { get; set; } = "";
+            public string Grupo { get; set; } = "";
+            public int Dimension { get; set; }
+            public DateTime? VigenciaDesde { get; set; }
+            public DateTime? VigenciaHasta { get; set; }
+        }
+
+        private async Task<JsonElement> ObtenerSolicitudCompraSapRawAsync(
+            int docEntry,
+            CancellationToken ct)
+        {
+            var endpoint = $"PurchaseRequests({docEntry})";
+            var sap = await _sap.GetAsync(endpoint);
+
+            if (!sap.ok || string.IsNullOrWhiteSpace(sap.response))
+            {
+                throw new InvalidOperationException(
+                    $"SAP no devolvió la solicitud {docEntry}. " +
+                    $"HTTP {sap.statusCode}. {sap.error}. {sap.response}");
+            }
+
+            using var doc = JsonDocument.Parse(sap.response);
+            return doc.RootElement.Clone();
+        }
+
+        private static SapCompraSolicitudVm MapearSolicitudCompraSapTi(
+            JsonElement root)
+        {
+            var vm = new SapCompraSolicitudVm
+            {
+                DocEntry = SapIntCompraTi(root, "DocEntry") ?? 0,
+                DocNum = SapIntCompraTi(root, "DocNum") ?? 0,
+                FechaDocumento = SapDateCompraTi(root, "DocDate", "TaxDate"),
+                FechaRequerida = SapDateCompraTi(
+                    root,
+                    "RequriedDate",
+                    "RequiredDate",
+                    "DocDueDate"),
+                Solicitante = PrimerNoVacioCompraTi(
+                    SapStringCompraTi(root, "RequesterName"),
+                    SapStringCompraTi(root, "Requester"),
+                    SapStringCompraTi(root, "ReqName"),
+                    SapStringCompraTi(root, "UserSign")),
+                Comentarios = PrimerNoVacioCompraTi(
+                    SapStringCompraTi(root, "Comments"),
+                    SapStringCompraTi(root, "JournalMemo")),
+                Cancelada = SapSiCompraTi(root, "Cancelled", "Canceled")
+            };
+
+            var status = PrimerNoVacioCompraTi(
+                SapStringCompraTi(root, "DocumentStatus"),
+                SapStringCompraTi(root, "DocStatus"));
+
+            vm.Estado = vm.Cancelada
+                ? "CANCELADA"
+                : status.Contains("Close", StringComparison.OrdinalIgnoreCase)
+                    ? "CERRADA"
+                    : "ABIERTA";
+
+            var docType = SapStringCompraTi(root, "DocType");
+
+            if (root.TryGetProperty("DocumentLines", out var lineas) &&
+                lineas.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var line in lineas.EnumerateArray())
+                {
+                    var itemCode = SapStringCompraTi(line, "ItemCode");
+                    var descripcion = PrimerNoVacioCompraTi(
+                        SapStringCompraTi(line, "ItemDescription"),
+                        SapStringCompraTi(line, "Dscription"),
+                        SapStringCompraTi(line, "FreeText"),
+                        SapStringCompraTi(line, "AccountCode"));
+
+                    var unidad = PrimerNoVacioCompraTi(
+                        SapStringCompraTi(line, "MeasureUnit"),
+                        SapStringCompraTi(line, "UnitsOfMeasurment"),
+                        SapStringCompraTi(line, "UoMCode"),
+                        "PZA");
+
+                    var tipoLinea =
+                        docType.Contains("Service", StringComparison.OrdinalIgnoreCase) ||
+                        string.IsNullOrWhiteSpace(itemCode)
+                            ? "SERVICIO"
+                            : "ARTICULO";
+
+                    vm.Detalles.Add(new SapCompraLineaVm
+                    {
+                        LineaSap = SapIntCompraTi(line, "LineNum", "LineNumber"),
+                        ItemCode = itemCode,
+                        Descripcion = descripcion,
+                        Cantidad = SapDecimalCompraTi(line, "Quantity"),
+                        Unidad = unidad,
+                        CentroCostoSap = SapStringCompraTi(line, "CostingCode"),
+                        CentroCostoSap2 = SapStringCompraTi(line, "CostingCode2"),
+                        AlmacenSap = SapStringCompraTi(line, "WarehouseCode", "WhsCode"),
+                        ProveedorPreferidoSap =
+                            SapStringCompraTi(line, "LineVendor", "PreferredVendor"),
+                        FechaRequerida = SapDateCompraTi(
+                            line,
+                            "RequiredDate",
+                            "ShipDate")
+                    });
+                }
+            }
+
+            vm.Lineas = vm.Detalles.Count;
+            vm.PrimeraDescripcion = vm.Detalles
+                .Select(x => x.Descripcion)
+                .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "";
+
+            vm.CentroCosto = vm.Detalles
+                .SelectMany(x => new[]
+                {
+                    x.CentroCostoSap,
+                    x.CentroCostoSap2
+                })
+                .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "";
+
+            vm.ProveedorPreferido = vm.Detalles
+                .Select(x => x.ProveedorPreferidoSap)
+                .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "";
+
+            var bplId = SapIntCompraTi(
+                root,
+                "BPL_IDAssignedToInvoice",
+                "BPL_IDAssignedToInvoiceField",
+                "BranchID",
+                "BPLId");
+
+            vm.PlantaSugerida = ResolverPlantaCompraTi(
+                bplId,
+                vm.Detalles.Select(x => x.AlmacenSap));
+
+            vm.TipoCompraSugerido =
+                docType.Contains("Service", StringComparison.OrdinalIgnoreCase) ||
+                (vm.Detalles.Count > 0 &&
+                 vm.Detalles.All(x => string.IsNullOrWhiteSpace(x.ItemCode)))
+                    ? "SERVICIO"
+                    : "";
+
+            return vm;
+        }
+
+        private static string ResolverPlantaCompraTi(
+            int? bplId,
+            IEnumerable<string> almacenes)
+        {
+            if (bplId == 776)
+                return "TIF 776";
+
+            if ((almacenes ?? Enumerable.Empty<string>())
+                .Any(x =>
+                    !string.IsNullOrWhiteSpace(x) &&
+                    x.Contains("TIF", StringComparison.OrdinalIgnoreCase)))
+            {
+                return "TIF 776";
+            }
+
+            return "PLANTA 1";
+        }
+
+        private static string SapStringCompraTi(
+            JsonElement element,
+            params string[] propertyNames)
+        {
+            if (element.ValueKind != JsonValueKind.Object)
+                return "";
+
+            foreach (var propertyName in propertyNames)
+            {
+                if (!element.TryGetProperty(propertyName, out var value) ||
+                    value.ValueKind == JsonValueKind.Null ||
+                    value.ValueKind == JsonValueKind.Undefined)
+                {
+                    continue;
+                }
+
+                return value.ValueKind == JsonValueKind.String
+                    ? value.GetString() ?? ""
+                    : value.ToString();
+            }
+
+            return "";
+        }
+
+        private static int? SapIntCompraTi(
+            JsonElement element,
+            params string[] propertyNames)
+        {
+            var value = SapStringCompraTi(element, propertyNames);
+
+            return int.TryParse(
+                    value,
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out var parsed)
+                ? parsed
+                : null;
+        }
+
+        private static decimal SapDecimalCompraTi(
+            JsonElement element,
+            params string[] propertyNames)
+        {
+            var value = SapStringCompraTi(element, propertyNames);
+
+            return decimal.TryParse(
+                    value,
+                    NumberStyles.Any,
+                    CultureInfo.InvariantCulture,
+                    out var parsed)
+                ? parsed
+                : 0m;
+        }
+
+        private static DateTime? SapDateCompraTi(
+            JsonElement element,
+            params string[] propertyNames)
+        {
+            var value = SapStringCompraTi(element, propertyNames);
+
+            return DateTime.TryParse(
+                    value,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.AllowWhiteSpaces,
+                    out var parsed)
+                ? parsed
+                : null;
+        }
+
+        private static bool SapSiCompraTi(
+            JsonElement element,
+            params string[] propertyNames)
+        {
+            var value = SapStringCompraTi(element, propertyNames);
+
+            return value.Equals("tYES", StringComparison.OrdinalIgnoreCase) ||
+                   value.Equals("Y", StringComparison.OrdinalIgnoreCase) ||
+                   value.Equals("YES", StringComparison.OrdinalIgnoreCase) ||
+                   value.Equals("TRUE", StringComparison.OrdinalIgnoreCase) ||
+                   value.Equals("1", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool SapActivoCompraTi(
+            JsonElement element,
+            params string[] propertyNames)
+        {
+            var value = SapStringCompraTi(element, propertyNames);
+
+            if (string.IsNullOrWhiteSpace(value))
+                return true;
+
+            return !(
+                value.Equals("tNO", StringComparison.OrdinalIgnoreCase) ||
+                value.Equals("N", StringComparison.OrdinalIgnoreCase) ||
+                value.Equals("NO", StringComparison.OrdinalIgnoreCase) ||
+                value.Equals("FALSE", StringComparison.OrdinalIgnoreCase) ||
+                value.Equals("0", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static string PrimerNoVacioCompraTi(params string[] values)
+        {
+            return values.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "";
+        }
+
+        private string UsuarioActualComprasTi()
+        {
+            var usuario = (User?.Identity?.Name ?? "SISTEMA").Trim();
+            return usuario.Length <= 150 ? usuario : usuario.Substring(0, 150);
+        }
+
+        private static string? NormalizarNullableComprasTi(string? value)
+        {
+            return string.IsNullOrWhiteSpace(value)
+                ? null
+                : value.Trim().ToUpperInvariant();
+        }
+
+        private static string NormalizarTipoLineaComprasTi(
+            string? tipoLinea,
+            string? tipoCompra)
+        {
+            var value = (tipoLinea ?? tipoCompra ?? "ARTICULO")
+                .Trim()
+                .ToUpperInvariant();
+
+            return new[] { "ARTICULO", "SERVICIO", "ACTIVO_FIJO", "CONSUMIBLE" }
+                .Contains(value)
+                ? value
+                : "ARTICULO";
+        }
+
+        private static decimal RedondearImporte(decimal valor)
+        {
+            return decimal.Round(valor, 2, MidpointRounding.AwayFromZero);
+        }
+
+        private static string NormalizarRfc(string rfc)
+        {
+            return new string((rfc ?? "")
+                .Where(char.IsLetterOrDigit)
+                .ToArray())
+                .ToUpperInvariant();
+        }
+
+        private static bool ExpedienteCerradoComprasTi(CompraTiSolicitud solicitud)
+        {
+            return solicitud.LiberadaPago || solicitud.Estatus == "CANCELADA";
+        }
+
+        private static List<string> ObtenerBloqueosPago(
+            bool autorizada,
+            bool recibidaConforme,
+            bool conciliacionOk,
+            decimal totalFactura,
+            bool yaLiberada)
+        {
+            var bloqueos = new List<string>();
+
+            if (yaLiberada) bloqueos.Add("El expediente ya fue liberado a pago.");
+            if (!autorizada) bloqueos.Add("La compra no está autorizada.");
+            if (!recibidaConforme) bloqueos.Add("No existe recepción conforme.");
+            if (!conciliacionOk) bloqueos.Add("La factura no coincide con la cotización.");
+            if (totalFactura <= 0) bloqueos.Add("No existe una factura válida.");
+
+            return bloqueos;
+        }
+
+        private void RegistrarBitacoraComprasTi(
+            int solicitudId,
+            string accion,
+            string detalle)
+        {
+            _context.CompraTiBitacoras.Add(new CompraTiBitacora
+            {
+                SolicitudId = solicitudId,
+                Accion = (accion ?? "").Trim().ToUpperInvariant(),
+                Detalle = (detalle ?? "").Trim(),
+                Usuario = UsuarioActualComprasTi(),
+                Fecha = DateTime.Now
+            });
+        }
+
+        private async Task<string> GuardarArchivoCompraTiAsync(
+            IFormFile archivo,
+            string folio,
+            string tipo,
+            CancellationToken ct)
+        {
+            if (archivo == null || archivo.Length <= 0)
+                throw new InvalidOperationException("El archivo está vacío.");
+
+            var extensionesPermitidas = new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase)
+            {
+                ".pdf", ".xml", ".xlsx", ".xls", ".csv",
+                ".jpg", ".jpeg", ".png", ".webp"
+            };
+
+            var extension = Path.GetExtension(archivo.FileName);
+            if (!extensionesPermitidas.Contains(extension))
+                throw new InvalidOperationException("Tipo de archivo no permitido.");
+
+            var folioSeguro = LimpiarSegmentoRutaComprasTi(folio);
+            var tipoSeguro = LimpiarSegmentoRutaComprasTi(tipo);
+
+            var carpeta = Path.Combine(
+                _env.WebRootPath,
+                "uploads",
+                "compras-ti",
+                folioSeguro,
+                tipoSeguro);
+
+            Directory.CreateDirectory(carpeta);
+
+            var nombreSeguro =
+                $"{DateTime.Now:yyyyMMddHHmmssfff}_{Guid.NewGuid():N}{extension.ToLowerInvariant()}";
+            var rutaFisica = Path.Combine(carpeta, nombreSeguro);
+
+            await using var fs = new FileStream(
+                rutaFisica,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None);
+
+            await archivo.CopyToAsync(fs, ct);
+
+            return $"/uploads/compras-ti/{folioSeguro}/{tipoSeguro}/{nombreSeguro}"
+                .Replace("\\", "/");
+        }
+
+        private static string LimpiarSegmentoRutaComprasTi(string valor)
+        {
+            var limpio = new string((valor ?? "")
+                .Where(c => char.IsLetterOrDigit(c) || c == '-' || c == '_')
+                .ToArray());
+
+            return string.IsNullOrWhiteSpace(limpio) ? "general" : limpio;
+        }
+
+        private static async Task<string> CalcularSha256ComprasTiAsync(
+            IFormFile archivo,
+            CancellationToken ct)
+        {
+            await using var stream = archivo.OpenReadStream();
+            using var sha = SHA256.Create();
+            var hash = await sha.ComputeHashAsync(stream, ct);
+            return BitConverter.ToString(hash).Replace("-", "");
+        }
+
+        private sealed class CfdiCompraTiAnalisis
+        {
+            public string Serie { get; set; } = "";
+            public string Folio { get; set; } = "";
+            public string Uuid { get; set; } = "";
+            public string RfcEmisor { get; set; } = "";
+            public DateTime Fecha { get; set; }
+            public decimal Subtotal { get; set; }
+            public decimal Iva { get; set; }
+            public decimal Total { get; set; }
+        }
+
+        private static async Task<CfdiCompraTiAnalisis> AnalizarCfdiCompraTiAsync(
+            IFormFile xml,
+            CancellationToken ct)
+        {
+            if (xml == null || xml.Length == 0)
+                throw new InvalidOperationException("El XML está vacío.");
+
+            var settings = new XmlReaderSettings
+            {
+                Async = true,
+                DtdProcessing = DtdProcessing.Prohibit,
+                XmlResolver = null
+            };
+
+            await using var stream = xml.OpenReadStream();
+            using var reader = XmlReader.Create(stream, settings);
+            var doc = await XDocument.LoadAsync(reader, LoadOptions.None, ct);
+
+            var comprobante = doc.Root;
+            if (comprobante == null ||
+                !string.Equals(comprobante.Name.LocalName, "Comprobante", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("No se encontró el nodo Comprobante.");
+            }
+
+            string Attr(XElement element, string name)
+            {
+                return element.Attributes()
+                    .FirstOrDefault(a =>
+                        string.Equals(a.Name.LocalName, name, StringComparison.OrdinalIgnoreCase))
+                    ?.Value ?? "";
+            }
+
+            decimal ParseDecimal(string value, string campo, bool obligatorio = true)
+            {
+                if (decimal.TryParse(
+                    value,
+                    NumberStyles.Any,
+                    CultureInfo.InvariantCulture,
+                    out var parsed))
+                {
+                    return parsed;
+                }
+
+                if (!obligatorio && string.IsNullOrWhiteSpace(value))
+                    return 0m;
+
+                throw new InvalidOperationException($"El campo {campo} no contiene un importe válido.");
+            }
+
+            var emisor = comprobante.Descendants()
+                .FirstOrDefault(x => x.Name.LocalName == "Emisor");
+            var timbre = comprobante.Descendants()
+                .FirstOrDefault(x => x.Name.LocalName == "TimbreFiscalDigital");
+            var impuestos = comprobante.Elements()
+                .FirstOrDefault(x => x.Name.LocalName == "Impuestos");
+
+            var fechaTexto = Attr(comprobante, "Fecha");
+            if (!DateTime.TryParse(
+                    fechaTexto,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.AllowWhiteSpaces,
+                    out var fecha))
+            {
+                fecha = DateTime.Today;
+            }
+
+            var subtotal = ParseDecimal(Attr(comprobante, "SubTotal"), "SubTotal");
+            var total = ParseDecimal(Attr(comprobante, "Total"), "Total");
+            var ivaTexto = impuestos == null
+                ? ""
+                : Attr(impuestos, "TotalImpuestosTrasladados");
+            var iva = ParseDecimal(ivaTexto, "TotalImpuestosTrasladados", false);
+
+            if (iva == 0m)
+            {
+                var diferencia = total - subtotal;
+                iva = diferencia > 0m ? diferencia : 0m;
+            }
+
+            return new CfdiCompraTiAnalisis
+            {
+                Serie = Attr(comprobante, "Serie"),
+                Folio = Attr(comprobante, "Folio"),
+                Uuid = timbre == null ? "" : Attr(timbre, "UUID"),
+                RfcEmisor = emisor == null ? "" : Attr(emisor, "Rfc"),
+                Fecha = fecha,
+                Subtotal = subtotal,
+                Iva = iva,
+                Total = total
+            };
+        }
+
+        // =========================================================================================
+        // FIN MÓDULO CONTROL DE COMPRAS TI
+        // =========================================================================================
 
     }
 }

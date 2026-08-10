@@ -1,0 +1,321 @@
+﻿@using Plataforma_CG.Models.Operaciones.Planeacion.Diaria;
+@using Plataforma_CG.Models.Operaciones.Planeacion;
+@using Plataforma_CG.Models.Operaciones.Planeacion.Extra;
+@model TotalDiarioModel
+
+<div class="planeacion-mensual-wrapper js-planeacion-mensual"
+      data-fecha="@Convert.ToDateTime(Model.Fecha).ToString("yyyy-MM-dd")" data-clasif="@Model.TipoPlan"> 
+
+
+    <h3 class="mb-3">
+
+    </h3>
+
+@if (Model.Llenado==0)
+    {
+            <div class="mb-2 text-end">
+        <button class="btn btn-success btn-sm"
+                onclick="guardarPlanMensual(this)">
+            Guardar Mensual
+        </button>
+    </div>
+    }
+
+@*     <div class="buscador-wrapper-mensual">
+        <input type="text"
+               class="form-control buscador-productos-mensual"
+               placeholder="Buscar..." />
+    </div> *@
+
+    <div class="table-responsive">
+
+    <table class="table table-bordered table-sm text-center tabla-plan-mensual">
+
+        <thead class="table-light">
+
+            <tr>
+
+                <th rowspan="3">Máster</th>
+                <th rowspan="3">Código</th>
+
+                <th>No. Canal completa</th>
+
+                @foreach (var canal in Model.CanMen)
+                {
+                                if (canal.PesoTotal > 0)
+                                {
+                                                <th>@((canal.PesoTotal / canal.PesoPromedio).ToString("N2"))</th>
+                                }
+                }
+
+                <th rowspan="3">%</th>
+                <th rowspan="3">Total Calculado</th>
+                <th rowspan="3">Aprox. Canales completas</th>
+
+                <!-- NUEVO BLOQUE -->
+                <th colspan="5" class="col-iny">
+                    Inyección
+                </th>
+
+            </tr>
+
+            <tr>
+
+                <th>Kg por canal completa</th>
+
+                @foreach (var canal in Model.CanMen)
+                {
+                                if (canal.PesoTotal > 0)
+                                {
+                                                        <th>@canal.PesoPromedio</th>
+                                }
+                }
+
+                <!-- SUBCOLUMNAS -->
+                <th rowspan="2" class="col-iny">
+                    SKU
+                </th>
+                <th rowspan="2" class="col-iny">
+                    Producto
+                </th>
+                <th rowspan="2" class="col-iny">
+                    %Iny
+                </th>
+                <th rowspan="2" class="col-iny">
+                    Mejorado/Natural
+                </th>
+
+                <th rowspan="2" class="col-iny">
+                    KG
+                </th>
+
+            </tr>
+
+            <tr>
+
+                <th>Producto</th>
+
+                @foreach (var canal in Model.CanMen)
+                {
+                                if (canal.PesoTotal > 0)
+                                {
+                                                <th>@canal.NombreClasificacion</th>
+                                }
+                }
+
+            </tr>
+
+        </thead>
+
+        <tbody>
+
+            @{
+                            var productos = Model.Participaciones
+                            .GroupBy(p => p.ProductoCodigo)
+                            .Select(g => new
+                            {
+                                            ProductoCodigo = g.Key,
+                                            Nombre = g.First().Nombre,
+                                            LineaCodigo = g.First().LineaCodigo,
+                                            Master = string.IsNullOrWhiteSpace(g.First().Master)
+                            ? "SIN MASTER"
+                            : g.First().Master
+                            })
+                            .OrderBy(p =>
+                            p.Master == "EXTRA" ? 2 :
+                            p.Master == "SIN MASTER" ? 1 :
+                            0
+                            )
+                            .ThenBy(p => p.Master)
+
+                            // Agrupador principal:
+                            // Si es derivado usa la línea,
+                            // si no, usa su propio SKU.
+                            .ThenBy(p =>
+                            string.IsNullOrWhiteSpace(p.LineaCodigo)
+                            ? p.ProductoCodigo
+                            : p.LineaCodigo
+                            )
+
+                            // Primero el producto principal
+                            .ThenBy(p =>
+                            string.IsNullOrWhiteSpace(p.LineaCodigo)
+                            ? 0
+                            : 1
+                            )
+
+                            // Luego los derivados
+                            .ThenBy(p => p.ProductoCodigo)
+                            .ToList();
+
+                            string masterActual = "";
+            }
+
+             @foreach (var prod in productos)
+            {
+                            var participacionesProducto = Model.Participaciones
+                            .Where(p => p.ProductoCodigo == prod.ProductoCodigo)
+                            .ToList();
+
+                             double porcentaje =
+                         participacionesProducto.FirstOrDefault()?.Porcentaje ?? 0;
+
+
+
+                             if (masterActual != prod.Master)
+                            {
+                                            masterActual = prod.Master;
+
+                                            <tr class="master-header"
+                                                data-master="@masterActual">
+
+                                                <td colspan="999">
+
+                                                    <button class="btn-toggle-master"
+                                                            type="button"
+                                                            data-master="@masterActual">
+
+                                                        ▼ @masterActual
+
+                                                        <span class="float-end">
+                                                            Subtotal:
+                                                            <span class="subtotal-master"
+                                                                  data-master="@masterActual">
+                                                                0.00
+                                                            </span>
+                                                        </span>
+
+                                                    </button>
+
+                                                </td>
+                                            </tr>
+                            }
+
+                            <tr class="fila-producto-mensual @(prod.LineaCodigo != "" ? "fila-derivado" : "")"
+                                data-master="@prod.Master"
+                                 data-porcentaje="@porcentaje"
+                                data-sku="@prod.ProductoCodigo"
+                                data-linea="@prod.LineaCodigo"
+                                >
+
+                                <!-- vacío, ya no repetir master -->
+                                <td>
+                                    @if (participacionesProducto.FirstOrDefault()?.EsExtra == true)
+                                    {
+                                                    <button type="button"
+                                                            class="btn btn-danger btn-sm btn-eliminar-extra"
+                                                             onclick="eliminarSkuExtra('@prod.ProductoCodigo')"
+                                                            >
+                                                        X
+                                                    </button>
+                                    }
+                                </td>
+
+                                <td class="td-codigo">
+                                    @prod.ProductoCodigo
+                                </td>
+
+                                <td>
+                                    @prod.Nombre
+                                </td>
+
+                                @foreach (var canal in Model.CanMen)
+                                {
+                                                if (canal.Canales > 0 && canal.PesoTotal > 0)
+                                                {
+                                                                var dato = participacionesProducto
+                                                                .FirstOrDefault(p => p.fk_SubClas == canal.IdClas);
+
+                                                                var tieneDato = dato != null;
+                                                                double partSub = dato?.PartSub ?? 0;
+
+                                                                <td>
+
+                                                                    @if (tieneDato)
+                                                                    {
+                                                                                    <input type="number"
+                                                                                           class="form-control form-control-sm inputmes-participacion"
+                                                                                           value="@partSub"
+                                                                                           data-prev="@partSub"
+                                                                                           data-inicial="true"
+                                                                                           min="0"
+                                                                                           max="1"
+                                                                                           step="0.01"
+                                                                                           data-kg="@canal.PesoTotal"
+                                                                                           data-canales="@canal.Canales"
+                                                                                           data-subclas="@canal.IdClas" />
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                                                    <input type="number"
+                                                                                                           class="form-control form-control-sm inputmes-participacion"
+                                                                                                           value="@partSub"
+                                                                                                           data-prev="@partSub"
+                                                                                                           data-inicial="true"
+                                                                                                           min="0"
+                                                                                                           max="1"
+                                                                                                           step="0.01"
+                                                                                                           data-kg="@canal.PesoTotal"
+                                                                                                           data-canales="@canal.Canales"
+                                                                                                           data-subclas="@canal.IdClas" />
+                                                                    }
+
+                                                                </td>
+                                                }
+                                }
+
+                                <td class="porcentaje col-gris">
+                                     @porcentaje.ToString("0.##")
+                                </td>
+
+                                <td class="total-calculado-mensual col-gris">
+                                    0.00
+                                </td>
+
+                                <td class="total-canales-mensual col-gris">
+                                    0.00
+                                </td>
+
+                                <td class="col-iny">
+                                    <select class="form-select form-select-sm select-conversion-mes"
+                                    style="min-width:100px;"
+                                            data-sku-original="@prod.ProductoCodigo"
+                                    data-sku-convertido="@(participacionesProducto.FirstOrDefault()?.ProductoCodigoConvertido ?? prod.ProductoCodigo)">
+
+                                        <option value="@prod.ProductoCodigo" selected>
+                                            @prod.ProductoCodigo
+                                        </option>
+
+                                    </select>
+                                </td>
+
+                                <td class="col-iny td-iny-nombre-mensual">
+                                    ...
+                                </td>
+
+                                <td class="col-iny td-iny-porcentaje-mensual"
+                                    data-sku="@prod.ProductoCodigo">
+                                    ...
+                                </td>
+
+                                    <td class="col-iny td-iny-tipo-mensual"
+                                    data-sku="@prod.ProductoCodigo">
+                                    ...
+                                </td>
+
+                                    <td class="col-iny td-iny-kg-mensual"
+                                    data-sku="@prod.ProductoCodigo">
+                                    0.00Kg
+                                </td>
+
+                            </tr>
+            }
+
+        </tbody>
+
+    </table>
+
+</div>
+
+
+</div>

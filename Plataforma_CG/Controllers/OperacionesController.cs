@@ -5,6 +5,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
+using Plataforma_CG.AccesoDatos.JSON;
 using Plataforma_CG.AccesoDatos.Operaciones.Planeacion;
 using Plataforma_CG.AccesoDatos.Operaciones.Planeacion;
 using Plataforma_CG.Data;
@@ -30,6 +31,25 @@ namespace Plataforma_CG.Controllers
         private readonly AppDbContext _db;
         private readonly string _connString;
         private readonly PlaneadorOptions _planeadorOpts;
+        AccesoJSON aj = new AccesoJSON();
+        
+        public IActionResult ActivarPlantilla([FromBody] string fecha)
+        {
+            // model.Fecha contiene la fecha enviada
+            var res = false;
+            try
+            {
+                aj.APIPLAN(fecha);
+            }
+            catch (Exception)
+            {
+
+            }
+            return Json(new
+            {ok=res,
+                mensaje = "Plantilla activada correctamente."
+            });
+        }
 
         public OperacionesController(AppDbContext db, IConfiguration config, IOptions<PlaneadorOptions> planeadorOpts)
         {
@@ -760,6 +780,21 @@ namespace Plataforma_CG.Controllers
             var res=ape.ConsultarEstatusSolicitud();
             return Json(res);
         }
+        #region PlanMensual
+        [HttpGet]
+        public async Task<IActionResult> ObtenerDetalleMensual(
+    int clasificacionId,
+    DateTime fecha)
+        {
+            //var modelo = await ape
+            //    .ObtenerDetalleMensual(clasificacionId, fecha);
+
+            //return PartialView(
+            //    "_PlaneacionMensualDetalle",
+            //    modelo);
+            return Ok("");
+        }
+        #endregion
         [HttpPost]
         [Route("Operaciones/PlaneadorProduccionGuardar")]
         public async Task<IActionResult> PlaneadorProduccionGuardar([FromBody] PlaneadorSaveDto dto)
