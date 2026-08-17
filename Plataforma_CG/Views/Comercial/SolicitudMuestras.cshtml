@@ -3065,14 +3065,16 @@
                                 <div class="item-line" style="background: var(--white);">
                                     <small><b>Pedido:</b> ${item.sku} · <b>Cajas:</b> ${item.boxes}<br>${item.spec}</small>
                                     ${isHistory
-                                        ? `<input style="margin-top:5px" disabled value="${item.workSku ? item.workSku + (nombreSku(item.workSku) ? ' · ' + nombreSku(item.workSku) : '') : ''}">`
+                                        ? `<input style="margin-top:5px" disabled value="${item.workSku ? item.workSku + (item.workSkuName ? ' · ' + item.workSkuName : (nombreSku(item.workSku) ? ' · ' + nombreSku(item.workSku) : '')) : ''}">
+                                           <input style="margin-top:3px" disabled placeholder="Nombre de prueba" value="${item.workSkuName || ''}">`
                                         : `<div class="custom-select-wrapper sku-wrapper" style="margin-top:5px;">
-                                            <div class="custom-select-display sku-display">${item.workSku ? item.workSku + (nombreSku(item.workSku) ? ' - ' + nombreSku(item.workSku) : '') : 'Seleccione un artículo obligatorio...'}</div>
+                                            <div class="custom-select-display sku-display">${item.workSku ? item.workSku + (item.workSkuName ? ' - ' + item.workSkuName : (nombreSku(item.workSku) ? ' - ' + nombreSku(item.workSku) : '')) : 'Seleccione un artículo obligatorio...'}</div>
                                             <div class="custom-select-dropdown sku-dropdown">
                                                 <input type="text" class="custom-select-search sku-search" placeholder="Buscar código o nombre..." autocomplete="off">
                                                 <ul class="custom-select-options sku-options">${articulosOptionsHTML}</ul>
                                             </div>
                                             <input type="hidden" class="item-sku" data-required-sku="true" name="workSku-${item.uid}" value="${item.workSku || ''}">
+                                            <input type="text" style="margin-top:3px" placeholder="Nombre de prueba" name="workSkuName-${item.uid}" value="${item.workSkuName || ''}">
                                         </div>`}
                                 </div>
                                 `).join('')}
@@ -3126,7 +3128,7 @@
                         <div class="items-list">
                             ${req.items.map(item => `
                                 <div class="item-line">
-                                    <strong>Trabajar: ${item.workSku || item.sku} · ${nombreSku(item.workSku) || item.product}</strong>
+                                    <strong>Trabajar: ${item.workSku || item.sku} · ${item.workSkuName || nombreSku(item.workSku) || item.product}</strong>
                                     <small>Pedido: ${item.sku} · Cajas: ${item.boxes} · Ligadas: ${(item.labels||[]).length}<br>${item.spec}</small>
                                 </div>
                             `).join('')}
@@ -3147,7 +3149,7 @@
 
                     const labelsHtml = req.items.map(item => `
                         <b>Trabaja: ${escapeTrackingHtml(item.workSku || item.sku)}</b>
-                        ${escapeTrackingHtml(nombreSku(item.workSku) || item.product)}<br>
+                        ${escapeTrackingHtml(item.workSkuName || nombreSku(item.workSku) || item.product)}<br>
                         <span class="mini">
                             Pide: ${escapeTrackingHtml(item.sku || '')} ·
                             ${escapeTrackingHtml(item.spec || '')}
@@ -4305,6 +4307,7 @@
                     const itemsPlaneados = req.items.map((item, index) => {
                         const input = form.elements.namedItem(`workSku-${item.uid}`);
                         const workSku = String(input?.value || '').trim().toUpperCase();
+                        const workSkuName = String(form.elements.namedItem(`workSkuName-${item.uid}`)?.value || '').trim();
                         const wrapper = input?.closest('.sku-wrapper');
 
                         wrapper?.classList.toggle('sku-required-error', !workSku);
@@ -4312,6 +4315,7 @@
                         return {
                             ...item,
                             workSku,
+                            workSkuName,
                             _numero: index + 1
                         };
                     });

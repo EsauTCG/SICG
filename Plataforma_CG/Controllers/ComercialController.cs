@@ -20434,6 +20434,7 @@ ORDER BY s.CreatedAt DESC";
                             Uid = i.Uid,
                             Sku = i.Sku ?? "",
                             WorkSku = i.WorkSku,
+                            WorkSkuName = i.WorkSkuName,
                             Product = i.Product ?? "",
                             Spec = i.Spec ?? "",
                             Boxes = i.Boxes,
@@ -21223,7 +21224,8 @@ VALUES (@meses, @dias, @usuario)";
                 {
                     Uid = (i.Uid ?? string.Empty).Trim(),
                     SkuSolicitado = N(i.Sku),
-                    WorkSku = N(i.WorkSku)
+                    WorkSku = N(i.WorkSku),
+                    WorkSkuName = (i.WorkSkuName ?? string.Empty).Trim()
                 })
                 .Where(i => !string.IsNullOrWhiteSpace(i.Uid))
                 .GroupBy(i => i.Uid, StringComparer.OrdinalIgnoreCase)
@@ -21389,12 +21391,13 @@ VALUES (@meses, @dias, @usuario)";
 
                         var actualizados = await conn.ExecuteAsync(
                             @"UPDATE dbo.SolicitudMuestras_Items
-                      SET WorkSku = @WorkSku
+                      SET WorkSku = @WorkSku, WorkSkuName = @WorkSkuName
                       WHERE Uid = @Uid
                         AND SolicitudId = @SolicitudId;",
                             new
                             {
                                 WorkSku = item.WorkSku,
+                                WorkSkuName = item.WorkSkuName,
                                 Uid = uid,
                                 SolicitudId = solicitudId
                             },

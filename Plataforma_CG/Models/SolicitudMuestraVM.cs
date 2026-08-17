@@ -64,6 +64,7 @@ namespace Plataforma_CG.Models
         public string Uid { get; set; }
         public string Sku { get; set; }
         public string WorkSku { get; set; }
+        public string WorkSkuName { get; set; }
         public string Product { get; set; }
         public string Spec { get; set; }
         public int Boxes { get; set; }
