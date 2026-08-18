@@ -358,7 +358,7 @@
 
     .overview-grid {
         display: grid;
-        grid-template-columns: 1.45fr .8fr .8fr .8fr .8fr;
+        grid-template-columns: repeat(4,1fr);
         gap: 12px;
         margin-bottom: 14px;
     }
@@ -664,12 +664,12 @@
         }
 
     .status.inspeccion {
-        color: #0a3622;
-        background: #d1e7dd;
+        color: #664d03;
+        background: #fff3cd;
     }
 
         .status.inspeccion .status-dot {
-            background: #198754;
+            background: #ffc107;
         }
 
     .status.retenida {
@@ -682,12 +682,12 @@
         }
 
     .status.liberada {
-        color: #664d03;
-        background: #fff3cd;
+        color: #0a3622;
+        background: #d1e7dd;
     }
 
         .status.liberada .status-dot {
-            background: #ffc107;
+            background: #198754;
         }
 
     .queue-footer {
@@ -841,7 +841,18 @@
         z-index: 10;
         padding: 8px;
     }
+    /* Efecto fantasma para la mitad de la canal que no se está revisando */
+    .quadrant-zone.inactive-side {
+        fill: rgba(255, 255, 255, 0.88);
+        stroke: rgba(200, 200, 200, 0.3);
+        stroke-width: 2;
+        cursor: not-allowed;
+    }
 
+        .quadrant-zone.inactive-side:hover {
+            fill: rgba(255, 255, 255, 0.88);
+            stroke-width: 2;
+        }
     /* Hover y selected con FUERTE AZUL para resaltar la carne */
     .quadrant-zone {
         fill: transparent;
@@ -1830,35 +1841,133 @@
             background: #fff;
         }
 
-        .topbar, .stepper, .overview-grid, .queue-card, .form-card, .activity-card, .no-print {
+        .app-shell, .toast-stack, .no-print, .stepper, .overview-grid, .queue-card, .form-card, .activity-card, .modal-overlay, .mobile-nav {
             display: none !important;
         }
 
-        .main {
-            padding: 0;
-        }
-
-        #step1, #step2, #step3 {
+        #printArea {
             display: block !important;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #fff;
+            padding: 24px 32px;
+            z-index: 99999;
+            overflow-y: auto;
         }
 
-        .inspection-card {
-            box-shadow: none;
-            border: 0;
+        #printArea .pr-header {
+            text-align: center;
+            border-bottom: 3px solid #8B0000;
+            padding-bottom: 12px;
+            margin-bottom: 16px;
         }
 
-        .bottom-grid {
-            display: block;
+        #printArea .pr-header h1 {
+            font-size: 20px;
+            font-weight: 800;
+            color: #8B0000;
+            margin: 0 0 4px;
+            letter-spacing: 1px;
         }
 
-        .table-card {
-            margin-top: 12px;
-            box-shadow: none;
+        #printArea .pr-header p {
+            font-size: 11px;
+            color: #555;
+            margin: 2px 0;
         }
 
-        .carcass-stage {
-            min-height: 420px;
+        #printArea .pr-meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 8px 24px;
+            font-size: 12px;
+            margin-bottom: 16px;
+            padding: 10px 14px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 6px;
         }
+
+        #printArea .pr-meta b {
+            color: #333;
+        }
+
+        #printArea .pr-section-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #8B0000;
+            border-bottom: 2px solid #8B0000;
+            padding-bottom: 4px;
+            margin: 18px 0 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        #printArea table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            margin-bottom: 16px;
+        }
+
+        #printArea th {
+            background: #8B0000;
+            color: #fff;
+            padding: 6px 8px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        #printArea td {
+            padding: 5px 8px;
+            border-bottom: 1px solid #e0e0e0;
+            vertical-align: top;
+        }
+
+        #printArea tr:nth-child(even) td {
+            background: #fafafa;
+        }
+
+        #printArea .pr-footer {
+            margin-top: 24px;
+            border-top: 2px solid #ddd;
+            padding-top: 10px;
+            font-size: 11px;
+            color: #666;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        #printArea .pr-signatures {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 24px;
+            margin-top: 30px;
+            font-size: 11px;
+            text-align: center;
+        }
+
+        #printArea .pr-sig-line {
+            border-top: 1px solid #333;
+            padding-top: 4px;
+            margin-top: 40px;
+        }
+
+        #printArea .badge-print {
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        #printArea .badge-ok { background: #d4edda; color: #155724; }
+        #printArea .badge-warn { background: #fff3cd; color: #856404; }
+        #printArea .badge-danger { background: #f8d7da; color: #721c24; }
     }
 </style>
 
@@ -1872,17 +1981,11 @@
 
     <main class="main">
         <section class="overview-grid">
-            <div class="card lookup-card">
-                <span class="label">Número de canal</span>
-                <div class="lookup-row">
-                    <input class="input" id="globalSearch" value="CNL-025481" placeholder="Escanee o escriba el número de canal" autocomplete="off" />
-                    <button class="btn btn-primary" id="searchBtn">Buscar</button>
-                </div>
-            </div>
+           
             <div class="card metric-card">
                 <div class="metric-title">Monitoreadas 100%</div>
                 <div class="metric-value" id="metricProcessed">0</div>
-                <div class="metric-foot">Ambos lados I / D registrados</div>
+                <div class="metric-foot">Ambas vistas EXT / INT registradas</div>
             </div>
             <div class="card metric-card warning">
                 <div class="metric-title">Con hallazgos</div>
@@ -1964,7 +2067,7 @@
                     </div>
                 </div>
                 <div class="diagram-wrap" id="diagramView">
-                    <p class="instruction" style="font-weight:600">Monitoreo visual PCC1B · Selección múltiple de cuadrantes</p>
+                    <p class="instruction" id="diagramTitle" style="font-weight:800; font-size:14px; color: var(--text);">Monitoreo visual PCC1B</p>
                     <div class="carcass-stage" id="carcassStage">
                         <div class="carcass-layout">
 
@@ -2079,17 +2182,17 @@
                 <div class="form-body">
                     <div class="pcc-instructions">
                         <b>Instrucción operativa PCC1B</b>
-                        <p>Monitorear visualmente el 100% de las canales. Registrar por lado <b>I</b> (izquierdo) o <b>D</b> (derecho), seleccionar todos los hallazgos y cuadrantes aplicables, indicar la acción correctiva con <b>√</b> o <b>X</b>, la reinspección <b>SC / NC</b> y la verificación <b>C:</b> con <b>√</b> cuando cumple.</p>
+                        <p>Monitorear visualmente el 100% de las canales. Registrar por vista <b>EXT</b> (externa) o <b>INT</b> (interna), seleccionar todos los hallazgos y cuadrantes aplicables, indicar la acción correctiva con <b>√</b> o <b>X</b>, la reinspección <b>SC / NC</b> y la verificación <b>C:</b> con <b>√</b> cuando cumple.</p>
                     </div>
 
-                    <span class="label">Canal y lado monitoreado</span>
+                    <span class="label">Canal y vista monitoreada</span>
                     <div class="selection-box">
                         <div class="selection-number" id="selectedQuadrantNumber">1</div>
                         <div style="min-width:0"><div class="selection-name" id="selectedQuadrantName">Cuadrante 1</div><div class="selection-code" id="selectedChannelCode">CNL-025481</div></div>
                     </div>
                     <div class="choice-row two" id="sideRow">
-                        <button type="button" class="choice-btn active" data-side="I"><b>I</b><span>Izquierdo</span></button>
-                        <button type="button" class="choice-btn" data-side="D"><b>D</b><span>Derecho</span></button>
+                        <button type="button" class="choice-btn active" data-side="EXT"><b>EXT</b><span>Externa</span></button>
+                        <button type="button" class="choice-btn" data-side="INT"><b>INT</b><span>Interna</span></button>
                     </div>
 
                     <div class="section-line"><span class="label" style="margin:0">Hallazgos de contaminantes</span><button type="button" class="no-findings-btn" id="noFindingsBtn">✓ Sin hallazgos</button></div>
@@ -2147,7 +2250,7 @@
                 </div>
                 <div class="table-wrap">
                     <table>
-                        <thead><tr><th>Lado</th><th>Hallazgos de contaminantes</th><th>Cuadrante(s)</th><th>Acciones correctivas</th><th>Reinspección</th><th>Verificación</th><th>Observaciones</th><th>Inspector</th><th>Fecha / hora</th><th class="no-print">Acciones</th></tr></thead>
+                        <thead><tr><th>Vista</th><th>Hallazgos de contaminantes</th><th>Cuadrante(s)</th><th>Acciones correctivas</th><th>Reinspección</th><th>Verificación</th><th>Observaciones</th><th>Inspector</th><th>Fecha / hora</th><th class="no-print">Acciones</th></tr></thead>
                         <tbody id="affectationsBody"></tbody>
                     </table>
                 </div>
@@ -2183,10 +2286,13 @@
 
 <div class="toast-stack" id="toastStack"></div>
 
+<div id="printArea" style="display:none;"></div>
+
 @section Scripts {
     <script>
         (() => {
             const STORAGE_KEY = 'qa-industrial-pcc1b-v4';
+            const USUARIO_LOGUEADO = '@(User.Identity?.Name ?? "")';
             const quadrantNames = {1:'Cuadrante 1',2:'Cuadrante 2',3:'Cuadrante 3',4:'Cuadrante 4',5:'Cuadrante 5',6:'Cuadrante 6'};
             const findingLabels = {
                 A:'Ingesta / alimento (A)', MF:'Materia fecal (MF)', L:'Leche (L)', Pelo:'Pelo',
@@ -2217,7 +2323,7 @@
                 selectedChannelId: data.channels.length > 0 ? data.channels[0].id : null,
                 selectedQuadrants: [],
                 findings: [],
-                side: 'I',
+                side: 'EXT',
                 noFindings: false,
                 correctiveAction: '√',
                 reinspection: 'SC',
@@ -2264,19 +2370,19 @@
                 const c = currentChannel();
                 if(!c) return;
                 const sides = new Set(c.records.map(r=>r.side));
-                const chip = (s,label)=>`<div class="side-chip ${sides.has(s)?'done':''}"><span>Lado ${s} · ${label}</span><span class="side-mark">${sides.has(s)?'✓':s}</span></div>`;
-                $('#sideProgress').innerHTML = chip('I','Izquierdo') + chip('D','Derecho');
+                const chip = (s,label)=>`<div class="side-chip ${sides.has(s)?'done':''}"><span>Vista ${s} · ${label}</span><span class="side-mark">${sides.has(s)?'✓':s}</span></div>`;
+                $('#sideProgress').innerHTML = chip('EXT','Externa') + chip('INT','Interna');
             }
 
             function normalizeData(raw){
                 raw.channels.forEach(c => {
                     if(!Array.isArray(c.records)) c.records = [];
                     c.records = c.records.map(r => ({
-                        id:r.id || uid(), side:r.side === 'D' ? 'D' : 'I', findings:Array.isArray(r.findings) ? r.findings : [],
+                        id:r.id || uid(), side:r.side === 'INT' || r.side === 'D' ? 'INT' : 'EXT', findings:Array.isArray(r.findings) ? r.findings : [],
                         quadrants:Array.isArray(r.quadrants) ? r.quadrants.map(Number).filter(q=>q>=1&&q<=6) : [],
                         correctiveAction:r.correctiveAction || (r.findings?.length ? '√' : 'N/A'), reinspection:r.reinspection || 'SC',
                         verificationChannel:r.verificationChannel || c.id, verificationComplies:r.verificationComplies !== false,
-                        observation:r.observation || '', inspector:r.inspector || 'calidad', datetime:r.datetime || nowLabel()
+                        observation:r.observation || '', inspector:r.inspector || USUARIO_LOGUEADO, datetime:r.datetime || nowLabel()
                     }));
                     c.status = deriveStatus(c.records);
                 });
@@ -2299,7 +2405,7 @@
                 if(!records?.length) return 'Pendiente';
                 if(records.some(r => r.correctiveAction === 'X' || r.reinspection === 'NC' || !r.verificationComplies)) return 'No conforme';
                 const sides = new Set(records.map(r=>r.side));
-                return sides.has('I') && sides.has('D') ? 'Conforme' : 'En inspección';
+                return sides.has('EXT') && sides.has('INT') ? 'Conforme' : 'En inspección';
             }
 
             function toast(message, type='success'){
@@ -2364,7 +2470,6 @@
                 resetForm(false);
                 const c = currentChannel();
                 if(c) {
-                    $('#globalSearch').value = c.id;
                     persist(); renderAll(); setStep(2);
                     toast(`Canal ${c.id} cargada para monitoreo.`, 'success');
                 }
@@ -2373,11 +2478,18 @@
             function renderCurrent(){
                 const c = currentChannel();
                 if(!c) return;
+                const uniqueQuads = [...new Set(state.selectedQuadrants.map(x=>parseInt(x.split('-')[0])))].sort();
+
                 $('#selectedChannelCode').textContent = `${c.id} · ${c.provider}`;
-                $('#selectedQuadrantNumber').textContent = state.selectedQuadrants.length ? state.selectedQuadrants.join(',') : '—';
-                $('#selectedQuadrantName').textContent = state.selectedQuadrants.length ? `Cuadrante(s): ${state.selectedQuadrants.join(', ')}` : 'Sin cuadrante seleccionado';
+                $('#selectedQuadrantNumber').textContent = uniqueQuads.length ? uniqueQuads.join(',') : '—';
+                $('#selectedQuadrantName').textContent = uniqueQuads.length ? `Cuadrante(s): ${uniqueQuads.join(', ')}` : 'Sin cuadrante seleccionado';
                 $('#tableChannel').textContent = `(${c.id})`;
                 $('#currentStatusLabel').textContent = c.status;
+
+                if($('#diagramTitle')) {
+                    $('#diagramTitle').innerHTML = `Inspeccionando Canal: <b style="color:var(--primary-dark)">${c.id}</b> · ${c.provider}`;
+                }
+
                 if ($('#shiftName')) $('#shiftName').textContent = c.shift;
                 $('#verificationChannel').value = $('#verificationChannel').value || c.id;
                 $('#releaseBtn').disabled = c.status === 'Conforme';
@@ -2395,7 +2507,7 @@
 
                     return `
                   <tr class="${isBad ? 'row-needs-correction' : ''}">
-                    <td data-label="Lado"><b style="font-size:15px; color: var(--primary-dark)">${r.side}</b> · ${r.side==='I'?'Izquierdo':'Derecho'}</td>
+                  <td data-label="Vista"><b style="font-size:15px; color: var(--primary-dark)">${r.side}</b> · ${r.side==='EXT'?'Externa':'Interna'}</td>
                     <td data-label="Hallazgos"><div class="tag-list">${r.findings.length ? r.findings.map(f=>`<span class="finding-tag">${escapeHtml(f)}</span>`).join('') : '<span class="finding-tag clean">Sin hallazgos</span>'}</div></td>
                     <td data-label="Cuadrante(s)">${r.quadrants.length ? `<div class="quadrant-list">${r.quadrants.map(q=>`<span class="quadrant-pill">${q}</span>`).join('')}</div>` : '—'}</td>
                     <td data-label="Acciones correctivas"><span class="result-chip ${r.correctiveAction==='X'?'bad':'ok'}">${r.correctiveAction}</span></td>
@@ -2418,24 +2530,34 @@
                 $$('.delete-row').forEach(b=>b.addEventListener('click',()=>deleteRecord(b.dataset.id)));
             }
 
-            function renderQuadrants(){
+              function renderQuadrants(){
                 const c = currentChannel();
                 if(!c) return;
+
                 $$('.quadrant-zone').forEach(zone => {
                     const q = +zone.dataset.quadrant;
-                    zone.classList.remove('selected','has-leve','has-moderado','has-severo');
-                    if(state.selectedQuadrants.includes(q)) zone.classList.add('selected');
+                    const view = zone.dataset.view; // 'EXT' o 'INT'
+                    const key = `${q}-${view}`;
 
-                    // Filtrar estrictamente por los registros de este lado (I o D)
-                    const records = c.records.filter(r=>r.quadrants.includes(q) && r.side === state.side);
+                    // Bloqueo de clics en la vista inactiva
+                    if (state.side !== view) {
+                        zone.classList.add('inactive-side');
+                        zone.style.pointerEvents = 'none';
+                    } else {
+                        zone.classList.remove('inactive-side');
+                        zone.style.pointerEvents = 'auto';
+                    }
+
+                    zone.classList.remove('selected','has-leve','has-moderado','has-severo');
+                    if(state.selectedQuadrants.includes(key)) zone.classList.add('selected');
+
+                    const records = c.records.filter(r => r.quadrants.includes(q) && r.side === view);
 
                     if(records.length){
                         const bad = records.some(r=>r.correctiveAction==='X'||r.reinspection==='NC'||!r.verificationComplies);
-                        // El cuadrante es verde solo si el arreglo de hallazgos está vacío
                         const allClean = records.every(r=>r.findings.length === 0);
 
                         zone.classList.add(allClean ? 'has-leve' : (bad ? 'has-severo' : 'has-moderado'));
-                        if(state.selectedQuadrants.includes(q)) zone.classList.add('selected');
                     }
                 });
             }
@@ -2532,27 +2654,27 @@
                     const verificationComplies = $('#verificationComplies').checked;
 
                     if(!state.noFindings && !state.findings.length) return toast('Seleccione al menos un hallazgo o marque “Sin hallazgos”.','warning');
-                    if(!state.noFindings && !state.selectedQuadrants.length) return toast('Seleccione uno o varios cuadrantes.','warning');
+                    if(!state.selectedQuadrants.length) return toast('Seleccione uno o varios cuadrantes.','warning');
                     if(state.findings.includes('Otro') && !observation) return toast('Describa el hallazgo "Otro".','warning');
 
                     const target = c.records.find(r => r.id === state.editId);
                     if(target){
                         Object.assign(target, {
                             findings: state.noFindings ? [] : [...state.findings],
-                            quadrants: state.noFindings ? [] : [...state.selectedQuadrants].sort(),
+                            // LA CORRECCIÓN ESTÁ AQUÍ: Ahora siempre guarda el cuadrante, haya hallazgos o no.
+                            quadrants: [...new Set(state.selectedQuadrants.map(x => parseInt(x.split('-')[0])))].sort(),
                             correctiveAction: state.noFindings ? 'N/A' : state.correctiveAction,
                             reinspection: state.reinspection,
                             verificationChannel: verificationChannel || c.id,
                             verificationComplies,
                             observation: observation || (state.noFindings ? 'Sin hallazgos visibles.' : ''),
-                            inspector: 'calidad',
+                            inspector: USUARIO_LOGUEADO,
                             datetime: nowLabel()
                         });
                         c.status = deriveStatus(c.records);
                         persist();
-                        log(`Monitoreo actualizado en ${c.id}, lado ${state.side}.`, c.status==='No conforme'?'danger':'warning');
+                        log(`Monitoreo actualizado en ${c.id}, vista ${state.side}.`, c.status==='No conforme'?'danger':'warning');
 
-                        // AJUSTE: Limpiamos, actualizamos y lo regresamos directo a la tabla (Paso 3)
                         resetForm(false);
                         renderAll();
                         setStep(3);
@@ -2565,16 +2687,16 @@
                 const sidesDone = new Set(c.records.map(r => r.side));
                 resetForm(false); // Limpia el formulario
 
-                if (sidesDone.has('I') && sidesDone.has('D')) {
+                if (sidesDone.has('EXT') && sidesDone.has('INT')) {
                     renderAll();
                     setStep(3);
-                    toast('Ambos lados de la canal han sido registrados. Verifique la tabla.', 'success');
+                    toast('Ambas vistas de la canal han sido registradas. Verifique la tabla.', 'success');
                 } else {
-                    // Cambiar automáticamente al lado que falta
-                    state.side = sidesDone.has('I') ? 'D' : 'I';
+                    // Cambiar automáticamente a la vista que falta
+                    state.side = sidesDone.has('EXT') ? 'INT' : 'EXT';
                     syncFormButtons();
                     renderAll();
-                    toast(`Lado liberado. Se ha cambiado automáticamente al lado ${state.side}.`, 'success');
+                    toast(`Vista liberada. Se ha cambiado automáticamente a la vista ${state.side}.`, 'success');
                 }
             }
            function saveQuadrant(){
@@ -2593,13 +2715,14 @@
                     id: uid(),
                     side: state.side,
                     findings: state.noFindings ? [] : [...state.findings],
-                    quadrants: [...state.selectedQuadrants].sort(),
+                    // LA CORRECCIÓN ESTÁ AQUÍ TAMBIÉN:
+                    quadrants: [...new Set(state.selectedQuadrants.map(x => parseInt(x.split('-')[0])))].sort(),
                     correctiveAction: state.noFindings ? 'N/A' : state.correctiveAction,
                     reinspection: state.reinspection,
                     verificationChannel: verificationChannel || c.id,
                     verificationComplies,
                     observation: observation || (state.noFindings ? 'Cuadrante revisado sin hallazgos.' : ''),
-                    inspector: 'calidad',
+                    inspector: USUARIO_LOGUEADO,
                     datetime: nowLabel()
                 };
 
@@ -2619,7 +2742,7 @@
             }
 
             function resetForm(showToast=true){
-                state.selectedQuadrants=[]; state.findings=[]; state.side='I'; state.noFindings=false;
+                state.selectedQuadrants=[]; state.findings=[]; state.side='EXT'; state.noFindings=false;
                 state.correctiveAction='√'; state.reinspection='SC'; state.editId=null;
                 $('#observation').value='';
                 if(currentChannel()) $('#verificationChannel').value=currentChannel().id;
@@ -2628,11 +2751,13 @@
                 if(showToast) toast('Formulario restablecido.','success');
             }
 
-           function loadRecordForEdit(id){
+          function loadRecordForEdit(id){
                 const r = currentChannel().records.find(x=>x.id===id);
                 if(!r) return;
 
-                state.editId=r.id; state.side=r.side; state.findings=[...r.findings]; state.selectedQuadrants=[...r.quadrants];
+                state.editId=r.id; state.side=r.side; state.findings=[...r.findings];
+
+        state.selectedQuadrants = r.quadrants.map(q => `${q}-${r.side}`);
                 state.noFindings=!r.findings.length;
 
                 // LÓGICA DE AUTOCORRECCIÓN
@@ -2694,18 +2819,156 @@
             function closeModal(id){ $('#'+id).classList.remove('open'); }
             function escapeHtml(str=''){ return String(str).replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch])); }
 
+          $$('.quadrant-zone').forEach(z => {
+                const isExt = z.closest('.carcass-view').querySelector('.carcass-view-title span').textContent.toLowerCase().includes('externa');
+                z.dataset.view = isExt ? 'EXT' : 'INT'; // Todo en mayúsculas
+            });
+
             $$('.quadrant-zone').forEach(z=>z.addEventListener('click',()=>{
                 if(state.noFindings) setNoFindings(false);
-                const q=+z.dataset.quadrant;
-                state.selectedQuadrants = state.selectedQuadrants.includes(q) ? state.selectedQuadrants.filter(x=>x!==q) : [...state.selectedQuadrants,q].sort();
+                const q = +z.dataset.quadrant;
+                const view = z.dataset.view;
+                const key = `${q}-${view}`; // Ahora guardamos exactamente qué imagen tocó
+                state.selectedQuadrants = state.selectedQuadrants.includes(key) ? state.selectedQuadrants.filter(x=>x!==key) : [...state.selectedQuadrants,key];
                 renderCurrent(); renderQuadrants();
             }));
-
             $$('.quadrant-zone').forEach(z=>z.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();z.click();}}));
-            $$('#sideRow .choice-btn').forEach(b=>b.addEventListener('click',()=>{state.side=b.dataset.side;syncFormButtons();}));
+            $$('#sideRow .choice-btn').forEach(b=>b.addEventListener('click',()=>{
+                if(state.side !== b.dataset.side) {
+                    state.side = b.dataset.side;
+                    state.selectedQuadrants = []; // Limpia selecciones al cambiar de lado
+                    syncFormButtons();
+                    renderCurrent();
+                    renderQuadrants();
+                }
+            }));
+
+            function printReport(){
+    const c = currentChannel();
+    if(!c) return toast('Seleccione una canal primero.','warning');
+    if(!c.records.length) return toast('La canal no tiene registros para imprimir.','warning');
+
+    const now = nowLabel();
+    const statusBadge = c.status === 'Conforme' ? 'badge-ok' : c.status === 'No conforme' ? 'badge-danger' : 'badge-warn';
+    const totalFindings = c.records.reduce((sum, r) => sum + r.findings.length, 0);
+    const allQuadrants = [...new Set(c.records.flatMap(r => r.quadrants))].sort((a,b) => a-b);
+
+    const recordsHtml = c.records.map(r => {
+        const findingsText = r.findings.length ? r.findings.join(', ') : 'Sin hallazgos';
+        const quadsText = r.quadrants.map(q => quadrantNames[q] || `C${q}`).join(', ');
+        const complyText = r.verificationComplies ? 'Sí' : 'No';
+        return `<tr>
+            <td>${r.side}</td>
+            <td>${escapeHtml(findingsText)}</td>
+            <td>${escapeHtml(quadsText)}</td>
+            <td>${escapeHtml(r.correctiveAction)}</td>
+            <td>${escapeHtml(r.reinspection)}</td>
+            <td>${escapeHtml(r.verificationChannel)} — ${complyText}</td>
+            <td>${escapeHtml(r.observation || '—')}</td>
+            <td>${escapeHtml(r.inspector)}</td>
+            <td>${escapeHtml(r.datetime)}</td>
+        </tr>`;
+    }).join('');
+
+    const html = `
+    <style>
+        @@media print {
+            /* 1. Forzar orientación horizontal y márgenes */
+            @@page { size: landscape; margin: 1cm; }
+            
+            #printArea { font-family: sans-serif; color: #000; }
+            
+            /* 2. Controlar la tabla para que no se desborde */
+            #printArea table { 
+                width: 100%; 
+                border-collapse: collapse; 
+                table-layout: fixed; /* Clave para evitar recortes */
+                font-size: 10px; 
+            }
+            #printArea th, #printArea td { 
+                border: 1px solid #ccc; 
+                padding: 6px 4px; 
+                word-wrap: break-word; /* Forzar salto de línea en textos largos */
+                white-space: normal; 
+                vertical-align: top;
+            }
+            #printArea th { background: #eee; font-weight: bold; text-align: left; }
+            
+            /* 3. Repartir el ancho inteligentemente */
+            #printArea th:nth-child(1) { width: 6%; }  /* Vista */
+            #printArea th:nth-child(2) { width: 14%; } /* Hallazgos */
+            #printArea th:nth-child(3) { width: 10%; } /* Cuadrantes */
+            #printArea th:nth-child(4) { width: 8%; }  /* Acción */
+            #printArea th:nth-child(5) { width: 8%; }  /* Reinspección */
+            #printArea th:nth-child(6) { width: 12%; } /* Verificación */
+            #printArea th:nth-child(7) { width: 20%; } /* Observaciones (Más espacio) */
+            #printArea th:nth-child(8) { width: 10%; } /* Inspector */
+            #printArea th:nth-child(9) { width: 12%; } /* Fecha / Hora */
+
+            /* Ajustes estéticos del encabezado */
+            .pr-header { margin-bottom: 15px; border-bottom: 2px solid #000; padding-bottom: 5px; }
+            .pr-header h1 { font-size: 18px; margin: 0 0 5px 0; }
+            .pr-header p { font-size: 11px; margin: 0; color: #444; }
+            .pr-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px; font-size: 12px; }
+            .pr-section-title { font-size: 14px; font-weight: bold; margin: 15px 0 10px; }
+            .pr-footer { display: flex; justify-content: space-between; font-size: 9px; margin-top: 20px; color: #555; }
+        }
+    </style>
+
+    <div class="pr-header">
+        <h1>REPORTE PCC1B — INSPECCIÓN DE CANAL</h1>
+        <p>Plataforma SIGO · Módulo de Calidad · Inspección Cuadrantes</p>
+    </div>
+    <div class="pr-meta">
+        <div><b>Canal:</b> ${escapeHtml(c.id)}</div>
+        <div><b>Proveedor:</b> ${escapeHtml(c.provider)}</div>
+        <div><b>Lote:</b> ${escapeHtml(c.lot || '—')}</div>
+        <div><b>Estatus:</b> <span class="badge-print ${statusBadge}">${escapeHtml(c.status)}</span></div>
+        <div><b>Cuadrantes revisados:</b> ${allQuadrants.map(q => quadrantNames[q] || q).join(', ') || '—'}</div>
+        <div><b>Total hallazgos:</b> ${totalFindings}</div>
+    </div>
+    <div class="pr-section-title">Detalle de monitoreos</div>
+    <table>
+        <thead>
+            <tr>
+                <th>Vista</th>
+                <th>Hallazgos</th>
+                <th>Cuadrante(s)</th>
+                <th>Acción correctiva</th>
+                <th>Reinspección</th>
+                <th>Verificación</th>
+                <th>Observaciones</th>
+                <th>Inspector</th>
+                <th>Fecha / Hora</th>
+            </tr>
+        </thead>
+        <tbody>${recordsHtml}</tbody>
+    </table>
+    <div class="pr-footer">
+        <span>Documento generado automáticamente desde SIGO.</span>
+        <span>Fecha de impresión: ${now}</span>
+    </div>
+    <div class="pr-signatures">
+        
+    </div>`;
+
+    const area = $('#printArea');
+    area.innerHTML = html;
+    area.style.display = 'block';
+
+    setTimeout(() => {
+        window.print();
+        window.addEventListener('afterprint', () => {
+            area.style.display = 'none';
+            area.innerHTML = '';
+        }, { once: true });
+    }, 150);
+}
+
+
             $$('.damage-btn').forEach(b=>b.addEventListener('click',()=>{
                 if(state.noFindings) setNoFindings(false);
-                const f=b.dataset.finding;
+                const f = b.dataset.finding;
                 state.findings = state.findings.includes(f) ? state.findings.filter(x=>x!==f) : [...state.findings,f];
                 syncFormButtons();
             }));
@@ -2719,18 +2982,13 @@
             $('#cancelBtn').addEventListener('click',()=>{resetForm(false);toast('Captura cancelada.','warning');});
             $('#releaseBtn').addEventListener('click',markConforming);
             $('#exportBtn').addEventListener('click',exportCsv);
-            $('#printBtn').addEventListener('click',()=>window.print());
+            $('#printBtn').addEventListener('click',printReport);
             $('#openRetained').addEventListener('click',()=>{renderNonconforming();openModal('retainedModal');});
             $('#filterBtn').addEventListener('click',()=>$('#filterPopover').classList.toggle('open'));
             $$('input[name="statusFilter"]').forEach(r=>r.addEventListener('change',()=>{state.filter=r.value;state.page=1;renderQueue();}));
 
             $('#queueSearch').addEventListener('input',e=>{state.queueQuery=e.target.value;state.page=1;renderQueue();});
-            $('#globalSearch').addEventListener('keydown',e=>{if(e.key==='Enter') $('#searchBtn').click();});
-            $('#searchBtn').addEventListener('click',()=>{
-                const v=$('#globalSearch').value.trim().toUpperCase();
-                const c=data.channels.find(c=>c.id===v);
-                if(c) selectChannel(c.id); else toast(`No se encontró la canal ${v}.`,'danger');
-            });
+           
 
             $$('.step-btn').forEach(b=>b.addEventListener('click',()=>setStep(+b.dataset.step)));
             $('#step1Next')?.addEventListener('click',()=>setStep(2));
@@ -2754,11 +3012,7 @@
                 if(b.dataset.view==='summary') renderSummary();
             }));
 
-            document.addEventListener('keydown',e=>{
-                if(e.key==='F2'){e.preventDefault();$('#globalSearch').focus();$('#globalSearch').select();}
-                if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saveRecord();}
-                if(e.key==='Escape') $$('.modal-backdrop.open').forEach(m=>closeModal(m.id));
-            });
+           
 
             document.addEventListener('click',e=>{if(!e.target.closest('.filter-menu')) $('#filterPopover').classList.remove('open');});
 
