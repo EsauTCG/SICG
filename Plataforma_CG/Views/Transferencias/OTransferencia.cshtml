@@ -917,21 +917,63 @@
     body: JSON.stringify({ transferenciaId, codigoEtiqueta, forzarAgregar: false })
                 });
 
-                const data = await res.json().catch(() => null);
-                if (!res.ok || !data) {
-                    const err = data?.msg || data?.error || data?.detail || `HTTP ${res.status}`;
+               const rawResponse = await res.text();
 
-                    let detalle = "";
+console.log("================================");
+console.log("SCAN HTTP STATUS:", res.status);
+console.log("SCAN STATUS TEXT:", res.statusText);
+console.log("SCAN URL:", res.url);
+console.log("SCAN RESPONSE:", rawResponse);
+console.log("================================");
 
-                    if (data?.errores && Array.isArray(data.errores)) {
-                        detalle = "\n" + data.errores.join("\n");
-                    }
+let data = null;
 
-                    setMsg(err + detalle, false);
-                    showToast(err, "error", 5000);
-                    console.error("SCAN ERROR:", data);
-                    return;
-                }
+try {
+    data = rawResponse ? JSON.parse(rawResponse) : null;
+} catch (jsonError) {
+    console.error("La respuesta NO era JSON:", jsonError);
+}
+
+if (!res.ok) {
+
+    const detalleServidor =
+        data?.msg ||
+        data?.error ||
+        data?.detail ||
+        rawResponse ||
+        "El servidor no regresó información.";
+
+    const errorCompleto =
+        `HTTP ${res.status} - ${res.statusText}\n\n` +
+        detalleServidor;
+
+    console.error("SCAN ERROR COMPLETO:", {
+        status: res.status,
+        statusText: res.statusText,
+        url: res.url,
+        response: rawResponse,
+        data: data
+    });
+
+    setMsg(errorCompleto, false);
+    showToast(`Error HTTP ${res.status}`, "error", 5000);
+
+    return;
+}
+
+if (!data) {
+    const errorCompleto =
+        `El servidor respondió HTTP ${res.status}, ` +
+        `pero la respuesta no contiene JSON válido.\n\n` +
+        rawResponse;
+
+    console.error(errorCompleto);
+
+    setMsg(errorCompleto, false);
+    showToast("Respuesta inválida del servidor.", "error", 5000);
+
+    return;
+}
 
                 if (data.ok) {
                     setMsg(data.msg || "OK", true);

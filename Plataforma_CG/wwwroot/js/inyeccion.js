@@ -24,6 +24,8 @@ let pesoBrutoSinTara = 0; // Para almacenar el peso bruto real
 let ultimaCapturaPayload = null; // 🆕 Guardar el payload de la última captura para reimpresión
 let ultimoPesoValido = "0.00";
 let loadingActivo = false;
+let secuenciaLoading = 0;
+const operacionesLoading = new Map();
 let erroresBasculaConsecutivos = 0;
 let basculaEnCooldown = false;
 let timerBascula = null;
@@ -95,7 +97,7 @@ document.getElementById("loteSelect").addEventListener("change", async function 
         return;
     }
 
-    mostrarLoading("Cargando productos del lote...");
+    const loadingId = mostrarLoading("Cargando productos del lote...");
 
     try {
         aplicarSeleccionLoteDesdeCombo(this);
@@ -117,12 +119,8 @@ document.getElementById("loteSelect").addEventListener("change", async function 
     } catch (err) {
         console.error(err);
     } finally {
-        ocultarLoading();
+        ocultarLoading(loadingId);
     }
-});
-
-document.getElementById("loteSelect").addEventListener("click", async function () {
-    await cargarLotes(this.value || loteSeleccionado);
 });
 
 document.getElementById("loteSelect").addEventListener("blur", function () {
@@ -144,7 +142,7 @@ async function refrescarYAbrirModalProducto() {
         return;
     }
 
-    mostrarLoading("Cargando productos...");
+    const loadingId = mostrarLoading("Cargando productos...");
 
     try {
         await cargarProductosPorPlantilla(
@@ -155,7 +153,7 @@ async function refrescarYAbrirModalProducto() {
         console.error("❌ Error al refrescar productos:", error);
     }
     finally {
-        ocultarLoading();
+        ocultarLoading(loadingId);
     }
 }
 
@@ -355,7 +353,7 @@ async function seleccionarProducto(sku, nombre) {
     const loteIdSeleccion = String(loteSeleccionado ?? "");
     const plantillaSeleccion = String(plantillaSeleccionada ?? "");
 
-    mostrarLoading("Cargando receta...");
+    const loadingId = mostrarLoading("Cargando receta...");
 
     try {
         const receta = await cargarReceta(skuSolicitado, nombreSolicitado, seleccionId);
@@ -406,9 +404,7 @@ async function seleccionarProducto(sku, nombre) {
         limpiarProductoSeleccionado(false);
         alert(err.message || "No fue posible cargar el producto seleccionado.");
     } finally {
-        if (seleccionId === secuenciaSeleccionProducto) {
-            ocultarLoading();
-        }
+        ocultarLoading(loadingId);
     }
 }
 
@@ -897,7 +893,21 @@ async function confirmarCapturaEntrada() {
         return;
     }
 
-    const snapshot = capturaPendiente;
+    const pesoConfirmado = Number(obtenerPesoActual());
+
+    if (!Number.isFinite(pesoConfirmado)) {
+        alert("El peso actual no es válido. No se realizó la captura.");
+        return;
+    }
+
+    // Desde este punto todos los datos enviados pertenecen a una sola captura.
+    // Ningún cambio posterior de pantalla puede modificar este objeto.
+    const snapshot = Object.freeze({
+        ...capturaPendiente,
+        Peso: pesoConfirmado,
+        FechaHora: new Date().toISOString()
+    });
+    const loadingId = mostrarLoading("Guardando captura...");
 
     btnConfirmar.disabled = true;
     btnConfirmar.innerHTML = "Capturando...";
@@ -907,14 +917,15 @@ async function confirmarCapturaEntrada() {
         cerrarModal("modalConfirmarCaptura");
         capturaPendiente = null;
 
-        await capturarEntrada(snapshot);
+        await capturarEntrada(snapshot, loadingId);
     } finally {
         btnConfirmar.disabled = false;
         btnConfirmar.innerHTML = "Confirmar captura";
+        ocultarLoading(loadingId);
     }
 }
 
-async function capturarEntrada(snapshot) {
+async function capturarEntrada(snapshot, loadingId = null) {
     if (capturaEnProceso) {
         console.warn("⚠ Ya existe una captura en proceso.");
         return;
@@ -931,7 +942,7 @@ async function capturarEntrada(snapshot) {
             throw new Error("El SKU de la etiqueta no coincide con el SKU capturado.");
         }
 
-        const pesoActual = Number(obtenerPesoActual());
+        const pesoActual = Number(snapshot.Peso);
 
         if (!Number.isFinite(pesoActual)) {
             throw new Error("El peso actual no es válido.");
@@ -949,7 +960,7 @@ async function capturarEntrada(snapshot) {
             Altura: snapshot.Altura,
             Avance: snapshot.Avance,
             Bascula: snapshot.Bascula,
-            FechaHora: new Date().toISOString(),
+            FechaHora: snapshot.FechaHora,
             TipoPeso: snapshot.TipoPeso,
             Autoriza: snapshot.Autoriza,
             Peso: pesoActual,
@@ -1001,6 +1012,7 @@ async function capturarEntrada(snapshot) {
 
         try {
             // Imprimir antes de refrescar reportes reduce todavía más la ventana de concurrencia.
+            actualizarLoading(loadingId, "Enviando etiqueta a la impresora...");
             await imprimirEtiquetaSalida(etiquetaCapturada);
             console.log("✔ Primera impresión exitosa", etiquetaCapturada);
         } catch (errImpr) {
@@ -1435,7 +1447,8 @@ async function obtenerFolioEntrada(id) {
 
         return entrada?.folio ?? entrada?.Folio ?? "";
     } catch (err) {
-        console.warn("⚠️ No se pudo obtener folio para id:", id, err);
+        // El folio es complementario: una API separada no debe bloquear la etiqueta.
+        console.warn("⚠ No se pudo obtener el folio de la entrada:", id, err);
         return "";
     }
 }
@@ -1809,27 +1822,50 @@ async function reimprimirUltimaCaptura() {
 }
 
 function mostrarLoading(texto = "Cargando información...") {
-    if (loadingActivo) return; // evita múltiples activaciones
-
-    loadingActivo = true;
-
-    const overlay = document.getElementById("loadingOverlay");
-    overlay.style.display = "flex";
-
-    document.querySelector(".loading-text").textContent = texto;
-
-    // Bloquea clicks
-    document.body.style.pointerEvents = "none";
-    overlay.style.pointerEvents = "all";
+    const loadingId = ++secuenciaLoading;
+    operacionesLoading.set(loadingId, texto);
+    renderizarLoading();
+    return loadingId;
 }
 
-function ocultarLoading() {
-    loadingActivo = false;
+function actualizarLoading(loadingId, texto) {
+    if (!loadingId || !operacionesLoading.has(loadingId)) return;
+
+    operacionesLoading.set(loadingId, texto);
+    renderizarLoading();
+}
+
+function ocultarLoading(loadingId) {
+    if (loadingId) {
+        operacionesLoading.delete(loadingId);
+    } else {
+        // Compatibilidad defensiva con llamadas antiguas sin identificador.
+        operacionesLoading.clear();
+    }
+
+    renderizarLoading();
+}
+
+function renderizarLoading() {
+    loadingActivo = operacionesLoading.size > 0;
 
     const overlay = document.getElementById("loadingOverlay");
-    overlay.style.display = "none";
+    if (!overlay) return;
 
-    document.body.style.pointerEvents = "auto";
+    const textosActivos = [...operacionesLoading.values()];
+    const textoActivo = textosActivos[textosActivos.length - 1] || "Cargando información...";
+    const texto = overlay.querySelector(".loading-text");
+
+    if (texto) texto.textContent = textoActivo;
+
+    overlay.style.display = loadingActivo ? "flex" : "none";
+    overlay.style.pointerEvents = loadingActivo ? "all" : "none";
+    overlay.setAttribute("aria-hidden", loadingActivo ? "false" : "true");
+    document.body.setAttribute("aria-busy", loadingActivo ? "true" : "false");
+
+    // Bloquea mouse, teclado táctil y cambios de controles mientras haya
+    // al menos una operación crítica pendiente.
+    document.body.style.pointerEvents = loadingActivo ? "none" : "";
 }
 
 function detenerLoopBascula() {

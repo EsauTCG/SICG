@@ -1516,6 +1516,103 @@ public class EmbarquesController : Controller
             return RedirectToAction("Calidad");
         }
 
+        const decimal temperaturaMinima = -25m;
+        const decimal temperaturaMaxima = 4m;
+
+        // ============================================================
+        // VALIDAR TEMPERATURAS GENERALES
+        // ============================================================
+        var temperaturasGenerales = new[]
+        {
+    new
+    {
+        Nombre = "Temperatura de programación",
+        Valor = temperaturaProgramacion
+    },
+    new
+    {
+        Nombre = "Temperatura de unidad al inicio",
+        Valor = temperaturaUnidadInicio
+    },
+    new
+    {
+        Nombre = "Temperatura de unidad al término",
+        Valor = temperaturaUnidadTermino
+    }
+};
+
+        var temperaturaGeneralFueraRango =
+            temperaturasGenerales.FirstOrDefault(x =>
+                x.Valor.HasValue &&
+                (
+                    x.Valor.Value < temperaturaMinima ||
+                    x.Valor.Value > temperaturaMaxima
+                ));
+
+        if (temperaturaGeneralFueraRango != null)
+        {
+            TempData["Error"] =
+                $"{temperaturaGeneralFueraRango.Nombre} " +
+                $"({temperaturaGeneralFueraRango.Valor:0.##} °C) " +
+                $"está fuera del rango permitido. " +
+                $"La temperatura debe estar entre -25 °C y 4 °C.";
+
+            return RedirectToAction("Calidad");
+        }
+
+        // ============================================================
+        // VALIDAR TEMPERATURAS DE TARIMAS / PRODUCTOS
+        // ============================================================
+        var productosTemperatura =
+            await ConstruirProductosTemperaturaCalidad(id);
+
+        var temperaturasFueraRango = productosTemperatura
+            .Where(x =>
+                x.Temperatura.HasValue &&
+                (
+                    x.Temperatura.Value < temperaturaMinima ||
+                    x.Temperatura.Value > temperaturaMaxima
+                ))
+            .ToList();
+
+        if (temperaturasFueraRango.Any())
+        {
+            var tarimas = temperaturasFueraRango
+                .Select(x =>
+                    string.IsNullOrWhiteSpace(x.Tarima)
+                        ? "Sin código"
+                        : x.Tarima.Trim())
+                .Distinct()
+                .Take(5)
+                .ToList();
+
+            TempData["Error"] =
+                $"No se puede validar Calidad del embarque #{embarque.Consecutivo}. " +
+                $"Existen temperaturas fuera del rango permitido de -25 °C a 4 °C. " +
+                $"Tarima(s): {string.Join(", ", tarimas)}.";
+
+            return RedirectToAction("Calidad");
+        }
+
+        // ============================================================
+        // COMPROBAR TEMPERATURAS FALTANTES
+        // ============================================================
+        if (productosTemperatura.Any())
+        {
+            var faltantes = productosTemperatura
+                .Where(x => !x.Temperatura.HasValue)
+                .ToList();
+
+            if (faltantes.Any())
+            {
+                TempData["Error"] =
+                    $"No se puede validar Calidad del embarque #{embarque.Consecutivo}. " +
+                    $"Faltan temperaturas por capturar en {faltantes.Count} SKU(s).";
+
+                return RedirectToAction("Calidad");
+            }
+        }
+
         embarque.SalidaTipo = salidaTipo;
         embarque.PlacaTransporte = placaTransporte;
         embarque.TemperaturaProgramacion = temperaturaProgramacion;
@@ -1545,24 +1642,6 @@ public class EmbarquesController : Controller
             embarque.DocumentacionCalidadAprobada == true
                 ? 7
                 : 1;
-
-        var productosTemperatura = await ConstruirProductosTemperaturaCalidad(id);
-
-        if (productosTemperatura.Any())
-        {
-            var faltantes = productosTemperatura
-                .Where(x => !x.Temperatura.HasValue)
-                .ToList();
-
-            if (faltantes.Any())
-            {
-                TempData["Error"] =
-                    $"No se puede validar Calidad del embarque #{embarque.Consecutivo}. " +
-                    $"Faltan temperaturas por capturar en {faltantes.Count} SKU(s).";
-
-                return RedirectToAction("Calidad");
-            }
-        }
 
         if (fotosCalidad != null && fotosCalidad.Any())
         {
@@ -1979,15 +2058,18 @@ public class EmbarquesController : Controller
 
     [HttpPost]
     public async Task<IActionResult> CargarDocumentos(
-     int id,
-     bool? requiereCartaPorte,
-     List<IFormFile>? cartaPorteArchivos,
-     List<IFormFile>? fichaTecnicaArchivos,
-     List<IFormFile>? cartaGarantiaArchivos,
+        int id,
+        bool? requiereCartaPorte,
 
-     // NUEVOS OPCIONALES
-     List<IFormFile>? certificacionLavadoArchivos,
-     List<IFormFile>? certificacionFumigacionArchivos)
+        // NUEVO
+        DateTime? fechaEstimadaLlegada,
+
+        List<IFormFile>? cartaPorteArchivos,
+        List<IFormFile>? fichaTecnicaArchivos,
+        List<IFormFile>? cartaGarantiaArchivos,
+
+        List<IFormFile>? certificacionLavadoArchivos,
+        List<IFormFile>? certificacionFumigacionArchivos)
     {
         var embarque = await _qrContext.Embarque
             .Include(e => e.QR)
@@ -2011,11 +2093,22 @@ public class EmbarquesController : Controller
             TempData["Error"] = $"Debes indicar si el embarque #{embarque.Consecutivo} requiere Carta Porte o si no aplica.";
             return RedirectToAction("Documentacion");
         }
+        if (!fechaEstimadaLlegada.HasValue)
+        {
+            TempData["Error"] =
+                $"Debes indicar la fecha estimada de llegada del embarque #{embarque.Consecutivo}.";
+
+            return RedirectToAction("Documentacion");
+        }
 
         // Guardamos la decisión de logística:
         // true = requiere Carta Porte
         // false = no aplica
         embarque.RequiereCartaPorte = requiereCartaPorte.Value;
+
+        // NUEVO:
+        // Fecha estimada proporcionada por Logística
+        embarque.FechaEstimadaLlegada = fechaEstimadaLlegada.Value;
 
         bool seCargoAlgunArchivoNuevo = false;
 
@@ -2246,21 +2339,20 @@ public class EmbarquesController : Controller
                 e.Estatus == 4 ||
                 e.Estatus == 6 ||
 
-                // Entregados: solo visibles durante 2 horas después de entregarse
+                // Entregados: solo visibles durante 2 horas
                 (
                     e.Estatus == 5 &&
                     e.FechaEntregado != null &&
                     e.FechaEntregado >= limiteEntregados
                 )
             )
-            // Prioriza embarques activos sobre entregados recientes
             .OrderBy(e => e.Estatus == 5 ? 1 : 0)
             .ThenByDescending(e =>
                 e.Estatus == 5
                     ? (e.FechaEntregado ?? e.FechaCreacion)
                     : (e.FechaSalida ?? e.FechaCreacion)
             )
-            .Take(80)
+            .Take(100)
             .ToListAsync();
 
         var resultado = new List<object>();
@@ -2277,34 +2369,44 @@ public class EmbarquesController : Controller
                 .Select(d => d.DocumentoId)
                 .ToList();
 
-            ControlCenterDocumentoInfo? orden = null;
-            ControlCenterDocumentoInfo? transferencia = null;
+            var ordenesInfo = new List<ControlCenterDocumentoInfo>();
+            var transferenciasInfo = new List<ControlCenterDocumentoInfo>();
 
-            // ORDEN
+
+            // ============================================================
+            // TODAS LAS ÓRDENES DEL EMBARQUE
+            // ============================================================
             if (ordenesIds.Any())
             {
-                orden = await _ovContext.OrdenVenta
+                ordenesInfo = await _ovContext.OrdenVenta
                     .AsNoTracking()
                     .Where(o => ordenesIds.Contains(o.Id))
+                    .OrderBy(o => o.Id)
                     .Select(o => new ControlCenterDocumentoInfo
                     {
                         Pedido = o.Consecutivo,
                         Ruta = o.Ruta,
+
                         Cliente = _ovContext.ClienteSap
                             .Where(c => c.Cliente == o.Cliente)
                             .Select(c => c.Nombrecliente)
                             .FirstOrDefault() ?? o.Cliente,
+
                         FechaEntrega = o.FechaEntrega
                     })
-                    .FirstOrDefaultAsync();
+                    .ToListAsync();
             }
 
-            // TRANSFERENCIA
+
+            // ============================================================
+            // TODAS LAS TRANSFERENCIAS DEL EMBARQUE
+            // ============================================================
             if (transferenciasIds.Any())
             {
-                transferencia = await _ovContext.Transferencias
+                transferenciasInfo = await _ovContext.Transferencias
                     .AsNoTracking()
                     .Where(t => transferenciasIds.Contains(t.Id))
+                    .OrderBy(t => t.Id)
                     .Select(t => new ControlCenterDocumentoInfo
                     {
                         Pedido = t.Consecutivo,
@@ -2312,62 +2414,157 @@ public class EmbarquesController : Controller
                         Cliente = t.Sucursal,
                         FechaEntrega = t.FechaSolicitud
                     })
-                    .FirstOrDefaultAsync();
+                    .ToListAsync();
             }
 
-            var data = orden ?? transferencia;
 
-            var ovCount = emb.Documentos.Count(d => d.TipoDocumento == "OV");
-            var trCount = emb.Documentos.Count(d => d.TipoDocumento == "TRANSFERENCIA");
+            // Se conserva tu lógica actual para Ruta / Cliente
+            var data =
+                ordenesInfo.FirstOrDefault() ??
+                transferenciasInfo.FirstOrDefault();
+
+
+            // ============================================================
+            // TODOS LOS PEDIDOS QUE MOSTRARÁ EL CARRUSEL
+            // ============================================================
+            var pedidos = ordenesInfo
+                .Where(x => !string.IsNullOrWhiteSpace(x.Pedido))
+                .Select(x => new
+                {
+                    tipo = "OV",
+                    consecutivo = x.Pedido ?? ""
+                })
+                .Concat(
+                    transferenciasInfo
+                        .Where(x => !string.IsNullOrWhiteSpace(x.Pedido))
+                        .Select(x => new
+                        {
+                            tipo = "TR",
+                            consecutivo = x.Pedido ?? ""
+                        })
+                )
+                .Distinct()
+                .ToList();
+
+
+            var ovCount = emb.Documentos.Count(d =>
+                d.TipoDocumento == "OV");
+
+            var trCount = emb.Documentos.Count(d =>
+                d.TipoDocumento == "TRANSFERENCIA");
+
 
             bool validadoParaQR =
                 emb.CalidadAprobada == true &&
                 emb.DocumentacionAprobada == true &&
                 emb.DocumentacionCalidadAprobada == true;
 
+
             int estatusVisual =
                 emb.Estatus == 7 && !validadoParaQR
                     ? 1
                     : emb.Estatus;
 
+
             resultado.Add(new
             {
                 id = emb.Id,
                 consecutivo = emb.Consecutivo,
-                fechaCreacion = emb.FechaCreacion.ToString("dd/MM/yyyy HH:mm"),
-                fechaSalida = emb.FechaSalida?.ToString("dd/MM/yyyy HH:mm") ?? "",
-                fechaDestino = emb.FechaLlegadaDestino?.ToString("dd/MM/yyyy HH:mm") ?? "",
-                fechaEntregado = emb.FechaEntregado?.ToString("dd/MM/yyyy HH:mm") ?? "",
-                fechaDevuelto = emb.FechaDevuelto?.ToString("dd/MM/yyyy HH:mm") ?? "",
+
+                fechaCreacion =
+                    emb.FechaCreacion.ToString("dd/MM/yyyy HH:mm"),
+
+                fechaCreacionOrden =
+                    emb.FechaCreacion,
+
+                fechaEstimadaLlegada =
+                    emb.FechaEstimadaLlegada?
+                        .ToString("dd/MM/yyyy HH:mm") ?? "",
+
+                fechaSalida =
+                    emb.FechaSalida?
+                        .ToString("dd/MM/yyyy HH:mm") ?? "",
+
+                fechaDestino =
+                    emb.FechaLlegadaDestino?
+                        .ToString("dd/MM/yyyy HH:mm") ?? "",
+
+                fechaEntregado =
+                    emb.FechaEntregado?
+                        .ToString("dd/MM/yyyy HH:mm") ?? "",
+
+                fechaDevuelto =
+                    emb.FechaDevuelto?
+                        .ToString("dd/MM/yyyy HH:mm") ?? "",
+
 
                 ruta = data?.Ruta ?? "Sin ruta",
+
                 cliente = data?.Cliente ?? "Sin cliente",
-                pedido = data?.Pedido ?? "N/A",
-                fechaEntrega = data?.FechaEntrega?.ToString("dd/MM/yyyy") ?? "",
+
+
+                // Se conserva por compatibilidad
+                pedido = pedidos.FirstOrDefault()?.consecutivo ?? "N/A",
+
+                // NUEVO:
+                // Lista completa que utilizará la animación
+                pedidos = pedidos,
+
+
+                fechaEntrega =
+                    data?.FechaEntrega?
+                        .ToString("dd/MM/yyyy") ?? "",
+
 
                 estatus = estatusVisual,
-                estatusTexto = ObtenerTextoEstatusTablero(estatusVisual),
-                estatusTipo = ObtenerTipoEstatusTablero(estatusVisual),
 
-                calidad = emb.CalidadAprobada == true ? "OK" : "PENDIENTE",
-                documentacion = emb.DocumentacionAprobada == true ? "OK" : "PENDIENTE",
-                documentacionCalidad = emb.DocumentacionCalidadAprobada == true ? "OK" : "PENDIENTE",
+                estatusTexto =
+                    ObtenerTextoEstatusTablero(estatusVisual),
+
+                estatusTipo =
+                    ObtenerTipoEstatusTablero(estatusVisual),
+
+
+                calidad =
+                    emb.CalidadAprobada == true
+                        ? "OK"
+                        : "PENDIENTE",
+
+                documentacion =
+                    emb.DocumentacionAprobada == true
+                        ? "OK"
+                        : "PENDIENTE",
+
+                documentacionCalidad =
+                    emb.DocumentacionCalidadAprobada == true
+                        ? "OK"
+                        : "PENDIENTE",
+
 
                 placa = emb.PlacaTransporte ?? "",
                 salidaTipo = emb.SalidaTipo ?? "",
-                temperatura = emb.TemperaturaUnidadCalidad?.ToString("0.##") ?? "",
 
-                tipoDocumento = ovCount > 0 && trCount > 0
-                    ? "MIXTO"
-                    : ovCount > 0
-                        ? "OV"
-                        : trCount > 0
-                            ? "TR"
-                            : "N/A",
+                temperatura =
+                    emb.TemperaturaUnidadCalidad?
+                        .ToString("0.##") ?? "",
+
+
+                tipoDocumento =
+                    ovCount > 0 && trCount > 0
+                        ? "MIXTO"
+                        : ovCount > 0
+                            ? "OV"
+                            : trCount > 0
+                                ? "TR"
+                                : "N/A",
 
                 totalOV = ovCount,
                 totalTR = trCount,
-                token = validadoParaQR ? emb.QR?.Token ?? "" : ""
+
+                token =
+                    validadoParaQR
+                        ? emb.QR?.Token ?? ""
+                        : ""
             });
         }
 
@@ -3793,6 +3990,30 @@ public class EmbarquesController : Controller
 
         var itemsRequest = request.Items ?? new List<GuardarTemperaturaSkuItemRequest>();
 
+        const decimal temperaturaMinima = -25m;
+        const decimal temperaturaMaxima = 4m;
+
+        var temperaturasFueraRango = itemsRequest
+            .Where(x =>
+                x.Temperatura.HasValue &&
+                (
+                    x.Temperatura.Value < temperaturaMinima ||
+                    x.Temperatura.Value > temperaturaMaxima
+                ))
+            .ToList();
+
+        if (temperaturasFueraRango.Any())
+        {
+            return Json(new
+            {
+                success = false,
+                message =
+                    $"No se guardaron las temperaturas. " +
+                    $"Se encontraron {temperaturasFueraRango.Count} registro(s) " +
+                    $"fuera del rango permitido de -25 °C a 4 °C."
+            });
+        }
+
         var itemsDic = itemsRequest
             .Where(x =>
                 !string.IsNullOrWhiteSpace(x.TipoDocumento) &&
@@ -4232,6 +4453,16 @@ public class EmbarquesController : Controller
         if (embarque == null)
             return NotFound();
 
+        // ============================================================
+        // EVIDENCIA FOTOGRÁFICA DE CALIDAD
+        // ============================================================
+        var fotosCalidad = await _qrContext
+            .Set<Embarque.EmbarqueCalidadFoto>()
+            .AsNoTracking()
+            .Where(f => f.EmbarqueId == id)
+            .OrderBy(f => f.FechaRegistro)
+            .ToListAsync();
+
         var productos = await ConstruirProductosTemperaturaCalidad(id);
 
         // ============================================================
@@ -4342,10 +4573,10 @@ public class EmbarquesController : Controller
         var document = new MD.Document();
 
         document.Info.Title =
-            $"Temperaturas - {consecutivo}";
+            $"Reporte de Calidad - {consecutivo}";
 
         document.Info.Subject =
-            "Reporte de temperaturas por tarima";
+            "Reporte de validación de calidad del embarque";
 
         // Estilo general
         var normal = document.Styles[MD.StyleNames.Normal];
@@ -4389,7 +4620,7 @@ public class EmbarquesController : Controller
         var titulo = section.AddParagraph();
 
         titulo.AddText(
-            "Reporte de temperaturas por tarima");
+            "Reporte de validación de calidad");
 
         titulo.Format.Font.Size = 18;
         titulo.Format.Font.Bold = true;
@@ -4492,6 +4723,254 @@ public class EmbarquesController : Controller
 
         espacioResumen.Format.SpaceAfter =
             MD.Unit.FromPoint(5);
+
+        // ============================================================
+        // 1. SALIDA Y TRANSPORTE
+        // ============================================================
+        AgregarTituloSeccionPdf(
+            section,
+            "1. Salida y transporte"
+        );
+
+        AgregarTablaCamposPdf(
+            section,
+            (
+                "Tipo de salida",
+                ValorTextoPdf(embarque.SalidaTipo)
+            ),
+            (
+                "Placa del transporte",
+                ValorTextoPdf(embarque.PlacaTransporte)
+            ),
+            (
+                "Temperatura de programación",
+                ValorTemperaturaPdf(embarque.TemperaturaProgramacion)
+            ),
+            (
+                "Condiciones de la unidad",
+                ValorTextoPdf(embarque.EstadoUnidadCalidad)
+            )
+        );
+
+        // ============================================================
+        // 2. TIEMPOS Y TEMPERATURAS DE UNIDAD
+        // ============================================================
+        AgregarTituloSeccionPdf(
+            section,
+            "2. Tiempos y temperaturas de unidad"
+        );
+
+        AgregarTablaCamposPdf(
+            section,
+            (
+                "Inicio de embarque",
+                ValorFechaPdf(embarque.HoraInicioEmbarque)
+            ),
+            (
+                "Término de embarque",
+                ValorFechaPdf(embarque.HoraTerminoEmbarque)
+            ),
+            (
+                "Temperatura de unidad al inicio",
+                ValorTemperaturaPdf(embarque.TemperaturaUnidadInicio)
+            ),
+            (
+                "Temperatura de unidad al término",
+                ValorTemperaturaPdf(embarque.TemperaturaUnidadTermino)
+            )
+        );
+
+        // ============================================================
+        // 3. PRODUCTO Y EQUIPOS DE MEDICIÓN
+        // ============================================================
+        AgregarTituloSeccionPdf(
+            section,
+            "3. Producto y equipos de medición"
+        );
+
+        AgregarTablaCamposPdf(
+            section,
+            (
+                "Condiciones del producto",
+                ValorTextoPdf(embarque.EstadoProductosCalidad)
+            ),
+            (
+                "Código de termograficador",
+                ValorTextoPdf(embarque.CodigoTermograficador)
+            ),
+            (
+                "Número de termómetro",
+                ValorTextoPdf(embarque.NumeroTermometro)
+            ),
+            (
+                "Estado de validación",
+                embarque.CalidadAprobada == true
+                    ? "APROBADO"
+                    : "PENDIENTE"
+            )
+        );
+
+        // ============================================================
+        // 4. ACCIONES CORRECTIVAS Y OBSERVACIONES
+        // ============================================================
+        AgregarTituloSeccionPdf(
+            section,
+            "4. Acciones correctivas y observaciones"
+        );
+
+        AgregarBloqueTextoPdf(
+            section,
+            "Acciones correctivas",
+            embarque.AccionesCorrectivasCalidad
+        );
+
+        AgregarBloqueTextoPdf(
+            section,
+            "Observaciones de calidad",
+            embarque.ObservacionesCalidad
+        );
+
+        // ============================================================
+        // 5. EVIDENCIA FOTOGRÁFICA
+        // ============================================================
+        AgregarTituloSeccionPdf(
+            section,
+            "5. Evidencia fotográfica"
+        );
+
+        if (fotosCalidad.Any())
+        {
+            var resumenFotos = section.AddParagraph();
+
+            resumenFotos.AddText(
+                $"{fotosCalidad.Count} fotografía(s) registrada(s) durante la validación."
+            );
+
+            resumenFotos.Format.Font.Size = 8;
+            resumenFotos.Format.Font.Color = MD.Colors.Gray;
+            resumenFotos.Format.SpaceAfter = MD.Unit.FromPoint(5);
+
+            var tablaFotos = section.AddTable();
+            tablaFotos.Borders.Visible = false;
+            tablaFotos.LeftPadding = MD.Unit.FromPoint(5);
+            tablaFotos.RightPadding = MD.Unit.FromPoint(5);
+
+            tablaFotos.AddColumn(MD.Unit.FromCentimeter(9.15));
+            tablaFotos.AddColumn(MD.Unit.FromCentimeter(9.15));
+
+            MDT.Row? filaFotos = null;
+
+            for (var i = 0; i < fotosCalidad.Count; i++)
+            {
+                if (i % 2 == 0)
+                {
+                    filaFotos = tablaFotos.AddRow();
+                    filaFotos.TopPadding = MD.Unit.FromPoint(5);
+                    filaFotos.BottomPadding = MD.Unit.FromPoint(5);
+                }
+
+                if (filaFotos == null)
+                    continue;
+
+                var celda = filaFotos.Cells[i % 2];
+
+                celda.Borders.Width = 0.5;
+                celda.Borders.Color = MD.Colors.LightGray;
+
+                var foto = fotosCalidad[i];
+
+                var rutaRelativa =
+                    (foto.RutaArchivo ?? "")
+                        .TrimStart('/', '\\')
+                        .Replace('/', Path.DirectorySeparatorChar)
+                        .Replace('\\', Path.DirectorySeparatorChar);
+
+                var rutaFisica = Path.Combine(
+                    _environment.WebRootPath,
+                    rutaRelativa
+                );
+
+                bool imagenAgregada = false;
+
+                if (!string.IsNullOrWhiteSpace(rutaRelativa) &&
+                    System.IO.File.Exists(rutaFisica))
+                {
+                    try
+                    {
+                        var parrafoImagen = celda.AddParagraph();
+                        parrafoImagen.Format.Alignment = MD.ParagraphAlignment.Center;
+
+                        var imagen = parrafoImagen.AddImage(rutaFisica);
+                        imagen.LockAspectRatio = true;
+                        imagen.Width = MD.Unit.FromCentimeter(7.8);
+                        imagenAgregada = true;
+                    }
+                    catch
+                    {
+                        // La evidencia no debe impedir la generación del reporte.
+                        imagenAgregada = false;
+                    }
+                }
+
+                if (!imagenAgregada)
+                {
+                    var noDisponible = celda.AddParagraph();
+                    noDisponible.AddText("Vista previa no disponible");
+                    noDisponible.Format.Font.Size = 8;
+                    noDisponible.Format.Font.Color = MD.Colors.Gray;
+                    noDisponible.Format.Alignment = MD.ParagraphAlignment.Center;
+                }
+
+                var caption = celda.AddParagraph();
+                caption.Format.SpaceBefore = MD.Unit.FromPoint(4);
+                caption.Format.Alignment = MD.ParagraphAlignment.Center;
+
+                var tituloFoto = caption.AddFormattedText(
+                    $"Evidencia {i + 1}\n"
+                );
+
+                tituloFoto.Font.Bold = true;
+                tituloFoto.Font.Size = 8;
+                tituloFoto.Font.Color = MD.Colors.DarkRed;
+
+                var fechaFoto = caption.AddFormattedText(
+                    foto.FechaRegistro.ToString("dd/MM/yyyy HH:mm")
+                );
+
+                fechaFoto.Font.Size = 7;
+                fechaFoto.Font.Color = MD.Colors.Gray;
+
+                if (!string.IsNullOrWhiteSpace(foto.UsuarioRegistro))
+                {
+                    var usuarioFoto = caption.AddFormattedText(
+                        $"\n{foto.UsuarioRegistro}"
+                    );
+
+                    usuarioFoto.Font.Size = 7;
+                    usuarioFoto.Font.Color = MD.Colors.Gray;
+                }
+            }
+        }
+        else
+        {
+            var sinFotos = section.AddParagraph();
+            sinFotos.AddText("No se encontraron fotografías de evidencia.");
+            sinFotos.Format.Font.Size = 8;
+            sinFotos.Format.Font.Color = MD.Colors.Gray;
+        }
+
+        var espacioAntesTemperaturas = section.AddParagraph();
+        espacioAntesTemperaturas.Format.SpaceAfter = MD.Unit.FromPoint(5);
+
+        // ============================================================
+        // 6. TEMPERATURAS POR TARIMA
+        // Se conserva sin cambios el detalle actual de cada tarima.
+        // ============================================================
+        AgregarTituloSeccionPdf(
+            section,
+            "6. Temperaturas por tarima",
+            "Detalle de lecturas, productos y captura por código de tarima."
+        );
 
         // ============================================================
         // DETALLE POR TARIMA
@@ -4820,7 +5299,7 @@ public class EmbarquesController : Controller
                 .AddParagraph();
 
         footer.AddText(
-            $"Reporte de temperaturas · Embarque #{consecutivo} · Página ");
+            $"Reporte de Calidad · Embarque #{consecutivo} · Página ");
 
         footer.AddPageField();
 
@@ -4862,7 +5341,7 @@ public class EmbarquesController : Controller
         return File(
             stream.ToArray(),
             "application/pdf",
-            $"Temperaturas_{consecutivoSeguro}.pdf"
+            $"Reporte_Calidad_{consecutivoSeguro}.pdf"
         );
     }
 
@@ -4871,6 +5350,162 @@ public class EmbarquesController : Controller
     // Los dejamos como métodos privados del Controller para evitar
     // problemas con funciones locales y tipos ambiguos.
     // ============================================================
+    private static string ValorTextoPdf(string? valor)
+    {
+        return string.IsNullOrWhiteSpace(valor)
+            ? "-"
+            : valor.Trim();
+    }
+
+    private static string ValorTemperaturaPdf(decimal? valor)
+    {
+        return valor.HasValue
+            ? $"{valor.Value:N2} °C"
+            : "-";
+    }
+
+    private static string ValorFechaPdf(DateTime? valor)
+    {
+        return valor.HasValue
+            ? valor.Value.ToString("dd/MM/yyyy HH:mm")
+            : "-";
+    }
+
+    private static void AgregarTituloSeccionPdf(
+        MD.Section section,
+        string titulo,
+        string? subtitulo = null)
+    {
+        var espacio = section.AddParagraph();
+        espacio.Format.SpaceBefore = MD.Unit.FromPoint(5);
+        espacio.Format.SpaceAfter = MD.Unit.FromPoint(3);
+
+        var tabla = section.AddTable();
+        var columna = tabla.AddColumn(MD.Unit.FromCentimeter(18.6));
+        tabla.Borders.Visible = false;
+
+        columna.LeftPadding = MD.Unit.FromPoint(6);
+        columna.RightPadding = MD.Unit.FromPoint(6);
+
+        var row = tabla.AddRow();
+        row.TopPadding = MD.Unit.FromPoint(5);
+        row.BottomPadding = MD.Unit.FromPoint(5);
+
+        row.Cells[0].Shading.Color = MD.Colors.WhiteSmoke;
+        row.Cells[0].Borders.Bottom.Width = 1.5;
+        row.Cells[0].Borders.Bottom.Color = MD.Colors.DarkRed;
+
+        var p = row.Cells[0].AddParagraph();
+
+        var textoTitulo = p.AddFormattedText(titulo);
+        textoTitulo.Font.Size = 10;
+        textoTitulo.Font.Bold = true;
+        textoTitulo.Font.Color = MD.Colors.DarkRed;
+
+        if (!string.IsNullOrWhiteSpace(subtitulo))
+        {
+            var textoSub = p.AddFormattedText($"\n{subtitulo}");
+            textoSub.Font.Size = 7.3;
+            textoSub.Font.Bold = false;
+            textoSub.Font.Color = MD.Colors.Gray;
+        }
+
+        var espacioDespues = section.AddParagraph();
+        espacioDespues.Format.SpaceAfter = MD.Unit.FromPoint(2);
+    }
+
+    private static void AgregarTablaCamposPdf(
+        MD.Section section,
+        params (string Etiqueta, string Valor)[] campos)
+    {
+        var tabla = section.AddTable();
+
+        tabla.Borders.Width = 0.5;
+        tabla.Borders.Color = MD.Colors.LightGray;
+        tabla.TopPadding = MD.Unit.FromPoint(5);
+        tabla.BottomPadding = MD.Unit.FromPoint(5);
+        tabla.LeftPadding = MD.Unit.FromPoint(5);
+        tabla.RightPadding = MD.Unit.FromPoint(5);
+
+        tabla.AddColumn(MD.Unit.FromCentimeter(9.3));
+        tabla.AddColumn(MD.Unit.FromCentimeter(9.3));
+
+        for (var i = 0; i < campos.Length; i += 2)
+        {
+            var row = tabla.AddRow();
+
+            if ((i / 2) % 2 == 0)
+                row.Shading.Color = MD.Colors.WhiteSmoke;
+
+            AgregarCeldaResumenPdf(
+                row.Cells[0],
+                campos[i].Etiqueta,
+                campos[i].Valor
+            );
+
+            if (i + 1 < campos.Length)
+            {
+                AgregarCeldaResumenPdf(
+                    row.Cells[1],
+                    campos[i + 1].Etiqueta,
+                    campos[i + 1].Valor
+                );
+            }
+            else
+            {
+                AgregarCeldaResumenPdf(
+                    row.Cells[1],
+                    "",
+                    ""
+                );
+            }
+        }
+
+        var espacio = section.AddParagraph();
+        espacio.Format.SpaceAfter = MD.Unit.FromPoint(4);
+    }
+
+    private static void AgregarBloqueTextoPdf(
+        MD.Section section,
+        string etiqueta,
+        string? valor)
+    {
+        var tabla = section.AddTable();
+        var columna = tabla.AddColumn(MD.Unit.FromCentimeter(18.6));
+
+        tabla.Borders.Width = 0.5;
+        tabla.Borders.Color = MD.Colors.LightGray;
+
+        columna.LeftPadding = MD.Unit.FromPoint(6);
+        columna.RightPadding = MD.Unit.FromPoint(6);
+
+        var row = tabla.AddRow();
+        row.TopPadding = MD.Unit.FromPoint(6);
+        row.BottomPadding = MD.Unit.FromPoint(6);
+
+        var p = row.Cells[0].AddParagraph();
+
+        var label = p.AddFormattedText(
+            etiqueta.ToUpperInvariant() + "\n"
+        );
+
+        label.Font.Size = 6.8;
+        label.Font.Bold = true;
+        label.Font.Color = MD.Colors.Gray;
+
+        var texto = p.AddFormattedText(
+            string.IsNullOrWhiteSpace(valor)
+                ? "-"
+                : valor.Trim()
+        );
+
+        texto.Font.Size = 8.5;
+        texto.Font.Color = MD.Colors.Black;
+
+        var espacio = section.AddParagraph();
+        espacio.Format.SpaceAfter = MD.Unit.FromPoint(3);
+    }
+
     private static void AgregarCeldaResumenPdf(
         MDT.Cell cell,
         string etiqueta,
@@ -4996,3 +5631,4 @@ public class EmbarquesController : Controller
         public int Orden { get; set; }
     }
 }
+

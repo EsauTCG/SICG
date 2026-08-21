@@ -1,0 +1,465 @@
+@model Plataforma_CG.ViewModels.SurtidoPedidoPepsVM
+
+@{
+    ViewData["Title"] = "Pedido activo";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<link rel="stylesheet"
+      href="~/css/surtido-wms-v7.css"
+      asp-append-version="true" />
+
+<div class="wms-v7">
+
+    <main class="wms-content">
+
+        <a class="wms-back"
+           href="@Url.Action(
+                "Picking",
+                "Surtido",
+                new
+                {
+                    almacen = Model.Almacen.Codigo
+                }
+           )">
+            ‹ Mis pedidos
+        </a>
+
+
+        @if (TempData["Exito"] != null)
+        {
+            <div class="wms-alert-ok">
+                @TempData["Exito"]
+            </div>
+        }
+
+        @if (TempData["Error"] != null)
+        {
+            <div class="wms-alert-bad">
+                @TempData["Error"]
+            </div>
+        }
+
+
+        <div class="wms-site-line">
+            <span>@Model.Almacen.Planta</span>
+            <span>@Model.Almacen.Nombre</span>
+            <span>@Model.Almacen.Clasificacion</span>
+        </div>
+
+
+        <section class="wms-order-hero">
+
+            <div>
+                <span class="wms-overline">
+                    PEDIDO ACTIVO
+                </span>
+
+                <h1>
+                    @Model.Pedido.Pedido
+                </h1>
+
+                <p>
+                    @Model.Pedido.Cliente
+                    · Solicitud @Model.Pedido.SolicitudSurtidoId
+                </p>
+            </div>
+
+            <div class="wms-order-percent">
+                <strong>
+                    @Model.AvancePorcentaje%
+                </strong>
+                <span>Picking</span>
+            </div>
+
+        </section>
+
+
+        <section class="wms-summary-row">
+
+            <div>
+                <span>Solicitadas</span>
+                <strong>@Model.CajasSolicitadas</strong>
+            </div>
+
+            <div>
+                <span>Bajadas</span>
+                <strong>@Model.CajasBajadas</strong>
+            </div>
+
+            <div>
+                <span>Surtidas</span>
+                <strong>@Model.CajasSurtidas</strong>
+            </div>
+
+            <div>
+                <span>Pendientes</span>
+                <strong>@Model.CajasPendientes</strong>
+            </div>
+
+        </section>
+
+
+        @if (!string.IsNullOrWhiteSpace(Model.Error))
+        {
+            <div class="wms-alert-bad">
+                @Model.Error
+            </div>
+        }
+
+
+        @if (Model.Recomendada != null)
+        {
+            <article class="wms-recommend">
+
+                <div class="wms-recommend-top">
+
+                    <div class="wms-rec-badge">
+                        RECOMENDADO
+                    </div>
+
+                    <div class="wms-algo">
+                        PEPS REAL · fecha producción más antigua
+                    </div>
+
+                </div>
+
+                <div class="wms-recommend-main">
+
+                    <div>
+                        <small>
+                            IR A
+                        </small>
+
+                        <strong>
+                            @(string.IsNullOrWhiteSpace(Model.Recomendada.UbicacionOrigen)
+                                ? "SIN UBICACIÓN"
+                                : Model.Recomendada.UbicacionOrigen)
+                        </strong>
+
+                        <p>
+                            @Model.Recomendada.ProductoNombre
+                            · Tarima @(string.IsNullOrWhiteSpace(Model.Recomendada.TarimaCodigo)
+                                ? "-"
+                                : Model.Recomendada.TarimaCodigo)
+                            · Etiqueta @Model.Recomendada.CodigoEtiqueta
+                            · Lote @Model.Recomendada.Lote
+                            · Prod. @(Model.Recomendada.FechaProduccion?.ToString("dd/MM/yyyy") ?? "-")
+                        </p>
+                    </div>
+
+                    <div class="wms-route-metric">
+                        <strong>
+                            #@Model.Recomendada.OrdenPeps PEPS
+                        </strong>
+                        <span>
+                            @Model.Recomendada.PesoNeto.ToString("N2") kg
+                        </span>
+                    </div>
+
+                </div>
+
+                @if (Model.Recomendada.PuedeBajar)
+                {
+                    <a class="wms-primary-large"
+                       style="display:grid;place-items:center;text-decoration:none;"
+                       href="@Url.Action(
+                            "PickingTarea",
+                            "Surtido",
+                            new
+                            {
+                                almacen = Model.Almacen.Codigo,
+                                solicitudSurtidoId = Model.Pedido.SolicitudSurtidoId,
+                                produccionId = Model.Recomendada.ProduccionId
+                            }
+                       )">
+                        IR POR ESTA →
+                    </a>
+                }
+                else
+                {
+                    <button class="wms-primary-large"
+                            type="button"
+                            disabled>
+                        PEPS BLOQUEADO
+                    </button>
+
+                    <div class="wms-alert-bad">
+                        @Model.Recomendada.MotivoBloqueo
+                    </div>
+                }
+
+            </article>
+
+            @if (!string.IsNullOrWhiteSpace(Model.Recomendada.UbicacionOrigen))
+            {
+                <section class="wms-3d-card">
+
+                    <div class="wms-3d-head">
+
+                        <div>
+                            <span class="wms-overline">
+                                MAPA 3D · DESTINO PEPS
+                            </span>
+
+                            <h2>
+                                @Model.Recomendada.UbicacionOrigen
+                            </h2>
+
+                            <p>
+                                Rack, posición y altura de la primera caja PEPS.
+                            </p>
+                        </div>
+
+                        <a class="wms-3d-open"
+                           href="@Url.Action(
+                                "Mapa3D",
+                                "Surtido",
+                                new
+                                {
+                                    almacen = Model.Almacen.Codigo,
+                                    ubicacion = Model.Recomendada.UbicacionOrigen
+                                }
+                           )">
+                            ABRIR MAPA 3D
+                        </a>
+
+                    </div>
+
+                    <div id="pedidoMini3d"
+                         class="wms-rack3d compact"
+                         data-location="@Model.Recomendada.UbicacionOrigen"
+                         data-layout-known="@Model.Almacen.TieneLayout3D.ToString().ToLowerInvariant()"
+                         data-compact="true"
+                         data-info-target="#pedidoMini3dInfo">
+                    </div>
+
+                    <div id="pedidoMini3dInfo"
+                         class="wms-3d-info">
+                    </div>
+
+                    <div class="wms-3d-legend">
+                        <span><i class="target"></i>Destino PEPS</span>
+                        <span><i class="rack"></i>Rack</span>
+                    </div>
+
+                </section>
+            }
+        }
+        else if (Model.CajasPendientes > 0)
+        {
+            <div class="wms-alert-bad">
+                No hay cajas PEPS disponibles que puedan bajarse en este momento.
+                Revisa existencias, almacén o la regla de ubicación.
+            </div>
+        }
+
+
+        <div class="wms-section-head">
+
+            <div>
+                <span class="wms-overline">
+                    TAREAS DISPONIBLES
+                </span>
+
+                <h2>
+                    Cajas sugeridas por PEPS
+                </h2>
+            </div>
+
+            <span class="wms-pill">
+                @Model.NombreConexion
+            </span>
+
+        </div>
+
+
+        @foreach (var producto in Model.Productos)
+        {
+            <section class="wms-product-block">
+
+                <div class="wms-product-head">
+
+                    <div>
+                        <span class="wms-overline">
+                            @producto.Articulo
+                        </span>
+
+                        <h3>
+                            @producto.ProductoNombre
+                        </h3>
+
+                        <small>
+                            @producto.AlmacenNombre
+                        </small>
+                    </div>
+
+                    <div class="wms-counts">
+                        <span>Pedido @producto.CajasSolicitadas</span>
+                        <span>Bajadas @producto.CajasBajadas</span>
+                        <span>Surtidas @producto.CajasSurtidas</span>
+                        <span>Pendientes @producto.CajasPendientes</span>
+                    </div>
+
+                </div>
+
+
+                @if (producto.CajasPendientes <= 0)
+                {
+                    <div class="wms-alert-ok">
+                        Producto completo para este almacén.
+                    </div>
+                }
+                else if (!producto.Cajas.Any())
+                {
+                    <div class="wms-alert-bad">
+                        Sin cajas disponibles para @producto.Articulo.
+                    </div>
+                }
+                else
+                {
+                    // =========================================================
+                    // VISTA LIMPIA
+                    //
+                    // Ya estamos dentro de un bloque C# de Razor.
+                    // NO se debe abrir otro bloque con @{ ... }.
+                    //
+                    // Sólo mostramos cajas:
+                    // - PEPS recomendadas;
+                    // - disponibles para bajar.
+                    //
+                    // Las bloqueadas / ESPERA no se dibujan.
+                    // =========================================================
+                    var cajasVisibles =
+                        producto.Cajas
+                            .Where(c =>
+                                c.EsRecomendada
+                                &&
+                                c.PuedeBajar
+                            )
+                            .Take(producto.CajasPendientes)
+                            .ToList();
+
+                    if (cajasVisibles.Any())
+                    {
+                        <div class="wms-task-list">
+
+                            @foreach (var caja in cajasVisibles)
+                            {
+                                <a class="wms-task-item recommended"
+                                   href="@Url.Action(
+                                        "PickingTarea",
+                                        "Surtido",
+                                        new
+                                        {
+                                            almacen = Model.Almacen.Codigo,
+                                            solicitudSurtidoId = Model.Pedido.SolicitudSurtidoId,
+                                            produccionId = caja.ProduccionId
+                                        }
+                                   )">
+
+                                    <div class="wms-task-rank">
+                                        @caja.OrdenPeps
+                                    </div>
+
+                                    <div>
+
+                                        <strong>
+                                            @(string.IsNullOrWhiteSpace(caja.UbicacionOrigen)
+                                                ? "SIN UBICACIÓN"
+                                                : caja.UbicacionOrigen)
+                                            ·
+                                            @(string.IsNullOrWhiteSpace(caja.TarimaCodigo)
+                                                ? "SIN TARIMA"
+                                                : caja.TarimaCodigo)
+                                        </strong>
+
+                                        <span>
+                                            @producto.ProductoNombre
+                                            · Etiqueta @caja.CodigoEtiqueta
+                                            · @caja.PesoNeto.ToString("N2") kg
+                                            · Prod. @(caja.FechaProduccion?.ToString("dd/MM/yyyy") ?? "-")
+                                            · Lote @caja.Lote
+                                        </span>
+
+                                        <br />
+
+                                        <span class="wms-peps-tag">
+                                            PEPS #@caja.OrdenPeps · DISPONIBLE
+                                        </span>
+
+                                    </div>
+
+                                    <div class="wms-task-meta">
+
+                                        <b>
+                                            PEPS
+                                        </b>
+
+                                        <em>
+                                            IR POR ESTA
+                                        </em>
+
+                                    </div>
+
+                                </a>
+                            }
+
+                        </div>
+                    }
+                    else
+                    {
+                        var primeraBloqueada =
+                            producto.Cajas
+                                .Where(c =>
+                                    c.EsRecomendada
+                                )
+                                .OrderBy(c =>
+                                    c.OrdenPeps
+                                )
+                                .FirstOrDefault(c =>
+                                    !c.PuedeBajar
+                                );
+
+                        if (primeraBloqueada != null)
+                        {
+                            <div class="wms-alert-bad">
+                                PEPS pendiente:
+                                @primeraBloqueada.MotivoBloqueo
+                            </div>
+                        }
+                    }
+
+                    if (
+                        producto.CajasDisponibles
+                        <
+                        producto.CajasPendientes
+                    )
+                    {
+                        <div class="wms-alert-bad">
+                            Faltante: se requieren @producto.CajasPendientes cajas,
+                            pero sólo hay @producto.CajasDisponibles disponibles
+                            después de excluir producto ya surtido y ya bajado.
+                        </div>
+                    }
+                }
+
+            </section>
+        }
+
+
+        <div class="wms-priority-rule">
+            <b>Regla PEPS activa.</b>
+            El servidor vuelve a calcular la antigüedad antes de confirmar una bajada.
+            Aunque se manipule el navegador, una caja más nueva no se registra si existe
+            una caja PEPS anterior disponible.
+        </div>
+
+    </main>
+
+</div>
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="~/js/surtido-wms-3d.js" asp-append-version="true"></script>

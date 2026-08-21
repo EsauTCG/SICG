@@ -1,0 +1,450 @@
+@model Plataforma_CG.ViewModels.SurtidoPickingTareaVM
+
+@{
+    ViewData["Title"] = "Tarea de picking";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+
+    var ubicacionOk =
+        !Model.Almacen.ObligaUbicacion
+        ||
+        !string.IsNullOrWhiteSpace(Model.Caja.UbicacionOrigen);
+
+    var puedeConfirmar =
+        string.IsNullOrWhiteSpace(Model.Error)
+        &&
+        Model.Caja.EsRecomendada
+        &&
+        Model.Caja.PuedeBajar
+        &&
+        ubicacionOk;
+}
+
+<link rel="stylesheet"
+      href="~/css/surtido-wms-v7.css"
+      asp-append-version="true" />
+
+<div class="wms-v7">
+
+    <main class="wms-content">
+
+        <a class="wms-back"
+           href="@Url.Action(
+                "PedidoPicking",
+                "Surtido",
+                new
+                {
+                    almacen = Model.Almacen.Codigo,
+                    solicitudSurtidoId = Model.Pedido.SolicitudSurtidoId
+                }
+           )">
+            ‹ Cambiar tarea
+        </a>
+
+
+        @if (TempData["Error"] != null)
+        {
+            <div class="wms-alert-bad">
+                @TempData["Error"]
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(Model.Error))
+        {
+            <div class="wms-alert-bad">
+                @Model.Error
+            </div>
+        }
+
+
+        <section class="wms-step-strip">
+
+            <div class="wms-step active">
+                <i>1</i><span>Ir</span>
+            </div>
+
+            <div class="wms-step @(ubicacionOk ? "active" : "")">
+                <i>2</i><span>Ubicación</span>
+            </div>
+
+            <div class="wms-step active">
+                <i>3</i><span>Tarima/Caja</span>
+            </div>
+
+            <div class="wms-step">
+                <i>4</i><span>Bajada</span>
+            </div>
+
+        </section>
+
+
+        <article class="wms-navigate-card">
+
+            <span class="wms-overline">
+                DESTINO PEPS
+            </span>
+
+            <h1>
+                @(string.IsNullOrWhiteSpace(Model.Caja.UbicacionOrigen)
+                    ? "PEPS #" + Model.Caja.OrdenPeps
+                    : Model.Caja.UbicacionOrigen)
+            </h1>
+
+            <p>
+                @Model.Caja.ProductoNombre
+                · @Model.Caja.CodigoEtiqueta
+                · @Model.Caja.PesoNeto.ToString("N2") kg
+            </p>
+
+            <div class="wms-route-path">
+
+                <div class="wms-route-node">
+                    PEDIDO<br />
+                    <small>@Model.Pedido.Pedido</small>
+                </div>
+
+                <i>→</i>
+
+                <div class="wms-route-node">
+                    LOTE<br />
+                    <small>@Model.Caja.Lote</small>
+                </div>
+
+                <i>→</i>
+
+                <div class="wms-route-node">
+                    TARIMA<br />
+                    <small>
+                        @(string.IsNullOrWhiteSpace(Model.Caja.TarimaCodigo)
+                            ? "-"
+                            : Model.Caja.TarimaCodigo)
+                    </small>
+                </div>
+
+                <i>→</i>
+
+                <div class="wms-route-node target">
+                    PEPS<br />
+                    <small>#@Model.Caja.OrdenPeps</small>
+                </div>
+
+            </div>
+
+        </article>
+
+
+        @if (!string.IsNullOrWhiteSpace(Model.Caja.UbicacionOrigen))
+        {
+            <section class="wms-3d-card">
+
+                <div class="wms-3d-head">
+
+                    <div>
+                        <span class="wms-overline">
+                            UBICACIÓN FÍSICA · MAPA 3D
+                        </span>
+
+                        <h2>
+                            @Model.Caja.UbicacionOrigen
+                        </h2>
+
+                        <p>
+                            Destino real obtenido desde ProduccionReferencia Tipo 16.
+                        </p>
+                    </div>
+
+                    <a class="wms-3d-open"
+                       href="@Url.Action(
+                            "Mapa3D",
+                            "Surtido",
+                            new
+                            {
+                                almacen = Model.Almacen.Codigo,
+                                ubicacion = Model.Caja.UbicacionOrigen
+                            }
+                       )">
+                        MAPA COMPLETO
+                    </a>
+
+                </div>
+
+                <div id="pickRack3d"
+                     class="wms-rack3d"
+                     data-location="@Model.Caja.UbicacionOrigen"
+                     data-layout-known="@Model.Almacen.TieneLayout3D.ToString().ToLowerInvariant()"
+                     data-compact="false"
+                     data-info-target="#pickRackInfo">
+                </div>
+
+                <div id="pickRackInfo"
+                     class="wms-3d-info">
+                </div>
+
+                <div class="wms-3d-legend">
+                    <span><i class="target"></i>Ubicación objetivo</span>
+                    <span><i class="route"></i>Ruta</span>
+                    <span><i class="rack"></i>Estructura rack</span>
+                </div>
+
+            </section>
+        }
+
+
+        <article class="wms-card">
+
+            <div class="wms-step-number">
+                1
+            </div>
+
+            <span class="wms-overline">
+                UBICACIÓN FÍSICA
+            </span>
+
+            @if (Model.Almacen.ObligaUbicacion)
+            {
+                if (string.IsNullOrWhiteSpace(Model.Caja.UbicacionOrigen))
+                {
+                    <h2>
+                        Ubicación requerida
+                    </h2>
+
+                    <p>
+                        Este almacén está configurado en SIGO con ubicación obligatoria,
+                        pero esta producción no tiene una referencia de ubicación
+                        TipoReferenciaId = 16.
+                    </p>
+
+                    <div class="wms-alert-bad">
+                        BLOQUEADO: ProduccionId @Model.Caja.ProduccionId
+                        no tiene ubicación activa registrada en ProduccionReferencia.
+                    </div>
+                }
+                else
+                {
+                    <h2>
+                        @Model.Caja.UbicacionOrigen
+                    </h2>
+
+                    <p>
+                        Confirma físicamente la ubicación antes de escanear.
+                    </p>
+                }
+            }
+            else
+            {
+                <h2>
+                    Ubicación no obligatoria
+                </h2>
+
+                <p>
+                    SIGO permite continuar sin rack para este almacén.
+                </p>
+            }
+
+        </article>
+
+
+        <form method="post"
+              action="@Url.Action("ConfirmarBajada","Surtido")"
+              id="frmBajada">
+
+            @Html.AntiForgeryToken()
+
+            <input type="hidden"
+                   name="Almacen"
+                   value="@Model.Almacen.Codigo" />
+
+            <input type="hidden"
+                   name="SolicitudSurtidoId"
+                   value="@Model.Pedido.SolicitudSurtidoId" />
+
+            <input type="hidden"
+                   name="ProduccionId"
+                   value="@Model.Caja.ProduccionId" />
+
+
+            <article class="wms-card">
+
+                <div class="wms-step-number">
+                    2
+                </div>
+
+                <span class="wms-overline">
+                    VALIDA TARIMA / CAJA
+                </span>
+
+                <h2>
+                    Escanea el producto indicado
+                </h2>
+
+                <p>
+                    Esperada:
+                    <strong>
+                        @(string.IsNullOrWhiteSpace(Model.Caja.TarimaCodigo)
+                            ? Model.Caja.CodigoEtiqueta
+                            : Model.Caja.TarimaCodigo)
+                    </strong>
+                    · también se acepta la etiqueta
+                    @Model.Caja.CodigoEtiqueta
+                </p>
+
+                <div class="wms-input-action">
+
+                    <input id="CodigoEscaneado"
+                           name="CodigoEscaneado"
+                           placeholder="Escanea tarima o etiqueta"
+                           autocomplete="off"
+                           @(puedeConfirmar ? "" : "disabled") />
+
+                    <button type="button"
+                            id="btnValidar"
+                            @(puedeConfirmar ? "" : "disabled")>
+                        VALIDAR
+                    </button>
+
+                </div>
+
+                <div class="wms-validation"
+                     id="scanMessage">
+                </div>
+
+            </article>
+
+
+            <article class="wms-card">
+
+                <div class="wms-step-number">
+                    3
+                </div>
+
+                <span class="wms-overline">
+                    CONFIRMA MOVIMIENTO
+                </span>
+
+                <h2>
+                    ¿Ya bajaste el producto?
+                </h2>
+
+                <p>
+                    Se registrará en la Zona de Surtido de SIGO.
+                    Todavía no se vincula oficialmente a SalidaEmbarque.
+                </p>
+
+                <div class="wms-callout">
+                    <b>MONTACARGUISTA</b>
+                    <span>
+                        Tu responsabilidad termina al dejar el producto en Zona de Surtido.
+                        El Capturista escanea y realiza la vinculación oficial posteriormente.
+                    </span>
+                </div>
+
+                <button class="wms-success-large"
+                        type="submit"
+                        id="btnConfirmar"
+                        disabled>
+                    ✓ CONFIRMAR PRODUCTO BAJADO
+                </button>
+
+            </article>
+
+        </form>
+
+    </main>
+
+</div>
+
+
+@section Scripts {
+
+    <script>
+        (() => {
+
+            const input =
+                document.getElementById('CodigoEscaneado');
+
+            const validar =
+                document.getElementById('btnValidar');
+
+            const confirmar =
+                document.getElementById('btnConfirmar');
+
+            const msg =
+                document.getElementById('scanMessage');
+
+            if (!input || !validar || !confirmar) {
+                return;
+            }
+
+            const etiqueta =
+                @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                    (Model.Caja.CodigoEtiqueta ?? "").Trim().ToUpperInvariant()
+                ));
+
+            const tarima =
+                @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                    (Model.Caja.TarimaCodigo ?? "").Trim().ToUpperInvariant()
+                ));
+
+            validar.addEventListener('click', () => {
+
+                const scan =
+                    (input.value || '')
+                    .trim()
+                    .toUpperCase();
+
+                const ok =
+                    scan !== ''
+                    &&
+                    (
+                        scan === etiqueta
+                        ||
+                        (
+                            tarima !== ''
+                            &&
+                            scan === tarima
+                        )
+                    );
+
+                if (ok) {
+
+                    msg.innerHTML =
+                        '<span style="color:#51dfaa">✓ Producto correcto. Listo para confirmar bajada.</span>';
+
+                    confirmar.disabled =
+                        false;
+
+                    input.readOnly =
+                        true;
+                }
+                else {
+
+                    msg.innerHTML =
+                        '<span style="color:#ff7d88">× Código incorrecto. No corresponde a la caja/tarima PEPS indicada.</span>';
+
+                    confirmar.disabled =
+                        true;
+                }
+            });
+
+
+            input.addEventListener('keydown', e => {
+
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    validar.click();
+                }
+
+            });
+
+            setTimeout(
+                () => input.focus(),
+                150
+            );
+
+        })();
+    </script>
+}
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="~/js/surtido-wms-3d.js" asp-append-version="true"></script>

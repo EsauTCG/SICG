@@ -1,0 +1,279 @@
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Cierre de lotes";
+    var source = (ViewBag.Source as string ?? "TIF").ToUpperInvariant();
+}
+
+<style>
+    :root { --vino:#8b0000; --vino2:#5c0000; --line:#d6b4b4; --bg:#f5e7e7; }
+    .cl-app{font-family:Tahoma,Verdana,Arial,sans-serif;font-size:12px;background:var(--bg);border:1px solid #8c5b5b;min-height:80vh}
+    .cl-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:linear-gradient(#b30000,#8b0000,#5c0000);color:#fff;font-weight:700}
+    .cl-toolbar{display:grid;grid-template-columns:160px 150px 150px 150px 1fr;gap:7px;padding:9px;background:#f9eeee;border-bottom:1px solid var(--line);align-items:end}
+    .cl-field label{display:block;font-size:11px;font-weight:700;color:#5c1a1a;margin-bottom:3px}
+    .cl-field input,.cl-field select,.cl-modal input,.cl-modal textarea,.cl-modal select{width:100%;border:1px solid #b98d8d;border-radius:0;padding:5px 6px;font-size:12px;background:#fff}
+    .cl-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+    .cl-btn{border:1px solid #7d4b4b;border-radius:0;padding:6px 10px;font-weight:700;font-size:11px;cursor:pointer;background:#fff}
+    .cl-btn-primary{background:linear-gradient(#b30000,#8b0000,#5c0000);color:#fff;border-color:#6f1d1d}
+    .cl-btn-success{background:#198754;color:#fff;border-color:#146c43}
+    .cl-btn-warning{background:#ffc107;color:#3c2700;border-color:#c89500}
+    .cl-btn-danger{background:#b02a37;color:#fff;border-color:#842029}
+    .cl-btn-info{background:#0d6efd;color:#fff;border-color:#0a58ca}
+    .cl-table-wrap{overflow:auto;max-height:68vh;background:#fff}
+    .cl-table{width:100%;border-collapse:separate;border-spacing:0;min-width:1250px}
+    .cl-table th{position:sticky;top:0;z-index:2;background:linear-gradient(#b30000,#8b0000,#5c0000);color:#fff;padding:7px 6px;border-right:1px solid #743030;white-space:nowrap;font-size:11px}
+    .cl-table td{padding:6px;border-right:1px solid #ead2d2;border-bottom:1px solid #ead2d2;white-space:nowrap;background:#fff}
+    .cl-table tr:nth-child(even) td{background:#fff8f8}
+    .cl-table tr:hover td{background:#f9e2e2}
+    .cl-badge{display:inline-block;padding:3px 7px;font-weight:700;border:1px solid;border-radius:10px;font-size:10px}
+    .b-ok{background:#e8f6ee;color:#146c43;border-color:#75b798}.b-warn{background:#fff3cd;color:#664d03;border-color:#ffda6a}.b-bad{background:#f8d7da;color:#842029;border-color:#ea868f}.b-info{background:#cff4fc;color:#055160;border-color:#6edff6}
+    .cl-summary{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:7px;margin-bottom:10px}
+    .cl-card{border:1px solid var(--line);background:#fff;padding:8px}.cl-card b{display:block;color:#6b1f1f;font-size:10px}.cl-card span{font-size:15px;font-weight:700}
+    .cl-modal .modal-content{border-radius:0;border:1px solid #7e4a4a}.cl-modal .modal-header{background:linear-gradient(#b30000,#8b0000,#5c0000);color:#fff;border-radius:0}.cl-modal .modal-body{background:#fffafa}
+    .cl-anom{border:1px solid #ddd;padding:8px;margin-bottom:6px;background:#fff}.cl-anom.bloqueo{border-left:5px solid #b02a37}.cl-anom.autorizacion{border-left:5px solid #ffc107}.cl-anom.advertencia{border-left:5px solid #0dcaf0}
+    .cl-note{margin:8px;padding:8px;border:1px solid #d7b36b;background:#fff7dc;color:#513c00}
+    .cl-tabs{display:flex;gap:5px;padding:7px 9px;background:#f4dddd;border-bottom:1px solid var(--line)}
+    .cl-status{padding:7px 10px;background:#fff;border-top:1px solid var(--line);font-size:11px}
+    @@media(max-width:900px){.cl-toolbar{grid-template-columns:1fr 1fr}.cl-summary{grid-template-columns:1fr 1fr}.cl-actions{justify-content:flex-start}}
+</style>
+
+<div class="cl-app">
+    <div class="cl-head">
+        <div>Cierre de lotes · control previo a costeo</div>
+        <div>Usuario: @(User?.Identity?.Name ?? "")</div>
+    </div>
+
+    <div class="cl-tabs">
+        <button class="cl-btn cl-btn-info" type="button" onclick="cargarPendientes()">Autorizaciones pendientes</button>
+        <button class="cl-btn" type="button" onclick="abrirCompatibilidad()">Compatibilidad entrada → salida</button>
+    </div>
+
+    <div class="cl-toolbar">
+        <div class="cl-field">
+            <label>Planta</label>
+            <select id="clSource">
+                <option value="TIF" selected="@(source == "TIF")">TIF 776</option>
+<option value="P1" selected="@(source == "P1")">Planta 1</option>
+            </select>
+        </div>
+        <div class="cl-field"><label>Desde</label><input id="clDesde" type="date" value="@DateTime.Today.ToString("yyyy-MM-dd")" /></div>
+        <div class="cl-field"><label>Hasta</label><input id="clHasta" type="date" value="@DateTime.Today.ToString("yyyy-MM-dd")" /></div>
+        <div class="cl-field">
+            <label>Estado</label>
+            <select id="clEstado"><option value="ABIERTOS">Abiertos</option><option value="CERRADOS">Cerrados</option><option value="TODOS">Todos</option></select>
+        </div>
+        <div class="cl-actions">
+            <button class="cl-btn cl-btn-primary" type="button" onclick="buscarLotes()">Buscar lotes</button>
+        </div>
+    </div>
+
+    <div class="cl-note">
+        El cierre no cambia EstatusId hasta terminar: validación operacional → autorización cuando aplique → costeo por lote → validación de costo → EstatusId=3.
+    </div>
+
+    <div class="cl-table-wrap">
+        <table class="cl-table">
+            <thead><tr>
+                <th>LoteId</th><th>Lote</th><th>Tipo</th><th>Fecha</th><th>Estado</th>
+                <th>Entradas</th><th>Kg entrada</th><th>Salidas</th><th>Kg salida</th><th>Diferencia kg</th><th>Rend. %</th><th>Acciones</th>
+            </tr></thead>
+            <tbody id="clRows"><tr><td colspan="12" style="text-align:center">Consulta los lotes.</td></tr></tbody>
+        </table>
+    </div>
+    <div id="clStatus" class="cl-status">Listo.</div>
+</div>
+
+<div class="modal fade cl-modal" id="modalDiagnostico" tabindex="-1">
+ <div class="modal-dialog modal-xl" style="max-width:96vw"><div class="modal-content">
+  <div class="modal-header"><h5 class="modal-title">Diagnóstico de cierre</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+    <div id="diagResumen" class="cl-summary"></div>
+    <div id="diagEstado"></div>
+    <h6 style="margin-top:12px">Anomalías</h6><div id="diagAnomalias"></div>
+    <div class="row mt-3">
+      <div class="col-md-6"><h6>Entradas</h6><div style="max-height:260px;overflow:auto"><table class="table table-sm table-bordered"><thead><tr><th>ID</th><th>Etiqueta</th><th>SKU</th><th>Producto</th><th>Kg</th></tr></thead><tbody id="diagEntradas"></tbody></table></div></div>
+      <div class="col-md-6"><h6>Salidas</h6><div style="max-height:260px;overflow:auto"><table class="table table-sm table-bordered"><thead><tr><th>ID</th><th>Etiqueta</th><th>SKU</th><th>Producto</th><th>Kg</th></tr></thead><tbody id="diagSalidas"></tbody></table></div></div>
+    </div>
+    <div id="solicitudBox" style="display:none;margin-top:12px;border-top:1px solid #ddd;padding-top:10px">
+       <label><b>Motivo para solicitar excepción</b></label>
+       <textarea id="solMotivo" rows="3" placeholder="Explique por qué debe cerrarse a pesar de las anomalías..."></textarea>
+       <button class="cl-btn cl-btn-warning mt-2" type="button" onclick="solicitarAutorizacion()">Solicitar autorización</button>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button class="cl-btn" data-bs-dismiss="modal">Cerrar ventana</button>
+    <button id="btnCostearCerrar" class="cl-btn cl-btn-success" type="button" onclick="costearYCerrar()">Costear y cerrar lote</button>
+  </div>
+ </div></div>
+</div>
+
+<div class="modal fade cl-modal" id="modalPendientes" tabindex="-1">
+ <div class="modal-dialog modal-xl" style="max-width:96vw"><div class="modal-content">
+  <div class="modal-header"><h5 class="modal-title">Autorizaciones pendientes</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+   <div class="cl-note">Cada gerente/director registra su propia decisión y justificación. El solicitante no puede autorizarse a sí mismo. La cantidad de aprobaciones requeridas es configurable por TipoLoteId.</div>
+   <div style="overflow:auto;max-height:65vh"><table class="table table-sm table-bordered align-middle"><thead><tr><th>Solicitud</th><th>Lote</th><th>Solicita</th><th>Motivo</th><th>Anomalías</th><th>Aprobaciones</th><th>Autorizadores</th><th>Decisión</th></tr></thead><tbody id="pendRows"></tbody></table></div>
+  </div>
+ </div></div>
+</div>
+
+<div class="modal fade cl-modal" id="modalCompatibilidad" tabindex="-1">
+ <div class="modal-dialog modal-xl"><div class="modal-content">
+  <div class="modal-header"><h5 class="modal-title">Catálogo de compatibilidad producto entrada → salida</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+   <div class="cl-note">Use reglas PERMITIDAS para definir de qué materias primas puede salir un producto. También puede registrar reglas PROHIBIDAS explícitas. Ejemplo conceptual: HUESO → ARRACHERA = prohibido. Use sus SKU reales; no escriba nombres genéricos.</div>
+   <div class="row g-2">
+    <div class="col-md-2"><label>SKU entrada</label><input id="cmpEntrada" /></div>
+    <div class="col-md-2"><label>SKU salida</label><input id="cmpSalida" /></div>
+    <div class="col-md-2"><label>Regla</label><select id="cmpPermitido"><option value="true">PERMITIDO</option><option value="false">PROHIBIDO</option></select></div>
+    <div class="col-md-4"><label>Motivo</label><input id="cmpMotivo" placeholder="Justificación de la relación" /></div>
+    <div class="col-md-2 d-flex align-items-end"><button class="cl-btn cl-btn-primary w-100" onclick="guardarCompatibilidad()">Guardar</button></div>
+   </div>
+   <div class="row g-2 mt-2"><div class="col-md-4"><input id="cmpBuscar" placeholder="Buscar SKU o motivo" /></div><div class="col-md-2"><button class="cl-btn" onclick="cargarCompatibilidad()">Buscar</button></div></div>
+   <div style="overflow:auto;max-height:55vh;margin-top:10px"><table class="table table-sm table-bordered"><thead><tr><th>ID</th><th>Entrada</th><th>Salida</th><th>Regla</th><th>Motivo</th><th>Usuario</th><th>Fecha</th><th></th></tr></thead><tbody id="cmpRows"></tbody></table></div>
+  </div>
+ </div></div>
+</div>
+
+<script>
+let diagActual = null;
+let authActual = null;
+let permisos = { puedeLeer:false, puedeEscribir:false, puedeAutorizar:false };
+const modalDiag = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalDiagnostico'));
+const modalPend = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalPendientes'));
+const modalCmp = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCompatibilidad'));
+
+function safe(v){return String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;')}
+function n(v,d=3){return Number(v||0).toLocaleString('es-MX',{minimumFractionDigits:d,maximumFractionDigits:d})}
+function fecha(v){if(!v)return '-'; const x=new Date(v); return Number.isNaN(x.getTime())?safe(v):x.toLocaleDateString('es-MX')}
+function setStatus(m,t='info'){document.getElementById('clStatus').innerHTML=`<span class="cl-badge ${t==='ok'?'b-ok':t==='bad'?'b-bad':t==='warn'?'b-warn':'b-info'}">${safe(m)}</span>`}
+function normalizarJsonServidor(v){ return v; }
+async function api(url,opt){
+ const r=await fetch(url,{credentials:'same-origin',...(opt||{})});
+ let d={};
+ try{d=await r.json()}catch{}
+ if(!r.ok||d?.ok===false) throw new Error(d?.msg||`HTTP ${r.status}`);
+ return normalizarJsonServidor(d);
+}
+
+async function cargarPermisos(){try{const d=await api('@Url.Action("CierreLotePermisos","ProcesosCG")'); permisos=d;}catch(e){setStatus(e.message,'bad')}}
+
+async function buscarLotes(){
+ try{
+  setStatus('Consultando...');
+  const q=new URLSearchParams({source:document.getElementById('clSource').value,desde:document.getElementById('clDesde').value,hasta:document.getElementById('clHasta').value,estado:document.getElementById('clEstado').value});
+  const d=await api('@Url.Action("CierreLotesBuscar","ProcesosCG")?'+q);
+  const tb=document.getElementById('clRows');
+  if(!d.rows?.length){tb.innerHTML='<tr><td colspan="12" class="text-center">Sin resultados.</td></tr>';setStatus('Sin resultados.');return}
+  console.log('CierreLotesBuscar primer registro:', d.rows[0]);
+  tb.innerHTML=d.rows.map(x=>`<tr>
+   <td>${x.loteId}</td><td>${safe(x.nombre)}</td><td>${x.tipoLoteId}</td><td>${fecha(x.fechaProduccion)}</td>
+   <td><span class="cl-badge ${x.estatusId===3?'b-info':'b-ok'}">${x.estatusId===3?'CERRADO':'ABIERTO'}</span></td>
+   <td>${x.entradas}</td><td class="text-end">${n(x.kgEntrada)}</td><td>${x.salidas}</td><td class="text-end">${n(x.kgSalida)}</td>
+   <td class="text-end">${n(x.diferenciaKg)}</td><td class="text-end">${n(x.rendimientoPct,2)}%</td>
+   <td><button class="cl-btn cl-btn-primary" onclick="diagnosticar(${x.loteId})">Revisar cierre</button></td></tr>`).join('');
+  setStatus(`${d.rows.length} lote(s).`,'ok');
+ }catch(e){setStatus(e.message,'bad')}
+}
+
+async function diagnosticar(loteId){
+ loteId = Number(loteId || 0);
+ if(!Number.isInteger(loteId) || loteId <= 0){
+  setStatus(`LoteId inválido o no recibido. Valor recibido: ${loteId || 'NULL'}`,'bad');
+  return;
+ }
+ try{
+  setStatus(`Diagnosticando lote ${loteId}...`);
+  const source=document.getElementById('clSource').value;
+  const d=await api('@Url.Action("CierreLoteDiagnostico","ProcesosCG")?'+new URLSearchParams({source,loteId}));
+  diagActual=d.diagnostico; authActual=d.autorizacion;
+  renderDiag(); modalDiag().show(); setStatus('Diagnóstico terminado.','ok');
+ }catch(e){setStatus(e.message,'bad')}
+}
+
+function renderDiag(){
+ const d=diagActual;if(!d)return;
+ document.getElementById('diagResumen').innerHTML=[
+  ['Lote',`${safe(d.loteNombre)} (${d.loteId})`],['Tipo / costeo',`${d.tipoLoteId} / ${safe(d.tipoProceso||'SIN CONFIG')}`],
+  ['Tipo peso canal',d.tipoProceso==='CANALES' ? `${d.tipoPesoIdCanal ?? '-'} · ${safe(d.tipoPesoCanal||'')}` : '-'],
+  ['Entradas',`${d.entradas} · ${n(d.kgEntrada)} kg`],['Salidas / canales',`${d.salidas} · ${n(d.kgSalida)} kg`],
+  ['Variación',d.tipoProceso==='CANALES' ? 'N/A' : `${n(d.variacionPct,2)}%`],['Rendimiento',d.tipoProceso==='CANALES' ? 'N/A' : `${n(d.rendimientoPct,2)}%`]
+ ].map(x=>`<div class="cl-card"><b>${x[0]}</b><span>${x[1]}</span></div>`).join('');
+ let est='';
+ if(d.tieneBloqueos) est='<span class="cl-badge b-bad">BLOQUEADO</span> Hay anomalías técnicas no autorizables.';
+ else if(d.requiereAutorizacion){const a=authActual||{}; est=`<span class="cl-badge ${a.aprobada?'b-ok':'b-warn'}">${a.aprobada?'AUTORIZADO':'REQUIERE AUTORIZACIÓN'}</span> Aprobaciones ${a.aprobacionesActuales||0}/${a.aprobacionesRequeridas||d.aprobacionesRequeridas}. ${safe(a.autorizadores||'')}`}
+ else est='<span class="cl-badge b-ok">LISTO</span> Puede costearse y cerrarse.';
+ document.getElementById('diagEstado').innerHTML=`<div class="cl-note">${est}</div>`;
+ const an=document.getElementById('diagAnomalias');
+ an.innerHTML=d.anomalias?.length?d.anomalias.map(x=>`<div class="cl-anom ${(x.nivel||'').toLowerCase()}"><b>${safe(x.nivel)} · ${safe(x.codigo)} · ${safe(x.titulo)}</b><div>${safe(x.detalle)}</div></div>`).join(''):'<div class="cl-anom"><b>Sin anomalías operativas.</b></div>';
+ const row=x=>`<tr><td>${x.produccionId}</td><td>${safe(x.codigoEtiqueta)}</td><td>${safe(x.articulo)}</td><td>${safe(x.producto)}</td><td class="text-end">${n(x.pesoNeto)}</td></tr>`;
+ document.getElementById('diagEntradas').innerHTML=d.movimientosEntrada?.map(row).join('')||'<tr><td colspan="5">Sin entradas.</td></tr>';
+ document.getElementById('diagSalidas').innerHTML=d.movimientosSalida?.map(row).join('')||'<tr><td colspan="5">Sin salidas.</td></tr>';
+ document.getElementById('solicitudBox').style.display=(!d.tieneBloqueos&&d.requiereAutorizacion&&!authActual?.aprobada&&permisos.puedeEscribir)?'block':'none';
+ const btn=document.getElementById('btnCostearCerrar');
+ btn.style.display=permisos.puedeEscribir?'inline-block':'none';
+ btn.disabled=d.tieneBloqueos || (d.requiereAutorizacion&&!authActual?.aprobada);
+}
+
+async function solicitarAutorizacion(){
+ if(!diagActual)return;
+ const motivo=document.getElementById('solMotivo').value.trim();
+ try{
+  const d=await api('@Url.Action("CierreLoteSolicitarAutorizacion","ProcesosCG")',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source:diagActual.source,loteId:diagActual.loteId,motivo})});
+  alert(d.msg); await diagnosticar(diagActual.loteId);
+ }catch(e){alert(e.message)}
+}
+
+async function costearYCerrar(){
+ if(!diagActual)return;
+ if(!confirm(`Se ejecutará el costeo del lote ${diagActual.loteNombre} y solo si termina correcto se cambiará EstatusId=3. ¿Continuar?`))return;
+ try{
+  const btn=document.getElementById('btnCostearCerrar');btn.disabled=true;btn.textContent='Costeando y validando...';
+  const d=await api('@Url.Action("CierreLoteCerrar","ProcesosCG")',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source:diagActual.source,loteId:diagActual.loteId})});
+  alert(d.msg);modalDiag().hide();await buscarLotes();
+ }catch(e){alert(e.message); if(diagActual) await diagnosticar(diagActual.loteId)}finally{const btn=document.getElementById('btnCostearCerrar');btn.disabled=false;btn.textContent='Costear y cerrar lote'}
+}
+
+async function cargarPendientes(){
+ if(!permisos.puedeAutorizar){alert('Tu perfil no tiene permiso ELIMINAR en CIERRE_LOTES para autorizar excepciones.');return}
+ try{
+  const source=document.getElementById('clSource').value;
+  const d=await api('@Url.Action("CierreLotePendientesAutorizacion","ProcesosCG")?'+new URLSearchParams({source}));
+  document.getElementById('pendRows').innerHTML=d.rows?.length?d.rows.map(x=>`<tr>
+   <td>#${x.solicitudId}<br><span class="cl-badge ${x.estado==='APROBADA'?'b-ok':'b-warn'}">${safe(x.estado)}</span></td>
+   <td>${safe(x.loteNombre)}<br>ID ${x.loteId}</td><td>${safe(x.usuarioSolicita)}<br>${fecha(x.fechaSolicitud)}</td>
+   <td style="white-space:normal;min-width:220px">${safe(x.motivoSolicitud)}</td><td style="white-space:normal;min-width:280px">${safe(x.resumenAnomalias)}</td>
+   <td>${x.aprobacionesActuales}/${x.aprobacionesRequeridas}</td><td style="white-space:normal;min-width:220px">${safe(x.autorizadores)}</td>
+   <td style="min-width:260px"><textarea id="mot_${x.solicitudId}" rows="2" placeholder="Justificación obligatoria"></textarea><div class="mt-1"><button class="cl-btn cl-btn-success" onclick="decidir(${x.solicitudId},'APROBAR')">Autorizar</button> <button class="cl-btn cl-btn-danger" onclick="decidir(${x.solicitudId},'RECHAZAR')">Rechazar</button></div></td></tr>`).join(''):'<tr><td colspan="8">Sin solicitudes pendientes.</td></tr>';
+  modalPend().show();
+ }catch(e){alert(e.message)}
+}
+async function decidir(id,decision){
+ const motivo=document.getElementById(`mot_${id}`).value.trim();
+ const url=decision==='APROBAR'?'@Url.Action("CierreLoteAutorizar","ProcesosCG")':'@Url.Action("CierreLoteRechazar","ProcesosCG")';
+ try{const d=await api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source:document.getElementById('clSource').value,solicitudId:id,motivo})});alert(d.msg);await cargarPendientes()}catch(e){alert(e.message)}
+}
+
+async function abrirCompatibilidad(){
+ modalCmp().show(); await cargarCompatibilidad();
+}
+async function cargarCompatibilidad(){
+ try{
+  const source=document.getElementById('clSource').value;const texto=document.getElementById('cmpBuscar').value;
+  const d=await api('@Url.Action("CierreLoteCompatibilidad","ProcesosCG")?'+new URLSearchParams({source,texto}));
+  document.getElementById('cmpRows').innerHTML=d.rows?.length?d.rows.map(x=>`<tr><td>${x.compatibilidadId}</td><td>${safe(x.articuloEntrada)}</td><td>${safe(x.articuloSalida)}</td><td><span class="cl-badge ${x.permitido?'b-ok':'b-bad'}">${x.permitido?'PERMITIDO':'PROHIBIDO'}</span></td><td>${safe(x.motivo)}</td><td>${safe(x.usuario)}</td><td>${fecha(x.fechaHora)}</td><td>${permisos.puedeAutorizar?`<button class="cl-btn cl-btn-danger" onclick="eliminarCompatibilidad(${x.compatibilidadId})">Quitar</button>`:''}</td></tr>`).join(''):'<tr><td colspan="8">Sin reglas configuradas.</td></tr>';
+ }catch(e){alert(e.message)}
+}
+async function guardarCompatibilidad(){
+ if(!permisos.puedeAutorizar){alert('Requiere permiso de autorización para modificar el catálogo.');return}
+ try{
+  const req={source:document.getElementById('clSource').value,articuloEntrada:document.getElementById('cmpEntrada').value,articuloSalida:document.getElementById('cmpSalida').value,permitido:document.getElementById('cmpPermitido').value==='true',motivo:document.getElementById('cmpMotivo').value};
+  const d=await api('@Url.Action("CierreLoteCompatibilidadGuardar","ProcesosCG")',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(req)});alert(d.msg);await cargarCompatibilidad();
+ }catch(e){alert(e.message)}
+}
+async function eliminarCompatibilidad(id){
+ if(!confirm('¿Desactivar esta regla?'))return;
+ try{const d=await api('@Url.Action("CierreLoteCompatibilidadEliminar","ProcesosCG")?'+new URLSearchParams({source:document.getElementById('clSource').value,id}),{method:'POST'});alert(d.msg);await cargarCompatibilidad()}catch(e){alert(e.message)}
+}
+
+document.addEventListener('DOMContentLoaded',async()=>{await cargarPermisos();await buscarLotes()});
+</script>

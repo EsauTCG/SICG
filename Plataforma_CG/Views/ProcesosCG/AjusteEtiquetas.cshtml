@@ -8,6 +8,318 @@
 
 <link rel="stylesheet" href="~/css/ajuste-controlado-etiquetas-grid.css" asp-append-version="true" />
 
+<style>
+    /* =========================================================
+       MODAL GLOBAL DE AUDITORÍA
+       ========================================================= */
+    .ae-audit-open {
+        white-space: nowrap;
+    }
+
+    .ae-audit-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 99990;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        background: rgba(20, 20, 20, .58);
+        backdrop-filter: blur(1.5px);
+    }
+
+    .ae-audit-modal.show {
+        display: flex;
+    }
+
+    .ae-audit-dialog {
+        width: min(1780px, 98vw);
+        height: min(900px, 94vh);
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        background: #fff;
+        border: 1px solid #8b0000;
+        border-radius: 8px;
+        box-shadow: 0 24px 65px rgba(0,0,0,.28);
+    }
+
+    .ae-audit-modal-head {
+        flex: 0 0 auto;
+        min-height: 48px;
+        padding: 8px 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        color: #fff;
+        background: linear-gradient(90deg, #8b0000, #b40000);
+    }
+
+    .ae-audit-modal-title {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .ae-audit-modal-title strong {
+        font-size: 14px;
+        line-height: 1.1;
+    }
+
+    .ae-audit-modal-title small {
+        display: block;
+        margin-top: 2px;
+        color: rgba(255,255,255,.82);
+        font-size: 10.5px;
+    }
+
+    .ae-audit-close {
+        width: 34px;
+        height: 30px;
+        border: 1px solid rgba(255,255,255,.45);
+        border-radius: 5px;
+        color: #fff;
+        background: rgba(255,255,255,.08);
+        cursor: pointer;
+    }
+
+    .ae-audit-close:hover {
+        background: rgba(255,255,255,.2);
+    }
+
+    .ae-audit-modal-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px;
+        background: #f7f3f3;
+    }
+
+    .ae-audit-filters {
+        flex: 0 0 auto;
+        display: grid;
+        grid-template-columns: 130px 130px 110px minmax(150px, 1fr) 130px 130px minmax(180px, 1.3fr) auto;
+        gap: 7px;
+        align-items: end;
+        padding: 8px;
+        background: #fff;
+        border: 1px solid #dbcaca;
+        border-radius: 6px;
+    }
+
+    .ae-audit-filters .ae-field label {
+        font-size: 9.5px;
+    }
+
+    .ae-audit-filters .ae-input,
+    .ae-audit-filters select {
+        width: 100%;
+        height: 31px;
+        min-width: 0;
+        border: 1px solid #ccb9b9;
+        border-radius: 4px;
+        padding: 4px 7px;
+        font-size: 11px;
+        background: #fff;
+    }
+
+    .ae-audit-filter-actions {
+        display: flex;
+        gap: 5px;
+        white-space: nowrap;
+    }
+
+    .ae-audit-summary {
+        flex: 0 0 auto;
+        display: grid;
+        grid-template-columns: repeat(5, minmax(120px, 1fr));
+        gap: 6px;
+    }
+
+    .ae-audit-kpi {
+        min-width: 0;
+        padding: 7px 9px;
+        border: 1px solid #dbcaca;
+        border-radius: 5px;
+        background: #fff;
+    }
+
+    .ae-audit-kpi span {
+        display: block;
+        color: #796a6a;
+        font-size: 9px;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .ae-audit-kpi strong {
+        display: block;
+        margin-top: 2px;
+        font-size: 16px;
+        line-height: 1;
+        color: #531010;
+    }
+
+    .ae-audit-grid-wrap {
+        flex: 1 1 auto;
+        min-height: 220px;
+        overflow: auto;
+        background: #fff;
+        border: 1px solid #d8c6c6;
+        border-radius: 6px;
+    }
+
+    .ae-audit-global-table {
+        width: 100%;
+        min-width: 1650px;
+        border-collapse: collapse;
+        font-size: 10px;
+    }
+
+    .ae-audit-global-table th {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        padding: 6px 7px;
+        color: #fff;
+        background: #8b0000;
+        border-right: 1px solid rgba(255,255,255,.2);
+        text-align: left;
+        white-space: nowrap;
+    }
+
+    .ae-audit-global-table td {
+        padding: 5px 7px;
+        border-right: 1px solid #eadede;
+        border-bottom: 1px solid #eadede;
+        vertical-align: top;
+        white-space: nowrap;
+    }
+
+    .ae-audit-global-table tbody tr:hover {
+        background: #fff5d7;
+    }
+
+    .ae-audit-global-table .ae-audit-motivo {
+        max-width: 350px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .ae-audit-detail-btn {
+        border: 1px solid #8b0000;
+        border-radius: 4px;
+        padding: 3px 7px;
+        color: #8b0000;
+        background: #fff;
+        font-size: 10px;
+        font-weight: 800;
+        cursor: pointer;
+    }
+
+    .ae-audit-detail-btn:hover {
+        color: #fff;
+        background: #8b0000;
+    }
+
+    .ae-audit-detail {
+        flex: 0 0 235px;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 8px;
+    }
+
+    .ae-audit-json-card {
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        border: 1px solid #d8c6c6;
+        border-radius: 6px;
+        background: #fff;
+    }
+
+    .ae-audit-json-card header {
+        flex: 0 0 auto;
+        padding: 5px 8px;
+        color: #fff;
+        background: #6f1313;
+        font-size: 10px;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .ae-audit-json-card pre {
+        flex: 1 1 auto;
+        min-height: 0;
+        margin: 0;
+        padding: 8px;
+        overflow: auto;
+        color: #2a2525;
+        background: #fff;
+        font: 10px/1.35 Consolas, "Courier New", monospace;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+
+    .ae-audit-empty {
+        padding: 18px;
+        color: #7b6d6d;
+        text-align: center;
+        font-size: 11px;
+    }
+
+    @@media (max-width: 1250px) {
+        .ae-audit-filters {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .ae-audit-filter-actions {
+            grid-column: span 4;
+        }
+
+        .ae-audit-summary {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+    }
+
+    @@media (max-width: 760px) {
+        .ae-audit-modal {
+            padding: 4px;
+        }
+
+        .ae-audit-dialog {
+            width: 100vw;
+            height: 98vh;
+        }
+
+        .ae-audit-filters {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .ae-audit-filter-actions {
+            grid-column: span 2;
+        }
+
+        .ae-audit-summary {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .ae-audit-detail {
+            flex-basis: 280px;
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+
 <div class="ae-page" id="aePage" data-source="@sourceInicial">
     <div class="ae-shell">
         <header class="ae-header">
@@ -20,6 +332,13 @@
                 <div class="ae-permissions" id="aePermissions">
                     <span class="ae-chip info">Consultando permisos…</span>
                 </div>
+                <button type="button"
+                        class="ae-btn secondary ae-audit-open"
+                        id="btnAeAuditGlobal"
+                        title="Histórico global de modificaciones por usuario">
+                    <i class="fa-solid fa-shield-halved"></i> Auditoría
+                </button>
+
                 <div class="ae-mode-switch" aria-label="Modo de operación">
                     <button type="button" class="ae-mode-btn active" id="btnAeModeSingle">
                         <i class="fa-solid fa-tag"></i> Individual
@@ -279,6 +598,154 @@
     </div>
 </div>
 
+
+<div class="ae-audit-modal" id="aeAuditModal" aria-hidden="true">
+    <div class="ae-audit-dialog" role="dialog" aria-modal="true" aria-labelledby="aeAuditModalTitle">
+        <div class="ae-audit-modal-head">
+            <div class="ae-audit-modal-title">
+                <i class="fa-solid fa-user-shield"></i>
+                <div>
+                    <strong id="aeAuditModalTitle">Histórico global de modificaciones</strong>
+                    <small>Auditoría por usuario, planta, acción, etiqueta y fecha. Incluye estado antes y después.</small>
+                </div>
+            </div>
+            <button type="button" class="ae-audit-close" id="btnAeAuditClose" title="Cerrar">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="ae-audit-modal-body">
+            <div class="ae-audit-filters">
+                <div class="ae-field">
+                    <label for="aeAuditDesde">Desde</label>
+                    <input class="ae-input" id="aeAuditDesde" type="date" />
+                </div>
+
+                <div class="ae-field">
+                    <label for="aeAuditHasta">Hasta</label>
+                    <input class="ae-input" id="aeAuditHasta" type="date" />
+                </div>
+
+                <div class="ae-field">
+                    <label for="aeAuditPlanta">Planta</label>
+                    <select id="aeAuditPlanta">
+                        <option value="TODOS">Todas</option>
+                        <option value="P1">PLANTA 1</option>
+                        <option value="TIF">TIF 776</option>
+                    </select>
+                </div>
+
+                <div class="ae-field">
+                    <label for="aeAuditUsuario">Usuario</label>
+                    <input class="ae-input" id="aeAuditUsuario" placeholder="Usuario que solicitó/autorizó" />
+                </div>
+
+                <div class="ae-field">
+                    <label for="aeAuditAccion">Acción</label>
+                    <select id="aeAuditAccion">
+                        <option value="">Todas</option>
+                        <option value="ELIMINAR">Eliminar</option>
+                        <option value="ACTIVAR">Activar</option>
+                    </select>
+                </div>
+
+                <div class="ae-field">
+                    <label for="aeAuditHistorico">Tipo</label>
+                    <select id="aeAuditHistorico">
+                        <option value="">Todos</option>
+                        <option value="SI">Históricos</option>
+                        <option value="NO">Del día</option>
+                    </select>
+                </div>
+
+                <div class="ae-field">
+                    <label for="aeAuditTexto">Buscar</label>
+                    <input class="ae-input"
+                           id="aeAuditTexto"
+                           placeholder="ProduccionId, etiqueta, motivo u operación" />
+                </div>
+
+                <div class="ae-audit-filter-actions">
+                    <button type="button" class="ae-btn primary" id="btnAeAuditSearch">
+                        <i class="fa-solid fa-magnifying-glass"></i> Consultar
+                    </button>
+                    <button type="button" class="ae-btn secondary" id="btnAeAuditReset">
+                        <i class="fa-solid fa-eraser"></i> Limpiar
+                    </button>
+                    <button type="button" class="ae-btn success" id="btnAeAuditExcel">
+                        <i class="fa-solid fa-file-excel"></i> Excel
+                    </button>
+                </div>
+            </div>
+
+            <div class="ae-audit-summary">
+                <div class="ae-audit-kpi">
+                    <span>Total filtrado</span>
+                    <strong id="aeAuditKpiTotal">0</strong>
+                </div>
+                <div class="ae-audit-kpi">
+                    <span>Eliminaciones</span>
+                    <strong id="aeAuditKpiDelete">0</strong>
+                </div>
+                <div class="ae-audit-kpi">
+                    <span>Activaciones</span>
+                    <strong id="aeAuditKpiActivate">0</strong>
+                </div>
+                <div class="ae-audit-kpi">
+                    <span>Históricas</span>
+                    <strong id="aeAuditKpiHistorical">0</strong>
+                </div>
+                <div class="ae-audit-kpi">
+                    <span>Usuarios</span>
+                    <strong id="aeAuditKpiUsers">0</strong>
+                </div>
+            </div>
+
+            <div class="ae-audit-grid-wrap">
+                <table class="ae-audit-global-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha / hora</th>
+                            <th>Planta</th>
+                            <th>Usuario</th>
+                            <th>Autorizó</th>
+                            <th>Acción</th>
+                            <th>ProduccionId</th>
+                            <th>Código etiqueta</th>
+                            <th>Histórico</th>
+                            <th>Autorización</th>
+                            <th>Proceso</th>
+                            <th>Estatus</th>
+                            <th>Peso</th>
+                            <th>Motivo</th>
+                            <th>Operación ID</th>
+                            <th>Detalle</th>
+                        </tr>
+                    </thead>
+                    <tbody id="aeAuditGlobalBody">
+                        <tr>
+                            <td colspan="15">
+                                <div class="ae-audit-empty">Abre la auditoría y consulta los movimientos.</div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="ae-audit-detail">
+                <div class="ae-audit-json-card">
+                    <header>Estado antes</header>
+                    <pre id="aeAuditBefore">{}</pre>
+                </div>
+                <div class="ae-audit-json-card">
+                    <header>Estado después</header>
+                    <pre id="aeAuditAfter">{}</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="ae-toast" id="aeToast"></div>
 
 <script>
@@ -289,7 +756,9 @@
             permisos: '@Url.Action("AjusteEtiquetaPermisos", "ProcesosCg")',
             buscar: '@Url.Action("BuscarEtiquetaAjuste", "ProcesosCg")',
             historial: '@Url.Action("HistorialEtiquetaAjuste", "ProcesosCg")',
-            aplicar: '@Url.Action("AplicarAjusteEtiqueta", "ProcesosCg")'
+            aplicar: '@Url.Action("AplicarAjusteEtiqueta", "ProcesosCg")',
+            auditoriaGlobal: '@Url.Action("AuditoriaAjustesEtiquetas", "ProcesosCg")',
+            auditoriaExcel: '@Url.Action("AuditoriaAjustesEtiquetasExcel", "ProcesosCg")'
         };
 
         const state = {
@@ -299,7 +768,8 @@
             consulta: null,
             busy: false,
             mode: "single",
-            bulkRows: []
+            bulkRows: [],
+            auditRows: []
         };
 
         const $ = id => document.getElementById(id);
@@ -674,6 +1144,250 @@
             });
             $("aePlantLabel").textContent = state.source === "TIF" ? "TIF 776" : "Planta 1";
         }
+
+        // =========================================================
+        // AUDITORÍA GLOBAL
+        // =========================================================
+
+        function auditIsoDate(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, "0");
+            const d = String(date.getDate()).padStart(2, "0");
+            return `${y}-${m}-${d}`;
+        }
+
+        function initAuditDates() {
+            if ($("aeAuditDesde").value || $("aeAuditHasta").value) return;
+
+            const now = new Date();
+            $("aeAuditDesde").value = auditIsoDate(
+                new Date(now.getFullYear(), now.getMonth(), 1)
+            );
+            $("aeAuditHasta").value = auditIsoDate(now);
+        }
+
+        function auditQueryString() {
+            const params = new URLSearchParams();
+
+            const desde = $("aeAuditDesde").value;
+            const hasta = $("aeAuditHasta").value;
+            const planta = $("aeAuditPlanta").value;
+            const usuario = $("aeAuditUsuario").value.trim();
+            const accion = $("aeAuditAccion").value;
+            const historico = $("aeAuditHistorico").value;
+            const texto = $("aeAuditTexto").value.trim();
+
+            if (desde) params.set("desde", desde);
+            if (hasta) params.set("hasta", hasta);
+            if (planta) params.set("planta", planta);
+            if (usuario) params.set("usuario", usuario);
+            if (accion) params.set("accion", accion);
+            if (historico) params.set("historico", historico);
+            if (texto) params.set("texto", texto);
+
+            return params.toString();
+        }
+
+        function prettyJson(value) {
+            if (!value) return "{}";
+
+            try {
+                const parsed = typeof value === "string"
+                    ? JSON.parse(value)
+                    : value;
+
+                return JSON.stringify(parsed, null, 2);
+            } catch {
+                return String(value);
+            }
+        }
+
+        function renderAuditGlobalDetail(row) {
+            $("aeAuditBefore").textContent =
+                prettyJson(val(row, "datosAntes", "DatosAntes"));
+
+            $("aeAuditAfter").textContent =
+                prettyJson(val(row, "datosDespues", "DatosDespues"));
+        }
+
+        function renderAuditGlobal(rows, json) {
+            state.auditRows = rows;
+
+            $("aeAuditKpiTotal").textContent =
+                Number(json.total ?? rows.length).toLocaleString("es-MX");
+
+            const resumen = json.resumen || json.Resumen || {};
+
+            $("aeAuditKpiDelete").textContent =
+                Number(resumen.eliminaciones ?? resumen.Eliminaciones ?? 0)
+                    .toLocaleString("es-MX");
+
+            $("aeAuditKpiActivate").textContent =
+                Number(resumen.activaciones ?? resumen.Activaciones ?? 0)
+                    .toLocaleString("es-MX");
+
+            $("aeAuditKpiHistorical").textContent =
+                Number(resumen.historicas ?? resumen.Historicas ?? 0)
+                    .toLocaleString("es-MX");
+
+            $("aeAuditKpiUsers").textContent =
+                Number(resumen.usuarios ?? resumen.Usuarios ?? 0)
+                    .toLocaleString("es-MX");
+
+            const body = $("aeAuditGlobalBody");
+
+            if (!rows.length) {
+                body.innerHTML = `
+                    <tr>
+                        <td colspan="15">
+                            <div class="ae-audit-empty">
+                                No hay movimientos para los filtros seleccionados.
+                            </div>
+                        </td>
+                    </tr>`;
+
+                $("aeAuditBefore").textContent = "{}";
+                $("aeAuditAfter").textContent = "{}";
+                return;
+            }
+
+            body.innerHTML = rows.map((r, index) => {
+                const historico =
+                    Boolean(val(r, "esHistorico", "EsHistorico"));
+
+                const pa = val(r, "procesoAnterior", "ProcesoAnterior");
+                const pn = val(r, "procesoNuevo", "ProcesoNuevo");
+                const ea = val(r, "estatusAnterior", "EstatusAnterior");
+                const en = val(r, "estatusNuevo", "EstatusNuevo");
+                const pesoA = val(r, "pesoAnterior", "PesoAnterior");
+                const pesoN = val(r, "pesoNuevo", "PesoNuevo");
+
+                return `
+                    <tr>
+                        <td>${esc(fmtDate(val(r, "fechaHora", "FechaHora")))}</td>
+                        <td>${esc(val(r, "planta", "Planta") || "-")}</td>
+                        <td>${esc(val(r, "usuarioSolicita", "UsuarioSolicita") || "-")}</td>
+                        <td>${esc(val(r, "usuarioAutoriza", "UsuarioAutoriza") || "-")}</td>
+                        <td><strong>${esc(val(r, "accion", "Accion") || "-")}</strong></td>
+                        <td>${esc(val(r, "produccionId", "ProduccionId") ?? "-")}</td>
+                        <td>${esc(val(r, "codigoEtiqueta", "CodigoEtiqueta") || "-")}</td>
+                        <td>${historico ? "SÍ" : "NO"}</td>
+                        <td>${esc(val(r, "autorizacionTipo", "AutorizacionTipo") || "-")}</td>
+                        <td>${esc(pa ?? "-")} → ${esc(pn ?? "-")}</td>
+                        <td>${esc(ea ?? "-")} → ${esc(en ?? "-")}</td>
+                        <td>${esc(fmtNumber(pesoA, 3))} → ${esc(fmtNumber(pesoN, 3))}</td>
+                        <td class="ae-audit-motivo"
+                            title="${esc(val(r, "motivo", "Motivo") || "")}">
+                            ${esc(val(r, "motivo", "Motivo") || "-")}
+                        </td>
+                        <td>${esc(val(r, "operacionId", "OperacionId") || "-")}</td>
+                        <td>
+                            <button type="button"
+                                    class="ae-audit-detail-btn"
+                                    data-audit-index="${index}">
+                                <i class="fa-solid fa-code-compare"></i> Antes / después
+                            </button>
+                        </td>
+                    </tr>`;
+            }).join("");
+
+            body.querySelectorAll("[data-audit-index]").forEach(button => {
+                button.addEventListener("click", () => {
+                    const row =
+                        state.auditRows[Number(button.dataset.auditIndex)];
+
+                    if (row) renderAuditGlobalDetail(row);
+                });
+            });
+
+            renderAuditGlobalDetail(rows[0]);
+
+            if (json.truncado || json.Truncado) {
+                toast(
+                    `Hay ${Number(json.total).toLocaleString("es-MX")} registros filtrados. ` +
+                    `Se muestran los ${Number(json.mostrados).toLocaleString("es-MX")} más recientes.`,
+                    "error"
+                );
+            }
+        }
+
+        async function loadAuditGlobal() {
+            const body = $("aeAuditGlobalBody");
+
+            body.innerHTML = `
+                <tr>
+                    <td colspan="15">
+                        <div class="ae-audit-empty">
+                            <span class="ae-spinner" style="color:#8b0000"></span>
+                            Consultando auditoría…
+                        </div>
+                    </td>
+                </tr>`;
+
+            $("btnAeAuditSearch").disabled = true;
+
+            try {
+                const qs = auditQueryString();
+
+                const json = await getJson(
+                    `${URLS.auditoriaGlobal}?${qs}${qs ? "&" : ""}top=5000&_=${Date.now()}`
+                );
+
+                renderAuditGlobal(
+                    json.data || json.Data || [],
+                    json
+                );
+            } catch (error) {
+                console.error(error);
+
+                body.innerHTML = `
+                    <tr>
+                        <td colspan="15">
+                            <div class="ae-audit-empty">${esc(error.message)}</div>
+                        </td>
+                    </tr>`;
+
+                toast(error.message, "error");
+            } finally {
+                $("btnAeAuditSearch").disabled = false;
+            }
+        }
+
+        function openAuditGlobal() {
+            initAuditDates();
+            $("aeAuditModal").classList.add("show");
+            $("aeAuditModal").setAttribute("aria-hidden", "false");
+            document.body.style.overflow = "hidden";
+            loadAuditGlobal();
+        }
+
+        function closeAuditGlobal() {
+            $("aeAuditModal").classList.remove("show");
+            $("aeAuditModal").setAttribute("aria-hidden", "true");
+            document.body.style.overflow = "";
+        }
+
+        function resetAuditGlobal() {
+            $("aeAuditDesde").value = "";
+            $("aeAuditHasta").value = "";
+            $("aeAuditPlanta").value = "TODOS";
+            $("aeAuditUsuario").value = "";
+            $("aeAuditAccion").value = "";
+            $("aeAuditHistorico").value = "";
+            $("aeAuditTexto").value = "";
+            loadAuditGlobal();
+        }
+
+        function downloadAuditExcel() {
+            const qs = auditQueryString();
+
+            const url =
+                `${URLS.auditoriaExcel}?${qs}${qs ? "&" : ""}_=${Date.now()}`;
+
+            window.location.href = url;
+        }
+
+
 
         async function setSource(source) {
             state.source = String(source).toUpperCase() === "TIF" ? "TIF" : "P1";
@@ -1160,6 +1874,30 @@
                 if (bulkRowStatus(row).eligible && !row.processedOk) row.selected = e.target.checked;
             });
             renderBulkRows();
+        });
+
+        $("btnAeAuditGlobal").addEventListener("click", openAuditGlobal);
+        $("btnAeAuditClose").addEventListener("click", closeAuditGlobal);
+        $("btnAeAuditSearch").addEventListener("click", loadAuditGlobal);
+        $("btnAeAuditReset").addEventListener("click", resetAuditGlobal);
+        $("btnAeAuditExcel").addEventListener("click", downloadAuditExcel);
+
+        $("aeAuditTexto").addEventListener("keydown", e => {
+            if (e.key === "Enter") loadAuditGlobal();
+        });
+
+        $("aeAuditUsuario").addEventListener("keydown", e => {
+            if (e.key === "Enter") loadAuditGlobal();
+        });
+
+        $("aeAuditModal").addEventListener("click", e => {
+            if (e.target === $("aeAuditModal")) closeAuditGlobal();
+        });
+
+        document.addEventListener("keydown", e => {
+            if (e.key === "Escape" && $("aeAuditModal").classList.contains("show")) {
+                closeAuditGlobal();
+            }
         });
 
         $("btnAeSearch").addEventListener("click", searchLabel);

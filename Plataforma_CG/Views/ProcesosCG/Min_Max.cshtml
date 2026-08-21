@@ -317,341 +317,341 @@
 
 
 <script>
-(function () {
-    function prepararContenedorMinMax() {
-        const root = document.querySelector('.minmax-root');
-        if (!root) return;
+    (function () {
+        function prepararContenedorMinMax() {
+            const root = document.querySelector('.minmax-root');
+            if (!root) return;
 
-        let parent = root.parentElement;
+            let parent = root.parentElement;
 
-        while (parent && parent !== document.body) {
-            if (
-                parent.matches('.container, .container-fluid, .pb-3') ||
-                parent.matches('main[role="main"]')
-            ) {
-                parent.classList.add(
-                    'mm-minmax-host',
-                    'mm-minmax-host-clean'
-                );
+            while (parent && parent !== document.body) {
+                if (
+                    parent.matches('.container, .container-fluid, .pb-3') ||
+                    parent.matches('main[role="main"]')
+                ) {
+                    parent.classList.add(
+                        'mm-minmax-host',
+                        'mm-minmax-host-clean'
+                    );
+                }
+
+                parent = parent.parentElement;
             }
-
-            parent = parent.parentElement;
         }
-    }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', prepararContenedorMinMax);
-    } else {
-        prepararContenedorMinMax();
-    }
-})();
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', prepararContenedorMinMax);
+        } else {
+            prepararContenedorMinMax();
+        }
+    })();
 </script>
 
 
 <script>
-(function () {
-    'use strict';
+    (function () {
+        'use strict';
 
-    const ROOT_SELECTOR = '.minmax-root';
-    const SIDEBAR_SELECTORS = [
-        '#sidebar',
-        '.sidebar',
-        '.main-sidebar',
-        '.app-sidebar',
-        '.sidebar-wrapper',
-        '.left-sidebar',
-        'aside',
-        '[id*="sidebar" i]',
-        '[class*="sidebar" i]',
-        '[data-sidebar]'
-    ].join(',');
+        const ROOT_SELECTOR = '.minmax-root';
+        const SIDEBAR_SELECTORS = [
+            '#sidebar',
+            '.sidebar',
+            '.main-sidebar',
+            '.app-sidebar',
+            '.sidebar-wrapper',
+            '.left-sidebar',
+            'aside',
+            '[id*="sidebar" i]',
+            '[class*="sidebar" i]',
+            '[data-sidebar]'
+        ].join(',');
 
-    let root = null;
-    let parent = null;
-    let sidebar = null;
+        let root = null;
+        let parent = null;
+        let sidebar = null;
 
-    let intervalId = 0;
-    let finalTimerId = 0;
-    let lastWidth = -1;
-    let lastLeft = -1;
+        let intervalId = 0;
+        let finalTimerId = 0;
+        let lastWidth = -1;
+        let lastLeft = -1;
 
-    function esSidebarValido(element) {
-        if (!element || !document.documentElement.contains(element)) {
-            return false;
-        }
-
-        if (root && (element === root || root.contains(element))) {
-            return false;
-        }
-
-        const style = window.getComputedStyle(element);
-        const rect = element.getBoundingClientRect();
-        const viewportWidth = document.documentElement.clientWidth;
-        const viewportHeight = window.innerHeight;
-
-        return (
-            style.display !== 'none' &&
-            style.visibility !== 'hidden' &&
-            Number.parseFloat(style.opacity || '1') > 0.05 &&
-            rect.left <= 10 &&
-            rect.width >= 150 &&
-            rect.width <= Math.min(470, viewportWidth * 0.60) &&
-            rect.height >= Math.max(400, viewportHeight * 0.52)
-        );
-    }
-
-    function buscarSidebar() {
-        let mejor = null;
-        let mejorPuntaje = -1;
-
-        document.querySelectorAll(SIDEBAR_SELECTORS).forEach(function (element) {
-            if (!esSidebarValido(element)) return;
-
-            const rect = element.getBoundingClientRect();
-            const puntaje = rect.height + (rect.width * 2);
-
-            if (puntaje > mejorPuntaje) {
-                mejor = element;
-                mejorPuntaje = puntaje;
-            }
-        });
-
-        if (mejor) return mejor;
-
-        /*
-         * Búsqueda geométrica de respaldo. Sólo se ejecuta cuando todavía
-         * no se conoce el sidebar; no se repite durante cada ajuste.
-         */
-        const puntosY = [
-            140,
-            Math.round(window.innerHeight * 0.40),
-            Math.round(window.innerHeight * 0.72)
-        ];
-
-        puntosY.some(function (y) {
-            return [5, 24, 70].some(function (x) {
-                const elementos = document.elementsFromPoint(x, y);
-
-                for (const element of elementos) {
-                    let actual = element;
-
-                    while (actual && actual !== document.body) {
-                        if (esSidebarValido(actual)) {
-                            mejor = actual;
-                            return true;
-                        }
-
-                        actual = actual.parentElement;
-                    }
-                }
-
+        function esSidebarValido(element) {
+            if (!element || !document.documentElement.contains(element)) {
                 return false;
-            });
-        });
-
-        return mejor;
-    }
-
-    function bordeDerechoSidebar() {
-        if (!sidebar || !esSidebarValido(sidebar)) {
-            sidebar = buscarSidebar();
-        }
-
-        if (!sidebar) return 0;
-
-        const rect = sidebar.getBoundingClientRect();
-
-        /*
-         * Cuando el menú está contraído fuera de pantalla, su borde derecho
-         * puede ser cero o negativo.
-         */
-        return Math.max(0, Math.round(rect.right));
-    }
-
-    function aplicarAjuste() {
-        root ??= document.querySelector(ROOT_SELECTOR);
-        if (!root) return;
-
-        parent = root.parentElement;
-        if (!parent) return;
-
-        const parentRect = parent.getBoundingClientRect();
-        const sidebarRight = bordeDerechoSidebar();
-
-        const targetLeft = Math.max(parentRect.left, sidebarRight);
-        const leftOffset = Math.max(
-            0,
-            Math.round(targetLeft - parentRect.left)
-        );
-
-        const availableWidth = Math.max(
-            320,
-            Math.floor(parentRect.right - targetLeft)
-        );
-
-        /*
-         * No escribir estilos cuando el valor no cambió. Esto evita
-         * recalcular toda la tabla y los KPIs innecesariamente.
-         */
-        if (
-            Math.abs(availableWidth - lastWidth) < 2 &&
-            Math.abs(leftOffset - lastLeft) < 2
-        ) {
-            return;
-        }
-
-        lastWidth = availableWidth;
-        lastLeft = leftOffset;
-
-        root.style.setProperty('position', 'relative', 'important');
-        root.style.setProperty('left', leftOffset + 'px', 'important');
-        root.style.setProperty('width', availableWidth + 'px', 'important');
-        root.style.setProperty('max-width', availableWidth + 'px', 'important');
-        root.style.setProperty('margin-left', '0', 'important');
-        root.style.setProperty('margin-right', '0', 'important');
-    }
-
-    function detenerSecuencia() {
-        if (intervalId) {
-            window.clearInterval(intervalId);
-            intervalId = 0;
-        }
-
-        if (finalTimerId) {
-            window.clearTimeout(finalTimerId);
-            finalTimerId = 0;
-        }
-    }
-
-    function ajustarDuranteTransicion() {
-        detenerSecuencia();
-
-        /*
-         * Se mide aproximadamente cada 70 ms, no en cada frame.
-         * Esto mantiene el movimiento del sidebar sin recalcular la vista
-         * completa decenas de veces por segundo.
-         */
-        aplicarAjuste();
-
-        intervalId = window.setInterval(aplicarAjuste, 70);
-
-        finalTimerId = window.setTimeout(function () {
-            detenerSecuencia();
-            aplicarAjuste();
-        }, 490);
-    }
-
-    function clickRelacionadoConSidebar(event) {
-        const target = event.target instanceof Element
-            ? event.target
-            : null;
-
-        if (!target) return false;
-
-        const control = target.closest(
-            'button, a, [role="button"], [aria-expanded], [aria-controls]'
-        );
-
-        if (!control) return false;
-
-        const descriptor = [
-            control.id,
-            control.className,
-            control.getAttribute('aria-controls'),
-            control.getAttribute('title'),
-            control.getAttribute('data-target'),
-            control.getAttribute('data-bs-target')
-        ]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase();
-
-        const rect = control.getBoundingClientRect();
-
-        return (
-            descriptor.includes('sidebar') ||
-            descriptor.includes('menu') ||
-            descriptor.includes('toggle') ||
-            descriptor.includes('collapse') ||
-            rect.left < 330
-        );
-    }
-
-    function iniciar() {
-        root = document.querySelector(ROOT_SELECTOR);
-        if (!root) return;
-
-        parent = root.parentElement;
-        sidebar = buscarSidebar();
-
-        aplicarAjuste();
-
-        window.addEventListener(
-            'resize',
-            ajustarDuranteTransicion,
-            { passive: true }
-        );
-
-        window.addEventListener(
-            'orientationchange',
-            ajustarDuranteTransicion,
-            { passive: true }
-        );
-
-        document.addEventListener('click', function (event) {
-            if (clickRelacionadoConSidebar(event)) {
-                /*
-                 * La clase del menú suele cambiar después del evento click.
-                 */
-                window.setTimeout(function () {
-                    sidebar = buscarSidebar() || sidebar;
-                    ajustarDuranteTransicion();
-                }, 0);
             }
-        }, true);
 
-        /*
-         * Sólo se observan cambios del propio sidebar y del padre inmediato.
-         * Ya no se observa todo el documento ni todos sus estilos.
-         */
-        if ('ResizeObserver' in window) {
-            const resizeObserver = new ResizeObserver(
-                ajustarDuranteTransicion
+            if (root && (element === root || root.contains(element))) {
+                return false;
+            }
+
+            const style = window.getComputedStyle(element);
+            const rect = element.getBoundingClientRect();
+            const viewportWidth = document.documentElement.clientWidth;
+            const viewportHeight = window.innerHeight;
+
+            return (
+                style.display !== 'none' &&
+                style.visibility !== 'hidden' &&
+                Number.parseFloat(style.opacity || '1') > 0.05 &&
+                rect.left <= 10 &&
+                rect.width >= 150 &&
+                rect.width <= Math.min(470, viewportWidth * 0.60) &&
+                rect.height >= Math.max(400, viewportHeight * 0.52)
+            );
+        }
+
+        function buscarSidebar() {
+            let mejor = null;
+            let mejorPuntaje = -1;
+
+            document.querySelectorAll(SIDEBAR_SELECTORS).forEach(function (element) {
+                if (!esSidebarValido(element)) return;
+
+                const rect = element.getBoundingClientRect();
+                const puntaje = rect.height + (rect.width * 2);
+
+                if (puntaje > mejorPuntaje) {
+                    mejor = element;
+                    mejorPuntaje = puntaje;
+                }
+            });
+
+            if (mejor) return mejor;
+
+            /*
+             * Búsqueda geométrica de respaldo. Sólo se ejecuta cuando todavía
+             * no se conoce el sidebar; no se repite durante cada ajuste.
+             */
+            const puntosY = [
+                140,
+                Math.round(window.innerHeight * 0.40),
+                Math.round(window.innerHeight * 0.72)
+            ];
+
+            puntosY.some(function (y) {
+                return [5, 24, 70].some(function (x) {
+                    const elementos = document.elementsFromPoint(x, y);
+
+                    for (const element of elementos) {
+                        let actual = element;
+
+                        while (actual && actual !== document.body) {
+                            if (esSidebarValido(actual)) {
+                                mejor = actual;
+                                return true;
+                            }
+
+                            actual = actual.parentElement;
+                        }
+                    }
+
+                    return false;
+                });
+            });
+
+            return mejor;
+        }
+
+        function bordeDerechoSidebar() {
+            if (!sidebar || !esSidebarValido(sidebar)) {
+                sidebar = buscarSidebar();
+            }
+
+            if (!sidebar) return 0;
+
+            const rect = sidebar.getBoundingClientRect();
+
+            /*
+             * Cuando el menú está contraído fuera de pantalla, su borde derecho
+             * puede ser cero o negativo.
+             */
+            return Math.max(0, Math.round(rect.right));
+        }
+
+        function aplicarAjuste() {
+            root ??= document.querySelector(ROOT_SELECTOR);
+            if (!root) return;
+
+            parent = root.parentElement;
+            if (!parent) return;
+
+            const parentRect = parent.getBoundingClientRect();
+            const sidebarRight = bordeDerechoSidebar();
+
+            const targetLeft = Math.max(parentRect.left, sidebarRight);
+            const leftOffset = Math.max(
+                0,
+                Math.round(targetLeft - parentRect.left)
             );
 
-            if (parent) {
-                resizeObserver.observe(parent);
+            const availableWidth = Math.max(
+                320,
+                Math.floor(parentRect.right - targetLeft)
+            );
+
+            /*
+             * No escribir estilos cuando el valor no cambió. Esto evita
+             * recalcular toda la tabla y los KPIs innecesariamente.
+             */
+            if (
+                Math.abs(availableWidth - lastWidth) < 2 &&
+                Math.abs(leftOffset - lastLeft) < 2
+            ) {
+                return;
+            }
+
+            lastWidth = availableWidth;
+            lastLeft = leftOffset;
+
+            root.style.setProperty('position', 'relative', 'important');
+            root.style.setProperty('left', leftOffset + 'px', 'important');
+            root.style.setProperty('width', availableWidth + 'px', 'important');
+            root.style.setProperty('max-width', availableWidth + 'px', 'important');
+            root.style.setProperty('margin-left', '0', 'important');
+            root.style.setProperty('margin-right', '0', 'important');
+        }
+
+        function detenerSecuencia() {
+            if (intervalId) {
+                window.clearInterval(intervalId);
+                intervalId = 0;
+            }
+
+            if (finalTimerId) {
+                window.clearTimeout(finalTimerId);
+                finalTimerId = 0;
+            }
+        }
+
+        function ajustarDuranteTransicion() {
+            detenerSecuencia();
+
+            /*
+             * Se mide aproximadamente cada 70 ms, no en cada frame.
+             * Esto mantiene el movimiento del sidebar sin recalcular la vista
+             * completa decenas de veces por segundo.
+             */
+            aplicarAjuste();
+
+            intervalId = window.setInterval(aplicarAjuste, 70);
+
+            finalTimerId = window.setTimeout(function () {
+                detenerSecuencia();
+                aplicarAjuste();
+            }, 490);
+        }
+
+        function clickRelacionadoConSidebar(event) {
+            const target = event.target instanceof Element
+                ? event.target
+                : null;
+
+            if (!target) return false;
+
+            const control = target.closest(
+                'button, a, [role="button"], [aria-expanded], [aria-controls]'
+            );
+
+            if (!control) return false;
+
+            const descriptor = [
+                control.id,
+                control.className,
+                control.getAttribute('aria-controls'),
+                control.getAttribute('title'),
+                control.getAttribute('data-target'),
+                control.getAttribute('data-bs-target')
+            ]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase();
+
+            const rect = control.getBoundingClientRect();
+
+            return (
+                descriptor.includes('sidebar') ||
+                descriptor.includes('menu') ||
+                descriptor.includes('toggle') ||
+                descriptor.includes('collapse') ||
+                rect.left < 330
+            );
+        }
+
+        function iniciar() {
+            root = document.querySelector(ROOT_SELECTOR);
+            if (!root) return;
+
+            parent = root.parentElement;
+            sidebar = buscarSidebar();
+
+            aplicarAjuste();
+
+            window.addEventListener(
+                'resize',
+                ajustarDuranteTransicion,
+                { passive: true }
+            );
+
+            window.addEventListener(
+                'orientationchange',
+                ajustarDuranteTransicion,
+                { passive: true }
+            );
+
+            document.addEventListener('click', function (event) {
+                if (clickRelacionadoConSidebar(event)) {
+                    /*
+                     * La clase del menú suele cambiar después del evento click.
+                     */
+                    window.setTimeout(function () {
+                        sidebar = buscarSidebar() || sidebar;
+                        ajustarDuranteTransicion();
+                    }, 0);
+                }
+            }, true);
+
+            /*
+             * Sólo se observan cambios del propio sidebar y del padre inmediato.
+             * Ya no se observa todo el documento ni todos sus estilos.
+             */
+            if ('ResizeObserver' in window) {
+                const resizeObserver = new ResizeObserver(
+                    ajustarDuranteTransicion
+                );
+
+                if (parent) {
+                    resizeObserver.observe(parent);
+                }
+
+                if (sidebar) {
+                    resizeObserver.observe(sidebar);
+                }
             }
 
             if (sidebar) {
-                resizeObserver.observe(sidebar);
+                const mutationObserver = new MutationObserver(
+                    ajustarDuranteTransicion
+                );
+
+                mutationObserver.observe(sidebar, {
+                    attributes: true,
+                    attributeFilter: [
+                        'class',
+                        'style',
+                        'aria-expanded',
+                        'aria-hidden',
+                        'data-state'
+                    ]
+                });
             }
         }
 
-        if (sidebar) {
-            const mutationObserver = new MutationObserver(
-                ajustarDuranteTransicion
-            );
-
-            mutationObserver.observe(sidebar, {
-                attributes: true,
-                attributeFilter: [
-                    'class',
-                    'style',
-                    'aria-expanded',
-                    'aria-hidden',
-                    'data-state'
-                ]
-            });
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', iniciar, { once: true });
+        } else {
+            iniciar();
         }
-    }
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', iniciar, { once: true });
-    } else {
-        iniciar();
-    }
-})();
+    })();
 </script>
 
 
@@ -955,7 +955,10 @@
                 const rows = Array.isArray(data?.data) ? data.data : [];
                 datos = rows
                     .map(normalizarFila)
-                    .filter(x => x.sku);
+                    .filter(x =>
+                        x.sku &&
+                        x.kgProduccionMes > 0
+                    );
 
                 llenarFiltros();
                 renderizar();
@@ -1290,7 +1293,13 @@
                 const width = (Math.abs(item.gapIdeal) / max) * 100;
 
                 return `
-                    <div class="mm-top-row">
+                    <div class="mm-top-row mm-top-clickable"
+                         data-sku="${esc(item.sku)}"
+                         role="button"
+                         tabindex="0"
+                         aria-label="Ver detalle del SKU ${esc(item.sku)}"
+                         title="Clic para ver el detalle del SKU ${esc(item.sku)}">
+
                         <strong>${esc(item.sku)}</strong>
 
                         <div>
@@ -1298,7 +1307,7 @@
                                 ${esc(item.producto)}
                             </div>
 
-                            <div class="mm-bar" style="margin-top:3px">
+                            <div class="mm-bar mm-top-bar" style="margin-top:3px">
                                 <div class="mm-bar-fill fill-${esc(item.estatus)}"
                                      style="width:${width}%"></div>
                             </div>
@@ -1310,6 +1319,64 @@
                         </strong>
                     </div>`;
             }).join("");
+        }
+
+        function abrirDetalleSku(sku) {
+            const skuNormalizado = normalizarTexto(sku).toUpperCase();
+            if (!skuNormalizado) return;
+
+            const filtroActual = normalizarTexto(buscarInput.value).toUpperCase();
+
+            /*
+             * TOGGLE DEL FILTRO:
+             * - Primer clic: filtra el SKU seleccionado.
+             * - Segundo clic sobre el mismo SKU: quita el filtro.
+             * - Clic sobre otro SKU: cambia directamente al nuevo SKU.
+             */
+            if (filtroActual === skuNormalizado) {
+                buscarInput.value = "";
+                renderizar();
+
+                /*
+                 * Al quitar el filtro regresamos a la gráfica para que el usuario
+                 * vuelva a tener visibles todos los productos del filtro general.
+                 */
+                const grafica = el("topChart");
+
+                if (grafica) {
+                    window.requestAnimationFrame(() => {
+                        grafica.scrollIntoView({
+                            behavior: "smooth",
+                            block: "center"
+                        });
+                    });
+                }
+
+                buscarInput.blur();
+                return;
+            }
+
+            /*
+             * Aplica el SKU en el buscador existente. No realiza una segunda
+             * consulta al servidor; solamente vuelve a renderizar los datos
+             * ya cargados en memoria.
+             */
+            buscarInput.value = skuNormalizado;
+            renderizar();
+
+            /*
+             * Baja al detalle una vez que el DOM ya fue actualizado.
+             */
+            const detalle = document.querySelector(".mm-detail-card");
+
+            if (detalle) {
+                window.requestAnimationFrame(() => {
+                    detalle.scrollIntoView({
+                        behavior: "smooth",
+                        block: "start"
+                    });
+                });
+            }
         }
 
         async function cargarCatalogo() {
@@ -1671,6 +1738,27 @@
         clasificacionSelect.addEventListener("change", renderizar);
         masterSelect.addEventListener("change", renderizar);
         estatusSelect.addEventListener("change", renderizar);
+
+        /*
+         * Gráfica "Mayor exceso o faltante contra ideal":
+         * clic / Enter / Espacio abre el detalle del SKU seleccionado.
+         */
+        el("topChart").addEventListener("click", event => {
+            const row = event.target.closest(".mm-top-clickable[data-sku]");
+            if (!row) return;
+
+            abrirDetalleSku(row.dataset.sku);
+        });
+
+        el("topChart").addEventListener("keydown", event => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+
+            const row = event.target.closest(".mm-top-clickable[data-sku]");
+            if (!row) return;
+
+            event.preventDefault();
+            abrirDetalleSku(row.dataset.sku);
+        });
 
         const mmTableHeader = el("mmTableHeader");
 

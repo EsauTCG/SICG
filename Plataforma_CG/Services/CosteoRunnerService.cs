@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Threading.Tasks;
@@ -78,9 +78,12 @@ namespace Plataforma_CG.Services
                     using var cn = new SqlConnection(connectionString);
                     await cn.OpenAsync();
 
-                    // El SP de canales no recibe LoteId. Por seguridad no se ejecuta
-                    // en modo LOTE, porque costearía todos los sacrificios de la fecha.
-                    if (modo != "LOTE")
+                    // CANALES:
+                    // - En DIA/RANGO/MES se conserva la secuencia normal y el SP trabaja por fecha.
+                    // - En LOTE solo se ejecuta cuando el proceso solicitado es CANALES.
+                    //   El procedimiento ajustado recibe @LoteIdFiltro y queda aislado al lote seleccionado.
+                    var ejecutarCanales = modo != "LOTE" || tipoProceso == "CANALES";
+                    if (ejecutarCanales)
                     {
                         var canales = await EjecutarSpCanalesInterno(
                             cn,
@@ -96,18 +99,13 @@ namespace Plataforma_CG.Services
                             if (!model.ContinuarConError)
                                 return results;
 
-                            // No ejecutar cajas/retrabajo del mismo día con canales incompletos.
+                            // No ejecutar etapas dependientes del mismo bloque con canales incompletos.
                             continue;
                         }
 
                         // Cuando el usuario selecciona CANALES, el bloque termina aquí.
                         if (tipoProceso == "CANALES")
                             continue;
-                    }
-                    else if (tipoProceso == "CANALES")
-                    {
-                        throw new ArgumentException(
-                            "El proceso CANALES no puede ejecutarse en modo LOTE porque el procedimiento no recibe LoteId.");
                     }
 
                     if (tipoProceso == "CAJAS" || tipoProceso == "AMBOS")
@@ -335,7 +333,13 @@ SELECT CASE
 
                         // El procedimiento detecta y sustituye el TipoPesoId por lote.
                         // El valor 1 funciona como valor inicial/fallback compatible.
-                        TipoPesoId = 1
+                        TipoPesoId = 1,
+
+                        // NULL mantiene el comportamiento histórico por fecha.
+                        // En modo LOTE obliga al SP a procesar exclusivamente este lote.
+                        LoteIdFiltro = string.Equals(model.Modo, "LOTE", StringComparison.OrdinalIgnoreCase)
+                            ? model.LoteId
+                            : null
                     },
                     commandType: CommandType.StoredProcedure,
                     commandTimeout: 0);

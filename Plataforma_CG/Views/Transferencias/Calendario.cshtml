@@ -5,7 +5,121 @@
 
 @Html.AntiForgeryToken()
 
+
 <link rel="stylesheet" href="~/css/calendario-logistica-grid.css" asp-append-version="true" />
+
+<style>
+    /*
+     * ================================================================
+     * CALENDARIO COMPACTO
+     * ================================================================
+     * Reduce la altura de los encabezados rojos de cada día y,
+     * cuando toda la semana/día está sin órdenes, elimina el espacio
+     * vertical innecesario del calendario.
+     * ================================================================
+     */
+
+    .calendario-logistica-app .section-calendar .section-body {
+        padding-top: 4px !important;
+        padding-bottom: 4px !important;
+    }
+
+    .calendario-logistica-app .calendar-wrap {
+        min-height: 0 !important;
+        height: auto !important;
+        max-height: none !important;
+    }
+
+    .calendario-logistica-app .calendar-board {
+        min-height: 0 !important;
+        height: auto !important;
+        align-items: stretch !important;
+        grid-auto-rows: auto !important;
+    }
+
+    /*
+     * Encabezado rojo del día.
+     * Antes ocupaba demasiado alto incluso sin información.
+     */
+    .calendario-logistica-app .day-head {
+        min-height: 58px !important;
+        height: 58px !important;
+        max-height: 58px !important;
+        padding: 5px 7px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: flex-start !important;
+        gap: 0 !important;
+        overflow: hidden !important;
+    }
+
+    .calendario-logistica-app .day-head .day-num {
+        font-size: 18px !important;
+        line-height: 18px !important;
+        margin: 0 !important;
+    }
+
+    .calendario-logistica-app .day-head .day-name {
+        font-size: 9px !important;
+        line-height: 11px !important;
+        margin-top: 2px !important;
+    }
+
+    .calendario-logistica-app .day-head .day-date {
+        font-size: 8px !important;
+        line-height: 10px !important;
+        margin-top: 0 !important;
+    }
+
+    /*
+     * Días sin órdenes.
+     */
+    .calendario-logistica-app .day-col {
+        min-height: 0 !important;
+        height: auto !important;
+    }
+
+    .calendario-logistica-app .day-slot {
+        height: auto !important;
+    }
+
+    .calendario-logistica-app .empty-cell {
+        min-height: 54px !important;
+        height: auto !important;
+        padding: 8px 7px !important;
+        display: flex !important;
+        align-items: flex-start !important;
+        font-size: 10px !important;
+        line-height: 13px !important;
+    }
+
+    /*
+     * Si NO existe ninguna orden en todo el rango visible,
+     * el calendario completo se hace compacto.
+     */
+    .calendario-logistica-app .calendar-board.calendar-empty .day-col,
+    .calendario-logistica-app .calendar-board.calendar-empty .day-slot {
+        min-height: 54px !important;
+        height: 54px !important;
+        max-height: 54px !important;
+    }
+
+    .calendario-logistica-app .calendar-board.calendar-empty .empty-cell {
+        min-height: 54px !important;
+        height: 54px !important;
+        max-height: 54px !important;
+        overflow: hidden !important;
+    }
+
+    /*
+     * Si hay órdenes, se permite crecer normalmente con el contenido.
+     */
+    .calendario-logistica-app .calendar-board:not(.calendar-empty) .day-col,
+    .calendario-logistica-app .calendar-board:not(.calendar-empty) .day-slot {
+        height: auto !important;
+        max-height: none !important;
+    }
+</style>
 
 <div class="cal-window calendario-logistica-app">
     <div class="cal-titlebar">
@@ -752,6 +866,12 @@
             function renderBoard() {
                 const visibleDays = getVisibleDays();
                 const items = getFilteredData();
+
+                /*
+                 * Si todo el rango está vacío, aplicamos un modo compacto.
+                 * No cambia datos ni consultas; únicamente la presentación.
+                 */
+                $board.classList.toggle('calendar-empty', items.length === 0);
 
                 const minCol = window.innerWidth >= 1700 ? 'minmax(0, 1fr)' : 'minmax(230px, 1fr)';
                 $board.style.gridTemplateColumns = `repeat(${visibleDays.length}, ${minCol})`;

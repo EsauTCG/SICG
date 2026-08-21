@@ -1,0 +1,1065 @@
+@model Plataforma_CG.ViewModels.SurtidoAlmacenVM
+
+@{
+    ViewData["Title"] = "Ubicación inteligente";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<link rel="stylesheet"
+      href="~/css/surtido-wms-v7.css"
+      asp-append-version="true" />
+
+<style>
+    .putaway-page{
+        max-width:1160px;
+        margin:0 auto;
+        padding:18px 14px 40px;
+    }
+
+    .putaway-header{
+        margin-bottom:12px;
+    }
+
+    .putaway-title{
+        margin:3px 0 2px;
+        font-size:1.55rem;
+        font-weight:950;
+        color:#fff;
+        letter-spacing:-.03em;
+    }
+
+    .putaway-sub{
+        margin:0;
+        color:#7f9ab7;
+        font-size:.70rem;
+    }
+
+    .rotation-grid{
+        display:grid;
+        grid-template-columns:repeat(3,minmax(0,1fr));
+        gap:9px;
+        margin-top:12px;
+    }
+
+    .rotation-card{
+        min-height:58px;
+        border:1px solid #25415e;
+        background:#0d1d30;
+        border-radius:12px;
+        padding:10px 12px;
+        display:flex;
+        gap:9px;
+        align-items:center;
+    }
+
+    .rotation-card.high{
+        border-color:#17665e;
+    }
+
+    .rotation-card.medium{
+        border-color:#725a22;
+    }
+
+    .rotation-card.low{
+        border-color:#274f7a;
+    }
+
+    .rotation-icon{
+        width:32px;
+        height:32px;
+        border-radius:9px;
+        display:grid;
+        place-items:center;
+        font-size:.95rem;
+        flex:0 0 auto;
+    }
+
+    .rotation-card.high .rotation-icon{
+        background:rgba(23,190,156,.12);
+        color:#33e2c0;
+    }
+
+    .rotation-card.medium .rotation-icon{
+        background:rgba(255,190,70,.12);
+        color:#ffc75d;
+    }
+
+    .rotation-card.low .rotation-icon{
+        background:rgba(47,140,255,.12);
+        color:#71b6ff;
+    }
+
+    .rotation-card small{
+        display:block;
+        font-size:.52rem;
+        text-transform:uppercase;
+        letter-spacing:.06em;
+        font-weight:950;
+    }
+
+    .rotation-card strong{
+        display:block;
+        margin-top:2px;
+        color:#fff;
+        font-size:.88rem;
+    }
+
+    .rotation-card span{
+        display:block;
+        margin-top:1px;
+        color:#738ba5;
+        font-size:.54rem;
+    }
+
+    .putaway-rule{
+        margin-top:8px;
+        border:1px solid #23415e;
+        background:#0b192a;
+        border-radius:9px;
+        padding:8px 10px;
+        color:#819bb5;
+        font-size:.56rem;
+        line-height:1.45;
+    }
+
+    .putaway-rule strong{
+        color:#d8e8f7;
+    }
+
+    .warehouse-info-grid{
+        display:grid;
+        grid-template-columns:repeat(3,minmax(0,1fr));
+        gap:8px;
+        margin-top:11px;
+    }
+
+    .warehouse-info{
+        border:1px solid #213c57;
+        border-radius:10px;
+        background:#0d1d30;
+        padding:9px 11px;
+    }
+
+    .warehouse-info small{
+        display:block;
+        color:#5d7c9c;
+        font-size:.50rem;
+        text-transform:uppercase;
+        letter-spacing:.06em;
+        font-weight:950;
+    }
+
+    .warehouse-info strong{
+        display:block;
+        margin-top:3px;
+        color:#fff;
+        font-size:.70rem;
+    }
+
+    .putaway-workspace{
+        display:grid;
+        grid-template-columns:minmax(0,1.15fr) minmax(360px,.85fr);
+        gap:12px;
+        margin-top:12px;
+        align-items:start;
+    }
+
+    .putaway-left{
+        display:grid;
+        gap:11px;
+    }
+
+    .putaway-step-card,
+    .putaway-preview-card{
+        border:1px solid #213c57;
+        background:#0d1d30;
+        border-radius:15px;
+        padding:14px;
+    }
+
+    .putaway-step-card.disabled{
+        opacity:.43;
+    }
+
+    .putaway-step-label{
+        color:#4aa2ff;
+        font-size:.53rem;
+        font-weight:950;
+        letter-spacing:.09em;
+        text-transform:uppercase;
+    }
+
+    .putaway-step-card h2,
+    .putaway-preview-card h2{
+        margin:4px 0 3px;
+        color:#fff;
+        font-size:1rem;
+        font-weight:950;
+    }
+
+    .putaway-step-card p,
+    .putaway-preview-card p{
+        margin:0;
+        color:#728aa4;
+        font-size:.57rem;
+        line-height:1.4;
+    }
+
+    .scan-row{
+        display:grid;
+        grid-template-columns:minmax(0,1fr) auto;
+        gap:7px;
+        margin-top:11px;
+    }
+
+    .scan-row input{
+        min-width:0;
+        height:39px;
+        border:1px solid #284763;
+        background:#081522;
+        color:#fff;
+        border-radius:9px;
+        padding:0 12px;
+        outline:none;
+        font-size:.75rem;
+        text-transform:uppercase;
+    }
+
+    .scan-row input::placeholder{
+        color:#6e8195;
+    }
+
+    .scan-row button{
+        border:0;
+        border-radius:9px;
+        min-width:74px;
+        padding:0 14px;
+        background:#2d86ff;
+        color:#fff;
+        font-weight:950;
+        font-size:.56rem;
+    }
+
+    .scan-row button:disabled{
+        opacity:.42;
+    }
+
+    .slotting-result{
+        margin-top:9px;
+        border:1px solid #264762;
+        border-radius:9px;
+        background:#091827;
+        min-height:30px;
+        padding:8px 10px;
+        color:#80a5c6;
+        font-size:.57rem;
+    }
+
+    .putaway-note{
+        margin-top:7px;
+        color:#4a9cff;
+        font-size:.50rem;
+    }
+
+    .putaway-note .candidate{
+        color:#e0af47;
+        margin-left:12px;
+    }
+
+    .confirm-location-btn{
+        width:100%;
+        min-height:42px;
+        margin-top:10px;
+        border:0;
+        border-radius:10px;
+        background:#236aa7;
+        color:#6f8eaa;
+        font-weight:950;
+        font-size:.64rem;
+    }
+
+    .confirm-location-btn.ready{
+        background:linear-gradient(90deg,#1f7fe9,#2aa6ff);
+        color:#fff;
+    }
+
+    .putaway-preview-card{
+        padding:12px;
+        position:sticky;
+        top:12px;
+    }
+
+    .preview-head{
+        display:flex;
+        justify-content:space-between;
+        align-items:start;
+        gap:10px;
+        margin-bottom:8px;
+    }
+
+    .preview-focus{
+        border:1px solid #254867;
+        background:#0b1a2a;
+        color:#8bbef2;
+        border-radius:8px;
+        padding:7px 9px;
+        font-size:.50rem;
+        font-weight:950;
+    }
+
+    .putaway-preview-card .wms-rack3d{
+        height:430px;
+        border-radius:10px;
+    }
+
+    .preview-legend{
+        display:flex;
+        flex-wrap:wrap;
+        gap:8px;
+        margin-top:7px;
+        color:#6e869e;
+        font-size:.49rem;
+    }
+
+    .preview-legend span{
+        display:inline-flex;
+        align-items:center;
+        gap:4px;
+    }
+
+    .preview-legend i{
+        width:8px;
+        height:8px;
+        border-radius:2px;
+        display:inline-block;
+    }
+
+    .leg-target{background:#d354f1;}
+    .leg-inventory{background:#2c89f8;}
+    .leg-assigned{background:#f1b94b;}
+    .leg-empty{background:#56677a;}
+
+    .zone-badges{
+        display:flex;
+        gap:6px;
+        flex-wrap:wrap;
+        margin-top:7px;
+    }
+
+    .zone-badge{
+        border-radius:999px;
+        padding:4px 7px;
+        font-size:.46rem;
+        font-weight:950;
+    }
+
+    .zone-badge.high{
+        background:rgba(36,206,157,.13);
+        color:#46e5b8;
+    }
+
+    .zone-badge.medium{
+        background:rgba(255,188,63,.12);
+        color:#ffc95f;
+    }
+
+    .zone-badge.low{
+        background:rgba(55,140,255,.12);
+        color:#78b7ff;
+    }
+
+    .preview-location{
+        margin-top:8px;
+        width:100%;
+        height:31px;
+        border:1px solid #274661;
+        border-radius:8px;
+        background:#091827;
+        color:#8aa1b8;
+        padding:0 9px;
+        font-size:.56rem;
+    }
+
+    .status-ok{
+        color:#45daa9;
+    }
+
+    .status-warn{
+        color:#ffc55d;
+    }
+
+    .status-error{
+        color:#ff7583;
+    }
+
+    @@media(max-width:900px){
+        .putaway-workspace{
+            grid-template-columns:1fr;
+        }
+
+        .putaway-preview-card{
+            position:static;
+        }
+
+        .putaway-preview-card .wms-rack3d{
+            height:360px;
+        }
+    }
+
+    @@media(max-width:650px){
+        .rotation-grid,
+        .warehouse-info-grid{
+            grid-template-columns:1fr;
+        }
+
+        .scan-row{
+            grid-template-columns:1fr;
+        }
+
+        .scan-row button{
+            min-height:38px;
+        }
+
+        .putaway-preview-card .wms-rack3d{
+            height:290px;
+        }
+    }
+</style>
+
+
+<div class="wms-v7">
+
+    <main class="putaway-page">
+
+        <a class="wms-back"
+           href="@Url.Action(
+                "Surtido_cedis",
+                "Surtido",
+                new
+                {
+                    almacen = Model.Codigo
+                }
+           )">
+            ‹ Inicio
+        </a>
+
+
+        <section class="putaway-header">
+
+            <span class="wms-overline">
+                UBICACIÓN INTELIGENTE · SLOTTING
+            </span>
+
+            <h1 class="putaway-title">
+                Ubicar tarima o caja
+            </h1>
+
+            <p class="putaway-sub">
+                El sistema decide la zona por rotación de días de inventario y después agrupa el SKU para evitar producto regado.
+            </p>
+
+        </section>
+
+
+        <section class="rotation-grid">
+
+            <article class="rotation-card high">
+                <div class="rotation-icon">⚡</div>
+                <div>
+                    <small>Alta rotación</small>
+                    <strong>≤ 7 días</strong>
+                    <span>FRENTE · cerca de surtido</span>
+                </div>
+            </article>
+
+            <article class="rotation-card medium">
+                <div class="rotation-icon">↔</div>
+                <div>
+                    <small>Media rotación</small>
+                    <strong>8–20 días</strong>
+                    <span>ZONA MEDIA</span>
+                </div>
+            </article>
+
+            <article class="rotation-card low">
+                <div class="rotation-icon">◷</div>
+                <div>
+                    <small>Baja rotación</small>
+                    <strong>&gt; 20 días</strong>
+                    <span>FONDO · menor prioridad</span>
+                </div>
+            </article>
+
+        </section>
+
+
+        <div class="putaway-rule">
+            <strong>Regla de acomodo:</strong>
+            Planta/Almacén correctos → TIF/NO TIF → Rotación → zona física → mismo SKU junto → continuidad → ubicación final.
+        </div>
+
+
+        <section class="warehouse-info-grid">
+
+            <article class="warehouse-info">
+                <small>Planta / almacén</small>
+                <strong>
+                    @Model.Nombre
+                </strong>
+            </article>
+
+            <article class="warehouse-info">
+                <small>Clasificación</small>
+                <strong>
+                    @Model.Clasificacion
+                </strong>
+            </article>
+
+            <article class="warehouse-info">
+                <small>Layout</small>
+                <strong>
+                    @(Model.TieneLayout3D
+                        ? "3D CONFIRMADO"
+                        : "RACK 3D")
+                </strong>
+            </article>
+
+        </section>
+
+
+        <section class="putaway-workspace">
+
+            <div class="putaway-left">
+
+                <!-- ======================================================
+                     PASO 1
+                     ====================================================== -->
+                <article class="putaway-step-card">
+
+                    <div class="putaway-step-label">
+                        1 · Inventario
+                    </div>
+
+                    <h2>
+                        Escanea tarima o caja
+                    </h2>
+
+                    <p>
+                        Con el SKU calculamos días de inventario, nivel de rotación y zona de almacenamiento.
+                    </p>
+
+
+                    <div class="scan-row">
+
+                        <input id="scanInventory"
+                               placeholder="Ej. TAR-99001"
+                               autocomplete="off" />
+
+                        <button id="btnBuscarInventory"
+                                type="button">
+                            BUSCAR
+                        </button>
+
+                    </div>
+
+
+                    <div class="putaway-note">
+                        Usar tarima/caja real del inventario
+                    </div>
+
+
+                    <div id="inventoryResult"
+                         class="slotting-result">
+                        Escanea una tarima o caja para iniciar.
+                    </div>
+
+                </article>
+
+
+                <!-- ======================================================
+                     PASO 2
+                     ====================================================== -->
+                <article id="stepDestination"
+                         class="putaway-step-card disabled">
+
+                    <div class="putaway-step-label">
+                        2 · Ubicación destino
+                    </div>
+
+                    <h2>
+                        Escanea la ubicación
+                    </h2>
+
+                    <p>
+                        La ubicación debe estar libre, pertenecer a la zona de rotación y respetar el bloque recomendado del SKU.
+                    </p>
+
+
+                    <div class="scan-row">
+
+                        <input id="scanDestination"
+                               placeholder="Ej. R7-11D"
+                               autocomplete="off"
+                               disabled />
+
+                        <button id="btnValidateDestination"
+                                type="button"
+                                disabled>
+                            VALIDAR
+                        </button>
+
+                    </div>
+
+
+                    <div class="putaway-note">
+                        Usar ubicación sugerida
+                        <span id="suggestedLocationText"
+                              class="candidate">
+                            Probar cuando exista recomendación.
+                        </span>
+                    </div>
+
+                </article>
+
+
+                <!-- ======================================================
+                     PASO 3
+                     ====================================================== -->
+                <article id="stepConfirm"
+                         class="putaway-step-card disabled">
+
+                    <div class="putaway-step-label">
+                        3 · Confirmar
+                    </div>
+
+                    <h2>
+                        Confirma destino
+                    </h2>
+
+                    <p id="confirmHelp">
+                        Primero valida una ubicación.
+                    </p>
+
+
+                    <button id="btnConfirmLocation"
+                            class="confirm-location-btn"
+                            type="button"
+                            disabled>
+                        CONFIRMAR UBICACIÓN
+                    </button>
+
+                </article>
+
+            </div>
+
+
+            <!-- ======================================================
+                 PREVIEW 3D
+                 ====================================================== -->
+            <aside class="putaway-preview-card">
+
+                <div class="preview-head">
+
+                    <div>
+
+                        <span class="wms-overline">
+                            VISTA PREVIA
+                        </span>
+
+                        <h2>
+                            Dónde quedará físicamente
+                        </h2>
+
+                    </div>
+
+
+                    <button id="btnFocus3d"
+                            class="preview-focus"
+                            type="button">
+                        ◎ ENFOCAR
+                    </button>
+
+                </div>
+
+
+                <div id="putaway3d"
+                     class="wms-rack3d"
+                     data-location="R7-11D"
+                     data-layout-known="@Model.TieneLayout3D.ToString().ToLowerInvariant()"
+                     data-compact="false"
+                     data-info-target="#putaway3dInfo">
+                </div>
+
+
+                <div id="putaway3dInfo"
+                     class="wms-3d-info">
+                </div>
+
+
+                <div class="preview-legend">
+                    <span><i class="leg-target"></i>Destino</span>
+                    <span><i class="leg-inventory"></i>Inventario</span>
+                    <span><i class="leg-assigned"></i>Asignado</span>
+                    <span><i class="leg-empty"></i>Vacío</span>
+                </div>
+
+
+                <div class="zone-badges">
+                    <span class="zone-badge high">
+                        ALTA · FRENTE
+                    </span>
+
+                    <span class="zone-badge medium">
+                        MEDIA
+                    </span>
+
+                    <span class="zone-badge low">
+                        BAJA · FONDO
+                    </span>
+                </div>
+
+
+                <input id="previewLocation"
+                       class="preview-location"
+                       value="R7-11D"
+                       readonly />
+
+            </aside>
+
+        </section>
+
+    </main>
+
+</div>
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="~/js/surtido-wms-3d.js"
+        asp-append-version="true"></script>
+
+
+<script>
+    (() => {
+
+        const inventory =
+            document.getElementById('scanInventory');
+
+        const btnInventory =
+            document.getElementById('btnBuscarInventory');
+
+        const result =
+            document.getElementById('inventoryResult');
+
+        const stepDestination =
+            document.getElementById('stepDestination');
+
+        const destination =
+            document.getElementById('scanDestination');
+
+        const btnDestination =
+            document.getElementById('btnValidateDestination');
+
+        const stepConfirm =
+            document.getElementById('stepConfirm');
+
+        const confirmHelp =
+            document.getElementById('confirmHelp');
+
+        const btnConfirm =
+            document.getElementById('btnConfirmLocation');
+
+        const suggestedText =
+            document.getElementById('suggestedLocationText');
+
+        const previewLocation =
+            document.getElementById('previewLocation');
+
+        const btnFocus =
+            document.getElementById('btnFocus3d');
+
+
+        let suggestedLocation = '';
+        let validatedLocation = '';
+
+
+        function canonical(raw) {
+
+            if (!window.SigoWms3D) {
+                return null;
+            }
+
+            return window.SigoWms3D
+                .canonicalLocation(raw);
+        }
+
+
+        function focus3d(location) {
+
+            const loc =
+                canonical(location);
+
+            if (!loc) {
+                return;
+            }
+
+            previewLocation.value =
+                loc;
+
+            window.SigoWms3D.focus(
+                'putaway3d',
+                loc
+            );
+        }
+
+
+        function enableDestination(location) {
+
+            suggestedLocation =
+                canonical(location)
+                || '';
+
+            if (!suggestedLocation) {
+                return;
+            }
+
+            stepDestination.classList
+                .remove('disabled');
+
+            destination.disabled =
+                false;
+
+            btnDestination.disabled =
+                false;
+
+            suggestedText.textContent =
+                `Sugerida: ${suggestedLocation}`;
+
+            destination.placeholder =
+                `Ej. ${suggestedLocation}`;
+
+            focus3d(
+                suggestedLocation
+            );
+
+            setTimeout(
+                () => destination.focus(),
+                100
+            );
+        }
+
+
+        function resetConfirm() {
+
+            validatedLocation =
+                '';
+
+            stepConfirm.classList
+                .add('disabled');
+
+            btnConfirm.disabled =
+                true;
+
+            btnConfirm.classList
+                .remove('ready');
+
+            confirmHelp.textContent =
+                'Primero valida una ubicación.';
+        }
+
+
+        /*
+         * ============================================================
+         * PASO 1
+         *
+         * IMPORTANTE:
+         * Esta vista ya queda con la estructura visual de V7.
+         *
+         * El endpoint real de slotting debe regresar después:
+         *
+         * {
+         *   ok: true,
+         *   articulo: "...",
+         *   producto: "...",
+         *   diasInventario: 5,
+         *   rotacion: "ALTA",
+         *   zona: "FRENTE",
+         *   ubicacionSugerida: "R7-11D"
+         * }
+         *
+         * Mientras no exista ese endpoint, NO inventamos la
+         * ubicación. Para probar el flujo visual se deja una
+         * recomendación temporal R7-11D.
+         * ============================================================
+         */
+        function buscarInventario() {
+
+            const scan =
+                (inventory.value || '')
+                .trim()
+                .toUpperCase();
+
+            if (!scan) {
+
+                result.innerHTML =
+                    '<span class="status-error">Escanea una tarima o caja.</span>';
+
+                return;
+            }
+
+
+            result.innerHTML =
+                '<span class="status-warn">Inventario leído: '
+                + scan
+                + '. Falta conectar el endpoint real de slotting para obtener SKU, días y ubicación recomendada.</span>';
+
+
+            /*
+             * TEMPORAL ÚNICAMENTE PARA QUE LA VISTA PUEDA PROBARSE.
+             * Cuando conectemos la consulta real, esta línea se elimina
+             * y usamos respuesta.ubicacionSugerida.
+             */
+            enableDestination(
+                'R7-11D'
+            );
+
+            resetConfirm();
+        }
+
+
+        function validarDestino() {
+
+            const raw =
+                (destination.value || '')
+                .trim()
+                .toUpperCase();
+
+            const loc =
+                canonical(raw);
+
+            if (!loc) {
+
+                suggestedText.innerHTML =
+                    '<span class="status-error">Ubicación inválida.</span>';
+
+                resetConfirm();
+
+                return;
+            }
+
+
+            validatedLocation =
+                loc;
+
+            destination.value =
+                loc;
+
+            suggestedText.innerHTML =
+                `<span class="status-ok">Ubicación válida: ${loc}</span>`;
+
+            focus3d(
+                loc
+            );
+
+            stepConfirm.classList
+                .remove('disabled');
+
+            btnConfirm.disabled =
+                false;
+
+            btnConfirm.classList
+                .add('ready');
+
+            confirmHelp.textContent =
+                `Destino validado: ${loc}.`;
+        }
+
+
+        function confirmar() {
+
+            if (!validatedLocation) {
+                return;
+            }
+
+            /*
+             * Aquí conectaremos el POST real de putaway.
+             * No se modifica inventario todavía para no inventar
+             * una escritura sin conocer el proceso actual.
+             */
+            confirmHelp.innerHTML =
+                `<span class="status-warn">
+                    ${validatedLocation} validada.
+                    Falta conectar el POST real para mover la tarima/caja.
+                 </span>`;
+        }
+
+
+        btnInventory.addEventListener(
+            'click',
+            buscarInventario
+        );
+
+
+        inventory.addEventListener(
+            'keydown',
+            e => {
+
+                if (e.key === 'Enter') {
+
+                    e.preventDefault();
+
+                    buscarInventario();
+                }
+
+            }
+        );
+
+
+        btnDestination.addEventListener(
+            'click',
+            validarDestino
+        );
+
+
+        destination.addEventListener(
+            'keydown',
+            e => {
+
+                if (e.key === 'Enter') {
+
+                    e.preventDefault();
+
+                    validarDestino();
+                }
+
+            }
+        );
+
+
+        btnConfirm.addEventListener(
+            'click',
+            confirmar
+        );
+
+
+        btnFocus.addEventListener(
+            'click',
+            () => {
+
+                focus3d(
+                    validatedLocation
+                    || suggestedLocation
+                    || previewLocation.value
+                );
+
+            }
+        );
+
+
+        setTimeout(
+            () => inventory.focus(),
+            180
+        );
+
+    })();
+</script>

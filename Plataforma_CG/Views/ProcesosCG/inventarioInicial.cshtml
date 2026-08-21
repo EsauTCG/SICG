@@ -3,7 +3,122 @@
     ViewData["Title"] = "Planeación Ejecutiva de Inventario";
 }
 
+
 <link rel="stylesheet" href="~/css/planeacion-ejecutiva-inventario-grid.css" asp-append-version="true" />
+
+<style>
+    /*
+     * ================================================================
+     * AJUSTE RESPONSIVE DE LA VISTA
+     * ================================================================
+     * Objetivo:
+     * - La vista siempre ocupa exactamente el ancho disponible.
+     * - Al abrir/cerrar el sidebar se recalcula sin dejar ancho "pegado".
+     * - Tabla y gráfica nunca hacen crecer el contenedor principal.
+     * - El scroll horizontal, cuando sea necesario, queda dentro de la tabla.
+     * ================================================================
+     */
+
+    .app#app {
+        box-sizing: border-box !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        margin-right: 0 !important;
+        overflow-x: hidden !important;
+    }
+
+    .app#app *,
+    .app#app *::before,
+    .app#app *::after {
+        box-sizing: border-box;
+    }
+
+    /*
+     * Evita que los contenedores Bootstrap/host limiten la vista a un
+     * max-width fijo. No se usa 100vw porque eso genera overflow cuando
+     * existe sidebar.
+     */
+    .inventario-inicial-host,
+    .inventario-inicial-host-clean {
+        max-width: none !important;
+        min-width: 0 !important;
+    }
+
+    .app#app .hero,
+    .app#app .view-options,
+    .app#app .cards,
+    .app#app .panel,
+    .app#app .table-panel,
+    .app#app .chart-box,
+    .app#app .legend {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    /*
+     * La tabla puede ser más ancha por el número de días.
+     * Ese excedente se desplaza SOLO dentro del table-wrapper.
+     */
+    .app#app .table-wrapper {
+        display: block !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .app#app #tablaPlaneacion {
+        max-width: none !important;
+    }
+
+    /*
+     * La gráfica queda contenida dentro del ancho real de la vista.
+     */
+    .app#app #graficaDisponible,
+    .app#app .bars {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        overflow-x: auto !important;
+    }
+
+    /*
+     * Muy importante en CSS Grid/Flex:
+     * sin min-width:0 un hijo puede obligar al padre a ser más ancho.
+     */
+    .app#app .filtros-ejecutivos > *,
+    .app#app .kpi-dashboard > *,
+    .app#app .panel > * {
+        min-width: 0 !important;
+    }
+
+    /*
+     * En pantallas más angostas los filtros se acomodan sin recortar.
+     * No altera el diseño de escritorio amplio.
+     */
+    @@media (max-width: 1200px) {
+        .app#app .filtros-ejecutivos {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        .app#app .kpi-dashboard {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        }
+    }
+
+    @@media (max-width: 760px) {
+        .app#app .filtros-ejecutivos {
+            grid-template-columns: minmax(0, 1fr) !important;
+        }
+
+        .app#app .kpi-dashboard {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+    }
+</style>
 
 <div class="app" id="app" data-modo-vista="completa">
 
@@ -277,150 +392,352 @@
 (function () {
     'use strict';
 
-    function prepararContenedorInventarioInicial() {
-        const root = document.querySelector('.app#app');
+    /*
+     * ================================================================
+     * LAYOUT RESPONSIVE / SIDEBAR
+     * ================================================================
+     *
+     * El problema anterior era que la vista guardaba un width calculado
+     * cuando el sidebar estaba abierto. Si el cierre del sidebar ocurría
+     * modificando una clase en un contenedor distinto, ese cambio no siempre
+     * llegaba al MutationObserver y el ancho quedaba "pegado".
+     *
+     * Esta versión:
+     * 1) libera los límites Bootstrap del host;
+     * 2) calcula el ancho desde el padre REAL;
+     * 3) detecta sidebar abierto/cerrado por geometría visible;
+     * 4) observa cambios de tamaño del padre;
+     * 5) escucha clases/estilos que cambien en cualquier elemento del layout;
+     * 6) escucha el final de transiciones;
+     * 7) nunca usa intervalos ni polling.
+     */
+
+    const ROOT_SELECTOR = '.app#app';
+
+    const SIDEBAR_SELECTORS = [
+        '#sidebar',
+        '.sidebar',
+        '.layout-sidebar',
+        '.sidebar-wrapper',
+        '.sidenav',
+        '.side-nav',
+        '.side-menu',
+        '[data-sidebar]'
+    ].join(',');
+
+    let root = null;
+    let parent = null;
+    let rafId = 0;
+    let resizeObserver = null;
+    let mutationObserver = null;
+
+    let ultimoLeft = null;
+    let ultimoWidth = null;
+
+    function prepararHosts() {
         if (!root) return;
 
-        let parent = root.parentElement;
+        let nodo = root.parentElement;
 
-        while (parent && parent !== document.body) {
+        while (nodo && nodo !== document.body) {
             if (
-                parent.matches('.container, .container-fluid, .pb-3') ||
-                parent.matches('main[role="main"]')
+                nodo.matches('.container, .container-fluid, .pb-3') ||
+                nodo.matches('main[role="main"]')
             ) {
-                parent.classList.add(
+                nodo.classList.add(
                     'inventario-inicial-host',
                     'inventario-inicial-host-clean'
                 );
             }
 
-            parent = parent.parentElement;
+            nodo = nodo.parentElement;
         }
+    }
+
+    function sidebarVisible() {
+        const candidatos = Array.from(
+            document.querySelectorAll(SIDEBAR_SELECTORS)
+        );
+
+        let mejor = null;
+
+        for (const sb of candidatos) {
+            if (!sb || !document.documentElement.contains(sb)) continue;
+
+            const style = getComputedStyle(sb);
+
+            if (
+                style.display === 'none' ||
+                style.visibility === 'hidden' ||
+                Number.parseFloat(style.opacity || '1') <= 0.05
+            ) {
+                continue;
+            }
+
+            const rect = sb.getBoundingClientRect();
+
+            /*
+             * Un sidebar válido debe ocupar una franja visible del lado
+             * izquierdo. Si está trasladado fuera de pantalla, rect.right
+             * será <= 0 y no se descuenta.
+             */
+            if (
+                rect.width < 40 ||
+                rect.right <= 0 ||
+                rect.left >= window.innerWidth
+            ) {
+                continue;
+            }
+
+            const rightVisible = Math.min(
+                window.innerWidth,
+                Math.max(0, rect.right)
+            );
+
+            if (!mejor || rightVisible > mejor.rightVisible) {
+                mejor = {
+                    elemento: sb,
+                    rect,
+                    rightVisible
+                };
+            }
+        }
+
+        return mejor;
+    }
+
+    function solicitarAjuste() {
+        if (rafId) return;
+
+        rafId = requestAnimationFrame(() => {
+            rafId = 0;
+            aplicarAjuste();
+        });
+    }
+
+    function aplicarAjuste() {
+        if (!root || !parent || !document.documentElement.contains(root)) {
+            root = document.querySelector(ROOT_SELECTOR);
+            parent = root?.parentElement || null;
+        }
+
+        if (!root || !parent) return;
+
+        /*
+         * Quitamos temporalmente la geometría anterior para medir el padre
+         * sin que un width viejo contamine la siguiente medición.
+         */
+        root.style.removeProperty('left');
+        root.style.removeProperty('width');
+        root.style.removeProperty('max-width');
+        root.style.removeProperty('margin-left');
+        root.style.removeProperty('margin-right');
+
+        const parentRect = parent.getBoundingClientRect();
+
+        if (parentRect.width <= 0) return;
+
+        let leftOffset = 0;
+        let availableWidth = Math.floor(parentRect.width);
+
+        const sb = sidebarVisible();
+
+        if (sb) {
+            /*
+             * Si el padre YA comienza después del sidebar, el layout general
+             * ya hizo el ajuste y NO debemos descontarlo otra vez.
+             */
+            const parentYaAcomodado =
+                parentRect.left >= (sb.rightVisible - 2);
+
+            /*
+             * Si el sidebar se superpone al área del padre, descontamos solo
+             * la parte realmente ocupada.
+             */
+            const sidebarSuperpuesto =
+                !parentYaAcomodado &&
+                sb.rightVisible > parentRect.left &&
+                sb.rightVisible < parentRect.right;
+
+            if (sidebarSuperpuesto) {
+                leftOffset = Math.max(
+                    0,
+                    Math.round(sb.rightVisible - parentRect.left)
+                );
+
+                availableWidth = Math.max(
+                    320,
+                    Math.floor(parentRect.width - leftOffset)
+                );
+            }
+        }
+
+        /*
+         * Protección adicional contra decimales/subpíxeles que generan
+         * pequeñas barras horizontales en el documento.
+         */
+        availableWidth = Math.max(
+            320,
+            Math.min(
+                availableWidth,
+                Math.floor(window.innerWidth - parentRect.left - leftOffset)
+            )
+        );
+
+        const cambioReal =
+            ultimoLeft === null ||
+            ultimoWidth === null ||
+            Math.abs(ultimoLeft - leftOffset) >= 1 ||
+            Math.abs(ultimoWidth - availableWidth) >= 1;
+
+        /*
+         * position relative + left se conserva para el caso en que el sidebar
+         * sea overlay. Cuando está cerrado, left vuelve explícitamente a 0.
+         */
+        root.style.setProperty('position', 'relative', 'important');
+        root.style.setProperty('left', `${leftOffset}px`, 'important');
+        root.style.setProperty('width', `${availableWidth}px`, 'important');
+        root.style.setProperty('max-width', `${availableWidth}px`, 'important');
+        root.style.setProperty('min-width', '0', 'important');
+        root.style.setProperty('margin-left', '0', 'important');
+        root.style.setProperty('margin-right', '0', 'important');
+
+        ultimoLeft = leftOffset;
+        ultimoWidth = availableWidth;
+
+        if (cambioReal) {
+            /*
+             * La gráfica usa clientHeight y CSS flex/grid. Un resize nativo
+             * permite que cualquier componente dependiente del ancho se
+             * recalcule sin reconstruir los datos.
+             */
+            root.dispatchEvent(new CustomEvent(
+                'planeacion:layout-resized',
+                {
+                    detail: {
+                        left: leftOffset,
+                        width: availableWidth
+                    }
+                }
+            ));
+        }
+    }
+
+    function iniciarObservadores() {
+        if (!root || !parent) return;
+
+        /*
+         * Detecta cambios reales del área disponible del contenido.
+         */
+        if ('ResizeObserver' in window) {
+            resizeObserver = new ResizeObserver(() => {
+                solicitarAjuste();
+            });
+
+            resizeObserver.observe(parent);
+
+            const sidebar = sidebarVisible()?.elemento;
+            if (sidebar) {
+                resizeObserver.observe(sidebar);
+            }
+        }
+
+        /*
+         * Muchos sidebars abren/cierra cambiando una clase en BODY, NAV,
+         * un wrapper o un elemento padre, no necesariamente en #sidebar.
+         *
+         * Solo observamos atributos; NO observamos childList, por lo que
+         * renderizar la tabla o la gráfica no dispara miles de ajustes.
+         */
+        if ('MutationObserver' in window) {
+            mutationObserver = new MutationObserver(() => {
+                solicitarAjuste();
+            });
+
+            mutationObserver.observe(document.body, {
+                subtree: true,
+                attributes: true,
+                attributeFilter: [
+                    'class',
+                    'style',
+                    'aria-hidden',
+                    'aria-expanded'
+                ]
+            });
+        }
+
+        /*
+         * Captura el final de animaciones CSS del sidebar aunque la propiedad
+         * modificada esté en un wrapper que no conocemos.
+         */
+        document.addEventListener(
+            'transitionend',
+            solicitarAjuste,
+            true
+        );
+
+        window.addEventListener(
+            'resize',
+            solicitarAjuste,
+            { passive: true }
+        );
+
+        window.addEventListener(
+            'orientationchange',
+            solicitarAjuste,
+            { passive: true }
+        );
+
+        /*
+         * Los botones de menú suelen cambiar clases después del click.
+         * Hacemos una segunda medición al terminar el siguiente frame y otra
+         * al concluir una transición corta. No es polling permanente.
+         */
+        document.addEventListener(
+            'click',
+            () => {
+                solicitarAjuste();
+
+                window.setTimeout(
+                    solicitarAjuste,
+                    260
+                );
+            },
+            true
+        );
+    }
+
+    function iniciar() {
+        root = document.querySelector(ROOT_SELECTOR);
+
+        if (!root) return;
+
+        parent = root.parentElement;
+
+        prepararHosts();
+        aplicarAjuste();
+        iniciarObservadores();
+
+        /*
+         * Segunda medición después de que Bootstrap/Layout haya terminado
+         * de aplicar sus medidas iniciales.
+         */
+        requestAnimationFrame(() => {
+            solicitarAjuste();
+        });
+
+        window.setTimeout(
+            solicitarAjuste,
+            350
+        );
     }
 
     if (document.readyState === 'loading') {
         document.addEventListener(
             'DOMContentLoaded',
-            prepararContenedorInventarioInicial,
+            iniciar,
             { once: true }
         );
-    } else {
-        prepararContenedorInventarioInicial();
-    }
-})();
-</script>
-
-<script>
-(function () {
-    'use strict';
-
-    /*
-     * AJUSTE LIGERO DE ANCHO
-     * Antes esta vista hacía búsquedas geométricas, intervalos cada 70 ms,
-     * ResizeObserver y MutationObserver sobre varios elementos.
-     * Eso fuerza lecturas/escrituras de layout repetidas mientras la página
-     * todavía está construyendo filtros, tabla y gráfica.
-     *
-     * Ahora se mide una sola vez por frame y únicamente cuando realmente
-     * cambia el tamaño de ventana o la clase/estilo del sidebar.
-     */
-    const ROOT_SELECTOR = '.app#app';
-    const SIDEBAR_SELECTOR = '#sidebar, .sidebar, .layout-sidebar';
-
-    let root = null;
-    let sidebar = null;
-    let rafId = 0;
-    let lastLeft = -1;
-    let lastWidth = -1;
-
-    function obtenerSidebar() {
-        if (sidebar && document.documentElement.contains(sidebar)) {
-            return sidebar;
-        }
-
-        sidebar = document.querySelector(SIDEBAR_SELECTOR);
-        return sidebar;
-    }
-
-    function solicitarAjuste() {
-        if (rafId) {
-            cancelAnimationFrame(rafId);
-        }
-
-        rafId = requestAnimationFrame(aplicarAjuste);
-    }
-
-    function aplicarAjuste() {
-        rafId = 0;
-
-        root ??= document.querySelector(ROOT_SELECTOR);
-        if (!root || !root.parentElement) return;
-
-        const parentRect = root.parentElement.getBoundingClientRect();
-        const sb = obtenerSidebar();
-
-        let sidebarRight = 0;
-
-        if (sb) {
-            const style = getComputedStyle(sb);
-
-            if (
-                style.display !== 'none' &&
-                style.visibility !== 'hidden' &&
-                Number.parseFloat(style.opacity || '1') > 0.05
-            ) {
-                const rect = sb.getBoundingClientRect();
-
-                if (rect.width >= 120 && rect.right > 0) {
-                    sidebarRight = Math.max(0, Math.round(rect.right));
-                }
-            }
-        }
-
-        const targetLeft = Math.max(parentRect.left, sidebarRight);
-        const leftOffset = Math.max(0, Math.round(targetLeft - parentRect.left));
-        const availableWidth = Math.max(320, Math.floor(parentRect.right - targetLeft));
-
-        if (
-            Math.abs(availableWidth - lastWidth) < 2 &&
-            Math.abs(leftOffset - lastLeft) < 2
-        ) {
-            return;
-        }
-
-        lastWidth = availableWidth;
-        lastLeft = leftOffset;
-
-        root.style.setProperty('position', 'relative', 'important');
-        root.style.setProperty('left', leftOffset + 'px', 'important');
-        root.style.setProperty('width', availableWidth + 'px', 'important');
-        root.style.setProperty('max-width', availableWidth + 'px', 'important');
-        root.style.setProperty('margin-left', '0', 'important');
-        root.style.setProperty('margin-right', '0', 'important');
-    }
-
-    function iniciar() {
-        root = document.querySelector(ROOT_SELECTOR);
-        if (!root) return;
-
-        sidebar = obtenerSidebar();
-        solicitarAjuste();
-
-        window.addEventListener('resize', solicitarAjuste, { passive: true });
-        window.addEventListener('orientationchange', solicitarAjuste, { passive: true });
-
-        if (sidebar && 'MutationObserver' in window) {
-            const observer = new MutationObserver(solicitarAjuste);
-
-            observer.observe(sidebar, {
-                attributes: true,
-                attributeFilter: ['class', 'style', 'aria-hidden']
-            });
-        }
-    }
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', iniciar, { once: true });
     } else {
         iniciar();
     }
@@ -533,11 +850,21 @@
     }
 
     function filaTieneInventarioOProduccion(row) {
-        const inventario = normalizarNumero(obtenerCampo(row, "kgInventario", "KgInventario", 0));
-        const produccion = normalizarNumero(obtenerCampo(row, "kgProduccion", "KgProduccion", 0));
-        const rafaga = normalizarNumero(obtenerCampo(row, "kgLiberacionRafaga", "KgLiberacionRafaga", 0));
+        const inventario = normalizarNumero(
+            obtenerCampo(row, "kgInventario", "KgInventario", 0)
+        );
 
-        return inventario > 0 || produccion > 0 || rafaga > 0;
+        const produccion = normalizarNumero(
+            obtenerCampo(row, "kgProduccion", "KgProduccion", 0)
+        );
+
+        /*
+         * Un SKU se considera útil únicamente cuando tiene información real
+         * de INVENTARIO o PRODUCCIÓN.
+         *
+         * La liberación de ráfaga por sí sola ya NO hace visible al SKU.
+         */
+        return inventario > 0 || produccion > 0;
     }
 
     function obtenerSkusConInventarioOProduccion(rows) {
@@ -738,9 +1065,14 @@
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 fechaInventarioInicial: fechaInventarioInicial,
-                // Los combos se cargan del catálogo activo.
-                // La depuración por movimiento se aplica en la consulta de datos.
-                soloSkuMovimiento: "false"
+                /*
+                 * Mostrar en el selector SKU únicamente artículos que tengan:
+                 *   Inventario > 0  O  Producción > 0
+                 *
+                 * De esta forma no se carga el catálogo completo con SKU
+                 * que no aportan información al análisis.
+                 */
+                soloSkuMovimiento: "true"
             });
 
             const tFiltros = performance.now();
@@ -1473,11 +1805,22 @@ function filtrarOpciones(selectId, texto) {
             );
 
             const skusConMovimiento = obtenerSkusConInventarioOProduccion(rows);
+
+            /*
+             * Si el filtro está activo, siempre depuramos.
+             *
+             * Antes, cuando skusConMovimiento quedaba vacío, se regresaba a
+             * "rows" completo y podían reaparecer SKU sin inventario ni producción.
+             */
             const rowsProcesar =
-                SOLO_SKU_CON_INVENTARIO_O_PRODUCCION &&
-                skusConMovimiento.size
+                SOLO_SKU_CON_INVENTARIO_O_PRODUCCION
                     ? rows.filter(row => {
                         const sku = obtenerSkuRow(row);
+
+                        /*
+                         * Filas consolidadas/sin SKU se conservan porque algunos
+                         * alcances del procedimiento pueden devolver totales.
+                         */
                         return !sku || skusConMovimiento.has(sku);
                     })
                     : rows;
@@ -1910,6 +2253,29 @@ function filtrarOpciones(selectId, texto) {
             document.querySelectorAll(".multi-select").forEach(x => x.classList.remove("open"));
         }
     });
+
+    /*
+     * Si el sidebar cambia el ancho disponible, únicamente reconstruimos
+     * la gráfica con las medidas nuevas. No recarga filtros ni consulta SQL.
+     */
+    let temporizadorReflowGrafica = null;
+
+    document.getElementById("app")?.addEventListener(
+        "planeacion:layout-resized",
+        () => {
+            if (temporizadorReflowGrafica) {
+                clearTimeout(temporizadorReflowGrafica);
+            }
+
+            temporizadorReflowGrafica = setTimeout(() => {
+                temporizadorReflowGrafica = null;
+
+                if (modoVista !== "tabla" && typeof renderizarGrafica === "function") {
+                    renderizarGrafica();
+                }
+            }, 50);
+        }
+    );
 
     inicializarRangoFechas();
     cambiarModoVista("completa");

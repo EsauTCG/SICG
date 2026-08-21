@@ -1,0 +1,486 @@
+@model Plataforma_CG.ViewModels.SurtidoModuloPedidosVM
+
+@{
+    ViewData["Title"] = "Picking";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+
+    var cajasTotales =
+        Model.Pedidos.Sum(x =>
+            x.CajasSolicitadas
+        );
+
+    var cajasProcesadas =
+        Model.Pedidos.Sum(x =>
+            x.CajasSurtidas
+            +
+            x.CajasBajadas
+        );
+
+    var eficiencia =
+        cajasTotales <= 0
+            ? 0
+            : Math.Min(
+                100,
+                (int)Math.Round(
+                    cajasProcesadas
+                    * 100m
+                    / cajasTotales
+                )
+            );
+
+    var todos =
+        Model.EsTodosAlmacenes;
+}
+
+<link rel="stylesheet"
+      href="~/css/surtido-wms-v7.css"
+      asp-append-version="true" />
+
+<style>
+    .wms-warehouse-filter{
+        display:flex;
+        gap:6px;
+        flex-wrap:wrap;
+        margin:10px 0 13px;
+    }
+
+    .wms-warehouse-filter a{
+        text-decoration:none!important;
+        border:1px solid var(--wms-line);
+        border-radius:999px;
+        background:#0c1c2e;
+        color:#88a6c4!important;
+        padding:6px 9px;
+        font-size:7px;
+        font-weight:950;
+    }
+
+    .wms-warehouse-filter a.active{
+        background:#267fff;
+        border-color:#267fff;
+        color:#fff!important;
+    }
+
+    .wms-order-warehouse{
+        display:inline-flex;
+        align-items:center;
+        gap:4px;
+        border:1px solid rgba(47,140,255,.26);
+        background:rgba(47,140,255,.08);
+        color:#7ab9ff;
+        border-radius:999px;
+        padding:4px 6px;
+        font-size:7px;
+        font-weight:950;
+    }
+
+    .wms-order-place{
+        margin-top:7px;
+        display:flex;
+        flex-wrap:wrap;
+        gap:5px;
+    }
+
+    .wms-order-place span{
+        color:#7691ac;
+        font-size:7px;
+    }
+
+    .wms-filter select{
+        background:#081522;
+        border:1px solid #274463;
+        color:#fff;
+        border-radius:10px;
+        padding:9px;
+        min-height:36px;
+        outline:0;
+    }
+</style>
+
+
+<div class="wms-v7">
+
+    <main class="wms-content">
+
+        <a class="wms-back"
+           href="@Url.Action(
+                "Surtido_cedis",
+                "Surtido"
+           )">
+            ‹ Inicio
+        </a>
+
+
+        <section class="wms-welcome">
+
+            <div>
+
+                <span class="wms-overline">
+                    MONTACARGUISTA ·
+                    @(todos
+                        ? "TODOS MIS ALMACENES"
+                        : Model.FiltroAlmacen)
+                </span>
+
+                <h1>
+                    Hola,
+                    @(string.IsNullOrWhiteSpace(Model.NombreUsuario)
+                        ? "Operador"
+                        : Model.NombreUsuario)
+                </h1>
+
+                <p>
+                    Aquí aparecen juntos los pedidos de todos los almacenes
+                    que tienes autorizados. Cada tarjeta conserva su almacén
+                    para calcular PEPS, tarima y ubicación correctamente.
+                </p>
+
+            </div>
+
+
+            <div class="wms-score"
+                 style="--score:@eficiencia%">
+
+                <div>
+                    <strong>
+                        @eficiencia%
+                    </strong>
+
+                    <span>
+                        Avance
+                    </span>
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <section class="wms-quick-grid">
+
+            <article>
+                <span>ALMACENES CONSULTADOS</span>
+                <strong>@Model.TotalAlmacenesConsultados</strong>
+                <small>
+                    @(todos
+                        ? "Todos los autorizados"
+                        : "Filtro activo")
+                </small>
+            </article>
+
+            <article>
+                <span>PEDIDOS PENDIENTES</span>
+                <strong>@Model.TotalPedidos</strong>
+                <small>
+                    Bandeja consolidada
+                </small>
+            </article>
+
+            <article>
+                <span>CAJAS PENDIENTES</span>
+                <strong>@Model.TotalCajasPendientes</strong>
+                <small>
+                    PEPS por almacén
+                </small>
+            </article>
+
+        </section>
+
+
+        <!-- =====================================================
+             FILTRO DE ALMACÉN OPCIONAL
+             ===================================================== -->
+        <div class="wms-section-head">
+
+            <div>
+                <span class="wms-overline">
+                    MIS ALMACENES
+                </span>
+
+                <h2>
+                    @(todos
+                        ? "Todos visibles"
+                        : "Filtro por almacén")
+                </h2>
+            </div>
+
+            <span class="wms-pill">
+                @Model.Almacenes.Count autorizados
+            </span>
+
+        </div>
+
+
+        <div class="wms-warehouse-filter">
+
+            <a class="@(todos ? "active" : "")"
+               href="@Url.Action(
+                    "Picking",
+                    "Surtido",
+                    new
+                    {
+                        fechaInicio =
+                            Model.FechaInicio.ToString("yyyy-MM-dd"),
+
+                        fechaFin =
+                            Model.FechaFin.ToString("yyyy-MM-dd")
+                    }
+               )">
+                TODOS
+            </a>
+
+
+            @foreach (var a in Model.Almacenes)
+            {
+                var activo =
+                    !todos
+                    &&
+                    string.Equals(
+                        Model.FiltroAlmacen,
+                        a.Codigo,
+                        StringComparison.OrdinalIgnoreCase
+                    );
+
+                <a class="@(activo ? "active" : "")"
+                   href="@Url.Action(
+                        "Picking",
+                        "Surtido",
+                        new
+                        {
+                            almacen = a.Codigo,
+
+                            fechaInicio =
+                                Model.FechaInicio.ToString("yyyy-MM-dd"),
+
+                            fechaFin =
+                                Model.FechaFin.ToString("yyyy-MM-dd")
+                        }
+                   )">
+                    @a.Codigo · @a.Nombre
+                </a>
+            }
+
+        </div>
+
+
+        <form class="wms-filter"
+              method="get"
+              action="@Url.Action("Picking","Surtido")">
+
+            <div>
+                <label>ALMACÉN</label>
+
+                <select name="almacen">
+
+                    <option value="">
+                        TODOS MIS ALMACENES
+                    </option>
+
+                    @foreach (var a in Model.Almacenes)
+                    {
+                        if (
+                            string.Equals(
+                                Model.FiltroAlmacen,
+                                a.Codigo,
+                                StringComparison.OrdinalIgnoreCase
+                            )
+                        )
+                        {
+                            <option value="@a.Codigo"
+                                    selected>
+                                @a.Codigo · @a.Nombre
+                            </option>
+                        }
+                        else
+                        {
+                            <option value="@a.Codigo">
+                                @a.Codigo · @a.Nombre
+                            </option>
+                        }
+                    }
+
+                </select>
+            </div>
+
+
+            <div>
+                <label>DESDE</label>
+
+                <input type="date"
+                       name="fechaInicio"
+                       value="@Model.FechaInicio.ToString("yyyy-MM-dd")" />
+            </div>
+
+
+            <div>
+                <label>HASTA</label>
+
+                <input type="date"
+                       name="fechaFin"
+                       value="@Model.FechaFin.ToString("yyyy-MM-dd")" />
+            </div>
+
+
+            <button type="submit">
+                ACTUALIZAR
+            </button>
+
+        </form>
+
+
+        @if (!string.IsNullOrWhiteSpace(Model.Error))
+        {
+            <div class="wms-alert-bad">
+                @Model.Error
+            </div>
+        }
+
+
+        <div class="wms-section-head">
+
+            <div>
+                <span class="wms-overline">
+                    MIS PEDIDOS
+                </span>
+
+                <h2>
+                    Qué tengo que surtir
+                </h2>
+            </div>
+
+            <span class="wms-pill">
+                @Model.NombreConexion
+            </span>
+
+        </div>
+
+
+        @if (Model.Pedidos.Any())
+        {
+            <section class="wms-order-cards">
+
+                @foreach (var o in Model.Pedidos)
+                {
+                    <a class="wms-order-card"
+                       href="@Url.Action(
+                            "PedidoPicking",
+                            "Surtido",
+                            new
+                            {
+                                // CRÍTICO:
+                                // el pedido abre con SU almacén,
+                                // no con un almacén global.
+                                almacen =
+                                    o.AlmacenCodigo,
+
+                                solicitudSurtidoId =
+                                    o.SolicitudSurtidoId
+                            }
+                       )">
+
+
+                        <div class="wms-topline">
+
+                            <span class="wms-overline">
+                                PEDIDO @o.Pedido
+                            </span>
+
+                            <span class="wms-order-warehouse">
+                                @o.AlmacenCodigo
+                                ·
+                                @o.Planta
+                            </span>
+
+                        </div>
+
+
+                        <h3>
+                            @o.Cliente
+                        </h3>
+
+
+                        <p>
+                            Solicitud @o.SolicitudSurtidoId
+                            ·
+                            @o.FechaHora.ToString("dd/MM/yyyy HH:mm")
+                        </p>
+
+
+                        <div class="wms-order-place">
+
+                            <span>
+                                ALMACÉN:
+                                <strong>
+                                    @o.AlmacenNombre
+                                </strong>
+                            </span>
+
+                            <span>
+                                · @o.AlmacenSucursal
+                            </span>
+
+                            <span>
+                                · @o.AlmacenClasificacion
+                            </span>
+
+                        </div>
+
+
+                        <div class="wms-progress">
+                            <i style="width:@o.AvancePorcentaje%"></i>
+                        </div>
+
+
+                        <div class="wms-bottomline">
+
+                            <span>
+                                Avance
+                                <strong>
+                                    @o.AvancePorcentaje%
+                                </strong>
+                            </span>
+
+                            <span>
+                                @o.CajasSolicitadas cajas
+                                ·
+                                @o.CajasBajadas bajadas
+                                ·
+                                @o.CajasSurtidas surtidas
+                                ·
+                                <strong>
+                                    @o.CajasPendientes pendientes
+                                </strong>
+                            </span>
+
+                        </div>
+
+                    </a>
+                }
+
+            </section>
+        }
+        else
+        {
+            <div class="wms-empty">
+
+                @if (todos)
+                {
+                    <text>
+                        No hay solicitudes pendientes en ninguno de tus
+                        almacenes autorizados para el rango seleccionado.
+                    </text>
+                }
+                else
+                {
+                    <text>
+                        No hay solicitudes pendientes en el almacén
+                        @Model.FiltroAlmacen para el rango seleccionado.
+                    </text>
+                }
+
+            </div>
+        }
+
+    </main>
+
+</div>

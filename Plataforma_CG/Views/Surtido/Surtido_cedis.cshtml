@@ -1,0 +1,714 @@
+@model Plataforma_CG.ViewModels.SurtidoInicioVM
+
+@{
+    ViewData["Title"] = "Surtido CEDIS";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+
+    var cantidadFunciones =
+        new[]
+        {
+            Model.PuedeMontacargas,
+            Model.PuedeCapturar,
+            Model.PuedeUbicar,
+            Model.PuedeCoordinar
+        }
+        .Count(x => x);
+
+    var multifuncion =
+        cantidadFunciones > 1;
+}
+
+<style>
+    :root {
+        --sur-bg: #f4f7fb;
+        --sur-card: #ffffff;
+        --sur-line: #dce5ee;
+        --sur-text: #142235;
+        --sur-muted: #6e8195;
+
+        --sur-blue: #0d6efd;
+        --sur-green: #198754;
+        --sur-orange: #d98200;
+        --sur-purple: #6f42c1;
+
+        --sur-dark: #071827;
+        --sur-dark2: #103553;
+    }
+
+    body {
+        background: var(--sur-bg);
+    }
+
+    .sur-wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 14px 12px 34px;
+    }
+
+    .sur-hero {
+        color: #fff;
+        background:
+            radial-gradient(circle at top right, rgba(13,110,253,.30), transparent 34%),
+            linear-gradient(135deg, var(--sur-dark), var(--sur-dark2));
+        border-radius: 20px;
+        padding: 18px;
+        box-shadow: 0 14px 35px rgba(10,30,50,.16);
+    }
+
+    .sur-hero-grid {
+        display: grid;
+        grid-template-columns: 1.1fr .9fr;
+        gap: 14px;
+        align-items: center;
+    }
+
+    .sur-overline {
+        font-size: .70rem;
+        font-weight: 950;
+        letter-spacing: .10em;
+        text-transform: uppercase;
+        opacity: .68;
+    }
+
+    .sur-user {
+        margin: 5px 0 1px;
+        font-size: 1.45rem;
+        font-weight: 950;
+    }
+
+    .sur-login {
+        font-size: .78rem;
+        opacity: .70;
+    }
+
+    .sur-context {
+        border: 1px solid rgba(255,255,255,.15);
+        background: rgba(255,255,255,.09);
+        border-radius: 15px;
+        padding: 12px;
+    }
+
+    .sur-context small {
+        display: block;
+        opacity: .65;
+        font-size: .66rem;
+        font-weight: 900;
+    }
+
+    .sur-context strong {
+        display: block;
+        margin-top: 3px;
+        font-size: 1rem;
+    }
+
+    .sur-tags {
+        display: flex;
+        gap: 5px;
+        flex-wrap: wrap;
+        margin-top: 8px;
+    }
+
+    .sur-tags span {
+        border-radius: 999px;
+        padding: 4px 7px;
+        font-size: .66rem;
+        font-weight: 900;
+        border: 1px solid rgba(255,255,255,.12);
+        background: rgba(255,255,255,.10);
+    }
+
+    .sur-section {
+        margin-top: 13px;
+        background: #fff;
+        border: 1px solid var(--sur-line);
+        border-radius: 17px;
+        padding: 14px;
+        box-shadow: 0 7px 20px rgba(20,40,60,.045);
+    }
+
+    .sur-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 11px;
+    }
+
+    .sur-head h5 {
+        margin: 0;
+        font-weight: 950;
+        color: var(--sur-text);
+    }
+
+    .sur-head p {
+        margin: 3px 0 0;
+        font-size: .79rem;
+        color: var(--sur-muted);
+    }
+
+    .sur-count {
+        border-radius: 999px;
+        padding: 4px 8px;
+        background: rgba(13,110,253,.09);
+        color: var(--sur-blue);
+        font-size: .68rem;
+        font-weight: 900;
+    }
+
+    .plantas {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+    }
+
+    .planta-pill {
+        background: #eef5ff;
+        border: 1px solid #d7e7ff;
+        color: #0b62c7;
+        padding: 5px 9px;
+        border-radius: 999px;
+        font-size: .69rem;
+        font-weight: 950;
+    }
+
+    .almacen-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit,minmax(220px,1fr));
+        gap: 8px;
+    }
+
+    .almacen-card {
+        display: block;
+        text-decoration: none !important;
+        color: inherit;
+        border: 1px solid var(--sur-line);
+        background: #fff;
+        border-radius: 13px;
+        padding: 11px;
+        min-height: 116px;
+        transition: .16s ease;
+    }
+
+    .almacen-card:hover {
+        transform: translateY(-1px);
+        border-color: #bfd1e4;
+        box-shadow: 0 7px 18px rgba(20,40,70,.07);
+        color: inherit;
+    }
+
+    .almacen-card.active {
+        border-color: var(--sur-blue);
+        box-shadow: inset 4px 0 0 var(--sur-blue);
+        background: #f8fbff;
+    }
+
+    .almacen-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    .almacen-code {
+        color: var(--sur-blue);
+        font-size: .72rem;
+        font-weight: 950;
+    }
+
+    .almacen-class {
+        border-radius: 999px;
+        padding: 3px 6px;
+        background: #eef7f2;
+        color: #198754;
+        font-size: .61rem;
+        font-weight: 900;
+    }
+
+    .almacen-name {
+        display: block;
+        color: var(--sur-text);
+        margin-top: 7px;
+        font-size: .91rem;
+        font-weight: 950;
+    }
+
+    .almacen-meta {
+        display: block;
+        margin-top: 3px;
+        color: var(--sur-muted);
+        font-size: .71rem;
+    }
+
+    .almacen-action {
+        display: block;
+        margin-top: 8px;
+        color: var(--sur-blue);
+        font-size: .64rem;
+        font-weight: 950;
+    }
+
+    .role-grid {
+        display: grid;
+        grid-template-columns: repeat(4,minmax(0,1fr));
+        gap: 9px;
+    }
+
+    .role-card {
+        text-decoration: none !important;
+        color: var(--sur-text);
+        border: 1px solid var(--sur-line);
+        border-radius: 15px;
+        padding: 12px;
+        min-height: 170px;
+        display: flex;
+        flex-direction: column;
+        transition: .16s ease;
+    }
+
+    .role-card:hover {
+        color: var(--sur-text);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 22px rgba(20,40,70,.08);
+    }
+
+    .role-card.off {
+        opacity: .34;
+        pointer-events: none;
+    }
+
+    .role-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        margin-bottom: 10px;
+        font-size: 1.20rem;
+    }
+
+    .role-card h6 {
+        font-weight: 950;
+        margin: 0;
+    }
+
+    .role-card p {
+        margin: 5px 0 12px;
+        font-size: .73rem;
+        color: var(--sur-muted);
+        line-height: 1.42;
+        flex: 1;
+    }
+
+    .role-card b {
+        font-size: .67rem;
+        letter-spacing: .03em;
+    }
+
+    .role-mont .role-icon {
+        background: #eaf3ff;
+        color: var(--sur-blue);
+    }
+
+    .role-mont b {
+        color: var(--sur-blue);
+    }
+
+    .role-cap .role-icon {
+        background: #eaf7f0;
+        color: var(--sur-green);
+    }
+
+    .role-cap b {
+        color: var(--sur-green);
+    }
+
+    .role-ubi .role-icon {
+        background: #fff3dd;
+        color: var(--sur-orange);
+    }
+
+    .role-ubi b {
+        color: var(--sur-orange);
+    }
+
+    .role-coord .role-icon {
+        background: #f1ebff;
+        color: var(--sur-purple);
+    }
+
+    .role-coord b {
+        color: var(--sur-purple);
+    }
+
+    .sur-alert {
+        margin-top: 11px;
+        padding: 10px 12px;
+        border: 1px solid var(--sur-line);
+        background: #f8fafc;
+        border-radius: 12px;
+        color: var(--sur-muted);
+        font-size: .75rem;
+    }
+
+    .sur-alert strong {
+        color: var(--sur-text);
+    }
+
+    .sur-warning {
+        color: #985e00;
+        background: #fff8e9;
+        border: 1px solid #f1deb4;
+        padding: 7px 9px;
+        border-radius: 9px;
+        font-size: .70rem;
+        margin-top: 8px;
+    }
+
+    @@media(max-width:900px) {
+        .sur-hero-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .role-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+    @@media(max-width:560px) {
+        .sur-wrap {
+            padding: 8px;
+        }
+
+        .sur-hero {
+            border-radius: 15px;
+            padding: 14px;
+        }
+
+        .role-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .role-card {
+            min-height: auto;
+        }
+    }
+</style>
+
+
+<div class="sur-wrap">
+
+    <!-- =========================================================
+         USUARIO / CONTEXTO
+         ========================================================= -->
+    <section class="sur-hero">
+
+        <div class="sur-hero-grid">
+
+            <div>
+
+                <div class="sur-overline">
+                    SIGO · SURTIDO CEDIS
+                </div>
+
+                <div class="sur-user">
+                    @Model.NombreUsuario
+                </div>
+
+                <div class="sur-login">
+                    @Model.Login
+                </div>
+
+                @if (multifuncion)
+                {
+                    <div class="mt-2">
+                        <span class="badge rounded-pill text-bg-light">
+                            Usuario multifunción
+                        </span>
+                    </div>
+                }
+
+            </div>
+
+
+            <div class="sur-context">
+
+                <small>
+                    CONTEXTO ACTUAL
+                </small>
+
+                <strong>
+                    @Model.PlantaActiva · @Model.AlmacenActivoNombre
+                </strong>
+
+                <div class="sur-tags">
+
+                    <span>
+                        @Model.AlmacenActivoCodigo
+                    </span>
+
+                    <span>
+                        @Model.ClasificacionActiva
+                    </span>
+
+                    @if (Model.Layout3DConfirmado)
+                    {
+                        <span>
+                            3D CONFIRMADO
+                        </span>
+                    }
+                    else
+                    {
+                        <span>
+                            LAYOUT PENDIENTE
+                        </span>
+                    }
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
+
+<!-- =========================================================
+         FUNCIONES
+         ========================================================= -->
+    <section class="sur-section">
+
+        <div class="sur-head">
+
+            <div>
+
+                <h5>
+                    Mis funciones
+                </h5>
+
+                <p>
+                    Estas capacidades vienen del usuario
+                    autenticado de SIGO.
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <div class="role-grid">
+
+            <!-- MONTACARGUISTA -->
+            <a
+                class="role-card role-mont @(!Model.PuedeMontacargas ? "off" : "")"
+                href="@Url.Action(
+                    "Picking",
+                    "Surtido"
+                )"
+            >
+
+                <div class="role-icon">
+                    🚜
+                </div>
+
+                <h6>
+                    Montacarguista
+                </h6>
+
+                <p>
+                    Todos tus pedidos autorizados,
+                    agrupados por almacén, PEPS,
+                    recorrido, rack 3D y producto bajado.
+                </p>
+
+                <b>
+                    @(Model.PuedeMontacargas
+                        ? "VER TODOS MIS PEDIDOS →"
+                        : "SIN PERMISO")
+                </b>
+
+            </a>
+
+
+            <!-- CAPTURISTA -->
+            <a
+                class="role-card role-cap @(!Model.PuedeCapturar ? "off" : "")"
+                href="@Url.Action(
+                    "Captura",
+                    "Surtido",
+                    new
+                    {
+                        almacen = Model.AlmacenActivoCodigo
+                    }
+                )"
+            >
+
+                <div class="role-icon">
+                    ⌁
+                </div>
+
+                <h6>
+                    Capturista
+                </h6>
+
+                <p>
+                    Escanea tarima/caja, valida
+                    SKU, lote, kilos y cajas,
+                    y vincula al pedido.
+                </p>
+
+                <b>
+                    @(Model.PuedeCapturar
+                        ? "ENTRAR A CAPTURA →"
+                        : "SIN PERMISO")
+                </b>
+
+            </a>
+
+
+            <!-- UBICACIÓN -->
+            <a
+                class="role-card role-ubi @(!Model.PuedeUbicar ? "off" : "")"
+                href="@Url.Action(
+                    "Ubicar",
+                    "Surtido",
+                    new
+                    {
+                        almacen = Model.AlmacenActivoCodigo
+                    }
+                )"
+            >
+
+                <div class="role-icon">
+                    ▦
+                </div>
+
+                <h6>
+                    Ubicación
+                </h6>
+
+                <p>
+                    Slotting por rotación,
+                    agrupación por SKU,
+                    ubicación libre y rack 3D.
+                </p>
+
+                <b>
+                    @(Model.PuedeUbicar
+                        ? "ENTRAR A UBICAR →"
+                        : "SIN PERMISO")
+                </b>
+
+            </a>
+
+
+            <!-- COORDINADOR -->
+            <a
+                class="role-card role-coord @(!Model.PuedeCoordinar ? "off" : "")"
+                href="@Url.Action(
+                    "Coordinador",
+                    "Surtido",
+                    new
+                    {
+                        almacen = Model.AlmacenActivoCodigo
+                    }
+                )"
+            >
+
+                <div class="role-icon">
+                    ◎
+                </div>
+
+                <h6>
+                    Coordinación
+                </h6>
+
+                <p>
+                    Excepciones, productividad,
+                    calidad, surtido, almacenes
+                    y control de la operación.
+                </p>
+
+                <b>
+                    @(Model.PuedeCoordinar
+                        ? "ENTRAR A COORDINACIÓN →"
+                        : "SIN PERMISO")
+                </b>
+
+            </a>
+
+        </div>
+
+
+
+        @if (
+            Model.PuedeMontacargas
+            || Model.PuedeUbicar
+            || Model.PuedeCoordinar
+        )
+        {
+            <div style="margin-top:10px;">
+
+                <a href="@Url.Action(
+                        "Mapa3D",
+                        "Surtido",
+                        new
+                        {
+                            almacen = Model.AlmacenActivoCodigo
+                        }
+                   )"
+                   style="
+                        display:flex;
+                        align-items:center;
+                        justify-content:space-between;
+                        gap:12px;
+                        padding:12px 14px;
+                        border-radius:13px;
+                        border:1px solid #dce5ee;
+                        background:#071827;
+                        color:#fff;
+                        text-decoration:none;
+                   ">
+
+                    <div>
+                        <strong style="display:block;">
+                            ▦ Mapa 3D del almacén
+                        </strong>
+
+                        <span style="
+                            display:block;
+                            margin-top:3px;
+                            font-size:.72rem;
+                            opacity:.70;
+                        ">
+                            @(Model.Layout3DConfirmado
+                                ? "Layout completo confirmado · ubicación, rack, posición y altura."
+                                : "Vista 3D por rack · sin inventar layout completo.")
+                        </span>
+                    </div>
+
+                    <strong>
+                        ABRIR →
+                    </strong>
+
+                </a>
+
+            </div>
+        }
+
+
+        @if (multifuncion)
+        {
+            <div class="sur-alert">
+
+                <strong>
+                    Usuario multifunción.
+                </strong>
+
+                Este usuario puede operar más de un módulo
+                sin cambiar de cuenta.
+
+            </div>
+        }
+
+    </section>
+
+</div>

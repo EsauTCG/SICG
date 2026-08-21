@@ -27,6 +27,9 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using RVM = Plataforma_CG.ViewModels;
+using System.Net;
+using System.Net.Mail;
+using System.Text.Encodings.Web;
 
 namespace Plataforma_CG.Controllers
 {
@@ -2708,6 +2711,59 @@ ORDER BY FechaProduccion, FechaSolicitud;";
         }
 
 
+
+        private sealed class ReimpresionAuditoriaInsertVM
+        {
+            public Guid OperacionId { get; set; }
+            public string Usuario { get; set; } = "";
+            public string Planta { get; set; } = "";
+            public string PrinterName { get; set; } = "";
+            public string CodigoEtiqueta { get; set; } = "";
+            public int? ProduccionId { get; set; }
+            public int CantidadSolicitada { get; set; }
+            public int CantidadImpresa { get; set; }
+            public string ClaveReporte { get; set; } = "";
+            public int TipoImpresion { get; set; }
+            public string EmpresaEysId { get; set; } = "";
+            public bool Exitoso { get; set; }
+            public string Mensaje { get; set; } = "";
+            public string Ip { get; set; } = "";
+            public string UserAgent { get; set; } = "";
+            public string DatosSolicitud { get; set; } = "";
+        }
+
+        private sealed class ReimpresionAuditoriaRowVM
+        {
+            public long AuditoriaId { get; set; }
+            public Guid OperacionId { get; set; }
+            public DateTime FechaHora { get; set; }
+            public string Usuario { get; set; } = "";
+            public string Planta { get; set; } = "";
+            public string PrinterName { get; set; } = "";
+            public string CodigoEtiqueta { get; set; } = "";
+            public int? ProduccionId { get; set; }
+            public int CantidadSolicitada { get; set; }
+            public int CantidadImpresa { get; set; }
+            public string ClaveReporte { get; set; } = "";
+            public int? TipoImpresion { get; set; }
+            public string EmpresaEysId { get; set; } = "";
+            public bool Exitoso { get; set; }
+            public string Mensaje { get; set; } = "";
+            public string Ip { get; set; } = "";
+            public string UserAgent { get; set; } = "";
+            public string DatosSolicitud { get; set; } = "";
+        }
+
+        private sealed class ReimpresionAuditoriaResumenVM
+        {
+            public long Total { get; set; }
+            public long Exitosos { get; set; }
+            public long Fallidos { get; set; }
+            public long CantidadSolicitada { get; set; }
+            public long CantidadImpresa { get; set; }
+            public int Usuarios { get; set; }
+        }
+
         // ========================= REIMPRESION ETIQUETAS =========================
 
         [HttpGet("Reimpresion")]
@@ -2763,29 +2819,61 @@ ORDER BY FechaProduccion, FechaSolicitud;";
         [Produces("application/json")]
         public async Task<IActionResult> ReimpresionImprimir([FromBody] RVM.ReimpresionRequestVM req)
         {
-            _logger.LogInformation(">>> HIT Imprimir. User={User}", User?.Identity?.Name);
+            _logger.LogInformation(
+                ">>> HIT Imprimir. User={User}",
+                User?.Identity?.Name);
+
             Response.Headers["X-ENDPOINT-HIT"] = "Imprimir";
+
+            if (req is null)
+                return BadRequest(new { ok = false, msg = "Request vacío" });
+
+            req.Source = NormalizeSource(req.Source);
+
+            if (req.TipoImpresion <= 0)
+                req.TipoImpresion = 3;
+
+            if (string.IsNullOrWhiteSpace(req.EmpresaEysId))
+                req.EmpresaEysId = "CARNG";
+
+            if (string.IsNullOrWhiteSpace(req.PrinterName))
+                return BadRequest(new { ok = false, msg = "Selecciona impresora" });
+
+            if (req.Items == null || req.Items.Count == 0)
+                return BadRequest(new { ok = false, msg = "Agrega al menos una etiqueta" });
+
+            var cs = GetMeatConnectionString(req.Source);
+
+            if (string.IsNullOrWhiteSpace(cs))
+            {
+                return StatusCode(
+                    500,
+                    new
+                    {
+                        ok = false,
+                        msg =
+                            $"No existe cadena de conexión para source={req.Source} " +
+                            "(CadenaMeatP1/CadenaMeatTIF)"
+                    });
+            }
+
+            var operacionId = Guid.NewGuid();
+            var usuario = (User?.Identity?.Name ?? "SISTEMA").Trim();
+
+            var ip =
+                HttpContext.Connection.RemoteIpAddress?.ToString() ?? "";
+
+            var userAgent =
+                Request.Headers["User-Agent"].ToString();
+
+            if (userAgent.Length > 500)
+                userAgent = userAgent[..500];
+
+            var auditoria = new List<ReimpresionAuditoriaInsertVM>();
+            var results = new List<RVM.ReimpresionRowResultVM>();
 
             try
             {
-                if (req is null)
-                    return BadRequest(new { ok = false, msg = "Request vacío" });
-
-                req.Source = NormalizeSource(req.Source);
-                if (req.TipoImpresion <= 0) req.TipoImpresion = 3;
-                if (string.IsNullOrWhiteSpace(req.EmpresaEysId)) req.EmpresaEysId = "CARNG";
-
-                if (string.IsNullOrWhiteSpace(req.PrinterName))
-                    return BadRequest(new { ok = false, msg = "Selecciona impresora" });
-
-                if (req.Items == null || req.Items.Count == 0)
-                    return BadRequest(new { ok = false, msg = "Agrega al menos una etiqueta" });
-
-                var cs = GetMeatConnectionString(req.Source);
-                if (string.IsNullOrWhiteSpace(cs))
-                    return StatusCode(500, new { ok = false, msg = $"No existe cadena de conexión para source={req.Source} (CadenaMeatP1/CadenaMeatTIF)" });
-
-                // ✅ URL por planta para imprimir
                 var baseUrl = GetPrintBaseUrl(req.Source);
 
                 const string sqlFindProduccion = @"
@@ -2804,60 +2892,113 @@ ORDER BY ProduccionId DESC;";
 
                     return await cn.ExecuteScalarAsync<int?>(
                         sqlFindProduccion,
-                        new { CodigoEtiqueta = code }
-                    );
+                        new { CodigoEtiqueta = code },
+                        commandTimeout: 60);
                 }
-
-                var results = new List<RVM.ReimpresionRowResultVM>();
 
                 foreach (var it in req.Items)
                 {
                     var code = (it.CodigoEtiqueta ?? "").Trim();
                     var qty = it.Cantidad <= 0 ? 0 : it.Cantidad;
 
-                    var clave = ((it.ClaveReporte ?? "")).Trim();
+                    var clave = (it.ClaveReporte ?? "").Trim();
+
                     if (string.IsNullOrWhiteSpace(clave))
                         clave = (req.ClaveReporte ?? "").Trim();
 
+                    var auditRow = new ReimpresionAuditoriaInsertVM
+                    {
+                        OperacionId = operacionId,
+                        Usuario = usuario,
+                        Planta = req.Source,
+                        PrinterName = req.PrinterName ?? "",
+                        CodigoEtiqueta = code,
+                        CantidadSolicitada = qty,
+                        CantidadImpresa = 0,
+                        ClaveReporte = clave,
+                        TipoImpresion = req.TipoImpresion,
+                        EmpresaEysId = req.EmpresaEysId ?? "",
+                        Exitoso = false,
+                        Ip = ip,
+                        UserAgent = userAgent,
+                        DatosSolicitud = JsonSerializer.Serialize(new
+                        {
+                            req.Source,
+                            req.PrinterName,
+                            req.TipoImpresion,
+                            req.EmpresaEysId,
+                            CodigoEtiqueta = code,
+                            Cantidad = qty,
+                            ClaveReporte = clave
+                        })
+                    };
+
                     if (string.IsNullOrWhiteSpace(code) || qty <= 0)
                     {
+                        const string msg =
+                            "Código vacío o cantidad inválida";
+
+                        auditRow.Mensaje = msg;
+                        auditoria.Add(auditRow);
+
                         results.Add(new RVM.ReimpresionRowResultVM
                         {
                             CodigoEtiqueta = code,
                             Cantidad = it.Cantidad,
                             Ok = false,
-                            Msg = "Código vacío o cantidad inválida"
+                            Msg = msg
                         });
+
                         continue;
                     }
 
                     if (string.IsNullOrWhiteSpace(clave))
                     {
+                        const string msg =
+                            "Selecciona Etiquetación (ColectorId)";
+
+                        auditRow.Mensaje = msg;
+                        auditoria.Add(auditRow);
+
                         results.Add(new RVM.ReimpresionRowResultVM
                         {
                             CodigoEtiqueta = code,
                             Cantidad = qty,
                             Ok = false,
-                            Msg = "Selecciona Etiquetación (ColectorId)"
+                            Msg = msg
                         });
+
                         continue;
                     }
 
-                    var produccionId = await ResolveProduccionIdAsync(code);
+                    var produccionId =
+                        await ResolveProduccionIdAsync(code);
+
+                    auditRow.ProduccionId = produccionId;
+
                     if (produccionId == null)
                     {
+                        var msg =
+                            $"No se encontró ProduccionId para '{code}' " +
+                            $"en source={req.Source}";
+
+                        auditRow.Mensaje = msg;
+                        auditoria.Add(auditRow);
+
                         results.Add(new RVM.ReimpresionRowResultVM
                         {
                             CodigoEtiqueta = code,
                             Cantidad = qty,
                             Ok = false,
-                            Msg = $"No se encontró ProduccionId para '{code}' en source={req.Source}"
+                            Msg = msg
                         });
+
                         continue;
                     }
 
                     bool okAll = true;
                     string lastMsg = "";
+                    int impresas = 0;
 
                     for (int i = 0; i < qty; i++)
                     {
@@ -2866,24 +3007,39 @@ ORDER BY ProduccionId DESC;";
                             TipoImpresion = req.TipoImpresion,
                             EmpresaEysId = req.EmpresaEysId,
                             IdBusqueda = produccionId.Value.ToString(),
-                            ClaveReporte = clave,          // ColectorId
+                            ClaveReporte = clave,
                             PrinterName = req.PrinterName
                         };
 
-                        var innerJson = JsonSerializer.Serialize(innerObj);
+                        var innerJson =
+                            JsonSerializer.Serialize(innerObj);
 
-                        // ✅ Imprime usando URL por planta (NO BASE_URL fijo)
-                        var pr = await _print.PrintAsync(baseUrl, innerJson);
+                        var pr =
+                            await _print.PrintAsync(
+                                baseUrl,
+                                innerJson);
 
                         lastMsg = pr?.Mensaje ?? "";
 
                         if (pr == null || pr.Estado != 0)
                         {
                             okAll = false;
-                            if (string.IsNullOrWhiteSpace(lastMsg)) lastMsg = "Error al imprimir";
+
+                            if (string.IsNullOrWhiteSpace(lastMsg))
+                                lastMsg = "Error al imprimir";
+
                             break;
                         }
+
+                        impresas++;
                     }
+
+                    auditRow.CantidadImpresa = impresas;
+                    auditRow.Exitoso = okAll;
+                    auditRow.Mensaje =
+                        okAll ? "OK" : lastMsg;
+
+                    auditoria.Add(auditRow);
 
                     results.Add(new RVM.ReimpresionRowResultVM
                     {
@@ -2894,9 +3050,13 @@ ORDER BY ProduccionId DESC;";
                     });
                 }
 
+                await RegistrarAuditoriaReimpresionAsync(auditoria);
+
                 return Ok(new
                 {
                     ok = true,
+                    operacionId,
+                    auditoriaRegistrada = auditoria.Count > 0,
                     total = results.Count,
                     okCount = results.Count(x => x.Ok),
                     failCount = results.Count(x => !x.Ok),
@@ -2905,11 +3065,488 @@ ORDER BY ProduccionId DESC;";
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Imprimir ERROR");
-                return StatusCode(500, new { ok = false, msg = ex.Message });
+                _logger.LogError(
+                    ex,
+                    "Imprimir ERROR. Operacion={OperacionId}",
+                    operacionId);
+
+                /*
+                 * Si ya se generaron filas de auditoría antes del error,
+                 * intentamos guardarlas sin impedir que se reporte el fallo real.
+                 */
+                if (auditoria.Count > 0)
+                {
+                    try
+                    {
+                        await RegistrarAuditoriaReimpresionAsync(auditoria);
+                    }
+                    catch (Exception auditEx)
+                    {
+                        _logger.LogWarning(
+                            auditEx,
+                            "No se pudo guardar auditoría parcial de reimpresión. Operacion={OperacionId}",
+                            operacionId);
+                    }
+                }
+
+                return StatusCode(
+                    500,
+                    new
+                    {
+                        ok = false,
+                        operacionId,
+                        msg = ex.Message
+                    });
             }
         }
 
+
+        private async Task RegistrarAuditoriaReimpresionAsync(
+            IReadOnlyCollection<ReimpresionAuditoriaInsertVM> rows)
+        {
+            if (rows == null || rows.Count == 0)
+                return;
+
+            var cs =
+                _configuration.GetConnectionString(
+                    "DefaultConnection");
+
+            if (string.IsNullOrWhiteSpace(cs))
+            {
+                _logger.LogWarning(
+                    "No se registró auditoría de reimpresión: falta DefaultConnection.");
+
+                return;
+            }
+
+            await using var cn = new SqlConnection(cs);
+            await cn.OpenAsync();
+
+            var existe = await cn.ExecuteScalarAsync<int>(@"
+SELECT CASE
+    WHEN OBJECT_ID('dbo.ReimpresionEtiquetaAuditoria', 'U') IS NULL
+    THEN 0
+    ELSE 1
+END;",
+                commandTimeout: 30);
+
+            if (existe == 0)
+            {
+                _logger.LogWarning(
+                    "No se registró auditoría de reimpresión porque dbo.ReimpresionEtiquetaAuditoria no existe.");
+
+                return;
+            }
+
+            const string sql = @"
+INSERT INTO dbo.ReimpresionEtiquetaAuditoria
+(
+    OperacionId,
+    Usuario,
+    Planta,
+    PrinterName,
+    CodigoEtiqueta,
+    ProduccionId,
+    CantidadSolicitada,
+    CantidadImpresa,
+    ClaveReporte,
+    TipoImpresion,
+    EmpresaEysId,
+    Exitoso,
+    Mensaje,
+    Ip,
+    UserAgent,
+    DatosSolicitud
+)
+VALUES
+(
+    @OperacionId,
+    @Usuario,
+    @Planta,
+    @PrinterName,
+    @CodigoEtiqueta,
+    @ProduccionId,
+    @CantidadSolicitada,
+    @CantidadImpresa,
+    @ClaveReporte,
+    @TipoImpresion,
+    @EmpresaEysId,
+    @Exitoso,
+    @Mensaje,
+    @Ip,
+    @UserAgent,
+    @DatosSolicitud
+);";
+
+            await cn.ExecuteAsync(
+                sql,
+                rows,
+                commandTimeout: 60);
+        }
+
+
+        private async Task<(bool Disponible,
+                            ReimpresionAuditoriaResumenVM Resumen,
+                            List<ReimpresionAuditoriaRowVM> Rows)>
+            ConsultarAuditoriaReimpresionAsync(
+                DateTime? desde,
+                DateTime? hasta,
+                string planta,
+                string usuario,
+                string codigo,
+                string impresora,
+                string resultado,
+                int top)
+        {
+            var cs =
+                _configuration.GetConnectionString(
+                    "DefaultConnection");
+
+            if (string.IsNullOrWhiteSpace(cs))
+            {
+                return (
+                    false,
+                    new ReimpresionAuditoriaResumenVM(),
+                    new List<ReimpresionAuditoriaRowVM>());
+            }
+
+            await using var cn = new SqlConnection(cs);
+            await cn.OpenAsync();
+
+            var existe = await cn.ExecuteScalarAsync<int>(@"
+SELECT CASE
+    WHEN OBJECT_ID('dbo.ReimpresionEtiquetaAuditoria', 'U') IS NULL
+    THEN 0
+    ELSE 1
+END;",
+                commandTimeout: 30);
+
+            if (existe == 0)
+            {
+                return (
+                    false,
+                    new ReimpresionAuditoriaResumenVM(),
+                    new List<ReimpresionAuditoriaRowVM>());
+            }
+
+            planta = (planta ?? "").Trim().ToUpperInvariant();
+            usuario = (usuario ?? "").Trim();
+            codigo = (codigo ?? "").Trim();
+            impresora = (impresora ?? "").Trim();
+            resultado = (resultado ?? "").Trim().ToUpperInvariant();
+
+            if (planta != "P1" && planta != "TIF")
+                planta = "";
+
+            bool? exitoso = resultado switch
+            {
+                "OK" => true,
+                "ERROR" => false,
+                _ => null
+            };
+
+            var desdeReal = desde?.Date;
+            var hastaExclusivo = hasta?.Date.AddDays(1);
+
+            var usuarioLike =
+                string.IsNullOrWhiteSpace(usuario)
+                    ? ""
+                    : $"%{usuario}%";
+
+            var codigoLike =
+                string.IsNullOrWhiteSpace(codigo)
+                    ? ""
+                    : $"%{codigo}%";
+
+            var impresoraLike =
+                string.IsNullOrWhiteSpace(impresora)
+                    ? ""
+                    : $"%{impresora}%";
+
+            top = Math.Clamp(top, 1, 100000);
+
+            const string sql = @"
+;WITH F AS
+(
+    SELECT *
+    FROM dbo.ReimpresionEtiquetaAuditoria a WITH (NOLOCK)
+    WHERE
+        (@Desde IS NULL OR a.FechaHora >= @Desde)
+        AND (@HastaExclusivo IS NULL OR a.FechaHora < @HastaExclusivo)
+        AND (NULLIF(@Planta, '') IS NULL OR a.Planta = @Planta)
+        AND (NULLIF(@Usuario, '') IS NULL OR ISNULL(a.Usuario, '') LIKE @Usuario)
+        AND (NULLIF(@Codigo, '') IS NULL OR ISNULL(a.CodigoEtiqueta, '') LIKE @Codigo)
+        AND (NULLIF(@Impresora, '') IS NULL OR ISNULL(a.PrinterName, '') LIKE @Impresora)
+        AND (@Exitoso IS NULL OR a.Exitoso = @Exitoso)
+)
+SELECT
+    Total = COUNT_BIG(1),
+    Exitosos = SUM(CASE WHEN Exitoso = 1 THEN CONVERT(bigint,1) ELSE CONVERT(bigint,0) END),
+    Fallidos = SUM(CASE WHEN Exitoso = 0 THEN CONVERT(bigint,1) ELSE CONVERT(bigint,0) END),
+    CantidadSolicitada = SUM(CONVERT(bigint, ISNULL(CantidadSolicitada,0))),
+    CantidadImpresa = SUM(CONVERT(bigint, ISNULL(CantidadImpresa,0))),
+    Usuarios = COUNT(DISTINCT NULLIF(Usuario, ''))
+FROM F;
+
+SELECT TOP (@Top)
+    AuditoriaId,
+    OperacionId,
+    FechaHora,
+    Usuario,
+    Planta,
+    PrinterName,
+    CodigoEtiqueta,
+    ProduccionId,
+    CantidadSolicitada,
+    CantidadImpresa,
+    ClaveReporte,
+    TipoImpresion,
+    EmpresaEysId,
+    Exitoso,
+    Mensaje,
+    Ip,
+    UserAgent,
+    DatosSolicitud
+FROM F
+ORDER BY
+    FechaHora DESC,
+    AuditoriaId DESC
+OPTION (RECOMPILE);";
+
+            using var multi = await cn.QueryMultipleAsync(
+                sql,
+                new
+                {
+                    Desde = desdeReal,
+                    HastaExclusivo = hastaExclusivo,
+                    Planta = planta,
+                    Usuario = usuarioLike,
+                    Codigo = codigoLike,
+                    Impresora = impresoraLike,
+                    Exitoso = exitoso,
+                    Top = top
+                },
+                commandTimeout: 120);
+
+            var resumen =
+                await multi.ReadFirstOrDefaultAsync<ReimpresionAuditoriaResumenVM>()
+                ?? new ReimpresionAuditoriaResumenVM();
+
+            var rows =
+                (await multi.ReadAsync<ReimpresionAuditoriaRowVM>())
+                .ToList();
+
+            return (true, resumen, rows);
+        }
+
+
+        [HttpGet("AuditoriaReimpresiones")]
+        [Produces("application/json")]
+        public async Task<IActionResult> AuditoriaReimpresiones(
+            DateTime? desde = null,
+            DateTime? hasta = null,
+            string planta = "",
+            string usuario = "",
+            string codigo = "",
+            string impresora = "",
+            string resultado = "",
+            int top = 5000)
+        {
+            try
+            {
+                var consulta =
+                    await ConsultarAuditoriaReimpresionAsync(
+                        desde,
+                        hasta,
+                        planta,
+                        usuario,
+                        codigo,
+                        impresora,
+                        resultado,
+                        top);
+
+                return Ok(new
+                {
+                    ok = true,
+                    auditoriaDisponible = consulta.Disponible,
+                    resumen = consulta.Resumen,
+                    mostrados = consulta.Rows.Count,
+                    truncado =
+                        consulta.Disponible &&
+                        consulta.Rows.Count < consulta.Resumen.Total,
+                    data = consulta.Rows
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error consultando auditoría de reimpresiones.");
+
+                return StatusCode(
+                    500,
+                    new
+                    {
+                        ok = false,
+                        msg = "No se pudo consultar la auditoría de reimpresiones.",
+                        error = ex.GetBaseException().Message
+                    });
+            }
+        }
+
+
+        [HttpGet("AuditoriaReimpresionesExcel")]
+        public async Task<IActionResult> AuditoriaReimpresionesExcel(
+            DateTime? desde = null,
+            DateTime? hasta = null,
+            string planta = "",
+            string usuario = "",
+            string codigo = "",
+            string impresora = "",
+            string resultado = "")
+        {
+            try
+            {
+                const int maxExcel = 100000;
+
+                var consulta =
+                    await ConsultarAuditoriaReimpresionAsync(
+                        desde,
+                        hasta,
+                        planta,
+                        usuario,
+                        codigo,
+                        impresora,
+                        resultado,
+                        maxExcel);
+
+                if (!consulta.Disponible)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg =
+                            "La tabla dbo.ReimpresionEtiquetaAuditoria no existe. " +
+                            "Ejecuta primero el SQL de instalación."
+                    });
+                }
+
+                using var wb = new XLWorkbook();
+                var ws = wb.Worksheets.Add("Reimpresiones");
+
+                var headers = new[]
+                {
+                    "Fecha hora",
+                    "Usuario",
+                    "Planta",
+                    "Impresora",
+                    "Código etiqueta",
+                    "ProduccionId",
+                    "Cantidad solicitada",
+                    "Cantidad impresa",
+                    "Clave reporte",
+                    "Tipo impresión",
+                    "Empresa",
+                    "Resultado",
+                    "Mensaje",
+                    "Operación ID",
+                    "IP",
+                    "User Agent",
+                    "Solicitud JSON"
+                };
+
+                for (var c = 0; c < headers.Length; c++)
+                    ws.Cell(1, c + 1).Value = headers[c];
+
+                var r = 2;
+
+                foreach (var row in consulta.Rows)
+                {
+                    ws.Cell(r, 1).Value = row.FechaHora;
+                    ws.Cell(r, 2).Value = row.Usuario;
+                    ws.Cell(r, 3).Value = row.Planta;
+                    ws.Cell(r, 4).Value = row.PrinterName;
+                    ws.Cell(r, 5).Value = row.CodigoEtiqueta;
+
+                    if (row.ProduccionId.HasValue)
+                        ws.Cell(r, 6).Value = row.ProduccionId.Value;
+
+                    ws.Cell(r, 7).Value = row.CantidadSolicitada;
+                    ws.Cell(r, 8).Value = row.CantidadImpresa;
+                    ws.Cell(r, 9).Value = row.ClaveReporte;
+
+                    if (row.TipoImpresion.HasValue)
+                        ws.Cell(r, 10).Value = row.TipoImpresion.Value;
+
+                    ws.Cell(r, 11).Value = row.EmpresaEysId;
+                    ws.Cell(r, 12).Value = row.Exitoso ? "OK" : "ERROR";
+                    ws.Cell(r, 13).Value = row.Mensaje;
+                    ws.Cell(r, 14).Value = row.OperacionId.ToString();
+                    ws.Cell(r, 15).Value = row.Ip;
+                    ws.Cell(r, 16).Value = row.UserAgent;
+                    ws.Cell(r, 17).Value = row.DatosSolicitud;
+                    r++;
+                }
+
+                var header =
+                    ws.Range(1, 1, 1, headers.Length);
+
+                header.Style.Font.Bold = true;
+                header.Style.Font.FontColor = XLColor.White;
+                header.Style.Fill.BackgroundColor = XLColor.DarkRed;
+
+                ws.SheetView.FreezeRows(1);
+                ws.RangeUsed()?.SetAutoFilter();
+
+                ws.Column(1).Style.DateFormat.Format =
+                    "dd/MM/yyyy HH:mm:ss";
+
+                ws.Columns(1, 16).AdjustToContents();
+
+                ws.Column(4).Width =
+                    Math.Min(ws.Column(4).Width, 35);
+
+                ws.Column(5).Width =
+                    Math.Min(ws.Column(5).Width, 35);
+
+                ws.Column(13).Width = 55;
+                ws.Column(16).Width = 65;
+                ws.Column(17).Width = 70;
+
+                ws.Columns(13, 13)
+                    .Style.Alignment.WrapText = true;
+
+                ws.Columns(16, 17)
+                    .Style.Alignment.WrapText = true;
+
+                using var ms = new MemoryStream();
+                wb.SaveAs(ms);
+                ms.Position = 0;
+
+                var fileName =
+                    $"Auditoria_Reimpresiones_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+
+                return File(
+                    ms.ToArray(),
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error generando Excel de auditoría de reimpresiones.");
+
+                return StatusCode(
+                    500,
+                    new
+                    {
+                        ok = false,
+                        msg = "No se pudo generar el Excel de auditoría.",
+                        error = ex.GetBaseException().Message
+                    });
+            }
+        }
 
 
         // ✅ GET /ProcesosCG/Etiquetaciones?source=P1  ó  ?source=TIF
@@ -11392,6 +12029,8 @@ OPTION (RECOMPILE);";
             int dias = 23,
             bool soloSkuMovimiento = true)
         {
+            var cronometroTotal = Stopwatch.StartNew();
+
             try
             {
                 var fechaInicioReal = (fechaInicio ?? DateTime.Today).Date;
@@ -11406,27 +12045,39 @@ OPTION (RECOMPILE);";
                     fechaFinReal = temp;
                 }
 
+                /*
+                 * ============================================================
+                 * PRERREQUISITOS
+                 * ============================================================
+                 */
                 const string sqlPrerequisitos = @"
 SELECT
     TablaConfigExiste =
         CASE WHEN OBJECT_ID('dbo.InventarioInicialAlmacenConfig', 'U') IS NULL
              THEN 0 ELSE 1 END,
+
     ColumnaAlmacenExiste =
         CASE WHEN COL_LENGTH('dbo.InventarioAlmacenado_Meat', 'Almacen') IS NULL
              THEN 0 ELSE 1 END,
+
     ColumnaSkuNormExiste =
         CASE WHEN COL_LENGTH('dbo.InventarioAlmacenado_Meat', 'SkuNorm') IS NULL
              THEN 0 ELSE 1 END,
+
     ColumnaAlmacenNormExiste =
         CASE WHEN COL_LENGTH('dbo.InventarioAlmacenado_Meat', 'AlmacenNorm') IS NULL
              THEN 0 ELSE 1 END,
+
     ColumnaCodigoEtiquetaNormExiste =
         CASE WHEN COL_LENGTH('dbo.InventarioAlmacenado_Meat', 'CodigoEtiquetaNorm') IS NULL
              THEN 0 ELSE 1 END,
+
     TablaArticuloSapExiste =
         CASE WHEN OBJECT_ID('dbo.ArticuloSap', 'U') IS NULL THEN 0 ELSE 1 END,
+
     TablaClasificacionProduccionExiste =
         CASE WHEN OBJECT_ID('dbo.ClasificacionProduccion', 'U') IS NULL THEN 0 ELSE 1 END,
+
     ParametroAlmacenesExiste =
         CASE WHEN EXISTS
         (
@@ -11435,6 +12086,7 @@ SELECT
             WHERE object_id = OBJECT_ID('dbo.sp_InventarioInicial')
               AND name = '@AlmacenesCsv'
         ) THEN 1 ELSE 0 END,
+
     ParametroClasificacionesExiste =
         CASE WHEN EXISTS
         (
@@ -11444,125 +12096,184 @@ SELECT
               AND name = '@ClasificacionesCsv'
         ) THEN 1 ELSE 0 END;";
 
-                const string sqlSkusSinConfig = @"
-;WITH SkusMovimiento AS
-(
-    SELECT DISTINCT
-        UPPER(LTRIM(RTRIM(i.SkuNorm))) AS Sku
-    FROM dbo.InventarioAlmacenado_Meat i WITH (NOLOCK)
-    WHERE
-        i.SkuNorm IS NOT NULL
-        AND LTRIM(RTRIM(i.SkuNorm)) <> ''
-        AND i.FechaInventario >= @FechaInventarioInicial
-        AND i.FechaInventario < DATEADD(DAY, 1, @FechaInventarioInicial)
-        AND ISNULL(i.PesoNeto, 0) > 0
-
-    UNION
-
-    SELECT DISTINCT
-        UPPER(LTRIM(RTRIM(b.ProductoCodigoConvertidoNorm))) AS Sku
-    FROM dbo.PlaneacionProduccion a WITH (NOLOCK)
-    INNER JOIN dbo.PlanDiario b WITH (NOLOCK)
-        ON b.PlaneacionId = a.PlaneacionId
-    WHERE
-        b.ProductoCodigoConvertidoNorm IS NOT NULL
-        AND LTRIM(RTRIM(b.ProductoCodigoConvertidoNorm)) <> ''
-        AND a.FechaPlan >= @FechaInicio
-        AND a.FechaPlan < DATEADD(DAY, 1, @FechaFin)
-        AND ISNULL(b.KgInyeccion, 0) > 0
-)
+                /*
+                 * ============================================================
+                 * SKU: CATÁLOGO COMPLETO
+                 * ============================================================
+                 *
+                 * La vista normalmente solicita soloSkuMovimiento = false
+                 * al cargar los combos.
+                 *
+                 * Antes, incluso en ese caso, el SQL incluía el CTE
+                 * SkusMovimiento y podía consultar InventarioAlmacenado_Meat.
+                 *
+                 * Esta consulta NO toca la tabla histórica.
+                 */
+                const string sqlSkusTodos = @"
 SELECT
     UPPER(LTRIM(RTRIM(c.Sku))) AS Sku,
     c.Articulo,
     CASE
-        WHEN NULLIF(LTRIM(RTRIM(c.MasterProducto)), '') IS NULL THEN 'SIN MASTER'
+        WHEN NULLIF(LTRIM(RTRIM(c.MasterProducto)), '') IS NULL
+            THEN 'SIN MASTER'
         ELSE UPPER(LTRIM(RTRIM(c.MasterProducto)))
     END AS MasterProducto
 FROM dbo.InventarioInicialCatalogo c WITH (NOLOCK)
 WHERE
     c.Activo = 1
     AND NULLIF(LTRIM(RTRIM(c.Sku)), '') IS NOT NULL
-    AND
-    (
-        @SoloSkuMovimiento = 0
-        OR EXISTS
-        (
-            SELECT 1
-            FROM SkusMovimiento sm
-            WHERE sm.Sku COLLATE DATABASE_DEFAULT =
-                  UPPER(LTRIM(RTRIM(c.Sku))) COLLATE DATABASE_DEFAULT
-        )
-    )
 ORDER BY
     CASE
-        WHEN NULLIF(LTRIM(RTRIM(c.MasterProducto)), '') IS NULL THEN 'SIN MASTER'
+        WHEN NULLIF(LTRIM(RTRIM(c.MasterProducto)), '') IS NULL
+            THEN 'SIN MASTER'
         ELSE UPPER(LTRIM(RTRIM(c.MasterProducto)))
     END,
     UPPER(LTRIM(RTRIM(c.Sku)));";
 
-                const string sqlSkusConConfig = @"
+                /*
+                 * ============================================================
+                 * SKU CON MOVIMIENTO - SIN CONFIGURACIÓN DE ALMACENES
+                 * ============================================================
+                 *
+                 * Solo consulta la fotografía seleccionada y la producción
+                 * dentro del rango.
+                 */
+                const string sqlSkusMovimientoSinConfig = @"
 ;WITH SkusMovimiento AS
 (
-    SELECT DISTINCT
-        UPPER(LTRIM(RTRIM(i.SkuNorm))) AS Sku
+    SELECT
+        i.SkuNorm AS Sku
+    FROM dbo.InventarioAlmacenado_Meat i WITH (NOLOCK)
+    WHERE
+        NULLIF(i.SkuNorm, '') IS NOT NULL
+        AND i.FechaInventario >= @FechaInventarioInicial
+        AND i.FechaInventario < DATEADD(DAY, 1, @FechaInventarioInicial)
+        AND ISNULL(i.PesoNeto, 0) > 0
+    GROUP BY
+        i.SkuNorm
+
+    UNION
+
+    SELECT
+        b.ProductoCodigoConvertidoNorm AS Sku
+    FROM dbo.PlaneacionProduccion a WITH (NOLOCK)
+    INNER JOIN dbo.PlanDiario b WITH (NOLOCK)
+        ON b.PlaneacionId = a.PlaneacionId
+    WHERE
+        NULLIF(b.ProductoCodigoConvertidoNorm, '') IS NOT NULL
+        AND a.FechaPlan >= @FechaInicio
+        AND a.FechaPlan < DATEADD(DAY, 1, @FechaFin)
+        AND ISNULL(b.KgInyeccion, 0) > 0
+    GROUP BY
+        b.ProductoCodigoConvertidoNorm
+)
+SELECT
+    UPPER(LTRIM(RTRIM(c.Sku))) AS Sku,
+    c.Articulo,
+    CASE
+        WHEN NULLIF(LTRIM(RTRIM(c.MasterProducto)), '') IS NULL
+            THEN 'SIN MASTER'
+        ELSE UPPER(LTRIM(RTRIM(c.MasterProducto)))
+    END AS MasterProducto
+FROM dbo.InventarioInicialCatalogo c WITH (NOLOCK)
+WHERE
+    c.Activo = 1
+    AND NULLIF(LTRIM(RTRIM(c.Sku)), '') IS NOT NULL
+    AND EXISTS
+    (
+        SELECT 1
+        FROM SkusMovimiento sm
+        WHERE sm.Sku COLLATE DATABASE_DEFAULT =
+              UPPER(LTRIM(RTRIM(c.Sku))) COLLATE DATABASE_DEFAULT
+    )
+ORDER BY
+    CASE
+        WHEN NULLIF(LTRIM(RTRIM(c.MasterProducto)), '') IS NULL
+            THEN 'SIN MASTER'
+        ELSE UPPER(LTRIM(RTRIM(c.MasterProducto)))
+    END,
+    UPPER(LTRIM(RTRIM(c.Sku)))
+OPTION (RECOMPILE);";
+
+                /*
+                 * ============================================================
+                 * SKU CON MOVIMIENTO - CON CONFIGURACIÓN DE ALMACENES
+                 * ============================================================
+                 *
+                 * Se usa AlmacenNorm directamente.
+                 * Se evita UPPER/LTRIM/RTRIM/CONVERT sobre 14M de filas.
+                 */
+                const string sqlSkusMovimientoConConfig = @"
+;WITH SkusMovimiento AS
+(
+    SELECT
+        i.SkuNorm AS Sku
     FROM dbo.InventarioAlmacenado_Meat i WITH (NOLOCK)
     LEFT JOIN dbo.InventarioInicialAlmacenConfig cfg WITH (NOLOCK)
         ON cfg.Almacen COLLATE DATABASE_DEFAULT =
-           UPPER(LTRIM(RTRIM(CONVERT(NVARCHAR(200), ISNULL(i.Almacen, ''))))) COLLATE DATABASE_DEFAULT
+           i.AlmacenNorm COLLATE DATABASE_DEFAULT
     WHERE
-        i.SkuNorm IS NOT NULL
-        AND LTRIM(RTRIM(i.SkuNorm)) <> ''
+        NULLIF(i.SkuNorm, '') IS NOT NULL
         AND i.FechaInventario >= @FechaInventarioInicial
         AND i.FechaInventario < DATEADD(DAY, 1, @FechaInventarioInicial)
         AND ISNULL(i.PesoNeto, 0) > 0
         AND ISNULL(cfg.Activo, 1) = 1
+    GROUP BY
+        i.SkuNorm
 
     UNION
 
-    SELECT DISTINCT
-        UPPER(LTRIM(RTRIM(b.ProductoCodigoConvertidoNorm))) AS Sku
+    SELECT
+        b.ProductoCodigoConvertidoNorm AS Sku
     FROM dbo.PlaneacionProduccion a WITH (NOLOCK)
     INNER JOIN dbo.PlanDiario b WITH (NOLOCK)
         ON b.PlaneacionId = a.PlaneacionId
     WHERE
-        b.ProductoCodigoConvertidoNorm IS NOT NULL
-        AND LTRIM(RTRIM(b.ProductoCodigoConvertidoNorm)) <> ''
+        NULLIF(b.ProductoCodigoConvertidoNorm, '') IS NOT NULL
         AND a.FechaPlan >= @FechaInicio
         AND a.FechaPlan < DATEADD(DAY, 1, @FechaFin)
         AND ISNULL(b.KgInyeccion, 0) > 0
+    GROUP BY
+        b.ProductoCodigoConvertidoNorm
 )
 SELECT
     UPPER(LTRIM(RTRIM(c.Sku))) AS Sku,
     c.Articulo,
     CASE
-        WHEN NULLIF(LTRIM(RTRIM(c.MasterProducto)), '') IS NULL THEN 'SIN MASTER'
+        WHEN NULLIF(LTRIM(RTRIM(c.MasterProducto)), '') IS NULL
+            THEN 'SIN MASTER'
         ELSE UPPER(LTRIM(RTRIM(c.MasterProducto)))
     END AS MasterProducto
 FROM dbo.InventarioInicialCatalogo c WITH (NOLOCK)
 WHERE
     c.Activo = 1
     AND NULLIF(LTRIM(RTRIM(c.Sku)), '') IS NOT NULL
-    AND
+    AND EXISTS
     (
-        @SoloSkuMovimiento = 0
-        OR EXISTS
-        (
-            SELECT 1
-            FROM SkusMovimiento sm
-            WHERE sm.Sku COLLATE DATABASE_DEFAULT =
-                  UPPER(LTRIM(RTRIM(c.Sku))) COLLATE DATABASE_DEFAULT
-        )
+        SELECT 1
+        FROM SkusMovimiento sm
+        WHERE sm.Sku COLLATE DATABASE_DEFAULT =
+              UPPER(LTRIM(RTRIM(c.Sku))) COLLATE DATABASE_DEFAULT
     )
 ORDER BY
     CASE
-        WHEN NULLIF(LTRIM(RTRIM(c.MasterProducto)), '') IS NULL THEN 'SIN MASTER'
+        WHEN NULLIF(LTRIM(RTRIM(c.MasterProducto)), '') IS NULL
+            THEN 'SIN MASTER'
         ELSE UPPER(LTRIM(RTRIM(c.MasterProducto)))
     END,
-    UPPER(LTRIM(RTRIM(c.Sku)));";
+    UPPER(LTRIM(RTRIM(c.Sku)))
+OPTION (RECOMPILE);";
 
+                /*
+                 * ============================================================
+                 * ALMACENES SIN TABLA DE CONFIGURACIÓN
+                 * ============================================================
+                 *
+                 * Solo fotografía del día.
+                 */
                 const string sqlAlmacenesSinConfig = @"
 SELECT
-    Almacen = UPPER(LTRIM(RTRIM(CONVERT(NVARCHAR(200), i.Almacen)))) COLLATE DATABASE_DEFAULT,
+    Almacen = i.AlmacenNorm COLLATE DATABASE_DEFAULT,
     DiasRafaga = CAST(0 AS INT),
     EsRafaga = CAST(0 AS BIT),
     Activo = CAST(1 AS BIT),
@@ -11572,36 +12283,63 @@ SELECT
     FechaInventario = @FechaInventarioInicial
 FROM dbo.InventarioAlmacenado_Meat i WITH (NOLOCK)
 WHERE
-    NULLIF(LTRIM(RTRIM(CONVERT(NVARCHAR(200), i.Almacen))), '') IS NOT NULL
+    NULLIF(i.AlmacenNorm, '') IS NOT NULL
     AND i.FechaInventario >= @FechaInventarioInicial
     AND i.FechaInventario < DATEADD(DAY, 1, @FechaInventarioInicial)
     AND ISNULL(i.PesoNeto, 0) > 0
 GROUP BY
-    UPPER(LTRIM(RTRIM(CONVERT(NVARCHAR(200), i.Almacen)))) COLLATE DATABASE_DEFAULT
-ORDER BY Almacen;";
+    i.AlmacenNorm
+ORDER BY
+    i.AlmacenNorm
+OPTION (RECOMPILE);";
 
+                /*
+                 * ============================================================
+                 * ALMACENES CON CONFIGURACIÓN - OPTIMIZADO
+                 * ============================================================
+                 *
+                 * ANTES:
+                 *   AlmacenesBase hacía SELECT DISTINCT sobre TODO el histórico
+                 *   de InventarioAlmacenado_Meat (~14 millones de registros).
+                 *
+                 * AHORA:
+                 *   1. Lee los almacenes configurados desde la tabla pequeña.
+                 *   2. Lee InventarioAlmacenado_Meat SOLO para la fotografía.
+                 *   3. Une ambos conjuntos.
+                 *
+                 * En la validación realizada:
+                 *   versión anterior ≈ 20 segundos
+                 *   versión optimizada ≈ 1 segundo
+                 */
                 const string sqlAlmacenesConConfig = @"
-;WITH AlmacenesBase AS
-(
-    SELECT DISTINCT
-        UPPER(LTRIM(RTRIM(CONVERT(NVARCHAR(200), i.Almacen)))) COLLATE DATABASE_DEFAULT AS Almacen
-    FROM dbo.InventarioAlmacenado_Meat i WITH (NOLOCK)
-    WHERE NULLIF(LTRIM(RTRIM(CONVERT(NVARCHAR(200), i.Almacen))), '') IS NOT NULL
-),
-InventarioFecha AS
+;WITH InventarioFecha AS
 (
     SELECT
-        UPPER(LTRIM(RTRIM(CONVERT(NVARCHAR(200), i.Almacen)))) COLLATE DATABASE_DEFAULT AS Almacen,
+        i.AlmacenNorm AS Almacen,
         CAST(COUNT_BIG(*) AS DECIMAL(18,3)) AS TotalCajas,
         CAST(ISNULL(SUM(ISNULL(i.PesoNeto, 0)), 0) AS DECIMAL(18,3)) AS TotalKg
     FROM dbo.InventarioAlmacenado_Meat i WITH (NOLOCK)
     WHERE
-        NULLIF(LTRIM(RTRIM(CONVERT(NVARCHAR(200), i.Almacen))), '') IS NOT NULL
+        NULLIF(i.AlmacenNorm, '') IS NOT NULL
         AND i.FechaInventario >= @FechaInventarioInicial
         AND i.FechaInventario < DATEADD(DAY, 1, @FechaInventarioInicial)
         AND ISNULL(i.PesoNeto, 0) > 0
     GROUP BY
-        UPPER(LTRIM(RTRIM(CONVERT(NVARCHAR(200), i.Almacen)))) COLLATE DATABASE_DEFAULT
+        i.AlmacenNorm
+),
+AlmacenesBase AS
+(
+    SELECT
+        UPPER(LTRIM(RTRIM(cfg.Almacen))) COLLATE DATABASE_DEFAULT AS Almacen
+    FROM dbo.InventarioInicialAlmacenConfig cfg WITH (NOLOCK)
+    WHERE
+        NULLIF(LTRIM(RTRIM(cfg.Almacen)), '') IS NOT NULL
+
+    UNION
+
+    SELECT
+        inv.Almacen COLLATE DATABASE_DEFAULT
+    FROM InventarioFecha inv
 )
 SELECT
     b.Almacen,
@@ -11614,36 +12352,57 @@ SELECT
     @FechaInventarioInicial AS FechaInventario
 FROM AlmacenesBase b
 LEFT JOIN dbo.InventarioInicialAlmacenConfig cfg WITH (NOLOCK)
-    ON cfg.Almacen COLLATE DATABASE_DEFAULT = b.Almacen COLLATE DATABASE_DEFAULT
+    ON UPPER(LTRIM(RTRIM(cfg.Almacen))) COLLATE DATABASE_DEFAULT =
+       b.Almacen COLLATE DATABASE_DEFAULT
 LEFT JOIN InventarioFecha inv
-    ON inv.Almacen COLLATE DATABASE_DEFAULT = b.Almacen COLLATE DATABASE_DEFAULT
-WHERE ISNULL(cfg.Activo, 1) = 1
+    ON inv.Almacen COLLATE DATABASE_DEFAULT =
+       b.Almacen COLLATE DATABASE_DEFAULT
+WHERE
+    ISNULL(cfg.Activo, 1) = 1
 ORDER BY
     CASE WHEN ISNULL(cfg.DiasRafaga, 0) = 0 THEN 0 ELSE 1 END,
     ISNULL(cfg.DiasRafaga, 0),
-    b.Almacen;";
+    b.Almacen
+OPTION (RECOMPILE);";
 
+                /*
+                 * ============================================================
+                 * CLASIFICACIÓN POR SKU
+                 * ============================================================
+                 */
                 const string sqlClasificacionesSku = @"
 ;WITH ClasificacionBase AS
 (
     SELECT
-        Sku = UPPER(LTRIM(RTRIM(CONVERT(NVARCHAR(100), a.ProductoCodigo)))) COLLATE DATABASE_DEFAULT,
+        Sku =
+            UPPER(LTRIM(RTRIM(CONVERT(NVARCHAR(100), a.ProductoCodigo))))
+            COLLATE DATABASE_DEFAULT,
+
         Clasificacion =
             CASE
-                WHEN NULLIF(LTRIM(RTRIM(CONVERT(NVARCHAR(200), b.Nombre))), '') IS NULL
+                WHEN NULLIF(
+                    LTRIM(RTRIM(CONVERT(NVARCHAR(200), b.Nombre))),
+                    ''
+                ) IS NULL
                     THEN N'SIN CLASIFICACIÓN'
-                ELSE UPPER(LTRIM(RTRIM(CONVERT(NVARCHAR(200), b.Nombre))))
+                ELSE
+                    UPPER(LTRIM(RTRIM(CONVERT(NVARCHAR(200), b.Nombre))))
             END
     FROM dbo.ArticuloSap a WITH (NOLOCK)
     LEFT JOIN dbo.ClasificacionProduccion b WITH (NOLOCK)
         ON a.U_Clas_Prod = b.ClasificacionId
-    WHERE NULLIF(LTRIM(RTRIM(CONVERT(NVARCHAR(100), a.ProductoCodigo))), '') IS NOT NULL
+    WHERE
+        NULLIF(
+            LTRIM(RTRIM(CONVERT(NVARCHAR(100), a.ProductoCodigo))),
+            ''
+        ) IS NOT NULL
 )
 SELECT
     Sku,
     Clasificacion = MAX(Clasificacion)
 FROM ClasificacionBase
-GROUP BY Sku;";
+GROUP BY
+    Sku;";
 
                 var cn = _db.Database.GetDbConnection();
                 var shouldClose = cn.State == ConnectionState.Closed;
@@ -11653,10 +12412,16 @@ GROUP BY Sku;";
 
                 try
                 {
-                    var prerequisitos = await cn.QuerySingleAsync<InventarioInicialPrerequisitosVM>(
-                        sqlPrerequisitos,
-                        commandTimeout: 60
-                    );
+                    /*
+                     * --------------------------------------------------------
+                     * 1. Prerrequisitos
+                     * --------------------------------------------------------
+                     */
+                    var prerequisitos =
+                        await cn.QuerySingleAsync<InventarioInicialPrerequisitosVM>(
+                            sqlPrerequisitos,
+                            commandTimeout: 60
+                        );
 
                     if (prerequisitos.ColumnaAlmacenExiste == 0)
                     {
@@ -11664,7 +12429,9 @@ GROUP BY Sku;";
                         {
                             ok = false,
                             msg = "Falta la columna Almacen en dbo.InventarioAlmacenado_Meat.",
-                            error = "Ejecuta primero el script SQL de almacenes y ráfagas o ajusta la fuente al nombre real de la columna de almacén."
+                            error =
+                                "Ejecuta primero el script SQL de almacenes y ráfagas " +
+                                "o ajusta la fuente al nombre real de la columna de almacén."
                         });
                     }
 
@@ -11674,7 +12441,21 @@ GROUP BY Sku;";
                         {
                             ok = false,
                             msg = "Falta la columna SkuNorm en dbo.InventarioAlmacenado_Meat.",
-                            error = "Ejecuta el script de normalización utilizado por Inventario Inicial antes de abrir la vista."
+                            error =
+                                "Ejecuta el script de normalización utilizado por " +
+                                "Inventario Inicial antes de abrir la vista."
+                        });
+                    }
+
+                    if (prerequisitos.ColumnaAlmacenNormExiste == 0)
+                    {
+                        return StatusCode(500, new
+                        {
+                            ok = false,
+                            msg = "Falta la columna AlmacenNorm en dbo.InventarioAlmacenado_Meat.",
+                            error =
+                                "La versión optimizada del filtro utiliza AlmacenNorm " +
+                                "para aprovechar los índices existentes."
                         });
                     }
 
@@ -11685,7 +12466,8 @@ GROUP BY Sku;";
                         {
                             ok = false,
                             msg = "No se puede cargar el filtro de clasificación.",
-                            error = "Deben existir dbo.ArticuloSap y dbo.ClasificacionProduccion."
+                            error =
+                                "Deben existir dbo.ArticuloSap y dbo.ClasificacionProduccion."
                         });
                     }
 
@@ -11693,23 +12475,57 @@ GROUP BY Sku;";
                     {
                         FechaInicio = fechaInicioReal,
                         FechaFin = fechaFinReal,
-                        FechaInventarioInicial = fechaInventarioReal,
-                        SoloSkuMovimiento = soloSkuMovimiento
+                        FechaInventarioInicial = fechaInventarioReal
                     };
 
-                    var skusRaw = (await cn.QueryAsync<InventarioInicialSkuFiltroVM>(
-                        prerequisitos.TablaConfigExiste == 1
-                            ? sqlSkusConConfig
-                            : sqlSkusSinConfig,
-                        parametros,
-                        commandTimeout: 120
-                    )).ToList();
+                    /*
+                     * --------------------------------------------------------
+                     * 2. SKU
+                     * --------------------------------------------------------
+                     *
+                     * Cuando soloSkuMovimiento = false, NO se consulta
+                     * InventarioAlmacenado_Meat para construir el catálogo SKU.
+                     */
+                    string sqlSkus;
+
+                    if (!soloSkuMovimiento)
+                    {
+                        sqlSkus = sqlSkusTodos;
+                    }
+                    else if (prerequisitos.TablaConfigExiste == 1)
+                    {
+                        sqlSkus = sqlSkusMovimientoConConfig;
+                    }
+                    else
+                    {
+                        sqlSkus = sqlSkusMovimientoSinConfig;
+                    }
+
+                    var cronoSkus = Stopwatch.StartNew();
+
+                    var skusRaw =
+                        (await cn.QueryAsync<InventarioInicialSkuFiltroVM>(
+                            sqlSkus,
+                            parametros,
+                            commandTimeout: 120
+                        )).ToList();
+
+                    cronoSkus.Stop();
+
+                    /*
+                     * --------------------------------------------------------
+                     * 3. Clasificación
+                     * --------------------------------------------------------
+                     */
+                    var cronoClasificaciones = Stopwatch.StartNew();
 
                     var clasificacionesSkuRaw =
                         (await cn.QueryAsync<InventarioInicialClasificacionSkuVM>(
                             sqlClasificacionesSku,
                             commandTimeout: 60
                         )).ToList();
+
+                    cronoClasificaciones.Stop();
 
                     var clasificacionPorSku = clasificacionesSkuRaw
                         .Where(x => !string.IsNullOrWhiteSpace(x.Sku))
@@ -11721,25 +12537,47 @@ GROUP BY Sku;";
                                 : g.First().Clasificacion.Trim().ToUpperInvariant()
                         );
 
-                    var almacenesRaw = (await cn.QueryAsync<InventarioInicialAlmacenFiltroVM>(
-                        prerequisitos.TablaConfigExiste == 1
-                            ? sqlAlmacenesConConfig
-                            : sqlAlmacenesSinConfig,
-                        new { FechaInventarioInicial = fechaInventarioReal },
-                        commandTimeout: 120
-                    )).ToList();
+                    /*
+                     * --------------------------------------------------------
+                     * 4. Almacenes
+                     * --------------------------------------------------------
+                     */
+                    var cronoAlmacenes = Stopwatch.StartNew();
 
+                    var almacenesRaw =
+                        (await cn.QueryAsync<InventarioInicialAlmacenFiltroVM>(
+                            prerequisitos.TablaConfigExiste == 1
+                                ? sqlAlmacenesConConfig
+                                : sqlAlmacenesSinConfig,
+                            new
+                            {
+                                FechaInventarioInicial = fechaInventarioReal
+                            },
+                            commandTimeout: 120
+                        )).ToList();
+
+                    cronoAlmacenes.Stop();
+
+                    /*
+                     * --------------------------------------------------------
+                     * 5. Transformación para la vista
+                     * --------------------------------------------------------
+                     */
                     var skus = skusRaw
                         .Select(x => new
                         {
                             value = (x.Sku ?? "").Trim().ToUpperInvariant(),
+
                             text = string.IsNullOrWhiteSpace(x.Articulo)
                                 ? (x.Sku ?? "").Trim().ToUpperInvariant()
                                 : $"{(x.Sku ?? "").Trim().ToUpperInvariant()} - {x.Articulo.Trim()}",
+
                             articulo = x.Articulo ?? "",
+
                             master = string.IsNullOrWhiteSpace(x.MasterProducto)
                                 ? "SIN MASTER"
                                 : x.MasterProducto.Trim().ToUpperInvariant(),
+
                             clasificacion = clasificacionPorSku.TryGetValue(
                                 (x.Sku ?? "").Trim().ToUpperInvariant(),
                                 out var clasificacionSku
@@ -11793,23 +12631,51 @@ GROUP BY Sku;";
                         .Where(x => !string.IsNullOrWhiteSpace(x.value))
                         .ToList();
 
+                    cronometroTotal.Stop();
+
                     return Ok(new
                     {
                         ok = true,
+
                         totalMasters = masters.Count,
                         totalClasificaciones = clasificaciones.Count,
                         totalSkus = skus.Count,
                         totalAlmacenes = almacenes.Count,
+
                         fechaInicio = fechaInicioReal,
                         fechaFin = fechaFinReal,
                         fechaInventarioInicial = fechaInventarioReal,
-                        configuracionRafagaDisponible = prerequisitos.TablaConfigExiste == 1,
-                        advertencia = prerequisitos.TablaConfigExiste == 1
-                            ? ""
-                            : "No existe dbo.InventarioInicialAlmacenConfig. Los almacenes se muestran temporalmente con 0 días de ráfaga; ejecuta el SQL de instalación para habilitar la liberación.",
-                        criterio = soloSkuMovimiento
-                            ? "SKU con inventario > 0 OR producción > 0"
-                            : "Todos los SKU activos del catálogo",
+
+                        configuracionRafagaDisponible =
+                            prerequisitos.TablaConfigExiste == 1,
+
+                        advertencia =
+                            prerequisitos.TablaConfigExiste == 1
+                                ? ""
+                                : "No existe dbo.InventarioInicialAlmacenConfig. " +
+                                  "Los almacenes se muestran temporalmente con 0 días de ráfaga; " +
+                                  "ejecuta el SQL de instalación para habilitar la liberación.",
+
+                        criterio =
+                            soloSkuMovimiento
+                                ? "SKU con inventario > 0 OR producción > 0"
+                                : "Todos los SKU activos del catálogo",
+
+                        /*
+                         * Métricas de diagnóstico.
+                         * No afectan a la vista actual y permiten verificar
+                         * desde Network/JSON dónde se consume el tiempo.
+                         */
+                        duracionMs = cronometroTotal.ElapsedMilliseconds,
+                        duracionSkusMs = cronoSkus.ElapsedMilliseconds,
+                        duracionClasificacionesMs =
+                            cronoClasificaciones.ElapsedMilliseconds,
+                        duracionAlmacenesMs = cronoAlmacenes.ElapsedMilliseconds,
+
+                        optimizacionAlmacenes =
+                            "La lista de almacenes ya no recorre todo el histórico. " +
+                            "Usa configuración + fotografía del inventario seleccionado.",
+
                         masters,
                         clasificaciones,
                         skus,
@@ -11824,17 +12690,24 @@ GROUP BY Sku;";
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al consultar InventarioInicialFiltros");
+                cronometroTotal.Stop();
+
+                _logger.LogError(
+                    ex,
+                    "Error al consultar InventarioInicialFiltros"
+                );
 
                 return StatusCode(500, new
                 {
                     ok = false,
                     msg = "Error al consultar filtros de inventario inicial.",
                     error = ex.GetBaseException().Message,
-                    inner = ex.InnerException?.Message
+                    inner = ex.InnerException?.Message,
+                    duracionMs = cronometroTotal.ElapsedMilliseconds
                 });
             }
         }
+
 
         [HttpGet("InventarioInicialDatos")]
         public async Task<IActionResult> InventarioInicialDatos(
@@ -12208,9 +13081,9 @@ ORDER BY
          */
         [HttpGet("InventarioMinMaxDatos")]
         public async Task<IActionResult> InventarioMinMaxDatos(
-            DateTime? mes = null,
-            string sucursal = "",
-            string almacen = "")
+                  DateTime? mes = null,
+                  string sucursal = "",
+                  string almacen = "")
         {
             try
             {
@@ -12226,14 +13099,23 @@ ORDER BY
 DECLARE @FechaActualizacion DATETIME;
 DECLARE @FechaInventarioReal DATE;
 
+/*
+ * INVENTARIO ACTUAL
+ * Se toma la última actualización disponible para los filtros solicitados.
+ * No se filtra Kg aquí para evitar caer en una fotografía anterior
+ * únicamente porque la última tenga artículos en cero.
+ */
 SELECT
     @FechaActualizacion = MAX(s.FechaActualizacion)
 FROM dbo.InventarioSigo s WITH (NOLOCK)
 WHERE
-    ISNULL(s.Kg, 0) <> 0
-    AND (@Sucursal = '' OR UPPER(LTRIM(RTRIM(s.Sucursal))) = UPPER(LTRIM(RTRIM(@Sucursal))))
+    (@Sucursal = '' OR UPPER(LTRIM(RTRIM(s.Sucursal))) = UPPER(LTRIM(RTRIM(@Sucursal))))
     AND (@Almacen = '' OR UPPER(LTRIM(RTRIM(s.Almacen))) = UPPER(LTRIM(RTRIM(@Almacen))));
 
+/*
+ * INVENTARIO INICIAL
+ * Último inventario almacenado disponible al cierre anterior al mes.
+ */
 SELECT
     @FechaInventarioReal = MAX(CAST(i.FechaInventario AS DATE))
 FROM dbo.InventarioAlmacenado_Meat i WITH (NOLOCK)
@@ -12273,21 +13155,42 @@ CatalogoMaster AS
 ),
 Produccion AS
 (
+    /*
+     * PLAN MENSUAL
+     * La producción objetivo del mes se toma de PlanDetalle.
+     *
+     * Mes  = mes seleccionado en la pantalla
+     * Año  = año seleccionado en la pantalla
+     * SKU  = ProductoCodigo
+     * Kg   = Peso
+     */
     SELECT
-        UPPER(LTRIM(RTRIM(d.ProductoCodigoConvertidoNorm))) AS Sku,
-        SUM(ISNULL(d.KgInyeccion, 0)) AS KgProduccionMes
-    FROM dbo.PlaneacionProduccion p WITH (NOLOCK)
-    INNER JOIN dbo.PlanDiario d WITH (NOLOCK)
-        ON d.PlaneacionId = p.PlaneacionId
+        UPPER(LTRIM(RTRIM(pd.ProductoCodigo))) AS Sku,
+
+        CAST(
+            SUM(ISNULL(pd.Peso, 0))
+            AS DECIMAL(18,3)
+        ) AS KgProduccionMes
+
+    FROM dbo.PlanDetalle pd WITH (NOLOCK)
+
     WHERE
-        p.FechaPlan >= @FechaDesde
-        AND p.FechaPlan < @FechaHasta
-        AND NULLIF(LTRIM(RTRIM(d.ProductoCodigoConvertidoNorm)), '') IS NOT NULL
-        AND ISNULL(d.KgInyeccion, 0) <> 0
+        pd.Mes = MONTH(@FechaDesde)
+        AND pd.[Anio] = YEAR(@FechaDesde)
+
+        AND NULLIF(
+            LTRIM(RTRIM(pd.ProductoCodigo)),
+            ''
+        ) IS NOT NULL
+
+        AND ISNULL(pd.Peso, 0) <> 0
+
     GROUP BY
-        UPPER(LTRIM(RTRIM(d.ProductoCodigoConvertidoNorm)))
-),
-InventarioInicial AS
+        UPPER(LTRIM(RTRIM(pd.ProductoCodigo)))
+
+    HAVING
+        SUM(ISNULL(pd.Peso, 0)) > 0
+),InventarioInicial AS
 (
     SELECT
         UPPER(LTRIM(RTRIM(i.SkuNorm))) AS Sku,
@@ -12300,6 +13203,8 @@ InventarioInicial AS
         AND ISNULL(i.PesoNeto, 0) <> 0
     GROUP BY
         UPPER(LTRIM(RTRIM(i.SkuNorm)))
+    HAVING
+        SUM(ISNULL(i.PesoNeto, 0)) > 0
 ),
 InventarioActual AS
 (
@@ -12324,32 +13229,24 @@ InventarioActual AS
         AND NULLIF(LTRIM(RTRIM(s.ProductoCodigo)), '') IS NOT NULL
     GROUP BY
         UPPER(LTRIM(RTRIM(s.ProductoCodigo)))
+    HAVING
+        SUM(ISNULL(s.Kg, 0)) > 0
 ),
 Skus AS
 (
     /*
-     * Se incluye ArticuloSap para que la pantalla muestre el catálogo
-     * configurado aunque un SKU no tenga movimiento en el mes seleccionado.
+     * UNIVERSO OPERATIVO:
+     * Solamente entran SKUs con PRODUCCIÓN DEL MES > 0.
+     *
+     * El inventario inicial y el inventario actual siguen utilizándose
+     * para calcular la base, cobertura, mínimo, ideal, máximo y gap,
+     * pero ya NO hacen que un SKU aparezca por sí solos.
+     *
+     * ArticuloSap y CatalogoMaster se conservan únicamente para obtener
+     * descripción, master y clasificación.
      */
-    SELECT a.Sku
-    FROM Articulos a
-    LEFT JOIN dbo.ClasificacionProduccion cp WITH (NOLOCK)
-        ON cp.ClasificacionId = a.ClasificacionId
-    WHERE
-        a.ClasificacionId IS NOT NULL
-        OR EXISTS (SELECT 1 FROM CatalogoMaster cm WHERE cm.Sku = a.Sku)
-
-    UNION
-    SELECT Sku FROM CatalogoMaster
-
-    UNION
-    SELECT Sku FROM Produccion
-
-    UNION
-    SELECT Sku FROM InventarioInicial
-
-    UNION
-    SELECT Sku FROM InventarioActual
+    SELECT Sku
+    FROM Produccion
 ),
 Base AS
 (
@@ -12363,35 +13260,40 @@ Base AS
 
         CAST(ISNULL(p.KgProduccionMes, 0) AS DECIMAL(18,3)) AS KgProduccionMes,
         CAST(ISNULL(ii.KgInventarioInicial, 0) AS DECIMAL(18,3)) AS KgInventarioInicial,
+
         CAST(
             ISNULL(p.KgProduccionMes, 0) +
             ISNULL(ii.KgInventarioInicial, 0)
             AS DECIMAL(18,3)
         ) AS KgBaseCalculo,
+
         CAST(ISNULL(ia.KgActual, 0) AS DECIMAL(18,3)) AS KgActual,
 
         ISNULL(ia.CajasActuales, 0) AS CajasActuales,
         ISNULL(ia.Lotes, 0) AS Lotes,
 
         CAST(
-            CASE WHEN ISNULL(cp.ActivoMinMax, 0) = 1
-                THEN ISNULL(cp.DiasMinimo, 0)
+            CASE
+                WHEN ISNULL(cp.ActivoMinMax, 0) = 1
+                    THEN ISNULL(cp.DiasMinimo, 0)
                 ELSE 0
             END
             AS DECIMAL(10,2)
         ) AS DiasMinimo,
 
         CAST(
-            CASE WHEN ISNULL(cp.ActivoMinMax, 0) = 1
-                THEN ISNULL(cp.DiasIdeal, 0)
+            CASE
+                WHEN ISNULL(cp.ActivoMinMax, 0) = 1
+                    THEN ISNULL(cp.DiasIdeal, 0)
                 ELSE 0
             END
             AS DECIMAL(10,2)
         ) AS DiasIdeal,
 
         CAST(
-            CASE WHEN ISNULL(cp.ActivoMinMax, 0) = 1
-                THEN ISNULL(cp.DiasMaximo, 0)
+            CASE
+                WHEN ISNULL(cp.ActivoMinMax, 0) = 1
+                    THEN ISNULL(cp.DiasMaximo, 0)
                 ELSE 0
             END
             AS DECIMAL(10,2)
@@ -12416,6 +13318,7 @@ Umbrales AS
 (
     SELECT
         b.*,
+
         CAST(
             CASE
                 WHEN b.KgBaseCalculo > 0
@@ -12488,30 +13391,48 @@ SELECT
     CASE
         WHEN u.Clasificacion = 'NO PRODUCIR'
             THEN 'NOPROD'
+
         WHEN NULLIF(u.Clasificacion, '') IS NULL
             THEN 'SIN'
+
         WHEN u.Clasificacion = 'POR DEFINIR'
             THEN 'SIN'
+
         WHEN u.ReglaActiva = 0
             THEN 'SIN'
+
         WHEN u.KgBaseCalculo <= 0
             THEN 'SIN'
+
         WHEN u.DiasMinimo = 0
              AND u.DiasIdeal = 0
              AND u.DiasMaximo = 0
             THEN 'SIN'
+
         WHEN u.KgActual < u.Minimo
             THEN 'BAJO'
+
         WHEN u.KgActual < u.Ideal
             THEN 'MIN'
+
         WHEN u.KgActual <= u.Maximo
             THEN 'OK'
+
         ELSE 'SOBRE'
     END AS Estatus,
 
     @FechaActualizacion AS FechaActualizacion,
     @FechaInventarioReal AS FechaInventarioInicial
+
 FROM Umbrales u
+
+/*
+ * Protección final:
+ * solamente devolver SKUs con producción mensual mayor a cero.
+ */
+WHERE
+    u.KgProduccionMes > 0
+
 ORDER BY
     u.ClasificacionOrden,
     u.Master,
@@ -12557,18 +13478,25 @@ ORDER BY
                         mes = fechaDesde.ToString("yyyy-MM"),
                         fechaDesde,
                         fechaHasta = fechaHasta.AddDays(-1),
+
                         fechaInventarioInicial =
                             fechaInventarioInicial == default
                                 ? (DateTime?)null
                                 : fechaInventarioInicial,
+
                         fechaActualizacion =
                             fechaActualizacion == default
                                 ? (DateTime?)null
                                 : fechaActualizacion,
+
                         denominadorDias = 30.4m,
+
                         criterio =
+                            "Solo se muestran SKUs con producción mensual > 0. " +
+                            "El inventario inicial y actual se usan para el análisis, pero no hacen visible un SKU si no tiene producción en el mes. " +
                             "Base = producción planeada del mes + último inventario almacenado disponible al cierre anterior. " +
                             "Mínimo, ideal y máximo = Base / 30.4 × días definidos en ClasificacionProduccion.",
+
                         data = rows
                     });
                 }
@@ -12591,6 +13519,7 @@ ORDER BY
                 });
             }
         }
+
 
         [HttpGet("InventarioMinMaxCatalogo")]
         public async Task<IActionResult> InventarioMinMaxCatalogo()
@@ -13071,6 +14000,39 @@ WHERE
             public string TypeName { get; set; } = "";
         }
 
+        private sealed class AjusteEtiquetaAuditoriaGlobalRowVM
+        {
+            public long AjusteId { get; set; }
+            public Guid OperacionId { get; set; }
+            public string Planta { get; set; } = "";
+            public int ProduccionId { get; set; }
+            public string CodigoEtiqueta { get; set; } = "";
+            public string Accion { get; set; } = "";
+            public DateTime? FechaProduccion { get; set; }
+            public bool EsHistorico { get; set; }
+            public string AutorizacionTipo { get; set; } = "";
+            public string UsuarioSolicita { get; set; } = "";
+            public string UsuarioAutoriza { get; set; } = "";
+            public string Motivo { get; set; } = "";
+            public int? ProcesoAnterior { get; set; }
+            public int? ProcesoNuevo { get; set; }
+            public int? EstatusAnterior { get; set; }
+            public int? EstatusNuevo { get; set; }
+            public decimal? PesoAnterior { get; set; }
+            public decimal? PesoNuevo { get; set; }
+            public string DatosAntes { get; set; } = "";
+            public string DatosDespues { get; set; } = "";
+            public DateTime FechaHora { get; set; }
+        }
+
+        private sealed class AjusteEtiquetaAuditoriaConsultaVM
+        {
+            public long Total { get; set; }
+            public bool Disponible { get; set; }
+            public List<AjusteEtiquetaAuditoriaGlobalRowVM> Rows { get; set; } = new();
+        }
+
+
         [HttpGet("AjusteEtiquetas")]
         [RevisarPermiso("AJUSTE_ETIQUETAS", "LEER")]
         public IActionResult AjusteEtiquetas(string source = "P1")
@@ -13337,6 +14299,441 @@ ORDER BY FechaHora DESC, AjusteId DESC;",
                 });
             }
         }
+
+
+        // =======================================================
+        // AUDITORÍA GLOBAL DE AJUSTES DE ETIQUETAS
+        // =======================================================
+
+        private async Task<AjusteEtiquetaAuditoriaConsultaVM>
+            ConsultarAuditoriaAjustesFuenteAsync(
+                string source,
+                DateTime? desde,
+                DateTime? hasta,
+                string usuario,
+                string accion,
+                string texto,
+                bool? esHistorico,
+                int top)
+        {
+            source = NormalizeSource(source);
+
+            var resultado = new AjusteEtiquetaAuditoriaConsultaVM();
+
+            var cs = GetMeatConnectionString(source);
+            if (string.IsNullOrWhiteSpace(cs))
+                return resultado;
+
+            await using var cn = new SqlConnection(cs);
+            await cn.OpenAsync();
+
+            var existe = await cn.ExecuteScalarAsync<int>(
+                @"SELECT CASE
+                    WHEN OBJECT_ID('dbo.AjusteEtiquetaAuditoria', 'U') IS NULL
+                    THEN 0 ELSE 1 END;",
+                commandTimeout: 30);
+
+            resultado.Disponible = existe == 1;
+
+            if (existe == 0)
+                return resultado;
+
+            usuario = (usuario ?? "").Trim();
+            accion = (accion ?? "").Trim().ToUpperInvariant();
+            texto = (texto ?? "").Trim();
+
+            if (accion != "ELIMINAR" && accion != "ACTIVAR")
+                accion = "";
+
+            var desdeReal = desde?.Date;
+            var hastaExclusivo = hasta?.Date.AddDays(1);
+
+            var q = string.IsNullOrWhiteSpace(texto)
+                ? ""
+                : $"%{texto}%";
+
+            var usuarioLike = string.IsNullOrWhiteSpace(usuario)
+                ? ""
+                : $"%{usuario}%";
+
+            top = Math.Clamp(top, 1, 100000);
+
+            const string sql = @"
+DECLARE @TieneDesde bit = CASE WHEN @Desde IS NULL THEN 0 ELSE 1 END;
+DECLARE @TieneHasta bit = CASE WHEN @HastaExclusivo IS NULL THEN 0 ELSE 1 END;
+DECLARE @TieneUsuario bit = CASE WHEN NULLIF(@Usuario, '') IS NULL THEN 0 ELSE 1 END;
+DECLARE @TieneAccion bit = CASE WHEN NULLIF(@Accion, '') IS NULL THEN 0 ELSE 1 END;
+DECLARE @TieneTexto bit = CASE WHEN NULLIF(@Q, '') IS NULL THEN 0 ELSE 1 END;
+
+SELECT COUNT_BIG(1)
+FROM dbo.AjusteEtiquetaAuditoria a WITH (NOLOCK)
+WHERE
+    (@TieneDesde = 0 OR a.FechaHora >= @Desde)
+    AND (@TieneHasta = 0 OR a.FechaHora < @HastaExclusivo)
+    AND (
+        @TieneUsuario = 0
+        OR ISNULL(a.UsuarioSolicita, '') LIKE @Usuario
+        OR ISNULL(a.UsuarioAutoriza, '') LIKE @Usuario
+    )
+    AND (@TieneAccion = 0 OR UPPER(ISNULL(a.Accion, '')) = @Accion)
+    AND (@EsHistorico IS NULL OR a.EsHistorico = @EsHistorico)
+    AND (
+        @TieneTexto = 0
+        OR ISNULL(a.CodigoEtiqueta, '') LIKE @Q
+        OR CONVERT(nvarchar(30), a.ProduccionId) LIKE @Q
+        OR ISNULL(a.Motivo, '') LIKE @Q
+        OR CONVERT(nvarchar(50), a.OperacionId) LIKE @Q
+        OR ISNULL(a.AutorizacionTipo, '') LIKE @Q
+    );
+
+SELECT TOP (@Top)
+    a.AjusteId,
+    a.OperacionId,
+    Planta = COALESCE(NULLIF(a.Planta, ''), @Source),
+    a.ProduccionId,
+    a.CodigoEtiqueta,
+    a.Accion,
+    a.FechaProduccion,
+    a.EsHistorico,
+    a.AutorizacionTipo,
+    a.UsuarioSolicita,
+    a.UsuarioAutoriza,
+    a.Motivo,
+    a.ProcesoAnterior,
+    a.ProcesoNuevo,
+    a.EstatusAnterior,
+    a.EstatusNuevo,
+    a.PesoAnterior,
+    a.PesoNuevo,
+    a.DatosAntes,
+    a.DatosDespues,
+    a.FechaHora
+FROM dbo.AjusteEtiquetaAuditoria a WITH (NOLOCK)
+WHERE
+    (@TieneDesde = 0 OR a.FechaHora >= @Desde)
+    AND (@TieneHasta = 0 OR a.FechaHora < @HastaExclusivo)
+    AND (
+        @TieneUsuario = 0
+        OR ISNULL(a.UsuarioSolicita, '') LIKE @Usuario
+        OR ISNULL(a.UsuarioAutoriza, '') LIKE @Usuario
+    )
+    AND (@TieneAccion = 0 OR UPPER(ISNULL(a.Accion, '')) = @Accion)
+    AND (@EsHistorico IS NULL OR a.EsHistorico = @EsHistorico)
+    AND (
+        @TieneTexto = 0
+        OR ISNULL(a.CodigoEtiqueta, '') LIKE @Q
+        OR CONVERT(nvarchar(30), a.ProduccionId) LIKE @Q
+        OR ISNULL(a.Motivo, '') LIKE @Q
+        OR CONVERT(nvarchar(50), a.OperacionId) LIKE @Q
+        OR ISNULL(a.AutorizacionTipo, '') LIKE @Q
+    )
+ORDER BY
+    a.FechaHora DESC,
+    a.AjusteId DESC
+OPTION (RECOMPILE);";
+
+            using var multi = await cn.QueryMultipleAsync(
+                sql,
+                new
+                {
+                    Source = source,
+                    Desde = desdeReal,
+                    HastaExclusivo = hastaExclusivo,
+                    Usuario = usuarioLike,
+                    Accion = accion,
+                    Q = q,
+                    EsHistorico = esHistorico,
+                    Top = top
+                },
+                commandTimeout: 120);
+
+            resultado.Total = await multi.ReadFirstAsync<long>();
+            resultado.Rows = (await multi
+                .ReadAsync<AjusteEtiquetaAuditoriaGlobalRowVM>())
+                .ToList();
+
+            return resultado;
+        }
+
+
+        [HttpGet("AuditoriaAjustesEtiquetas")]
+        [RevisarPermiso("AJUSTE_ETIQUETAS", "LEER")]
+        public async Task<IActionResult> AuditoriaAjustesEtiquetas(
+            DateTime? desde = null,
+            DateTime? hasta = null,
+            string planta = "TODOS",
+            string usuario = "",
+            string accion = "",
+            string texto = "",
+            string historico = "",
+            int top = 2000)
+        {
+            try
+            {
+                planta = (planta ?? "TODOS").Trim().ToUpperInvariant();
+
+                bool? esHistorico = (historico ?? "").Trim().ToUpperInvariant() switch
+                {
+                    "SI" => true,
+                    "NO" => false,
+                    _ => null
+                };
+
+                var fuentes = planta switch
+                {
+                    "P1" => new[] { "P1" },
+                    "TIF" => new[] { "TIF" },
+                    _ => new[] { "P1", "TIF" }
+                };
+
+                var consultas = await Task.WhenAll(
+                    fuentes.Select(source =>
+                        ConsultarAuditoriaAjustesFuenteAsync(
+                            source,
+                            desde,
+                            hasta,
+                            usuario,
+                            accion,
+                            texto,
+                            esHistorico,
+                            top)));
+
+                var rows = consultas
+                    .SelectMany(x => x.Rows)
+                    .OrderByDescending(x => x.FechaHora)
+                    .ThenByDescending(x => x.AjusteId)
+                    .Take(Math.Clamp(top, 1, 100000))
+                    .ToList();
+
+                var total = consultas.Sum(x => x.Total);
+
+                var usuarios = rows
+                    .SelectMany(x => new[]
+                    {
+                        x.UsuarioSolicita,
+                        x.UsuarioAutoriza
+                    })
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(x => x)
+                    .ToList();
+
+                return Ok(new
+                {
+                    ok = true,
+                    total,
+                    mostrados = rows.Count,
+                    truncado = rows.Count < total,
+                    fuentes = fuentes.Select((x, i) => new
+                    {
+                        source = x,
+                        disponible = consultas[i].Disponible,
+                        total = consultas[i].Total
+                    }),
+                    resumen = new
+                    {
+                        eliminaciones = rows.Count(x =>
+                            string.Equals(
+                                x.Accion,
+                                "ELIMINAR",
+                                StringComparison.OrdinalIgnoreCase)),
+                        activaciones = rows.Count(x =>
+                            string.Equals(
+                                x.Accion,
+                                "ACTIVAR",
+                                StringComparison.OrdinalIgnoreCase)),
+                        historicas = rows.Count(x => x.EsHistorico),
+                        usuarios = usuarios.Count
+                    },
+                    usuarios,
+                    data = rows
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error consultando auditoría global de ajustes de etiquetas.");
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = "No se pudo consultar la auditoría de ajustes.",
+                    error = ex.GetBaseException().Message
+                });
+            }
+        }
+
+
+        [HttpGet("AuditoriaAjustesEtiquetasExcel")]
+        [RevisarPermiso("AJUSTE_ETIQUETAS", "LEER")]
+        public async Task<IActionResult> AuditoriaAjustesEtiquetasExcel(
+            DateTime? desde = null,
+            DateTime? hasta = null,
+            string planta = "TODOS",
+            string usuario = "",
+            string accion = "",
+            string texto = "",
+            string historico = "")
+        {
+            try
+            {
+                planta = (planta ?? "TODOS").Trim().ToUpperInvariant();
+
+                bool? esHistorico = (historico ?? "").Trim().ToUpperInvariant() switch
+                {
+                    "SI" => true,
+                    "NO" => false,
+                    _ => null
+                };
+
+                var fuentes = planta switch
+                {
+                    "P1" => new[] { "P1" },
+                    "TIF" => new[] { "TIF" },
+                    _ => new[] { "P1", "TIF" }
+                };
+
+                const int maxExcel = 100000;
+
+                var consultas = await Task.WhenAll(
+                    fuentes.Select(source =>
+                        ConsultarAuditoriaAjustesFuenteAsync(
+                            source,
+                            desde,
+                            hasta,
+                            usuario,
+                            accion,
+                            texto,
+                            esHistorico,
+                            maxExcel)));
+
+                var rows = consultas
+                    .SelectMany(x => x.Rows)
+                    .OrderByDescending(x => x.FechaHora)
+                    .ThenByDescending(x => x.AjusteId)
+                    .Take(maxExcel)
+                    .ToList();
+
+                using var wb = new XLWorkbook();
+                var ws = wb.Worksheets.Add("Auditoria");
+
+                var headers = new[]
+                {
+                    "Fecha hora",
+                    "Planta",
+                    "Ajuste ID",
+                    "Operación ID",
+                    "ProduccionId",
+                    "Código etiqueta",
+                    "Fecha producción",
+                    "Acción",
+                    "Es histórico",
+                    "Tipo autorización",
+                    "Usuario solicita",
+                    "Usuario autoriza",
+                    "Motivo",
+                    "Proceso anterior",
+                    "Proceso nuevo",
+                    "Estatus anterior",
+                    "Estatus nuevo",
+                    "Peso anterior",
+                    "Peso nuevo",
+                    "Datos antes (JSON)",
+                    "Datos después (JSON)"
+                };
+
+                for (var c = 0; c < headers.Length; c++)
+                    ws.Cell(1, c + 1).Value = headers[c];
+
+                var r = 2;
+
+                foreach (var row in rows)
+                {
+                    ws.Cell(r, 1).Value = row.FechaHora;
+                    ws.Cell(r, 2).Value = row.Planta;
+                    ws.Cell(r, 3).Value = row.AjusteId;
+                    ws.Cell(r, 4).Value = row.OperacionId.ToString();
+                    ws.Cell(r, 5).Value = row.ProduccionId;
+                    ws.Cell(r, 6).Value = row.CodigoEtiqueta;
+                    if (row.FechaProduccion.HasValue)
+                        ws.Cell(r, 7).Value = row.FechaProduccion.Value;
+                    ws.Cell(r, 8).Value = row.Accion;
+                    ws.Cell(r, 9).Value = row.EsHistorico ? "SÍ" : "NO";
+                    ws.Cell(r, 10).Value = row.AutorizacionTipo;
+                    ws.Cell(r, 11).Value = row.UsuarioSolicita;
+                    ws.Cell(r, 12).Value = row.UsuarioAutoriza;
+                    ws.Cell(r, 13).Value = row.Motivo;
+                    if (row.ProcesoAnterior.HasValue)
+                        ws.Cell(r, 14).Value = row.ProcesoAnterior.Value;
+                    if (row.ProcesoNuevo.HasValue)
+                        ws.Cell(r, 15).Value = row.ProcesoNuevo.Value;
+                    if (row.EstatusAnterior.HasValue)
+                        ws.Cell(r, 16).Value = row.EstatusAnterior.Value;
+                    if (row.EstatusNuevo.HasValue)
+                        ws.Cell(r, 17).Value = row.EstatusNuevo.Value;
+                    if (row.PesoAnterior.HasValue)
+                        ws.Cell(r, 18).Value = row.PesoAnterior.Value;
+                    if (row.PesoNuevo.HasValue)
+                        ws.Cell(r, 19).Value = row.PesoNuevo.Value;
+                    ws.Cell(r, 20).Value = row.DatosAntes ?? "";
+                    ws.Cell(r, 21).Value = row.DatosDespues ?? "";
+                    r++;
+                }
+
+                var header = ws.Range(1, 1, 1, headers.Length);
+                header.Style.Font.Bold = true;
+                header.Style.Font.FontColor = XLColor.White;
+                header.Style.Fill.BackgroundColor = XLColor.DarkRed;
+                header.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+
+                ws.SheetView.FreezeRows(1);
+                ws.RangeUsed()?.SetAutoFilter();
+
+                ws.Column(1).Style.DateFormat.Format = "dd/MM/yyyy HH:mm:ss";
+                ws.Column(7).Style.DateFormat.Format = "dd/MM/yyyy HH:mm:ss";
+                ws.Columns(18, 19).Style.NumberFormat.Format = "#,##0.000";
+
+                ws.Columns(1, 19).AdjustToContents();
+
+                ws.Column(6).Width = Math.Min(ws.Column(6).Width, 32);
+                ws.Column(10).Width = Math.Min(ws.Column(10).Width, 25);
+                ws.Column(11).Width = Math.Min(ws.Column(11).Width, 28);
+                ws.Column(12).Width = Math.Min(ws.Column(12).Width, 28);
+                ws.Column(13).Width = 50;
+                ws.Column(20).Width = 70;
+                ws.Column(21).Width = 70;
+
+                ws.Columns(13, 13).Style.Alignment.WrapText = true;
+                ws.Columns(20, 21).Style.Alignment.WrapText = true;
+
+                using var ms = new MemoryStream();
+                wb.SaveAs(ms);
+                ms.Position = 0;
+
+                var fileName =
+                    $"Auditoria_Ajustes_Etiquetas_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+
+                return File(
+                    ms.ToArray(),
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error generando Excel de auditoría de ajustes de etiquetas.");
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = "No se pudo generar el Excel de auditoría.",
+                    error = ex.GetBaseException().Message
+                });
+            }
+        }
+
 
         [HttpPost("AplicarAjusteEtiqueta")]
         [ValidateAntiForgeryToken]
@@ -14064,6 +15461,659 @@ VALUES
 
 
 
+
+
+        // =======================================================
+        // CIERRE DE LOTES / COSTEO CONTROLADO
+        // =======================================================
+
+        private sealed class CierreLotePermisoVM
+        {
+            public bool PuedeLeer { get; set; }
+            public bool PuedeEscribir { get; set; }
+            public bool PuedeEliminar { get; set; }
+        }
+
+        [HttpGet("CierreLotes")]
+        [RevisarPermiso("CIERRE_LOTES", "LEER")]
+        public IActionResult CierreLotes(string source = "TIF")
+        {
+            ViewBag.Source = NormalizeSource(source);
+            return View("~/Views/ProcesosCG/CierreLotes.cshtml");
+        }
+
+        [HttpGet("CierreLotePermisos")]
+        [RevisarPermiso("CIERRE_LOTES", "LEER")]
+        public async Task<IActionResult> CierreLotePermisos()
+        {
+            var permiso = await ObtenerPermisoCierreLotesAsync();
+            return Ok(new
+            {
+                ok = true,
+                puedeLeer = permiso.PuedeLeer,
+                puedeEscribir = permiso.PuedeEscribir,
+                puedeAutorizar = permiso.PuedeEliminar,
+                regla = "LEER consulta; ESCRIBIR solicita/cierra; ELIMINAR autoriza o rechaza excepciones. El solicitante no puede autoautorizarse."
+            });
+        }
+
+        [HttpGet("CierreLotesBuscar")]
+        [RevisarPermiso("CIERRE_LOTES", "LEER")]
+        public async Task<IActionResult> CierreLotesBuscar(
+            [FromServices] ICierreLotesService cierre,
+            string source = "TIF",
+            DateTime? desde = null,
+            DateTime? hasta = null,
+            string estado = "ABIERTOS")
+        {
+            try
+            {
+                source = NormalizeSource(source);
+                var d1 = (desde ?? DateTime.Today).Date;
+                var d2 = (hasta ?? DateTime.Today).Date;
+                var rows = await cierre.ListarLotesAsync(source, d1, d2, estado);
+                return Ok(new { ok = true, source, desde = d1, hasta = d2, rows });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error consultando lotes para cierre.");
+                return StatusCode(500, new { ok = false, msg = ex.GetBaseException().Message });
+            }
+        }
+
+        [HttpGet("CierreLoteDiagnostico")]
+        [RevisarPermiso("CIERRE_LOTES", "LEER")]
+        public async Task<IActionResult> CierreLoteDiagnostico(
+    [FromServices] ICierreLotesService cierre,
+    string source,
+    int? loteId)
+        {
+            try
+            {
+                source = NormalizeSource(source);
+
+                if (!loteId.HasValue || loteId.Value <= 0)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = $"LoteId inválido o no recibido. Valor recibido: {loteId?.ToString() ?? "NULL"}"
+                    });
+                }
+
+                var d = await cierre.DiagnosticarAsync(
+                    source,
+                    loteId.Value,
+                    validarCosteo: false
+                );
+
+                var auth = d.RequiereAutorizacion
+                    ? await cierre.ObtenerAutorizacionEstadoAsync(
+                        source,
+                        loteId.Value,
+                        d.DiagnosticoHash
+                    )
+                    : new CierreLoteAutorizacionEstadoVM();
+
+                return Ok(new
+                {
+                    ok = true,
+                    diagnostico = d,
+                    autorizacion = auth
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error diagnosticando cierre de lote. Source={Source}, LoteId={LoteId}",
+                    source,
+                    loteId
+                );
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = ex.GetBaseException().Message
+                });
+            }
+        }
+
+        [HttpPost("CierreLoteSolicitarAutorizacion")]
+        [RevisarPermiso("CIERRE_LOTES", "ESCRIBIR")]
+        public async Task<IActionResult> CierreLoteSolicitarAutorizacion(
+            [FromServices] ICierreLotesService cierre,
+            [FromBody] CierreLoteSolicitudRequestVM req)
+        {
+            try
+            {
+                req.Source = NormalizeSource(req.Source);
+                var usuario = (User?.Identity?.Name ?? "sistema").Trim();
+                var diagnostico = await cierre.DiagnosticarAsync(req.Source, req.LoteId, validarCosteo: false);
+
+                var solicitudId = await cierre.CrearSolicitudAsync(
+                    req.Source,
+                    req.LoteId,
+                    usuario,
+                    req.Motivo,
+                    HttpContext.Connection.RemoteIpAddress?.ToString() ?? "",
+                    Request.Headers.UserAgent.ToString(),
+                    diagnostico);
+
+                string avisoCorreo = "";
+                try
+                {
+                    await EnviarCorreoSolicitudCierreAsync(solicitudId, diagnostico, usuario, req.Motivo);
+                }
+                catch (Exception exMail)
+                {
+                    avisoCorreo = " La solicitud quedó registrada, pero falló el correo: " + exMail.GetBaseException().Message;
+                    _logger.LogWarning(exMail, "No se pudo enviar correo de solicitud de cierre. Solicitud={SolicitudId}", solicitudId);
+                }
+
+                return Ok(new
+                {
+                    ok = true,
+                    solicitudId,
+                    msg = $"Solicitud #{solicitudId} registrada. Queda pendiente de autorización.{avisoCorreo}"
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { ok = false, msg = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { ok = false, msg = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error solicitando autorización de cierre.");
+                return StatusCode(500, new { ok = false, msg = ex.GetBaseException().Message });
+            }
+        }
+
+        [HttpGet("CierreLotePendientesAutorizacion")]
+        [RevisarPermiso("CIERRE_LOTES", "ELIMINAR")]
+        public async Task<IActionResult> CierreLotePendientesAutorizacion(
+            [FromServices] ICierreLotesService cierre,
+            string source = "TIF")
+        {
+            try
+            {
+                source = NormalizeSource(source);
+                var rows = await cierre.ObtenerSolicitudesPendientesAsync(source);
+                return Ok(new { ok = true, source, rows });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { ok = false, msg = ex.GetBaseException().Message });
+            }
+        }
+
+        [HttpPost("CierreLoteAutorizar")]
+        [RevisarPermiso("CIERRE_LOTES", "ELIMINAR")]
+        public async Task<IActionResult> CierreLoteAutorizar(
+            [FromServices] ICierreLotesService cierre,
+            [FromBody] CierreLoteDecisionRequestVM req)
+            => await RegistrarDecisionCierreAsync(cierre, req, "APROBAR");
+
+        [HttpPost("CierreLoteRechazar")]
+        [RevisarPermiso("CIERRE_LOTES", "ELIMINAR")]
+        public async Task<IActionResult> CierreLoteRechazar(
+            [FromServices] ICierreLotesService cierre,
+            [FromBody] CierreLoteDecisionRequestVM req)
+            => await RegistrarDecisionCierreAsync(cierre, req, "RECHAZAR");
+
+        private async Task<IActionResult> RegistrarDecisionCierreAsync(
+            ICierreLotesService cierre,
+            CierreLoteDecisionRequestVM req,
+            string decision)
+        {
+            try
+            {
+                req.Source = NormalizeSource(req.Source);
+                var usuario = (User?.Identity?.Name ?? "sistema").Trim();
+
+                var estado = await cierre.RegistrarDecisionAsync(
+                    req.Source,
+                    req.SolicitudId,
+                    usuario,
+                    decision,
+                    req.Motivo,
+                    HttpContext.Connection.RemoteIpAddress?.ToString() ?? "",
+                    Request.Headers.UserAgent.ToString());
+
+                try
+                {
+                    await EnviarCorreoDecisionCierreAsync(req.Source, req.SolicitudId, usuario, decision, req.Motivo, estado);
+                }
+                catch (Exception exMail)
+                {
+                    _logger.LogWarning(exMail, "No se pudo enviar correo de decisión de cierre. Solicitud={SolicitudId}", req.SolicitudId);
+                }
+
+                return Ok(new
+                {
+                    ok = true,
+                    decision,
+                    estado,
+                    msg = decision == "APROBAR"
+                        ? $"Autorización registrada por {usuario}. {estado.AprobacionesActuales}/{estado.AprobacionesRequeridas} aprobación(es)."
+                        : $"Rechazo registrado por {usuario}. La solicitud queda rechazada."
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { ok = false, msg = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { ok = false, msg = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error registrando decisión de cierre.");
+                return StatusCode(500, new { ok = false, msg = ex.GetBaseException().Message });
+            }
+        }
+
+        [HttpPost("CierreLoteCerrar")]
+        [RevisarPermiso("CIERRE_LOTES", "ESCRIBIR")]
+        public async Task<IActionResult> CierreLoteCerrar(
+            [FromServices] ICierreLotesService cierre,
+            [FromServices] ICosteoRunnerService runner,
+            [FromBody] CierreLoteCerrarRequestVM req)
+        {
+            req.Source = NormalizeSource(req.Source);
+            var usuario = (User?.Identity?.Name ?? "sistema").Trim();
+
+            try
+            {
+                // 1) Diagnóstico operacional inmediatamente antes del costeo.
+                var pre = await cierre.DiagnosticarAsync(req.Source, req.LoteId, validarCosteo: false);
+
+                if (pre.TieneBloqueos)
+                {
+                    return Conflict(new
+                    {
+                        ok = false,
+                        etapa = "VALIDACION",
+                        msg = "El lote tiene bloqueos técnicos. No puede costearse/cerrarse hasta corregirlos.",
+                        diagnostico = pre
+                    });
+                }
+
+                long? solicitudId = null;
+                CierreLoteAutorizacionEstadoVM? auth = null;
+
+                if (pre.RequiereAutorizacion)
+                {
+                    auth = await cierre.ObtenerAutorizacionEstadoAsync(req.Source, req.LoteId, pre.DiagnosticoHash);
+                    if (!auth.Aprobada)
+                    {
+                        return Conflict(new
+                        {
+                            ok = false,
+                            etapa = "AUTORIZACION",
+                            requiereAutorizacion = true,
+                            msg = auth.ExisteSolicitud
+                                ? $"La solicitud aún no está aprobada. Aprobaciones {auth.AprobacionesActuales}/{auth.AprobacionesRequeridas}."
+                                : "El lote tiene anomalías autorizables. Primero debe solicitar autorización.",
+                            diagnostico = pre,
+                            autorizacion = auth
+                        });
+                    }
+                    solicitudId = auth.SolicitudId;
+                }
+
+                // 2) Configuración del tipo de lote. Solo se habilitan tipos con ruta de costeo por lote confirmada.
+                var tipoConfig = await cierre.ObtenerTipoConfigAsync(req.Source, pre.TipoLoteId);
+                if (tipoConfig == null || string.IsNullOrWhiteSpace(tipoConfig.TipoProceso))
+                {
+                    return Conflict(new
+                    {
+                        ok = false,
+                        etapa = "CONFIGURACION",
+                        msg = $"TipoLoteId={pre.TipoLoteId} no tiene una ruta de costeo por lote configurada. No se cerrará a ciegas."
+                    });
+                }
+
+                var fecha = (pre.FechaProduccion ?? DateTime.Today).Date;
+                var model = new CosteoFiltroVM
+                {
+                    Source = req.Source,
+                    TipoProceso = tipoConfig.TipoProceso,
+                    Modo = "LOTE",
+                    FechaInicial = fecha,
+                    FechaFinal = fecha,
+                    TipoCosteoId = 1,
+                    LoteId = req.LoteId,
+                    BrincarSinCosto = tipoConfig.BrincarSinCosto,
+                    ContinuarConError = false,
+                    Automatico = false,
+                    HoraProgramada = DateTime.Now.ToString("HH:mm")
+                };
+
+                // 3) Ejecutar el MISMO runner que ya usa la pantalla de Costeo.
+                var results = await runner.EjecutarAsync(model, false);
+                var resultList = results?.Cast<object>().ToList() ?? new List<object>();
+                var errores = resultList.Where(x => !ResultadoCosteoOk(x)).ToList();
+
+                var detalleCosteoJson = JsonSerializer.Serialize(resultList);
+
+                if (resultList.Count == 0 || errores.Count > 0)
+                {
+                    await cierre.RegistrarBitacoraAsync(
+                        req.Source,
+                        req.LoteId,
+                        solicitudId,
+                        "COSTEO_FALLIDO",
+                        usuario,
+                        detalleCosteoJson,
+                        false);
+
+                    return Conflict(new
+                    {
+                        ok = false,
+                        etapa = "COSTEO",
+                        msg = resultList.Count == 0
+                            ? "El runner no generó ninguna etapa de costeo. El lote permanece abierto."
+                            : $"El costeo terminó con {errores.Count} error(es). El lote permanece abierto.",
+                        results = resultList
+                    });
+                }
+
+                // 4) Validación posterior: el costo ya debe estar escrito y cuadrado.
+                var post = await cierre.DiagnosticarAsync(req.Source, req.LoteId, validarCosteo: true);
+
+                if (!string.Equals(pre.MovimientoHash, post.MovimientoHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Conflict(new
+                    {
+                        ok = false,
+                        etapa = "REVALIDACION",
+                        msg = "El lote tuvo movimientos o cambios de kg/artículo mientras se costeaba. Se invalida el cierre y debe revalidarse.",
+                        diagnostico = post
+                    });
+                }
+
+                if (post.TieneBloqueos)
+                {
+                    await cierre.RegistrarBitacoraAsync(
+                        req.Source,
+                        req.LoteId,
+                        solicitudId,
+                        "VALIDACION_COSTEO_FALLIDA",
+                        usuario,
+                        JsonSerializer.Serialize(post.Anomalias),
+                        false);
+
+                    return Conflict(new
+                    {
+                        ok = false,
+                        etapa = "VALIDACION_COSTEO",
+                        msg = "El costeo terminó, pero la validación posterior detectó inconsistencias. El lote permanece abierto.",
+                        diagnostico = post
+                    });
+                }
+
+                // 5) La autorización debe seguir correspondiendo a la MISMA fotografía operacional.
+                if (post.RequiereAutorizacion)
+                {
+                    var authPost = await cierre.ObtenerAutorizacionEstadoAsync(req.Source, req.LoteId, post.DiagnosticoHash);
+                    if (!authPost.Aprobada)
+                    {
+                        return Conflict(new
+                        {
+                            ok = false,
+                            etapa = "AUTORIZACION_INVALIDADA",
+                            msg = "Las anomalías autorizables cambiaron respecto a lo aprobado. Se requiere una nueva autorización.",
+                            diagnostico = post,
+                            autorizacion = authPost
+                        });
+                    }
+                    solicitudId = authPost.SolicitudId;
+                }
+
+                // 6) Cierre final protegido con sp_getapplock y verificación del hash de movimientos.
+                await cierre.CerrarLoteAsync(
+                    req.Source,
+                    req.LoteId,
+                    usuario,
+                    post.MovimientoHash,
+                    post.DiagnosticoHash,
+                    solicitudId,
+                    detalleCosteoJson);
+
+                return Ok(new
+                {
+                    ok = true,
+                    loteId = req.LoteId,
+                    lote = post.LoteNombre,
+                    source = req.Source,
+                    estatusId = 3,
+                    solicitudId,
+                    autorizadores = auth?.Autorizadores ?? "",
+                    msg = "Costeo validado y lote cerrado correctamente con EstatusId=3.",
+                    diagnostico = post,
+                    results = resultList
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                await cierre.RegistrarBitacoraAsync(req.Source, req.LoteId, null, "CIERRE_ERROR", usuario, ex.Message, false);
+                return Conflict(new { ok = false, msg = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error cerrando lote. Source={Source} LoteId={LoteId}", req.Source, req.LoteId);
+                try
+                {
+                    await cierre.RegistrarBitacoraAsync(req.Source, req.LoteId, null, "CIERRE_ERROR", usuario, ex.GetBaseException().Message, false);
+                }
+                catch { }
+                return StatusCode(500, new { ok = false, msg = ex.GetBaseException().Message });
+            }
+        }
+
+        [HttpGet("CierreLoteCompatibilidad")]
+        [RevisarPermiso("CIERRE_LOTES", "LEER")]
+        public async Task<IActionResult> CierreLoteCompatibilidad(
+            [FromServices] ICierreLotesService cierre,
+            string source = "TIF",
+            string texto = "")
+        {
+            try
+            {
+                source = NormalizeSource(source);
+                var rows = await cierre.ListarCompatibilidadAsync(source, texto);
+                return Ok(new { ok = true, rows });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { ok = false, msg = ex.GetBaseException().Message });
+            }
+        }
+
+        [HttpPost("CierreLoteCompatibilidadGuardar")]
+        [RevisarPermiso("CIERRE_LOTES", "ELIMINAR")]
+        public async Task<IActionResult> CierreLoteCompatibilidadGuardar(
+            [FromServices] ICierreLotesService cierre,
+            [FromBody] CierreLoteCompatibilidadRequestVM req)
+        {
+            try
+            {
+                var usuario = (User?.Identity?.Name ?? "sistema").Trim();
+                await cierre.GuardarCompatibilidadAsync(req, usuario);
+                return Ok(new { ok = true, msg = "Regla de compatibilidad guardada." });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { ok = false, msg = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { ok = false, msg = ex.GetBaseException().Message });
+            }
+        }
+
+        [HttpPost("CierreLoteCompatibilidadEliminar")]
+        [RevisarPermiso("CIERRE_LOTES", "ELIMINAR")]
+        public async Task<IActionResult> CierreLoteCompatibilidadEliminar(
+            [FromServices] ICierreLotesService cierre,
+            [FromQuery] string source,
+            [FromQuery] long id)
+        {
+            try
+            {
+                source = NormalizeSource(source);
+                var usuario = (User?.Identity?.Name ?? "sistema").Trim();
+                await cierre.EliminarCompatibilidadAsync(source, id, usuario);
+                return Ok(new { ok = true, msg = "Regla desactivada." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { ok = false, msg = ex.GetBaseException().Message });
+            }
+        }
+
+        private async Task<CierreLotePermisoVM> ObtenerPermisoCierreLotesAsync()
+        {
+            var login = (User?.Identity?.Name ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(login))
+                return new CierreLotePermisoVM();
+
+            var permiso = await (
+                from u in _db.UsuarioSQL
+                join p in _db.Perfiles on u.PerfilId equals p.Id
+                join ppm in _db.PerfilPermisoModulo on p.Id equals ppm.PerfilId
+                join m in _db.ModulosSistema on ppm.ModuloId equals m.Id
+                where (u.Usuario == login || u.Nombre == login)
+                      && m.Clave == "CIERRE_LOTES"
+                      && ppm.Activo
+                      && m.Activo
+                select new CierreLotePermisoVM
+                {
+                    PuedeLeer = ppm.PuedeLeer,
+                    PuedeEscribir = ppm.PuedeEscribir,
+                    PuedeEliminar = ppm.PuedeEliminar
+                }
+            ).FirstOrDefaultAsync();
+
+            return permiso ?? new CierreLotePermisoVM();
+        }
+
+        private static bool ResultadoCosteoOk(object? item)
+        {
+            if (item == null) return false;
+            var t = item.GetType();
+            var p = t.GetProperty("ok") ?? t.GetProperty("Ok");
+            if (p == null) return true; // Si el runner devuelve un objeto sin bandera, no inventamos un error.
+            var v = p.GetValue(item);
+            return v is bool b && b;
+        }
+
+        private async Task EnviarCorreoSolicitudCierreAsync(
+            long solicitudId,
+            CierreLoteDiagnosticoVM d,
+            string usuario,
+            string motivo)
+        {
+            var to = (_configuration["CierreLotes:CorreosAutorizadores"] ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(to))
+                return;
+
+            var enc = HtmlEncoder.Default;
+            var sb = new StringBuilder();
+            sb.Append("<html><body style='font-family:Arial,sans-serif;font-size:13px'>");
+            sb.Append($"<h2 style='color:#8b0000'>Solicitud de autorización de cierre #{solicitudId}</h2>");
+            sb.Append("<table cellpadding='5' cellspacing='0' border='1' style='border-collapse:collapse'>");
+            sb.Append($"<tr><td><b>Planta</b></td><td>{enc.Encode(d.Source == "TIF" ? "TIF 776" : "Planta 1")}</td></tr>");
+            sb.Append($"<tr><td><b>Lote</b></td><td>{enc.Encode(d.LoteNombre)} ({d.LoteId})</td></tr>");
+            sb.Append($"<tr><td><b>Solicita</b></td><td>{enc.Encode(usuario)}</td></tr>");
+            sb.Append($"<tr><td><b>Motivo</b></td><td>{enc.Encode(motivo ?? "")}</td></tr>");
+            sb.Append($"<tr><td><b>Entradas</b></td><td>{d.Entradas:N0} / {d.KgEntrada:N3} kg</td></tr>");
+            sb.Append($"<tr><td><b>Salidas</b></td><td>{d.Salidas:N0} / {d.KgSalida:N3} kg</td></tr>");
+            sb.Append($"<tr><td><b>Variación</b></td><td>{d.VariacionPct:N2}%</td></tr>");
+            sb.Append($"<tr><td><b>Aprobaciones requeridas</b></td><td>{d.AprobacionesRequeridas}</td></tr>");
+            sb.Append("</table><h3>Anomalías que requieren revisión</h3><ul>");
+            foreach (var a in d.Anomalias.Where(x => x.Nivel == "AUTORIZACION" || x.Nivel == "BLOQUEO"))
+                sb.Append($"<li><b>{enc.Encode(a.Codigo)}</b> - {enc.Encode(a.Titulo)}: {enc.Encode(a.Detalle)}</li>");
+            sb.Append("</ul><p>Ingrese al módulo <b>Cierre de lotes</b> para autorizar o rechazar. Cada autorización queda registrada con usuario, fecha y motivo.</p>");
+            sb.Append("</body></html>");
+
+            await EnviarCorreoCierreLotesAsync(to, $"Cierre de lote pendiente #{solicitudId} - {d.LoteNombre}", sb.ToString());
+        }
+
+        private async Task EnviarCorreoDecisionCierreAsync(
+            string source,
+            long solicitudId,
+            string usuario,
+            string decision,
+            string motivo,
+            CierreLoteAutorizacionEstadoVM estado)
+        {
+            var to = (_configuration["CierreLotes:CorreosAutorizadores"] ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(to))
+                return;
+
+            var enc = HtmlEncoder.Default;
+            var html = $@"
+<html><body style='font-family:Arial,sans-serif;font-size:13px'>
+<h2 style='color:#8b0000'>Decisión sobre cierre #{solicitudId}</h2>
+<p><b>Planta:</b> {enc.Encode(source == "TIF" ? "TIF 776" : "Planta 1")}</p>
+<p><b>Decisión:</b> {enc.Encode(decision)}</p>
+<p><b>Usuario:</b> {enc.Encode(usuario)}</p>
+<p><b>Justificación:</b> {enc.Encode(motivo ?? "")}</p>
+<p><b>Estado:</b> {enc.Encode(estado.Estado)} · Aprobaciones {estado.AprobacionesActuales}/{estado.AprobacionesRequeridas}</p>
+<p><b>Autorizadores registrados:</b> {enc.Encode(estado.Autorizadores ?? "")}</p>
+</body></html>";
+
+            await EnviarCorreoCierreLotesAsync(to, $"{decision} cierre #{solicitudId}", html);
+        }
+
+        private async Task EnviarCorreoCierreLotesAsync(string destinatarios, string asunto, string html)
+        {
+            var host = (_configuration["Smtp:Host"] ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(host))
+                throw new Exception("No existe configuración Smtp:Host en appsettings.");
+
+            var from = (_configuration["Smtp:From"] ?? "").Trim();
+            var user = (_configuration["Smtp:User"] ?? "").Trim();
+            var password = _configuration["Smtp:Password"] ?? "";
+            if (string.IsNullOrWhiteSpace(from)) from = user;
+            if (string.IsNullOrWhiteSpace(from))
+                throw new Exception("No existe configuración Smtp:From o Smtp:User.");
+
+            var port = int.TryParse(_configuration["Smtp:Port"], out var p) ? p : 587;
+            var ssl = !bool.TryParse(_configuration["Smtp:EnableSsl"], out var s) || s;
+
+            using var msg = new MailMessage
+            {
+                From = new MailAddress(from),
+                Subject = asunto,
+                Body = html,
+                IsBodyHtml = true
+            };
+
+            foreach (var email in SplitEmailsCierre(destinatarios))
+                msg.To.Add(email);
+
+            if (msg.To.Count == 0)
+                throw new Exception("No hay correos válidos en CierreLotes:CorreosAutorizadores.");
+
+            using var smtp = new SmtpClient(host, port) { EnableSsl = ssl };
+            if (!string.IsNullOrWhiteSpace(user))
+                smtp.Credentials = new NetworkCredential(user, password);
+
+            await smtp.SendMailAsync(msg);
+        }
+
+        private static IEnumerable<string> SplitEmailsCierre(string raw)
+            => (raw ?? "")
+                .Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(x => !string.IsNullOrWhiteSpace(x));
 
     }
 }

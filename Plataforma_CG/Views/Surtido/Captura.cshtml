@@ -1,0 +1,147 @@
+@using Plataforma_CG.ViewModels
+@model Plataforma_CG.ViewModels.SurtidoAlmacenVM
+
+@{
+    ViewData["Title"] = "Captura";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+
+    var staging =
+        ViewBag.ZonaSurtido as List<SurtidoBajadaFilaVM>
+        ?? new List<SurtidoBajadaFilaVM>();
+}
+
+<link rel="stylesheet"
+      href="~/css/surtido-wms-v7.css"
+      asp-append-version="true" />
+
+<div class="wms-v7">
+
+    <main class="wms-content">
+
+        <a class="wms-back"
+           href="@Url.Action(
+                "Surtido_cedis",
+                "Surtido",
+                new
+                {
+                    almacen = Model.Codigo
+                }
+           )">
+            ‹ Inicio
+        </a>
+
+
+        <section class="wms-page-title">
+
+            <span class="wms-overline">
+                CAPTURISTA · ZONA DE SURTIDO
+            </span>
+
+            <h1>
+                Escaneo y vinculación
+            </h1>
+
+            <p>
+                El Montacarguista sólo baja producto.
+                Aquí aparecen las cajas/tarimas pendientes de captura.
+            </p>
+
+        </section>
+
+
+        <section class="wms-quick-grid">
+
+            <article>
+                <span>PENDIENTES</span>
+                <strong>@staging.Count</strong>
+                <small>Zona de surtido</small>
+            </article>
+
+            <article>
+                <span>ALMACÉN</span>
+                <strong>@Model.Codigo</strong>
+                <small>@Model.Nombre</small>
+            </article>
+
+            <article>
+                <span>ORIGEN</span>
+                <strong>@Model.Planta</strong>
+                <small>@Model.Sucursal</small>
+            </article>
+
+        </section>
+
+
+        <div class="wms-section-head">
+            <div>
+                <span class="wms-overline">
+                    PRODUCTO BAJADO
+                </span>
+
+                <h2>
+                    Pendiente de captura
+                </h2>
+            </div>
+        </div>
+
+
+        @if (staging.Any())
+        {
+            <div class="wms-staging">
+
+                @foreach (var x in staging)
+                {
+                    <div class="wms-staging-item">
+
+                        <div class="wms-staging-icon">
+                            ⇣
+                        </div>
+
+                        <div>
+                            <strong>
+                                @(string.IsNullOrWhiteSpace(x.TarimaCodigo)
+                                    ? x.CodigoEtiqueta
+                                    : x.TarimaCodigo)
+                                · @x.Articulo
+                            </strong>
+
+                            <span>
+                                Etiqueta @x.CodigoEtiqueta
+                                · @x.PesoNeto?.ToString("N2") kg
+                                · Lote @x.Lote
+                            </span>
+
+                            <small>
+                                Solicitud @x.SolicitudSurtidoId
+                                · Bajó @x.UsuarioBaja
+                                · @x.FechaBaja.ToString("dd/MM HH:mm")
+                            </small>
+                        </div>
+
+                        <em>
+                            PENDIENTE
+                        </em>
+
+                    </div>
+                }
+
+            </div>
+        }
+        else
+        {
+            <div class="wms-empty">
+                Aún no hay producto bajado por Montacarguista.
+            </div>
+        }
+
+
+        <div class="wms-alert-bad">
+            La cola real ya está conectada. La acción final
+            “VINCULAR AL PEDIDO” todavía no escribe directamente en
+            SalidaEmbarque porque falta confirmar el procedimiento oficial
+            de Meat que afecta existencia, ProduccionLog y tarimas.
+        </div>
+
+    </main>
+
+</div>

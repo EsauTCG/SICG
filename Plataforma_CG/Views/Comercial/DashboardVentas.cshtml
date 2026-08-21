@@ -1,0 +1,204 @@
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Dashboard de Ventas";
+}
+
+<link rel="stylesheet" href="~/css/dashboard-ventas.css" asp-append-version="true" />
+
+<div id="dashboardVentasApp" class="dashboard-ventas-page">
+    <div class="dvx-app-shell">
+        <header class="dvx-topbar">
+            <div class="dvx-brand">
+                <div class="dvx-brand-icon" aria-hidden="true">
+                    <span></span><span></span><span></span>
+                </div>
+                <div>
+                    <h1>DASHBOARD DE VENTAS</h1>
+                    <p>Seguimiento al desempeño comercial</p>
+                </div>
+            </div>
+
+            <div class="dvx-last-update">
+                <span class="dvx-refresh-icon">↻</span>
+                <div>
+                    <span>Último surtido validado:</span>
+                    <strong id="lastUpdate">Cargando...</strong>
+                </div>
+            </div>
+        </header>
+
+        <section class="dvx-filters-row">
+            <div class="dvx-filter-card dvx-date-card">
+                <div class="dvx-filter-title">FILTRO DE FECHA (VENTAS AL DÍA)</div>
+                <div class="dvx-date-grid">
+                    <label>
+                        <span>Mes</span>
+                        <select id="monthSelect"></select>
+                    </label>
+                    <label>
+                        <span>Día del mes</span>
+                        <select id="daySelect"></select>
+                    </label>
+                </div>
+            </div>
+
+            <div class="dvx-filter-card dvx-compare-card">
+                <div class="dvx-filter-title">COMPARAR CONTRA</div>
+                <div class="dvx-segmented-control" id="compareControl">
+                    <button type="button" class="dvx-segment dvx-active" data-mode="budget">Presupuesto Mensual</button>
+                    <button type="button" class="dvx-segment" data-mode="reach">Alcance<br /><small>(Ventas Esperadas)</small></button>
+                </div>
+            </div>
+
+            <button type="button" class="dvx-reset-btn" id="resetFilters">
+                <span>▽</span>
+                Limpiar filtros
+            </button>
+        </section>
+
+        <div id="dashboardError" class="dvx-dashboard-error" hidden></div>
+
+        <section class="dvx-kpi-grid">
+            <article class="dvx-kpi">
+                <span class="dvx-kpi-label">Día laboral</span>
+                <strong id="kpiWorkday">-</strong>
+                <span class="dvx-kpi-help">(Lunes a sábado)</span>
+            </article>
+
+            <article class="dvx-kpi">
+                <span class="dvx-kpi-label">Venta Real<br /><small>(al día seleccionado)</small></span>
+                <strong id="kpiSales">-</strong>
+                <span class="dvx-kpi-unit">KGS</span>
+            </article>
+
+            <article class="dvx-kpi">
+                <span class="dvx-kpi-label">Presupuesto Mensual</span>
+                <strong id="kpiBudget">-</strong>
+                <span class="dvx-kpi-unit">KGS</span>
+            </article>
+
+            <article class="dvx-kpi">
+                <span class="dvx-kpi-label" id="kpiComplianceLabel">% Cumplimiento<br /><small>vs Presupuesto</small></span>
+                <strong id="kpiCompliance">-</strong>
+            </article>
+
+            <article class="dvx-kpi">
+                <span class="dvx-kpi-label">Alcance<br /><small>(Ventas Esperadas)</small></span>
+                <strong id="kpiReach">-</strong>
+                <span class="dvx-kpi-unit">KGS</span>
+            </article>
+
+            <article class="dvx-kpi">
+                <span class="dvx-kpi-label" id="kpiGapLabel">% Cumplimiento vs Alcance<br /><small>(Diferencia)</small></span>
+                <strong id="kpiGap">-</strong>
+                <span class="dvx-kpi-delta" id="kpiGapKg">-</span>
+            </article>
+        </section>
+
+        <main class="dvx-dashboard-grid">
+            <section class="dvx-panel">
+                <div class="dvx-panel-head">
+                    <h2>1. VENTAS X MÁSTER</h2>
+                    <label class="dvx-mini-filter">
+                        <span>Filtro por VENDEDOR:</span>
+                        <select id="masterVendorFilter"></select>
+                    </label>
+                </div>
+                <div class="dvx-panel-body">
+                    <p class="dvx-panel-note">Participación de cada Máster en la referencia seleccionada (barra) y % de avance de Ventas Reales al día seleccionado (línea).</p>
+                    <div class="dvx-legend">
+                        <span><i class="dvx-legend-box dvx-light"></i> Participación en referencia (%)</span>
+                        <span><i class="dvx-legend-line"></i> % Avance Ventas Reales</span>
+                    </div>
+                    <div id="masterChart" class="dvx-master-chart dvx-chart-area"></div>
+                    <p class="dvx-footnote">* El % de avance puede superar 100% cuando las ventas reales son mayores a la referencia seleccionada.</p>
+                </div>
+            </section>
+
+            <section class="dvx-panel">
+                <div class="dvx-panel-head">
+                    <h2>2. VENTAS X VENDEDOR</h2>
+                    <div class="dvx-mini-filter-group">
+                        <label class="dvx-mini-filter">
+                            <span>Filtro por MÁSTER:</span>
+                            <select id="vendorMasterFilter"></select>
+                        </label>
+                        <label class="dvx-mini-filter">
+                            <span>Filtro por SKU:</span>
+                            <select id="vendorSkuFilter"></select>
+                        </label>
+                    </div>
+                </div>
+                <div class="dvx-panel-body">
+                    <div class="dvx-legend dvx-vendor-legend">
+                        <span><i class="dvx-legend-box dvx-light"></i> Referencia seleccionada</span>
+                        <span><i class="dvx-legend-box dvx-dark"></i> Ventas Reales al día seleccionado</span>
+                    </div>
+                    <div id="vendorChart" class="dvx-vendor-chart dvx-chart-area"></div>
+                    <p class="dvx-footnote">* Los porcentajes se recalculan según Presupuesto Mensual o Alcance. El filtro SKU aplica únicamente a Ventas x Vendedor.</p>
+                </div>
+            </section>
+
+            <section class="dvx-panel">
+                <div class="dvx-panel-head">
+                    <h2>3. ANÁLISIS DE PRECIOS (POR SKU)</h2>
+                    <div class="dvx-mini-filter-group">
+                        <label class="dvx-mini-filter">
+                            <span>Filtro por MÁSTER:</span>
+                            <select id="priceMasterFilter"></select>
+                        </label>
+                        <label class="dvx-mini-filter">
+                            <span>Filtro por SKU:</span>
+                            <select id="priceSkuFilter"></select>
+                        </label>
+                    </div>
+                </div>
+                <div class="dvx-panel-body">
+                    <div class="dvx-price-average" id="weightedAverage">Precio Promedio Ponderado (-)</div>
+                    <div id="priceChart" class="dvx-price-chart dvx-chart-area"></div>
+                    <p id="priceFootnote" class="dvx-footnote">* Precio ponderado calculado con base en el volumen vendido.</p>
+                </div>
+            </section>
+
+            <section class="dvx-panel">
+                <div class="dvx-panel-head">
+                    <h2>4. TENDENCIA ACUMULADA: VENTAS REALES VS ALCANCE</h2>
+                    <div class="dvx-mini-filter-group">
+                        <label class="dvx-mini-filter">
+                            <span>Filtro por MÁSTER:</span>
+                            <select id="trendMasterFilter"></select>
+                        </label>
+                        <label class="dvx-mini-filter">
+                            <span>Filtro por SKU:</span>
+                            <select id="trendSkuFilter"></select>
+                        </label>
+                    </div>
+                </div>
+                <div class="dvx-panel-body">
+                    <div class="dvx-legend">
+                        <span><i class="dvx-legend-box dvx-dark"></i> Ventas Reales Acumuladas (KGS)</span>
+                        <span><i class="dvx-legend-dot dvx-orange"></i> Alcance (Ventas Esperadas) (KGS)</span>
+                        <span><i class="dvx-legend-dot dvx-gray"></i> Brecha (Ventas - Alcance) (KGS)</span>
+                    </div>
+                    <div id="trendChart" class="dvx-trend-chart dvx-chart-area"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="tooltip" class="dvx-tooltip" role="tooltip"></div>
+</div>
+
+<script>
+    window.dashboardVentasConfig = {
+        catalogosUrl: '@Url.Content("~/Comercial/DashboardVentasCatalogos")',
+        resumenUrl: '@Url.Content("~/Comercial/DashboardVentasResumen")',
+        masterUrl: '@Url.Content("~/Comercial/DashboardVentasMaster")',
+        vendedorUrl: '@Url.Content("~/Comercial/DashboardVentasVendedor")',
+        preciosUrl: '@Url.Content("~/Comercial/DashboardVentasPrecios")',
+        tendenciaUrl: '@Url.Content("~/Comercial/DashboardVentasTendencia")'
+    };
+</script>
+<script src="~/js/dashboard-ventas.js" asp-append-version="true"></script>
