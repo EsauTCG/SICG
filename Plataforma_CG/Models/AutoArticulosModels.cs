@@ -80,4 +80,9 @@ namespace Plataforma_CG.Models
         public int UsuarioId { get; set; }
         public List<int> CategoriasIds { get; set; } = new List<int>();
     }
+
+    public class EliminarUsuarioDto
+    {
+        public int Id { get; set; }
+    }
 }

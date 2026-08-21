@@ -9362,6 +9362,63 @@ OPTION (RECOMPILE);";
             }
         }
 
+        [HttpPost("EditarUsuario")]
+        [RevisarPermiso("AUTO_ARTICULOS", "ESCRIBIR")]
+        public async Task<IActionResult> EditarUsuario([FromBody] UsuarioModel usuario)
+        {
+            try
+            {
+                var existente = await _db.UsuariosAutoArticulos.FindAsync(usuario.Id);
+                if (existente == null)
+                    return Json(new { ok = false, mensaje = "Usuario no encontrado." });
+
+                if (!string.IsNullOrWhiteSpace(usuario.TokenGafete) && existente.TokenGafete != usuario.TokenGafete)
+                {
+                    bool duplicado = await _db.UsuariosAutoArticulos.AnyAsync(u => u.TokenGafete == usuario.TokenGafete && u.Id != usuario.Id);
+                    if (duplicado)
+                        return Json(new { ok = false, mensaje = "Este código ya está asignado a otro usuario." });
+                    existente.TokenGafete = usuario.TokenGafete;
+                }
+
+                existente.Nombre = usuario.Nombre;
+                existente.Departamento = usuario.Departamento;
+                await _db.SaveChangesAsync();
+
+                return Json(new { ok = true, mensaje = "Usuario actualizado correctamente." });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+        [HttpPost("EliminarUsuario")]
+        [RevisarPermiso("AUTO_ARTICULOS", "ESCRIBIR")]
+        public async Task<IActionResult> EliminarUsuario([FromBody] EliminarUsuarioDto body)
+        {
+            try
+            {
+                var usuario = await _db.UsuariosAutoArticulos.FindAsync(body.Id);
+                if (usuario == null)
+                    return Json(new { ok = false, mensaje = "Usuario no encontrado." });
+
+                var permisos = _db.PermisosAutoArticulos.Where(p => p.UsuarioId == body.Id);
+                _db.PermisosAutoArticulos.RemoveRange(permisos);
+
+                var excepciones = _db.LogsExcepcionesArticulos.Where(e => e.UsuarioId == body.Id);
+                _db.LogsExcepcionesArticulos.RemoveRange(excepciones);
+
+                _db.UsuariosAutoArticulos.Remove(usuario);
+                await _db.SaveChangesAsync();
+
+                return Json(new { ok = true, mensaje = "Usuario eliminado correctamente." });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
         [HttpPost("ValidarPinSupervisor")]
         [RevisarPermiso("AUTO_ARTICULOS", "ESCRIBIR")]
         public IActionResult ValidarPinSupervisor([FromForm] string pin)
