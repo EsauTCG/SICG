@@ -1545,6 +1545,16 @@
         padding-top: 5px !important;
     }
 
+    /* FORZAR MAYÚSCULAS EN TODOS LOS CAMPOS DEL FORMULARIO Y MODALES */
+    #requestForm input[type="text"],
+    #requestForm textarea,
+    #requestForm select,
+    #modalEditarSolicitud input[type="text"],
+    #modalEditarSolicitud textarea,
+    #modalEditarSolicitud select {
+        text-transform: uppercase;
+    }
+
     }
 </style>
 
@@ -1722,6 +1732,55 @@
                                 <label>Especificación Requerida</label>
                                 <textarea required name="especificacionRequerida" placeholder="Agregue especificaciones adicionales si es necesario..." style="min-height: 40px;"></textarea>
                             </div>
+                            <div class="full">
+                                <label>Comentarios Generales</label>
+                                <textarea name="comentariosGenerales" placeholder="Observaciones, notas o instrucciones adicionales..." style="min-height: 40px;"></textarea>
+                            </div>
+                            <div>
+                                <label>Catálogo</label>
+                                <select name="catalogo">
+                                    <option value="" selected disabled>Seleccione...</option>
+                                    <option value="NUEVO">NUEVO</option>
+                                    <option value="EXISTENTE">EXISTENTE</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label>Cobertura de Grasa</label>
+                                <input type="text" name="coberturaGrasa" placeholder="Ej. 85%" />
+                            </div>
+                            <div>
+                                <label>% de Grasa</label>
+                                <input type="text" name="pctGrasa" placeholder="Ej. 15" />
+                            </div>
+                            <div>
+                                <label>Grosor de Corte</label>
+                                <input type="text" name="grosorCorte" placeholder="Ej. 3mm" />
+                            </div>    
+                            <div>
+                                <label>Rebanado / Porcionado</label>
+                                <select name="rebanadoPorcionado">
+                                    <option value="" selected>Seleccione...</option>
+                                    <option value="N/A">N/A</option>
+                                    <option value="REBANADO">REBANADO</option>
+                                    <option value="PORCIONADO">PORCIONADO</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label>Pieza por bolsa</label>
+                                <input type="text" name="piezaPorBolsa" placeholder="Ej. 4" />
+                            </div>
+                            <div>
+                                <label>Kg por bolsa</label>
+                                <input type="text" name="kgPorBolsa" placeholder="Ej. 2.5" />
+                            </div>
+                            <div>
+                                <label>Bolsas por caja</label>
+                                <input type="text" name="bolsasPorCaja" placeholder="Ej. 12" />
+                            </div>
+                            <div>
+                                <label>Tipo de caja</label>
+                                <input type="text" name="tipoCaja" placeholder="Ej. 30" />
+                            </div>
                         </div>
 
                         <div class="form-subtitle">3. Proyecciones Comerciales</div>
@@ -1753,7 +1812,6 @@
                             <div>
                                 <label>Prioridad</label>
                                 <select name="priority">
-                                    <option>Me dijo Lalo</option>
                                     <option>Alta</option>
                                     <option>Media</option>
                                     <option>Baja</option>
@@ -2034,7 +2092,7 @@
 </div>
 <!-- MODAL PARA VER DETALLE DE SOLICITUD -->
 <div class="modal-backdrop-custom" id="modalVerSolicitud" onclick="if(event.target === this) this.classList.remove('show')">
-    <div class="modal-custom" style="max-width: 800px; border-radius: 4px; overflow: hidden; display: flex; flex-direction: column; max-height: 90vh;">
+    <div class="modal-custom" style="max-width: 1100px; border-radius: 4px; overflow: hidden; display: flex; flex-direction: column; max-height: 92vh;">
         <div class="modal-head" style="flex-shrink: 0;">
             <h3 id="vsTitulo">Detalle de Solicitud</h3>
             <div style="display: flex; gap: 10px;">
@@ -2364,8 +2422,9 @@
                                 document.getElementById('clientDisplay');
 
                             if (clientHidden) {
-                                // Al backend se envía únicamente el código SAP.
-                                clientHidden.value = clienteCodigo;
+                                clientHidden.value = clienteNombre
+                                    ? `${clienteCodigo} - ${clienteNombre}`
+                                    : clienteCodigo;
                             }
 
                             if (clientDisplay) {
@@ -3850,7 +3909,7 @@
                                 <input type="hidden" id="editNotes" value="${req.notes||''}" />
                                 <button type="button" id="editDestBtn"
                                         style="width:100%; text-align:left; padding:6px 10px; border:1px solid #ccc; border-radius:4px; background:#fff; cursor:pointer; min-height:34px; font-size:14px;">
-                                    <span id="editDestBtnText" style="color:${req.notes ? '#333' : '#888'};">${req.notes ? escapeTrackingHtml(req.notes) + ' - ' + escapeTrackingHtml(req.notes) : 'Seleccionar cliente...'}</span>
+                                    <span id="editDestBtnText" style="color:${req.notes ? '#333' : '#888'};">${req.notes ? escapeTrackingHtml(req.notes) : 'Seleccionar cliente...'}</span>
                                     <span style="float:right;">&#9662;</span>
                                 </button>
                                 <div id="editDestDropdown" style="display:none; position:absolute; z-index:200; left:0; right:0; top:100%; background:#fff; border:1px solid #ccc; border-radius:0 0 4px 4px; box-shadow:0 4px 12px rgba(0,0,0,0.2);">
@@ -3861,7 +3920,154 @@
                             </div>
                         </div>
 
-                        <!-- Sección de edición de especificaciones por SKU -->
+                        <!-- Sección: Datos de Producción -->
+                        <div style="margin-top: 20px;">
+                            <div class="form-subtitle" style="margin-bottom: 10px; border-radius: 2px;">Datos de Producción</div>
+                            <div class="form-grid two">
+                                <div>
+                                    <label>Identificación Cliente</label>
+                                    <input id="editIdentificacionCliente" value="${req.identificacionCliente||''}" placeholder="Ej. RFC o ID del cliente...">
+                                </div>
+                                <div>
+                                    <label>Fecha de Embarque</label>
+                                    <input type="date" id="editFechaEmbarque" value="${(req.fechaEmbarque||'').substring(0,10)}">
+                                </div>
+                                <div>
+                                    <label>Día de Muestras</label>
+                                    <input id="editDiaMuestras" value="${req.diaMuestras||''}" placeholder="Ej. Lunes">
+                                </div>
+                                <div>
+                                    <label>Tipo de Producción</label>
+                                    <input id="editTipoProduccion" value="${req.tipoProduccion||''}" placeholder="Ej. Regular">
+                                </div>
+                                <div>
+                                    <label>Planta Origen</label>
+                                    <input id="editPlantaOrigen" value="${req.plantaOrigen||''}" placeholder="Ej. P1">
+                                </div>
+                                <div>
+                                    <label>Proceso</label>
+                                    <select id="editProceso">
+                                        <option value="" ${!req.proceso?'selected':''}>Seleccione...</option>
+                                        <option value="G (Natural)" ${req.proceso==='G (Natural)'?'selected':''}>G (Natural)</option>
+                                        <option value="S (Mejorado)" ${req.proceso==='S (Mejorado)'?'selected':''}>S (Mejorado)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>% de Inyección</label>
+                                    <input id="editPorcentajeInyeccion" value="${req.porcentajeInyeccion||''}" placeholder="Ej. 10">
+                                </div>
+                                <div>
+                                    <label>Empaque</label>
+                                    <select id="editEmpaque">
+                                        <option value="" ${!req.empaque?'selected':''}>Seleccione...</option>
+                                        <option value="GRANEL" ${req.empaque==='GRANEL'?'selected':''}>GRANEL</option>
+                                        <option value="VACIO" ${req.empaque==='VACIO'?'selected':''}>VACIO</option>
+                                        <option value="TERMOFORMADORA" ${req.empaque==='TERMOFORMADORA'?'selected':''}>TERMOFORMADORA</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>Manejo</label>
+                                    <select id="editManejo">
+                                        <option value="" ${!req.manejo?'selected':''}>Seleccione...</option>
+                                        <option value="FRESCO" ${req.manejo==='FRESCO'?'selected':''}>FRESCO</option>
+                                        <option value="CONGELADO" ${req.manejo==='CONGELADO'?'selected':''}>CONGELADO</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>Proceso Deshuese</label>
+                                    <select id="editProcesoDeshuese">
+                                        <option value="" ${!req.procesoDeshuese?'selected':''}>Seleccione...</option>
+                                        <option value="C/H" ${req.procesoDeshuese==='C/H'?'selected':''}>C/H</option>
+                                        <option value="S/H" ${req.procesoDeshuese==='S/H'?'selected':''}>S/H</option>
+                                        <option value="N/A" ${req.procesoDeshuese==='N/A'?'selected':''}>N/A</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>Master (Nombre)</label>
+                                    <input id="editMasterNombre" value="${req.masterNombre||''}" placeholder="Nombre Master...">
+                                </div>
+                                <div>
+                                    <label>Código Muestra</label>
+                                    <input id="editCodigoMuestra" value="${req.codigoMuestra||''}" placeholder="Código...">
+                                </div>
+                                <div style="grid-column: span 2;">
+                                    <label>Nombre de Muestra</label>
+                                    <input id="editNombreMuestra" value="${req.nombreMuestra||''}" placeholder="Nombre de la muestra...">
+                                </div>
+                                <div class="full">
+                                    <label>Especificación Requerida</label>
+                                    <textarea id="editEspecificacionRequerida" style="min-height: 40px;" placeholder="Especificaciones adicionales...">${req.especificacionRequerida||''}</textarea>
+                                </div>
+                                <div class="full">
+                                    <label>Comentarios Generales</label>
+                                    <textarea id="editComentariosGenerales" style="min-height: 40px;" placeholder="Observaciones, notas o instrucciones adicionales...">${req.comentariosGenerales||''}</textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sección: Especificaciones de Producto -->
+                        <div style="margin-top: 20px;">
+                            <div class="form-subtitle" style="margin-bottom: 10px; border-radius: 2px;">Especificaciones de Producto</div>
+                            <div class="form-grid two">
+                                <div>
+                                    <label>Catálogo</label>
+                                    <select id="editCatalogo">
+                                        <option value="" ${!req.catalogo?'selected':''}>Seleccione...</option>
+                                        <option value="NUEVO" ${req.catalogo==='NUEVO'?'selected':''}>NUEVO</option>
+                                        <option value="EXISTENTE" ${req.catalogo==='EXISTENTE'?'selected':''}>EXISTENTE</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>Cobertura de Grasa</label>
+                                    <input id="editCoberturaGrasa" value="${req.coberturaGrasa||''}" placeholder="Ej. 85%">
+                                </div>
+                                <div>
+                                    <label>% de Grasa</label>
+                                    <input id="editPctGrasa" value="${req.pctGrasa||''}" placeholder="Ej. 15">
+                                </div>
+                                <div>
+                                    <label>Grosor de Corte</label>
+                                    <input id="editGrosorCorte" value="${req.grosorCorte||''}" placeholder="Ej. 3mm">
+                                </div>
+                                <div>
+                                    <label>Rebanado / Porcionado</label>
+                                    <select id="editRebanadoPorcionado">
+                                        <option value="" ${!req.rebanadoPorcionado?'selected':''}>Seleccione...</option>
+                                        <option value="N/A" ${req.rebanadoPorcionado==='N/A'?'selected':''}>N/A</option>
+                                        <option value="REBANADO" ${req.rebanadoPorcionado==='REBANADO'?'selected':''}>REBANADO</option>
+                                        <option value="PORCIONADO" ${req.rebanadoPorcionado==='PORCIONADO'?'selected':''}>PORCIONADO</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>Pieza por bolsa</label>
+                                    <input id="editPiezaPorBolsa" value="${req.piezaPorBolsa||''}" placeholder="Ej. 4">
+                                </div>
+                                <div>
+                                    <label>Kg por bolsa</label>
+                                    <input id="editKgPorBolsa" value="${req.kgPorBolsa||''}" placeholder="Ej. 2.5">
+                                </div>
+                                <div>
+                                    <label>Bolsas por caja</label>
+                                    <input id="editBolsasPorCaja" value="${req.bolsasPorCaja||''}" placeholder="Ej. 12">
+                                </div>
+                                <div>
+                                    <label>Tipo de caja</label>
+                                    <input id="editTipoCaja" value="${req.tipoCaja||''}" placeholder="Ej. 30">
+                                </div>
+                                <div>
+                                    <label>% Participación</label>
+                                    <input id="editParticipacion" value="${req.participacion||''}" placeholder="NA">
+                                </div>
+                                <div>
+                                    <label>Volumen Semanal</label>
+                                    <input id="editVolumenSemanal" value="${req.volumenSemanal||''}" placeholder="NA">
+                                </div>
+                                <div>
+                                    <label>Volumen Mensual</label>
+                                    <input id="editVolumenMensual" value="${req.volumenMensual||''}" placeholder="NA">
+                                </div>
+                            </div>
+                        </div>
                         <div style="margin-top: 20px;">
                             <div class="form-subtitle" style="margin-bottom: 10px; border-radius: 2px;">Especificación / requerimiento por SKU</div>
                             <div class="grid cols-1" style="gap: 8px;">
@@ -3915,7 +4121,7 @@
                             opt.addEventListener('mouseleave', () => opt.style.background = '');
                             opt.addEventListener('mousedown', (e) => {
                                 e.preventDefault();
-                                editHidden.value = opt.dataset.id;
+                                editHidden.value = opt.dataset.id + (opt.dataset.name ? ' - ' + opt.dataset.name : '');
                                 editBtnText.textContent = opt.dataset.id + ' - ' + opt.dataset.name;
                                 editBtnText.style.color = '#333';
                                 editDropdown.style.display = 'none';
@@ -3962,6 +4168,33 @@
                         destination: document.getElementById('editDestination').value,
                         priority: document.getElementById('editPriority').value,
                         notes: document.getElementById('editNotes').value,
+                        identificacionCliente: document.getElementById('editIdentificacionCliente')?.value || '',
+                        fechaEmbarque: document.getElementById('editFechaEmbarque')?.value || '',
+                        diaMuestras: document.getElementById('editDiaMuestras')?.value || '',
+                        tipoProduccion: document.getElementById('editTipoProduccion')?.value || '',
+                        plantaOrigen: document.getElementById('editPlantaOrigen')?.value || '',
+                        proceso: document.getElementById('editProceso')?.value || '',
+                        porcentajeInyeccion: document.getElementById('editPorcentajeInyeccion')?.value || '',
+                        empaque: document.getElementById('editEmpaque')?.value || '',
+                        manejo: document.getElementById('editManejo')?.value || '',
+                        procesoDeshuese: document.getElementById('editProcesoDeshuese')?.value || '',
+                        masterNombre: document.getElementById('editMasterNombre')?.value || '',
+                        codigoMuestra: document.getElementById('editCodigoMuestra')?.value || '',
+                        nombreMuestra: document.getElementById('editNombreMuestra')?.value || '',
+                        especificacionRequerida: document.getElementById('editEspecificacionRequerida')?.value || '',
+                        participacion: document.getElementById('editParticipacion')?.value || '',
+                        volumenSemanal: document.getElementById('editVolumenSemanal')?.value || '',
+                        volumenMensual: document.getElementById('editVolumenMensual')?.value || '',
+                        catalogo: document.getElementById('editCatalogo')?.value || '',
+                        coberturaGrasa: document.getElementById('editCoberturaGrasa')?.value || '',
+                        pctGrasa: document.getElementById('editPctGrasa')?.value || '',
+                        grosorCorte: document.getElementById('editGrosorCorte')?.value || '',
+                        rebanadoPorcionado: document.getElementById('editRebanadoPorcionado')?.value || '',
+                        piezaPorBolsa: document.getElementById('editPiezaPorBolsa')?.value || '',
+                        kgPorBolsa: document.getElementById('editKgPorBolsa')?.value || '',
+                        bolsasPorCaja: document.getElementById('editBolsasPorCaja')?.value || '',
+                        tipoCaja: document.getElementById('editTipoCaja')?.value || '',
+                        comentariosGenerales: document.getElementById('editComentariosGenerales')?.value || '',
                         items: items
                     };
 
@@ -4178,6 +4411,14 @@
             }
         }
 
+                document.addEventListener('input', e => {
+                    if (e.target.matches('#requestForm input[type="text"], #requestForm textarea, #modalEditarSolicitud input[type="text"], #modalEditarSolicitud textarea')) {
+                        const pos = e.target.selectionStart;
+                        e.target.value = e.target.value.toUpperCase();
+                        e.target.setSelectionRange(pos, pos);
+                    }
+                });
+
                 if(qs('#requestForm')) {
                     qs('#requestForm').addEventListener('submit', async e => {
                         e.preventDefault();
@@ -4226,6 +4467,17 @@
                             participacion: fd.get('participacion'),
                             volumenSemanal: fd.get('volumenSemanal'),
                             volumenMensual: fd.get('volumenMensual'),
+                            // NUEVOS CAMPOS DE ESPECIFICACIONES
+                            catalogo: fd.get('catalogo'),
+                            coberturaGrasa: fd.get('coberturaGrasa'),
+                            pctGrasa: fd.get('pctGrasa'),
+                            grosorCorte: fd.get('grosorCorte'),
+                            rebanadoPorcionado: fd.get('rebanadoPorcionado'),
+                            piezaPorBolsa: fd.get('piezaPorBolsa'),
+                            kgPorBolsa: fd.get('kgPorBolsa'),
+                            bolsasPorCaja: fd.get('bolsasPorCaja'),
+                            tipoCaja: fd.get('tipoCaja'),
+                            comentariosGenerales: fd.get('comentariosGenerales'),
                             // FIN NUEVOS DATOS
                             createdBy: '@User.Identity?.Name',
                             planning: null, stage: 'Planeación pendiente', location: 'Comercial', items: items,
@@ -4763,9 +5015,11 @@
                                 opt.addEventListener('mouseleave', () => opt.style.background = '');
                                 opt.addEventListener('mousedown', (e) => {
                                     e.preventDefault();
-                                    hidden.value = opt.dataset.id;
+                                    hidden.value = opt.dataset.id + (opt.dataset.name ? ' - ' + opt.dataset.name : '');
                                     btnText.textContent = opt.dataset.id + ' - ' + opt.dataset.name;
                                     btnText.style.color = '#333';
+                                    var identField = document.querySelector('input[name="identificacionCliente"]');
+                                    if (identField) identField.value = opt.dataset.id + (opt.dataset.name ? ' - ' + opt.dataset.name : '');
                                     dropdown.style.display = 'none';
                                 });
                             });
@@ -4898,79 +5152,227 @@
                     document.getElementById('btnImprimirModal').setAttribute('onclick', `imprimirSolicitud('${req.id}')`);
 
                     let tablaItems = `
-                        <table style="width:100%; border-collapse:collapse; margin-top:10px; font-size:11px;">
+                        <table style="width:100%; border-collapse:collapse; margin-top:10px; font-size:13px;">
                             <thead>
-                                <tr style="background:var(--bg);">
-                                    <th style="padding:6px; border:1px solid var(--line); text-align:left;">SKU</th>
-                                    <th style="padding:6px; border:1px solid var(--line); text-align:left;">Producto</th>
-                                    <th style="padding:6px; border:1px solid var(--line); text-align:left;">Especificación</th>
-                                    <th style="padding:6px; border:1px solid var(--line); text-align:center;">Cajas</th>
+                                <tr style="background:#8b0000; color:#fff;">
+                                    <th style="padding:10px 12px; text-align:left; font-weight:600;">SKU</th>
+                                    <th style="padding:10px 12px; text-align:left; font-weight:600;">SKU a Trabajar</th>
+                                    <th style="padding:10px 12px; text-align:left; font-weight:600;">Producto</th>
+                                    <th style="padding:10px 12px; text-align:left; font-weight:600;">Especificación</th>
+                                    <th style="padding:10px 12px; text-align:center; font-weight:600;">Cajas</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${req.items.map(i => `
-                                    <tr>
-                                        <td style="padding:6px; border:1px solid var(--line);"><b>${i.sku}</b></td>
-                                        <td style="padding:6px; border:1px solid var(--line);">${i.product}</td>
-                                        <td style="padding:6px; border:1px solid var(--line);">${i.spec}</td>
-                                        <td style="padding:6px; border:1px solid var(--line); text-align:center;">${i.boxes}</td>
+                                ${req.items.map((i,idx) => `
+                                    <tr style="background:${idx % 2 === 0 ? '#fafafa' : '#fff'};">
+                                        <td style="padding:10px 12px; border-bottom:1px solid #eee; font-weight:700; color:#8b0000;">${i.sku}</td>
+                                        <td style="padding:10px 12px; border-bottom:1px solid #eee; font-weight:700; color:#1a5276;">${i.workSku ? i.workSku + (i.workSkuName ? ' — ' + i.workSkuName : '') : '<span style="color:#999; font-style:italic;">Sin asignar</span>'}</td>
+                                        <td style="padding:10px 12px; border-bottom:1px solid #eee;">${i.product}</td>
+                                        <td style="padding:10px 12px; border-bottom:1px solid #eee;">${i.spec}</td>
+                                        <td style="padding:10px 12px; border-bottom:1px solid #eee; text-align:center; font-weight:700; font-size:15px;">${i.boxes}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
                         </table>
                     `;
 
+                    const prioColor = req.priority === 'Alta' ? '#dc3545' : req.priority === 'Media' ? '#fd7e14' : req.priority === 'Baja' ? '#198754' : '#666';
+                    const prioIcon = req.priority === 'Alta' ? '!!' : req.priority === 'Media' ? '!' : req.priority === 'Baja' ? 'i' : '?';
+
                     let html = `
-                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:15px;">
-                            <div style="background:#fff; padding:10px; border:1px solid var(--line);">
-                                <h6 style="color:#8b0000; margin:0 0 8px 0; font-weight:bold; border-bottom:1px solid var(--line); padding-bottom:4px;">1. Datos Generales</h6>
-                                <div style="display:grid; grid-template-columns: 100px 1fr; gap:4px; font-size:11px;">
-                                    <strong style="color:#666;">Vendedor:</strong> <span>${req.seller}</span>
-                                    <strong style="color:#666;">Cliente:</strong> <span>${req.client}</span>
-                                    <strong style="color:#666;">Identificación:</strong> <span>${req.identificacionCliente || 'N/A'}</span>
-                                    <strong style="color:#666;">Fecha Req:</strong> <span>${formatDate(req.requestedDate)}</span>
-                                    <strong style="color:#666;">Embarque:</strong> <span>${req.fechaEmbarque ? formatDate(req.fechaEmbarque) : 'N/A'}</span>
-                                    <strong style="color:#666;">Día Muestras:</strong> <span>${req.diaMuestras || 'N/A'}</span>
+                        <div style="font-size:13px;">
+
+                            <!-- SECCION 1: DATOS GENERALES -->
+                            <div style="background:linear-gradient(135deg,#8b0000,#5f1212); color:#fff; padding:10px 14px; border-radius:6px 6px 0 0; font-weight:700; font-size:14px; letter-spacing:0.5px;">
+                                1. DATOS GENERALES
+                            </div>
+                            <div style="border:1px solid #e0e0e0; border-top:none; padding:14px; border-radius:0 0 6px 6px; margin-bottom:16px;">
+                                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px;">
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Vendedor</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.seller}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Cliente</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.client}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Identificación del Cliente</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.identificacionCliente || 'Sin identificación'}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Fecha Requerida</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${formatDate(req.requestedDate)}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Fecha de Embarque</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.fechaEmbarque ? formatDate(req.fechaEmbarque) : 'Sin definir'}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Día de Muestras</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.diaMuestras || 'Sin definir'}</span>
+                                    </div>
                                 </div>
                             </div>
-                            <div style="background:#fff; padding:10px; border:1px solid var(--line);">
-                                <h6 style="color:#8b0000; margin:0 0 8px 0; font-weight:bold; border-bottom:1px solid var(--line); padding-bottom:4px;">2. Especificaciones de Producción</h6>
-                                <div style="display:grid; grid-template-columns: 100px 1fr; gap:4px; font-size:11px;">
-                                    <strong style="color:#666;">Línea:</strong> <span>${req.species}</span>
-                                    <strong style="color:#666;">Tipo Prod:</strong> <span>${req.tipoProduccion || 'N/A'}</span>
-                                    <strong style="color:#666;">Proceso:</strong> <span>${req.proceso || 'N/A'} (${req.porcentajeInyeccion || 0}%)</span>
-                                    <strong style="color:#666;">Empaque:</strong> <span>${req.empaque || 'N/A'}</span>
-                                    <strong style="color:#666;">Manejo:</strong> <span>${req.manejo || 'N/A'}</span>
-                                    <strong style="color:#666;">Planta:</strong> <span>${req.plantaOrigen || 'N/A'}</span>
+
+                            <!-- SECCION 2: ESPECIFICACIONES DE PRODUCCION -->
+                            <div style="background:linear-gradient(135deg,#8b0000,#5f1212); color:#fff; padding:10px 14px; border-radius:6px 6px 0 0; font-weight:700; font-size:14px; letter-spacing:0.5px;">
+                                2. ESPECIFICACIONES DE PRODUCCIÓN
+                            </div>
+                            <div style="border:1px solid #e0e0e0; border-top:none; padding:14px; border-radius:0 0 6px 6px; margin-bottom:16px;">
+                                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px;">
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Línea (Especie)</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.species}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Tipo de Producción</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.tipoProduccion || 'Sin definir'}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Planta de Origen</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.plantaOrigen || 'Sin definir'}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Proceso</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.proceso || 'Sin definir'}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">% de Inyección</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.porcentajeInyeccion || 0}%</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Empaque</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.empaque || 'Sin definir'}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Manejo</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.manejo || 'Sin definir'}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Catálogo</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.catalogo || 'Sin definir'}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Cobertura de Grasa</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.coberturaGrasa || 'Sin definir'}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">% de Grasa</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.pctGrasa || 'Sin definir'}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Grosor de Corte</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.grosorCorte || 'Sin definir'}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Rebanado / Porcionado</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.rebanadoPorcionado || 'Sin definir'}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Pieza por Bolsa</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.piezaPorBolsa || 'Sin definir'}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Kg por Bolsa</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.kgPorBolsa || 'Sin definir'}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Bolsas por Caja</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.bolsasPorCaja || 'Sin definir'}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Tipo de Caja</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.tipoCaja || 'Sin definir'}</span>
+                                    </div>
                                 </div>
                             </div>
-                            <div style="background:#fff; padding:10px; border:1px solid var(--line);">
-                                <h6 style="color:#8b0000; margin:0 0 8px 0; font-weight:bold; border-bottom:1px solid var(--line); padding-bottom:4px;">3. Logística y Comercial</h6>
-                                <div style="display:grid; grid-template-columns: 100px 1fr; gap:4px; font-size:11px;">
-                                    <strong style="color:#666;">Ruta:</strong> <span>${req.route}</span>
-                                    <strong style="color:#666;">Destino:</strong> <span>${req.destination}</span>
-                                    <strong style="color:#666;">Prioridad:</strong> <span>${req.priority}</span>
-                                    <strong style="color:#666;">% Participación:</strong> <span>${req.participacion || 'N/A'}</span>
-                                    <strong style="color:#666;">Vol. Semanal:</strong> <span>${req.volumenSemanal || 'N/A'}</span>
-                                    <strong style="color:#666;">Vol. Mensual:</strong> <span>${req.volumenMensual || 'N/A'}</span>
+
+                            <!-- SECCION 3: LOGISTICA Y COMERCIAL -->
+                            <div style="background:linear-gradient(135deg,#8b0000,#5f1212); color:#fff; padding:10px 14px; border-radius:6px 6px 0 0; font-weight:700; font-size:14px; letter-spacing:0.5px;">
+                                3. LOGÍSTICA Y COMERCIAL
+                            </div>
+                            <div style="border:1px solid #e0e0e0; border-top:none; padding:14px; border-radius:0 0 6px 6px; margin-bottom:16px;">
+                                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px;">
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Ruta Logística</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.route}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Destino</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.destination}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Prioridad</span>
+                                        <span style="margin-top:2px;"><span style="display:inline-block; background:${prioColor}; color:#fff; padding:2px 10px; border-radius:4px; font-weight:700; font-size:13px;">${prioIcon} ${req.priority}</span></span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">% de Participación</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.participacion || 'N/A'}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Volumen Semanal</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.volumenSemanal || 'N/A'}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Volumen Mensual</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.volumenMensual || 'N/A'}</span>
+                                    </div>
                                 </div>
                             </div>
-                            <div style="background:#fff; padding:10px; border:1px solid var(--line);">
-                                <h6 style="color:#8b0000; margin:0 0 8px 0; font-weight:bold; border-bottom:1px solid var(--line); padding-bottom:4px;">Observaciones y Adicionales</h6>
-                                <div style="font-size:11px;">
-                                    <strong style="color:#666; display:block;">Notas/Destinatario:</strong>
-                                    <p style="margin:2px 0 8px 0;">${req.notes || 'Ninguna'}</p>
-                                    <strong style="color:#666; display:block;">Proceso Deshuese:</strong>
-                                    <p style="margin:2px 0 8px 0;">${req.procesoDeshuese || 'N/A'} | Master: ${req.masterNombre || 'N/A'}</p>
-                                    <strong style="color:#666; display:block;">Muestra (Cod/Nom):</strong>
-                                    <p style="margin:2px 0 8px 0;">${req.codigoMuestra || 'N/A'} - ${req.nombreMuestra || 'N/A'}</p>
-                                    <strong style="color:#666; display:block;">Especificación Req:</strong>
-                                    <p style="margin:2px 0 0 0;">${req.especificacionRequerida || 'Ninguna'}</p>
+
+                            <!-- SECCION 4: PROCESO Y MUESTRA -->
+                            <div style="background:linear-gradient(135deg,#8b0000,#5f1212); color:#fff; padding:10px 14px; border-radius:6px 6px 0 0; font-weight:700; font-size:14px; letter-spacing:0.5px;">
+                                4. PROCESO Y MUESTRA
+                            </div>
+                            <div style="border:1px solid #e0e0e0; border-top:none; padding:14px; border-radius:0 0 6px 6px; margin-bottom:16px;">
+                                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px;">
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Proceso Deshuese</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.procesoDeshuese || 'N/A'}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Master (Nombre)</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px;">${req.masterNombre || 'N/A'}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Código de Muestra</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px; color:#8b0000;">${req.codigoMuestra || 'N/A'}</span>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Nombre de Muestra</span>
+                                        <span style="font-weight:700; font-size:14px; margin-top:2px; color:#8b0000;">${req.nombreMuestra || 'N/A'}</span>
+                                    </div>
+                                </div>
+                                <div style="margin-top:12px; display:flex; flex-direction:column;">
+                                    <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Especificación Requerida</span>
+                                    <span style="font-weight:700; font-size:14px; margin-top:2px; background:#f8f8f8; padding:8px 10px; border-radius:4px; border-left:3px solid #8b0000;">${req.especificacionRequerida || 'Ninguna'}</span>
+                                </div>
+                                <div style="margin-top:12px; display:flex; flex-direction:column;">
+                                    <span style="color:#888; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Comentarios Generales</span>
+                                    <span style="font-weight:700; font-size:14px; margin-top:2px; background:#f8f8f8; padding:8px 10px; border-radius:4px; border-left:3px solid #666;">${req.comentariosGenerales || 'Sin comentarios'}</span>
                                 </div>
                             </div>
+
+                            <!-- SECCION 5: NOTAS -->
+                            <div style="background:linear-gradient(135deg,#8b0000,#5f1212); color:#fff; padding:10px 14px; border-radius:6px 6px 0 0; font-weight:700; font-size:14px; letter-spacing:0.5px;">
+                                5. NOTAS / DESTINATARIO
+                            </div>
+                            <div style="border:1px solid #e0e0e0; border-top:none; padding:14px; border-radius:0 0 6px 6px; margin-bottom:16px;">
+                                <div style="background:#fffde7; padding:10px 14px; border-radius:4px; border-left:4px solid #f9a825; font-size:13px;">
+                                    ${req.notes || 'Sin notas registradas.'}
+                                </div>
+                            </div>
+
+                            <!-- TABLA DE ARTICULOS -->
+                            <div style="background:linear-gradient(135deg,#8b0000,#5f1212); color:#fff; padding:10px 14px; border-radius:6px 6px 0 0; font-weight:700; font-size:14px; letter-spacing:0.5px;">
+                                6. ARTÍCULOS SOLICITADOS
+                            </div>
+                            <div style="border:1px solid #e0e0e0; border-top:none; border-radius:0 0 6px 6px; overflow:hidden; margin-bottom:8px;">
+                                ${tablaItems}
+                            </div>
+
                         </div>
-                        <h6 style="color:#8b0000; margin:0; font-weight:bold;">Artículos Solicitados</h6>
-                        ${tablaItems}
                     `;
 
                     document.getElementById('vsContenido').innerHTML = html;
@@ -5044,6 +5446,15 @@
                                     <div class="data-row"><strong>Empaque:</strong> <span>${req.empaque || 'N/A'}</span></div>
                                     <div class="data-row"><strong>Manejo:</strong> <span>${req.manejo || 'N/A'}</span></div>
                                     <div class="data-row"><strong>Planta Asignada:</strong> <span>${req.plantaOrigen || 'N/A'}</span></div>
+                                    <div class="data-row"><strong>Catálogo:</strong> <span>${req.catalogo || 'N/A'}</span></div>
+                                    <div class="data-row"><strong>Cobertura Grasa:</strong> <span>${req.coberturaGrasa || 'Sin definir'}</span></div>
+                                    <div class="data-row"><strong>% Grasa:</strong> <span>${req.pctGrasa || 'Sin definir'}</span></div>
+                                    <div class="data-row"><strong>Grosor Corte:</strong> <span>${req.grosorCorte || 'Sin definir'}</span></div>
+                                    <div class="data-row"><strong>Rebanado:</strong> <span>${req.rebanadoPorcionado || 'Sin definir'}</span></div>
+                                    <div class="data-row"><strong>Pieza/bolsa:</strong> <span>${req.piezaPorBolsa || 'Sin definir'}</span></div>
+                                    <div class="data-row"><strong>Kg/bolsa:</strong> <span>${req.kgPorBolsa || 'Sin definir'}</span></div>
+                                    <div class="data-row"><strong>Bolsas/caja:</strong> <span>${req.bolsasPorCaja || 'Sin definir'}</span></div>
+                                    <div class="data-row"><strong>Tipo caja:</strong> <span>${req.tipoCaja || 'Sin definir'}</span></div>
                                 </div>
                             </div>
 
@@ -5069,6 +5480,10 @@
                                         <strong>Especificación Requerida:</strong>
                                         <span style="margin-top:4px;">${req.especificacionRequerida || 'Ninguna'}</span>
                                     </div>
+                                    <div class="data-row" style="flex-direction:column;">
+                                        <strong>Comentarios Generales:</strong>
+                                        <span style="margin-top:4px;">${req.comentariosGenerales || 'Sin comentarios'}</span>
+                                    </div>
                                 </div>
                             </div>
 
@@ -5077,6 +5492,7 @@
                                 <thead>
                                     <tr>
                                         <th>CÓDIGO SKU</th>
+                                        <th>SKU A TRABAJAR</th>
                                         <th>PRODUCTO</th>
                                         <th>ESPECIFICACIÓN / REQUERIMIENTO</th>
                                         <th class="text-center">CAJAS</th>
@@ -5086,6 +5502,7 @@
                                     ${req.items.map(i => `
                                         <tr>
                                             <td><b>${i.sku}</b></td>
+                                            <td>${i.workSku ? i.workSku + (i.workSkuName ? ' — ' + i.workSkuName : '') : '—'}</td>
                                             <td>${i.product}</td>
                                             <td>${i.spec}</td>
                                             <td class="text-center" style="font-size:14px; font-weight:bold;">${i.boxes}</td>
