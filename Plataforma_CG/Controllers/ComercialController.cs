@@ -20353,7 +20353,7 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
                 var sql = @"
 SELECT 
     s.Id, s.CreatedAt, s.CreatedBy, s.Seller,
-    COALESCE(NULLIF(LTRIM(RTRIM(cs.Nombrecliente)), ''), s.Client) AS Client,
+    s.Client,
     s.Species,
     s.RequestedDate, s.[Route], s.Destination, s.Priority, s.Notes,
     s.Stage, s.Location,
@@ -20361,6 +20361,8 @@ SELECT
     s.Proceso, s.PorcentajeInyeccion, s.Empaque, s.Manejo, s.ProcesoDeshuese, s.MasterNombre,
     s.CodigoMuestra, s.NombreMuestra, s.EspecificacionRequerida, s.Participacion,
     s.VolumenSemanal, s.VolumenMensual,
+    s.Catalogo, s.CoberturaGrasa, s.PctGrasa, s.GrosorCorte, s.RebanadoPorcionado,
+    s.PiezaPorBolsa, s.KgPorBolsa, s.BolsasPorCaja, s.TipoCaja, s.ComentariosGenerales,
     s.Plan_ProcessDate AS ProcessDate, s.Plan_Shift AS Shift,
     s.Plan_Line AS Line, s.Plan_Planner AS Planner, s.Plan_Especificacion AS Especificacion,
     s.Plan_ReleasedAt AS ReleasedAt,
@@ -20368,7 +20370,6 @@ SELECT
 FROM SolicitudMuestras s
 LEFT JOIN OrdenVentaMuestra ovm ON s.Id = ovm.SolicitudMuestraId
 LEFT JOIN OrdenVenta ov ON ovm.OrdenVentaId = ov.Id
-LEFT JOIN ClienteSap cs ON s.Client = cs.Cliente
 WHERE s.Activo = 1 AND s.CreatedAt >= DATEADD(day, -60, GETDATE())
 AND (@VendedorId IS NULL OR ov.VendedorId IN @IdsBusqueda)
 ORDER BY s.CreatedAt DESC";
@@ -20413,6 +20414,16 @@ ORDER BY s.CreatedAt DESC";
                         Participacion = (s.Participacion as string) ?? "",
                         VolumenSemanal = (s.VolumenSemanal as string) ?? "",
                         VolumenMensual = (s.VolumenMensual as string) ?? "",
+                        Catalogo = (s.Catalogo as string) ?? "",
+                        CoberturaGrasa = (s.CoberturaGrasa as string) ?? "",
+                        PctGrasa = (s.PctGrasa as string) ?? "",
+                        GrosorCorte = (s.GrosorCorte as string) ?? "",
+                        RebanadoPorcionado = (s.RebanadoPorcionado as string) ?? "",
+                        PiezaPorBolsa = (s.PiezaPorBolsa as string) ?? "",
+                        KgPorBolsa = (s.KgPorBolsa as string) ?? "",
+                        BolsasPorCaja = (s.BolsasPorCaja as string) ?? "",
+                        TipoCaja = (s.TipoCaja as string) ?? "",
+                        ComentariosGenerales = (s.ComentariosGenerales as string) ?? "",
                         Planning = s.ProcessDate != null ? new Plataforma_CG.Models.PlaneacionVM
                         {
                             ProcessDate = s.ProcessDate,
@@ -20544,14 +20555,18 @@ ORDER BY s.CreatedAt DESC";
             IdentificacionCliente, FechaEmbarque, DiaMuestras, TipoProduccion, PlantaOrigen,
             Proceso, PorcentajeInyeccion, Empaque, Manejo, ProcesoDeshuese, MasterNombre,
             CodigoMuestra, NombreMuestra, EspecificacionRequerida, Participacion,
-            VolumenSemanal, VolumenMensual)
+            VolumenSemanal, VolumenMensual,
+            Catalogo, CoberturaGrasa, PctGrasa, GrosorCorte, RebanadoPorcionado,
+            PiezaPorBolsa, KgPorBolsa, BolsasPorCaja, TipoCaja, ComentariosGenerales)
        VALUES 
            (@Id, @CreatedAt, @CreatedBy, @Seller, @Client, @Species, @RequestedDate,
             @Route, @Destination, @Priority, @Notes, @Stage, @Location,
             @IdentificacionCliente, @FechaEmbarque, @DiaMuestras, @TipoProduccion, @PlantaOrigen,
             @Proceso, @PorcentajeInyeccion, @Empaque, @Manejo, @ProcesoDeshuese, @MasterNombre,
             @CodigoMuestra, @NombreMuestra, @EspecificacionRequerida, @Participacion,
-            @VolumenSemanal, @VolumenMensual)";
+            @VolumenSemanal, @VolumenMensual,
+            @Catalogo, @CoberturaGrasa, @PctGrasa, @GrosorCorte, @RebanadoPorcionado,
+            @PiezaPorBolsa, @KgPorBolsa, @BolsasPorCaja, @TipoCaja, @ComentariosGenerales)";
 
                 await conn.ExecuteAsync(sqlSolicitud, new
                 {
@@ -20584,7 +20599,17 @@ ORDER BY s.CreatedAt DESC";
                     EspecificacionRequerida = nuevaSolicitud.EspecificacionRequerida ?? "",
                     Participacion = nuevaSolicitud.Participacion ?? "",
                     VolumenSemanal = nuevaSolicitud.VolumenSemanal ?? "",
-                    VolumenMensual = nuevaSolicitud.VolumenMensual ?? ""
+                    VolumenMensual = nuevaSolicitud.VolumenMensual ?? "",
+                    Catalogo = nuevaSolicitud.Catalogo ?? "",
+                    CoberturaGrasa = nuevaSolicitud.CoberturaGrasa ?? "",
+                    PctGrasa = nuevaSolicitud.PctGrasa ?? "",
+                    GrosorCorte = nuevaSolicitud.GrosorCorte ?? "",
+                    RebanadoPorcionado = nuevaSolicitud.RebanadoPorcionado ?? "",
+                    PiezaPorBolsa = nuevaSolicitud.PiezaPorBolsa ?? "",
+                    KgPorBolsa = nuevaSolicitud.KgPorBolsa ?? "",
+                    BolsasPorCaja = nuevaSolicitud.BolsasPorCaja ?? "",
+                    TipoCaja = nuevaSolicitud.TipoCaja ?? "",
+                    ComentariosGenerales = nuevaSolicitud.ComentariosGenerales ?? ""
                 });
 
                 if (nuevaSolicitud.Items != null && nuevaSolicitud.Items.Any())
@@ -20777,7 +20802,34 @@ ORDER BY s.CreatedAt DESC";
                         [Route] = @Route,
                         Destination = @Destination,
                         Priority = @Priority,
-                        Notes = @Notes
+                        Notes = @Notes,
+                        IdentificacionCliente = @IdentificacionCliente,
+                        FechaEmbarque = @FechaEmbarque,
+                        DiaMuestras = @DiaMuestras,
+                        TipoProduccion = @TipoProduccion,
+                        PlantaOrigen = @PlantaOrigen,
+                        Proceso = @Proceso,
+                        PorcentajeInyeccion = @PorcentajeInyeccion,
+                        Empaque = @Empaque,
+                        Manejo = @Manejo,
+                        ProcesoDeshuese = @ProcesoDeshuese,
+                        MasterNombre = @MasterNombre,
+                        CodigoMuestra = @CodigoMuestra,
+                        NombreMuestra = @NombreMuestra,
+                        EspecificacionRequerida = @EspecificacionRequerida,
+                        Participacion = @Participacion,
+                        VolumenSemanal = @VolumenSemanal,
+                        VolumenMensual = @VolumenMensual,
+                        Catalogo = @Catalogo,
+                        CoberturaGrasa = @CoberturaGrasa,
+                        PctGrasa = @PctGrasa,
+                        GrosorCorte = @GrosorCorte,
+                        RebanadoPorcionado = @RebanadoPorcionado,
+                        PiezaPorBolsa = @PiezaPorBolsa,
+                        KgPorBolsa = @KgPorBolsa,
+                        BolsasPorCaja = @BolsasPorCaja,
+                        TipoCaja = @TipoCaja,
+                        ComentariosGenerales = @ComentariosGenerales
                     WHERE Id = @Id AND Activo = 1";
 
                 var rows = await conn.ExecuteAsync(sql, new
@@ -20788,7 +20840,34 @@ ORDER BY s.CreatedAt DESC";
                     model.Route,
                     model.Destination,
                     model.Priority,
-                    model.Notes
+                    model.Notes,
+                    model.IdentificacionCliente,
+                    model.FechaEmbarque,
+                    model.DiaMuestras,
+                    model.TipoProduccion,
+                    model.PlantaOrigen,
+                    model.Proceso,
+                    model.PorcentajeInyeccion,
+                    model.Empaque,
+                    model.Manejo,
+                    model.ProcesoDeshuese,
+                    model.MasterNombre,
+                    model.CodigoMuestra,
+                    model.NombreMuestra,
+                    model.EspecificacionRequerida,
+                    model.Participacion,
+                    model.VolumenSemanal,
+                    model.VolumenMensual,
+                    model.Catalogo,
+                    model.CoberturaGrasa,
+                    model.PctGrasa,
+                    model.GrosorCorte,
+                    model.RebanadoPorcionado,
+                    model.PiezaPorBolsa,
+                    model.KgPorBolsa,
+                    model.BolsasPorCaja,
+                    model.TipoCaja,
+                    model.ComentariosGenerales
                 });
 
                 if (rows == 0)

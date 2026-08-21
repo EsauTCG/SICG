@@ -42,6 +42,18 @@ namespace Plataforma_CG.Models
         public string VolumenSemanal { get; set; }
         public string VolumenMensual { get; set; }
 
+        // Campos de especificaciones de producción
+        public string Catalogo { get; set; }
+        public string CoberturaGrasa { get; set; }
+        public string PctGrasa { get; set; }
+        public string GrosorCorte { get; set; }
+        public string RebanadoPorcionado { get; set; }
+        public string PiezaPorBolsa { get; set; }
+        public string KgPorBolsa { get; set; }
+        public string BolsasPorCaja { get; set; }
+        public string TipoCaja { get; set; }
+        public string ComentariosGenerales { get; set; }
+
         public PlaneacionVM Planning { get; set; }
         public List<ItemMuestraVM> Items { get; set; } = new List<ItemMuestraVM>();
     }
@@ -93,6 +105,33 @@ namespace Plataforma_CG.Models
         public string Destination { get; set; }
         public string Priority { get; set; }
         public string Notes { get; set; }
+        public string IdentificacionCliente { get; set; }
+        public string FechaEmbarque { get; set; }
+        public string DiaMuestras { get; set; }
+        public string TipoProduccion { get; set; }
+        public string PlantaOrigen { get; set; }
+        public string Proceso { get; set; }
+        public string PorcentajeInyeccion { get; set; }
+        public string Empaque { get; set; }
+        public string Manejo { get; set; }
+        public string ProcesoDeshuese { get; set; }
+        public string MasterNombre { get; set; }
+        public string CodigoMuestra { get; set; }
+        public string NombreMuestra { get; set; }
+        public string EspecificacionRequerida { get; set; }
+        public string Participacion { get; set; }
+        public string VolumenSemanal { get; set; }
+        public string VolumenMensual { get; set; }
+        public string Catalogo { get; set; }
+        public string CoberturaGrasa { get; set; }
+        public string PctGrasa { get; set; }
+        public string GrosorCorte { get; set; }
+        public string RebanadoPorcionado { get; set; }
+        public string PiezaPorBolsa { get; set; }
+        public string KgPorBolsa { get; set; }
+        public string BolsasPorCaja { get; set; }
+        public string TipoCaja { get; set; }
+        public string ComentariosGenerales { get; set; }
         public List<EditarItemSpecModel> Items { get; set; } = new List<EditarItemSpecModel>();
     }
 
