@@ -42,10 +42,10 @@ namespace Plataforma_CG.Models
         [Key]
         public int Id { get; set; }
         public DateTime Fecha { get; set; } = DateTime.Now;
-        public int UsuarioId { get; set; } 
-        public string Supervisor { get; set; } = "SUPERVISOR_GENERAL"; 
-        public string ArticuloIngresado { get; set; } 
-        public int CategoriaId { get; set; } 
+        public int UsuarioId { get; set; }
+        public string Supervisor { get; set; } = "SUPERVISOR_GENERAL";
+        public string ArticuloIngresado { get; set; }
+        public int CategoriaId { get; set; }
 
         [ForeignKey("UsuarioId")]
         public UsuarioModel Usuario { get; set; }
@@ -57,8 +57,8 @@ namespace Plataforma_CG.Models
     public class PinArticulosModel
     {
         [Key]
-        public string Clave { get; set; } 
-        public string Valor { get; set; } 
+        public string Clave { get; set; }
+        public string Valor { get; set; }
         public string Descripcion { get; set; }
     }
     [Table("LogsDanosEquipos")]
@@ -68,7 +68,7 @@ namespace Plataforma_CG.Models
         public int Id { get; set; }
         public string Equipo { get; set; }
 
-        public string UsuarioResponsable { get; set; } 
+        public string UsuarioResponsable { get; set; }
         public string TipoHallazgo { get; set; }
         public string Detalle { get; set; }
         public string RutaFoto { get; set; }
@@ -79,5 +79,10 @@ namespace Plataforma_CG.Models
     {
         public int UsuarioId { get; set; }
         public List<int> CategoriasIds { get; set; } = new List<int>();
+    }
+
+    public class EliminarUsuarioDto
+    {
+        public int Id { get; set; }
     }
 }

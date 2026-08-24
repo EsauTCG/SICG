@@ -23,6 +23,11 @@
       href="~/css/surtido-wms-v7.css"
       asp-append-version="true" />
 
+<link rel="stylesheet"
+      href="~/css/surtido-picking-tarea-erp.css"
+      asp-append-version="true" />
+
+
 <div class="wms-v7">
 
     <main class="wms-content">
@@ -245,7 +250,9 @@
 
         <form method="post"
               action="@Url.Action("ConfirmarBajada","Surtido")"
-              id="frmBajada">
+              id="frmBajada"
+              data-etiqueta="@((Model.Caja.CodigoEtiqueta ?? "").Trim().ToUpperInvariant())"
+              data-tarima="@((Model.Caja.TarimaCodigo ?? "").Trim().ToUpperInvariant())">
 
             @Html.AntiForgeryToken()
 
@@ -354,94 +361,8 @@
 
 
 @section Scripts {
-
-    <script>
-        (() => {
-
-            const input =
-                document.getElementById('CodigoEscaneado');
-
-            const validar =
-                document.getElementById('btnValidar');
-
-            const confirmar =
-                document.getElementById('btnConfirmar');
-
-            const msg =
-                document.getElementById('scanMessage');
-
-            if (!input || !validar || !confirmar) {
-                return;
-            }
-
-            const etiqueta =
-                @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
-                    (Model.Caja.CodigoEtiqueta ?? "").Trim().ToUpperInvariant()
-                ));
-
-            const tarima =
-                @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
-                    (Model.Caja.TarimaCodigo ?? "").Trim().ToUpperInvariant()
-                ));
-
-            validar.addEventListener('click', () => {
-
-                const scan =
-                    (input.value || '')
-                    .trim()
-                    .toUpperCase();
-
-                const ok =
-                    scan !== ''
-                    &&
-                    (
-                        scan === etiqueta
-                        ||
-                        (
-                            tarima !== ''
-                            &&
-                            scan === tarima
-                        )
-                    );
-
-                if (ok) {
-
-                    msg.innerHTML =
-                        '<span style="color:#51dfaa">✓ Producto correcto. Listo para confirmar bajada.</span>';
-
-                    confirmar.disabled =
-                        false;
-
-                    input.readOnly =
-                        true;
-                }
-                else {
-
-                    msg.innerHTML =
-                        '<span style="color:#ff7d88">× Código incorrecto. No corresponde a la caja/tarima PEPS indicada.</span>';
-
-                    confirmar.disabled =
-                        true;
-                }
-            });
-
-
-            input.addEventListener('keydown', e => {
-
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    validar.click();
-                }
-
-            });
-
-            setTimeout(
-                () => input.focus(),
-                150
-            );
-
-        })();
-    </script>
+    <script src="~/js/surtido-picking-tarea-erp.js"
+            asp-append-version="true"></script>
 }
 
 

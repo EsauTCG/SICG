@@ -2916,6 +2916,21 @@
                 border: none !important;
             }
         }
+
+        /* CARGA DE ALMACENES: feedback visible para operador */
+        .warehouse-empty-result .spinner-border {
+            width: 1rem;
+            height: 1rem;
+            border-width: .14rem;
+        }
+
+        .warehouse-empty-result .js-retry-warehouses {
+            min-height: 42px;
+            padding-left: 16px;
+            padding-right: 16px;
+            font-weight: 900;
+        }
+
     </style>
 }
 
@@ -5741,13 +5756,97 @@
             }
 
             async function loadAllowedWarehouses() {
-                const data = await getJson(`${REALTIME_BASE_URL}/AlmacenesPermitidos?_=${Date.now()}`);
-                allowedWarehouses = Array.isArray(data?.almacenes)
-                    ? data.almacenes
-                    : [];
+                /*
+                 * IMPORTANTE:
+                 * Esta carga no debe depender de SesionActiva. Los montacarguistas
+                 * necesitan ver los almacenes en cuanto abre la pantalla.
+                 */
+                warehouseSelectTrigger.disabled = true;
+                warehouseSelectAll.disabled = true;
+                btnStartSession.disabled = true;
 
-                renderWarehouseChoices();
-                populateReportWarehouseSelect();
+                warehouseSelectText.textContent = "Cargando almacenes permitidos…";
+                warehouseSelectionHint.textContent = "Consultando almacenes…";
+                warehouseChoices.innerHTML = `
+                    <div class="warehouse-empty-result">
+                        <span class="spinner-border spinner-border-sm me-2"
+                              aria-hidden="true"></span>
+                        Cargando almacenes permitidos…
+                    </div>`;
+
+                try {
+                    const data = await getJson(
+                        `${REALTIME_BASE_URL}/AlmacenesPermitidos?_=${Date.now()}`,
+                        10000
+                    );
+
+                    allowedWarehouses = Array.isArray(data?.almacenes)
+                        ? data.almacenes
+                        : [];
+
+                    renderWarehouseChoices();
+                    populateReportWarehouseSelect();
+
+                    console.info(
+                        "[Inventario] Almacenes permitidos cargados:",
+                        allowedWarehouses.length
+                    );
+
+                    return allowedWarehouses;
+                } catch (error) {
+                    allowedWarehouses = [];
+                    selectedWarehouseIds.clear();
+
+                    const mensaje =
+                        error?.message ||
+                        "No se pudieron consultar los almacenes permitidos.";
+
+                    warehouseSelectText.textContent =
+                        "No cargaron los almacenes — toca para reintentar";
+                    warehouseSelectionHint.textContent =
+                        "Error de conexión. Puedes reintentar.";
+                    warehouseSelectTrigger.disabled = false;
+                    warehouseSelectAll.disabled = true;
+                    btnStartSession.disabled = true;
+
+                    warehouseChoices.innerHTML = `
+                        <div class="warehouse-empty-result text-danger fw-bold">
+                            <i class="fa-solid fa-triangle-exclamation mb-2"></i><br />
+                            No se pudieron cargar los almacenes.<br />
+                            <small style="font-weight:700">${esc(mensaje)}</small><br />
+                            <button type="button"
+                                    class="btn btn-danger btn-sm mt-2 js-retry-warehouses">
+                                <i class="fa-solid fa-rotate"></i>
+                                Reintentar
+                            </button>
+                        </div>`;
+
+                    const retryButton =
+                        warehouseChoices.querySelector(".js-retry-warehouses");
+
+                    retryButton?.addEventListener("click", async event => {
+                        event.preventDefault();
+                        event.stopPropagation();
+
+                        try {
+                            await loadAllowedWarehouses();
+                            showSessionWarning("");
+                        } catch (retryError) {
+                            showSessionWarning(
+                                `No se pudieron cargar los almacenes. ${
+                                    retryError?.message || ""
+                                }`
+                            );
+                        }
+                    });
+
+                    console.error(
+                        "[Inventario] Error cargando almacenes permitidos:",
+                        error
+                    );
+
+                    throw error;
+                }
             }
 
             async function restoreSession() {
@@ -5791,52 +5890,63 @@
                 showSessionWarning("");
 
                 /*
-                 * La caché se pinta antes de cualquier consulta HTTP. Así la
-                 * sesión y el historial local aparecen aun cuando SQL Server o
-                 * la red estén tardando.
+                 * Los almacenes se solicitan INMEDIATAMENTE.
+                 * Antes esperaban a que terminara SesionActiva; si SQL tardaba,
+                 * la pantalla se quedaba visualmente en "Cargando almacenes…".
+                 */
+                const warehousesPromise = loadAllowedWarehouses()
+                    .catch(error => {
+                        showSessionWarning(
+                            `No se pudieron cargar los almacenes permitidos. ${
+                                error?.message || ""
+                            }`
+                        );
+                        return [];
+                    });
+
+                /*
+                 * La caché se pinta antes de validar la sesión remota.
                  */
                 const cachedSession = readSessionSnapshot();
+
                 if (cachedSession) {
                     applyActiveSession(cachedSession, {
                         deferRemoteSync: true
                     });
+
                     setStatus(
                         `Sesión recuperada. Validando ${currentWarehouseName()}…`,
                         "muted"
                     );
                 } else {
                     setStatus(
-                        "Recuperando la sesión activa…",
+                        "Preparando inventario…",
                         "muted"
                     );
                 }
 
                 /*
-                 * La sesión tiene prioridad. Los almacenes permitidos se
-                 * actualizan después y nunca bloquean la apertura del lector.
+                 * La sesión y los almacenes ahora trabajan en paralelo.
                  */
                 try {
                     await restoreSession();
                 } catch (error) {
                     showSessionWarning(
-                        `No se pudo validar la sesión activa. ${error?.message || ""}`
+                        `No se pudo validar la sesión activa. ${
+                            error?.message || ""
+                        }`
                     );
 
-                    /*
-                     * Si existía una caché reciente se conserva visible. No se
-                     * borra la pantalla por una falla temporal de red.
-                     */
                     if (!cachedSession) {
                         applyActiveSession(null);
                     }
                 }
 
-                loadAllowedWarehouses()
-                    .catch(error => {
-                        showSessionWarning(
-                            `La sesión está disponible, pero no se actualizaron los almacenes permitidos. ${error?.message || ""}`
-                        );
-                    });
+                /*
+                 * Esperamos el resultado del catálogo únicamente para dejar la
+                 * pantalla completamente sincronizada; la llamada ya arrancó.
+                 */
+                await warehousesPromise;
 
                 if (activeSession) {
                     retryPendingSessionRegistrations().catch(error => {
@@ -9325,7 +9435,23 @@ document.addEventListener("visibilitychange", () => {
                 "muted"
             );
 
-            initializeSessionEnvironment();
+            initializeSessionEnvironment()
+                .catch(error => {
+                    console.error(
+                        "[Inventario] Error inicializando la pantalla:",
+                        error
+                    );
+
+                    warehouseSelectText.textContent =
+                        "Error al iniciar — recarga la pantalla";
+
+                    showSessionWarning(
+                        `No se pudo iniciar la pantalla de inventario. ${
+                            error?.message || ""
+                        }`
+                    );
+                });
+
             startDashboardTimer();
         })();
     </script>

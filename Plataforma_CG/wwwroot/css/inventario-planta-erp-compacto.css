@@ -1,0 +1,1300 @@
+/* ==========================================================================
+   INVENTARIO POR PLANTA — ERP TINTO / POPPINS / COMPACTO LEGIBLE
+   Override visual cargado después del CSS existente.
+   Conserva IDs, JavaScript, búsqueda, selección, trazabilidad, Excel y Rack 3D.
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+:root {
+    --ip-bg: #eef2f4;
+    --ip-panel: #ffffff;
+    --ip-panel-2: #f7f9fa;
+    --ip-line: #bec9cf;
+    --ip-line-soft: #d7dfe3;
+    --ip-text: #30373b;
+    --ip-muted: #66747c;
+
+    --ip-tinto: #7a2029;
+    --ip-tinto-dark: #5e1820;
+    --ip-tinto-deep: #351014;
+    --ip-tinto-soft: #f4e8ea;
+
+    --ip-green: #25824d;
+    --ip-green-dark: #1c633a;
+    --ip-green-soft: #e8f3ed;
+
+    --ip-amber: #9c7318;
+    --ip-amber-soft: #f8f0dc;
+
+    --ip-red: #a22e3a;
+    --ip-red-soft: #f7e5e7;
+
+    --ip-blue: #45657d;
+    --ip-blue-soft: #eaf0f4;
+}
+
+@media screen {
+
+    /* ======================================================================
+       FUENTE
+       ====================================================================== */
+
+    #inventarioPlantaApp,
+    #inventarioPlantaApp button,
+    #inventarioPlantaApp input,
+    #inventarioPlantaApp select,
+    #inventarioPlantaApp textarea,
+    #inventarioPlantaApp table,
+    #modal-rack3d,
+    #modal-rack3d button,
+    #modal-rack3d input {
+        font-family: "Poppins", "Segoe UI", Arial, sans-serif !important;
+        -webkit-font-smoothing: antialiased !important;
+        -moz-osx-font-smoothing: grayscale !important;
+        text-rendering: geometricPrecision !important;
+    }
+
+    #inventarioPlantaApp .bi,
+    #inventarioPlantaApp .bi::before,
+    #modal-rack3d .bi,
+    #modal-rack3d .bi::before {
+        font-family: "bootstrap-icons" !important;
+    }
+
+    html,
+    body {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) {
+        background: var(--ip-bg) !important;
+    }
+
+    /* ======================================================================
+       _LAYOUT2 / CONTENEDOR
+       ====================================================================== */
+
+    body:has(#inventarioPlantaApp) .layout-main-content {
+        flex: 1 1 auto !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        overflow-x: hidden !important;
+        box-sizing: border-box !important;
+    }
+
+    body:has(#inventarioPlantaApp) .layout-main-content.layout-sidebar-open {
+        width: calc(100% - var(--layout-sidebar-width)) !important;
+        max-width: calc(100% - var(--layout-sidebar-width)) !important;
+        margin-left: var(--layout-sidebar-width) !important;
+    }
+
+    body:has(.layout-sidebar.layout-hidden):has(#inventarioPlantaApp) .layout-main-content,
+    body:has(.layout-sidebar.layout-hidden):has(#inventarioPlantaApp) .layout-main-content.layout-sidebar-open {
+        width: calc(100% - var(--layout-sidebar-collapsed-width, 60px)) !important;
+        max-width: calc(100% - var(--layout-sidebar-collapsed-width, 60px)) !important;
+        margin-left: var(--layout-sidebar-collapsed-width, 60px) !important;
+    }
+
+    body:has(#inventarioPlantaApp) .layout-container-fluid {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp.camaras-page {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        height: calc(100dvh - 62px) !important;
+        min-height: 520px !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+
+        display: flex !important;
+        flex-direction: column !important;
+
+        background: var(--ip-bg) !important;
+        overflow: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .window {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        height: 100% !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+
+        display: flex !important;
+        flex-direction: column !important;
+        flex: 1 1 auto !important;
+
+        background: transparent !important;
+        color: var(--ip-text) !important;
+
+        border: 0 !important;
+        box-shadow: none !important;
+        overflow: hidden !important;
+    }
+
+    /* ======================================================================
+       ENCABEZADO
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .titlebar {
+        min-height: 43px !important;
+        height: 43px !important;
+
+        margin: 0 !important;
+        padding: 6px 10px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 8px !important;
+        flex-wrap: nowrap !important;
+
+        background: linear-gradient(180deg,#5a171d 0%,#481318 48%,#351014 100%) !important;
+        color: #fff !important;
+
+        border: 0 !important;
+        border-bottom: 1px solid #351014 !important;
+        box-shadow: none !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .inventory-title {
+        min-width: 0 !important;
+        gap: 7px !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .inventory-title-icon {
+        width: 30px !important;
+        min-width: 30px !important;
+        height: 30px !important;
+        flex: 0 0 30px !important;
+
+        display: grid !important;
+        place-items: center !important;
+
+        background: rgba(255,255,255,.10) !important;
+        color: #fff !important;
+
+        border: 1px solid rgba(255,255,255,.28) !important;
+        border-radius: 3px !important;
+
+        font-size: 14px !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .inventory-title-main {
+        color: #fff !important;
+        font-size: 14px !important;
+        line-height: 1.05 !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .inventory-title small {
+        display: block !important;
+        margin-top: 1px !important;
+        color: #eadbdd !important;
+        font-size: 9.5px !important;
+        line-height: 1.1 !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .inventory-title-source {
+        margin-left: auto !important;
+        padding: 4px 7px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 5px !important;
+
+        background: rgba(0,0,0,.12) !important;
+        color: #fff !important;
+
+        border: 1px solid rgba(255,255,255,.25) !important;
+        border-radius: 3px !important;
+
+        font-size: 9.5px !important;
+        font-weight: 600 !important;
+        white-space: nowrap !important;
+    }
+
+    /* ======================================================================
+       CONTENIDO / SECCIONES
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .content {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+
+        margin: 0 !important;
+        padding: 5px !important;
+
+        display: flex !important;
+        flex-direction: column !important;
+        flex: 1 1 auto !important;
+        gap: 5px !important;
+
+        background: var(--ip-bg) !important;
+        overflow: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .section {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        margin: 0 !important;
+
+        background: #fff !important;
+
+        border: 1px solid var(--ip-line) !important;
+        border-radius: 3px !important;
+        box-shadow: none !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .section-title,
+    body:not([data-theme="dark"]) #inventarioPlantaApp .sidebar-title,
+    body:not([data-theme="dark"]) #inventarioPlantaApp .rack-title {
+        min-height: 29px !important;
+        padding: 5px 7px !important;
+
+        background: linear-gradient(180deg,#edf1f3 0%,#e2e8eb 100%) !important;
+        color: #3f474b !important;
+
+        border: 0 !important;
+        border-bottom: 1px solid var(--ip-line) !important;
+        border-left: 4px solid var(--ip-tinto) !important;
+
+        font-size: 10.5px !important;
+        line-height: 1.1 !important;
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        letter-spacing: .1px !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .section-body {
+        padding: 6px !important;
+        background: #fff !important;
+    }
+
+    /* ======================================================================
+       FILTROS
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .filters-one-line {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        display: grid !important;
+        grid-template-columns:
+            minmax(210px,.95fr)
+            minmax(150px,.70fr)
+            minmax(280px,1.45fr)
+            minmax(230px,.95fr) !important;
+
+        gap: 6px !important;
+        align-items: end !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .filters-one-line > div,
+    body:not([data-theme="dark"]) #inventarioPlantaApp .filter-actions,
+    body:not([data-theme="dark"]) #inventarioPlantaApp .planta-bar-inline {
+        min-width: 0 !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .form-label {
+        display: block !important;
+        margin: 0 0 3px !important;
+
+        color: #4e595f !important;
+
+        font-size: 10.5px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .form-control,
+    body:not([data-theme="dark"]) #inventarioPlantaApp .form-select {
+        width: 100% !important;
+        min-width: 0 !important;
+
+        min-height: 34px !important;
+        height: 34px !important;
+
+        padding: 4px 8px !important;
+
+        background: #fff !important;
+        color: var(--ip-text) !important;
+
+        border: 1px solid #b8c4ca !important;
+        border-radius: 3px !important;
+
+        box-shadow: none !important;
+        outline: none !important;
+
+        font-size: 11.5px !important;
+        line-height: 1 !important;
+        font-weight: 500 !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .form-control:focus,
+    body:not([data-theme="dark"]) #inventarioPlantaApp .form-select:focus {
+        border-color: #9e7479 !important;
+        box-shadow: 0 0 0 3px rgba(122,32,41,.08) !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .planta-bar-inline {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 5px !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .filter-actions {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 5px !important;
+        align-items: end !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .btn-planta,
+    body:not([data-theme="dark"]) #inventarioPlantaApp .btn-main,
+    body:not([data-theme="dark"]) #inventarioPlantaApp .btn-excel,
+    body:not([data-theme="dark"]) #inventarioPlantaApp .btn-light {
+        width: 100% !important;
+        min-width: 0 !important;
+
+        min-height: 34px !important;
+        height: 34px !important;
+
+        padding: 0 9px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 4px !important;
+
+        border-radius: 3px !important;
+        box-shadow: none !important;
+
+        font-size: 10.5px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .btn-planta,
+    body:not([data-theme="dark"]) #inventarioPlantaApp .btn-light {
+        background: #f5f7f8 !important;
+        color: #414c52 !important;
+        border: 1px solid #b9c5cb !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .btn-planta.active,
+    body:not([data-theme="dark"]) #inventarioPlantaApp .btn-main {
+        background: var(--ip-tinto) !important;
+        color: #fff !important;
+        border: 1px solid var(--ip-tinto-dark) !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .btn-excel {
+        background: var(--ip-green) !important;
+        color: #fff !important;
+        border: 1px solid var(--ip-green-dark) !important;
+    }
+
+    /* ======================================================================
+       KPI PRINCIPALES
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .main-kpi-panel {
+        flex: 0 0 auto !important;
+        overflow: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .main-kpi-grid {
+        width: 100% !important;
+
+        display: grid !important;
+        grid-template-columns: repeat(6,minmax(0,1fr)) !important;
+        gap: 5px !important;
+
+        padding: 5px !important;
+
+        background: transparent !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .main-kpi-card {
+        min-width: 0 !important;
+        min-height: 58px !important;
+
+        padding: 6px 7px !important;
+
+        border: 1px solid rgba(0,0,0,.12) !important;
+        border-radius: 3px !important;
+
+        box-shadow: none !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .main-kpi-card::after {
+        opacity: .40 !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .main-kpi-title {
+        font-size: 8.5px !important;
+        line-height: 1.05 !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .main-kpi-value {
+        margin-top: 3px !important;
+
+        color: #fff !important;
+
+        font-size: clamp(15px,1.15vw,19px) !important;
+        line-height: 1.05 !important;
+        font-weight: 700 !important;
+
+        text-shadow: none !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .main-kpi-sub {
+        margin-top: 2px !important;
+
+        font-size: 8.5px !important;
+        line-height: 1.05 !important;
+        font-weight: 600 !important;
+    }
+
+    /* Mantener KPI operativos diferenciados */
+    body:not([data-theme="dark"]) #inventarioPlantaApp .kpi-main-camaras {
+        background: linear-gradient(135deg,#5e1820 0%,#7a2029 58%,#481318 100%) !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .kpi-main-skus {
+        background: linear-gradient(135deg,#36566e 0%,#45657d 58%,#294152 100%) !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .kpi-main-cajas {
+        background: linear-gradient(135deg,#8b6717 0%,#b78a24 58%,#6f500e 100%) !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .kpi-main-kg {
+        background: linear-gradient(135deg,#1e693f 0%,#25824d 58%,#164e2f 100%) !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .kpi-main-prom {
+        background: linear-gradient(135deg,#256f72 0%,#338b8e 58%,#1b5759 100%) !important;
+    }
+
+    /* ======================================================================
+       LAYOUT INVENTARIO
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .inv-layout {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+
+        flex: 1 1 auto !important;
+
+        display: grid !important;
+        grid-template-columns: 155px minmax(0,1fr) !important;
+        gap: 6px !important;
+        align-items: stretch !important;
+
+        overflow: hidden !important;
+    }
+
+    /* SIDEBAR */
+    body:not([data-theme="dark"]) #inventarioPlantaApp .sidebar {
+        width: 155px !important;
+        max-width: 155px !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        height: 100% !important;
+
+        display: flex !important;
+        flex-direction: column !important;
+
+        background: #fff !important;
+
+        border: 1px solid var(--ip-line) !important;
+        border-radius: 3px !important;
+
+        overflow: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .sidebar-list {
+        min-height: 0 !important;
+        max-height: none !important;
+
+        flex: 1 1 auto !important;
+
+        background: #fff !important;
+        overflow-y: auto !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .cam-item {
+        min-height: 30px !important;
+        padding: 5px 7px !important;
+
+        background: #fff !important;
+        color: #445057 !important;
+
+        border-bottom: 1px solid #e6ecef !important;
+
+        font-size: 10.5px !important;
+        line-height: 1.1 !important;
+        font-weight: 500 !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .cam-item:hover {
+        background: var(--ip-tinto-soft) !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .cam-item.active,
+    body:not([data-theme="dark"]) #inventarioPlantaApp .sidebar-list .cam-item.active {
+        background: var(--ip-tinto) !important;
+        color: #fff !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .sidebar-actions {
+        padding: 5px !important;
+
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 4px !important;
+
+        background: #f4f7f8 !important;
+
+        border-top: 1px solid var(--ip-line) !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .sidebar-actions button {
+        width: 100% !important;
+        min-height: 29px !important;
+        height: 29px !important;
+        padding: 0 6px !important;
+
+        border-radius: 3px !important;
+        box-shadow: none !important;
+
+        font-size: 9.5px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+    }
+
+    /* DERECHA */
+    body:not([data-theme="dark"]) #inventarioPlantaApp .inv-right {
+        min-width: 0 !important;
+        min-height: 0 !important;
+        height: 100% !important;
+
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 5px !important;
+
+        overflow: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .totales-bar {
+        min-height: 31px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 6px !important;
+        flex-wrap: wrap !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .totales-text {
+        color: #3d484e !important;
+
+        font-size: 10.5px !important;
+        line-height: 1.1 !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .totales-text span {
+        color: var(--ip-tinto) !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .btn-total-camara,
+    body:not([data-theme="dark"]) #inventarioPlantaApp .btn-rack3d {
+        min-height: 28px !important;
+        height: 28px !important;
+
+        padding: 0 8px !important;
+
+        border-radius: 3px !important;
+        box-shadow: none !important;
+
+        font-size: 9.5px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .btn-total-camara {
+        background: var(--ip-green) !important;
+        color: #fff !important;
+        border: 1px solid var(--ip-green-dark) !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .btn-rack3d {
+        background: var(--ip-amber-soft) !important;
+        color: #6d510f !important;
+        border: 1px solid #d9bd73 !important;
+    }
+
+    /* ======================================================================
+       PANEL TRAZABILIDAD
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .traz-panel {
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+
+        flex: 1 1 auto !important;
+
+        display: grid !important;
+        grid-template-columns: minmax(390px,.82fr) minmax(520px,1.18fr) !important;
+        gap: 6px !important;
+        align-items: stretch !important;
+
+        overflow: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .traz-left,
+    body:not([data-theme="dark"]) #inventarioPlantaApp .traz-right {
+        min-width: 0 !important;
+        min-height: 0 !important;
+        height: 100% !important;
+
+        display: flex !important;
+        flex-direction: column !important;
+
+        overflow: hidden !important;
+    }
+
+    /* ======================================================================
+       TABLAS
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .table-card {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+
+        display: flex !important;
+        flex-direction: column !important;
+        flex: 1 1 auto !important;
+
+        background: #fff !important;
+
+        border: 1px solid var(--ip-line) !important;
+        border-radius: 3px !important;
+        box-shadow: none !important;
+
+        overflow: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .table-responsive-sticky {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        min-height: 180px !important;
+        max-height: none !important;
+
+        flex: 1 1 auto !important;
+
+        overflow: auto !important;
+        overscroll-behavior-inline: contain;
+        scrollbar-gutter: stable;
+
+        background: #fff !important;
+
+        border-top: 0 !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-inv,
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-traz {
+        width: 100% !important;
+
+        margin: 0 !important;
+
+        table-layout: fixed !important;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+
+        background: #fff !important;
+
+        font-size: 10.5px !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-inv {
+        min-width: 800px !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-traz {
+        min-width: 1120px !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-inv thead th,
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-traz thead th {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 4 !important;
+
+        height: 33px !important;
+        padding: 5px !important;
+
+        background: linear-gradient(180deg,#dce4e8 0%,#d1dbe0 100%) !important;
+        color: #3f4549 !important;
+
+        border: 0 !important;
+        border-right: 1px solid #aebbc3 !important;
+        border-bottom: 1px solid #aebbc3 !important;
+
+        box-shadow: none !important;
+
+        font-size: 10px !important;
+        line-height: 1.1 !important;
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-inv tbody td,
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-traz tbody td {
+        height: 33px !important;
+        padding: 5px !important;
+
+        background: #fff !important;
+        color: #344047 !important;
+
+        border: 0 !important;
+        border-right: 1px solid #e0e6e9 !important;
+        border-bottom: 1px solid #d7dfe3 !important;
+
+        font-size: 10.5px !important;
+        line-height: 1.15 !important;
+        vertical-align: middle !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-inv tbody tr:nth-of-type(even) > td,
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-traz tbody tr:nth-of-type(even) > td {
+        background: #f8fafb !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-inv tbody tr:hover > td,
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-traz tbody tr:hover > td {
+        background: #f4eaec !important;
+    }
+
+    /* Flechas sort más pequeñas */
+    body:not([data-theme="dark"]) #inventarioPlantaApp .sort-arrow {
+        margin-left: 3px !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .arr-up,
+    body:not([data-theme="dark"]) #inventarioPlantaApp .arr-dn {
+        border-left-width: 3px !important;
+        border-right-width: 3px !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .arr-up {
+        border-bottom-width: 4px !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .arr-dn {
+        border-top-width: 4px !important;
+    }
+
+    /* ======================================================================
+       SELECCIÓN / COLUMNAS OPERATIVAS / SEMÁFORO
+       Estas reglas van después de zebra y hover para preservar significado.
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-inv tbody tr.row-sel > *,
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-traz tbody tr.row-sel > *,
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-inv tbody tr.row-sel:hover > *,
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-traz tbody tr.row-sel:hover > * {
+        background: #fff3a3 !important;
+        color: #000 !important;
+        border-top: 2px solid #c9a100 !important;
+        border-bottom: 2px solid #c9a100 !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-traz tbody td:nth-child(2),
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-traz tbody td:nth-child(6) {
+        background: #fff8d6 !important;
+        color: #303030 !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-traz tbody td.dias-verde,
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-traz tbody tr:nth-of-type(even) td.dias-verde,
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-traz tbody tr:hover td.dias-verde {
+        background: #d1e7dd !important;
+        color: #0f5132 !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-traz tbody td.dias-amarillo,
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-traz tbody tr:nth-of-type(even) td.dias-amarillo,
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-traz tbody tr:hover td.dias-amarillo {
+        background: #fff3cd !important;
+        color: #664d03 !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-traz tbody td.dias-rojo,
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-traz tbody tr:nth-of-type(even) td.dias-rojo,
+    body:not([data-theme="dark"]) #inventarioPlantaApp #tbl-traz tbody tr:hover td.dias-rojo {
+        background: #f8d7da !important;
+        color: #842029 !important;
+        font-weight: 700 !important;
+    }
+
+    /* ======================================================================
+       BADGES / STATUS
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .badge-activo,
+    body:not([data-theme="dark"]) #inventarioPlantaApp .badge-inactivo {
+        padding: 3px 7px !important;
+
+        border-radius: 999px !important;
+
+        font-size: 9.5px !important;
+        line-height: 1.1 !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .badge-activo {
+        background: var(--ip-green-soft) !important;
+        color: #17623d !important;
+        border: 1px solid #a7cfb8 !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .badge-inactivo {
+        background: var(--ip-red-soft) !important;
+        color: #84242f !important;
+        border: 1px solid #d7a3aa !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp .statusbar {
+        width: 100% !important;
+        min-height: 29px !important;
+        padding: 4px 7px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 8px !important;
+        flex-wrap: wrap !important;
+
+        flex: 0 0 auto !important;
+
+        background: #e6ecef !important;
+        color: #4a555b !important;
+
+        border: 0 !important;
+        border-top: 1px solid var(--ip-line) !important;
+
+        font-size: 9.5px !important;
+        line-height: 1.1 !important;
+        font-weight: 600 !important;
+    }
+
+    /* ======================================================================
+       MODAL RACK 3D
+       Se respeta el canvas y la interacción Three.js.
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #modal-rack3d.rack-modal {
+        z-index: 99999 !important;
+        padding: 12px !important;
+        background: rgba(20,24,27,.74) !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-rack3d .rack-modal-box {
+        width: min(1480px,97vw) !important;
+        height: min(840px,94vh) !important;
+
+        background: #fff !important;
+
+        border: 1px solid #8e9ba2 !important;
+        border-radius: 4px !important;
+        box-shadow: 0 18px 54px rgba(0,0,0,.32) !important;
+
+        overflow: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-rack3d .rack-modal-head {
+        min-height: 43px !important;
+        height: 43px !important;
+        padding: 6px 10px !important;
+
+        background: linear-gradient(180deg,#5a171d 0%,#481318 48%,#351014 100%) !important;
+        color: #fff !important;
+
+        border-bottom: 1px solid #351014 !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-rack3d .rack-modal-head strong {
+        font-size: 13px !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-rack3d .rack-modal-head span {
+        margin-top: 1px !important;
+        color: #eadbdd !important;
+        font-size: 9.5px !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-rack3d .rack-close {
+        width: 29px !important;
+        height: 29px !important;
+
+        background: #fff !important;
+        color: var(--ip-tinto) !important;
+
+        border: 1px solid #d2aeb3 !important;
+        border-radius: 3px !important;
+
+        font-size: 18px !important;
+        line-height: 1 !important;
+    }
+
+    /* Search bar rack */
+    body:not([data-theme="dark"]) #modal-rack3d .rack-search-bar {
+        min-height: 43px !important;
+
+        grid-template-columns: 220px minmax(350px,1fr) 260px !important;
+        gap: 7px !important;
+
+        padding: 6px !important;
+
+        background: #f7f9fa !important;
+        color: #455158 !important;
+
+        border-bottom: 1px solid var(--ip-line) !important;
+
+        font-size: 10.5px !important;
+        font-weight: 600 !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-rack3d .rack-search-box {
+        min-width: 0 !important;
+        gap: 5px !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-rack3d #txt-buscar-rack {
+        min-width: 0 !important;
+        min-height: 32px !important;
+        height: 32px !important;
+
+        padding: 4px 8px !important;
+
+        background: #fff !important;
+        color: var(--ip-text) !important;
+
+        border: 1px solid #b8c4ca !important;
+        border-radius: 3px !important;
+
+        font-size: 10.5px !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-rack3d #btn-buscar-rack,
+    body:not([data-theme="dark"]) #modal-rack3d #btn-limpiar-rack {
+        min-height: 32px !important;
+        height: 32px !important;
+
+        padding: 0 9px !important;
+
+        border-radius: 3px !important;
+        box-shadow: none !important;
+
+        font-size: 10px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-rack3d #btn-buscar-rack {
+        background: var(--ip-tinto) !important;
+        color: #fff !important;
+        border: 1px solid var(--ip-tinto-dark) !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-rack3d #btn-limpiar-rack {
+        background: #f5f7f8 !important;
+        color: #414c52 !important;
+        border: 1px solid #b9c5cb !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-rack3d #rack-search-result {
+        color: var(--ip-tinto) !important;
+        font-size: 10px !important;
+        font-weight: 700 !important;
+    }
+
+    /* KPI Rack */
+    body:not([data-theme="dark"]) #modal-rack3d .rack-kpi-bar {
+        grid-template-columns: repeat(6,minmax(0,1fr)) !important;
+        gap: 5px !important;
+
+        padding: 5px !important;
+
+        background: #fff !important;
+
+        border-bottom: 1px solid var(--ip-line) !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-rack3d .rack-kpi-card {
+        min-width: 0 !important;
+        min-height: 53px !important;
+
+        padding: 5px 7px !important;
+
+        border-radius: 3px !important;
+        box-shadow: none !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-rack3d .rack-kpi-title {
+        font-size: 8.5px !important;
+        line-height: 1.05 !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-rack3d .rack-kpi-value {
+        font-size: 15px !important;
+        line-height: 1.05 !important;
+        font-weight: 700 !important;
+        text-shadow: none !important;
+    }
+
+    /* Cuerpo 3D */
+    body:not([data-theme="dark"]) #modal-rack3d .rack3d-body {
+        min-height: 0 !important;
+        grid-template-columns: minmax(0,1fr) 310px !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-rack3d #rack3d-canvas {
+        min-width: 0 !important;
+        min-height: 0 !important;
+
+        background: #dfe3e6 !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-rack3d .rack-info {
+        padding: 10px !important;
+
+        background: #fff !important;
+        color: var(--ip-text) !important;
+
+        border-left: 1px solid var(--ip-line) !important;
+
+        font-size: 10.5px !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-rack3d .rack-info h4 {
+        margin: 0 0 7px !important;
+
+        color: var(--ip-tinto) !important;
+
+        font-size: 17px !important;
+        line-height: 1.1 !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-rack3d .rack-info-row {
+        padding: 5px 0 !important;
+
+        color: #455158 !important;
+
+        border-bottom: 1px solid #e4eaed !important;
+
+        font-size: 10.5px !important;
+        line-height: 1.2 !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-rack3d .rack-info-row b {
+        margin-bottom: 2px !important;
+
+        color: #5b656b !important;
+
+        font-size: 9.5px !important;
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+    }
+
+    /* ======================================================================
+       SCROLLBARS
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp *::-webkit-scrollbar,
+    body:not([data-theme="dark"]) #modal-rack3d *::-webkit-scrollbar {
+        width: 9px !important;
+        height: 9px !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp *::-webkit-scrollbar-track,
+    body:not([data-theme="dark"]) #modal-rack3d *::-webkit-scrollbar-track {
+        background: #edf1f3 !important;
+    }
+
+    body:not([data-theme="dark"]) #inventarioPlantaApp *::-webkit-scrollbar-thumb,
+    body:not([data-theme="dark"]) #modal-rack3d *::-webkit-scrollbar-thumb {
+        background: #aeb9bf !important;
+        border-radius: 2px !important;
+    }
+
+    /* ======================================================================
+       RESPONSIVE POR ANCHO REAL
+       ====================================================================== */
+
+    @container inventario-planta (max-width: 1280px) {
+        #inventarioPlantaApp .filters-one-line {
+            grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+        }
+
+        #inventarioPlantaApp .filter-actions {
+            justify-self: stretch !important;
+        }
+
+        #inventarioPlantaApp .main-kpi-grid {
+            grid-template-columns: repeat(3,minmax(0,1fr)) !important;
+        }
+
+        #inventarioPlantaApp .traz-panel {
+            grid-template-columns: 1fr !important;
+            overflow: auto !important;
+        }
+
+        #inventarioPlantaApp .traz-left,
+        #inventarioPlantaApp .traz-right {
+            min-height: 340px !important;
+        }
+    }
+
+    @container inventario-planta (max-width: 860px) {
+        #inventarioPlantaApp .inv-layout {
+            grid-template-columns: 1fr !important;
+            overflow: auto !important;
+        }
+
+        #inventarioPlantaApp .sidebar {
+            width: 100% !important;
+            max-width: none !important;
+            height: auto !important;
+            min-height: 0 !important;
+        }
+
+        #inventarioPlantaApp .sidebar-list {
+            max-height: 150px !important;
+        }
+
+        #inventarioPlantaApp .sidebar-actions {
+            grid-template-columns: 1fr 1fr !important;
+        }
+
+        #inventarioPlantaApp .inventory-title-source {
+            display: none !important;
+        }
+    }
+
+    @container inventario-planta (max-width: 620px) {
+        #inventarioPlantaApp .titlebar {
+            min-height: 47px !important;
+            height: auto !important;
+        }
+
+        #inventarioPlantaApp .inventory-title small {
+            display: none !important;
+        }
+
+        #inventarioPlantaApp .filters-one-line,
+        #inventarioPlantaApp .main-kpi-grid {
+            grid-template-columns: 1fr !important;
+        }
+
+        #inventarioPlantaApp .planta-bar-inline,
+        #inventarioPlantaApp .filter-actions,
+        #inventarioPlantaApp .sidebar-actions {
+            grid-template-columns: 1fr !important;
+        }
+
+        #inventarioPlantaApp .form-control,
+        #inventarioPlantaApp .form-select,
+        #inventarioPlantaApp .btn-planta,
+        #inventarioPlantaApp .btn-main,
+        #inventarioPlantaApp .btn-excel,
+        #inventarioPlantaApp .btn-light {
+            min-height: 42px !important;
+            height: 42px !important;
+            font-size: 12px !important;
+        }
+
+        #inventarioPlantaApp .main-kpi-card {
+            min-height: 62px !important;
+        }
+
+        #modal-rack3d .rack-search-bar {
+            grid-template-columns: 1fr !important;
+        }
+
+        #modal-rack3d .rack-kpi-bar {
+            grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+        }
+
+        #modal-rack3d .rack3d-body {
+            grid-template-columns: 1fr !important;
+        }
+
+        #modal-rack3d .rack-info {
+            max-height: 32dvh !important;
+            border-left: 0 !important;
+            border-top: 1px solid var(--ip-line) !important;
+        }
+    }
+
+    @media (max-height: 760px) and (min-width: 900px) {
+        body:not([data-theme="dark"]) #inventarioPlantaApp .main-kpi-card {
+            min-height: 52px !important;
+            padding: 5px 6px !important;
+        }
+
+        body:not([data-theme="dark"]) #inventarioPlantaApp .main-kpi-value {
+            font-size: 16px !important;
+        }
+    }
+}
+
+/* DARK: solo armonizar encabezados */
+@media screen {
+    body[data-theme="dark"] #inventarioPlantaApp .titlebar,
+    body[data-theme="dark"] #modal-rack3d .rack-modal-head {
+        background: linear-gradient(180deg,#541921 0%,#381116 100%) !important;
+    }
+}

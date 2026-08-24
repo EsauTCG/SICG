@@ -8607,6 +8607,30 @@ OPTION (RECOMPILE);";
         }
 
 
+        // =======================================================
+        // PDF ORDEN DE VENTA / REMISION
+        // INDIVIDUAL + CONSOLIDADO POR CLIENTE
+        // =======================================================
+
+        public sealed class OrdenVentaPdfAgrupadoRequest
+        {
+            public string Source { get; set; } = "P1";
+            public string OrigenDatos { get; set; } = "remision";
+            public string Comentarios { get; set; } = "";
+            public List<OrdenVentaPdfAgrupadoItemRequest> Registros { get; set; } = new();
+        }
+
+        public sealed class OrdenVentaPdfAgrupadoItemRequest
+        {
+            public string SolicitudId { get; set; } = "";
+            public string Referencia { get; set; } = "";
+            public string Cliente { get; set; } = "";
+        }
+
+        // =======================================================
+        // PDF INDIVIDUAL
+        // Conserva el comportamiento anterior.
+        // =======================================================
         [HttpGet("OrdenVentaPdf")]
         public async Task<IActionResult> OrdenVentaPdf(
             string id,
@@ -8617,30 +8641,235 @@ OPTION (RECOMPILE);";
         {
             origenDatos = (origenDatos ?? "remision").Trim().ToLowerInvariant();
 
-            if (origenDatos == "remision")
+            try
             {
-                return await OrdenVentaPdfDesdeJsonRemisionAsync(
-                    id,
-                    referencia,
-                    source,
-                    comentarios
-                );
-            }
+                OrdenVentaPdfVm? header;
 
-            return await OrdenVentaPdfDesdeOrdenVentaAsync(
-                id,
-                source,
-                comentarios
-            );
+                if (origenDatos == "remision")
+                {
+                    header = await ConstruirOrdenVentaPdfDesdeJsonRemisionAsync(
+                        id,
+                        referencia,
+                        source,
+                        comentarios
+                    );
+                }
+                else
+                {
+                    header = await ConstruirOrdenVentaPdfDesdeOrdenVentaAsync(
+                        id,
+                        source,
+                        comentarios
+                    );
+                }
+
+                if (header == null)
+                    return NotFound("No se encontró información para generar el PDF.");
+
+                return View("OrdenVentaPdf", header);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return NotFound(ex.Message);
+            }
         }
 
-        private async Task<IActionResult> OrdenVentaPdfDesdeOrdenVentaAsync(
+        // =======================================================
+        // PDF CONSOLIDADO DE UN SOLO CLIENTE
+        // =======================================================
+        [HttpPost("OrdenVentaPdfAgrupadoCliente")]
+        public async Task<IActionResult> OrdenVentaPdfAgrupadoCliente(
+            [FromBody] OrdenVentaPdfAgrupadoRequest request)
+        {
+            try
+            {
+                if (request == null)
+                    return BadRequest("No se recibió la solicitud.");
+
+                if (request.Registros == null || request.Registros.Count == 0)
+                    return BadRequest("No se recibieron registros para consolidar.");
+
+                var source = string.IsNullOrWhiteSpace(request.Source)
+                    ? "P1"
+                    : request.Source.Trim();
+
+                var origenDatos = string.IsNullOrWhiteSpace(request.OrigenDatos)
+                    ? "remision"
+                    : request.OrigenDatos.Trim().ToLowerInvariant();
+
+                var documentos = new List<OrdenVentaPdfVm>();
+
+                foreach (var item in request.Registros)
+                {
+                    if (item == null || string.IsNullOrWhiteSpace(item.Referencia))
+                        continue;
+
+                    OrdenVentaPdfVm? documento;
+
+                    if (origenDatos == "remision")
+                    {
+                        documento = await ConstruirOrdenVentaPdfDesdeJsonRemisionAsync(
+                            item.SolicitudId,
+                            item.Referencia,
+                            source,
+                            request.Comentarios
+                        );
+                    }
+                    else
+                    {
+                        documento = await ConstruirOrdenVentaPdfDesdeOrdenVentaAsync(
+                            item.SolicitudId,
+                            source,
+                            request.Comentarios
+                        );
+                    }
+
+                    if (documento != null)
+                        documentos.Add(documento);
+                }
+
+                if (!documentos.Any())
+                    return NotFound("No se encontró información para los registros seleccionados.");
+
+                // Validar en servidor que todo el grupo corresponda al mismo cliente.
+                var clientesReales = documentos
+                    .Select(x => (x.Cliente ?? "").Trim())
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                if (clientesReales.Count > 1)
+                {
+                    return BadRequest(
+                        "Los registros recibidos pertenecen a diferentes clientes. " +
+                        "Cada cliente debe consolidarse por separado."
+                    );
+                }
+
+                var primero = documentos.First();
+
+                var todasLasLineas = documentos
+                    .Where(x => x.Lineas != null)
+                    .SelectMany(x => x.Lineas)
+                    .ToList();
+
+                if (!todasLasLineas.Any())
+                    return NotFound("Los registros seleccionados no contienen partidas.");
+
+                /*
+                 * Consolida mismo SKU + mismo precio.
+                 * Si el precio es distinto, se conserva una línea separada.
+                 */
+                var lineasConsolidadas = todasLasLineas
+                    .GroupBy(x => new
+                    {
+                        ProductoCodigo = (x.ProductoCodigo ?? "").Trim().ToUpperInvariant(),
+                        Precio = x.Precio
+                    })
+                    .Select(grupo =>
+                    {
+                        var primeraLinea = grupo.First();
+
+                        return new OrdenVentaPdfLineaVm
+                        {
+                            ProductoCodigo = primeraLinea.ProductoCodigo,
+                            ProductoNombre = primeraLinea.ProductoNombre,
+                            Peso = grupo.Sum(x => x.Peso),
+                            Kg = grupo.Sum(x => x.Kg),
+                            Cajas = grupo.Sum(x => x.Cajas),
+                            Precio = primeraLinea.Precio,
+                            Importe = grupo.Sum(x => x.Importe)
+                        };
+                    })
+                    .OrderBy(x => x.ProductoCodigo)
+                    .ThenBy(x => x.Precio)
+                    .ToList();
+
+                var kgTotal = lineasConsolidadas.Sum(x => x.Kg);
+                var importeTotal = lineasConsolidadas.Sum(x => x.Importe);
+
+                var documentosSap = documentos
+                    .Select(x => x.DocumentoSAP)
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Select(x => x!.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                var subFolios = documentos
+                    .Select(x => x.SubFolio)
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Select(x => x!.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                var consolidado = new OrdenVentaPdfVm
+                {
+                    Id = primero.Id,
+                    Consecutivo = documentos.Count == 1
+                        ? primero.Consecutivo
+                        : "CONSOLIDADO",
+                    FechaRegistro = DateTime.Now,
+                    FechaEntrega = documentos.Max(x => x.FechaEntrega),
+                    Cliente = (primero.Cliente ?? "").Trim(),
+                    ClienteNombre = (primero.ClienteNombre ?? "").Trim(),
+                    DireccionCliente = primero.DireccionCliente,
+                    Vendedor = primero.Vendedor,
+                    Serie = documentos.Count == 1
+                        ? primero.Serie
+                        : "CONSOLIDADO",
+                    Estatus = primero.Estatus,
+                    KgTotales = kgTotal,
+                    Importe = importeTotal,
+                    Observacion = !string.IsNullOrWhiteSpace(request.Comentarios)
+                        ? request.Comentarios
+                        : (documentos.Count > 1
+                            ? $"Documento consolidado de {documentos.Count} entregas."
+                            : primero.Observacion),
+                    DocumentoSAP = string.Join(", ", documentosSap),
+                    SubFolio = string.Join(", ", subFolios),
+                    Almacen = source,
+                    TotalPesoSap = kgTotal,
+                    TotalImporteSap = importeTotal,
+                    Lineas = lineasConsolidadas,
+                    Subtotal = importeTotal,
+                    Total = importeTotal
+                };
+
+                // Reutiliza exactamente la misma plantilla actual.
+                return View("OrdenVentaPdf", consolidado);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return NotFound(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al generar PDF consolidado por cliente.");
+                return StatusCode(
+                    500,
+                    "Error al generar el PDF consolidado: " + ex.Message
+                );
+            }
+        }
+
+        // =======================================================
+        // CONSTRUCTOR DESDE ORDEN DE VENTA
+        // =======================================================
+        private async Task<OrdenVentaPdfVm?> ConstruirOrdenVentaPdfDesdeOrdenVentaAsync(
             string id,
             string source = "P1",
             string comentarios = "")
         {
             if (string.IsNullOrWhiteSpace(id))
-                return BadRequest("Id requerido.");
+                throw new ArgumentException("Id requerido.");
 
             // id = Subpedido.U_DocMeat
             // Subpedido.OrdenVentaId = OrdenVenta.Id
@@ -8651,7 +8880,7 @@ OPTION (RECOMPILE);";
                 .FirstOrDefaultAsync();
 
             if (sub == null)
-                return NotFound("No se encontró relación con la orden de venta.");
+                throw new InvalidOperationException("No se encontró relación con la orden de venta.");
 
             var ordenVentaId = sub.OrdenVentaId;
 
@@ -8676,12 +8905,10 @@ OPTION (RECOMPILE);";
                 .FirstOrDefaultAsync();
 
             if (header == null)
-                return NotFound("No se encontró la orden.");
+                throw new InvalidOperationException("No se encontró la orden.");
 
             if (!string.IsNullOrWhiteSpace(comentarios))
-            {
                 header.Observacion = comentarios;
-            }
 
             var clienteSap = await _db.ClienteSap
                 .AsNoTracking()
@@ -8689,9 +8916,7 @@ OPTION (RECOMPILE);";
                 .FirstOrDefaultAsync();
 
             if (clienteSap != null)
-            {
                 header.ClienteNombre = clienteSap.Nombrecliente;
-            }
 
             var direccion = await _db.DireccionesCliente
                 .AsNoTracking()
@@ -8702,7 +8927,8 @@ OPTION (RECOMPILE);";
             if (direccion != null)
             {
                 header.DireccionCliente =
-                    $"{direccion.Calle} {direccion.Colonia} {direccion.Ciudad} {direccion.Estado} {direccion.CodigoPostal}";
+                    $"{direccion.Calle} {direccion.Colonia} {direccion.Ciudad} " +
+                    $"{direccion.Estado} {direccion.CodigoPostal}";
             }
 
             header.SubpedidoId = sub.Id;
@@ -8732,23 +8958,33 @@ OPTION (RECOMPILE);";
             header.TotalPesoSap = header.KgTotales;
             header.Subtotal = header.Lineas.Sum(x => x.Importe);
             header.Total = header.Subtotal;
+            header.Importe = header.Subtotal;
+            header.TotalImporteSap = header.Total;
 
-            return View("OrdenVentaPdf", header);
+            return header;
         }
 
-        private async Task<IActionResult> OrdenVentaPdfDesdeJsonRemisionAsync(
-       string id,
-       string referencia,
-       string source,
-       string comentarios)
+        // =======================================================
+        // CONSTRUCTOR DESDE JSON / REMISION
+        // KG = JSON REAL, PRECIO = ORDEN, IMPORTE = KG * PRECIO
+        // =======================================================
+        private async Task<OrdenVentaPdfVm?> ConstruirOrdenVentaPdfDesdeJsonRemisionAsync(
+            string id,
+            string referencia,
+            string source,
+            string comentarios)
         {
             if (string.IsNullOrWhiteSpace(referencia))
-                return BadRequest("Referencia de remisión requerida.");
+                throw new ArgumentException("Referencia de remisión requerida.");
 
             var json = await _data.BuildJsonAsync(referencia, source);
 
             if (string.IsNullOrWhiteSpace(json) || json.Trim() == "{}")
-                return NotFound("No se encontró JSON para la remisión: " + referencia);
+            {
+                throw new InvalidOperationException(
+                    "No se encontró JSON para la remisión: " + referencia
+                );
+            }
 
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
@@ -8764,14 +9000,14 @@ OPTION (RECOMPILE);";
             if (!root.TryGetProperty("DocumentLines", out var documentLines) ||
                 documentLines.ValueKind != JsonValueKind.Array)
             {
-                return NotFound("El JSON no contiene DocumentLines.");
+                throw new InvalidOperationException("El JSON no contiene DocumentLines.");
             }
 
-            /*
-                1) Leemos exactamente lo surtido en el JSON.
-                   Los KG siempre salen del JSON real.
-            */
-            var partidasJson = new List<(string ItemCode, string WarehouseCode, string Lote, decimal Kg)>();
+            var partidasJson = new List<(
+                string ItemCode,
+                string WarehouseCode,
+                string Lote,
+                decimal Kg)>();
 
             foreach (var line in documentLines.EnumerateArray())
             {
@@ -8811,22 +9047,19 @@ OPTION (RECOMPILE);";
             }
 
             if (!partidasJson.Any())
-                return NotFound("El JSON no contiene partidas válidas para generar el PDF.");
+            {
+                throw new InvalidOperationException(
+                    "El JSON no contiene partidas válidas para generar el PDF."
+                );
+            }
 
-            /*
-                2) Buscamos la orden original relacionada.
-                   Importante:
-                   - id puede ser la solicitud que ya usaba el PDF antes.
-                   - referencia/uDocMeat es la remisión real del JSON.
-                   - numAtCard es el pedido SAP del JSON.
-            */
             var clavesBusqueda = new[]
             {
-        id,
-        referencia,
-        uDocMeat,
-        numAtCard
-    }
+                id,
+                referencia,
+                uDocMeat,
+                numAtCard
+            }
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Select(x => x.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -8842,12 +9075,6 @@ OPTION (RECOMPILE);";
 
             int? ordenVentaId = sub?.OrdenVentaId;
 
-            /*
-                3) Si encontramos la orden, tomamos de ahí:
-                   - vendedor
-                   - fecha
-                   - datos base de la orden
-            */
             var headerOrden = ordenVentaId.HasValue
                 ? await _db.VOrdenesVentaPorVendedor
                     .AsNoTracking()
@@ -8868,10 +9095,6 @@ OPTION (RECOMPILE);";
                     .FirstOrDefaultAsync()
                 : null;
 
-            /*
-                4) Tomamos nombre de producto y precio de la orden original.
-                   Los KG NO se toman de la orden, se quedan desde el JSON.
-            */
             var itemCodes = partidasJson
                 .Select(x => x.ItemCode)
                 .Where(x => !string.IsNullOrWhiteSpace(x))
@@ -8901,11 +9124,7 @@ OPTION (RECOMPILE);";
                     })
                     .ToList();
 
-            /*
-                Fallback:
-                Si no encontró la orden por Subpedidos, buscamos al menos el último
-                nombre/precio conocido por ItemCode. Esto evita que quede N028 solo.
-            */
+            // Fallback: último nombre/precio conocido por SKU.
             if (!productosRows.Any())
             {
                 productosRows = await _db.OrdenVentaProducto
@@ -8940,19 +9159,10 @@ OPTION (RECOMPILE);";
                     }
                 );
 
-            /*
-                5) Armamos las líneas:
-                   - Código: JSON
-                   - Nombre: OrdenVentaProducto
-                   - KG: JSON
-                   - Precio: OrdenVentaProducto
-                   - Importe: KG JSON * Precio orden
-            */
             var lineas = partidasJson
                 .Select(x =>
                 {
                     var key = (x.ItemCode ?? "").Trim().ToUpperInvariant();
-
                     var productoNombre = x.ItemCode;
                     var precio = 0m;
 
@@ -8970,18 +9180,10 @@ OPTION (RECOMPILE);";
                     {
                         ProductoCodigo = x.ItemCode,
                         ProductoNombre = productoNombre,
-
-                        // Los kilos reales salen del JSON.
                         Peso = x.Kg,
                         Kg = x.Kg,
-
-                        // El JSON no trae cajas reales.
                         Cajas = 0,
-
-                        // Precio como la orden de venta.
                         Precio = precio,
-
-                        // Total calculado con KG surtidos reales.
                         Importe = importe
                     };
                 })
@@ -8990,48 +9192,29 @@ OPTION (RECOMPILE);";
             var kgTotal = lineas.Sum(x => x.Kg);
             var importeTotal = lineas.Sum(x => x.Importe);
 
-            /*
-                6) Header del PDF.
-                   Vendedor y precio vienen de la orden.
-                   Cliente/remisión/pedido vienen del JSON real.
-            */
             var header = new OrdenVentaPdfVm
             {
                 Id = headerOrden?.Id ?? 0,
-
-                // Consecutivo es string.
                 Consecutivo = headerOrden?.Consecutivo ?? numAtCard ?? "",
-
                 FechaRegistro = headerOrden?.FechaRegistro ?? DateTime.Now,
                 FechaEntrega = headerOrden?.FechaEntrega ?? DateTime.Now,
-
                 Cliente = cardCode,
                 ClienteNombre = !string.IsNullOrWhiteSpace(headerOrden?.ClienteNombre)
                     ? headerOrden.ClienteNombre
                     : cardCode,
-
-                // Aquí ya queda el vendedor como la orden de venta.
                 Vendedor = headerOrden?.Vendedor ?? "",
-
                 Serie = "JSON",
-
-                // Estatus es int.
                 Estatus = headerOrden?.Estatus ?? 0,
-
                 KgTotales = kgTotal,
                 Importe = importeTotal,
-
                 Observacion = !string.IsNullOrWhiteSpace(comentarios)
                     ? comentarios
                     : commentsJson,
-
                 DocumentoSAP = uDocMeat,
                 SubFolio = numAtCard,
                 Almacen = source,
-
                 TotalPesoSap = kgTotal,
                 TotalImporteSap = importeTotal,
-
                 Lineas = lineas,
                 Subtotal = importeTotal,
                 Total = importeTotal
@@ -9051,18 +9234,13 @@ OPTION (RECOMPILE);";
                     header.Almacen = sub.Almacen;
             }
 
-            /*
-                7) Nombre y dirección del cliente SAP.
-            */
             var clienteSap = await _db.ClienteSap
                 .AsNoTracking()
                 .Where(c => c.Cliente == cardCode)
                 .FirstOrDefaultAsync();
 
             if (clienteSap != null)
-            {
                 header.ClienteNombre = clienteSap.Nombrecliente;
-            }
 
             var direccion = await _db.DireccionesCliente
                 .AsNoTracking()
@@ -9073,10 +9251,11 @@ OPTION (RECOMPILE);";
             if (direccion != null)
             {
                 header.DireccionCliente =
-                    $"{direccion.Calle} {direccion.Colonia} {direccion.Ciudad} {direccion.Estado} {direccion.CodigoPostal}";
+                    $"{direccion.Calle} {direccion.Colonia} {direccion.Ciudad} " +
+                    $"{direccion.Estado} {direccion.CodigoPostal}";
             }
 
-            return View("OrdenVentaPdf", header);
+            return header;
         }
 
         private static string GetJsonString(JsonElement element, string propertyName)
@@ -9355,6 +9534,63 @@ OPTION (RECOMPILE);";
                 await _db.SaveChangesAsync();
 
                 return Json(new { ok = true, mensaje = "Registrado correctamente.", usuario = nuevoUsuario });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+        [HttpPost("EditarUsuario")]
+        [RevisarPermiso("AUTO_ARTICULOS", "ESCRIBIR")]
+        public async Task<IActionResult> EditarUsuario([FromBody] UsuarioModel usuario)
+        {
+            try
+            {
+                var existente = await _db.UsuariosAutoArticulos.FindAsync(usuario.Id);
+                if (existente == null)
+                    return Json(new { ok = false, mensaje = "Usuario no encontrado." });
+
+                if (!string.IsNullOrWhiteSpace(usuario.TokenGafete) && existente.TokenGafete != usuario.TokenGafete)
+                {
+                    bool duplicado = await _db.UsuariosAutoArticulos.AnyAsync(u => u.TokenGafete == usuario.TokenGafete && u.Id != usuario.Id);
+                    if (duplicado)
+                        return Json(new { ok = false, mensaje = "Este código ya está asignado a otro usuario." });
+                    existente.TokenGafete = usuario.TokenGafete;
+                }
+
+                existente.Nombre = usuario.Nombre;
+                existente.Departamento = usuario.Departamento;
+                await _db.SaveChangesAsync();
+
+                return Json(new { ok = true, mensaje = "Usuario actualizado correctamente." });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+        [HttpPost("EliminarUsuario")]
+        [RevisarPermiso("AUTO_ARTICULOS", "ESCRIBIR")]
+        public async Task<IActionResult> EliminarUsuario([FromBody] EliminarUsuarioDto body)
+        {
+            try
+            {
+                var usuario = await _db.UsuariosAutoArticulos.FindAsync(body.Id);
+                if (usuario == null)
+                    return Json(new { ok = false, mensaje = "Usuario no encontrado." });
+
+                var permisos = _db.PermisosAutoArticulos.Where(p => p.UsuarioId == body.Id);
+                _db.PermisosAutoArticulos.RemoveRange(permisos);
+
+                var excepciones = _db.LogsExcepcionesArticulos.Where(e => e.UsuarioId == body.Id);
+                _db.LogsExcepcionesArticulos.RemoveRange(excepciones);
+
+                _db.UsuariosAutoArticulos.Remove(usuario);
+                await _db.SaveChangesAsync();
+
+                return Json(new { ok = true, mensaje = "Usuario eliminado correctamente." });
             }
             catch (Exception ex)
             {

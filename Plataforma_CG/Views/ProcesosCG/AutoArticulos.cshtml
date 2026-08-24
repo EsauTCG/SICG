@@ -974,6 +974,7 @@
                                 <th>Código QR</th>
                                 <th>Estado</th>
                                 <th class="text-center">Permisos de Acceso</th>
+                                <th class="text-center">Acciones</th>
                             </tr>
                         </thead>
                         <tbody id="tbodyPermisos"></tbody>
@@ -1243,6 +1244,21 @@
                         <option value="Mantenimiento">Mantenimiento</option>
                         <option value="Producción">Producción</option>
                         <option value="Calidad">Calidad</option>
+                        <option value="Almacen">Almacen</option>
+                        <option value="Auditoria y Control I">Auditoria y Control I</option>
+                        <option value="Capital Humano">Capital Humano</option>
+                        <option value="Cedis">Cedis</option>
+                        <option value="Chiller">Chiller</option>
+                        <option value="Comercial">Comercial</option>
+                        <option value="Corraletas">Corraletas</option>
+                        <option value="Corraletas/Pieles">Corraletas/Pieles</option>
+                        <option value="Pieles">Pieles</option>
+                        <option value="Deshuese">Deshuese</option>
+                        <option value="Sacrificio">Sacrificio</option>
+                        <option value="Sacrificio sin piel">Sacrificio sin piel</option>
+                        <option value="Viscera Empaque">Viscera Empaque</option>
+                        <option value="Viscera Verde">Viscera Verde</option>
+
                     </select>
                 </div>
             </div>
@@ -1512,9 +1528,13 @@
                             <td><button class="btn btn-sm btn-outline-dark fw-bold border-0 bg-transparent text-primary" onclick="imprimirGafete('${row.tokenGafete}', '${row.nombre}')"><i class="bi bi-qr-code me-1"></i> ${row.tokenGafete}</button></td>
                             <td><span class="badge ${row.categorias.length ? 'bg-success' : 'bg-secondary'}">${row.categorias.length ? 'Activo' : 'Inactivo'}</span></td>
                             <td class="text-center"><button class="btn-sm-action fw-bold ${row.categorias.length ? 'text-brand border-brand' : 'text-muted'}" onclick="verPermisosUsuario(${row.usuarioId})"><i class="bi bi-eye me-1"></i> Ver Permisos (${row.categorias.length})</button></td>
+                            <td class="text-center">
+                                <button class="btn btn-sm btn-outline-primary me-1" title="Editar" onclick="editarUsuario(${row.usuarioId}, '${row.nombre.replace(/'/g, "\\'")}', '${row.tokenGafete}', '${row.departamento.replace(/'/g, "\\'")}')"><i class="bi bi-pencil"></i></button>
+                                <button class="btn btn-sm btn-outline-danger" title="Eliminar" onclick="eliminarUsuario(${row.usuarioId}, '${row.nombre.replace(/'/g, "\\'")}')"><i class="bi bi-trash"></i></button>
+                            </td>
                         </tr>`;
                     });
-                    $('#tbodyPermisos').html(html || '<tr><td colspan="4" class="text-center">No hay datos registrados.</td></tr>');
+                    $('#tbodyPermisos').html(html || '<tr><td colspan="5" class="text-center">No hay datos registrados.</td></tr>');
                 }
             } catch (e) { }
         }
@@ -1780,8 +1800,7 @@
         }
 
         function abrirModalNuevoUsuario() {
-            $('#inNuevoNombre').val('');
-            $('#inNuevoToken').val('');
+            resetModalNuevoUsuario();
             new bootstrap.Modal(document.getElementById('modalNuevoUsuario')).show();
         }
 
@@ -1804,6 +1823,60 @@
                     await renderTablaPermisos();
                 } else { alert(data.mensaje); }
             } catch (e) { }
+        }
+
+        let editandoUsuarioId = null;
+
+        function editarUsuario(id, nombre, token, depto) {
+            editandoUsuarioId = id;
+            $('#inNuevoNombre').val(nombre);
+            $('#inNuevoToken').val(token);
+            $('#inNuevoDepto').val(depto);
+            $('#modalNuevoUsuario .modal-title').text('Editar Colaborador');
+            $('#btnGuardarUsuario').text('Guardar Cambios').attr('onclick', 'guardarEdicionUsuario()');
+            new bootstrap.Modal(document.getElementById('modalNuevoUsuario')).show();
+        }
+
+        async function guardarEdicionUsuario() {
+            const nombre = $('#inNuevoNombre').val().trim();
+            const token = $('#inNuevoToken').val().trim();
+            const depto = $('#inNuevoDepto').val();
+            if (!nombre || !token) { alert("Campos obligatorios incompletos."); return; }
+            try {
+                const res = await fetch('@Url.Action("EditarUsuario", "ProcesosCG")', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ Id: editandoUsuarioId, Nombre: nombre, TokenGafete: token, Departamento: depto })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('modalNuevoUsuario'))?.hide();
+                    resetModalNuevoUsuario();
+                    await renderTablaPermisos();
+                } else { alert(data.mensaje); }
+            } catch (e) { }
+        }
+
+        async function eliminarUsuario(id, nombre) {
+            if (!confirm(`¿Estás seguro de eliminar a "${nombre}"? Esta acción no se puede deshacer.`)) return;
+            try {
+                const res = await fetch('@Url.Action("EliminarUsuario", "ProcesosCG")', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ Id: id })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    await renderTablaPermisos();
+                } else { alert(data.mensaje); }
+            } catch (e) { }
+        }
+
+        function resetModalNuevoUsuario() {
+            editandoUsuarioId = null;
+            $('#inNuevoNombre').val('');
+            $('#inNuevoToken').val('').prop('disabled', false);
+            $('#inNuevoDepto').val('Sistemas');
+            $('#modalNuevoUsuario .modal-title').text('Registrar Colaborador');
+            $('#btnGuardarUsuario').text('Registrar').attr('onclick', 'guardarNuevoUsuario()');
         }
 
         function imprimirGafete(token, nombre) {

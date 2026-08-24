@@ -12,12 +12,13 @@ using Plataforma_CG.ViewModels;
 namespace Plataforma_CG.Services
 {
     /// <summary>
-    /// Ejecuta el costeo de manera secuencial.
+    /// Ejecuta únicamente el proceso solicitado por el usuario.
     ///
-    /// Orden por planta y bloque:
-    ///   1. Canales
-    ///   2. Cajas, cuando corresponda
-    ///   3. Retrabajo, cuando corresponda
+    /// TipoProceso:
+    ///   CANALES   -> solo Canales
+    ///   CAJAS     -> solo Cajas
+    ///   RETRABAJO -> solo Retrabajo
+    ///   AMBOS     -> Cajas + Retrabajo
     ///
     /// En modo MES genera un bloque por cada día, desde el día 1 hasta el último
     /// día aplicable del mes. Para el mes actual se detiene en la fecha de hoy.
@@ -79,11 +80,9 @@ namespace Plataforma_CG.Services
                     await cn.OpenAsync();
 
                     // CANALES:
-                    // - En DIA/RANGO/MES se conserva la secuencia normal y el SP trabaja por fecha.
-                    // - En LOTE solo se ejecuta cuando el proceso solicitado es CANALES.
-                    //   El procedimiento ajustado recibe @LoteIdFiltro y queda aislado al lote seleccionado.
-                    var ejecutarCanales = modo != "LOTE" || tipoProceso == "CANALES";
-                    if (ejecutarCanales)
+                    // Se ejecuta EXCLUSIVAMENTE cuando el usuario seleccionó CANALES.
+                    // CAJAS, RETRABAJO y AMBOS NO deben disparar costeo de canales.
+                    if (tipoProceso == "CANALES")
                     {
                         var canales = await EjecutarSpCanalesInterno(
                             cn,
@@ -94,18 +93,11 @@ namespace Plataforma_CG.Services
 
                         results.Add(canales);
 
-                        if (!canales.ok)
-                        {
-                            if (!model.ContinuarConError)
-                                return results;
+                        if (!canales.ok && !model.ContinuarConError)
+                            return results;
 
-                            // No ejecutar etapas dependientes del mismo bloque con canales incompletos.
-                            continue;
-                        }
-
-                        // Cuando el usuario selecciona CANALES, el bloque termina aquí.
-                        if (tipoProceso == "CANALES")
-                            continue;
+                        // El proceso solicitado fue únicamente CANALES.
+                        continue;
                     }
 
                     if (tipoProceso == "CAJAS" || tipoProceso == "AMBOS")

@@ -5,15 +5,691 @@
     ViewData["Title"] = "Dashboard de Ventas";
 }
 
-<link rel="stylesheet" href="~/css/dashboard-ventas.css" asp-append-version="true" />
+<link rel="stylesheet"
+      href="~/css/dashboard-ventas.css"
+      asp-append-version="true" />
+
+<link rel="stylesheet"
+      href="~/css/dashboard-ventas-erp-compacto.css"
+      asp-append-version="true" />
+
+<link rel="stylesheet"
+      href="~/css/dashboard-ventas-titulos-legibles.css"
+      asp-append-version="true" />
+
+<link rel="stylesheet"
+      href="~/css/dashboard-ventas-kpi-centro-fix.css"
+      asp-append-version="true" />
+
+<style>
+    /* =========================================================
+       MULTISELECT BUSCABLE - DASHBOARD DE VENTAS
+       ========================================================= */
+    .dvx-multi-host {
+        min-width: 180px;
+        width: 100%;
+    }
+
+    .dvx-ms {
+        position: relative;
+        min-width: 180px;
+        font-size: 11px;
+        color: #263247;
+    }
+
+    .dvx-ms-toggle {
+        width: 100%;
+        min-width: 180px;
+        height: 32px;
+        border: 1px solid #cfd5df;
+        border-radius: 5px;
+        background: #fff;
+        color: #263247;
+        padding: 0 9px 0 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        cursor: pointer;
+        font: inherit;
+        text-align: left;
+    }
+
+    .dvx-ms-toggle:hover,
+    .dvx-ms-toggle:focus {
+        border-color: #8d3e46;
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(141, 62, 70, .10);
+    }
+
+    .dvx-ms-label {
+        min-width: 0;
+        flex: 1;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+
+    .dvx-ms-arrow {
+        flex: 0 0 auto;
+        font-size: 11px;
+        opacity: .75;
+    }
+
+    .dvx-ms-menu {
+        position: fixed;
+        width: 300px;
+        max-width: calc(100vw - 16px);
+        max-height: 340px;
+        z-index: 99999;
+        background: #fff;
+        border: 1px solid #cfd5df;
+        border-radius: 7px;
+        box-shadow: 0 12px 34px rgba(18, 32, 55, .20);
+        overflow: hidden;
+    }
+
+    .dvx-ms-menu[hidden] {
+        display: none !important;
+    }
+
+    .dvx-ms-search-wrap {
+        padding: 8px;
+        border-bottom: 1px solid #e5e8ee;
+        background: #f8f9fb;
+    }
+
+    .dvx-ms-search {
+        width: 100%;
+        height: 30px;
+        border: 1px solid #cfd5df;
+        border-radius: 5px;
+        padding: 0 9px;
+        font-size: 11px;
+        color: #263247;
+        background: #fff;
+    }
+
+    .dvx-ms-search:focus {
+        outline: none;
+        border-color: #8d3e46;
+        box-shadow: 0 0 0 2px rgba(141, 62, 70, .10);
+    }
+
+    .dvx-ms-all {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        margin: 0;
+        font-weight: 700;
+        cursor: pointer;
+        border-bottom: 1px solid #eceef2;
+        background: #fff;
+    }
+
+    .dvx-ms-options {
+        max-height: 245px;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        background: #fff;
+    }
+
+    .dvx-ms-option {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 7px 10px;
+        margin: 0;
+        line-height: 1.25;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .dvx-ms-option:hover {
+        background: #f3f5f8;
+    }
+
+    .dvx-ms-option input,
+    .dvx-ms-all input {
+        margin: 1px 0 0 0;
+        accent-color: #8d3e46;
+        flex: 0 0 auto;
+    }
+
+    .dvx-ms-option-text {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .dvx-ms-empty {
+        padding: 14px 10px;
+        color: #7b8494;
+        text-align: center;
+        font-size: 11px;
+    }
+
+    .dvx-mini-filter {
+        min-width: 190px;
+    }
+
+    .dvx-mini-filter-group .dvx-mini-filter {
+        min-width: 175px;
+    }
+
+    @@media (max-width: 900px) {
+        .dvx-ms-toggle,
+        .dvx-ms,
+        .dvx-multi-host,
+        .dvx-mini-filter {
+            min-width: 150px;
+        }
+    }
+
+    /* =========================================================
+       CROSS FILTER TIPO POWER BI
+       ========================================================= */
+    .dvx-cross-filter-bar {
+        margin: 8px 0 12px;
+        padding: 8px 10px;
+        border: 1px solid #e0e4eb;
+        border-radius: 7px;
+        background: #fafbfc;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        font-size: 11px;
+    }
+
+    .dvx-cross-filter-bar[hidden] {
+        display: none !important;
+    }
+
+    .dvx-cross-filter-title {
+        font-weight: 700;
+        color: #5d6675;
+        margin-right: 2px;
+    }
+
+    #activeFilterChips {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .dvx-filter-chip {
+        border: 1px solid rgba(141, 62, 70, .28);
+        background: rgba(141, 62, 70, .08);
+        color: #78343c;
+        border-radius: 999px;
+        min-height: 26px;
+        padding: 4px 9px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        font-size: 10px;
+        font-weight: 700;
+    }
+
+    .dvx-filter-chip:hover {
+        background: rgba(141, 62, 70, .14);
+    }
+
+    .dvx-filter-chip-x {
+        font-size: 13px;
+        line-height: 1;
+    }
+
+    .dvx-cross-clear {
+        border: 0;
+        background: transparent;
+        color: #7d3540;
+        font-size: 10px;
+        font-weight: 700;
+        text-decoration: underline;
+        cursor: pointer;
+        margin-left: auto;
+    }
+
+    .dvx-clickable {
+        cursor: pointer;
+    }
+
+    .dvx-master-item,
+    .dvx-vendor-name,
+    .dvx-vendor-track,
+    .dvx-vendor-num,
+    .dvx-price-item,
+    .dvx-trend-svg [data-cross-date] {
+        transition:
+            opacity .15s ease,
+            filter .15s ease,
+            outline-color .15s ease;
+    }
+
+    .dvx-cross-selected {
+        filter: saturate(1.12);
+    }
+
+    .dvx-master-item.dvx-cross-selected .dvx-master-bar,
+    .dvx-price-item.dvx-cross-selected .dvx-price-bar {
+        outline: 2px solid #8d3e46;
+        outline-offset: 2px;
+    }
+
+    .dvx-vendor-name.dvx-cross-selected {
+        color: #7d3540;
+        font-weight: 800;
+    }
+
+    .dvx-vendor-track.dvx-cross-selected {
+        outline: 2px solid #8d3e46;
+        outline-offset: 2px;
+    }
+
+    .dvx-trend-svg [data-cross-date] {
+        cursor: pointer;
+    }
+
+    .dvx-trend-svg [data-cross-date]:hover {
+        opacity: .72;
+    }
+
+
+    /* =========================================================
+       RESPONSIVE - DASHBOARD DE VENTAS
+       Evita que el dashboard se corte en pantallas pequeñas.
+       En móvil/tablet los paneles se apilan y las gráficas
+       grandes usan scroll horizontal INTERNO.
+       ========================================================= */
+
+    html,
+    body {
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    *,
+    *::before,
+    *::after {
+        box-sizing: border-box;
+    }
+
+    .dashboard-ventas-page,
+    .dvx-app-shell,
+    .dvx-dashboard-grid,
+    .dvx-panel,
+    .dvx-panel-head,
+    .dvx-panel-body,
+    .dvx-chart-area {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .dashboard-ventas-page {
+        width: 100%;
+        overflow-x: hidden;
+    }
+
+    .dvx-app-shell {
+        width: 100%;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .dvx-dashboard-grid {
+        width: 100%;
+        grid-template-columns:
+            minmax(0, 1fr)
+            minmax(0, 1fr);
+    }
+
+    .dvx-panel {
+        width: 100%;
+        overflow: hidden;
+    }
+
+    .dvx-panel-head {
+        min-width: 0;
+    }
+
+    .dvx-panel-head h2 {
+        min-width: 0;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    .dvx-mini-filter-group {
+        min-width: 0;
+        max-width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .dvx-mini-filter {
+        min-width: 0 !important;
+        max-width: 100%;
+    }
+
+    .dvx-multi-host,
+    .dvx-ms,
+    .dvx-ms-toggle {
+        width: 100%;
+        min-width: 0 !important;
+        max-width: 100%;
+    }
+
+    .dvx-date-grid,
+    .dvx-segmented-control {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .dvx-date-grid select,
+    .dvx-segmented-control button {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    /*
+     * La página nunca crece horizontalmente.
+     * Si una gráfica necesita más espacio para conservar
+     * legibilidad, el scroll queda dentro de su panel.
+     */
+    .dvx-chart-area,
+    .dvx-master-chart,
+    .dvx-vendor-chart,
+    .dvx-price-chart,
+    .dvx-trend-chart {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+    }
+
+    .dvx-master-svg,
+    .dvx-trend-svg {
+        display: block;
+        max-width: none;
+    }
+
+    .dvx-vendor-table {
+        max-width: 100%;
+    }
+
+    .dvx-master-x,
+    .dvx-price-x,
+    .dvx-vendor-name {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    .dvx-cross-filter-bar {
+        max-width: 100%;
+    }
+
+    #activeFilterChips {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    /* =========================================================
+       LAPTOP / TABLET HORIZONTAL
+       ========================================================= */
+    @@media (max-width: 1200px) {
+
+        .dvx-dashboard-grid {
+            grid-template-columns: minmax(0, 1fr) !important;
+        }
+
+        .dvx-kpi-grid {
+            grid-template-columns:
+                repeat(3, minmax(0, 1fr)) !important;
+        }
+
+        .dvx-filters-row {
+            grid-template-columns:
+                minmax(0, 1fr)
+                minmax(0, 1fr) !important;
+        }
+
+        .dvx-reset-btn {
+            width: 100%;
+        }
+
+        .dvx-panel-head {
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .dvx-panel-head h2 {
+            flex: 1 1 300px;
+        }
+
+        .dvx-mini-filter,
+        .dvx-mini-filter-group {
+            flex: 1 1 320px;
+        }
+    }
+
+    /* =========================================================
+       TABLET / MÓVIL
+       ========================================================= */
+    @@media (max-width: 768px) {
+
+        .dashboard-ventas-page {
+            padding-left: 6px;
+            padding-right: 6px;
+        }
+
+        .dvx-app-shell {
+            width: 100%;
+        }
+
+        .dvx-topbar {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 8px;
+        }
+
+        .dvx-brand,
+        .dvx-last-update {
+            width: 100%;
+            min-width: 0;
+        }
+
+        .dvx-filters-row {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 8px;
+        }
+
+        .dvx-filter-card,
+        .dvx-reset-btn {
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+        }
+
+        .dvx-date-grid {
+            grid-template-columns:
+                repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        .dvx-segmented-control {
+            width: 100%;
+        }
+
+        .dvx-segment {
+            flex: 1 1 0;
+            min-width: 0;
+        }
+
+        .dvx-kpi-grid {
+            grid-template-columns:
+                repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        .dvx-panel-head {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 8px;
+        }
+
+        .dvx-panel-head h2 {
+            width: 100%;
+            margin: 0;
+        }
+
+        .dvx-mini-filter,
+        .dvx-mini-filter-group {
+            width: 100%;
+            max-width: 100%;
+            min-width: 0 !important;
+        }
+
+        .dvx-mini-filter-group {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 6px;
+        }
+
+        /*
+         * Se conserva un ancho útil para las gráficas con muchos
+         * elementos. El usuario desplaza únicamente la gráfica,
+         * no toda la página.
+         */
+        .dvx-master-row,
+        .dvx-master-svg {
+            min-width: 720px;
+        }
+
+        .dvx-vendor-table {
+            min-width: 680px;
+        }
+
+        .dvx-price-row {
+            min-width: 720px;
+        }
+
+        .dvx-trend-svg {
+            min-width: 760px;
+        }
+
+        .dvx-master-chart,
+        .dvx-vendor-chart,
+        .dvx-price-chart,
+        .dvx-trend-chart {
+            overscroll-behavior-x: contain;
+        }
+
+        .dvx-cross-filter-bar {
+            align-items: flex-start;
+        }
+
+        .dvx-cross-clear {
+            width: 100%;
+            margin-left: 0;
+            text-align: left;
+        }
+
+        .dvx-ms-menu {
+            width: min(300px, calc(100vw - 16px)) !important;
+            max-width: calc(100vw - 16px);
+        }
+    }
+
+    /* =========================================================
+       MÓVIL PEQUEÑO
+       ========================================================= */
+    @@media (max-width: 520px) {
+
+        .dashboard-ventas-page {
+            padding-left: 4px;
+            padding-right: 4px;
+        }
+
+        .dvx-topbar,
+        .dvx-filter-card,
+        .dvx-panel,
+        .dvx-kpi {
+            border-radius: 6px;
+        }
+
+        .dvx-brand h1 {
+            font-size: 16px;
+        }
+
+        .dvx-brand p,
+        .dvx-last-update,
+        .dvx-panel-note,
+        .dvx-footnote {
+            font-size: 10px;
+        }
+
+        .dvx-date-grid {
+            grid-template-columns:
+                minmax(0, 1fr) !important;
+        }
+
+        .dvx-kpi-grid {
+            grid-template-columns:
+                minmax(0, 1fr) !important;
+        }
+
+        .dvx-panel-head {
+            padding-left: 10px;
+            padding-right: 10px;
+        }
+
+        .dvx-panel-body {
+            padding-left: 8px;
+            padding-right: 8px;
+        }
+
+        .dvx-legend {
+            flex-wrap: wrap;
+            gap: 6px 10px;
+        }
+
+        .dvx-ms-menu {
+            left: 8px !important;
+            right: 8px !important;
+            width: auto !important;
+            max-width: none !important;
+        }
+
+        .dvx-filter-chip {
+            max-width: 100%;
+            white-space: normal;
+            overflow-wrap: anywhere;
+        }
+    }
+
+</style>
+
 
 <div id="dashboardVentasApp" class="dashboard-ventas-page">
+
     <div class="dvx-app-shell">
+
+        @* =========================================================
+           ENCABEZADO
+           ========================================================= *@
         <header class="dvx-topbar">
+
             <div class="dvx-brand">
                 <div class="dvx-brand-icon" aria-hidden="true">
-                    <span></span><span></span><span></span>
+                    <span></span>
+                    <span></span>
+                    <span></span>
                 </div>
+
                 <div>
                     <h1>DASHBOARD DE VENTAS</h1>
                     <p>Seguimiento al desempeño comercial</p>
@@ -22,183 +698,591 @@
 
             <div class="dvx-last-update">
                 <span class="dvx-refresh-icon">↻</span>
+
                 <div>
                     <span>Último surtido validado:</span>
                     <strong id="lastUpdate">Cargando...</strong>
                 </div>
             </div>
+
         </header>
 
+
+        @* =========================================================
+           FILTROS GENERALES
+           ========================================================= *@
         <section class="dvx-filters-row">
+
+            @* ==========================
+               FECHA
+               ========================== *@
             <div class="dvx-filter-card dvx-date-card">
-                <div class="dvx-filter-title">FILTRO DE FECHA (VENTAS AL DÍA)</div>
+
+                <div class="dvx-filter-title">
+                    FILTRO DE FECHA (VENTAS AL DÍA)
+                </div>
+
                 <div class="dvx-date-grid">
+
                     <label>
                         <span>Mes</span>
-                        <select id="monthSelect"></select>
+                        <select id="monthSelect">
+                        </select>
                     </label>
+
                     <label>
                         <span>Día del mes</span>
-                        <select id="daySelect"></select>
+                        <select id="daySelect">
+                        </select>
                     </label>
+
                 </div>
+
             </div>
 
+
+            @* ==========================
+               COMPARACIÓN
+               ========================== *@
             <div class="dvx-filter-card dvx-compare-card">
-                <div class="dvx-filter-title">COMPARAR CONTRA</div>
-                <div class="dvx-segmented-control" id="compareControl">
-                    <button type="button" class="dvx-segment dvx-active" data-mode="budget">Presupuesto Mensual</button>
-                    <button type="button" class="dvx-segment" data-mode="reach">Alcance<br /><small>(Ventas Esperadas)</small></button>
+
+                <div class="dvx-filter-title">
+                    COMPARAR CONTRA
                 </div>
+
+                <div class="dvx-segmented-control"
+                     id="compareControl">
+
+                    <button type="button"
+                            class="dvx-segment dvx-active"
+                            data-mode="budget">
+
+                        Presupuesto Mensual
+
+                    </button>
+
+                    <button type="button"
+                            class="dvx-segment"
+                            data-mode="reach">
+
+                        Alcance <small>(Ventas Esperadas)</small>
+
+                    </button>
+
+                </div>
+
             </div>
 
-            <button type="button" class="dvx-reset-btn" id="resetFilters">
+
+            @* ==========================
+               LIMPIAR
+               ========================== *@
+            <button type="button"
+                    class="dvx-reset-btn"
+                    id="resetFilters">
+
                 <span>▽</span>
+
                 Limpiar filtros
+
+            </button>
+
+        </section>
+
+
+
+        @* =========================================================
+           FILTROS ACTIVOS / INTERACCIÓN TIPO POWER BI
+           ========================================================= *@
+        <section id="activeFiltersBar"
+                 class="dvx-cross-filter-bar"
+                 hidden>
+            <span class="dvx-cross-filter-title">
+                Filtros activos:
+            </span>
+
+            <div id="activeFilterChips">
+            </div>
+
+            <button type="button"
+                    id="clearCrossFilters"
+                    class="dvx-cross-clear">
+                Limpiar selección
             </button>
         </section>
 
-        <div id="dashboardError" class="dvx-dashboard-error" hidden></div>
+        @* =========================================================
+           MENSAJE DE ERROR
+           ========================================================= *@
+        <div id="dashboardError"
+             class="dvx-dashboard-error"
+             hidden>
+        </div>
 
+
+        @* =========================================================
+           KPIs
+           ========================================================= *@
         <section class="dvx-kpi-grid">
+
+            @* Día laboral *@
             <article class="dvx-kpi">
-                <span class="dvx-kpi-label">Día laboral</span>
-                <strong id="kpiWorkday">-</strong>
-                <span class="dvx-kpi-help">(Lunes a sábado)</span>
+
+                <span class="dvx-kpi-label">
+                    Día laboral
+                </span>
+
+                <strong id="kpiWorkday">
+                    -
+                </strong>
+
+                <span class="dvx-kpi-help">
+                    (Lunes a sábado)
+                </span>
+
             </article>
 
+
+            @* Venta Real *@
             <article class="dvx-kpi">
-                <span class="dvx-kpi-label">Venta Real<br /><small>(al día seleccionado)</small></span>
-                <strong id="kpiSales">-</strong>
-                <span class="dvx-kpi-unit">KGS</span>
+
+                <span class="dvx-kpi-label">
+                    Venta Real <small>(al día seleccionado)</small>
+                </span>
+
+                <strong id="kpiSales">
+                    -
+                </strong>
+
+                <span class="dvx-kpi-unit">
+                    KGS
+                </span>
+
             </article>
 
+
+            @* Presupuesto *@
             <article class="dvx-kpi">
-                <span class="dvx-kpi-label">Presupuesto Mensual</span>
-                <strong id="kpiBudget">-</strong>
-                <span class="dvx-kpi-unit">KGS</span>
+
+                <span class="dvx-kpi-label">
+                    Presupuesto Mensual
+                </span>
+
+                <strong id="kpiBudget">
+                    -
+                </strong>
+
+                <span class="dvx-kpi-unit">
+                    KGS
+                </span>
+
             </article>
 
+
+            @* Cumplimiento *@
             <article class="dvx-kpi">
-                <span class="dvx-kpi-label" id="kpiComplianceLabel">% Cumplimiento<br /><small>vs Presupuesto</small></span>
-                <strong id="kpiCompliance">-</strong>
+
+                <span class="dvx-kpi-label"
+                      id="kpiComplianceLabel">
+
+                    % Cumplimiento <small>vs Presupuesto</small>
+
+                </span>
+
+                <strong id="kpiCompliance">
+                    -
+                </strong>
+
             </article>
 
+
+            @* Alcance *@
             <article class="dvx-kpi">
-                <span class="dvx-kpi-label">Alcance<br /><small>(Ventas Esperadas)</small></span>
-                <strong id="kpiReach">-</strong>
-                <span class="dvx-kpi-unit">KGS</span>
+
+                <span class="dvx-kpi-label">
+                    Alcance <small>(Ventas Esperadas)</small>
+                </span>
+
+                <strong id="kpiReach">
+                    -
+                </strong>
+
+                <span class="dvx-kpi-unit">
+                    KGS
+                </span>
+
             </article>
 
+
+            @* Diferencia contra Alcance *@
             <article class="dvx-kpi">
-                <span class="dvx-kpi-label" id="kpiGapLabel">% Cumplimiento vs Alcance<br /><small>(Diferencia)</small></span>
-                <strong id="kpiGap">-</strong>
-                <span class="dvx-kpi-delta" id="kpiGapKg">-</span>
+
+                <span class="dvx-kpi-label"
+                      id="kpiGapLabel">
+
+                    % Cumplimiento vs Alcance <small>(Diferencia)</small>
+
+                </span>
+
+                <strong id="kpiGap">
+                    -
+                </strong>
+
+                <span class="dvx-kpi-delta"
+                      id="kpiGapKg">
+                    -
+                </span>
+
             </article>
+
         </section>
 
+
+        @* =========================================================
+           DASHBOARD
+           ========================================================= *@
         <main class="dvx-dashboard-grid">
+
+
+            @* =====================================================
+               1. VENTAS X MÁSTER
+               ===================================================== *@
             <section class="dvx-panel">
+
                 <div class="dvx-panel-head">
-                    <h2>1. VENTAS X MÁSTER</h2>
-                    <label class="dvx-mini-filter">
-                        <span>Filtro por VENDEDOR:</span>
-                        <select id="masterVendorFilter"></select>
-                    </label>
+
+                    <h2>
+                        1. VENTAS X MÁSTER
+                    </h2>
+
+                    <div class="dvx-mini-filter">
+
+                            <span>
+                                Filtro por VENDEDOR / SUCURSAL:
+                            </span>
+
+                            <div id="masterVendorFilter"
+                                 class="dvx-multi-host">
+                            </div>
+
+                        </div>
+
                 </div>
+
+
                 <div class="dvx-panel-body">
-                    <p class="dvx-panel-note">Participación de cada Máster en la referencia seleccionada (barra) y % de avance de Ventas Reales al día seleccionado (línea).</p>
+
+                    <p class="dvx-panel-note">
+
+                        Participación de cada Máster en la referencia seleccionada
+                        (barra) y % de avance de Ventas Reales al día seleccionado
+                        (línea).
+
+                    </p>
+
+
                     <div class="dvx-legend">
-                        <span><i class="dvx-legend-box dvx-light"></i> Participación en referencia (%)</span>
-                        <span><i class="dvx-legend-line"></i> % Avance Ventas Reales</span>
+
+                        <span>
+                            <i class="dvx-legend-box dvx-light"></i>
+                            Participación en referencia (%)
+                        </span>
+
+                        <span>
+                            <i class="dvx-legend-line"></i>
+                            % Avance Ventas Reales
+                        </span>
+
                     </div>
-                    <div id="masterChart" class="dvx-master-chart dvx-chart-area"></div>
-                    <p class="dvx-footnote">* El % de avance puede superar 100% cuando las ventas reales son mayores a la referencia seleccionada.</p>
+
+
+                    <div id="masterChart"
+                         class="dvx-master-chart dvx-chart-area">
+                    </div>
+
+
+                    <p class="dvx-footnote">
+
+                        * El % de avance puede superar 100% cuando las ventas
+                        reales son mayores a la referencia seleccionada.
+
+                    </p>
+
                 </div>
+
             </section>
 
+
+            @* =====================================================
+               2. VENTAS X VENDEDOR / SUCURSAL
+               ===================================================== *@
             <section class="dvx-panel">
+
                 <div class="dvx-panel-head">
-                    <h2>2. VENTAS X VENDEDOR</h2>
+
+                    <h2>
+                        2. VENTAS X VENDEDOR / SUCURSAL
+                    </h2>
+
+
                     <div class="dvx-mini-filter-group">
-                        <label class="dvx-mini-filter">
-                            <span>Filtro por MÁSTER:</span>
-                            <select id="vendorMasterFilter"></select>
-                        </label>
-                        <label class="dvx-mini-filter">
-                            <span>Filtro por SKU:</span>
-                            <select id="vendorSkuFilter"></select>
-                        </label>
+
+                        <div class="dvx-mini-filter">
+
+                            <span>
+                                Filtro por MÁSTER:
+                            </span>
+
+                            <div id="vendorMasterFilter"
+                                 class="dvx-multi-host">
+                            </div>
+
+                        </div>
+
+
+                        <div class="dvx-mini-filter">
+
+                            <span>
+                                Filtro por SKU:
+                            </span>
+
+                            <div id="vendorSkuFilter"
+                                 class="dvx-multi-host">
+                            </div>
+
+                        </div>
+
                     </div>
+
                 </div>
+
+
                 <div class="dvx-panel-body">
+
                     <div class="dvx-legend dvx-vendor-legend">
-                        <span><i class="dvx-legend-box dvx-light"></i> Referencia seleccionada</span>
-                        <span><i class="dvx-legend-box dvx-dark"></i> Ventas Reales al día seleccionado</span>
+
+                        <span>
+                            <i class="dvx-legend-box dvx-light"></i>
+                            Referencia seleccionada
+                        </span>
+
+                        <span>
+                            <i class="dvx-legend-box dvx-dark"></i>
+                            Ventas Reales al día seleccionado
+                        </span>
+
                     </div>
-                    <div id="vendorChart" class="dvx-vendor-chart dvx-chart-area"></div>
-                    <p class="dvx-footnote">* Los porcentajes se recalculan según Presupuesto Mensual o Alcance. El filtro SKU aplica únicamente a Ventas x Vendedor.</p>
+
+
+                    <div id="vendorChart"
+                         class="dvx-vendor-chart dvx-chart-area">
+                    </div>
+
+
+                    <p class="dvx-footnote">
+
+                        * Los porcentajes se recalculan según Presupuesto Mensual
+                        o Alcance. El filtro SKU aplica únicamente a
+                        Ventas x Vendedor.
+
+                    </p>
+
                 </div>
+
             </section>
 
+
+            @* =====================================================
+               3. ANÁLISIS DE PRECIOS
+               ===================================================== *@
             <section class="dvx-panel">
+
                 <div class="dvx-panel-head">
-                    <h2>3. ANÁLISIS DE PRECIOS (POR SKU)</h2>
+
+                    <h2>
+                        3. ANÁLISIS DE PRECIOS (POR SKU)
+                    </h2>
+
+
                     <div class="dvx-mini-filter-group">
-                        <label class="dvx-mini-filter">
-                            <span>Filtro por MÁSTER:</span>
-                            <select id="priceMasterFilter"></select>
-                        </label>
-                        <label class="dvx-mini-filter">
-                            <span>Filtro por SKU:</span>
-                            <select id="priceSkuFilter"></select>
-                        </label>
+
+                        <div class="dvx-mini-filter">
+
+                            <span>
+                                Filtro por MÁSTER:
+                            </span>
+
+                            <div id="priceMasterFilter"
+                                 class="dvx-multi-host">
+                            </div>
+
+                        </div>
+
+
+                        <div class="dvx-mini-filter">
+
+                            <span>
+                                Filtro por SKU:
+                            </span>
+
+                            <div id="priceSkuFilter"
+                                 class="dvx-multi-host">
+                            </div>
+
+                        </div>
+
                     </div>
+
                 </div>
+
+
                 <div class="dvx-panel-body">
-                    <div class="dvx-price-average" id="weightedAverage">Precio Promedio Ponderado (-)</div>
-                    <div id="priceChart" class="dvx-price-chart dvx-chart-area"></div>
-                    <p id="priceFootnote" class="dvx-footnote">* Precio ponderado calculado con base en el volumen vendido.</p>
+
+                    <div class="dvx-price-average"
+                         id="weightedAverage">
+
+                        Precio Promedio Ponderado (-)
+
+                    </div>
+
+
+                    <div id="priceChart"
+                         class="dvx-price-chart dvx-chart-area">
+                    </div>
+
+
+                    <p id="priceFootnote"
+                       class="dvx-footnote">
+
+                        * Precio ponderado calculado con base en el volumen vendido.
+
+                    </p>
+
                 </div>
+
             </section>
 
+
+            @* =====================================================
+               4. TENDENCIA ACUMULADA
+               ===================================================== *@
             <section class="dvx-panel">
+
                 <div class="dvx-panel-head">
-                    <h2>4. TENDENCIA ACUMULADA: VENTAS REALES VS ALCANCE</h2>
+
+                    <h2>
+                        4. TENDENCIA ACUMULADA: VENTAS REALES VS ALCANCE
+                    </h2>
+
+
                     <div class="dvx-mini-filter-group">
-                        <label class="dvx-mini-filter">
-                            <span>Filtro por MÁSTER:</span>
-                            <select id="trendMasterFilter"></select>
-                        </label>
-                        <label class="dvx-mini-filter">
-                            <span>Filtro por SKU:</span>
-                            <select id="trendSkuFilter"></select>
-                        </label>
+
+                        <div class="dvx-mini-filter">
+
+                            <span>
+                                Filtro por MÁSTER:
+                            </span>
+
+                            <div id="trendMasterFilter"
+                                 class="dvx-multi-host">
+                            </div>
+
+                        </div>
+
+
+                        <div class="dvx-mini-filter">
+
+                            <span>
+                                Filtro por SKU:
+                            </span>
+
+                            <div id="trendSkuFilter"
+                                 class="dvx-multi-host">
+                            </div>
+
+                        </div>
+
                     </div>
+
                 </div>
+
+
                 <div class="dvx-panel-body">
+
                     <div class="dvx-legend">
-                        <span><i class="dvx-legend-box dvx-dark"></i> Ventas Reales Acumuladas (KGS)</span>
-                        <span><i class="dvx-legend-dot dvx-orange"></i> Alcance (Ventas Esperadas) (KGS)</span>
-                        <span><i class="dvx-legend-dot dvx-gray"></i> Brecha (Ventas - Alcance) (KGS)</span>
+
+                        <span>
+                            <i class="dvx-legend-box dvx-dark"></i>
+                            Ventas Reales Acumuladas (KGS)
+                        </span>
+
+                        <span>
+                            <i class="dvx-legend-dot dvx-orange"></i>
+                            Alcance (Ventas Esperadas) (KGS)
+                        </span>
+
+                        <span>
+                            <i class="dvx-legend-dot dvx-gray"></i>
+                            Brecha (Ventas - Alcance) (KGS)
+                        </span>
+
                     </div>
-                    <div id="trendChart" class="dvx-trend-chart dvx-chart-area"></div>
+
+
+                    <div id="trendChart"
+                         class="dvx-trend-chart dvx-chart-area">
+                    </div>
+
                 </div>
+
             </section>
+
         </main>
+
     </div>
 
-    <div id="tooltip" class="dvx-tooltip" role="tooltip"></div>
+
+    @* =========================================================
+       TOOLTIP GLOBAL
+       ========================================================= *@
+    <div id="tooltip"
+         class="dvx-tooltip"
+         role="tooltip">
+    </div>
+
 </div>
 
+
+@* =============================================================
+   CONFIGURACIÓN DE ENDPOINTS
+   ============================================================= *@
 <script>
+
     window.dashboardVentasConfig = {
-        catalogosUrl: '@Url.Content("~/Comercial/DashboardVentasCatalogos")',
-        resumenUrl: '@Url.Content("~/Comercial/DashboardVentasResumen")',
-        masterUrl: '@Url.Content("~/Comercial/DashboardVentasMaster")',
-        vendedorUrl: '@Url.Content("~/Comercial/DashboardVentasVendedor")',
-        preciosUrl: '@Url.Content("~/Comercial/DashboardVentasPrecios")',
-        tendenciaUrl: '@Url.Content("~/Comercial/DashboardVentasTendencia")'
+
+        catalogosUrl:
+            '@Url.Content("~/Comercial/DashboardVentasCatalogos")',
+
+        resumenUrl:
+            '@Url.Content("~/Comercial/DashboardVentasResumen")',
+
+        masterUrl:
+            '@Url.Content("~/Comercial/DashboardVentasMaster")',
+
+        vendedorUrl:
+            '@Url.Content("~/Comercial/DashboardVentasVendedor")',
+
+        preciosUrl:
+            '@Url.Content("~/Comercial/DashboardVentasPrecios")',
+
+        tendenciaUrl:
+            '@Url.Content("~/Comercial/DashboardVentasTendencia")'
+
     };
+
 </script>
-<script src="~/js/dashboard-ventas.js" asp-append-version="true"></script>
+
+
+<script src="~/js/dashboard-ventas.js"
+        asp-append-version="true">
+</script>

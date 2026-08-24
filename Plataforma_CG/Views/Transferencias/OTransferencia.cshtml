@@ -493,13 +493,67 @@
     }
 </style>
 
+<link rel="stylesheet" href="~/css/transferencia-carga-montacargas.css" asp-append-version="true" />
+
 <div class="m-wrap">
     <div class="m-top">
-        <div>
-            <h4>Carga Transferencia</h4>
-            <div class="m-sub">Folio: <b>@Model.Consecutivo</b></div>
+        <div class="m-top-main">
+            <div class="m-top-icon">
+                <i class="bi bi-box-seam"></i>
+            </div>
+            <div>
+                <h4>Carga Transferencia</h4>
+                <div class="m-sub">Folio: <b>@Model.Consecutivo</b></div>
+            </div>
         </div>
         <div class="m-chip">@chip</div>
+    </div>
+
+    <div id="forkTransferGuide" class="fork-transfer-guide" aria-live="polite">
+        <div class="fork-guide-head">
+            <div>
+                <div class="fork-guide-title">
+                    <i class="bi bi-hand-index-thumb"></i>
+                    Sigue estos pasos
+                </div>
+                <div class="fork-guide-sub">
+                    La pantalla te irá diciendo qué hacer.
+                </div>
+            </div>
+
+            <div id="forkTransferNext" class="fork-next-action">
+                <div class="fork-next-label">¿Qué hago ahora?</div>
+                <div id="forkTransferNextText" class="fork-next-text">
+                    Escanea una etiqueta para comenzar.
+                </div>
+            </div>
+        </div>
+
+        <div class="fork-transfer-steps">
+            <button type="button" class="fork-transfer-step" data-fork-step="1">
+                <span class="fork-step-num">1</span>
+                <span class="fork-step-icon"><i class="bi bi-upc-scan"></i></span>
+                <strong>Escanea</strong>
+                <small>Lee etiqueta o tarima</small>
+                <span class="fork-step-state">Ahora</span>
+            </button>
+
+            <button type="button" class="fork-transfer-step" data-fork-step="2">
+                <span class="fork-step-num">2</span>
+                <span class="fork-step-icon"><i class="bi bi-eye"></i></span>
+                <strong>Revisa</strong>
+                <small>Verifica producto y avance</small>
+                <span class="fork-step-state">Después</span>
+            </button>
+
+            <button type="button" class="fork-transfer-step" data-fork-step="3">
+                <span class="fork-step-num">3</span>
+                <span class="fork-step-icon"><i class="bi bi-truck"></i></span>
+                <strong>Transfiere</strong>
+                <small>Finaliza cuando termines</small>
+                <span class="fork-step-state">Al final</span>
+            </button>
+        </div>
     </div>
 
     <div class="m-card">
@@ -522,9 +576,38 @@
         }
     </div>
 
-    <div class="m-card m-scan">
-        <div class="fw-bold mb-2">Escaneo</div>
-        <input id="scanEtiqueta" class="form-control" placeholder="Escanea etiqueta / Tarima..." autocomplete="off" inputmode="text" />
+    <div class="m-card m-scan" id="forkScanCard">
+        <div class="m-card-title-row">
+            <div class="fw-bold">
+                <i class="bi bi-upc-scan"></i>
+                Escaneo
+            </div>
+            <span class="m-ready-chip">
+                <i class="bi bi-circle-fill"></i>
+                Lector listo
+            </span>
+        </div>
+
+        <label for="scanEtiqueta" class="scan-big-label">
+            Escanea aquí
+        </label>
+
+        <input id="scanEtiqueta"
+               class="form-control"
+               placeholder="Escanea etiqueta / Tarima..."
+               autocomplete="off"
+               inputmode="text"
+               enterkeyhint="done"
+               autocapitalize="off"
+               autocorrect="off"
+               spellcheck="false" />
+
+        <div class="scan-help-row">
+            <span><i class="bi bi-1-circle"></i> Apunta</span>
+            <span><i class="bi bi-2-circle"></i> Escanea</span>
+            <span><i class="bi bi-3-circle"></i> Revisa el mensaje</span>
+        </div>
+
         <div id="scanMsg" class="scan-msg scan-msg-muted mt-2" role="status" aria-live="polite">
             <div class="scan-msg-ico">ℹ</div>
             <div class="scan-msg-text">Listo para escanear…</div>
@@ -613,9 +696,27 @@
             }
         </ul>
 
-        <div class="m-actions">
-            <button class="btn btn-outline-secondary" type="button" onclick="location.reload()">Limpiar</button>
-            <button id="btnTransferir" type="button" class="btn btn-transfer text-white">Transferir</button>
+        <div class="m-actions" id="forkTransferActions">
+            <button class="btn btn-outline-secondary btn-clean"
+                    type="button"
+                    onclick="location.reload()">
+                <i class="bi bi-arrow-clockwise"></i>
+                Limpiar / recargar
+            </button>
+
+            <button id="btnTransferir"
+                    type="button"
+                    class="btn btn-transfer text-white">
+                <i class="bi bi-truck"></i>
+                Transferir
+            </button>
+        </div>
+
+        <div class="transfer-final-help">
+            <i class="bi bi-info-circle"></i>
+            <span>
+                El botón <b>Transferir</b> se habilita cuando ya existe al menos una etiqueta registrada.
+            </span>
         </div>
     </div>
 </div>
@@ -1425,3 +1526,5 @@ if (!data) {
         recomputeGlobalState();
     })();
 </script>
+
+<script src="~/js/transferencia-carga-montacargas.js" asp-append-version="true"></script>

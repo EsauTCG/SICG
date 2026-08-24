@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Plataforma_CG.AccesoDatos.JSON;
+using Plataforma_CG.AccesoDatos.Operaciones;
 using Plataforma_CG.AccesoDatos.Operaciones.Planeacion;
 using Plataforma_CG.AccesoDatos.Operaciones.Planeacion;
 using Plataforma_CG.Data;
@@ -62,6 +63,37 @@ namespace Plataforma_CG.Controllers
         {
             return View("~/Views/Operaciones/Inyecciones.cshtml");
         }
+        public async Task<IActionResult> Etiquetacion()
+        {
+            return View("~/Views/Operaciones/Etiquetacion/Etiquetacion.cshtml");
+        }
+        AccesoEtiquetacion aet = new AccesoEtiquetacion();
+        [HttpGet]
+        public async Task<IActionResult> BuscarProductos(string busq)
+        {
+            var res = aet.ConsultarEtiquetacion(busq);
+            return Ok(res);
+        }
+        [HttpGet]
+        public async Task<IActionResult> ListarEtiquetas()
+        {
+            var res = aet.ConsultarEtiquetas();
+                return Ok(res);
+        }
+        
+        [HttpPost]
+        public async Task<IActionResult> ModificarEtiqueta(string sku, int etiqueta)
+        {
+            var etold = aet.ConsultarEtiquetacion(sku).Where(id=> id.SKU==sku).FirstOrDefault().Etiquetacion;
+            var usr = User.Identity.Name;
+            var res = false;
+            if (aet.LogEtiquetas(sku,etold,etiqueta,usr))
+            {
+                res= aet.ModificarEtiquetacion(sku, etiqueta);
+            }
+            return Ok(res);
+        }
+
 
         public async Task<IActionResult> FactorCritico()
         {
@@ -101,6 +133,13 @@ namespace Plataforma_CG.Controllers
 
             //return View("~/Views/Operaciones/PlaneadorProduccion.cshtml", vm);
             return View("~/Views/Operaciones/Planeacion/Mensual.cshtml");
+        }
+        [HttpGet]
+        public IActionResult ResumenPlaneacion()
+        {
+            return PartialView(
+                "~/Views/Operaciones/Planeacion/ResumenPlaneacion.cshtml"
+            );
         }
         public IActionResult PlaneacionMensual(string anio, string mes)
         {
@@ -766,7 +805,83 @@ namespace Plataforma_CG.Controllers
             }
             return Ok(new { ok = true });
         }
+        #region ResumenPlaneacion
+        AccesoReporteSemanal ars = new AccesoReporteSemanal();
+        [HttpGet]
+        public IActionResult ObtenerResumenPlaneacion(
+    DateTime fechaInicial,
+    DateTime fechaFinal,
+    int clasificacionId)
+        {
+            try
+            {
+                var resultado =
+                    ars.ConsultarReporte(
+                        fechaInicial.ToString("yyyy-MM-dd"),
+                        fechaFinal.ToString("yyyy-MM-dd"),
+                        clasificacionId
+                    );
 
+                return Ok(resultado);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    mensaje = ex.Message
+                });
+            }
+        }
+        [HttpGet]
+        public IActionResult ObtenerPorcentajeInyeccionProduccion(string fechain, string fechafin, string sku, int clasi)
+        {
+            if (string.IsNullOrWhiteSpace(sku))
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "SKU requerido."
+                });
+            }
+
+            // Posteriormente aquí irá la consulta real
+            double porcentaje = 5.5;
+
+            return Ok(new
+            {
+                ok = true,
+                sku = sku,
+                porcentaje = porcentaje
+            });
+        }
+
+
+        [HttpGet]
+        public IActionResult ObtenerKgEmpaqueProduccion(string fechain,string fechafin,string sku,int clasi)
+        {
+            
+            if (string.IsNullOrWhiteSpace(sku))
+            {
+                return BadRequest(new
+                {
+
+                    ok = false,
+                    mensaje = "SKU requerido."
+                });
+            }
+
+            // Posteriormente aquí irá la consulta real
+            double kg = ars.ConsultarProduccion(fechain, fechafin, sku, clasi); 
+
+            return Ok(new
+            {
+                ok = true,
+                sku = sku,
+                kg = kg
+            });
+        }
+        #endregion
         [HttpGet]
         public IActionResult ObtenerCatalogoExtra()
         {
@@ -780,6 +895,7 @@ namespace Plataforma_CG.Controllers
             var res=ape.ConsultarEstatusSolicitud();
             return Json(res);
         }
+
         #region PlanMensual
         [HttpGet]
         public async Task<IActionResult> ObtenerDetalleMensual(
@@ -795,6 +911,10 @@ namespace Plataforma_CG.Controllers
             return Ok("");
         }
         #endregion
+
+
+
+
         [HttpPost]
         [Route("Operaciones/PlaneadorProduccionGuardar")]
         public async Task<IActionResult> PlaneadorProduccionGuardar([FromBody] PlaneadorSaveDto dto)

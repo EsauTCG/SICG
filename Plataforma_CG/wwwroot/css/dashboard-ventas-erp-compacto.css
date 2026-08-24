@@ -1,0 +1,788 @@
+/* ==========================================================================
+   DASHBOARD DE VENTAS — ERP TINTO / POPPINS / COMPACTO
+   - Mantiene toda la lógica e IDs existentes.
+   - Filtros generales en una sola línea en escritorio.
+   - KPIs en una sola línea.
+   - Encabezados de panel sin saltos.
+   - Mini filtros sin wrap.
+   - Si una gráfica necesita más ancho, el scroll queda dentro de su panel.
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+:root {
+    --dv2-bg: #eef2f4;
+    --dv2-panel: #ffffff;
+    --dv2-panel-2: #f7f9fa;
+    --dv2-line: #bec9cf;
+    --dv2-line-soft: #d7dfe3;
+    --dv2-text: #30373b;
+    --dv2-muted: #66747c;
+
+    --dv2-tinto: #7a2029;
+    --dv2-tinto-dark: #5e1820;
+    --dv2-tinto-deep: #351014;
+    --dv2-tinto-soft: #f4e8ea;
+
+    --dv2-green: #25824d;
+    --dv2-blue: #45657d;
+    --dv2-amber: #a77b19;
+    --dv2-red: #a22e3a;
+}
+
+@media screen {
+
+    /* ==============================================================
+       TIPOGRAFÍA / CONTENCIÓN
+       ============================================================== */
+
+    #dashboardVentasApp,
+    #dashboardVentasApp *,
+    #dashboardVentasApp button,
+    #dashboardVentasApp input,
+    #dashboardVentasApp select {
+        font-family: "Poppins", "Segoe UI", Arial, sans-serif !important;
+        -webkit-font-smoothing: antialiased !important;
+        -moz-osx-font-smoothing: grayscale !important;
+        box-sizing: border-box !important;
+    }
+
+    html,
+    body {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) {
+        background: var(--dv2-bg) !important;
+    }
+
+    body:has(#dashboardVentasApp) .layout-main-content,
+    body:has(#dashboardVentasApp) .layout-container-fluid {
+        min-width: 0 !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+        box-sizing: border-box !important;
+    }
+
+    body:has(#dashboardVentasApp) .layout-main-content.layout-sidebar-open {
+        width: calc(100% - var(--layout-sidebar-width)) !important;
+        max-width: calc(100% - var(--layout-sidebar-width)) !important;
+        margin-left: var(--layout-sidebar-width) !important;
+    }
+
+    body:has(.layout-sidebar.layout-hidden):has(#dashboardVentasApp) .layout-main-content,
+    body:has(.layout-sidebar.layout-hidden):has(#dashboardVentasApp) .layout-main-content.layout-sidebar-open {
+        width: calc(100% - var(--layout-sidebar-collapsed-width, 60px)) !important;
+        max-width: calc(100% - var(--layout-sidebar-collapsed-width, 60px)) !important;
+        margin-left: var(--layout-sidebar-collapsed-width, 60px) !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp.dashboard-ventas-page {
+        width: calc(100% - 8px) !important;
+        max-width: calc(100% - 8px) !important;
+        min-width: 0 !important;
+
+        margin: 4px auto 8px !important;
+        padding: 0 !important;
+
+        background: transparent !important;
+        overflow-x: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-app-shell {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* ==============================================================
+       HEADER
+       ============================================================== */
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-topbar {
+        min-height: 42px !important;
+        margin: 0 0 4px !important;
+        padding: 5px 8px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 8px !important;
+        flex-wrap: nowrap !important;
+
+        background: linear-gradient(180deg,#5a171d 0%,#481318 52%,#351014 100%) !important;
+        color: #fff !important;
+
+        border: 1px solid #351014 !important;
+        border-radius: 3px !important;
+        box-shadow: none !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-brand {
+        min-width: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 7px !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-brand-icon {
+        width: 29px !important;
+        min-width: 29px !important;
+        height: 29px !important;
+        padding: 5px !important;
+
+        display: grid !important;
+        align-content: center !important;
+        gap: 2px !important;
+
+        background: rgba(255,255,255,.10) !important;
+        border: 1px solid rgba(255,255,255,.24) !important;
+        border-radius: 3px !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-brand-icon span {
+        height: 2px !important;
+        background: #fff !important;
+        border-radius: 0 !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-brand h1 {
+        margin: 0 !important;
+        color: #fff !important;
+        font-size: 13px !important;
+        line-height: 1.05 !important;
+        font-weight: 700 !important;
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-brand p {
+        margin: 2px 0 0 !important;
+        color: #eadbdd !important;
+        font-size: 8.7px !important;
+        line-height: 1 !important;
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-last-update {
+        min-height: 27px !important;
+        padding: 3px 7px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 5px !important;
+
+        background: rgba(255,255,255,.08) !important;
+        color: #fff !important;
+
+        border: 1px solid rgba(255,255,255,.20) !important;
+        border-radius: 3px !important;
+
+        font-size: 8.3px !important;
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-last-update span,
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-last-update strong {
+        white-space: nowrap !important;
+    }
+
+    /* ==============================================================
+       FILTROS GENERALES — UNA SOLA FILA
+       ============================================================== */
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-filters-row {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        display: grid !important;
+        grid-template-columns:
+            minmax(260px, 1.20fr)
+            minmax(360px, 1.65fr)
+            145px !important;
+
+        grid-template-rows: 1fr !important;
+        gap: 5px !important;
+        align-items: stretch !important;
+
+        margin: 0 0 4px !important;
+        padding: 0 !important;
+
+        overflow: visible !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-filter-card,
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-reset-btn {
+        min-width: 0 !important;
+        margin: 0 !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-filter-card {
+        min-height: 55px !important;
+        padding: 5px 6px !important;
+
+        background: #fff !important;
+        border: 1px solid var(--dv2-line) !important;
+        border-radius: 3px !important;
+        box-shadow: none !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-filter-title {
+        margin: 0 0 3px !important;
+        color: #4b555b !important;
+        font-size: 8.7px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-date-grid {
+        width: 100% !important;
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 5px !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-date-grid label {
+        min-width: 0 !important;
+        margin: 0 !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-date-grid label > span {
+        display: block !important;
+        margin-bottom: 2px !important;
+        color: #59646a !important;
+        font-size: 8.2px !important;
+        line-height: 1 !important;
+        font-weight: 600 !important;
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-date-grid select {
+        width: 100% !important;
+        min-width: 0 !important;
+        height: 28px !important;
+        min-height: 28px !important;
+
+        padding: 2px 6px !important;
+
+        background: #fff !important;
+        color: var(--dv2-text) !important;
+        border: 1px solid #b8c4ca !important;
+        border-radius: 2px !important;
+
+        font-size: 9.5px !important;
+        line-height: 1 !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-segmented-control {
+        width: 100% !important;
+        min-width: 0 !important;
+
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 4px !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-segment {
+        width: 100% !important;
+        min-width: 0 !important;
+        height: 28px !important;
+        min-height: 28px !important;
+
+        padding: 0 6px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 3px !important;
+
+        background: #f5f7f8 !important;
+        color: #414c52 !important;
+
+        border: 1px solid #b9c5cb !important;
+        border-radius: 2px !important;
+
+        font-size: 8.7px !important;
+        line-height: 1 !important;
+        font-weight: 600 !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-segment small {
+        display: inline !important;
+        font-size: 7.5px !important;
+        line-height: 1 !important;
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-segment.dvx-active {
+        background: var(--dv2-tinto) !important;
+        color: #fff !important;
+        border-color: var(--dv2-tinto-dark) !important;
+        box-shadow: none !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-reset-btn {
+        width: 145px !important;
+        min-width: 145px !important;
+        max-width: 145px !important;
+
+        min-height: 55px !important;
+        height: 55px !important;
+
+        padding: 0 8px !important;
+
+        align-self: stretch !important;
+
+        background: #f5f7f8 !important;
+        color: #4a555b !important;
+
+        border: 1px solid #b9c5cb !important;
+        border-radius: 3px !important;
+
+        box-shadow: none !important;
+
+        font-size: 9px !important;
+        font-weight: 700 !important;
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-reset-btn:hover {
+        background: var(--dv2-tinto) !important;
+        color: #fff !important;
+        border-color: var(--dv2-tinto-dark) !important;
+    }
+
+    /* ==============================================================
+       FILTROS ACTIVOS
+       ============================================================== */
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-cross-filter-bar {
+        min-height: 30px !important;
+        margin: 0 0 4px !important;
+        padding: 3px 6px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        gap: 5px !important;
+        flex-wrap: nowrap !important;
+
+        background: #fff !important;
+        border: 1px solid var(--dv2-line) !important;
+        border-radius: 3px !important;
+
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-cross-filter-title,
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-cross-clear,
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-filter-chip {
+        font-size: 8.5px !important;
+        white-space: nowrap !important;
+        flex: 0 0 auto !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp #activeFilterChips {
+        flex-wrap: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-filter-chip {
+        min-height: 22px !important;
+        padding: 2px 6px !important;
+        border-radius: 999px !important;
+    }
+
+    /* ==============================================================
+       KPIs — UNA SOLA FILA
+       ============================================================== */
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-kpi-grid {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        display: grid !important;
+        grid-template-columns: repeat(6, minmax(120px,1fr)) !important;
+        gap: 4px !important;
+
+        margin: 0 0 4px !important;
+
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-kpi {
+        min-width: 120px !important;
+        min-height: 52px !important;
+        height: 52px !important;
+
+        padding: 5px 7px !important;
+
+        background: #fff !important;
+        border: 1px solid var(--dv2-line) !important;
+        border-top: 3px solid var(--dv2-tinto) !important;
+        border-radius: 3px !important;
+
+        box-shadow: none !important;
+
+        overflow: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-kpi-label,
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-kpi-label small,
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-kpi-help,
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-kpi-unit,
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-kpi-delta {
+        display: inline !important;
+        color: var(--dv2-muted) !important;
+
+        font-size: 7.8px !important;
+        line-height: 1 !important;
+        font-weight: 600 !important;
+
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-kpi-label {
+        display: block !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-kpi strong {
+        display: block !important;
+        margin-top: 3px !important;
+
+        color: var(--dv2-tinto-dark) !important;
+
+        font-size: 15px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    /* ==============================================================
+       DASHBOARD 2 x 2
+       ============================================================== */
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-dashboard-grid {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+        gap: 5px !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-panel {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        margin: 0 !important;
+
+        background: #fff !important;
+        border: 1px solid var(--dv2-line) !important;
+        border-radius: 3px !important;
+
+        box-shadow: none !important;
+        overflow: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-panel-head {
+        min-height: 34px !important;
+        padding: 4px 6px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 6px !important;
+        flex-wrap: nowrap !important;
+
+        background: linear-gradient(180deg,#edf1f3 0%,#e2e8eb 100%) !important;
+        border-bottom: 1px solid var(--dv2-line) !important;
+        border-left: 4px solid var(--dv2-tinto) !important;
+
+        overflow: visible !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-panel-head h2 {
+        min-width: 0 !important;
+        margin: 0 !important;
+
+        color: #30373b !important;
+
+        font-size: 9.5px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        overflow-wrap: normal !important;
+        word-break: normal !important;
+    }
+
+    /* ==============================================================
+       MINI FILTROS — SIN SALTOS
+       ============================================================== */
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-mini-filter-group {
+        min-width: 0 !important;
+        max-width: 70% !important;
+
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        gap: 4px !important;
+        flex-wrap: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-mini-filter {
+        min-width: 145px !important;
+        max-width: 220px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        gap: 4px !important;
+        flex: 0 1 190px !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-mini-filter > span {
+        display: none !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-multi-host,
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-ms,
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-ms-toggle {
+        min-width: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-ms-toggle {
+        height: 27px !important;
+        min-height: 27px !important;
+
+        padding: 0 6px !important;
+
+        background: #fff !important;
+        color: var(--dv2-text) !important;
+
+        border: 1px solid #b8c4ca !important;
+        border-radius: 2px !important;
+
+        box-shadow: none !important;
+
+        font-size: 8.8px !important;
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-ms-menu {
+        width: 285px !important;
+        max-width: min(360px, calc(100vw - 20px)) !important;
+        max-height: 300px !important;
+
+        border-radius: 3px !important;
+        box-shadow: 0 10px 26px rgba(25,34,39,.18) !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-ms-search-wrap {
+        padding: 5px !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-ms-search {
+        height: 28px !important;
+        min-height: 28px !important;
+        padding: 0 7px !important;
+        font-size: 9px !important;
+        border-radius: 2px !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-ms-all,
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-ms-option {
+        min-height: 26px !important;
+        padding: 4px 7px !important;
+        font-size: 8.8px !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-ms-option-text {
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        overflow-wrap: normal !important;
+    }
+
+    /* ==============================================================
+       CUERPOS DE PANEL / LEYENDAS
+       ============================================================== */
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-panel-body {
+        min-width: 0 !important;
+        padding: 6px !important;
+        background: #fff !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-panel-note,
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-footnote {
+        margin: 0 0 4px !important;
+        color: var(--dv2-muted) !important;
+        font-size: 8.2px !important;
+        line-height: 1.15 !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-legend {
+        min-height: 23px !important;
+        margin: 0 0 4px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        flex-wrap: nowrap !important;
+
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-legend > span {
+        flex: 0 0 auto !important;
+        color: #505b61 !important;
+        font-size: 8.2px !important;
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-price-average {
+        min-height: 25px !important;
+        margin: 0 0 4px !important;
+        padding: 4px 6px !important;
+
+        background: var(--dv2-tinto-soft) !important;
+        color: var(--dv2-tinto-dark) !important;
+
+        border: 1px solid #dec2c6 !important;
+        border-radius: 2px !important;
+
+        font-size: 9px !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    /* ==============================================================
+       GRÁFICAS: SCROLL INTERNO, NUNCA MOVER TODA LA PÁGINA
+       ============================================================== */
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-chart-area,
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-master-chart,
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-vendor-chart,
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-price-chart,
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-trend-chart {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+
+        scrollbar-width: thin !important;
+        overscroll-behavior-inline: contain !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-master-x,
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-price-x,
+    body:not([data-theme="dark"]) #dashboardVentasApp .dvx-vendor-name {
+        white-space: nowrap !important;
+        overflow-wrap: normal !important;
+        word-break: normal !important;
+    }
+
+    /* ==============================================================
+       RESPONSIVE
+       ============================================================== */
+
+    @media (max-width: 1200px) {
+        body:not([data-theme="dark"]) #dashboardVentasApp .dvx-filters-row {
+            min-width: 840px !important;
+            grid-template-columns: 255px 420px 145px !important;
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
+        }
+
+        body:not([data-theme="dark"]) #dashboardVentasApp .dvx-kpi-grid {
+            min-width: 780px !important;
+            grid-template-columns: repeat(6, 126px) !important;
+        }
+
+        body:not([data-theme="dark"]) #dashboardVentasApp .dvx-dashboard-grid {
+            grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+        }
+    }
+
+    @media (max-width: 900px) {
+        body:not([data-theme="dark"]) #dashboardVentasApp .dvx-dashboard-grid {
+            grid-template-columns: minmax(0,1fr) !important;
+        }
+
+        body:not([data-theme="dark"]) #dashboardVentasApp .dvx-panel-head {
+            flex-direction: row !important;
+            align-items: center !important;
+            flex-wrap: nowrap !important;
+        }
+
+        body:not([data-theme="dark"]) #dashboardVentasApp .dvx-mini-filter-group {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+        }
+    }
+
+    @media (max-width: 560px) {
+        body:not([data-theme="dark"]) #dashboardVentasApp .dvx-brand p {
+            display: none !important;
+        }
+
+        body:not([data-theme="dark"]) #dashboardVentasApp .dvx-last-update span:not(.dvx-refresh-icon) {
+            display: none !important;
+        }
+    }
+
+    /* Scrollbars */
+    body:not([data-theme="dark"]) #dashboardVentasApp *::-webkit-scrollbar {
+        width: 7px !important;
+        height: 7px !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp *::-webkit-scrollbar-track {
+        background: #edf1f3 !important;
+    }
+
+    body:not([data-theme="dark"]) #dashboardVentasApp *::-webkit-scrollbar-thumb {
+        background: #aeb9bf !important;
+        border-radius: 2px !important;
+    }
+}
+
+/* Dark: solo armoniza cabecera principal */
+@media screen {
+    body[data-theme="dark"] #dashboardVentasApp .dvx-topbar {
+        background: linear-gradient(180deg,#541921 0%,#381116 100%) !important;
+    }
+}

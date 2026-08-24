@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Plataforma_CG.ViewModels;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -329,6 +330,17 @@ namespace Plataforma_CG.Services
                     Mensaje = "Integración enviada correctamente a SAP.",
                     RespuestaSap = sapResponse.response
                 };
+            }
+            catch (IntegracionPendienteException ex)
+            {
+                // No se registra como intento fallido en IntegracionSapEnvioLog porque
+                // todavía no se hizo ningún POST a SAP. La integración permanece
+                // pendiente (Estatus = 0) y será reevaluada en el siguiente ciclo.
+                _logger.LogInformation(
+                    "Integración SAP pendiente. Id={IntegracionId} Source={Source} Tipo={Tipo}. Motivo={Motivo}",
+                    integracionId, source, tipo, ex.Message);
+
+                return ErrorResult(integracionId, endpoint, ex.Message);
             }
             catch (Exception ex)
             {
@@ -803,18 +815,101 @@ END;");
                 throw new InvalidOperationException("El JSON SAP no contiene DocumentLines válidas.");
             }
 
-            if (NormalizeTipo(tipo) == "SALIDA")
+            var tipoNormalizado = NormalizeTipo(tipo);
+
+            if (tipoNormalizado == "SALIDA")
             {
                 foreach (var line in lines.EnumerateArray())
                 {
                     if (!line.TryGetProperty("AccountCode", out var account) ||
+                        account.ValueKind != JsonValueKind.String ||
                         string.IsNullOrWhiteSpace(account.GetString()))
                     {
                         throw new InvalidOperationException(
                             "Una línea de salida no contiene AccountCode.");
                     }
                 }
+
+                return;
             }
+
+            // ENTRADA / TRANSFERENCIA_ENTRADA:
+            // - Si la línea viene basada en una OC (BaseEntry), SAP toma el costo
+            //   desde el documento base y no exigimos PriceAfterVAT.
+            // - Si NO viene basada en OC, debe existir un precio/costo > 0.
+            //   Si todavía no existe, NO se hace POST y la integración se queda
+            //   pendiente para que el automático la vuelva a evaluar después.
+            var indice = 0;
+
+            foreach (var line in lines.EnumerateArray())
+            {
+                indice++;
+
+                if (TieneBaseEntryValido(line))
+                    continue;
+
+                if (TienePrecioPositivo(line, "PriceAfterVAT"))
+                    continue;
+
+                var itemCode =
+                    line.TryGetProperty("ItemCode", out var item) &&
+                    item.ValueKind == JsonValueKind.String
+                        ? item.GetString()
+                        : null;
+
+                var sku = string.IsNullOrWhiteSpace(itemCode)
+                    ? "SIN-SKU"
+                    : itemCode;
+
+                throw new IntegracionPendienteException(
+                    $"Pendiente sin costo: la línea {indice} (SKU {sku}) no está basada en una orden de compra " +
+                    "y todavía no tiene PriceAfterVAT/UnitPrice mayor a 0. No se envió nada a SAP. " +
+                    "La integración permanecerá pendiente y se volverá a evaluar cuando aparezca el costo.");
+            }
+        }
+
+        private static bool TieneBaseEntryValido(JsonElement line)
+        {
+            if (!line.TryGetProperty("BaseEntry", out var baseEntry))
+                return false;
+
+            if (baseEntry.ValueKind == JsonValueKind.Number &&
+                baseEntry.TryGetInt32(out var numero))
+            {
+                return numero > 0;
+            }
+
+            if (baseEntry.ValueKind == JsonValueKind.String &&
+                int.TryParse(baseEntry.GetString(), out numero))
+            {
+                return numero > 0;
+            }
+
+            return false;
+        }
+
+        private static bool TienePrecioPositivo(JsonElement line, string propertyName)
+        {
+            if (!line.TryGetProperty(propertyName, out var price))
+                return false;
+
+            if (price.ValueKind == JsonValueKind.Number &&
+                price.TryGetDecimal(out var numero))
+            {
+                return numero > 0m;
+            }
+
+            if (price.ValueKind == JsonValueKind.String &&
+                decimal.TryParse(
+                    price.GetString(),
+                    NumberStyles.Any,
+                    CultureInfo.InvariantCulture,
+                    out numero))
+            {
+                return numero > 0m;
+            }
+
+            return false;
         }
 
         private static (int? docEntry, int? docNum) LeerDocumentoSap(string? response)
@@ -851,6 +946,14 @@ END;");
                 return value;
 
             return value[..length];
+        }
+
+        private sealed class IntegracionPendienteException : InvalidOperationException
+        {
+            public IntegracionPendienteException(string message)
+                : base(message)
+            {
+            }
         }
 
         private sealed record SapExistingDocument(
@@ -939,7 +1042,10 @@ LineasOrigen AS
         L.ItemCode,
         L.BaseLineOv,
         L.BaseEntryOC,
-        L.UnitPrice,
+        COALESCE(
+            CASE WHEN L.UnitPriceLower > 0 THEN L.UnitPriceLower END,
+            CASE WHEN L.UnitPriceUpper > 0 THEN L.UnitPriceUpper END
+        ) AS UnitPrice,
         L.PriceAfterVAT,
         L.WhsCode,
         L.Quantity,
@@ -955,10 +1061,11 @@ LineasOrigen AS
     (
         LineNum       INT           '$.LineNum',
         ItemCode      NVARCHAR(50)  '$.ItemCode',
-        BaseLineOv    INT           '$.BaseLineOv',
-        BaseEntryOC   NVARCHAR(100) '$.BaseEntryOC',
-        UnitPrice     DECIMAL(20,4) '$.unitPrice',
-        PriceAfterVAT DECIMAL(20,4) '$.PriceAfterVAT',
+        BaseLineOv     INT           '$.BaseLineOv',
+        BaseEntryOC    NVARCHAR(100) '$.BaseEntryOC',
+        UnitPriceLower DECIMAL(20,4) '$.unitPrice',
+        UnitPriceUpper DECIMAL(20,4) '$.UnitPrice',
+        PriceAfterVAT  DECIMAL(20,4) '$.PriceAfterVAT',
         WhsCode       NVARCHAR(50)  '$.WhsCode',
         Quantity      DECIMAL(20,4) '$.Quantity',
         Batchs        NVARCHAR(MAX) '$.Batchs' AS JSON
@@ -1050,8 +1157,13 @@ SELECT
                         L.WhsCode AS [WarehouseCode],
                         CASE
                             WHEN TRY_CONVERT(INT, L.BaseEntryOC) IS NULL
-                                THEN CAST(COALESCE(NULLIF(L.PriceAfterVAT, 0),
-                                                   NULLIF(L.UnitPrice, 0), 0.01) AS DECIMAL(20,4))
+                                THEN CAST(
+                                    COALESCE(
+                                        CASE WHEN L.PriceAfterVAT > 0 THEN L.PriceAfterVAT END,
+                                        CASE WHEN L.UnitPrice > 0 THEN L.UnitPrice END
+                                    )
+                                    AS DECIMAL(20,4)
+                                )
                         END AS [PriceAfterVAT],
                         JSON_QUERY
                         (

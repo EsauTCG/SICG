@@ -1,0 +1,338 @@
+﻿@model IEnumerable<dynamic>
+@using System.Globalization
+@using System.Text.Json
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<div class="articulos-container">
+
+    
+    <div class="articulos-buscador">
+
+        <input type="text"
+               id="buscadorArticulos"
+               class="form-control"
+               placeholder="Buscar artículo, producto o etiqueta..."
+               autocomplete="off" />
+
+    </div>
+
+
+
+    <div class="articulos-tabla-wrapper">
+
+        <table class="table table-bordered table-hover table-sm articulos-tabla">
+
+            <thead>
+
+                <tr>
+                    <th>ArticuloId</th>
+                    <th>Producto</th>
+                    <th>Etiqueta</th>
+                </tr>
+
+            </thead>
+
+            <tbody id="tbodyArticulos">
+
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+
+<style>
+
+    .articulos-container {
+        width: 100%;
+        max-width: 100%;
+        padding: 10px;
+        box-sizing: border-box;
+    }
+
+    /*
+            Barra de búsqueda siempre visible
+        */
+    .articulos-buscador {
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+        background: white;
+        padding: 10px 0;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+        .articulos-buscador input {
+            width: 100%;
+            min-height: 45px;
+            font-size: 16px;
+            padding: 10px 12px;
+            box-sizing: border-box;
+        }
+
+
+    /*
+            Contenedor con scroll
+        */
+    .articulos-tabla-wrapper {
+        width: 100%;
+        overflow-x: auto;
+        overflow-y: auto;
+        max-height: calc(100vh - 90px);
+        -webkit-overflow-scrolling: touch;
+    }
+
+
+    /*
+            Tabla
+        */
+    .articulos-tabla {
+        width: 100%;
+        min-width: 500px;
+        margin-bottom: 0;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+
+        /*
+            Encabezados fijos
+        */
+        .articulos-tabla thead th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: #f8f9fa;
+            white-space: nowrap;
+            font-weight: 600;
+            padding: 10px;
+        }
+
+
+        /*
+            Celdas
+        */
+        .articulos-tabla td {
+            padding: 10px;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+
+
+            /*
+            Primera columna
+        */
+            .articulos-tabla th:first-child,
+            .articulos-tabla td:first-child {
+                width: 100px;
+                text-align: center;
+            }
+
+
+            /*
+            Producto
+        */
+            .articulos-tabla th:nth-child(2),
+            .articulos-tabla td:nth-child(2) {
+                min-width: 180px;
+                text-align: left;
+            }
+
+
+            /*
+            Etiqueta
+        */
+            .articulos-tabla th:nth-child(3),
+            .articulos-tabla td:nth-child(3) {
+                min-width: 150px;
+                text-align: left;
+            }
+
+
+        /*
+            Mejora visual al pasar sobre una fila
+        */
+        .articulos-tabla tbody tr {
+            cursor: pointer;
+        }
+
+</style>
+
+<div class="modal fade"
+     id="modalDetalleArticulo"
+     tabindex="-1"
+     aria-hidden="true">
+
+    <div class="modal-dialog modal-dialog-centered">
+
+        <div class="modal-content">
+
+            <!-- ===================================== -->
+            <!-- HEADER -->
+            <!-- ===================================== -->
+
+            <div class="modal-header">
+
+                <h5 class="modal-title">
+                    Detalle del artículo
+                </h5>
+
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar">
+                </button>
+
+            </div>
+
+
+            <!-- ===================================== -->
+            <!-- BODY -->
+            <!-- ===================================== -->
+
+            <div class="modal-body">
+
+                <!-- ArticuloId -->
+                <div class="mb-3">
+
+                    <label class="form-label">
+                        ArticuloId
+                    </label>
+
+                    <input type="text"
+                           id="detalleArticuloId"
+                           class="form-control"
+                           readonly />
+
+                </div>
+
+
+                <!-- Producto -->
+                <div class="mb-3">
+
+                    <label class="form-label">
+                        Producto
+                    </label>
+
+                    <input type="text"
+                           id="detalleProducto"
+                           class="form-control"
+                           readonly />
+
+                </div>
+
+
+                <!-- ================================= -->
+                <!-- ETIQUETA -->
+                <!-- ================================= -->
+
+                <div class="mb-3">
+
+                    <label for="detalleEtiqueta"
+                           class="form-label">
+
+                        Etiqueta
+
+                    </label>
+
+                    <div class="position-relative">
+
+                        <input type="text"
+                               id="detalleEtiqueta"
+                               class="form-control"
+                               autocomplete="off"
+                               placeholder="Buscar etiqueta..." />
+
+                        <div id="listaEtiquetasAutocomplete"
+                             class="list-group position-absolute w-100 shadow"
+                             style="z-index: 1056; max-height: 250px; overflow-y: auto; display: none;">
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <hr />
+
+
+                <!-- ================================= -->
+                <!-- NOMBRE -->
+                <!-- ================================= -->
+
+                <div class="mb-3">
+
+                    <label class="form-label">
+                        Nombre
+                    </label>
+
+                    <input type="text"
+                           id="detalleNombre"
+                           class="form-control"
+                           readonly />
+
+                </div>
+
+
+                <!-- ================================= -->
+                <!-- CADUCIDAD -->
+                <!-- ================================= -->
+
+                <div class="mb-3">
+
+                    <label class="form-label">
+                        Días de caducidad
+                    </label>
+
+                    <input type="text"
+                           id="detalleDiasCaducidad"
+                           class="form-control"
+                           readonly />
+
+                </div>
+
+
+                <!-- ================================= -->
+                <!-- DATOS INTERNOS -->
+                <!-- No visibles para el usuario -->
+                <!-- ================================= -->
+
+                <input type="hidden"
+                       id="detalleColectorId" />
+
+            </div>
+
+
+            <!-- ===================================== -->
+            <!-- FOOTER -->
+            <!-- ===================================== -->
+
+            <div class="modal-footer">
+
+                <button type="button"
+                        class="btn btn-secondary"
+                        data-bs-dismiss="modal">
+                    Cerrar
+                </button>
+
+                <button type="button"
+                        id="btnGuardarEtiqueta"
+                        class="btn btn-primary"
+                        onclick="guardarEtiquetaArticulo()">
+                    Guardar
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+<script src="~/js/Etiquetas/planetiquetacion.js"></script>
