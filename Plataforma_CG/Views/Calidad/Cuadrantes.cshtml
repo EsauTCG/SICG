@@ -556,7 +556,7 @@
         padding: 12px;
         border-bottom: 1px solid var(--line);
         display: grid;
-        grid-template-columns: 1fr auto;
+        grid-template-columns: 1fr auto auto; /* Ajustado a 3 columnas */
         gap: 8px;
     }
 
@@ -601,19 +601,21 @@
     }
 
     .queue-item {
-        padding: 11px 10px;
-        border-radius: 8px;
-        border: 1px solid transparent;
+        padding: 14px 16px; /* Area de toque mas grande */
+        border-radius: 10px;
+        border: 1px solid var(--line); /* Borde sutil para que parezca tarjeta */
         display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 8px;
-        margin-bottom: 6px;
+        grid-template-columns: minmax(150px, 1fr) auto auto; /* 3 Columnas: Datos | Botones | Estatus */
+        gap: 16px;
+        margin-bottom: 10px;
         cursor: pointer;
         transition: .16s ease;
+        align-items: center; /* Alinea todo al centro verticalmente */
     }
 
         .queue-item:hover {
             background: var(--surface-2);
+            border-color: #f5c2c7;
         }
 
         .queue-item.active {
@@ -621,6 +623,39 @@
             border-color: #f5c2c7;
             box-shadow: inset 4px 0 0 var(--primary);
         }
+
+    .queue-actions {
+        display: flex;
+        gap: 8px; /* Separacion entre botones */
+    }
+
+    .btn-queue {
+        padding: 10px 16px; /* Botones mucho mas anchos y altos */
+        border-radius: 8px;
+        border: none;
+        font-size: 13px; /* Texto mas legible */
+        font-weight: 700;
+        cursor: pointer;
+        transition: .15s ease;
+        white-space: nowrap;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.06); /* Sombra para indicar que es clickeable */
+    }
+
+        .btn-queue:disabled {
+            opacity: .4;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .btn-queue:hover:not(:disabled) {
+            filter: brightness(1.05);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.12);
+        }
+
+    .btn-queue-green  { background: #d1e7dd; color: #0f5132; }
+    .btn-queue-blue   { background: #cfe2ff; color: #084298; }
+    .btn-queue-yellow { background: #fff3cd; color: #664d03; }
 
     .queue-id {
         font-weight: 700;
@@ -688,6 +723,15 @@
 
         .status.liberada .status-dot {
             background: #198754;
+        }
+
+    .status.revision {
+        color: #41464b;
+        background: #dee2e6;
+    }
+
+        .status.revision .status-dot {
+            background: #6c757d;
         }
 
     .queue-footer {
@@ -1973,9 +2017,14 @@
 
 <div class="app-shell">
     <header class="topbar">
-        <div class="brand">
-            <h1 style="font-weight: 900; letter-spacing: 1px; font-size: 20px;">Calidad · Inspección de Canal</h1>
-            <small style="color: rgba(255,255,255,0.8); display: block; margin-top: 2px;">Monitoreo PCC1B</small>
+        <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+            <div class="brand">
+                <h1 style="font-weight: 900; letter-spacing: 1px; font-size: 20px;">Calidad · Inspección de Canal</h1>
+                <small style="color: rgba(255,255,255,0.8); display: block; margin-top: 2px;">Monitoreo PCC1B</small>
+            </div>
+            <div class="top-actions no-print">
+                <a href="/Calidad/Historico" style="background: rgba(255,255,255,0.2); color: #fff; text-decoration: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; font-size: 12px; border: 1px solid rgba(255,255,255,0.4);">Ver Log Histórico</a>
+            </div>
         </div>
     </header>
 
@@ -2023,10 +2072,11 @@
             <aside class="card queue-card" id="queuePanel">
                 <div class="panel-header">
                     <div><h2 class="panel-title">Consecutivo de canales</h2><p class="panel-subtitle">Seleccione una canal para inspeccionar</p></div>
-                    <span class="kbd">F2</span>
+
                 </div>
                 <div class="queue-tools">
                     <input class="input" id="queueSearch" placeholder="Buscar canal o proveedor..." />
+                    <button class="btn btn-warning btn-sm" id="globalAuditBtn" style="color: #000; font-weight: bold;">✦ Auditoría</button>
                     <div class="filter-menu">
                         <button class="btn btn-soft" id="filterBtn" title="Filtrar">Config.</button>
                         <div class="filter-popover" id="filterPopover">
@@ -2046,8 +2096,7 @@
                 </div>
             </aside>
             <div class="step-actions no-print">
-                <span class="step-hint">Seleccione una canal de la cola o búsquela arriba para continuar.</span>
-                <button type="button" class="btn btn-primary" id="step1Next">Continuar →</button>
+                <span class="step-hint">Use los botones de acción en cada canal para continuar.</span>
             </div>
         </section>
 
@@ -2240,26 +2289,31 @@
 
         <section class="step-panel" id="step3" hidden>
             <section class="bottom-grid">
-            <div class="card table-card">
-                <div class="panel-header">
-                    <div><h2 class="panel-title">Monitoreos PCC1B de esta canal <span id="tableChannel"></span></h2><p class="panel-subtitle">Un renglón por número de canal y lado monitoreado</p></div>
-                    <div class="table-actions no-print">
-                        <button class="btn btn-ghost btn-sm" id="exportBtn">Exportar CSV</button>
-                        <button class="btn btn-success btn-sm" id="releaseBtn">Marcar conforme</button>
+                <div class="card table-card">
+                    <div class="panel-header">
+                        <div><h2 class="panel-title">Monitoreos PCC1B de esta canal <span id="tableChannel"></span></h2><p class="panel-subtitle">Un renglón por número de canal y lado monitoreado</p></div>
+                        <div class="table-actions no-print">
+                            <button class="btn btn-ghost btn-sm" id="exportBtn">Exportar CSV</button>
+                            <button class="btn btn-primary btn-sm" id="finishBtn">Finalizar inspección</button>
+                        </div>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>Vista</th><th>Hallazgos de contaminantes</th><th>Cuadrante(s)</th><th>Acciones correctivas</th><th>Reinspección</th><th>Verificación</th><th>Observaciones</th><th>Inspector</th><th>Fecha / hora</th><th class="no-print">Acciones</th></tr></thead>
+                            <tbody id="affectationsBody"></tbody>
+                        </table>
                     </div>
                 </div>
-                <div class="table-wrap">
-                    <table>
-                        <thead><tr><th>Vista</th><th>Hallazgos de contaminantes</th><th>Cuadrante(s)</th><th>Acciones correctivas</th><th>Reinspección</th><th>Verificación</th><th>Observaciones</th><th>Inspector</th><th>Fecha / hora</th><th class="no-print">Acciones</th></tr></thead>
-                        <tbody id="affectationsBody"></tbody>
-                    </table>
-                </div>
-            </div>
 
-            <aside class="card activity-card">
-                <div class="panel-header"><div><h2 class="panel-title">Bitácora operativa</h2><p class="panel-subtitle">Últimos movimientos del sistema</p></div><div class="table-actions no-print"><button class="btn btn-ghost btn-sm" id="resetDemoBtn">Reiniciar demo</button><button class="btn btn-ghost btn-sm" id="clearLogBtn">Limpiar</button></div></div>
-                <div class="activity-list" id="activityList"></div>
-            </aside>
+                <aside class="card activity-card">
+                    <div class="panel-header">
+                        <div><h2 class="panel-title">Bitácora operativa</h2><p class="panel-subtitle">Registro de actividad local</p></div>
+                        <div class="table-actions no-print">
+                            <button class="btn btn-ghost btn-sm" id="clearLogBtn">Limpiar bitácora</button>
+                        </div>
+                    </div>
+                    <div class="activity-list" id="activityList"></div>
+                </aside>
             </section>
 
             <div class="step-actions no-print">
@@ -2283,7 +2337,66 @@
         <div class="modal-footer"><button class="btn btn-soft" data-close-modal>Cerrar</button></div>
     </div>
 </div>
+<div class="modal-backdrop" id="revisionModal">
+    <div class="custom-modal" style="width: min(500px, 92vw);">
+        <div class="modal-header">
+            <div style="width: 100%;">
+                <div style="display: flex; justify-content: space-between; width: 100%;">
+                    <h3 style="margin:0; font-weight: 700;">Auditoría: Revisión Aleatoria</h3>
+                    <button class="close-btn" data-close-modal>×</button>
+                </div>
+                <p style="margin:8px 0 4px;color:var(--muted); font-size: 11px; font-weight: 600;">Busque y seleccione la canal a auditar:</p>
+                <!-- Buscador con filtrado nativo -->
+                <input type="text" class="input" id="revCanalInput" list="revCanalList" placeholder="Escriba canal, proveedor o arete..." style="width: 100%; font-weight: bold;" autocomplete="off">
+                <datalist id="revCanalList"></datalist>
+            </div>
+        </div>
+        <div class="modal-body">
+            <span class="label">Dictamen de la inspección</span>
+            <div class="choice-row two" style="margin-bottom: 15px;">
+                <label class="choice-btn active" style="cursor: pointer; flex-direction: row;" id="lblRevCorrecta">
+                    <input type="radio" name="revDictamen" value="1" checked style="display:none;">
+                    <b>✓</b><span>Inspección Correcta</span>
+                </label>
+                <label class="choice-btn danger-choice" style="cursor: pointer; flex-direction: row;" id="lblRevFalla">
+                    <input type="radio" name="revDictamen" value="0" style="display:none;">
+                    <b>X</b><span>Hallazgos Omitidos</span>
+                </label>
+            </div>
 
+            <div id="revDetallesDiv" style="display: none; border-top: 1px dashed var(--line); padding-top: 15px;">
+                <div class="field-grid" style="margin-bottom: 10px; grid-template-columns: 1fr 1.3fr;">
+                    <div>
+                        <span class="label">Hallazgos omitidos</span>
+                        <input type="text" class="input" id="revHallazgos" placeholder="Ej: MF, Pelo">
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <div style="flex: 0 0 85px;">
+                            <span class="label">Vista</span>
+                            <select class="select" id="revVista" style="padding: 10px 5px;">
+                                <option value="EXT">EXT</option>
+                                <option value="INT">INT</option>
+                                <option value="Ambas">Ambas</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1;">
+                            <span class="label">Cuadrantes</span>
+                            <input type="text" class="input" id="revCuadrantes" placeholder="Ej: 1, 4">
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <span class="label">Observaciones del auditor</span>
+                    <textarea class="input" id="revObservaciones" placeholder="Detalles de la falla..."></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" data-close-modal>Cancelar</button>
+            <button class="btn btn-warning" id="btnGuardarRevision" style="background: var(--warning); color: #000;">Guardar Auditoría</button>
+        </div>
+    </div>
+</div>
 <div class="toast-stack" id="toastStack"></div>
 
 <div id="printArea" style="display:none;"></div>
@@ -2319,20 +2432,20 @@
             }
 
             let data = loadData();
-            let state = {
-                selectedChannelId: data.channels.length > 0 ? data.channels[0].id : null,
-                selectedQuadrants: [],
-                findings: [],
-                side: 'EXT',
-                noFindings: false,
-                correctiveAction: '√',
-                reinspection: 'SC',
-                editId: null,
-                filter: 'todos',
-                page: 1,
-                pageSize: 8,
-                queueQuery: ''
-            };
+                   let state = {
+                        selectedChannelId: data.channels.length > 0 ? data.channels[0].id : null,
+                        selectedQuadrants: [],
+                        findings: [],
+                        side: 'EXT',
+                        noFindings: false,
+                        correctiveAction: '√',
+                        reinspection: 'SC',
+                        editId: null,
+                        filter: 'todos',
+                        page: sessionStorage.getItem('sigo_page') ? parseInt(sessionStorage.getItem('sigo_page')) : 1,
+                        pageSize: 50,
+                        queueQuery: ''
+                    };
 
             const $ = (sel, root=document) => root.querySelector(sel);
             const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
@@ -2374,23 +2487,56 @@
                 $('#sideProgress').innerHTML = chip('EXT','Externa') + chip('INT','Interna');
             }
 
-            function normalizeData(raw){
-                raw.channels.forEach(c => {
-                    if(!Array.isArray(c.records)) c.records = [];
-                    c.records = c.records.map(r => ({
-                        id:r.id || uid(), side:r.side === 'INT' || r.side === 'D' ? 'INT' : 'EXT', findings:Array.isArray(r.findings) ? r.findings : [],
-                        quadrants:Array.isArray(r.quadrants) ? r.quadrants.map(Number).filter(q=>q>=1&&q<=6) : [],
-                        correctiveAction:r.correctiveAction || (r.findings?.length ? '√' : 'N/A'), reinspection:r.reinspection || 'SC',
-                        verificationChannel:r.verificationChannel || c.id, verificationComplies:r.verificationComplies !== false,
-                        observation:r.observation || '', inspector:r.inspector || USUARIO_LOGUEADO, datetime:r.datetime || nowLabel()
-                    }));
-                    c.status = deriveStatus(c.records);
-                });
-                raw.activities = Array.isArray(raw.activities) ? raw.activities : [];
-                return raw;
-            }
+                     function normalizeData(raw) {
+                      raw.channels.forEach(c => {
+                         // 1. Blindaje de mayúsculas/minúsculas para C#
+                         c.id = c.id || c.Id;
+                         c.arete = c.arete || c.Arete;
+                         c.provider = c.provider || c.Provider;
+                         c.status = c.status || c.Status;
 
-            function uid(){ return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`; }
+                         // 2. Extraer los registros correctamente
+                         let records = c.records || c.Records || [];
+                         if(!Array.isArray(records)) records = [];
+
+                         c.records = records.map(r => {
+                             let rSide = r.side || r.Side;
+                             return {
+                                 id: r.id || r.Id || uid(),
+                                 side: rSide === 'INT' || rSide === 'D' ? 'INT' : 'EXT',
+                                 findings: Array.isArray(r.findings || r.Findings) ? (r.findings || r.Findings) : [],
+                                 quadrants: Array.isArray(r.quadrants || r.Quadrants) ? (r.quadrants || r.Quadrants).map(Number).filter(q=>q>=1&&q<=6) : [],
+                                         verdes: Array.isArray(r.cuadrantesVerdes || r.CuadrantesVerdes) ? (r.cuadrantesVerdes || r.CuadrantesVerdes).map(Number) : [],
+                                             amarillos: Array.isArray(r.cuadrantesAmarillos || r.CuadrantesAmarillos) ? (r.cuadrantesAmarillos || r.CuadrantesAmarillos).map(Number) : [],
+                                             rojos: Array.isArray(r.cuadrantesRojos || r.CuadrantesRojos) ? (r.cuadrantesRojos || r.CuadrantesRojos).map(Number) : [],
+                                 correctiveAction: r.correctiveAction || r.CorrectiveAction || ((r.findings || r.Findings)?.length ? '√' : 'N/A'),
+                                 reinspection: r.reinspection || r.Reinspection || 'SC',
+                                 verificationChannel: r.verificationChannel || r.VerificationChannel || c.id,
+                                 verificationComplies: (r.verificationComplies !== undefined ? r.verificationComplies : r.VerificationComplies) !== false,
+                                 observation: r.observation || r.Observation || '',
+                                 inspector: r.inspector || r.Inspector || USUARIO_LOGUEADO,
+                                 datetime: r.datetime || r.Datetime || nowLabel()
+                             };
+                         });
+
+                         // 3. Respetar el Estatus de la Base de Datos
+                         if (c.status === 'Revisión') {
+                             c.isReview = true;
+                             c.previousStatus = 'Conforme'; // Activa la etiqueta doble
+                         } else if (c.status === 'Conforme' || c.status === 'No conforme') {
+                             // Si la BD dice que ya está terminada, la respetamos sin sobreescribir.
+                         } else {
+                             // Si la BD dice Pendiente o no tiene, el sistema calcula si ya tiene las 2 vistas.
+                             c.status = deriveStatus(c);
+                         }
+                      });
+
+                      // Mantener la bitácora segura
+                      raw.activities = Array.isArray(raw.activities) ? raw.activities : [];
+                      return raw;
+                  }
+
+                    function uid(){ return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`; }
 
             function persist(){
                 // Mantenemos el guardado temporal local si es necesario
@@ -2401,12 +2547,13 @@
 
             function nowLabel(){ return new Intl.DateTimeFormat('es-MX',{dateStyle:'short',timeStyle:'short'}).format(new Date()); }
 
-            function deriveStatus(records){
-                if(!records?.length) return 'Pendiente';
-                if(records.some(r => r.correctiveAction === 'X' || r.reinspection === 'NC' || !r.verificationComplies)) return 'No conforme';
-                const sides = new Set(records.map(r=>r.side));
-                return sides.has('EXT') && sides.has('INT') ? 'Conforme' : 'En inspección';
-            }
+                           function deriveStatus(c){
+                      const records = c.records;
+                      if(!records?.length) return c.isReview ? 'Revisión' : 'Pendiente';
+                      if(records.some(r => r.correctiveAction === 'X' || r.reinspection === 'NC' || !r.verificationComplies)) return 'No conforme';
+                      const sides = new Set(records.map(r=>r.side));
+                      return sides.has('EXT') && sides.has('INT') ? 'Conforme' : (c.isReview ? 'Revisión' : 'En inspección');
+                  }
 
             function toast(message, type='success'){
                 const el = document.createElement('div');
@@ -2423,7 +2570,7 @@
             }
 
             function statusClass(status){
-                return status === 'En inspección' ? 'inspeccion' : status === 'No conforme' ? 'retenida' : status === 'Conforme' ? 'liberada' : 'pendiente';
+                return status === 'En inspección' ? 'inspeccion' : status === 'No conforme' ? 'retenida' : status === 'Conforme' ? 'liberada' : status === 'Revisión' ? 'revision' : 'pendiente';
             }
 
             function renderAll(){ renderMetrics(); renderQueue(); renderCurrent(); renderRecords(); renderQuadrants(); renderSummary(); renderActivity(); }
@@ -2448,32 +2595,172 @@
                 });
             }
 
-            function renderQueue(){
-                const filtered = filteredChannels();
-                const pages = Math.max(1, Math.ceil(filtered.length / state.pageSize));
-                if(state.page > pages) state.page = pages;
-                const start = (state.page - 1) * state.pageSize;
-                const pageItems = filtered.slice(start, start + state.pageSize);
-                $('#queueList').innerHTML = pageItems.length ? pageItems.map(c => `
-                  <div class="queue-item ${c.id===state.selectedChannelId?'active':''}" data-channel="${c.id}">
-                    <div><div class="queue-id">${c.id}</div><div class="queue-provider">${c.provider} · ${new Set(c.records.map(r=>r.side)).size}/2 lados</div></div>
-                    <span class="status ${statusClass(c.status)}"><span class="status-dot"></span>${c.status}</span>
-                  </div>`).join('') : `<div class="empty">No hay canales con el filtro actual.</div>`;
-                $('#queueCount').textContent = filtered.length ? `Mostrando ${start+1} a ${Math.min(start+state.pageSize,filtered.length)} de ${filtered.length}` : '0 registros';
-                $('#pagination').innerHTML = Array.from({length:Math.min(pages,6)},(_,i)=>i+1).map(p => `<button class="page-btn ${p===state.page?'active':''}" data-page="${p}">${p}</button>`).join('');
-                $$('.queue-item').forEach(el => el.addEventListener('click',()=>selectChannel(el.dataset.channel)));
-                $$('.page-btn').forEach(el => el.addEventListener('click',()=>{state.page=+el.dataset.page;renderQueue();}));
-            }
+           function renderQueue() {
+                        const filtered = filteredChannels();
+                        const pages = Math.max(1, Math.ceil(filtered.length / state.pageSize));
+
+                        if (state.page > pages) state.page = pages;
+
+                        const start = (state.page - 1) * state.pageSize;
+                        const pageItems = filtered.slice(start, start + state.pageSize);
+
+                              $('#queueList').innerHTML = pageItems.length ? pageItems.map(c => {
+                                // Doble etiqueta si esta en revision
+                                let badgesHtml = `<span class="status ${statusClass(c.status)}"><span class="status-dot"></span>${c.status}</span>`;
+                                if (c.isReview && c.previousStatus) {
+                                    badgesHtml = `
+                                         <span class="status ${statusClass(c.previousStatus)}"><span class="status-dot"></span>${c.previousStatus}</span>
+                                         <span class="status revision" style="margin-top:4px;"><span class="status-dot"></span>Revisión</span>`;
+                                }
+
+                                // Estructura a 3 columnas: [Datos] - [Botones] - [Status]
+                                return `
+                                 <div class="queue-item ${c.id === state.selectedChannelId ? 'active' : ''}" onclick="window.selectChannel('${c.id}')">
+                                     <div style="min-width: 0;">
+                                         <div class="queue-id" style="font-size: 15px;">${c.id}</div>
+                                         <div style="font-size: 12px; color: var(--muted); margin-top: 3px;">Arete: ${c.arete || '—'}</div>
+                                         <div class="queue-provider" style="font-size: 12px; max-width: 100%; margin-top: 2px;">${c.provider} · ${new Set(c.records.map(r=>r.side)).size}/2 lados</div>
+                                     </div>
+
+                                     <div class="queue-actions">
+                                         <button class="btn-queue btn-queue-green" onclick="event.stopPropagation(); window.sinHallazgosCanal('${c.id}')" ${(c.status === 'Conforme' || c.status === 'No conforme' || c.isReview) ? 'disabled' : ''}>Sin Hallazgos</button>
+                                         <button class="btn-queue btn-queue-blue" onclick="event.stopPropagation(); window.inspeccionCanal('${c.id}')" ${(c.status === 'Conforme' || c.isReview) ? 'disabled' : ''}>Inspección</button>
+                                     </div>
+
+                                     <div style="display: flex; gap: 0px; align-items: flex-end; flex-direction: column; justify-content: center;">
+                                         ${badgesHtml}
+                                     </div>
+                                 </div>`;
+                            }).join('') : `<div class="empty">No hay canales con el filtro actual.</div>`;
+
+                        $('#queueCount').textContent = filtered.length ? `Mostrando ${start+1} a ${Math.min(start+state.pageSize,filtered.length)} de ${filtered.length}` : '0 registros';
+
+                        // LOGICA DE PAGINACION DINAMICA
+                        let pagHtml = '';
+                        if (pages > 1) {
+                            if (state.page > 1) {
+                                pagHtml += `<button class="page-btn" data-page="${state.page - 1}">«</button>`;
+                            }
+
+                            let startPage = Math.max(1, state.page - 2);
+                            let endPage = Math.min(pages, state.page + 2);
+
+                            if (startPage > 1) {
+                                pagHtml += `<button class="page-btn" data-page="1">1</button>`;
+                                if (startPage > 2) pagHtml += `<span style="align-self:end;color:var(--muted);padding:0 2px;">...</span>`;
+                            }
+
+                            for (let p = startPage; p <= endPage; p++) {
+                                pagHtml += `<button class="page-btn ${p === state.page ? 'active' : ''}" data-page="${p}">${p}</button>`;
+                            }
+
+                            if (endPage < pages) {
+                                if (endPage < pages - 1) pagHtml += `<span style="align-self:end;color:var(--muted);padding:0 2px;">...</span>`;
+                                pagHtml += `<button class="page-btn" data-page="${pages}">${pages}</button>`;
+                            }
+
+                            if (state.page < pages) {
+                                pagHtml += `<button class="page-btn" data-page="${state.page + 1}">»</button>`;
+                            }
+                        }
+
+                        $('#pagination').innerHTML = pagHtml;
+
+                        $$('.page-btn').forEach(el => el.addEventListener('click', () => {
+                            state.page = +el.dataset.page;
+                            renderQueue();
+                        }));
+                    }
 
             function selectChannel(id){
                 state.selectedChannelId = id;
                 resetForm(false);
-                const c = currentChannel();
-                if(c) {
-                    persist(); renderAll(); setStep(2);
-                    toast(`Canal ${c.id} cargada para monitoreo.`, 'success');
-                }
+                persist(); renderAll();
             }
+
+             async function sinHallazgosCanal(id) {
+                        const c = data.channels.find(ch => ch.id === id);
+                        if (!c) return;
+
+                        // --- BLINDAJE DE SEGURIDAD ---
+                        if (c.status === 'Conforme' && !c.isReview)
+                            return toast('Esta canal ya está conforme.', 'warning');
+
+                        if (c.status === 'No conforme')
+                            return toast('Canal No Conforme. Debe entrar a la inspección para aplicar acciones correctivas.', 'danger');
+
+                        if (c.records.some(r => r.findings.length > 0))
+                            return toast('La canal ya tiene hallazgos registrados. No puede usar el atajo.', 'danger');
+                        // -----------------------------
+
+                        const now = nowLabel();
+                        const recExt = { id: uid(), side: 'EXT', findings: [], quadrants: [1,2,3,4,5,6], verdes: [1,2,3,4,5,6], amarillos: [], rojos: [], correctiveAction: 'N/A', reinspection: 'SC', verificationChannel: c.id, verificationComplies: true, observation: 'Canal liberada sin hallazgos (Rápido).', inspector: USUARIO_LOGUEADO, datetime: now };
+                        const recInt = { id: uid(), side: 'INT', findings: [], quadrants: [1,2,3,4,5,6], verdes: [1,2,3,4,5,6], amarillos: [], rojos: [], correctiveAction: 'N/A', reinspection: 'SC', verificationChannel: c.id, verificationComplies: true, observation: 'Canal liberada sin hallazgos (Rápido).', inspector: USUARIO_LOGUEADO, datetime: now };
+
+                        try {
+                            // 1. Guardamos EXT en la BD
+                            const pVerdes = encodeURIComponent('1,2,3,4,5,6');
+                            await fetch(`/Calidad/GuardarMonitoreo?canalId=${encodeURIComponent(c.id)}&arete=${encodeURIComponent(c.arete || '')}&estatusGeneral=Conforme&verdes=${pVerdes}&amarillos=&rojos=`, {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(recExt)
+                            });
+
+                            // 2. Guardamos INT en la BD
+                            await fetch(`/Calidad/GuardarMonitoreo?canalId=${encodeURIComponent(c.id)}&arete=${encodeURIComponent(c.arete || '')}&estatusGeneral=Conforme&verdes=${pVerdes}&amarillos=&rojos=`, {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(recInt)
+                            });
+
+                            c.records = [recExt, recInt];
+                            c.status = 'Conforme';
+                            c.isReview = false;
+                            c.previousStatus = null;
+
+                            log(`Canal ${c.id} liberada sin hallazgos (Rápido).`, 'success');
+                            renderAll();
+                            toast(`Canal ${c.id} marcada como Conforme en BD.`, 'success');
+                        } catch (e) {
+                            console.error(e);
+                            toast('Error de red al guardar "Sin Hallazgos".', 'danger');
+                        }
+                    }
+
+            function inspeccionCanal(id){
+                const c = data.channels.find(ch => ch.id === id);
+                if(!c) return;
+                if(c.status === 'Conforme') return toast('Esta canal ya está conforme.','warning');
+                state.selectedChannelId = id;
+                resetForm(false);
+                persist(); renderAll(); setStep(2);
+                toast(`Canal ${c.id} cargada para monitoreo.`, 'success');
+            }
+
+                 
+
+            window.sinHallazgosCanal = sinHallazgosCanal;
+            window.inspeccionCanal = inspeccionCanal;
+            window.selectChannel = selectChannel;
+
+                            // Boton global de auditoria
+                        $('#globalAuditBtn').addEventListener('click', () => {
+                            const datalist = $('#revCanalList');
+                            const input = $('#revCanalInput');
+
+                            // Llenar datalist para el buscador
+                            datalist.innerHTML = data.channels.map(c => `<option value="${c.id}">${c.provider} (Arete: ${c.arete || 'N/A'})</option>`).join('');
+
+                            input.value = ''; // Limpiar busqueda anterior
+
+                            // Limpiar modal
+                            $$('input[name="revDictamen"]')[0].checked = true;
+                            $('#lblRevCorrecta').classList.add('active', 'success-choice');
+                            $('#lblRevFalla').classList.remove('active');
+                            $('#revDetallesDiv').style.display = 'none';
+                            $('#revHallazgos').value = '';
+                            $('#revCuadrantes').value = '';
+                            $('#revObservaciones').value = '';
+
+                            openModal('revisionModal');
+                        });
+
 
             function renderCurrent(){
                 const c = currentChannel();
@@ -2484,7 +2771,25 @@
                 $('#selectedQuadrantNumber').textContent = uniqueQuads.length ? uniqueQuads.join(',') : '—';
                 $('#selectedQuadrantName').textContent = uniqueQuads.length ? `Cuadrante(s): ${uniqueQuads.join(', ')}` : 'Sin cuadrante seleccionado';
                 $('#tableChannel').textContent = `(${c.id})`;
-                $('#currentStatusLabel').textContent = c.status;
+            let container = $('#statusContainer');
+            if (!container) {
+                // Envolvemos el span original en un contenedor para manipularlo fácil
+                const spanStatus = $('#formPanel .panel-header .status');
+                if (spanStatus) {
+                    spanStatus.outerHTML = `<div id="statusContainer" style="display:inline-flex; gap:6px;"></div>`;
+                    container = $('#statusContainer');
+                }
+            }
+
+            if (container) {
+                if (c.isReview && c.previousStatus) {
+                    container.innerHTML = `
+                        <span class="status ${statusClass(c.previousStatus)}"><span class="status-dot"></span>${c.previousStatus}</span>
+                        <span class="status revision"><span class="status-dot"></span>Revisión</span>`;
+                } else {
+                    container.innerHTML = `<span class="status ${statusClass(c.status)}"><span class="status-dot"></span>${c.status}</span>`;
+                }
+            }
 
                 if($('#diagramTitle')) {
                     $('#diagramTitle').innerHTML = `Inspeccionando Canal: <b style="color:var(--primary-dark)">${c.id}</b> · ${c.provider}`;
@@ -2492,75 +2797,101 @@
 
                 if ($('#shiftName')) $('#shiftName').textContent = c.shift;
                 $('#verificationChannel').value = $('#verificationChannel').value || c.id;
-                $('#releaseBtn').disabled = c.status === 'Conforme';
-                $('#releaseBtn').style.opacity = c.status === 'Conforme' ? .5 : 1;
                 renderSideProgress();
             }
 
-            function renderRecords(){
-                const c = currentChannel();
-                if(!c) return;
-                const rows = c.records;
-                $('#affectationsBody').innerHTML = rows.length ? rows.map(r => {
-                    // Evaluar si este registro necesita corrección
-                    const isBad = r.correctiveAction === 'X' || r.reinspection === 'NC' || !r.verificationComplies;
+                   function renderRecords() {
+                        const c = currentChannel();
+                        if (!c) return;
+                        const rows = c.records;
+                        $('#affectationsBody').innerHTML = rows.length ? rows.map(r => {
+                            const isBad = r.correctiveAction === 'X' || r.reinspection === 'NC' || !r.verificationComplies;
 
-                    return `
-                  <tr class="${isBad ? 'row-needs-correction' : ''}">
-                  <td data-label="Vista"><b style="font-size:15px; color: var(--primary-dark)">${r.side}</b> · ${r.side==='EXT'?'Externa':'Interna'}</td>
-                    <td data-label="Hallazgos"><div class="tag-list">${r.findings.length ? r.findings.map(f=>`<span class="finding-tag">${escapeHtml(f)}</span>`).join('') : '<span class="finding-tag clean">Sin hallazgos</span>'}</div></td>
-                    <td data-label="Cuadrante(s)">${r.quadrants.length ? `<div class="quadrant-list">${r.quadrants.map(q=>`<span class="quadrant-pill">${q}</span>`).join('')}</div>` : '—'}</td>
-                    <td data-label="Acciones correctivas"><span class="result-chip ${r.correctiveAction==='X'?'bad':'ok'}">${r.correctiveAction}</span></td>
-                    <td data-label="Reinspección"><span class="result-chip ${r.reinspection==='NC'?'bad':'ok'}">${r.reinspection}</span></td>
-                    <td data-label="Verificación"><b style="color:var(--muted)">C:</b> ${escapeHtml(r.verificationChannel)} ${r.verificationComplies?'<span class="result-chip ok">√</span>':'<span class="result-chip bad">X</span>'}</td>
-                    <td data-label="Observaciones" style="max-width:260px">${escapeHtml(r.observation || '—')}</td>
-                    <td data-label="Inspector">${escapeHtml(r.inspector)}</td>
-                    <td data-label="Fecha / hora">${r.datetime}</td>
-                    <td data-label="Acciones" class="no-print">
-                        <div class="row-actions">
-                            ${isBad
-                                ? `<button class="btn-correct edit-row" data-id="${r.id}">Corregir</button>`
-                                : `<button class="icon-btn edit-row" data-id="${r.id}" title="Editar">✎</button>`}
-                            <button class="icon-btn delete-row" data-id="${r.id}" title="Eliminar">🗑</button>
-                        </div>
-                    </td>
-                  </tr>`
-                }).join('') : `<tr><td colspan="10"><div class="empty">Falta registrar el monitoreo de los lados I y D.</div></td></tr>`;
-                $$('.edit-row').forEach(b=>b.addEventListener('click',()=>loadRecordForEdit(b.dataset.id)));
-                $$('.delete-row').forEach(b=>b.addEventListener('click',()=>deleteRecord(b.dataset.id)));
-            }
+                            // Dibujar las pastillas de los cuadrantes respetando sus colores de la BD
+                            let quadsHtml = '';
+                            if (r.verdes && r.verdes.length) {
+                                quadsHtml += r.verdes.map(q => `<span class="quadrant-pill" style="background:var(--success-soft);color:var(--success);border-color:var(--success);">${q}</span>`).join('');
+                            }
+                            if (r.amarillos && r.amarillos.length) {
+                                quadsHtml += r.amarillos.map(q => `<span class="quadrant-pill" style="background:var(--warning-soft);color:#856404;border-color:var(--warning);">${q}</span>`).join('');
+                            }
+                            if (r.rojos && r.rojos.length) {
+                                quadsHtml += r.rojos.map(q => `<span class="quadrant-pill" style="background:var(--danger-soft);color:var(--danger);border-color:var(--danger);">${q}</span>`).join('');
+                            }
 
-              function renderQuadrants(){
-                const c = currentChannel();
-                if(!c) return;
+                            // Por si hay registros viejos sin color, fallback normal
+                            if (!quadsHtml && r.quadrants && r.quadrants.length) {
+                                quadsHtml = r.quadrants.map(q => `<span class="quadrant-pill">${q}</span>`).join('');
+                            }
 
-                $$('.quadrant-zone').forEach(zone => {
-                    const q = +zone.dataset.quadrant;
-                    const view = zone.dataset.view; // 'EXT' o 'INT'
-                    const key = `${q}-${view}`;
+                            return `
+                          <tr class="${isBad ? 'row-needs-correction' : ''}">
+                          <td data-label="Vista"><b style="font-size:15px; color: var(--primary-dark)">${r.side}</b> · ${r.side === 'EXT' ? 'Externa' : 'Interna'}</td>
+                            <td data-label="Hallazgos"><div class="tag-list">${r.findings.length ? r.findings.map(f => `<span class="finding-tag">${escapeHtml(f)}</span>`).join('') : '<span class="finding-tag clean">Sin hallazgos</span>'}</div></td>
+                            <td data-label="Cuadrante(s)"><div class="quadrant-list">${quadsHtml || '—'}</div></td>
+                            <td data-label="Acciones correctivas"><span class="result-chip ${r.correctiveAction === 'X' ? 'bad' : 'ok'}">${r.correctiveAction}</span></td>
+                            <td data-label="Reinspección"><span class="result-chip ${r.reinspection === 'NC' ? 'bad' : 'ok'}">${r.reinspection}</span></td>
+                            <td data-label="Verificación"><b style="color:var(--muted)">C:</b> ${escapeHtml(r.verificationChannel)} ${r.verificationComplies ? '<span class="result-chip ok">√</span>' : '<span class="result-chip bad">X</span>'}</td>
+                            <td data-label="Observaciones" style="max-width:260px">${escapeHtml(r.observation || '—')}</td>
+                            <td data-label="Inspector">${escapeHtml(r.inspector)}</td>
+                            <td data-label="Fecha / hora">${r.datetime}</td>
+                            <td data-label="Acciones" class="no-print">
+                                <div class="row-actions">
+                                    ${isBad
+                                        ? `<button class="btn-correct edit-row" data-id="${r.id}">Corregir</button>`
+                                        : `<button class="icon-btn edit-row" data-id="${r.id}" title="Editar">✎</button>`}
+                                    <button class="icon-btn delete-row" data-id="${r.id}" title="Eliminar">🗑</button>
+                                </div>
+                            </td>
+                          </tr>`
+                        }).join('') : `<tr><td colspan="10"><div class="empty">Falta registrar el monitoreo de los lados I y D.</div></td></tr>`;
 
-                    // Bloqueo de clics en la vista inactiva
-                    if (state.side !== view) {
-                        zone.classList.add('inactive-side');
-                        zone.style.pointerEvents = 'none';
-                    } else {
-                        zone.classList.remove('inactive-side');
-                        zone.style.pointerEvents = 'auto';
+                        $$('.edit-row').forEach(b => b.addEventListener('click', () => loadRecordForEdit(b.dataset.id)));
+                        $$('.delete-row').forEach(b => b.addEventListener('click', () => deleteRecord(b.dataset.id)));
                     }
 
-                    zone.classList.remove('selected','has-leve','has-moderado','has-severo');
-                    if(state.selectedQuadrants.includes(key)) zone.classList.add('selected');
+                            function renderQuadrants() {
+                        const c = currentChannel();
+                        if(!c) return;
 
-                    const records = c.records.filter(r => r.quadrants.includes(q) && r.side === view);
+                        $$('.quadrant-zone').forEach(zone => {
+                            const q = +zone.dataset.quadrant;
+                            const view = zone.dataset.view;
+                            const key = `${q}-${view}`;
 
-                    if(records.length){
-                        const bad = records.some(r=>r.correctiveAction==='X'||r.reinspection==='NC'||!r.verificationComplies);
-                        const allClean = records.every(r=>r.findings.length === 0);
+                            if (state.side !== view) {
+                                zone.classList.add('inactive-side');
+                                zone.style.pointerEvents = 'none';
+                            } else {
+                                zone.classList.remove('inactive-side');
+                                zone.style.pointerEvents = 'auto';
+                            }
 
-                        zone.classList.add(allClean ? 'has-leve' : (bad ? 'has-severo' : 'has-moderado'));
+                            zone.classList.remove('selected','has-leve','has-moderado','has-severo');
+                            if(state.selectedQuadrants.includes(key)) zone.classList.add('selected');
+
+                            // 1. Buscamos si ya hay un registro de la BD descargado con colores asignados
+                            const recordConsolidado = c.records.find(r => r.side === view && r.verdes !== undefined);
+
+                            if (recordConsolidado && (recordConsolidado.verdes.length || recordConsolidado.amarillos.length || recordConsolidado.rojos.length)) {
+                                // MODO LECTURA DE BASE DE DATOS: Respeta estrictamente los colores guardados
+                                if (recordConsolidado.rojos.includes(q)) zone.classList.add('has-severo');
+                                else if (recordConsolidado.amarillos.includes(q)) zone.classList.add('has-moderado');
+                                else if (recordConsolidado.verdes.includes(q)) zone.classList.add('has-leve');
+                            } else {
+                                // MODO CAPTURA EN VIVO: Lee los fragmentos que estás capturando justo ahora
+                                const localFragments = c.records.filter(r => r.side === view && r.quadrants.includes(q));
+                                if (localFragments.length) {
+                                    const hasErrors = localFragments.some(r => r.correctiveAction === 'X' || r.reinspection === 'NC' || !r.verificationComplies);
+                                    const hasFindings = localFragments.some(r => r.findings.length > 0);
+
+                                    if (hasErrors) zone.classList.add('has-severo');
+                                    else if (hasFindings) zone.classList.add('has-moderado');
+                                    else zone.classList.add('has-leve');
+                                }
+                            }
+                        });
                     }
-                });
-            }
 
             function renderSummary(){
                 const c = currentChannel();
@@ -2594,154 +2925,220 @@
                 syncFormButtons(); renderCurrent(); renderQuadrants();
             }
 
-           function syncFormButtons(){
-                $$('#sideRow .choice-btn').forEach(b=>b.classList.toggle('active',b.dataset.side===state.side));
-                $$('.damage-btn').forEach(b=>b.classList.toggle('active',state.findings.includes(b.dataset.finding)));
-                $$('#correctiveRow .choice-btn').forEach(b=>{
-                    b.disabled = state.noFindings;
-                    b.classList.toggle('active',b.dataset.corrective===state.correctiveAction);
-                });
-                $$('#reinspectionRow .choice-btn').forEach(b=>b.classList.toggle('active',b.dataset.reinspection===state.reinspection));
-                $('#noFindingsBtn').classList.toggle('active',state.noFindings);
+        function syncFormButtons() {
+                        $$('#sideRow .choice-btn').forEach(b => b.classList.toggle('active', b.dataset.side === state.side));
+                        $$('.damage-btn').forEach(b => b.classList.toggle('active', state.findings.includes(b.dataset.finding)));
+                        $$('#correctiveRow .choice-btn').forEach(b => {
+                            b.disabled = state.noFindings;
+                            b.classList.toggle('active', b.dataset.corrective === state.correctiveAction);
+                        });
+                        $$('#reinspectionRow .choice-btn').forEach(b => b.classList.toggle('active', b.dataset.reinspection === state.reinspection));
+                        $('#noFindingsBtn').classList.toggle('active', state.noFindings);
 
-                const saveBtn = $('#saveBtn');
-                const savecuaBtn = $('#savecua'); // Ubicamos el botón verde
-                const c = currentChannel();
+                        const saveBtn = $('#saveBtn');
+                        const savecuaBtn = $('#savecua');
+                        const c = currentChannel();
 
-                if(state.editId){
-                    // MODO CORRECCIÓN: Ocultamos el botón verde
-                    if(savecuaBtn) savecuaBtn.style.display = 'none';
+                        if (state.editId) {
+                            if (savecuaBtn) savecuaBtn.style.display = 'none';
+                            saveBtn.textContent = 'Actualizar corrección';
+                            saveBtn.disabled = false;
+                            saveBtn.style.opacity = '1';
+                            saveBtn.style.cursor = 'pointer';
+                            saveBtn.style.gridColumn = '1 / -1';
+                        } else {
+                            if (savecuaBtn) savecuaBtn.style.display = '';
+                            saveBtn.style.gridColumn = '';
+                            saveBtn.textContent = 'Liberar lado ' + state.side;
 
-                    saveBtn.textContent = 'Actualizar corrección';
-                    saveBtn.disabled = false;
-                    saveBtn.style.opacity = '1';
-                    saveBtn.style.cursor = 'pointer';
-                    // Hacemos que el botón azul ocupe todo el ancho para llamar la atención
-                    saveBtn.style.gridColumn = '1 / -1';
-                } else {
-                    // MODO NORMAL: Mostramos el botón verde
-                    if(savecuaBtn) savecuaBtn.style.display = '';
-                    saveBtn.style.gridColumn = '';
+                            // Contamos los cuadrantes que ya están en la memoria local + los seleccionados en pantalla
+                            const guardadosEnLado = c ? c.records.filter(r => r.side === state.side).flatMap(r => r.quadrants) : [];
+                            const enPantalla = state.selectedQuadrants.map(x => parseInt(x.split('-')[0]));
+                            const reviewedQuadrants = new Set([...guardadosEnLado, ...enPantalla]);
 
-                    saveBtn.textContent = 'Liberar lado ' + state.side;
+                            const allReviewed = reviewedQuadrants.size >= 6;
 
-                    // LÓGICA DE BLOQUEO: Contar cuadrantes únicos guardados en este lado
-                    const reviewedQuadrants = new Set(c ? c.records.filter(r => r.side === state.side).flatMap(r => r.quadrants) : []);
-                    const allReviewed = reviewedQuadrants.size === 6;
+                            saveBtn.disabled = !allReviewed;
+                            saveBtn.style.opacity = allReviewed ? '1' : '0.4';
+                            saveBtn.style.cursor = allReviewed ? 'pointer' : 'not-allowed';
 
-                    saveBtn.disabled = !allReviewed;
-                    saveBtn.style.opacity = allReviewed ? '1' : '0.4';
-                    saveBtn.style.cursor = allReviewed ? 'pointer' : 'not-allowed';
+                            if (!allReviewed) {
+                                saveBtn.title = `Faltan revisar cuadrantes. Llevas ${reviewedQuadrants.size} de 6 seleccionados.`;
+                            } else {
+                                saveBtn.title = 'Liberar lado y guardar en servidor';
+                            }
+                        }
 
-                    if(!allReviewed){
-                        saveBtn.title = `Faltan revisar ${6 - reviewedQuadrants.size} cuadrantes para liberar este lado`;
-                    } else {
-                        saveBtn.title = 'Liberar lado y continuar';
+                        $('#formPanel').classList.toggle('form-editing', !!state.editId);
                     }
-                }
+        // BOTÓN VERDE: Solo guarda en memoria para pintar la pantalla (Cero filas basura)
+                    function saveQuadrant() {
+                        const c = currentChannel();
+                        if (!c) return;
 
-                $('#formPanel').classList.toggle('form-editing',!!state.editId);
-            }
+                        const observation = $('#observation').value.trim();
+                        const verificationChannel = $('#verificationChannel').value.trim();
+                        const verificationComplies = $('#verificationComplies').checked;
 
-           function saveRecord(){
-                const c = currentChannel();
-                if(!c) return;
+                        if (!state.noFindings && !state.findings.length) return toast('Seleccione hallazgos o marque "Sin hallazgos".', 'warning');
+                        if (!state.selectedQuadrants.length) return toast('Seleccione cuadrantes.', 'warning');
 
-                // A) Si estamos editando un renglón, usamos la lógica de guardado normal
-                if (state.editId) {
-                    const observation = $('#observation').value.trim();
-                    const verificationChannel = $('#verificationChannel').value.trim();
-                    const verificationComplies = $('#verificationComplies').checked;
-
-                    if(!state.noFindings && !state.findings.length) return toast('Seleccione al menos un hallazgo o marque “Sin hallazgos”.','warning');
-                    if(!state.selectedQuadrants.length) return toast('Seleccione uno o varios cuadrantes.','warning');
-                    if(state.findings.includes('Otro') && !observation) return toast('Describa el hallazgo "Otro".','warning');
-
-                    const target = c.records.find(r => r.id === state.editId);
-                    if(target){
-                        Object.assign(target, {
+                        const record = {
+                            id: uid(),
+                            side: state.side,
                             findings: state.noFindings ? [] : [...state.findings],
-                            // LA CORRECCIÓN ESTÁ AQUÍ: Ahora siempre guarda el cuadrante, haya hallazgos o no.
-                            quadrants: [...new Set(state.selectedQuadrants.map(x => parseInt(x.split('-')[0])))].sort(),
+                            quadrants: [...new Set(state.selectedQuadrants.map(x => parseInt(x.split('-')[0])))].sort((a,b) => a-b),
                             correctiveAction: state.noFindings ? 'N/A' : state.correctiveAction,
                             reinspection: state.reinspection,
                             verificationChannel: verificationChannel || c.id,
                             verificationComplies,
-                            observation: observation || (state.noFindings ? 'Sin hallazgos visibles.' : ''),
+                            observation: observation || (state.noFindings ? 'OK' : ''),
                             inspector: USUARIO_LOGUEADO,
                             datetime: nowLabel()
-                        });
-                        c.status = deriveStatus(c.records);
-                        persist();
-                        log(`Monitoreo actualizado en ${c.id}, vista ${state.side}.`, c.status==='No conforme'?'danger':'warning');
+                        };
 
+                        c.records.push(record);
+
+                        toast('Cuadrante(s) marcado(s) localmente.', 'info');
+
+                        const savedSide = state.side;
                         resetForm(false);
+                        state.side = savedSide;
+                        syncFormButtons();
                         renderAll();
-                        setStep(3);
-                        toast('Corrección aplicada y guardada.', 'success');
                     }
-                    return;
-                }
 
-                // B) Si NO estamos editando, este botón funge como "Liberar Lado"
-                const sidesDone = new Set(c.records.map(r => r.side));
-                resetForm(false); // Limpia el formulario
+                        async function saveRecord() {
+                        const c = currentChannel();
+                        if (!c) return toast('Seleccione una canal válida primero.', 'warning');
 
-                if (sidesDone.has('EXT') && sidesDone.has('INT')) {
-                    renderAll();
-                    setStep(3);
-                    toast('Ambas vistas de la canal han sido registradas. Verifique la tabla.', 'success');
-                } else {
-                    // Cambiar automáticamente a la vista que falta
-                    state.side = sidesDone.has('EXT') ? 'INT' : 'EXT';
-                    syncFormButtons();
-                    renderAll();
-                    toast(`Vista liberada. Se ha cambiado automáticamente a la vista ${state.side}.`, 'success');
-                }
-            }
-           function saveQuadrant(){
-                const c = currentChannel();
-                if(!c) return;
+                        const verificationChannel = $('#verificationChannel').value.trim();
+                        if (!verificationChannel) return toast('Capture C: de verificación.', 'warning');
 
-                const observation = $('#observation').value.trim();
-                const verificationChannel = $('#verificationChannel').value.trim();
-                const verificationComplies = $('#verificationComplies').checked;
+                        // Si NO estamos corrigiendo y hay selección en pantalla, llamamos a guardar el fragmento
+                        if (!state.editId && state.selectedQuadrants.length > 0) {
+                            saveQuadrant();
+                        }
 
-                if(!state.noFindings && !state.findings.length) return toast('Seleccione al menos un hallazgo o marque “Sin hallazgos”.','warning');
-                if(!state.selectedQuadrants.length) return toast('Seleccione uno o varios cuadrantes en el diagrama.','warning');
-                if(state.findings.includes('Otro') && !observation) return toast('Describa el hallazgo "Otro".','warning');
+                        const registrosDelLado = c.records.filter(r => r.side === state.side);
+                        const reviewedQuadrants = new Set(registrosDelLado.flatMap(r => r.quadrants));
 
-                const record = {
-                    id: uid(),
-                    side: state.side,
-                    findings: state.noFindings ? [] : [...state.findings],
-                    // LA CORRECCIÓN ESTÁ AQUÍ TAMBIÉN:
-                    quadrants: [...new Set(state.selectedQuadrants.map(x => parseInt(x.split('-')[0])))].sort(),
-                    correctiveAction: state.noFindings ? 'N/A' : state.correctiveAction,
-                    reinspection: state.reinspection,
-                    verificationChannel: verificationChannel || c.id,
-                    verificationComplies,
-                    observation: observation || (state.noFindings ? 'Cuadrante revisado sin hallazgos.' : ''),
-                    inspector: USUARIO_LOGUEADO,
-                    datetime: nowLabel()
-                };
+                        if (reviewedQuadrants.size < 6) {
+                            return toast(`Faltan cuadrantes. Llevas ${reviewedQuadrants.size} de 6.`, 'warning');
+                        }
 
-                c.records.push(record);
-                c.status = deriveStatus(c.records);
-                persist();
+                        let verdes = [];
+                        let amarillos = [];
+                        let rojos = [];
+                        let allFindings = [];
+                        let hasError = false;
+                        let ultimasObservaciones = '';
 
-                const msg = record.findings.length ? `Hallazgos guardados en cuadrante(s) ${record.quadrants.join(', ')}.` : `Cuadrante(s) ${record.quadrants.join(', ')} limpios.`;
-                log(msg, record.findings.length ? 'warning' : 'success');
+                        if (state.editId) {
+                            // MODO CORRECCIÓN
+                            const oldR = registrosDelLado[0];
+                            allFindings = oldR.findings;
+                            hasError = state.correctiveAction === 'X' || state.reinspection === 'NC' || !$('#verificationComplies').checked;
 
-                const savedSide = state.side;
-                resetForm(false);
-                state.side = savedSide;
-                syncFormButtons();
-                renderAll();
-                toast(msg, 'success');
-            }
+                            verdes = oldR.verdes || [];
+                            if (!hasError) {
+                                // Si se corrigió con éxito: los rojos pasan a amarillos
+                                amarillos = [...new Set([...(oldR.amarillos || []), ...(oldR.rojos || [])])];
+                                rojos = [];
+                            } else {
+                                // Si sigue mal, se quedan igual
+                                amarillos = oldR.amarillos || [];
+                                rojos = oldR.rojos || [];
+                            }
+                            ultimasObservaciones = $('#observation').value.trim();
+                        } else {
+                            // MODO NORMAL
+                            registrosDelLado.forEach(r => {
+                                if (r.findings.length === 0) {
+                                    verdes.push(...r.quadrants);
+                                } else if (r.correctiveAction === 'X' || r.reinspection === 'NC' || !r.verificationComplies) {
+                                    rojos.push(...r.quadrants);
+                                } else {
+                                    amarillos.push(...r.quadrants);
+                                }
+                            });
+                            allFindings = [...new Set(registrosDelLado.flatMap(r => r.findings))];
+                            hasError = rojos.length > 0;
+                            ultimasObservaciones = registrosDelLado.map(r => r.observation).filter(o=>o&&o!=='OK').join(' | ') || $('#observation').value.trim();
+                        }
 
-            function resetForm(showToast=true){
+                        const recordUnicoBD = {
+                            id: uid(),
+                            side: state.side,
+                            findings: allFindings,
+                            quadrants: [1, 2, 3, 4, 5, 6],
+                            verdes: [...new Set(verdes)].sort((a,b)=>a-b),
+                            amarillos: [...new Set(amarillos)].sort((a,b)=>a-b),
+                            rojos: [...new Set(rojos)].sort((a,b)=>a-b),
+                            correctiveAction: allFindings.length ? (hasError ? 'X' : '√') : 'N/A',
+                            reinspection: hasError ? 'NC' : 'SC',
+                            verificationChannel: verificationChannel,
+                            verificationComplies: !hasError,
+                            observation: ultimasObservaciones || (allFindings.length ? 'Lado con hallazgos.' : 'Lado sin hallazgos.'),
+                            inspector: USUARIO_LOGUEADO,
+                            datetime: nowLabel()
+                        };
+
+                        let futureStatus = deriveStatus({ records: [...c.records.filter(r => r.side !== state.side), recordUnicoBD], isReview: c.isReview });
+
+                        const pVerdes = encodeURIComponent(recordUnicoBD.verdes.join(','));
+                        const pAmarillos = encodeURIComponent(recordUnicoBD.amarillos.join(','));
+                        const pRojos = encodeURIComponent(recordUnicoBD.rojos.join(','));
+
+                        const url = `/Calidad/GuardarMonitoreo?canalId=${encodeURIComponent(c.id)}&arete=${encodeURIComponent(c.arete || '')}&estatusGeneral=${encodeURIComponent(futureStatus)}&verdes=${pVerdes}&amarillos=${pAmarillos}&rojos=${pRojos}`;
+
+                        try {
+                            const response = await fetch(url, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(recordUnicoBD)
+                            });
+
+                            const result = await response.json();
+
+                            if (result.success) {
+                                c.records = c.records.filter(r => r.side !== state.side);
+                                c.records.push(recordUnicoBD);
+                                c.status = futureStatus;
+
+                                if (state.editId) {
+                                    // Estábamos corrigiendo, así que lo enviamos al Paso 3 directo
+                                    state.editId = null;
+                                    resetForm(false);
+                                    renderAll();
+                                    setStep(3);
+                                    window.scrollTo({top: 100, behavior: 'smooth'});
+                                    toast(`Corrección aplicada.`, 'success');
+                                } else {
+                                    if (state.side === 'EXT') {
+                                        resetForm(false);
+                                        state.side = 'INT';
+                                        syncFormButtons();
+                                        renderAll();
+                                        toast('Lado EXT liberado. Proceda con vista INT.', 'success');
+                                        window.scrollTo({top: 0, behavior: 'smooth'});
+                                    } else {
+                                        resetForm(false);
+                                        renderAll();
+                                        setStep(3);
+                                        window.scrollTo({top: 100, behavior: 'smooth'});
+                                        toast(`Canal inspeccionada. Estatus: ${c.status}`, 'success');
+                                    }
+                                }
+                            } else {
+                                toast('Error de Servidor: ' + result.message, 'danger');
+                            }
+                        } catch (error) {
+                            toast('Error de red al conectar con SIGO.', 'danger');
+                        }
+                    }
+
+                    function resetForm(showToast=true){
                 state.selectedQuadrants=[]; state.findings=[]; state.side='EXT'; state.noFindings=false;
                 state.correctiveAction='√'; state.reinspection='SC'; state.editId=null;
                 $('#observation').value='';
@@ -2751,52 +3148,64 @@
                 if(showToast) toast('Formulario restablecido.','success');
             }
 
-          function loadRecordForEdit(id){
-                const r = currentChannel().records.find(x=>x.id===id);
-                if(!r) return;
+                  function loadRecordForEdit(id) {
+                        const r = currentChannel().records.find(x => x.id === id);
+                        if (!r) return;
 
-                state.editId=r.id; state.side=r.side; state.findings=[...r.findings];
+                        state.editId = r.id;
+                        state.side = r.side;
+                        state.findings = [...r.findings];
+                        state.noFindings = !r.findings.length;
 
-        state.selectedQuadrants = r.quadrants.map(q => `${q}-${r.side}`);
-                state.noFindings=!r.findings.length;
+                        // LÓGICA DE AUTOCORRECCIÓN
+                        const wasBad = r.correctiveAction === 'X' || r.reinspection === 'NC' || !r.verificationComplies;
 
-                // LÓGICA DE AUTOCORRECCIÓN
-                const wasBad = r.correctiveAction === 'X' || r.reinspection === 'NC' || !r.verificationComplies;
-                state.correctiveAction = wasBad ? '√' : r.correctiveAction;
-                state.reinspection = wasBad ? 'SC' : r.reinspection;
-                $('#verificationComplies').checked = true;
+                        // Solo seleccionamos en pantalla los cuadrantes afectados si fue malo
+                        if (wasBad) {
+                            const problemQuads = [...(r.amarillos || []), ...(r.rojos || [])];
+                            if (problemQuads.length) {
+                                state.selectedQuadrants = problemQuads.map(q => `${q}-${r.side}`);
+                            } else {
+                                state.selectedQuadrants = r.quadrants.map(q => `${q}-${r.side}`);
+                            }
+                        } else {
+                            // Si estaba bien, seleccionamos los verdes
+                            if (r.verdes && r.verdes.length) {
+                                state.selectedQuadrants = r.verdes.map(q => `${q}-${r.side}`);
+                            } else {
+                                state.selectedQuadrants = r.quadrants.map(q => `${q}-${r.side}`);
+                            }
+                        }
 
-                // Agregar etiqueta de corregido a la observación si estaba mal
-                let obs = r.observation;
-                if(wasBad && !obs.includes('[CORREGIDO]')) obs += ' [CORREGIDO]';
+                        state.correctiveAction = wasBad ? '√' : r.correctiveAction;
+                        state.reinspection = wasBad ? 'SC' : r.reinspection;
+                        $('#verificationComplies').checked = true;
 
-                $('#observation').value = obs;
-                $('#verificationChannel').value = r.verificationChannel;
+                        let obs = r.observation;
+                        if (wasBad && !obs.includes('[CORREGIDO]')) obs += ' [CORREGIDO]';
 
-                syncFormButtons(); renderCurrent(); renderQuadrants();
-                setStep(2);
-                $('#formPanel').scrollIntoView({behavior:'smooth',block:'start'});
+                        $('#observation').value = obs;
+                        $('#verificationChannel').value = r.verificationChannel;
 
-                if(wasBad){
-                    toast(`Corrigiendo hallazgos del lado ${r.side}. Verifique y actualice.`, 'warning');
-                } else {
-                    toast(`Editando monitoreo del lado ${r.side}.`, 'info');
-                }
-            }
+                        syncFormButtons(); renderCurrent(); renderQuadrants();
+                        setStep(2);
+                        $('#formPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+                        if (wasBad) {
+                            toast(`Corrigiendo hallazgos del lado ${r.side}. Verifique y actualice.`, 'warning');
+                        } else {
+                            toast(`Editando monitoreo del lado ${r.side}.`, 'info');
+                        }
+                    }
 
             function deleteRecord(id){
                 if(!confirm('¿Eliminar este monitoreo PCC1B del historial?')) return;
                 const c=currentChannel();
-                c.records=c.records.filter(r=>r.id!==id); c.status=deriveStatus(c.records);
+                        c.records=c.records.filter(r=>r.id!==id); c.status=deriveStatus(c);
                 persist(); log(`Monitoreo eliminado de ${c.id}.`,'warning'); resetForm(false); renderAll(); toast('Monitoreo eliminado.','warning');
             }
 
-            function markConforming(){
-                const c=currentChannel();
-                if(new Set(c.records.map(r=>r.side)).size < 2) return toast('Debe registrar los lados I y D antes de cerrar la canal.','warning');
-                if(c.records.some(r=>r.correctiveAction==='X'||r.reinspection==='NC'||!r.verificationComplies)) return toast('La canal conserva X, NC o verificación sin cumplimiento. Corrija el renglón correspondiente antes de cerrarla.','danger');
-                c.status='Conforme'; persist(); log(`Canal ${c.id} cerrada como conforme.`, 'success'); renderAll(); toast(`Canal ${c.id} marcada conforme.`,'success');
-            }
+          
 
             function renderNonconforming(){
                 const items=data.channels.filter(c=>c.status==='No conforme');
@@ -2980,7 +3389,12 @@
             $('#savecua')?.addEventListener('click',saveQuadrant);
             $('#clearBtn').addEventListener('click',()=>resetForm(true));
             $('#cancelBtn').addEventListener('click',()=>{resetForm(false);toast('Captura cancelada.','warning');});
-            $('#releaseBtn').addEventListener('click',markConforming);
+                   $('#finishBtn')?.addEventListener('click', () => {
+                        resetForm(false);
+                        setStep(1);
+                        window.scrollTo({top: 0, behavior: 'smooth'});
+                        toast('Inspección finalizada. Listo para la siguiente canal.', 'success');
+                    });
             $('#exportBtn').addEventListener('click',exportCsv);
             $('#printBtn').addEventListener('click',printReport);
             $('#openRetained').addEventListener('click',()=>{renderNonconforming();openModal('retainedModal');});
@@ -2995,12 +3409,14 @@
             $('#step3Prev')?.addEventListener('click',()=>setStep(2));
             $('#step3NewChannel')?.addEventListener('click',()=>setStep(1));
 
-            // Logica del boton de reinicio ajustada para recargar la pagina
-            $('#resetDemoBtn')?.addEventListener('click',()=>{
-                if(!confirm('¿Limpiar historial local y recargar datos del servidor?')) return;
-                localStorage.removeItem(STORAGE_KEY);
-                location.reload();
-            });
+        // Limpieza exclusiva de la bitacora visible
+                    $('#clearLogBtn').addEventListener('click',()=>{
+                        if(confirm('¿Limpiar la bitácora visible?')){
+                            data.activities=[];
+                            persist();
+                            renderActivity();
+                        }
+                    });
 
             $('#clearLogBtn').addEventListener('click',()=>{if(confirm('¿Limpiar la bitácora visible?')){data.activities=[];persist();renderActivity();}});
             $$('[data-close-modal]').forEach(b=>b.addEventListener('click',()=>closeModal(b.closest('.modal-backdrop').id)));
@@ -3012,7 +3428,68 @@
                 if(b.dataset.view==='summary') renderSummary();
             }));
 
-           
+                   // Interfaz del Modal de Revisión
+                $$('input[name="revDictamen"]').forEach(radio => {
+                    radio.addEventListener('change', (e) => {
+                        const esCorrecto = e.target.value === "1";
+                        $('#lblRevCorrecta').classList.toggle('active', esCorrecto);
+                        $('#lblRevCorrecta').classList.toggle('success-choice', esCorrecto);
+                        $('#lblRevFalla').classList.toggle('active', !esCorrecto);
+                        $('#revDetallesDiv').style.display = esCorrecto ? 'none' : 'block';
+                    });
+                });
+
+        $('#btnGuardarRevision').addEventListener('click', async () => {
+                            const id = $('#revCanalInput').value.trim(); // Leer texto del buscador
+                            if (!id) return toast('Busque y seleccione una canal para auditar.', 'warning');
+
+                            const c = data.channels.find(ch => ch.id === id);
+                            if (!c) return toast('El numero de canal ingresado no existe.', 'danger'); // Blindaje de seguridad
+
+                            const esCorrecto = $$('input[name="revDictamen"]')[0].checked;
+                            const hallazgos = $('#revHallazgos').value.trim();
+                            const vista = $('#revVista').value;
+                            const cuadrantesRaw = $('#revCuadrantes').value.trim();
+                            const observaciones = $('#revObservaciones').value.trim();
+
+                            if (!esCorrecto && (!hallazgos || !cuadrantesRaw)) {
+                                return toast('Especifique los hallazgos y cuadrantes omitidos.', 'warning');
+                            }
+
+                            // ... (El resto del codigo hacia abajo se queda exactamente igual) ...
+
+                    // Combinamos la vista con los cuadrantes para guardar un solo texto claro
+                    const cuadrantesFinales = cuadrantesRaw ? `${vista} (Cuad: ${cuadrantesRaw})` : '';
+
+                    try {
+                        // Preparamos los parámetros para el querystring
+                        const params = new URLSearchParams({
+                            canalId: id,
+                            revisionCorrecta: esCorrecto,
+                            hallazgos: esCorrecto ? '' : hallazgos,
+                            cuadrantes: esCorrecto ? '' : cuadrantesFinales, // Enviamos el texto combinado
+                            observaciones: observaciones
+                        });
+
+                        const response = await fetch(`/Calidad/GuardarRevisionAleatoria?${params.toString()}`, { method: 'POST' });
+                        const result = await response.json();
+
+                        if (result.success) {
+                            c.previousStatus = c.status;
+                            c.status = 'Revisión';
+                            c.isReview = true;
+
+                            closeModal('revisionModal');
+                            renderAll();
+                            toast(`Auditoría guardada para la canal ${id}.`, 'success');
+                        } else {
+                            toast('Error al guardar revisión: ' + result.message, 'danger');
+                        }
+                    } catch (e) {
+                        console.error(e);
+                        toast('Error de red al guardar la revisión.', 'danger');
+                    }
+                });
 
             document.addEventListener('click',e=>{if(!e.target.closest('.filter-menu')) $('#filterPopover').classList.remove('open');});
 
@@ -3034,6 +3511,50 @@
 
             if(currentChannel()) $('#verificationChannel').value=currentChannel().id;
             syncFormButtons(); renderAll(); setStep(1);
+
+                    // Sincronización Silenciosa (Reemplazo sin recargar)
+                    async function syncCanalesSilencioso() {
+                        const paso1Activo = document.getElementById('step1').classList.contains('active');
+                        const hayBusqueda = document.getElementById('queueSearch').value.trim() !== '';
+                        const modalAbierto = document.getElementById('revisionModal').classList.contains('open');
+
+                        // Solo actualizamos si el usuario está viendo la lista (Paso 1) y no está buscando
+                        if (!paso1Activo || hayBusqueda || modalAbierto) return;
+
+                        try {
+                            const urlFresca = '/Calidad/CuadrantesData?_t=' + new Date().getTime();
+                            const res = await fetch(urlFresca);
+                            if (!res.ok) return;
+
+                            const canalesNuevos = await res.json();
+
+                            if (canalesNuevos && Array.isArray(canalesNuevos)) {
+                                // 1. Normalizamos los datos entrantes (los formatea bonito para C#)
+                                const datosNormalizados = normalizeData({ channels: canalesNuevos, activities: data.activities });
+
+                                // 2. Reemplazo Maestro: actualizamos la memoria SIN tocar el estado actual (state)
+                                data.channels = datosNormalizados.channels;
+
+                                // 3. Capturamos en qué pixel exacto iba el scroll de la lista
+                                const listEl = document.getElementById('queueList');
+                                const scrollGuardado = listEl ? listEl.scrollTop : 0;
+
+                                // 4. Redibujamos la pantalla
+                                renderMetrics();
+                                renderQueue();
+
+                                // 5. Le devolvemos el scroll a la lista
+                                if (listEl) listEl.scrollTop = scrollGuardado;
+                            }
+                        } catch (e) {
+                            console.error('[SYNC] Error actualizando canales silenciosamente');
+                        }
+                    }
+
+                    // Ejecuta el escaneo silencioso cada 15 segundos
+                    setInterval(syncCanalesSilencioso, 15000);
+
+                 
         })();
     </script>
 }

@@ -1,0 +1,567 @@
+﻿@model List<Plataforma_CG.Models.CanalViewModel>
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Histórico PCC1B";
+}
+
+<style>
+    :root {
+        --bg: #fdf5f5;
+        --surface: #fffafa;
+        --surface-2: #fce8e8;
+        --text: #212529;
+        --muted: #856464;
+        --line: #f5dcdc;
+        --primary: #8B0000;
+        --primary-dark: #660000;
+        --primary-soft: #fde8e8;
+        --success: #198754;
+        --warning: #ffc107;
+        --danger: #dc3545;
+        --info: #0dcaf0;
+        --success-soft: #d1e7dd;
+        --warning-soft: #fff3cd;
+        --danger-soft: #f8d7da;
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    html {
+        scroll-behavior: smooth;
+    }
+
+    .topbar {
+        background: var(--primary);
+        color: #fff;
+        padding: 15px 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 4px 15px rgba(0,0,0,.15);
+    }
+
+    .btn-light {
+        background: #fff;
+        color: var(--primary);
+        padding: 8px 15px;
+        border-radius: 6px;
+        font-weight: bold;
+        text-decoration: none;
+        border: none;
+        cursor: pointer;
+    }
+
+    .main {
+        padding: 20px 24px;
+    }
+
+    .filter-card {
+        background: var(--surface);
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        display: flex;
+        gap: 15px;
+        align-items: flex-end;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+    }
+
+    .input-ctrl {
+        padding: 8px 12px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        outline: none;
+    }
+
+        .input-ctrl:focus {
+            border-color: var(--primary);
+        }
+
+    .table-card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+    }
+
+    th, td {
+        padding: 12px;
+        border-bottom: 1px solid var(--line);
+        font-size: 12px;
+    }
+
+    th {
+        background: var(--surface-2);
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        font-size: 11px;
+    }
+
+    .badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: bold;
+    }
+
+    .bg-success {
+        background: #d1e7dd;
+        color: #0f5132;
+    }
+
+    .bg-warning {
+        background: #fff3cd;
+        color: #664d03;
+    }
+
+    .bg-danger {
+        background: #f8d7da;
+        color: #842029;
+    }
+
+    .bg-secondary {
+        background: #e2e3e5;
+        color: #41464b;
+    }
+
+    .bg-info {
+        background: #cff4fc;
+        color: #055160;
+        border: 1px solid #b6effb;
+    }
+
+    .details-row {
+        background: #fafafa;
+        display: none;
+    }
+
+        .details-row.open {
+            display: table-row;
+        }
+
+    /* ESTILOS VISUALES IDÉNTICOS A CAPTURA (Pastillas y chips) */
+    .tag-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+    }
+
+    .finding-tag {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 4px;
+        padding: 4px 6px;
+        background: var(--danger-soft);
+        color: #842029;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+        .finding-tag.clean {
+            background: var(--success-soft);
+            color: #0f5132;
+        }
+
+    .quadrant-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    .quadrant-pill {
+        display: inline-grid;
+        place-items: center;
+        min-width: 24px;
+        height: 24px;
+        border-radius: 4px;
+        font-weight: 700;
+        font-size: 11px;
+        border: 1px solid transparent;
+    }
+
+        .quadrant-pill.q-green {
+            background: var(--success-soft);
+            color: var(--success);
+            border-color: var(--success);
+        }
+
+        .quadrant-pill.q-yellow {
+            background: var(--warning-soft);
+            color: #856404;
+            border-color: var(--warning);
+        }
+
+        .quadrant-pill.q-red {
+            background: var(--danger-soft);
+            color: var(--danger);
+            border-color: var(--danger);
+        }
+
+        .quadrant-pill.q-gray {
+            background: #e9ecef;
+            color: #495057;
+            border-color: #ced4da;
+        }
+
+    .result-chip {
+        display: inline-flex;
+        min-width: 34px;
+        justify-content: center;
+        border-radius: 4px;
+        padding: 4px 6px;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+        .result-chip.ok {
+            color: #0f5132;
+            background: var(--success-soft);
+        }
+
+        .result-chip.bad {
+            color: #842029;
+            background: var(--danger-soft);
+        }
+
+    /* Nueva tarjeta para la revision aleatoria */
+    .revision-card {
+        margin: 10px 15px 20px;
+        padding: 16px;
+        border-radius: 8px;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 15px;
+    }
+
+        .revision-card.rev-ok {
+            background: #f0fdf4;
+            border-left: 4px solid #16a34a;
+        }
+
+        .revision-card.rev-bad {
+            background: #fef2f2;
+            border-left: 4px solid #dc2626;
+        }
+
+    .rev-title {
+        grid-column: 1 / -1;
+        font-weight: 800;
+        font-size: 13px;
+        margin-bottom: 5px;
+    }
+
+    .rev-ok .rev-title {
+        color: #16a34a;
+    }
+
+    .rev-bad .rev-title {
+        color: #dc2626;
+    }
+
+    .rev-label {
+        display: block;
+        font-size: 10px;
+        color: #6c757d;
+        text-transform: uppercase;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+
+    .rev-val {
+        font-size: 13px;
+        font-weight: 600;
+        color: #212529;
+    }
+</style>
+
+<div class="topbar">
+    <h1 style="margin:0; font-size: 20px;">Log Histórico · Inspección de Canal</h1>
+    <a href="/Calidad/Cuadrantes" class="btn-light">Volver a Captura</a>
+</div>
+
+<div class="main">
+    <div class="filter-card">
+        <form method="get" action="/Calidad/Historico" style="display: flex; gap: 15px; align-items: flex-end;">
+            <div>
+                <label style="display:block; font-size: 11px; font-weight: bold; color: var(--muted); margin-bottom: 5px;">Seleccionar Fecha</label>
+                <input type="date" name="fecha" class="input-ctrl" value="@ViewBag.FechaSeleccionada" />
+            </div>
+            <button type="submit" class="btn-light" style="background: var(--primary); color: #fff;">Buscar Registros</button>
+        </form>
+
+        <div style="margin-left: auto; display: flex; align-items: flex-end;">
+            <div style="width: 300px;">
+                <label style="display:block; font-size: 11px; font-weight: bold; color: var(--muted); margin-bottom: 5px;">Búsqueda Rápida en esta página</label>
+                <input type="text" id="searchInput" class="input-ctrl" style="width: 100%;" placeholder="Filtrar registros visibles..." />
+            </div>
+        </div>
+    </div>
+
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Canal</th>
+                    <th>Proveedor</th>
+                    <th>Lote</th>
+                    <th>Estatus</th>
+                    <th>Auditoría</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                @if (!Model.Any())
+                {
+                    <tr id="emptyRow"><td colspan="6" style="text-align:center; padding: 20px; color: var(--muted);">No hay canales registradas en esta fecha.</td></tr>
+                }
+                @foreach (var c in Model)
+                {
+                    string badgeClass = c.Status == "Conforme" ? "bg-success" : c.Status == "No conforme" ? "bg-danger" : c.Status == "Revisión" ? "bg-secondary" : "bg-warning";
+
+                    <tr class="main-row">
+                        <td><b>@c.Id</b></td>
+                        <td>@c.Provider</td>
+                        <td>@c.Lot</td>
+                        <td><span class="badge @badgeClass">@c.Status</span></td>
+                        <td>
+                            @if (c.RevisionRealizada)
+                            {
+                                <span class="badge bg-info">Revisión Aleatoria</span>
+                            }
+                            else
+                            {
+                                <span style="color:var(--muted); font-size: 10px;">Sin auditar</span>
+                            }
+                        </td>
+                        <td>
+                            @if (c.Records.Any() || c.RevisionRealizada)
+                            {
+                                <button type="button" class="btn-light toggle-btn" data-target="det-@c.Id" style="background: var(--surface-2); color: var(--text); padding: 5px 10px;">Ver detalles ↓</button>
+                            }
+                            else
+                            {
+                                <span style="color:var(--muted); font-size:11px;">Sin capturas</span>
+                            }
+                        </td>
+                    </tr>
+                    @if (c.Records.Any() || c.RevisionRealizada)
+                    {
+                        <tr class="details-row" id="det-@c.Id">
+                            <td colspan="6" style="padding: 15px 0;">
+
+                                <!-- Caja de Revision Aleatoria Mejorada -->
+                                @if (c.RevisionRealizada)
+                                {
+                                    <div class="revision-card @(c.RevisionCorrecta == true ? "rev-ok" : "rev-bad")">
+                                        <div class="rev-title">
+                                            Auditoría Aleatoria - Evaluado por: @c.RevisionInspector
+                                        </div>
+                                        <div>
+                                            <span class="rev-label">Dictamen</span>
+                                            <span class="rev-val">
+                                                @if (c.RevisionCorrecta == true)
+                                                {
+                                                    <span>✓ Inspección Correcta</span>
+                                                }
+                                                else
+                                                {
+
+                                                    <span>X Hallazgos Omitidos</span>
+                                                }
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span class="rev-label">Hallazgos omitidos</span>
+                                            <span class="rev-val">@(string.IsNullOrEmpty(c.RevisionHallazgos) ? "—" : c.RevisionHallazgos)</span>
+                                        </div>
+                                        <div>
+                                            <span class="rev-label">Cuadrantes omitidos</span>
+                                            <span class="rev-val">@(string.IsNullOrEmpty(c.RevisionCuadrantes) ? "—" : c.RevisionCuadrantes)</span>
+                                        </div>
+                                        <div>
+                                            <span class="rev-label">Observaciones</span>
+                                            <span class="rev-val">@(string.IsNullOrEmpty(c.RevisionObservaciones) ? "—" : c.RevisionObservaciones)</span>
+                                        </div>
+                                    </div>
+                                }
+
+                                <!-- Tabla con diseño de captura -->
+                                @if (c.Records.Any())
+                                {
+                                    <div style="padding: 0 15px 15px;">
+                                        <table style="width: 100%; border-collapse: collapse;">
+                                            <thead>
+                                                <tr style="background: var(--surface-2); text-align: left; font-size: 10px; color: var(--muted);">
+                                                    <th style="padding: 10px;">VISTA</th>
+                                                    <th style="padding: 10px;">HALLAZGOS</th>
+                                                    <th style="padding: 10px;">CUADRANTES</th>
+                                                    <th style="padding: 10px;">ACCIÓN CORRECTIVA</th>
+                                                    <th style="padding: 10px;">REINSPECCIÓN</th>
+                                                    <th style="padding: 10px;">INSPECTOR</th>
+                                                    <th style="padding: 10px;">HORA</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var reg in c.Records)
+                                                {
+                                                    var isBad = reg.CorrectiveAction == "X" || reg.Reinspection == "NC";
+                                                    <tr style="border-bottom: 1px solid var(--line); @(isBad ? "background-color: var(--danger-soft);" : "")">
+                                                        <td style="padding: 10px;">
+                                                            <b style="font-size: 14px; color: var(--primary-dark);">@reg.Side</b>
+                                                        </td>
+
+                                                        <!-- Etiquetas de hallazgos -->
+                                                        <td style="padding: 10px;">
+                                                            <div class="tag-list">
+                                                                @if (reg.Findings == null || !reg.Findings.Any())
+                                                                {
+                                                                    <span class="finding-tag clean">Sin hallazgos</span>
+                                                                }
+                                                                else
+                                                                {
+                                                                    foreach (var f in reg.Findings)
+                                                                    {
+                                                                        <span class="finding-tag">@f</span>
+                                                                    }
+                                                                }
+                                                            </div>
+                                                        </td>
+
+                                                        <!-- Pastillas de Cuadrantes con color -->
+                                                        <td style="padding: 10px;">
+                                                            <div class="quadrant-list">
+                                                                @if ((reg.CuadrantesVerdes != null && reg.CuadrantesVerdes.Any()) ||
+                                                                                                                (reg.CuadrantesAmarillos != null && reg.CuadrantesAmarillos.Any()) ||
+                                                                                                                (reg.CuadrantesRojos != null && reg.CuadrantesRojos.Any()))
+                                                                {
+                                                                    if (reg.CuadrantesVerdes != null)
+                                                                    {
+                                                                        foreach (var q in reg.CuadrantesVerdes)
+                                                                        {
+                                                                            <span class="quadrant-pill q-green">@q</span>
+                                                                        }
+                                                                    }
+                                                                    if (reg.CuadrantesAmarillos != null)
+                                                                    {
+                                                                        foreach (var q in reg.CuadrantesAmarillos)
+                                                                        {
+
+                                                                            <span class="quadrant-pill q-yellow">@q</span>
+                                                                        }
+                                                                    }
+                                                                    if (reg.CuadrantesRojos != null)
+                                                                    {
+                                                                        foreach (var q in reg.CuadrantesRojos)
+                                                                        {
+
+                                                                            <span class="quadrant-pill q-red">@q</span>
+                                                                        }
+                                                                    }
+                                                                }
+                                                                else if (reg.Quadrants != null && reg.Quadrants.Any())
+                                                                {
+                                                                    // Fallback por si son registros viejos sin color
+                                                                    foreach (var q in reg.Quadrants)
+                                                                    {
+
+                                                                        <span class="quadrant-pill q-gray">@q</span>
+                                                                    }
+                                                                }
+                                                                else
+                                                                {
+                                                                    <span>—</span>
+                                                                }
+                                                            </div>
+                                                        </td>
+
+                                                        <!-- Chips de Estatus -->
+                                                        <td style="padding: 10px;">
+                                                            <span class="result-chip @(reg.CorrectiveAction == "X" ? "bad" : "ok")">@reg.CorrectiveAction</span>
+                                                        </td>
+                                                        <td style="padding: 10px;">
+                                                            <span class="result-chip @(reg.Reinspection == "NC" ? "bad" : "ok")">@reg.Reinspection</span>
+                                                        </td>
+
+                                                        <td style="padding: 10px; font-size: 12px;">@reg.Inspector</td>
+                                                        <td style="padding: 10px; font-size: 12px; color: var(--muted);">@reg.Datetime</td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+
+        <!-- Controles de Paginación Rápida -->
+        <div style="display:flex; justify-content:space-between; align-items:center; padding: 15px; border-top: 1px solid var(--line); background: var(--surface-2);">
+            <span style="font-size:12px; color:var(--muted); font-weight: bold;">
+                Página @ViewBag.PaginaActual
+            </span>
+            <div style="display:flex; gap: 8px;">
+                @if (ViewBag.PaginaActual > 1)
+                {
+                    <a href="/Calidad/Historico?fecha=@ViewBag.FechaSeleccionada&pagina=@(ViewBag.PaginaActual - 1)" class="btn-light" style="padding: 6px 12px; font-size:11px; border:1px solid var(--line); color: var(--text);">← Anterior</a>
+                }
+                @if (ViewBag.TieneMasPaginas == true)
+                {
+                    <a href="/Calidad/Historico?fecha=@ViewBag.FechaSeleccionada&pagina=@(ViewBag.PaginaActual + 1)" class="btn-light" style="padding: 6px 12px; font-size:11px; border:1px solid var(--line); color: var(--text);">Siguiente →</a>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.querySelectorAll('.toggle-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const target = document.getElementById(btn.dataset.target);
+                target.classList.toggle('open');
+                btn.textContent = target.classList.contains('open') ? 'Ocultar detalles ↑' : 'Ver detalles ↓';
+            });
+        });
+
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.addEventListener('input', function(e) {
+                const term = e.target.value.toLowerCase();
+                const rows = document.querySelectorAll('tbody#tableBody .main-row');
+
+                rows.forEach(row => {
+                    const id = row.cells[0].textContent.toLowerCase();
+                    const prov = row.cells[1].textContent.toLowerCase();
+                    const lote = row.cells[2].textContent.toLowerCase();
+                    const status = row.cells[3].textContent.toLowerCase();
+                    const isAudit = row.cells[4].textContent.toLowerCase();
+
+                    if (id.includes(term) || prov.includes(term) || lote.includes(term) || status.includes(term) || isAudit.includes(term)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                        const btn = row.querySelector('.toggle-btn');
+                        if(btn) {
+                            document.getElementById(btn.dataset.target).classList.remove('open');
+                            btn.textContent = 'Ver detalles ↓';
+                        }
+                    }
+                });
+            });
+        }
+    </script>
+}

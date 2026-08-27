@@ -61,6 +61,31 @@
         margin-bottom: 1.5rem;
     }
 
+    .planta-global-selector {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .planta-global-selector .form-select {
+        background-color: rgba(255,255,255,0.15);
+        color: #fff;
+        border: 1px solid rgba(255,255,255,0.35);
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .planta-global-selector .form-select option {
+        color: #333;
+        background-color: #fff;
+    }
+
+    .planta-global-selector .form-select:focus {
+        border-color: #fff;
+        box-shadow: 0 0 0 0.2rem rgba(255,255,255,0.15);
+    }
+
     .kpi-container {
         display: flex;
         flex-wrap: wrap;
@@ -4135,8 +4160,14 @@ body:has(#inventarioSistemasApp) {
                 <p class="mb-0" style="font-size: 0.85rem; opacity: 0.85;">Búsqueda, asignaciones, historial auditable y alertas.</p>
             </div>
             <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
-                
-
+                <div class="planta-global-selector">
+                    <label for="plantaGlobal" style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; opacity:.85;">Planta</label>
+                    <select id="plantaGlobal" class="form-select form-select-sm" onchange="cambiarPlantaGlobal()" style="min-width:150px;">
+                        <option value="">TODAS LAS PLANTAS</option>
+                        <option value="TIF">TIF</option>
+                        <option value="P1">P1</option>
+                    </select>
+                </div>
                 <button type="button"
                         class="btn btn-sm btn-outline-light fw-bold stock-bell-btn is-clear"
                         id="stockAlertBellButton"
@@ -4146,6 +4177,16 @@ body:has(#inventarioSistemasApp) {
                     <span class="stock-bell-icon"><i class="bi bi-bell-fill"></i></span>
                     <span>Pendientes</span>
                     <span class="stock-bell-count" id="stockAlertBellCount">0</span>
+                </button>
+
+                <button type="button"
+                        class="btn btn-sm btn-outline-light fw-bold"
+                        onclick="abrirModalTransferencias()"
+                        title="Transferencias de artículos entre plantas"
+                        aria-label="Transferencias de artículos entre plantas">
+                    <span class="me-1"><i class="bi bi-arrow-left-right"></i></span>
+                    <span>Transferencias</span>
+                    <span class="stock-bell-count" id="transfPendientesCount" style="display:none;">0</span>
                 </button>
 
                 <button type="button"
@@ -4662,8 +4703,9 @@ body:has(#inventarioSistemasApp) {
                                             <select id="entPlanta" class="form-select form-select-sm border-danger">
                                                 <option value="">Planta *</option>
                                                 <option value="TIF">TIF</option>
+                                                <option value="ALMACÉN TIF">ALMACÉN TIF</option>
                                                 <option value="P1">P1</option>
-                                                <option value="ALMACEN">ALMACÉN</option>
+                                                <option value="ALMACÉN P1">ALMACÉN P1</option>
                                                 <option value="BANCO DE PIEZAS">BANCO DE PIEZAS</option>
                                                 <option value="BAJA TOTAL">BAJA TOTAL</option>
                                             </select>
@@ -4781,8 +4823,11 @@ body:has(#inventarioSistemasApp) {
                                     <select class="form-select" id="asigPlanta">
                                         <option value="">Seleccione...</option>
                                         <option value="TIF">TIF</option>
+                                        <option value="ALMACÉN TIF">ALMACÉN TIF</option>
                                         <option value="P1">P1</option>
-                                        <option value="ALMACEN">ALMACÉN</option>
+                                        <option value="ALMACÉN P1">ALMACÉN P1</option>
+                                        <option value="BANCO DE PIEZAS">BANCO DE PIEZAS</option>
+                                        <option value="BAJA TOTAL">BAJA TOTAL</option>
                                     </select>
                                 </div>
                                 <div class="col-12 col-md-7">
@@ -5185,7 +5230,6 @@ body:has(#inventarioSistemasApp) {
                                 <option value="">Todas</option>
                                 <option value="TIF">TIF</option>
                                 <option value="P1">P1</option>
-                                <option value="ALMACEN">ALMACÉN</option>
                             </select>
                         </div>
                         <div class="col-12 col-sm-6 col-lg-2">
@@ -5300,6 +5344,93 @@ body:has(#inventarioSistemasApp) {
             <button type="button" class="btn-close btn-close-white ms-2 mb-1" data-bs-dismiss="toast" aria-label="Cerrar"></button>
         </div>
         <div class="toast-body bg-white" id="stockAlertToastBody"></div>
+    </div>
+</div>
+
+<!-- ========================================================= -->
+<!-- MODAL TRANSFERENCIAS ENTRE PLANTAS                        -->
+<!-- ========================================================= -->
+<div class="modal fade" id="modalTransferencias" tabindex="-1" aria-labelledby="modalTransferenciasTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header" style="background: var(--brand-main, #7a0c13); color:#fff;">
+                <div>
+                    <h5 class="modal-title" id="modalTransferenciasTitulo"><i class="bi bi-arrow-left-right me-2"></i>Transferencias entre plantas</h5>
+                    <div style="font-size:11px; opacity:.85;">Envía artículos de una planta a otra y recibelos desde el destino.</div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <ul class="nav nav-tabs mb-3" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="transfEnvioTab" data-bs-toggle="tab" data-bs-target="#transfEnvioPane" type="button" role="tab">
+                            <i class="bi bi-send me-1"></i>Enviar artículo
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="transfRecepcionTab" data-bs-toggle="tab" data-bs-target="#transfRecepcionPane" type="button" role="tab" onclick="cargarTransferencias()">
+                            <i class="bi bi-inbox me-1"></i>Recibir / Historial
+                            <span class="badge text-bg-danger ms-1" id="transfBadgePendientes" style="display:none;">0</span>
+                        </button>
+                    </li>
+                </ul>
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="transfEnvioPane" role="tabpanel">
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-bold text-muted mb-1" style="font-size:0.72rem;">ARTÍCULO A ENVIAR *</label>
+                                <select id="transfArticulo" class="form-select"></select>
+                                <small class="text-muted" id="transfArtInfo"></small>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-bold text-muted mb-1" style="font-size:0.72rem;">PLANTA ORIGEN</label>
+                                <input type="text" id="transfOrigen" class="form-control bg-light" readonly>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-bold text-muted mb-1" style="font-size:0.72rem;">PLANTA DESTINO *</label>
+                                <select id="transfDestino" class="form-select">
+                                    <option value="">Seleccione...</option>
+                                    <option value="TIF">TIF</option>
+                                    <option value="ALMACÉN TIF">ALMACÉN TIF</option>
+                                    <option value="P1">P1</option>
+                                    <option value="ALMACÉN P1">ALMACÉN P1</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-bold text-muted mb-1" style="font-size:0.72rem;">NOTA / MOTIVO</label>
+                                <textarea id="transfNota" class="form-control" rows="2" placeholder="Motivo del envío (opcional)"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="transfRecepcionPane" role="tabpanel">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>SAP</th>
+                                        <th>Artículo</th>
+                                        <th>Origen</th>
+                                        <th>Destino</th>
+                                        <th>Fecha envío</th>
+                                        <th>Estado</th>
+                                        <th class="text-end">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbodyTransferencias">
+                                    <tr><td colspan="7" class="text-center text-muted py-4">Cargando transferencias...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-brand" id="btnEnviarTransferencia" onclick="enviarTransferencia()">
+                    <i class="bi bi-send me-1"></i>Registrar envío
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -6202,8 +6333,9 @@ body:has(#inventarioSistemasApp) {
 
     <script>
         let datosInventario = [];
+        let plantaGlobal = (localStorage.getItem('invPlantaGlobal') || '');
         let movimientosInventario = [];
-        let consultarModal, historialModal, infoResponsableModal, camaraModal, visorHistorialModal, reportesModal, bajaModal, exploradorModal, alertasStockModal;
+        let consultarModal, historialModal, infoResponsableModal, camaraModal, visorHistorialModal, reportesModal, bajaModal, exploradorModal, alertasStockModal, modalTransferencias;
         let alertasStockActuales = [];
         let signaturePad;
         let streamActual = null;
@@ -6278,7 +6410,13 @@ body:has(#inventarioSistemasApp) {
                 language: { noResults: function() { return "No se encontró coincidencia"; } }
             });
 
+            // Restauramos la planta global guardada (si existe)
+            if (plantaGlobal) {
+                $('#plantaGlobal').val(plantaGlobal);
+                $('#filtroPlanta').val(plantaGlobal);
+            }
             cargarInventario();
+            cargarTransferencias();
 
             $('#salArticulo').on('change', function() {
                 const id = parseInt($(this).val());
@@ -6328,7 +6466,7 @@ body:has(#inventarioSistemasApp) {
                     return;
                 }
 
-                let equipos = datosInventario.filter(i => i.asignacion === usuario && !i.enRecuperacion);
+                let equipos = datosInventario.filter(i => i.asignacion === usuario && !i.enRecuperacion && (!plantaGlobal || plantaDeArticulo(i) === plantaGlobal));
                 let html = '';
                 equipos.forEach(e => {
                     html += `<li class="list-group-item py-1"><i class="bi bi-pc-display me-2"></i>${e.idArticuloSap} - ${e.nombre}</li>`;
@@ -6405,10 +6543,157 @@ body:has(#inventarioSistemasApp) {
             reader.onerror = error => reject(error);
         });
 
+        function abrirModalTransferencias() {
+            if (!modalTransferencias) {
+                const el = document.getElementById('modalTransferencias');
+                if (el) modalTransferencias = bootstrap.Modal.getOrCreateInstance(el);
+            }
+            llenarSelectTransferencia();
+            modalTransferencias?.show();
+        }
+
+        function llenarSelectTransferencia() {
+            const select = $('#transfArticulo');
+            let options = '<option value="">Selecciona un artículo...</option>';
+            const lista = datosInventario.filter(i => !plantaGlobal || plantaDeArticulo(i) === plantaGlobal);
+            lista.forEach(i => {
+                options += `<option data-planta="${i.planta}" value="${i.id}">${i.idArticuloSap} - ${i.nombre} (${i.planta})</option>`;
+            });
+            select.html(options);
+            $('#transfDestino').val('');
+            $('#transfNota').val('');
+            $('#transfArtInfo').text('');
+            if (plantaGlobal) {
+                $('#transfOrigen').val(plantaGlobal);
+            } else {
+                $('#transfOrigen').val('');
+            }
+
+            select.off('change.trart').on('change.trart', function () {
+                const val = $(this).val();
+                if (!val) { $('#transfArtInfo').text(''); return; }
+                const art = datosInventario.find(i => Number(i.id) === Number(val));
+                if (art) {
+                    $('#transfOrigen').val(art.planta);
+                    $('#transfArtInfo').text(`${art.nombre} | Stock: ${art.stock} | Ubicación: ${art.ubicacion || ''}`);
+                }
+            });
+        }
+
+        async function enviarTransferencia() {
+            const id = $('#transfArticulo').val();
+            const destino = $('#transfDestino').val();
+            const nota = ($('#transfNota').val() || '').trim();
+            if (!id) { alert('Selecciona un artículo a enviar.'); return; }
+            if (!destino) { alert('Selecciona la planta destino.'); return; }
+            const origen = $('#transfOrigen').val().trim();
+            if (plantasMismaPlanta(origen, destino)) { alert('La planta destino debe ser de otra planta (no puede ser tu misma planta ni su almacén).'); return; }
+
+            const btn = document.getElementById('btnEnviarTransferencia');
+            btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Registrando...';
+            try {
+                const res = await fetch('/InventariosSistemas/CrearTransferencia', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || ''
+                    },
+                    body: `idInventario=${encodeURIComponent(id)}&plantaDestino=${encodeURIComponent(destino)}&nota=${encodeURIComponent(nota)}`
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    alert(data.mensaje);
+                    cargarTransferencias();
+                    cargarInventario();
+                    const paneEl = document.getElementById('transfRecepcionPane');
+                    const tab = new bootstrap.Tab(document.getElementById('transfRecepcionTab'));
+                    tab.show();
+                } else {
+                    alert(data.mensaje || 'No se pudo registrar el envío.');
+                }
+            } catch (e) {
+                alert('Error de red: ' + e.message);
+            } finally {
+                btn.disabled = false; btn.innerHTML = '<i class="bi bi-send me-1"></i>Registrar envío';
+            }
+        }
+
+        async function cargarTransferencias(estado) {
+            try {
+                const qs = estado ? `?estado=${encodeURIComponent(estado)}` : '';
+                const res = await fetch('/InventariosSistemas/ObtenerTransferencias' + qs);
+                const data = await res.json();
+                if (!data.ok) return;
+                const filas = data.data || [];
+                const pendientes = filas.filter(f => f.estado === 'ENVIADO');
+                const badge = document.getElementById('transfBadgePendientes');
+                const navCount = document.getElementById('transfPendientesCount');
+                if (pendientes.length > 0) {
+                    badge.style.display = '';
+                    badge.textContent = pendientes.length;
+                    navCount.style.display = '';
+                    navCount.textContent = pendientes.length;
+                } else {
+                    badge.style.display = 'none';
+                    navCount.style.display = 'none';
+                }
+
+                let tbody = '';
+                if (filas.length === 0) {
+                    tbody = '<tr><td colspan="7" class="text-center text-muted py-4">No hay transferencias registradas.</td></tr>';
+                } else {
+                    filas.forEach(f => {
+                        const badgeEstado = f.estado === 'ENVIADO'
+                            ? '<span class="badge text-bg-warning">Enviado</span>'
+                            : '<span class="badge text-bg-success">Recibido</span>';
+                        const accion = f.estado === 'ENVIADO'
+                            ? `<button class="btn btn-sm btn-success fw-bold" onclick="recibirTransferencia(${f.id})"><i class="bi bi-check-lg me-1"></i>Marcar recibido</button>`
+                            : `<span class="text-muted small">${f.fechaRecepcion || ''}</span>`;
+                        tbody += `<tr>
+                            <td class="small">${f.idArticuloSap}</td>
+                            <td>${f.nombre}</td>
+                            <td class="small">${f.plantaOrigen}</td>
+                            <td class="small"><strong>${f.plantaDestino}</strong></td>
+                            <td class="small">${f.fechaEnvio}</td>
+                            <td>${badgeEstado}</td>
+                            <td class="text-end">${accion}</td>
+                        </tr>`;
+                    });
+                }
+                $('#tbodyTransferencias').html(tbody);
+            } catch (e) {
+                $('#tbodyTransferencias').html('<tr><td colspan="7" class="text-center text-muted py-4">Error al cargar: ' + e.message + '</td></tr>');
+            }
+        }
+
+        async function recibirTransferencia(id) {
+            if (!confirm('¿Confirmas la recepción? El artículo cambiará a la planta de destino.')) return;
+            try {
+                const res = await fetch('/InventariosSistemas/RecibirTransferencia', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || ''
+                    },
+                    body: `idTransferencia=${encodeURIComponent(id)}`
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    alert(data.mensaje);
+                    cargarTransferencias();
+                    cargarInventario();
+                    aplicarFiltros();
+                } else {
+                    alert(data.mensaje || 'No se pudo actualizar la transferencia.');
+                }
+            } catch (e) {
+                alert('Error de red: ' + e.message);
+            }
+        }
+
         function abrirAlertasStock() {
             if (!alertasStockModal) {
-                const modalEl = document.getElementById('modalAlertasStock');
-                if (modalEl) alertasStockModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                const modalEl = document.getElementById('modalAlertasStock');                if (modalEl) alertasStockModal = bootstrap.Modal.getOrCreateInstance(modalEl);
             }
             alertasStockModal?.show();
         }
@@ -7154,6 +7439,22 @@ body:has(#inventarioSistemasApp) {
                 }
             } catch (error) { console.error("Error cargando inventario: ", error); }
         }
+        // Devuelve la agrupación de planta a la que pertenece un artículo:
+        // TIF (incluye 'TIF' y 'ALMACÉN TIF') o P1 (incluye 'P1' y 'ALMACÉN P1').
+        function plantaDeArticulo(i) {
+            const p = (i.planta || '').toString().trim().toUpperCase();
+            if (p === 'TIF' || p === 'ALMACÉN TIF' || p === 'ALMACEN TIF') return 'TIF';
+            if (p === 'P1' || p === 'ALMACÉN P1' || p === 'ALMACEN P1') return 'P1';
+            return p;
+        }
+        // ¿Dos valores de planta pertenecen a la misma planta (incluyendo su almacén)?
+        function plantasMismaPlanta(a, b) {
+            const x = (a || '').toString().trim().toUpperCase();
+            const y = (b || '').toString().trim().toUpperCase();
+            const grupo = v => (v === 'TIF' || v === 'ALMACÉN TIF' || v === 'ALMACEN TIF') ? 'TIF'
+                             : (v === 'P1' || v === 'ALMACÉN P1' || v === 'ALMACEN P1') ? 'P1' : v;
+            return grupo(x) === grupo(y);
+        }
         function aplicarFiltros() {
              const texto = $('#filtroGeneral').val().toLowerCase();
              const tipo = $('#filtroTipo').val();
@@ -7162,7 +7463,7 @@ body:has(#inventarioSistemasApp) {
 
              let filtrado = datosInventario.filter(i => {
                  const matchTexto = !texto || (i.idArticuloSap && i.idArticuloSap.toLowerCase().includes(texto)) || (i.nombre && i.nombre.toLowerCase().includes(texto)) || (i.numeroSerie && i.numeroSerie.toLowerCase().includes(texto));
-                 const matchPlanta = !planta || i.planta === planta;
+                 const matchPlanta = (!planta || plantaDeArticulo(i) === planta) && (!plantaGlobal || plantaDeArticulo(i) === plantaGlobal);
 
                  // Lógica centralizada para identificar qué es chatarra/baja
                  const esBaja = i.asignacion === 'BAJA DEFINITIVA' || i.asignacion === 'PARA PIEZAS' || i.tipoArticulo === 'Chatarra/Piezas';
@@ -7191,6 +7492,21 @@ body:has(#inventarioSistemasApp) {
              });
              renderTabla(filtrado);
          }
+
+        function cambiarPlantaGlobal() {
+            plantaGlobal = $('#plantaGlobal').val() || '';
+            localStorage.setItem('invPlantaGlobal', plantaGlobal);
+            // Si hay una planta global activa, la reflejamos tambien en el filtro del toolbar
+            $('#filtroPlanta').val(plantaGlobal);
+            aplicarFiltros();
+            llenarSelects();
+            llenarSelectBaja();
+            renderTablaAsignaciones();
+            renderTablaRecuperaciones();
+            llenarSelectTaller();
+            renderTablaTaller();
+            generarAlertasDashboard();
+        }
 
         function limpiarFiltros() { $('#filtroGeneral, #filtroTipo, #filtroPlanta, #filtroEstado').val(''); aplicarFiltros(); }
 
@@ -7276,6 +7592,9 @@ body:has(#inventarioSistemasApp) {
             let filtroRestock = $('#resFiltroTipo').val() || 'todos';
 
             datosInventario.forEach(i => {
+                // Independencia por planta global
+                if (plantaGlobal && plantaDeArticulo(i) !== plantaGlobal) return;
+
                 optionsTodos += `<option value="${i.id}">${i.idArticuloSap} - ${i.nombre}</option>`;
 
                 if (i.asignacion !== 'BAJA DEFINITIVA' && i.asignacion !== 'PARA PIEZAS' && !i.enRecuperacion) {
@@ -7305,7 +7624,8 @@ body:has(#inventarioSistemasApp) {
 
         function llenarSelectBaja() {
             let usuariosConEquipo = [...new Set(datosInventario
-                .filter(i => i.asignacion && i.asignacion.trim() !== '' && i.asignacion !== 'BAJA DEFINITIVA' && i.asignacion !== 'PARA PIEZAS' && !i.enRecuperacion)
+                .filter(i => (!plantaGlobal || plantaDeArticulo(i) === plantaGlobal)
+                    && i.asignacion && i.asignacion.trim() !== '' && i.asignacion !== 'BAJA DEFINITIVA' && i.asignacion !== 'PARA PIEZAS' && !i.enRecuperacion)
                 .map(i => i.asignacion))];
 
             let options = '<option value="">Selecciona usuario...</option>';
@@ -7316,7 +7636,7 @@ body:has(#inventarioSistemasApp) {
         }
 
         function renderTablaRecuperaciones() {
-            let pendientes = datosInventario.filter(i => i.enRecuperacion);
+            let pendientes = datosInventario.filter(i => i.enRecuperacion && (!plantaGlobal || plantaDeArticulo(i) === plantaGlobal));
             let tbody = '';
 
             if(pendientes.length === 0) {
@@ -7458,8 +7778,43 @@ body:has(#inventarioSistemasApp) {
         function toggleTipoEntrada() {
             if ($('#optNuevo').is(':checked')) {
                 $('#formRestock').hide(); $('#formNuevo').show();
+                // Filtramos las opciones de planta según la planta global del banner
+                configurarOpcionesPlanta(plantaGlobal);
+                // Si hay una planta global activa y no estamos editando, la precargamos en el alta
+                if (idArticuloEditando === 0 && plantaGlobal && plantaGlobal !== 'ALMACEN') {
+                    $('#entPlanta').val(plantaGlobal);
+                }
             } else {
                 $('#formNuevo').hide(); $('#formRestock').show();
+            }
+        }
+
+        // Rellena el select #entPlanta según la planta global. Si se indica un valor
+        // concreto (edición o chatarra), lo conserva aunque no pertenezca a la lista.
+        function configurarOpcionesPlanta(plantaGlobal_) {
+            const actual = $('#entPlanta').val();
+            let opciones = '';
+            if (plantaGlobal_ === 'TIF' || plantaGlobal_ === 'P1') {
+                const valorAlmacen = plantaGlobal_ === 'P1' ? 'ALMACÉN P1' : 'ALMACÉN TIF';
+                opciones = `<option value="${plantaGlobal_}">${plantaGlobal_}</option>
+                            <option value="${valorAlmacen}">${valorAlmacen}</option>
+                            <option value="BANCO DE PIEZAS">BANCO DE PIEZAS</option>
+                            <option value="BAJA TOTAL">BAJA TOTAL</option>`;
+            } else {
+                opciones = `<option value="TIF">TIF</option>
+                            <option value="ALMACÉN TIF">ALMACÉN TIF</option>
+                            <option value="P1">P1</option>
+                            <option value="ALMACÉN P1">ALMACÉN P1</option>
+                            <option value="BANCO DE PIEZAS">BANCO DE PIEZAS</option>
+                            <option value="BAJA TOTAL">BAJA TOTAL</option>`;
+            }
+            // Agregamos el valor actual si no está en la lista (edición de otra planta)
+            if (actual && !opciones.includes(`value="${actual}"`)) {
+                opciones += `<option value="${actual}">${actual}</option>`;
+            }
+            $('#entPlanta').html(opciones);
+            if (actual && opciones.includes(`value="${actual}"`)) {
+                $('#entPlanta').val(actual);
             }
         }
         function generarIdChatarra() {
@@ -7770,6 +8125,9 @@ body:has(#inventarioSistemasApp) {
             const diasParaDesaparecer = 10;
 
             datosInventario.forEach(i => {
+                // Si hay planta global activa, solo contamos artículos de esa planta
+                if (plantaGlobal && plantaDeArticulo(i) !== plantaGlobal) return;
+
                 const esBajaOChatarra =
                     i.asignacion === 'BAJA DEFINITIVA' ||
                     i.asignacion === 'PARA PIEZAS' ||
@@ -7891,6 +8249,7 @@ body:has(#inventarioSistemasApp) {
             let estadoFiltro = $('#filtroEstadoAsignaciones').val();
 
             let datosFiltrados = datosInventario.filter(item => {
+                if (plantaGlobal && plantaDeArticulo(item) !== plantaGlobal) return false;
                 if (item.asignacion === 'BAJA DEFINITIVA' || item.asignacion === 'PARA PIEZAS') return false;
 
                 let tieneAsignacion = item.asignacion && item.asignacion.trim() !== '';
@@ -9182,6 +9541,7 @@ body:has(#inventarioSistemasApp) {
         function exportarExcel() {
             let csv = 'SAP,Tipo,Nombre,Marca,Modelo,Proveedor,Costo,Planta,Ubicacion,Asignacion,Serie,IP,Stock\n';
             datosInventario.forEach(i => {
+                if (plantaGlobal && plantaDeArticulo(i) !== plantaGlobal) return;
                 let nomSeguro = (i.nombre || "").replace(/"/g, '""');
                 let marSeguro = (i.marca || "").replace(/"/g, '""');
                 let modSeguro = (i.modelo || "").replace(/"/g, '""');
@@ -9240,6 +9600,7 @@ body:has(#inventarioSistemasApp) {
         function llenarSelectTaller() {
             let options = '<option value="">Selecciona un artículo...</option>';
             datosInventario.forEach(i => {
+                if (plantaGlobal && plantaDeArticulo(i) !== plantaGlobal) return;
                 if (i.asignacion !== 'BAJA DEFINITIVA' && i.asignacion !== 'PARA PIEZAS' && !i.enReparacion && !i.EnReparacion) {
                     options += `<option value="${i.id}">${i.idArticuloSap} - ${i.nombre}</option>`;
                 }
@@ -9248,7 +9609,7 @@ body:has(#inventarioSistemasApp) {
         }
 
         function renderTablaTaller() {
-            let enTaller = datosInventario.filter(i => i.enReparacion || i.EnReparacion);
+            let enTaller = datosInventario.filter(i => (i.enReparacion || i.EnReparacion) && (!plantaGlobal || plantaDeArticulo(i) === plantaGlobal));
             let tbody = '';
 
             if(enTaller.length === 0) {
@@ -9421,7 +9782,7 @@ body:has(#inventarioSistemasApp) {
             $('#canibalPiezas').val('');
 
             let options = '<option value="">Selecciona un donador...</option>';
-            let equiposChatarra = datosInventario.filter(i => i.asignacion === 'PARA PIEZAS' && i.id !== id);
+            let equiposChatarra = datosInventario.filter(i => i.asignacion === 'PARA PIEZAS' && i.id !== id && (!plantaGlobal || plantaDeArticulo(i) === plantaGlobal));
             equiposChatarra.forEach(i => {
                 options += `<option value="${i.id}">${i.idArticuloSap} - ${i.nombre}</option>`;
             });

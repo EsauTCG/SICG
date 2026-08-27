@@ -300,15 +300,25 @@ namespace Plataforma_CG.Controllers
                 modelo.FirmaDigital = modelo.FirmaDigital ?? "";
                 modelo.HistorialAsignaciones = modelo.HistorialAsignaciones ?? new List<string>();
                 modelo.IP = modelo.IP ?? "";
-                //agre
+                // Valida duplicado: bloquea solo si el MISMO SAP existe en la MISMA planta
                 if (!string.IsNullOrWhiteSpace(modelo.IdArticuloSap))
                 {
+                    // La planta se agrupa para la validación: P1 incluye 'ALMACÉN P1', TIF incluye 'ALMACÉN TIF'
+                    string grupoPlanta = NormalizarGrupoPlanta(modelo.Planta);
+                    string[] plantasGrupo = grupoPlanta == "P1"
+                        ? new[] { "P1", "ALMACÉN P1", "ALMACEN P1" }
+                        : grupoPlanta == "TIF"
+                            ? new[] { "TIF", "ALMACÉN TIF", "ALMACEN TIF" }
+                            : new[] { modelo.Planta ?? "" };
+
                     bool sapDuplicado = _context.InventarioSistemas
-                                                .Any(x => x.IdArticuloSap == modelo.IdArticuloSap && x.Id != modelo.Id);
+                                                .Any(x => x.IdArticuloSap == modelo.IdArticuloSap
+                                                       && plantasGrupo.Contains(x.Planta)
+                                                       && x.Id != modelo.Id);
 
                     if (sapDuplicado)
                     {
-                        return Json(new { ok = false, mensaje = $"El ID SAP '{modelo.IdArticuloSap}' ya se encuentra registrado en otro artículo." });
+                        return Json(new { ok = false, mensaje = $"El ID SAP '{modelo.IdArticuloSap}' ya se encuentra registrado en la planta '{modelo.Planta}'." });
                     }
                 }
 
@@ -1149,6 +1159,123 @@ namespace Plataforma_CG.Controllers
 
                 _context.SaveChanges();
                 return Json(new { ok = true });
+            }
+            catch (Exception ex) { return Json(new { ok = false, mensaje = ex.Message }); }
+        }
+
+        // ========================================================
+        //  TRANSFERENCIAS ENTRE PLANTAS
+        // ========================================================
+        [HttpGet]
+        public IActionResult ObtenerTransferencias(string? estado = null)
+        {
+            try
+            {
+                var query = _context.TransferenciasInventario
+                    .AsNoTracking()
+                    .OrderByDescending(t => t.FechaEnvio);
+
+                if (!string.IsNullOrWhiteSpace(estado))
+                    query = (IOrderedQueryable<TransferenciaInventario>)query.Where(t => t.Estado == estado);
+
+                var lista = query.ToList().Select(t => new
+                {
+                    t.Id,
+                    t.IdInventario,
+                    t.IdArticuloSap,
+                    t.Nombre,
+                    PlantaOrigen = t.PlantaOrigen,
+                    PlantaDestino = t.PlantaDestino,
+                    t.Estado,
+                    FechaEnvio = t.FechaEnvio.ToString("dd/MM/yyyy HH:mm"),
+                    FechaRecepcion = t.FechaRecepcion?.ToString("dd/MM/yyyy HH:mm"),
+                    t.Nota
+                }).ToList();
+
+                return Json(new { ok = true, data = lista });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+        [HttpPost]
+        [RevisarPermiso("INVENTARIOSISTEMAS", "ESCRIBIR")]
+        public IActionResult CrearTransferencia(int idInventario, string plantaDestino, string? nota)
+        {
+            try
+            {
+                var articulo = _context.InventarioSistemas.Find(idInventario);
+                if (articulo == null)
+                    return Json(new { ok = false, mensaje = "Artículo no encontrado." });
+
+                if (string.IsNullOrWhiteSpace(plantaDestino) || plantaDestino == NormalizarGrupoPlanta(articulo.Planta))
+                    return Json(new { ok = false, mensaje = "La planta destino debe ser distinta a la planta de origen." });
+
+                _context.TransferenciasInventario.Add(new TransferenciaInventario
+                {
+                    IdInventario = articulo.Id,
+                    IdArticuloSap = articulo.IdArticuloSap,
+                    Nombre = articulo.Nombre,
+                    PlantaOrigen = articulo.Planta,
+                    PlantaDestino = plantaDestino,
+                    Estado = "ENVIADO",
+                    FechaEnvio = DateTime.Now,
+                    Nota = nota
+                });
+
+                _context.MovimientoInventario.Add(new MovimientoInventario
+                {
+                    ArticuloSap = articulo.IdArticuloSap,
+                    NombreArticulo = articulo.Nombre,
+                    TipoMovimiento = "SALIDA",
+                    Cantidad = 1,
+                    Fecha = DateTime.Now,
+                    Referencia = $"TRANSFERENCIA ENVIADA: {articulo.Planta} → {plantaDestino}"
+                });
+
+                _context.SaveChanges();
+                return Json(new { ok = true, mensaje = "Envío registrado. La planta destino deberá marcarlo como recibido." });
+            }
+            catch (Exception ex) { return Json(new { ok = false, mensaje = ex.Message }); }
+        }
+
+        [HttpPost]
+        [RevisarPermiso("INVENTARIOSISTEMAS", "ESCRIBIR")]
+        public IActionResult RecibirTransferencia(int idTransferencia)
+        {
+            try
+            {
+                var t = _context.TransferenciasInventario.FirstOrDefault(x => x.Id == idTransferencia);
+                if (t == null)
+                    return Json(new { ok = false, mensaje = "Transferencia no encontrada." });
+
+                if (t.Estado == "RECIBIDO")
+                    return Json(new { ok = false, mensaje = "Esta transferencia ya fue recibida." });
+
+                var articulo = _context.InventarioSistemas.Find(t.IdInventario);
+                if (articulo == null)
+                    return Json(new { ok = false, mensaje = "El artículo ya no existe en el inventario." });
+
+                // Cambiamos la planta del artículo a la de destino
+                articulo.Planta = t.PlantaDestino;
+
+                _context.MovimientoInventario.Add(new MovimientoInventario
+                {
+                    ArticuloSap = articulo.IdArticuloSap,
+                    NombreArticulo = articulo.Nombre,
+                    TipoMovimiento = "ENTRADA",
+                    Cantidad = 1,
+                    Fecha = DateTime.Now,
+                    Referencia = $"TRANSFERENCIA RECIBIDA: {t.PlantaOrigen} → {t.PlantaDestino}"
+                });
+
+                t.Estado = "RECIBIDO";
+                t.FechaRecepcion = DateTime.Now;
+
+                _context.SaveChanges();
+                return Json(new { ok = true, mensaje = "Artículo recibido y actualizado a la nueva planta." });
             }
             catch (Exception ex) { return Json(new { ok = false, mensaje = ex.Message }); }
         }
@@ -4389,6 +4516,16 @@ END;";
                     : "";
 
             return vm;
+        }
+
+        // Agrupa la planta para validaciones y filtrado: P1 incluye 'ALMACÉN P1',
+        // TIF incluye 'ALMACÉN TIF'. Devuelve el grupo (P1/TIF) o el valor normalizado.
+        private static string NormalizarGrupoPlanta(string? planta)
+        {
+            var p = (planta ?? "").Trim().ToUpperInvariant();
+            if (p == "P1" || p == "ALMACÉN P1" || p == "ALMACEN P1") return "P1";
+            if (p == "TIF" || p == "ALMACÉN TIF" || p == "ALMACEN TIF") return "TIF";
+            return p;
         }
 
         private static string ResolverPlantaCompraTi(

@@ -57,4 +57,18 @@
         public string DocumentoBase64 { get; set; }
         public string FirmaBase64 { get; set; }
     }
+
+    public class TransferenciaInventario
+    {
+        public int Id { get; set; }
+        public int IdInventario { get; set; }
+        public string IdArticuloSap { get; set; }
+        public string Nombre { get; set; }
+        public string PlantaOrigen { get; set; }
+        public string PlantaDestino { get; set; }
+        public string Estado { get; set; } // "ENVIADO" | "RECIBIDO"
+        public DateTime FechaEnvio { get; set; }
+        public DateTime? FechaRecepcion { get; set; }
+        public string? Nota { get; set; }
+    }
 }
