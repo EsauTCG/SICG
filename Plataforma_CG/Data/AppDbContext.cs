@@ -112,6 +112,7 @@ namespace Plataforma_CG.Data
         public DbSet<InventarioSistemas> InventarioSistemas { get; set; }
         public DbSet<MovimientoInventario> MovimientoInventario { get; set; }
         public DbSet<RegistroHistorial> RegistroHistorial { get; set; }
+        public DbSet<TransferenciaInventario> TransferenciasInventario { get; set; }
 
         public DbSet<ControlRedIp> ControlIPs { get; set; }
         public DbSet<VlanRed> VlanRedes { get; set; }
