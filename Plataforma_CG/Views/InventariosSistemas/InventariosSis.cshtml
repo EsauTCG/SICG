@@ -4686,7 +4686,14 @@ body:has(#inventarioSistemasApp) {
                                         <div class="col-12 col-md-5"><input type="text" id="entSap" class="form-control form-control-sm border-danger" placeholder="ID SAP *"></div>
                                         <div class="col-12 col-md-7"><input type="text" id="entNombre" class="form-control form-control-sm border-danger" placeholder="Nombre Equipo *"></div>
 
-                                        <div class="col-12 col-md-6"><input type="text" id="entMarca" class="form-control form-control-sm border-danger" placeholder="Marca *"></div>
+                                        <div class="col-12 col-md-6">
+                                            <div class="input-group input-group-sm">
+                                                <select id="entMarca" class="form-select form-select-sm border-danger" required>
+                                                    <option value="" selected>MARCA *</option>
+                                                </select>
+                                                <button type="button" class="btn btn-outline-secondary border-danger" title="Agregar marca" onclick="abrirModalAgregarCatalogo('marca')"><i class="bi bi-plus-lg"></i></button>
+                                            </div>
+                                        </div>
                                         <div class="col-12 col-md-6"><input type="text" id="entModelo" class="form-control form-control-sm border-danger" placeholder="Modelo *"></div>
                                         <div class="col-12 col-md-6 mt-1 campo-avanzado"><input type="text" id="entSerie" class="form-control form-control-sm border-danger" placeholder="# Serie *"></div>
 
@@ -4710,8 +4717,14 @@ body:has(#inventarioSistemasApp) {
                                                 <option value="BAJA TOTAL">BAJA TOTAL</option>
                                             </select>
                                         </div>
-                                        <div class="col-12 col-md-7 mt-1"><input type="text" id="entUbicacion" class="form-control form-control-sm border-danger" placeholder="Ubicación *"></div>
-
+<div class="col-12 col-md-7 mt-1">
+    <div class="input-group input-group-sm">
+        <select id="entUbicacion" class="form-select form-select-sm border-danger" required>
+            <option value="" selected>UBICACIÓN *</option>
+        </select>
+        <button type="button" class="btn btn-outline-secondary border-danger" title="Agregar área/ubicación" onclick="abrirModalAgregarCatalogo('area')"><i class="bi bi-plus-lg"></i></button>
+    </div>
+</div>
                                         <div class="col-12 mt-2 pt-2 border-top campo-avanzado">
                                             <label class="form-label text-muted mb-0 fw-bold" style="font-size:0.65rem;">FECHA DE ENTRADA AL SISTEMA *</label>
                                             <input type="date" id="entFechaEntrada" class="form-control form-control-sm border-danger">
@@ -4832,7 +4845,12 @@ body:has(#inventarioSistemasApp) {
                                 </div>
                                 <div class="col-12 col-md-7">
                                     <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">NUEVA UBICACIÓN *</label>
-                                    <input type="text" class="form-control" id="asigUbicacion" placeholder="Ej. Oficina Desarrollo">
+                                    <div class="input-group">
+                                        <select id="asigUbicacion" class="form-select">
+                                            <option value="">Seleccione área / ubicación...</option>
+                                        </select>
+                                        <button type="button" class="btn btn-outline-secondary" title="Agregar área/ubicación" onclick="abrirModalAgregarCatalogo('area')"><i class="bi bi-plus-lg"></i></button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -4880,7 +4898,19 @@ body:has(#inventarioSistemasApp) {
 
                                 </div>
                             </div>
-                            <div class="mt-2 mt-md-0 d-flex gap-2">
+                            <div class="mt-2 mt-md-0 d-flex gap-2 flex-wrap">
+                                <select class="form-select form-select-sm w-auto" id="filtroAsignacionTipo" onchange="renderTablaAsignaciones()">
+                                    <option value="">Todos los tipos</option>
+                                    <option value="Activo Fijo">Activo Fijo</option>
+                                    <option value="Consumible">Consumible</option>
+                                    <option value="Herramienta">Herramienta</option>
+                                    <option value="Chatarra/Piezas">Chatarra/Piezas</option>
+                                </select>
+                                <select class="form-select form-select-sm w-auto" id="filtroAsignacionPlanta" onchange="renderTablaAsignaciones()">
+                                    <option value="">Todas las plantas</option>
+                                    <option value="TIF">TIF</option>
+                                    <option value="P1">P1</option>
+                                </select>
                                 <select class="form-select form-select-sm w-auto" id="filtroEstadoAsignaciones" onchange="renderTablaAsignaciones()">
                                     <option value="">Todos</option>
                                     <option value="asignado">Asignados</option>
@@ -4893,13 +4923,13 @@ body:has(#inventarioSistemasApp) {
                             </div>
                         </div>
                         <div class="table-responsive">
-                            <table class="table table-custom align-middle mb-0">
+                            <table class="table table-custom align-middle mb-0" style="min-width:0; table-layout:fixed;">
                                 <thead>
                                     <tr>
-                                        <th>SAP / Equipo</th>
-                                        <th>Serie</th>
-                                        <th>Responsable / Lugar</th>
-                                        <th class="text-center">Información</th>
+                                        <th style="width:38%; min-width:220px;">SAP / Equipo</th>
+                                        <th style="width:16%;">Serie</th>
+                                        <th style="width:30%;">Responsable / Lugar</th>
+                                        <th class="text-center" style="width:16%;">Información</th>
                                     </tr>
                                 </thead>
                                 <tbody id="tbodyAsignaciones">
@@ -5379,12 +5409,17 @@ body:has(#inventarioSistemasApp) {
                         <div class="row g-3">
                             <div class="col-12 col-md-6">
                                 <label class="form-label fw-bold text-muted mb-1" style="font-size:0.72rem;">ARTÍCULO A ENVIAR *</label>
-                                <select id="transfArticulo" class="form-select"></select>
+                                <select id="transfArticulo" class="form-select" onchange="actualizarInfoTransferencia()"></select>
                                 <small class="text-muted" id="transfArtInfo"></small>
                             </div>
                             <div class="col-12 col-md-6">
                                 <label class="form-label fw-bold text-muted mb-1" style="font-size:0.72rem;">PLANTA ORIGEN</label>
                                 <input type="text" id="transfOrigen" class="form-control bg-light" readonly>
+                            </div>
+                            <div class="col-12 col-md-6" id="transfCantWrap" style="display:none;">
+                                <label class="form-label fw-bold text-muted mb-1" style="font-size:0.72rem;">CANTIDAD A TRANSFERIR * <span class="text-muted fw-normal">(<span id="transfStockDisp">0</span> disponibles)</span></label>
+                                <input type="number" id="transfCantidad" class="form-control" min="1" value="1" oninput="validarCantidadTransferencia()">
+                                <small class="text-danger fw-bold" id="transfCantError" style="display:none;"></small>
                             </div>
                             <div class="col-12 col-md-6">
                                 <label class="form-label fw-bold text-muted mb-1" style="font-size:0.72rem;">PLANTA DESTINO *</label>
@@ -5409,6 +5444,7 @@ body:has(#inventarioSistemasApp) {
                                     <tr>
                                         <th>SAP</th>
                                         <th>Artículo</th>
+                                        <th>Cant.</th>
                                         <th>Origen</th>
                                         <th>Destino</th>
                                         <th>Fecha envío</th>
@@ -5417,7 +5453,7 @@ body:has(#inventarioSistemasApp) {
                                     </tr>
                                 </thead>
                                 <tbody id="tbodyTransferencias">
-                                    <tr><td colspan="7" class="text-center text-muted py-4">Cargando transferencias...</td></tr>
+                                    <tr><td colspan="8" class="text-center text-muted py-4">Cargando transferencias...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -5428,6 +5464,30 @@ body:has(#inventarioSistemasApp) {
                 <button type="button" class="btn btn-outline" data-bs-dismiss="modal">Cerrar</button>
                 <button type="button" class="btn btn-brand" id="btnEnviarTransferencia" onclick="enviarTransferencia()">
                     <i class="bi bi-send me-1"></i>Registrar envío
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================= -->
+<!-- MODAL AGREGAR MARCA / ÁREA                                -->
+<!-- ========================================================= -->
+<div class="modal fade" id="modalAgregarCatalogo" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" style="background: var(--brand-main, #7a0c13); color:#fff;">
+                <h6 class="modal-title" id="agregarCatalogoTitulo">Agregar</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label fw-bold text-muted mb-1" style="font-size:0.72rem;" id="agregarCatalogoLabel">NOMBRE *</label>
+                <input type="text" id="agregarCatalogoNombre" class="form-control form-control-sm" placeholder="Escribe el nombre...">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-brand" onclick="guardarCatalogo()">
+                    <i class="bi bi-check-lg me-1"></i>Guardar
                 </button>
             </div>
         </div>
@@ -6335,7 +6395,9 @@ body:has(#inventarioSistemasApp) {
         let datosInventario = [];
         let plantaGlobal = (localStorage.getItem('invPlantaGlobal') || '');
         let movimientosInventario = [];
-        let consultarModal, historialModal, infoResponsableModal, camaraModal, visorHistorialModal, reportesModal, bajaModal, exploradorModal, alertasStockModal, modalTransferencias;
+        let consultarModal, historialModal, infoResponsableModal, camaraModal, visorHistorialModal, reportesModal, bajaModal, exploradorModal, alertasStockModal, modalTransferencias, agregarCatalogoModal;
+        let catalogoMarcas = [];
+        let catalogoAreas = [];
         let alertasStockActuales = [];
         let signaturePad;
         let streamActual = null;
@@ -6417,6 +6479,7 @@ body:has(#inventarioSistemasApp) {
             }
             cargarInventario();
             cargarTransferencias();
+            cargarCatalogosInventario();
 
             $('#salArticulo').on('change', function() {
                 const id = parseInt($(this).val());
@@ -6543,6 +6606,89 @@ body:has(#inventarioSistemasApp) {
             reader.onerror = error => reject(error);
         });
 
+        async function cargarCatalogosInventario() {
+            try {
+                const res = await fetch('/InventariosSistemas/ObtenerCatalogosInventario');
+                const data = await res.json();
+                if (!data.ok) return;
+                catalogoMarcas = data.marcas || [];
+                catalogoAreas = data.areas || [];
+
+                const selMarca = document.getElementById('entMarca');
+                const marcaSel = selMarca.value;
+                selMarca.innerHTML = '<option value="" selected>MARCA *</option>' + catalogoMarcas.map(m => `<option value="${m}">${m}</option>`).join('');
+                if (catalogoMarcas.includes(marcaSel)) selMarca.value = marcaSel;
+                $('#entMarca').trigger('change');
+
+                const selArea = document.getElementById('entUbicacion');
+                const areaSel = selArea.value;
+                selArea.innerHTML = '<option value="" selected>UBICACIÓN *</option>' + catalogoAreas.map(a => `<option value="${a}">${a}</option>`).join('');
+                if (catalogoAreas.includes(areaSel)) selArea.value = areaSel;
+
+                const selAsigUbi = document.getElementById('asigUbicacion');
+                if (selAsigUbi) {
+                    const asigSel = selAsigUbi.value;
+                    selAsigUbi.innerHTML = '<option value="">Seleccione área / ubicación...</option>' + catalogoAreas.map(a => `<option value="${a}">${a}</option>`).join('');
+                    if (catalogoAreas.includes(asigSel)) selAsigUbi.value = asigSel;
+                }
+            } catch (e) { }
+        }
+
+        function abrirModalAgregarCatalogo(tipo) {
+            if (!agregarCatalogoModal) {
+                const el = document.getElementById('modalAgregarCatalogo');
+                if (el) agregarCatalogoModal = bootstrap.Modal.getOrCreateInstance(el);
+            }
+            window._catalogoTipo = tipo;
+            $('#agregarCatalogoNombre').val('');
+            $('#agregarCatalogoTitulo').text(tipo === 'marca' ? 'Agregar marca' : 'Agregar área / ubicación');
+            $('#agregarCatalogoLabel').text(tipo === 'marca' ? 'NOMBRE DE LA MARCA *' : 'NOMBRE DEL ÁREA / UBICACIÓN *');
+            agregarCatalogoModal?.show();
+            setTimeout(() => document.getElementById('agregarCatalogoNombre')?.focus(), 150);
+        }
+
+        async function guardarCatalogo() {
+            const tipo = window._catalogoTipo;
+            const nombre = ($('#agregarCatalogoNombre').val() || '').trim();
+            if (!nombre) { alert('Escribe el nombre antes de guardar.'); return; }
+
+            const url = tipo === 'marca' ? '/InventariosSistemas/AgregarMarcaInventario' : '/InventariosSistemas/AgregarAreaInventario';
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || ''
+                    },
+                    body: `nombre=${encodeURIComponent(nombre)}`
+                });
+                const data = await res.json();
+                if (!data.ok) { alert(data.mensaje || 'No se pudo guardar.'); return; }
+
+                agregarCatalogoModal?.hide();
+                await cargarCatalogosInventario();
+                const nuevoNombre = nombre.toUpperCase();
+                if (tipo === 'marca') {
+                    const sel = document.getElementById('entMarca');
+                    if (sel && [...sel.options].some(o => o.value === nuevoNombre)) {
+                        sel.value = nuevoNombre;
+                        $(sel).trigger('change');
+                    }
+                } else {
+                    ['entUbicacion', 'asigUbicacion'].forEach(id => {
+                        const sel = document.getElementById(id);
+                        if (sel && [...sel.options].some(o => o.value === nuevoNombre)) {
+                            sel.value = nuevoNombre;
+                            $(sel).trigger('change');
+                        }
+                    });
+                }
+                alert(data.mensaje);
+            } catch (e) {
+                alert('Error de red: ' + e.message);
+            }
+        }
+
         function abrirModalTransferencias() {
             if (!modalTransferencias) {
                 const el = document.getElementById('modalTransferencias');
@@ -6557,7 +6703,9 @@ body:has(#inventarioSistemasApp) {
             let options = '<option value="">Selecciona un artículo...</option>';
             const lista = datosInventario.filter(i => !plantaGlobal || plantaDeArticulo(i) === plantaGlobal);
             lista.forEach(i => {
-                options += `<option data-planta="${i.planta}" value="${i.id}">${i.idArticuloSap} - ${i.nombre} (${i.planta})</option>`;
+                const tipo = i.tipoArticulo || '';
+                const etiquetaTipo = tipo === 'Consumible' ? ' [Consumible]' : '';
+                options += `<option data-planta="${i.planta}" data-tipo="${tipo}" value="${i.id}">${i.idArticuloSap} - ${i.nombre} (${i.planta})${etiquetaTipo}</option>`;
             });
             select.html(options);
             $('#transfDestino').val('');
@@ -6568,26 +6716,84 @@ body:has(#inventarioSistemasApp) {
             } else {
                 $('#transfOrigen').val('');
             }
+            $('#transfCantWrap').hide();
+            $('#transfCantidad').val(1);
+            $('#transfStockDisp').text('0');
 
-            select.off('change.trart').on('change.trart', function () {
-                const val = $(this).val();
-                if (!val) { $('#transfArtInfo').text(''); return; }
-                const art = datosInventario.find(i => Number(i.id) === Number(val));
-                if (art) {
-                    $('#transfOrigen').val(art.planta);
-                    $('#transfArtInfo').text(`${art.nombre} | Stock: ${art.stock} | Ubicación: ${art.ubicacion || ''}`);
-                }
-            });
+            select.off('change.trart').on('change.trart', actualizarInfoTransferencia);
+        }
+
+        function actualizarInfoTransferencia() {
+            const val = $('#transfArticulo').val();
+            if (!val) {
+                $('#transfArtInfo').text('');
+                $('#transfCantWrap').hide();
+                return;
+            }
+            const art = datosInventario.find(i => Number(i.id) === Number(val));
+            if (!art) return;
+            $('#transfOrigen').val(art.planta);
+            $('#transfArtInfo').text(`${art.nombre} | Stock: ${art.stock} | Ubicación: ${art.ubicacion || ''}`);
+            const esConsumible = (art.tipoArticulo || '') === 'Consumible';
+            if (esConsumible) {
+                $('#transfCantWrap').show();
+                $('#transfStockDisp').text(art.stock || 0);
+                $('#transfCantidad').attr('max', art.stock || 1);
+                const c = Number($('#transfCantidad').val()) || 1;
+                $('#transfCantidad').val(Math.min(Math.max(c, 1), art.stock || 1));
+                validarCantidadTransferencia();
+            } else {
+                $('#transfCantWrap').hide();
+                $('#transfCantidad').val(1);
+                $('#transfCantError').hide();
+            }
+        }
+
+        function validarCantidadTransferencia() {
+            const artSel = datosInventario.find(i => Number(i.id) === Number($('#transfArticulo').val()));
+            const disponible = artSel ? (Number(artSel.stock) || 0) : 0;
+            const cantidad = Number($('#transfCantidad').val()) || 0;
+            const $error = $('#transfCantError');
+
+            if (cantidad < 1) {
+                $error.text('La cantidad debe ser al menos 1.').show();
+                $('#transfCantidad').addClass('is-invalid');
+                return false;
+            }
+            if (disponible !== 0 && cantidad > disponible) {
+                $error.text(`No puedes enviar más de ${disponible} unidades (stock disponible).`).show();
+                $('#transfCantidad').addClass('is-invalid');
+                return false;
+            }
+            $error.hide();
+            $('#transfCantidad').removeClass('is-invalid');
+            return true;
         }
 
         async function enviarTransferencia() {
             const id = $('#transfArticulo').val();
             const destino = $('#transfDestino').val();
             const nota = ($('#transfNota').val() || '').trim();
+            let cantidad = 1;
             if (!id) { alert('Selecciona un artículo a enviar.'); return; }
             if (!destino) { alert('Selecciona la planta destino.'); return; }
             const origen = $('#transfOrigen').val().trim();
             if (plantasMismaPlanta(origen, destino)) { alert('La planta destino debe ser de otra planta (no puede ser tu misma planta ni su almacén).'); return; }
+
+            const artSel = datosInventario.find(i => Number(i.id) === Number(id));
+            if (artSel && (artSel.tipoArticulo || '') === 'Consumible') {
+                cantidad = Number($('#transfCantidad').val()) || 0;
+                const disponible = Number(artSel.stock) || 0;
+                if (cantidad < 1) {
+                    alert('La cantidad a transferir debe ser al menos 1.');
+                    return;
+                }
+                if (disponible !== 0 && cantidad > disponible) {
+                    alert(`No puedes enviar más de ${disponible} unidades. Solo hay ${disponible} en stock en la planta de origen.`);
+                    $('#transfCantidad').focus();
+                    return;
+                }
+            }
 
             const btn = document.getElementById('btnEnviarTransferencia');
             btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Registrando...';
@@ -6598,7 +6804,7 @@ body:has(#inventarioSistemasApp) {
                         'Content-Type': 'application/x-www-form-urlencoded',
                         'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || ''
                     },
-                    body: `idInventario=${encodeURIComponent(id)}&plantaDestino=${encodeURIComponent(destino)}&nota=${encodeURIComponent(nota)}`
+                    body: `idInventario=${encodeURIComponent(id)}&plantaDestino=${encodeURIComponent(destino)}&nota=${encodeURIComponent(nota)}&cantidad=${encodeURIComponent(cantidad)}`
                 });
                 const data = await res.json();
                 if (data.ok) {
@@ -6640,7 +6846,7 @@ body:has(#inventarioSistemasApp) {
 
                 let tbody = '';
                 if (filas.length === 0) {
-                    tbody = '<tr><td colspan="7" class="text-center text-muted py-4">No hay transferencias registradas.</td></tr>';
+                    tbody = '<tr><td colspan="8" class="text-center text-muted py-4">No hay transferencias registradas.</td></tr>';
                 } else {
                     filas.forEach(f => {
                         const badgeEstado = f.estado === 'ENVIADO'
@@ -6652,6 +6858,7 @@ body:has(#inventarioSistemasApp) {
                         tbody += `<tr>
                             <td class="small">${f.idArticuloSap}</td>
                             <td>${f.nombre}</td>
+                            <td class="text-center small fw-bold">${f.cantidad || 1}</td>
                             <td class="small">${f.plantaOrigen}</td>
                             <td class="small"><strong>${f.plantaDestino}</strong></td>
                             <td class="small">${f.fechaEnvio}</td>
@@ -6662,7 +6869,7 @@ body:has(#inventarioSistemasApp) {
                 }
                 $('#tbodyTransferencias').html(tbody);
             } catch (e) {
-                $('#tbodyTransferencias').html('<tr><td colspan="7" class="text-center text-muted py-4">Error al cargar: ' + e.message + '</td></tr>');
+                $('#tbodyTransferencias').html('<tr><td colspan="8" class="text-center text-muted py-4">Error al cargar: ' + e.message + '</td></tr>');
             }
         }
 
@@ -8247,9 +8454,15 @@ body:has(#inventarioSistemasApp) {
             let tbody = '';
             let textoFiltro = ($('#filtroAsignaciones').val() || '').toLowerCase();
             let estadoFiltro = $('#filtroEstadoAsignaciones').val();
+            let tipoFiltro = $('#filtroAsignacionTipo').val();
+            let plantaFiltro = $('#filtroAsignacionPlanta').val();
+
+            // Filtro de planta: tomamos el seleccionado del panel; si no, el global del banner
+            let plantaActiva = plantaFiltro || (plantaGlobal || '');
 
             let datosFiltrados = datosInventario.filter(item => {
-                if (plantaGlobal && plantaDeArticulo(item) !== plantaGlobal) return false;
+                if (plantaActiva && plantaDeArticulo(item) !== plantaActiva) return false;
+                if (tipoFiltro && item.tipoArticulo !== tipoFiltro) return false;
                 if (item.asignacion === 'BAJA DEFINITIVA' || item.asignacion === 'PARA PIEZAS') return false;
 
                 let tieneAsignacion = item.asignacion && item.asignacion.trim() !== '';
@@ -8278,9 +8491,15 @@ body:has(#inventarioSistemasApp) {
                 }
 
                 tbody += `<tr>
-                    <td><strong style="color:var(--brand-main);">${item.idArticuloSap}</strong><br>${item.nombre}</td>
-                    <td style="font-family:monospace;" class="text-muted">${item.numeroSerie || '-'}</td>
-                    <td>${badgeAsignacion}<br><small class="text-muted">${item.planta} - ${item.ubicacion}</small></td>
+                    <td style="max-width:260px;">
+                        <strong style="color:var(--brand-main);">${item.idArticuloSap}</strong><br>
+                        <span class="text-truncate d-block" style="max-width:240px; font-size:0.78rem; color:#555;" title="${(item.nombre||'').replace(/"/g,'&quot;')}">${item.nombre || ''}</span>
+                    </td>
+                    <td style="font-family:monospace; font-size:0.72rem;" class="text-muted text-truncate">${item.numeroSerie || '-'}</td>
+                    <td>
+                        <span class="d-block text-truncate" style="max-width:200px;" title="${(item.asignacion||'Disponible').replace(/"/g,'&quot;')}">${badgeAsignacion}</span>
+                        <small class="text-muted d-block text-truncate" style="max-width:200px;">${item.planta} - ${item.ubicacion}</small>
+                    </td>
                     <td class="text-center">
                         <div class="d-flex flex-wrap justify-content-center gap-1">
                             <button class="btn-sm-action m-0" onclick="verInfoResponsable(${item.id})">Expediente</button>
