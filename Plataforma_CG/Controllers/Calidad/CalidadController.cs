@@ -164,7 +164,7 @@ WHERE CONVERT(Date, c.FechaProduccion) = CONVERT(Date, GETDATE())
             return View(listaCanales);
         }
 
-    
+
 
 
         [HttpPost]
@@ -317,125 +317,124 @@ WHERE CONVERT(Date, c.FechaProduccion) = CONVERT(Date, GETDATE())
             ViewBag.FechaSeleccionada = fechaFiltro.ToString("yyyy-MM-dd");
             ViewBag.PaginaActual = pagina;
 
-            string fechaSql = fechaFiltro.ToString("yyyy-MM-dd");
             string fechaId = fechaFiltro.ToString("yyyyMMdd");
-
             var listaCanales = new List<CanalViewModel>();
 
             try
             {
+                string connectionStringTif = _configuration.GetConnectionString("CadenaMeatTIF");
                 string connectionStringSigo = _configuration.GetConnectionString("DefaultConnection");
-                using (var conn = new SqlConnection(connectionStringSigo))
+
+                // 1. Conexion a TIF_Meat para obtener el listado base
+                using (var connTif = new SqlConnection(connectionStringTif))
                 {
-                    conn.Open();
-
-                    // 1. Traer directamente los 50 registros de la página actual de forma  rápida
+                    connTif.Open();
                     string queryCanales = @"
-                SELECT 
-                    a.Arete,
-                    a.ConsecutivoDia,
-                    c.Nombre as Lote,
-                    d.Referencia as Proveedor,
-                    ISNULL(est.Estatus, 'Pendiente') AS Status,
-                    ISNULL(est.RevisionRealizada, 0) AS RevisionRealizada,
-                    est.RevisionCorrecta,
-                    est.RevisionHallazgos,
-                    est.RevisionCuadrantes,
-                    est.RevisionObservaciones,
-                    est.RevisionInspector
-                FROM TIF_Meat.dbo.Canal a
-                INNER JOIN TIF_Meat.dbo.Produccion b ON a.ProduccionId = b.ProduccionId
-                INNER JOIN TIF_Meat.dbo.Lote c ON b.LoteId = c.LoteId
-                INNER JOIN TIF_Meat.dbo.SolicitudReferencia d ON c.LoteId = d.SolicitudProduccionId AND d.TipoReferenciaId = '3'
-                LEFT JOIN SIGO.dbo.PCC1B_Estatus est ON est.CanalId = (CAST(a.ConsecutivoDia AS VARCHAR(50)) + '-' + @FechaId)
-                WHERE c.FechaProduccion >= @FechaFiltro 
-                  AND c.FechaProduccion < DATEADD(day, 1, @FechaFiltro)
-                ORDER BY a.ConsecutivoDia ASC
-                OFFSET @Offset ROWS FETCH NEXT @RegistrosPorPagina ROWS ONLY";
+                    SELECT 
+                        a.Arete,
+                        a.ConsecutivoDia,
+                        c.Nombre as Lote,
+                        d.Referencia as Proveedor
+                    FROM Canal a
+                    INNER JOIN Produccion b ON a.ProduccionId = b.ProduccionId
+                    INNER JOIN Lote c ON b.LoteId = c.LoteId
+                    INNER JOIN SolicitudReferencia d ON c.LoteId = d.SolicitudProduccionId AND d.TipoReferenciaId = '3'
+                    WHERE CONVERT(Date, c.FechaProduccion) = CONVERT(Date, @FechaFiltro)
+                    ORDER BY a.ConsecutivoDia ASC
+                    OFFSET @Offset ROWS FETCH NEXT @RegistrosPorPagina ROWS ONLY";
 
-                    var canalesRaw = conn.Query(queryCanales, new { FechaFiltro = fechaSql, FechaId = fechaId, Offset = offset, RegistrosPorPagina = registrosPorPagina }).ToList();
+                    // Pasamos el objeto DateTime nativo para evitar errores de conversion de formato
+                    var canalesRaw = connTif.Query(queryCanales, new { FechaFiltro = fechaFiltro.Date, Offset = offset, RegistrosPorPagina = registrosPorPagina }).ToList();
 
-                    // Si la consulta trae menos de 50 registros, sabemos exactamente que es la última página
                     ViewBag.TieneMasPaginas = canalesRaw.Count == registrosPorPagina;
-
-                    var idsPagina = canalesRaw.Select(r => $"{r.ConsecutivoDia}-{fechaId}").ToList();
-
-                    var registrosRows = new List<dynamic>();
-                    if (idsPagina.Any())
-                    {
-                        // 1. Agregamos las columnas de colores al SELECT del Histórico
-                        string queryRegistros = @"
-                    SELECT CanalId, Arete, Vista, Hallazgos, Cuadrantes, 
-                        CuadrantesVerdes, CuadrantesAmarillos, CuadrantesRojos,
-                        AccionCorrectiva, Reinspeccion, VerificacionC, VerificacionCumple, 
-                        Observaciones, Inspector, FechaCaptura 
-                    FROM SIGO.dbo.PCC1B_Registros
-                    WHERE CanalId IN @IdsPagina";
-
-                        registrosRows = conn.Query(queryRegistros, new { IdsPagina = idsPagina }).ToList();
-                    }
-
-                    var registrosAgrupados = registrosRows
-                        .GroupBy(r => (string)r.CanalId)
-                        .ToDictionary(g => g.Key, g => g.ToList());
 
                     foreach (var row in canalesRaw)
                     {
                         string consecutivo = row.ConsecutivoDia?.ToString() ?? "0";
-                        string idCanal = $"{consecutivo}-{fechaId}";
-
-                        var canal = new CanalViewModel
+                        listaCanales.Add(new CanalViewModel
                         {
-                            Id = idCanal,
+                            Id = $"{consecutivo}-{fechaId}",
                             Arete = row.Arete?.ToString() ?? "",
                             Provider = row.Proveedor?.ToString() ?? "Sin Proveedor",
-                            Status = row.Status?.ToString(),
+                            Status = "Pendiente",
                             Date = fechaFiltro.ToString("dd/MM/yyyy"),
                             Lot = row.Lote?.ToString() ?? "Sin Lote",
-                            Records = new List<RegistroViewModel>(),
+                            Records = new List<RegistroViewModel>()
+                        });
+                    }
+                }
 
-                            RevisionRealizada = row.RevisionRealizada != null && (bool)row.RevisionRealizada,
-                            RevisionCorrecta = row.RevisionCorrecta != null ? (bool?)row.RevisionCorrecta : null,
-                            RevisionHallazgos = row.RevisionHallazgos?.ToString() ?? "",
-                            RevisionCuadrantes = row.RevisionCuadrantes?.ToString() ?? "",
-                            RevisionObservaciones = row.RevisionObservaciones?.ToString() ?? "",
-                            RevisionInspector = row.RevisionInspector?.ToString() ?? ""
-                        };
+                var idsPagina = listaCanales.Select(c => c.Id).ToList();
 
-                        if (registrosAgrupados.TryGetValue(idCanal, out var registrosCanal))
+                // 2. Conexion a SIGO para obtener Estatus y Registros
+                if (idsPagina.Any())
+                {
+                    using (var connSigo = new SqlConnection(connectionStringSigo))
+                    {
+                        connSigo.Open();
+
+                        // Traer estatus y datos de auditoria
+                        string queryEstatus = "SELECT CanalId, Estatus, RevisionRealizada, RevisionCorrecta, RevisionHallazgos, RevisionCuadrantes, RevisionObservaciones, RevisionInspector FROM PCC1B_Estatus WHERE CanalId IN @IdsPagina";
+                        var estatusRows = connSigo.Query(queryEstatus, new { IdsPagina = idsPagina }).ToList();
+                        var estatusDict = estatusRows.ToDictionary(e => (string)e.CanalId, e => e);
+
+                        // Traer registros y colores
+                        string queryRegistros = @"
+                        SELECT CanalId, Arete, Vista, Hallazgos, Cuadrantes, 
+                            CuadrantesVerdes, CuadrantesAmarillos, CuadrantesRojos,
+                            AccionCorrectiva, Reinspeccion, VerificacionC, VerificacionCumple, 
+                            Observaciones, Inspector, FechaCaptura 
+                        FROM PCC1B_Registros
+                        WHERE CanalId IN @IdsPagina";
+
+                        var registrosRows = connSigo.Query(queryRegistros, new { IdsPagina = idsPagina })
+                            .GroupBy(r => (string)r.CanalId)
+                            .ToDictionary(g => g.Key, g => g.ToList());
+
+                        // Integrar datos en la lista principal
+                        foreach (var canal in listaCanales)
                         {
-                            foreach (var reg in registrosCanal)
+                            if (estatusDict.TryGetValue(canal.Id, out var est))
                             {
-                                // Leemos de forma segura las nuevas columnas
-                                string hallazgos = (string)(reg.Hallazgos ?? "");
-                                string cuadrantes = (string)(reg.Cuadrantes ?? "");
-                                string verdes = (string)(reg.CuadrantesVerdes ?? "");
-                                string amarillos = (string)(reg.CuadrantesAmarillos ?? "");
-                                string rojos = (string)(reg.CuadrantesRojos ?? "");
+                                canal.Status = est.Estatus?.ToString() ?? "Pendiente";
+                                canal.RevisionRealizada = est.RevisionRealizada != null && (bool)est.RevisionRealizada;
+                                canal.RevisionCorrecta = est.RevisionCorrecta != null ? (bool?)est.RevisionCorrecta : null;
+                                canal.RevisionHallazgos = est.RevisionHallazgos?.ToString() ?? "";
+                                canal.RevisionCuadrantes = est.RevisionCuadrantes?.ToString() ?? "";
+                                canal.RevisionObservaciones = est.RevisionObservaciones?.ToString() ?? "";
+                                canal.RevisionInspector = est.RevisionInspector?.ToString() ?? "";
+                            }
 
-                                canal.Records.Add(new RegistroViewModel
+                            if (registrosRows.TryGetValue(canal.Id, out var registrosCanal))
+                            {
+                                foreach (var reg in registrosCanal)
                                 {
-                                    Id = Guid.NewGuid().ToString(),
-                                    Side = (string)(reg.Vista ?? ""),
-                                    Findings = string.IsNullOrEmpty(hallazgos) ? new List<string>() : hallazgos.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList(),
-                                    Quadrants = string.IsNullOrEmpty(cuadrantes) ? new List<int>() : cuadrantes.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList(),
+                                    string hallazgos = (string)(reg.Hallazgos ?? "");
+                                    string cuadrantes = (string)(reg.Cuadrantes ?? "");
+                                    string verdes = (string)(reg.CuadrantesVerdes ?? "");
+                                    string amarillos = (string)(reg.CuadrantesAmarillos ?? "");
+                                    string rojos = (string)(reg.CuadrantesRojos ?? "");
 
-                                    // 2. Llenamos las listas de colores para mandarlas a la Vista Histórica
-                                    CuadrantesVerdes = string.IsNullOrEmpty(verdes) ? new List<int>() : verdes.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList(),
-                                    CuadrantesAmarillos = string.IsNullOrEmpty(amarillos) ? new List<int>() : amarillos.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList(),
-                                    CuadrantesRojos = string.IsNullOrEmpty(rojos) ? new List<int>() : rojos.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList(),
-
-                                    CorrectiveAction = (string)(reg.AccionCorrectiva ?? ""),
-                                    Reinspection = (string)(reg.Reinspeccion ?? ""),
-                                    VerificationChannel = (string)(reg.VerificacionC ?? ""),
-                                    VerificationComplies = reg.VerificacionCumple != null && (bool)reg.VerificacionCumple,
-                                    Observation = (string)(reg.Observaciones ?? ""),
-                                    Inspector = (string)(reg.Inspector ?? ""),
-                                    Datetime = reg.FechaCaptura != null ? ((DateTime)reg.FechaCaptura).ToString("dd/MM/yyyy hh:mm tt") : ""
-                                });
+                                    canal.Records.Add(new RegistroViewModel
+                                    {
+                                        Id = Guid.NewGuid().ToString(),
+                                        Side = (string)(reg.Vista ?? ""),
+                                        Findings = string.IsNullOrEmpty(hallazgos) ? new List<string>() : hallazgos.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList(),
+                                        Quadrants = string.IsNullOrEmpty(cuadrantes) ? new List<int>() : cuadrantes.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList(),
+                                        CuadrantesVerdes = string.IsNullOrEmpty(verdes) ? new List<int>() : verdes.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList(),
+                                        CuadrantesAmarillos = string.IsNullOrEmpty(amarillos) ? new List<int>() : amarillos.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList(),
+                                        CuadrantesRojos = string.IsNullOrEmpty(rojos) ? new List<int>() : rojos.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList(),
+                                        CorrectiveAction = (string)(reg.AccionCorrectiva ?? ""),
+                                        Reinspection = (string)(reg.Reinspeccion ?? ""),
+                                        VerificationChannel = (string)(reg.VerificacionC ?? ""),
+                                        VerificationComplies = reg.VerificacionCumple != null && (bool)reg.VerificacionCumple,
+                                        Observation = (string)(reg.Observaciones ?? ""),
+                                        Inspector = (string)(reg.Inspector ?? ""),
+                                        Datetime = reg.FechaCaptura != null ? ((DateTime)reg.FechaCaptura).ToString("dd/MM/yyyy hh:mm tt") : ""
+                                    });
+                                }
                             }
                         }
-                        listaCanales.Add(canal);
                     }
                 }
             }

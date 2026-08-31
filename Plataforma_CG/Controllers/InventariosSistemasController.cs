@@ -409,23 +409,30 @@ namespace Plataforma_CG.Controllers
 
                         if (cambioDeResponsable)
                         {
-                            if (original.Stock <= 0)
+                            bool esActivoFijo = (original.TipoArticulo ?? "").Equals("Activo Fijo", StringComparison.OrdinalIgnoreCase);
+
+                            // A los activos fijos no se les descuenta stock al asignar: el equipo es una pieza física única.
+                            bool descontarStock = !esActivoFijo;
+
+                            if (descontarStock && original.Stock <= 0)
                             {
                                 return Json(new { ok = false, mensaje = "Operación denegada: No hay stock disponible de este artículo." });
                             }
 
-
-                            original.Stock -= 1;
-
-                            _context.MovimientoInventario.Add(new MovimientoInventario
+                            if (descontarStock)
                             {
-                                ArticuloSap = original.IdArticuloSap,
-                                NombreArticulo = original.Nombre,
-                                TipoMovimiento = "SALIDA",
-                                Cantidad = 1,
-                                Fecha = DateTime.Now,
-                                Referencia = $"Entregado a: {modelo.Asignacion}"
-                            });
+                                original.Stock -= 1;
+
+                                _context.MovimientoInventario.Add(new MovimientoInventario
+                                {
+                                    ArticuloSap = original.IdArticuloSap,
+                                    NombreArticulo = original.Nombre,
+                                    TipoMovimiento = "SALIDA",
+                                    Cantidad = 1,
+                                    Fecha = DateTime.Now,
+                                    Referencia = $"Entregado a: {modelo.Asignacion}"
+                                });
+                            }
 
                             original.Asignacion = modelo.Asignacion;
                             notaParaHistorial = $"{original.TipoArticulo} asignado a: {modelo.Asignacion} | Ubicación: {modelo.Ubicacion}";
@@ -1144,15 +1151,18 @@ namespace Plataforma_CG.Controllers
                 e.FotoFalla = modelo.FotoFalla; // El Base64 de la foto
                 e.BitacoraReparacion = $"[{DateTime.Now.ToString("dd/MM/yy HH:mm")}] INGRESO: {e.MotivoFalla}";
 
-                // Si estaba disponible, le descontamos 1 al stock físico temporalmente porque está roto
-                if (string.IsNullOrEmpty(e.Asignacion) && e.Stock > 0) e.Stock -= 1;
+                // Si estaba disponible y NO es activo fijo, le descontamos 1 al stock físico temporalmente porque está roto.
+                // (Los activos fijos son piezas físicas únicas: no se les descuenta stock.)
+                bool esAF = (e.TipoArticulo ?? "").Equals("Activo Fijo", StringComparison.OrdinalIgnoreCase);
+                bool descontarStockTaller = !esAF && string.IsNullOrEmpty(e.Asignacion) && e.Stock > 0;
+                if (descontarStockTaller) e.Stock -= 1;
 
                 _context.MovimientoInventario.Add(new MovimientoInventario
                 {
                     ArticuloSap = e.IdArticuloSap,
                     NombreArticulo = e.Nombre,
                     TipoMovimiento = "SALIDA",
-                    Cantidad = string.IsNullOrEmpty(e.Asignacion) ? 1 : 0,
+                    Cantidad = esAF ? 0 : 1,
                     Fecha = DateTime.Now,
                     Referencia = $"ENVIADO A TALLER: {e.MotivoFalla}"
                 });
@@ -1187,6 +1197,7 @@ namespace Plataforma_CG.Controllers
                     PlantaOrigen = t.PlantaOrigen,
                     PlantaDestino = t.PlantaDestino,
                     t.Estado,
+                    t.Cantidad,
                     FechaEnvio = t.FechaEnvio.ToString("dd/MM/yyyy HH:mm"),
                     FechaRecepcion = t.FechaRecepcion?.ToString("dd/MM/yyyy HH:mm"),
                     t.Nota
@@ -1200,9 +1211,64 @@ namespace Plataforma_CG.Controllers
             }
         }
 
+        [HttpGet]
+        public IActionResult ObtenerCatalogosInventario()
+        {
+            try
+            {
+                var marcas = _context.MarcasInventario.Where(m => m.Activa).OrderBy(m => m.Nombre).Select(m => m.Nombre).ToList();
+                var areas = _context.AreasInventario.Where(a => a.Activa).OrderBy(a => a.Nombre).Select(a => a.Nombre).ToList();
+                return Json(new { ok = true, marcas = marcas, areas = areas });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
         [HttpPost]
         [RevisarPermiso("INVENTARIOSISTEMAS", "ESCRIBIR")]
-        public IActionResult CrearTransferencia(int idInventario, string plantaDestino, string? nota)
+        public IActionResult AgregarMarcaInventario(string nombre)
+        {
+            try
+            {
+                nombre = (nombre ?? "").Trim().ToUpperInvariant();
+                if (string.IsNullOrWhiteSpace(nombre))
+                    return Json(new { ok = false, mensaje = "Indica el nombre de la marca." });
+
+                if (_context.MarcasInventario.Any(m => m.Nombre == nombre))
+                    return Json(new { ok = false, mensaje = "Esa marca ya existe en el catálogo." });
+
+                _context.MarcasInventario.Add(new MarcaInventario { Nombre = nombre });
+                _context.SaveChanges();
+                return Json(new { ok = true, mensaje = "Marca agregada." });
+            }
+            catch (Exception ex) { return Json(new { ok = false, mensaje = ex.Message }); }
+        }
+
+        [HttpPost]
+        [RevisarPermiso("INVENTARIOSISTEMAS", "ESCRIBIR")]
+        public IActionResult AgregarAreaInventario(string nombre)
+        {
+            try
+            {
+                nombre = (nombre ?? "").Trim().ToUpperInvariant();
+                if (string.IsNullOrWhiteSpace(nombre))
+                    return Json(new { ok = false, mensaje = "Indica el nombre del área/ubicación." });
+
+                if (_context.AreasInventario.Any(a => a.Nombre == nombre))
+                    return Json(new { ok = false, mensaje = "Esa área ya existe en el catálogo." });
+
+                _context.AreasInventario.Add(new AreaInventario { Nombre = nombre });
+                _context.SaveChanges();
+                return Json(new { ok = true, mensaje = "Área agregada." });
+            }
+            catch (Exception ex) { return Json(new { ok = false, mensaje = ex.Message }); }
+        }
+
+        [HttpPost]
+        [RevisarPermiso("INVENTARIOSISTEMAS", "ESCRIBIR")]
+        public IActionResult CrearTransferencia(int idInventario, string plantaDestino, string? nota, int cantidad = 1)
         {
             try
             {
@@ -1210,8 +1276,25 @@ namespace Plataforma_CG.Controllers
                 if (articulo == null)
                     return Json(new { ok = false, mensaje = "Artículo no encontrado." });
 
-                if (string.IsNullOrWhiteSpace(plantaDestino) || plantaDestino == NormalizarGrupoPlanta(articulo.Planta))
+                string grupoOrigen = NormalizarGrupoPlanta(articulo.Planta);
+                string grupoDestino = NormalizarGrupoPlanta(plantaDestino);
+                if (string.IsNullOrWhiteSpace(plantaDestino) || grupoDestino == grupoOrigen || grupoDestino == "")
                     return Json(new { ok = false, mensaje = "La planta destino debe ser distinta a la planta de origen." });
+
+                bool esConsumible = (articulo.TipoArticulo ?? "").Equals("Consumible", StringComparison.OrdinalIgnoreCase);
+
+                // Para consumibles se transfiere una cantidad; para el resto, la unidad completa (1)
+                if (esConsumible)
+                {
+                    if (cantidad < 1)
+                        return Json(new { ok = false, mensaje = "La cantidad a transferir debe ser al menos 1." });
+                    if (cantidad > articulo.Stock)
+                        return Json(new { ok = false, mensaje = $"Solo hay {articulo.Stock} unidades disponibles en la planta de origen." });
+                }
+                else
+                {
+                    cantidad = 1;
+                }
 
                 _context.TransferenciasInventario.Add(new TransferenciaInventario
                 {
@@ -1221,6 +1304,7 @@ namespace Plataforma_CG.Controllers
                     PlantaOrigen = articulo.Planta,
                     PlantaDestino = plantaDestino,
                     Estado = "ENVIADO",
+                    Cantidad = cantidad,
                     FechaEnvio = DateTime.Now,
                     Nota = nota
                 });
@@ -1230,9 +1314,9 @@ namespace Plataforma_CG.Controllers
                     ArticuloSap = articulo.IdArticuloSap,
                     NombreArticulo = articulo.Nombre,
                     TipoMovimiento = "SALIDA",
-                    Cantidad = 1,
+                    Cantidad = cantidad,
                     Fecha = DateTime.Now,
-                    Referencia = $"TRANSFERENCIA ENVIADA: {articulo.Planta} → {plantaDestino}"
+                    Referencia = $"TRANSFERENCIA ENVIADA ({cantidad}x): {articulo.Planta} → {plantaDestino}"
                 });
 
                 _context.SaveChanges();
@@ -1258,17 +1342,66 @@ namespace Plataforma_CG.Controllers
                 if (articulo == null)
                     return Json(new { ok = false, mensaje = "El artículo ya no existe en el inventario." });
 
-                // Cambiamos la planta del artículo a la de destino
-                articulo.Planta = t.PlantaDestino;
+                bool esConsumible = (articulo.TipoArticulo ?? "").Equals("Consumible", StringComparison.OrdinalIgnoreCase);
+
+                if (esConsumible && t.Cantidad > 1)
+                {
+                    // Buscar si ya existe un artículo con el mismo SAP en la planta de destino
+                    var destino = _context.InventarioSistemas
+                        .FirstOrDefault(x => x.IdArticuloSap == articulo.IdArticuloSap
+                            && ((x.Planta ?? "").Trim().ToLower() == (t.PlantaDestino ?? "").Trim().ToLower()));
+
+                    if (destino != null)
+                    {
+                        // Sumar la cantidad transferida al stock del artículo de destino
+                        destino.Stock += t.Cantidad;
+                    }
+                    else
+                    {
+                        // Crear una fila nueva en la planta destino con la cantidad transferida
+                        _context.InventarioSistemas.Add(new InventarioSistemas
+                        {
+                            IdArticuloSap = articulo.IdArticuloSap,
+                            Nombre = articulo.Nombre,
+                            TipoArticulo = articulo.TipoArticulo,
+                            Marca = articulo.Marca ?? "",
+                            Modelo = articulo.Modelo ?? "",
+                            Proveedor = articulo.Proveedor ?? "",
+                            Costo = articulo.Costo,
+                            FechaCompra = articulo.FechaCompra,
+                            DiasGarantia = articulo.DiasGarantia,
+                            Planta = t.PlantaDestino,
+                            Ubicacion = articulo.Ubicacion ?? "",
+                            NumeroSerie = articulo.NumeroSerie ?? "",
+                            Asignacion = articulo.Asignacion ?? "",
+                            TiempoVida = articulo.TiempoVida ?? "",
+                            Stock = t.Cantidad,
+                            StockMinimo = articulo.StockMinimo,
+                            FotoUsuario = articulo.FotoUsuario ?? "",
+                            DocumentoComodato = articulo.DocumentoComodato ?? "",
+                            FirmaDigital = articulo.FirmaDigital ?? "",
+                            IP = articulo.IP ?? "",
+                            FechaEntrada = DateTime.Now
+                        });
+                    }
+
+                    // Restar la cantidad transferida del stock de la planta de origen
+                    articulo.Stock -= t.Cantidad;
+                }
+                else
+                {
+                    // No consumible (o cantidad 1): pasamos la unidad completa a la planta de destino
+                    articulo.Planta = t.PlantaDestino;
+                }
 
                 _context.MovimientoInventario.Add(new MovimientoInventario
                 {
                     ArticuloSap = articulo.IdArticuloSap,
                     NombreArticulo = articulo.Nombre,
                     TipoMovimiento = "ENTRADA",
-                    Cantidad = 1,
+                    Cantidad = t.Cantidad,
                     Fecha = DateTime.Now,
-                    Referencia = $"TRANSFERENCIA RECIBIDA: {t.PlantaOrigen} → {t.PlantaDestino}"
+                    Referencia = $"TRANSFERENCIA RECIBIDA ({t.Cantidad}x): {t.PlantaOrigen} → {t.PlantaDestino}"
                 });
 
                 t.Estado = "RECIBIDO";
