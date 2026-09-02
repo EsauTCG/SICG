@@ -67,8 +67,23 @@
         public string PlantaOrigen { get; set; }
         public string PlantaDestino { get; set; }
         public string Estado { get; set; } // "ENVIADO" | "RECIBIDO"
+        public int Cantidad { get; set; } = 1;
         public DateTime FechaEnvio { get; set; }
         public DateTime? FechaRecepcion { get; set; }
         public string? Nota { get; set; }
+    }
+
+    public class MarcaInventario
+    {
+        public int Id { get; set; }
+        public string Nombre { get; set; }
+        public bool Activa { get; set; } = true;
+    }
+
+    public class AreaInventario
+    {
+        public int Id { get; set; }
+        public string Nombre { get; set; }
+        public bool Activa { get; set; } = true;
     }
 }
