@@ -1,3 +1,4 @@
+
 using ClosedXML.Excel;
 using Dapper;
 using Microsoft.AspNetCore.Authorization;
@@ -4153,8 +4154,10 @@ OPTION (RECOMPILE);
                 .FirstOrDefaultAsync();
 
             string canalUp = (canalRaw ?? "").Trim().ToUpper();
-            if (string.IsNullOrWhiteSpace(canalUp))
-                return false; // no es CEDIS
+
+            // Esta excepción únicamente aplica a clientes CEDIS.
+            if (string.IsNullOrWhiteSpace(canalUp) || !canalUp.StartsWith("CEDIS"))
+                return false;
 
             // Serie -> Sucursal
             string serieTrim = serie.Trim();
@@ -8948,7 +8951,7 @@ ORDER BY FechaGuardado DESC, MaxId DESC, ProductoCodigo, Cliente;";
 
                 workbook.Properties.Title = "Histórico y auditoría de precios";
                 workbook.Properties.Subject = "Exportación de cambios de precio y clientes afectados";
-                workbook.Properties.Author = User?.Identity?.Name ?? "Plataforma CG";
+                workbook.Properties.Author = User?.Identity?.Name ?? "Plataforma SIGO";
 
                 using var stream = new MemoryStream();
                 workbook.SaveAs(stream);
@@ -10032,6 +10035,127 @@ ORDER BY
             return cadena;
         }
 
+        //=======================================================
+        // VALIDAR CAJAS REALMENTE ESCANEADAS ANTES DE CANCELAR OV
+        //
+        // MEAT:
+        // Tabla real de cajas escaneadas: SalidaEmbarque
+        //
+        // REGLA:
+        // - Cada ProduccionId representa una caja.
+        // - Si NO existe ningún ProduccionId para la SolicitudSurtidoId,
+        //   la OV se puede cancelar.
+        // - Si existe al menos un ProduccionId,
+        //   la OV NO se puede cancelar.
+        //
+        // IMPORTANTE:
+        // SolicitudSurtidoDetalle.Cantidad NO se usa aquí,
+        // porque representa lo solicitado, no lo surtido/escaneado.
+        //=======================================================
+        private async Task<(
+            bool PudoValidar,
+            bool TieneCajas,
+            decimal Cajas,
+            int? SolicitudSurtidoId)>
+            ConsultarCajasAsignadasSolicitudMeatAsync(
+                string? serie,
+                string? documentoMeat,
+                CancellationToken ct = default)
+        {
+            var doc = (documentoMeat ?? "").Trim();
+
+            if (string.IsNullOrWhiteSpace(doc))
+                return (
+                    PudoValidar: true,
+                    TieneCajas: false,
+                    Cajas: 0m,
+                    SolicitudSurtidoId: null
+                );
+
+            if (!int.TryParse(doc, out var solicitudSurtidoId))
+            {
+                _logger.LogWarning(
+                    "No se pudo validar cajas: Documento MEAT inválido {DocumentoMeat}.",
+                    doc);
+
+                return (
+                    PudoValidar: false,
+                    TieneCajas: false,
+                    Cajas: 0m,
+                    SolicitudSurtidoId: null
+                );
+            }
+
+            var cadena = await ResolverCadenaMeatPorSerieAsync(serie, ct);
+
+            if (string.IsNullOrWhiteSpace(cadena))
+            {
+                _logger.LogWarning(
+                    "No se pudo validar SalidaEmbarque de SolicitudSurtidoId {SolicitudSurtidoId}: no hay cadena MEAT.",
+                    solicitudSurtidoId);
+
+                return (
+                    PudoValidar: false,
+                    TieneCajas: false,
+                    Cajas: 0m,
+                    SolicitudSurtidoId: solicitudSurtidoId
+                );
+            }
+
+            try
+            {
+                await using var cn = new SqlConnection(cadena);
+                await cn.OpenAsync(ct);
+
+                const string sql = @"
+SELECT
+    CajasEscaneadas =
+        COUNT(DISTINCT se.ProduccionId)
+FROM dbo.SalidaEmbarque se
+WHERE se.SolicitudSurtidoId = @SolicitudSurtidoId
+  AND se.ProduccionId IS NOT NULL;
+";
+
+                await using var cmd = new SqlCommand(sql, cn);
+
+                cmd.Parameters
+                    .Add("@SolicitudSurtidoId", SqlDbType.Int)
+                    .Value = solicitudSurtidoId;
+
+                var value = await cmd.ExecuteScalarAsync(ct);
+
+                var cajas =
+                    value == null || value == DBNull.Value
+                        ? 0m
+                        : Convert.ToDecimal(
+                            value,
+                            CultureInfo.InvariantCulture
+                        );
+
+                return (
+                    PudoValidar: true,
+                    TieneCajas: cajas > 0m,
+                    Cajas: cajas,
+                    SolicitudSurtidoId: solicitudSurtidoId
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error al validar cajas escaneadas en SalidaEmbarque para SolicitudSurtidoId {SolicitudSurtidoId}.",
+                    solicitudSurtidoId);
+
+                return (
+                    PudoValidar: false,
+                    TieneCajas: false,
+                    Cajas: 0m,
+                    SolicitudSurtidoId: solicitudSurtidoId
+                );
+            }
+        }
+
+
         private async Task<bool> IntentarCancelarSolicitudMeatAsync(
     string? serie,
     string? documentoMeat,
@@ -10129,6 +10253,49 @@ WHERE SolicitudSurtidoId = @SolicitudSurtidoId;
                     s.U_DocMeat
                 })
                 .ToListAsync(ct);
+
+            // =====================================================
+            // BLOQUEO DE CANCELACIÓN SI YA HAY CAJAS ASIGNADAS
+            // =====================================================
+            foreach (var sp in subpedidos)
+            {
+                var documentoMeat = (sp.U_DocMeat ?? "").Trim();
+
+                if (string.IsNullOrWhiteSpace(documentoMeat))
+                    continue;
+
+                var validacionCajas =
+                    await ConsultarCajasAsignadasSolicitudMeatAsync(
+                        ov.Serie,
+                        documentoMeat,
+                        ct);
+
+                if (!validacionCajas.PudoValidar)
+                {
+                    return StatusCode(
+                        StatusCodes.Status503ServiceUnavailable,
+                        new
+                        {
+                            ok = false,
+                            msg =
+                                $"No se pudo validar si la Solicitud de Surtido {documentoMeat} " +
+                                "tiene cajas asignadas. Por seguridad, el pedido NO fue cancelado."
+                        });
+                }
+
+                if (validacionCajas.TieneCajas)
+                {
+                    return Conflict(new
+                    {
+                        ok = false,
+                        msg =
+                            $"No se puede cancelar el pedido porque la Solicitud de Surtido " +
+                            $"{validacionCajas.SolicitudSurtidoId} ya tiene " +
+                            $"{validacionCajas.Cajas:N0} caja(s) asignada(s). " +
+                            "Primero deben liberarse las cajas del surtido."
+                    });
+                }
+            }
 
             var docsMeatCancelados = 0;
             var docsMeatNoCancelados = 0;
@@ -11443,6 +11610,239 @@ OPTION (RECOMPILE);";
 
             // 5) Sin VendedorId (no romper)
             return null;
+        }
+
+
+
+        //=======================================================
+        // DIAGNÓSTICO TEMPORAL - ORDENES POR VENDEDOR
+        // NO modifica datos ni cambia la consulta del reporte.
+        // Sirve únicamente para localizar qué filtro deja el reporte en cero.
+        //=======================================================
+        [Authorize]
+        [HttpGet("Comercial/DiagnosticoOrdenesPorVendedor")]
+        public async Task<IActionResult> DiagnosticoOrdenesPorVendedor(
+            [FromQuery] DateTime? desde,
+            [FromQuery] DateTime? hasta,
+            CancellationToken ct = default)
+        {
+            var fechaDesde = (desde ?? DateTime.Today.AddDays(-1)).Date;
+            var fechaHastaExcl = (hasta ?? DateTime.Today).Date.AddDays(1);
+
+            var raw = (User?.Identity?.Name ?? "").Trim();
+            var username = raw.Contains('\\') ? raw.Split('\\').Last() : raw;
+            var usernameEmail = username.Contains('@')
+                ? username
+                : $"{username}@carnesg.net";
+
+            // 1) VendedorId resuelto por la lógica GLOBAL actual.
+            var vendedorIdsGlobal = await GetVendedorIdsActualesAsync(ct);
+
+            // 2) VendedorId tal como está guardado en UsuarioSQL.
+            int? vendedorIdUsuarioSql = null;
+            try
+            {
+                vendedorIdUsuarioSql = await _context.UsuarioSQL
+                    .AsNoTracking()
+                    .Where(u =>
+                        u.Activo &&
+                        (
+                            u.Usuario == raw ||
+                            u.Usuario == username ||
+                            u.Usuario == usernameEmail ||
+                            u.Nombre == raw ||
+                            u.Nombre == username
+                        ))
+                    .Select(u => (int?)u.VendedorId)
+                    .FirstOrDefaultAsync(ct);
+            }
+            catch
+            {
+                // Sólo diagnóstico; no afecta el reporte.
+            }
+
+            // Parser LOCAL sólo para comparar en el diagnóstico.
+            // No cambia GetVendedorIdsActualesAsync ni ningún otro módulo.
+            static List<int> SepararIdsDiagnostico(int? valor)
+            {
+                var resultado = new List<int>();
+                if (!valor.HasValue || valor.Value <= 0)
+                    return resultado;
+
+                var clean = new string(
+                    valor.Value
+                        .ToString(CultureInfo.InvariantCulture)
+                        .Where(char.IsDigit)
+                        .ToArray());
+
+                if (clean.Length <= 2)
+                {
+                    if (int.TryParse(clean, out var unico) && unico > 0)
+                        resultado.Add(unico);
+
+                    return resultado;
+                }
+
+                var indice = 0;
+
+                // Ejemplo 61917 => 6,19,17.
+                if ((clean.Length % 2) != 0)
+                {
+                    if (int.TryParse(clean.Substring(0, 1), out var primero) &&
+                        primero > 0)
+                    {
+                        resultado.Add(primero);
+                    }
+
+                    indice = 1;
+                }
+
+                // Ejemplo 190617 => 19,06,17.
+                for (int i = indice; i + 1 < clean.Length; i += 2)
+                {
+                    if (int.TryParse(clean.Substring(i, 2), out var id) &&
+                        id > 0)
+                    {
+                        resultado.Add(id);
+                    }
+                }
+
+                return resultado.Distinct().ToList();
+            }
+
+            var vendedorIdsUsuarioSqlSeparados =
+                SepararIdsDiagnostico(vendedorIdUsuarioSql);
+
+            // 3) Series del usuario.
+            var seriesIds = await ObtenerSeriesIdsUsuarioActualAsync(ct);
+
+            var seriesNombres = seriesIds.Count == 0
+                ? new List<string>()
+                : await _context.Series
+                    .AsNoTracking()
+                    .Where(s => seriesIds.Contains(s.Id))
+                    .Select(s => s.NombreSerie)
+                    .ToListAsync(ct);
+
+            // 4) Conteos por cada etapa, SIN modificar BaseQueryVista.
+            var vista = _context.VOrdenesVentaPorVendedor
+                .AsNoTracking()
+                .AsQueryable();
+
+            var totalVista = await vista.CountAsync(ct);
+
+            var porSeries = vista;
+            if (seriesNombres.Count > 0)
+            {
+                porSeries = porSeries.Where(x =>
+                    seriesNombres.Contains(x.Serie));
+            }
+
+            var despuesSeries = await porSeries.CountAsync(ct);
+
+            var porFechaEntrega = porSeries.Where(x =>
+                x.FechaEntrega.HasValue &&
+                x.FechaEntrega.Value >= fechaDesde &&
+                x.FechaEntrega.Value < fechaHastaExcl);
+
+            var despuesFechaEntrega = await porFechaEntrega.CountAsync(ct);
+
+            var porFechaRegistro = porSeries.Where(x =>
+                x.FechaRegistro >= fechaDesde &&
+                x.FechaRegistro < fechaHastaExcl);
+
+            var mismoRangoFechaRegistro = await porFechaRegistro.CountAsync(ct);
+
+            // 5) Qué pasaría al aplicar los vendedores separados de UsuarioSQL.
+            var despuesVendedorDirecto = -1;
+            var despuesVendedorPorCliente = -1;
+            var despuesVendedorCombinado = -1;
+
+            if (vendedorIdsUsuarioSqlSeparados.Count > 0)
+            {
+                despuesVendedorDirecto = await porFechaEntrega
+                    .Where(x => vendedorIdsUsuarioSqlSeparados.Contains(x.VendedorId))
+                    .CountAsync(ct);
+
+                var clientesPermitidos = _context.ClienteSap
+                    .AsNoTracking()
+                    .Where(c =>
+                        c.VendedorId.HasValue &&
+                        vendedorIdsUsuarioSqlSeparados.Contains(c.VendedorId.Value))
+                    .Select(c => c.Cliente);
+
+                despuesVendedorPorCliente = await porFechaEntrega
+                    .Where(x =>
+                        x.Cliente != null &&
+                        clientesPermitidos.Contains(x.Cliente))
+                    .CountAsync(ct);
+
+                despuesVendedorCombinado = await porFechaEntrega
+                    .Where(x =>
+                        vendedorIdsUsuarioSqlSeparados.Contains(x.VendedorId)
+                        ||
+                        (
+                            x.Cliente != null &&
+                            clientesPermitidos.Contains(x.Cliente)
+                        ))
+                    .CountAsync(ct);
+            }
+
+            // 6) Muestra de órdenes recientes para comparar FechaRegistro vs FechaEntrega.
+            var muestra = await porSeries
+                .OrderByDescending(x => x.FechaRegistro)
+                .Select(x => new
+                {
+                    x.Id,
+                    x.Consecutivo,
+                    x.Cliente,
+                    x.ClienteNombre,
+                    x.VendedorId,
+                    x.Vendedor,
+                    x.Serie,
+                    x.FechaRegistro,
+                    x.FechaEntrega,
+                    x.Estatus
+                })
+                .Take(25)
+                .ToListAsync(ct);
+
+            return Json(new
+            {
+                ok = true,
+                usuario = new
+                {
+                    identity = raw,
+                    username,
+                    claimVendedorId = User.FindFirst("VendedorId")?.Value,
+                    claimIdVendedor = User.FindFirst("IdVendedor")?.Value,
+                    vendedorIdsGlobal,
+                    vendedorIdUsuarioSql,
+                    vendedorIdsUsuarioSqlSeparados
+                },
+                fechas = new
+                {
+                    desde = fechaDesde,
+                    hasta = fechaHastaExcl.AddDays(-1),
+                    nota = "El reporte actual filtra por FechaEntrega."
+                },
+                series = new
+                {
+                    seriesIds,
+                    seriesNombres
+                },
+                conteos = new
+                {
+                    totalVista,
+                    despuesSeries,
+                    despuesFechaEntrega,
+                    mismoRangoFechaRegistro,
+                    despuesVendedorDirecto,
+                    despuesVendedorPorCliente,
+                    despuesVendedorCombinado
+                },
+                muestra
+            });
         }
 
 
@@ -12790,6 +13190,53 @@ OPTION (RECOMPILE);";
                 })
                 .ToListAsync(ct);
 
+            // =====================================================
+            // BLOQUEO DE CANCELACIÓN SI YA HAY CAJAS ASIGNADAS
+            //
+            // IMPORTANTE:
+            // Esta validación ocurre ANTES de intentar cancelar en SAP
+            // o en MEAT, para no dejar documentos a medias.
+            // =====================================================
+            foreach (var sp in subpedidos)
+            {
+                var documentoMeat = (sp.U_DocMeat ?? "").Trim();
+
+                if (string.IsNullOrWhiteSpace(documentoMeat))
+                    continue;
+
+                var validacionCajas =
+                    await ConsultarCajasAsignadasSolicitudMeatAsync(
+                        header.Serie,
+                        documentoMeat,
+                        ct);
+
+                if (!validacionCajas.PudoValidar)
+                {
+                    return StatusCode(
+                        StatusCodes.Status503ServiceUnavailable,
+                        new
+                        {
+                            ok = false,
+                            msg =
+                                $"No se pudo validar si la Solicitud de Surtido {documentoMeat} " +
+                                "tiene cajas asignadas. Por seguridad, el pedido NO fue cancelado."
+                        });
+                }
+
+                if (validacionCajas.TieneCajas)
+                {
+                    return Conflict(new
+                    {
+                        ok = false,
+                        msg =
+                            $"No se puede cancelar el pedido porque la Solicitud de Surtido " +
+                            $"{validacionCajas.SolicitudSurtidoId} ya tiene " +
+                            $"{validacionCajas.Cajas:N0} caja(s) asignada(s). " +
+                            "Primero deben liberarse las cajas del surtido."
+                    });
+                }
+            }
+
             var docsSapCancelados = 0;
             var docsSapNoCancelados = 0;
 
@@ -13036,9 +13483,10 @@ DROP TABLE IF EXISTS #canal_vendedores;
 DROP TABLE IF EXISTS #plan_prod;
 DROP TABLE IF EXISTS #producido_real;
 DROP TABLE IF EXISTS #ov;
-DROP TABLE IF EXISTS #ov_con_surtido;
 DROP TABLE IF EXISTS #ov_peso_agg;
 DROP TABLE IF EXISTS #ov_surtido_agg;
+DROP TABLE IF EXISTS #ov_validacion;
+DROP TABLE IF EXISTS #ov_cerrado_sku;
 DROP TABLE IF EXISTS #ov_pendiente_sku;
 DROP TABLE IF EXISTS #presupuestos_cedis;
 DROP TABLE IF EXISTS #tr_surtido_agg;
@@ -13211,18 +13659,6 @@ ON #ov (Cliente, FechaDate);
 CREATE INDEX IX_tmp_ov_vendedor_fecha
 ON #ov (VendedorId, FechaDate);
 
-SELECT DISTINCT
-    o.Id
-INTO #ov_con_surtido
-FROM dbo.OrdenVenta o
-JOIN dbo.Subpedido sp
-    ON sp.OrdenVentaId = o.Id
-JOIN dbo.SurtidoEncabezado se
-    ON se.SolicitudSurtidoId = sp.U_DocMeat;
-
-CREATE UNIQUE CLUSTERED INDEX IX_tmp_ov_con_surtido
-ON #ov_con_surtido (Id);
-
 SELECT
     PedidoId = op.PedidoId,
     SKU      = UPPER(LTRIM(RTRIM(op.ProductoCodigo))),
@@ -13236,19 +13672,34 @@ GROUP BY
 CREATE CLUSTERED INDEX IX_tmp_ov_peso_agg
 ON #ov_peso_agg (PedidoId, SKU);
 
+/* =========================================================
+   SURTIDO FÍSICO REAL POR OV + SKU
+
+   Una solicitud se considera cerrada cuando:
+   - tiene FechaValidacion, o
+   - ya tiene Remision / VREM.
+
+   El surtido físico se conserva separado del pendiente.
+   ========================================================= */
 SELECT
     PedidoId = o.Id,
     SKU      = UPPER(LTRIM(RTRIM(sd.Articulo))),
-    KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
+    KgSurtido = SUM(CAST(ISNULL(sd.Kg, 0) AS DECIMAL(18,4)))
 INTO #ov_surtido_agg
 FROM dbo.OrdenVenta o
-JOIN dbo.Subpedido sp
+INNER JOIN dbo.Subpedido sp
     ON sp.OrdenVentaId = o.Id
-JOIN dbo.SurtidoEncabezado se
-    ON se.SolicitudSurtidoId = sp.U_DocMeat
-JOIN dbo.SurtidoDetalle sd
+INNER JOIN dbo.SurtidoEncabezado se
+    ON se.SolicitudSurtidoId =
+       TRY_CONVERT(
+           INT,
+           NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+       )
+INNER JOIN dbo.SurtidoDetalle sd
     ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
-WHERE se.FechaValidacion IS NOT NULL
+WHERE
+    se.FechaValidacion IS NOT NULL
+    OR NULLIF(LTRIM(RTRIM(ISNULL(se.Remision, ''))), '') IS NOT NULL
 GROUP BY
     o.Id,
     UPPER(LTRIM(RTRIM(sd.Articulo)));
@@ -13256,6 +13707,149 @@ GROUP BY
 CREATE CLUSTERED INDEX IX_tmp_ov_surtido_agg
 ON #ov_surtido_agg (PedidoId, SKU);
 
+/* =========================================================
+   ESTADO DE CIERRE DE LA OV
+
+   REGLA:
+   - NO se usa Estatus 5/6 para decidir que una OV está cerrada.
+   - NO basta con que exista SurtidoEncabezado.
+   - Cada subpedido debe tener una SolicitudSurtido cerrada.
+   - Cerrada = FechaValidacion o Remision/VREM.
+
+   Si TODOS los subpedidos están cerrados:
+       pendiente de la OV = 0
+   ========================================================= */
+SELECT
+    PedidoId = sp.OrdenVentaId,
+
+    TotalSubpedidos =
+        COUNT_BIG(*),
+
+    SubpedidosValidados =
+        SUM(
+            CASE
+                WHEN ISNULL(sev.EsCerrado, 0) = 1 THEN 1
+                ELSE 0
+            END
+        ),
+
+    PedidoCerrado =
+        CAST(
+            CASE
+                WHEN COUNT_BIG(*) > 0
+                 AND SUM(
+                        CASE
+                            WHEN ISNULL(sev.EsCerrado, 0) = 1 THEN 1
+                            ELSE 0
+                        END
+                     ) = COUNT_BIG(*)
+                    THEN 1
+                ELSE 0
+            END
+            AS BIT
+        )
+INTO #ov_validacion
+FROM dbo.Subpedido sp
+INNER JOIN #ov ov
+    ON ov.Id = sp.OrdenVentaId
+LEFT JOIN
+(
+    SELECT
+        SolicitudSurtidoId,
+
+        EsCerrado =
+            MAX(
+                CASE
+                    WHEN FechaValidacion IS NOT NULL
+                      OR NULLIF(LTRIM(RTRIM(ISNULL(Remision, ''))), '') IS NOT NULL
+                        THEN 1
+                    ELSE 0
+                END
+            )
+    FROM dbo.SurtidoEncabezado
+    GROUP BY
+        SolicitudSurtidoId
+) sev
+    ON sev.SolicitudSurtidoId =
+       TRY_CONVERT(
+           INT,
+           NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+       )
+GROUP BY
+    sp.OrdenVentaId;
+
+CREATE UNIQUE CLUSTERED INDEX IX_tmp_ov_validacion
+ON #ov_validacion (PedidoId);
+
+/* =========================================================
+   KG DE SUBPEDIDOS QUE YA QUEDARON CERRADOS
+
+   Esta parte resuelve las OV con varios subpedidos.
+
+   Ejemplo:
+       OV original       = 100 kg
+       Subpedido A       =  60 kg  CERRADO
+       Subpedido B       =  40 kg  ABIERTO
+       Pendiente         =  40 kg
+
+   Si A surtió físicamente sólo 52 kg, los 8 kg faltantes de A
+   NO vuelven a quedar pendientes porque esa solicitud ya cerró.
+   ========================================================= */
+SELECT
+    PedidoId = sp.OrdenVentaId,
+    SKU      = UPPER(LTRIM(RTRIM(spp.ProductoCodigo))),
+    KgCerrado =
+        SUM(
+            CAST(ISNULL(spp.KilosCaja, 0) AS DECIMAL(18,4))
+        )
+INTO #ov_cerrado_sku
+FROM dbo.Subpedido sp
+INNER JOIN dbo.SubpedidoProductos spp
+    ON spp.SubpedidoId = sp.Id
+WHERE
+    NULLIF(LTRIM(RTRIM(ISNULL(spp.ProductoCodigo, ''))), '') IS NOT NULL
+    AND EXISTS
+    (
+        SELECT 1
+        FROM dbo.SurtidoEncabezado se
+        WHERE se.SolicitudSurtidoId =
+              TRY_CONVERT(
+                  INT,
+                  NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+              )
+          AND
+          (
+              se.FechaValidacion IS NOT NULL
+              OR NULLIF(LTRIM(RTRIM(ISNULL(se.Remision, ''))), '') IS NOT NULL
+          )
+    )
+GROUP BY
+    sp.OrdenVentaId,
+    UPPER(LTRIM(RTRIM(spp.ProductoCodigo)));
+
+CREATE CLUSTERED INDEX IX_tmp_ov_cerrado_sku
+ON #ov_cerrado_sku (PedidoId, SKU);
+
+/* =========================================================
+   PENDIENTE REAL DE OV
+
+   REGLA FINAL:
+   1) Si TODOS los subpedidos están cerrados:
+          KgPendiente = 0
+
+   2) Si todavía existen subpedidos abiertos:
+          KgPendiente = KgPedidoOriginal - KgSubpedidosCerrados
+
+   3) El surtido físico NO determina el cierre del compromiso.
+
+   Ejemplo:
+       OV            = 6,000
+       Subpedido     = 6,000 cerrado
+       Surtido real  = 5,001
+       Pendiente     = 0
+
+   Los 999 kg no surtidos quedan liberados.
+   ========================================================= */
 SELECT
     ov.Id,
     ov.Cliente,
@@ -13263,25 +13857,39 @@ SELECT
     ov.Estatus,
     ov.FechaDate,
     p.SKU,
+
     KgPendiente =
         CAST(
             CASE
-                WHEN ov.Estatus IN (5, 6) AND os.Id IS NOT NULL THEN 0
-                ELSE CASE
-                    WHEN (p.KgPedido - ISNULL(sa.KgSurtido, 0)) < 0 THEN 0
-                    ELSE (p.KgPedido - ISNULL(sa.KgSurtido, 0))
-                END
+                /* Toda la OV ya quedó cerrada */
+                WHEN ISNULL(v.PedidoCerrado, 0) = 1
+                    THEN 0
+
+                /* OV parcialmente cerrada: sólo queda la parte abierta */
+                WHEN
+                (
+                    ISNULL(p.KgPedido, 0)
+                    - ISNULL(c.KgCerrado, 0)
+                ) <= 0
+                    THEN 0
+
+                ELSE
+                (
+                    ISNULL(p.KgPedido, 0)
+                    - ISNULL(c.KgCerrado, 0)
+                )
             END
-        AS DECIMAL(18,4))
+            AS DECIMAL(18,4)
+        )
 INTO #ov_pendiente_sku
 FROM #ov ov
-JOIN #ov_peso_agg p
+INNER JOIN #ov_peso_agg p
     ON p.PedidoId = ov.Id
-LEFT JOIN #ov_surtido_agg sa
-    ON sa.PedidoId = ov.Id
-   AND sa.SKU = p.SKU
-LEFT JOIN #ov_con_surtido os
-    ON os.Id = ov.Id;
+LEFT JOIN #ov_validacion v
+    ON v.PedidoId = ov.Id
+LEFT JOIN #ov_cerrado_sku c
+    ON c.PedidoId = ov.Id
+   AND c.SKU = p.SKU;
 
 CREATE INDEX IX_tmp_ov_pendiente_cliente
 ON #ov_pendiente_sku (Cliente, SKU, FechaDate);
@@ -14359,11 +14967,21 @@ ORDER BY
         private static bool EsCanalCedis(string? canal)
             => !string.IsNullOrWhiteSpace(canal) && Norm(canal).StartsWith("CEDIS-");
 
+        // Normaliza el identificador del canal CEDIS para que
+        // CEDIS-MDA y MDA se consideren el mismo canal, igual
+        // que en el SQL de Mi Presupuesto.
+        private static string CanalCedisKey(string? canal)
+            => Norm(canal).Replace("CEDIS-", "");
+
 
 
 
         //=============================================================
-        // PRESUPUESTO POR VENDEDOR (prioriza CEDIS si el cliente es canal CEDIS)
+        // PRESUPUESTO POR VENDEDOR
+        // REGLA:
+        // - El cliente únicamente define si aplica o no presupuesto.
+        // - Cuando aplica, el presupuesto SIEMPRE se toma de PresupuestoVendedor.
+        // - No hay fallback a presupuesto de cliente ni prioridad CEDIS.
         // GET: /Comercial/ObtenerPresupuestoProductoVendedor?vendedorId=1&cardCode=C000176&productoCodigo=SKU01&mes=10&anio=2025
         //=============================================================
         [HttpGet]
@@ -14372,240 +14990,1841 @@ ORDER BY
             string? cardCode,
             string productoCodigo,
             int mes,
-            int anio)
+            int anio,
+            string? serie = null)
         {
-            if (vendedorId <= 0) return BadRequest("Se requiere vendedorId.");
-            if (string.IsNullOrWhiteSpace(productoCodigo)) return BadRequest("Se requiere producto.");
+            if (string.IsNullOrWhiteSpace(productoCodigo))
+                return BadRequest("Se requiere producto.");
+
+            if (mes < 1 || mes > 12 || anio <= 0)
+                return BadRequest("Mes/año inválidos.");
 
             var item = Norm(productoCodigo);
             var card = Norm(cardCode);
 
-            // 1) LEFT JOIN ClienteSap -> PresupuestoCedis por canal (solo si existe)
-            //    OJO: Si el cliente NO es CEDIS, aunque haya canal, NO usamos CEDIS.
-            var joinCedis = await (
-                from cli in _context.ClienteSap.AsNoTracking()
-                where card != "" && cli.Cliente == card
-                join pc in _context.PresupuestoCedis.AsNoTracking()
-                        .Where(x => x.Mes == mes && x.Anio == anio && x.ProductoCodigo == item)
-                    on cli.U_CANAL equals pc.Canal into gj
-                from pc in gj.DefaultIfEmpty() // LEFT
-                select new
-                {
-                    Canal = cli.U_CANAL,
-                    PresupuestoCedis = (decimal?)pc.PresupuestoAsignado
-                }
-            ).FirstOrDefaultAsync();
+            // =========================================================
+            // 1) SI EL CLIENTE ES CEDIS:
+            //    - Serie MATRIZ    => usa PresupuestoCedis.
+            //    - Serie SUCURSAL  => NO aplica presupuesto.
+            //    - Si el SKU no existe en PresupuestoCedis, cae al
+            //      presupuesto del vendedor como fallback.
+            // =========================================================
+            string canalCliente = "";
 
-            // 2) Si el cliente es canal CEDIS y hay presupuesto en PresupuestoCedis para ese SKU, úsalo
-            if (joinCedis != null && EsCanalCedis(joinCedis.Canal) && joinCedis.PresupuestoCedis.HasValue)
+            if (!string.IsNullOrWhiteSpace(card))
             {
-                var p = joinCedis.PresupuestoCedis.Value;
+                var canalRaw = await _context.ClienteSap
+                    .AsNoTracking()
+                    .Where(c => (c.Cliente ?? "").Trim().ToUpper() == card)
+                    .Select(c => c.U_CANAL)
+                    .FirstOrDefaultAsync();
+
+                canalCliente = Norm(canalRaw);
+            }
+
+            bool esClienteCedis =
+                !string.IsNullOrWhiteSpace(canalCliente)
+                && canalCliente.StartsWith("CEDIS");
+
+            if (esClienteCedis)
+            {
+                // CEDIS + serie NO MATRIZ = presupuesto NO APLICA.
+                if (await NoAplicaPresupuestoPorSerieAsync(card, serie ?? ""))
+                {
+                    return Json(new
+                    {
+                        productoCodigo = item,
+                        presupuestoAsignado = 0m,
+                        tienePresupuesto = false,
+                        enPresupuesto = false,
+                        noAplicaPresupuesto = true,
+                        origen = "NO_APLICA",
+                        canal = canalCliente
+                    });
+                }
+
+                // CEDIS + MATRIZ = presupuesto del canal CEDIS.
+                // IMPORTANTE: el SQL correcto considera equivalentes
+                // CEDIS-MDA y MDA. Aquí hacemos exactamente lo mismo.
+                var canalCedisKey = CanalCedisKey(canalCliente);
+
+                var presupuestoCedisRows = await _context.PresupuestoCedis
+                    .AsNoTracking()
+                    .Where(p =>
+                        p.Mes == mes
+                        && p.Anio == anio
+                        && (p.ProductoCodigo ?? "").Trim().ToUpper() == item
+                    )
+                    .Select(p => new
+                    {
+                        p.Canal,
+                        p.PresupuestoAsignado
+                    })
+                    .ToListAsync();
+
+                // IMPORTANTE:
+                // NO sumar CEDIS-MDA + MDA si ambos existen.
+                // Primero se toma el canal EXACTO del cliente.
+                // Solamente si no existe un registro exacto, se usa
+                // la equivalencia sin prefijo CEDIS- como fallback.
+                var presupuestoCedisExactoRows = presupuestoCedisRows
+                    .Where(p => Norm(p.Canal) == canalCliente)
+                    .ToList();
+
+                decimal presupuestoCedis;
+
+                if (presupuestoCedisExactoRows.Count > 0)
+                {
+                    presupuestoCedis = presupuestoCedisExactoRows
+                        .Sum(p => p.PresupuestoAsignado);
+                }
+                else
+                {
+                    presupuestoCedis = presupuestoCedisRows
+                        .Where(p => CanalCedisKey(p.Canal) == canalCedisKey)
+                        .Sum(p => p.PresupuestoAsignado);
+                }
+
                 return Json(new
                 {
                     productoCodigo = item,
-                    presupuestoAsignado = p,
-                    tienePresupuesto = p > 0m,
-                    enPresupuesto = p > 0m,
+                    presupuestoAsignado = presupuestoCedis,
+                    tienePresupuesto = presupuestoCedis > 0m,
+                    enPresupuesto = presupuestoCedis > 0m,
+                    noAplicaPresupuesto = false,
                     origen = "CEDIS",
-                    canal = Norm(joinCedis.Canal)
+                    canal = canalCliente
                 });
             }
 
-            // 3) Fallback: presupuesto NORMAL por vendedor
-            var normal = await _context.PresupuestoVendedor.AsNoTracking()
-                .Where(p => p.VendedorId == vendedorId
-                         && p.Mes == mes
-                         && p.Anio == anio
-                         && p.ProductoCodigo == item)
-                .Select(p => (decimal?)p.PresupuestoAsignado)
-                .FirstOrDefaultAsync();
+            // =========================================================
+            // 2) PRESUPUESTO DEL VENDEDOR
+            //    Aplica solamente para cliente NO CEDIS.
+            // =========================================================
+            if (vendedorId <= 0)
+                return BadRequest("Se requiere vendedorId.");
 
-            var pn = normal ?? 0m;
+            var presupuesto = await _context.PresupuestoVendedor
+                .AsNoTracking()
+                .Where(p =>
+                    p.VendedorId == vendedorId
+                    && p.Mes == mes
+                    && p.Anio == anio
+                    && (p.ProductoCodigo ?? "").Trim().ToUpper() == item
+                )
+                .SumAsync(p => (decimal?)p.PresupuestoAsignado) ?? 0m;
 
             return Json(new
             {
                 productoCodigo = item,
-                presupuestoAsignado = pn,
-                tienePresupuesto = pn > 0m,
-                enPresupuesto = pn > 0m,
+                presupuestoAsignado = presupuesto,
+                tienePresupuesto = presupuesto > 0m,
+                enPresupuesto = presupuesto > 0m,
+                noAplicaPresupuesto = false,
                 origen = "VENDEDOR",
-                canal = joinCedis?.Canal != null ? Norm(joinCedis.Canal) : ""
+                canal = ""
             });
         }
 
 
         //=============================================================
-        // DISPONIBLE POR VENDEDOR (prioriza CEDIS si el cliente es canal CEDIS)
-        // GET: /Comercial/ObtenerProductosConPresupuestoDisponibleVendedor?vendedorId=1&cardCode=C000176&fechaEntrega=2025-10-29
+        // DISPONIBLE POR VENDEDOR
+        //
+        // REGLA:
+        // - El cliente únicamente define si aplica o no presupuesto.
+        // - Cuando aplica, presupuesto y disponible SIEMPRE son del vendedor.
+        // - Se consideran OV del vendedor.
+        // - Series únicamente de MATRIZ.
+        // - Líneas eliminadas NO consumen presupuesto.
+        //
+        // PEDIDOS PENDIENTES:
+        // - Estatus 5/6 + Kg surtido validado > 0:
+        //      pendiente = 0
+        //
+        // - Estatus 5/6 + Kg surtido = 0:
+        //      pendiente = pedido completo
+        //
+        // - Otros estatus:
+        //      pendiente = pedido - surtido validado
+        //
+        // SURTIDO REAL:
+        // - Todo surtido con FechaValidacion dentro del mes
+        //   sigue consumiendo presupuesto.
+        //
+        // DISPONIBLE:
+        // Presupuesto
+        // - KgSurtidoReal
+        // - KgPedidosMes
+        //
+        // El disponible nunca baja de 0.
+        //
+        // GET:
+        // /Comercial/ObtenerProductosConPresupuestoDisponibleVendedor
+        // ?vendedorId=1
+        // &cardCode=C000176
+        // &fechaEntrega=2026-08-28
         //=============================================================
         [HttpGet]
         public async Task<IActionResult> ObtenerProductosConPresupuestoDisponibleVendedor(
             int vendedorId,
             string? cardCode,
-            DateTime fechaEntrega)
+            DateTime fechaEntrega,
+            string? serie = null)
         {
-            if (vendedorId <= 0) return BadRequest("vendedorId no especificado.");
+            // =========================================================
+            // DISPONIBLE EXACTO:
+            // Usa EXACTAMENTE la misma consulta de "Mi Presupuesto"
+            // enviada/validada por operación.
+            //
+            // REGLAS:
+            // - CEDIS + MATRIZ    => renglón CEDIS del canal.
+            // - CEDIS + SUCURSAL  => no aplica presupuesto.
+            // - NO CEDIS          => renglón VENDEDOR.
+            //
+            // DisponibleVenta viene calculado por el SQL como:
+            // Presupuesto - KgPedidosMes - KgSurtidoReal
+            // =========================================================
+
+            var card = Norm(cardCode);
+            string canalCliente = "";
+
+            if (!string.IsNullOrWhiteSpace(card))
+            {
+                var canalRaw = await _context.ClienteSap
+                    .AsNoTracking()
+                    .Where(c => (c.Cliente ?? "").Trim().ToUpper() == card)
+                    .Select(c => c.U_CANAL)
+                    .FirstOrDefaultAsync();
+
+                canalCliente = Norm(canalRaw);
+            }
+
+            bool esClienteCedis =
+                !string.IsNullOrWhiteSpace(canalCliente)
+                && canalCliente.StartsWith("CEDIS");
+
+            if (esClienteCedis)
+            {
+                // CEDIS + SUCURSAL => presupuesto no aplica.
+                if (await NoAplicaPresupuestoPorSerieAsync(card, serie ?? ""))
+                    return Json(Array.Empty<object>());
+            }
+            else
+            {
+                if (vendedorId <= 0)
+                    return BadRequest("vendedorId no especificado.");
+            }
 
             int mes = fechaEntrega.Month;
             int anio = fechaEntrega.Year;
 
-            var card = Norm(cardCode);
+            // El SQL recibido usa estos dos parámetros.
+            // Para CEDIS se manda el canal; para vendedor se deja CanalesCsv vacío
+            // y se filtra el vendedor exacto en C# sobre el resultado.
+            var vendedorIdsCsv =
+                vendedorId > 0
+                    ? vendedorId.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    : "";
 
-            // 1) Canal del cliente (puede ser MAYOREO, CEDIS-MDA, etc.)
-            string? canalRaw = null;
-            if (!string.IsNullOrWhiteSpace(card))
+            var canalesCsv =
+                esClienteCedis
+                    ? canalCliente
+                    : "";
+
+            const string sqlDisponibleExacto = @"SET NOCOUNT ON;
+
+-- =========================================================
+-- LIMPIEZA
+-- =========================================================
+DROP TABLE IF EXISTS #productos;
+DROP TABLE IF EXISTS #clientes;
+DROP TABLE IF EXISTS #vendedores;
+DROP TABLE IF EXISTS #canal_vendedores;
+DROP TABLE IF EXISTS #plan_prod;
+DROP TABLE IF EXISTS #producido_real;
+DROP TABLE IF EXISTS #ov;
+DROP TABLE IF EXISTS #ov_peso_agg;
+DROP TABLE IF EXISTS #ov_surtido_agg;
+DROP TABLE IF EXISTS #ov_validacion;
+DROP TABLE IF EXISTS #ov_cerrado_sku;
+DROP TABLE IF EXISTS #ov_pendiente_sku;
+DROP TABLE IF EXISTS #presupuestos_cedis;
+DROP TABLE IF EXISTS #tr_surtido_agg;
+DROP TABLE IF EXISTS #consumo_cedis_base;
+DROP TABLE IF EXISTS #todo_cedis;
+DROP TABLE IF EXISTS #presupuestos_vendedor;
+DROP TABLE IF EXISTS #pres_vendedor_x_canal;
+DROP TABLE IF EXISTS #consumo_vendedor_normal;
+DROP TABLE IF EXISTS #consumo_vendedor_desde_cedis;
+DROP TABLE IF EXISTS #consumo_vendedor_total;
+DROP TABLE IF EXISTS #todo_vendedor;
+DROP TABLE IF EXISTS #venta_real_base;
+DROP TABLE IF EXISTS #venta_real_cedis;
+DROP TABLE IF EXISTS #devoluciones_cedis;
+DROP TABLE IF EXISTS #todo_vendedor_venta_real_extra;
+DROP TABLE IF EXISTS #surtido_ov_cedis;
+DROP TABLE IF EXISTS #surtido_transferencias_cedis;
+DROP TABLE IF EXISTS #surtido_cedis_base;
+DROP TABLE IF EXISTS #surtido_vendedor_normal;
+DROP TABLE IF EXISTS #surtido_vendedor_desde_cedis;
+DROP TABLE IF EXISTS #surtido_vendedor_total;
+DROP TABLE IF EXISTS #surtido_real_cedis;
+DROP TABLE IF EXISTS #surtido_real_vendedor;
+DROP TABLE IF EXISTS #todo_cedis_venta_real_extra;
+DROP TABLE IF EXISTS #t_base;
+DROP TABLE IF EXISTS #meses_distintos;
+DROP TABLE IF EXISTS #dias_laborables;
+DROP TABLE IF EXISTS #filtro_vendedores;
+
+-- =========================================================
+-- FILTRO DE VENDEDOR DEL USUARIO LOGUEADO
+-- Si viene vacío, no filtra.
+-- Si viene 28, solo deja vendedor 28.
+-- =========================================================
+SELECT DISTINCT
+    VendedorId = TRY_CONVERT(INT, value)
+INTO #filtro_vendedores
+FROM STRING_SPLIT(ISNULL(@VendedorIdsCsv, ''), ',')
+WHERE TRY_CONVERT(INT, value) IS NOT NULL
+  AND TRY_CONVERT(INT, value) > 0;
+
+CREATE CLUSTERED INDEX IX_tmp_filtro_vendedores
+ON #filtro_vendedores (VendedorId);
+
+-- =========================================================
+-- 1) CATÁLOGOS
+-- =========================================================
+-- NOTA:
+-- ClienteSap se conserva únicamente como catálogo técnico para
+-- identificar el CEDIS y el vendedor asociados a cada operación.
+-- No se generan filas de origen CLIENTE ni se muestran clientes
+-- en el resultado final.
+SELECT
+    SKU = UPPER(LTRIM(RTRIM(a.ProductoCodigo))),
+    ProductoNombre = COALESCE(NULLIF(LTRIM(RTRIM(a.ProductoNombre)), ''), a.ProductoCodigo),
+    U_MASTER = UPPER(LTRIM(RTRIM(a.U_MASTER))),
+    ClasificacionId = ISNULL(TRY_CONVERT(INT, a.U_Clas_Prod), 99),
+    ClasificacionNombre = ISNULL(cp.Nombre, 'POR DEFINIR'),
+    IdTipoSKU = ISNULL(TRY_CONVERT(INT, a.U_TipoporSKU), 0),
+    TipoSKUDescripcion = ISNULL(ts.Descripcion, 'POR DEFINIR')
+INTO #productos
+FROM dbo.ArticuloSap a
+LEFT JOIN dbo.ClasificacionProduccion cp
+    ON TRY_CONVERT(INT, a.U_Clas_Prod) = cp.ClasificacionId
+LEFT JOIN dbo.CatTipoSKU ts
+    ON TRY_CONVERT(INT, a.U_TipoporSKU) = ts.IdTipoSKU;
+
+CREATE UNIQUE CLUSTERED INDEX IX_tmp_productos
+ON #productos (SKU);
+
+SELECT
+    Cliente        = UPPER(LTRIM(RTRIM(cs.Cliente))),
+    NombreCliente  = COALESCE(NULLIF(LTRIM(RTRIM(cs.NombreCliente)), ''), cs.Cliente),
+    VendedorId     = cs.VendedorId,
+    VendedorNombre = LTRIM(RTRIM(cs.VendedorNombre)),
+    U_CANAL        = UPPER(LTRIM(RTRIM(cs.U_CANAL)))
+INTO #clientes
+FROM dbo.ClienteSap cs;
+
+CREATE CLUSTERED INDEX IX_tmp_clientes_cliente
+ON #clientes (Cliente);
+
+CREATE INDEX IX_tmp_clientes_vendedor
+ON #clientes (VendedorId);
+
+CREATE INDEX IX_tmp_clientes_canal
+ON #clientes (U_CANAL);
+
+SELECT DISTINCT
+    VendedorId,
+    VendedorNombre
+INTO #vendedores
+FROM #clientes
+WHERE VendedorId IS NOT NULL;
+
+CREATE CLUSTERED INDEX IX_tmp_vendedores
+ON #vendedores (VendedorId);
+
+SELECT DISTINCT
+    Canal      = UPPER(LTRIM(RTRIM(c.U_CANAL))),
+    VendedorId = c.VendedorId
+INTO #canal_vendedores
+FROM dbo.ClienteSap c
+WHERE c.VendedorId IS NOT NULL
+  AND UPPER(LTRIM(RTRIM(c.U_CANAL))) LIKE 'CEDIS%';
+
+CREATE INDEX IX_tmp_canal_vendedores
+ON #canal_vendedores (Canal, VendedorId);
+
+-- =========================================================
+-- 2) PLAN PRODUCCIÓN / PRODUCIDO
+-- =========================================================
+SELECT
+    SKU  = UPPER(LTRIM(RTRIM(pd.ProductoCodigo))),
+    Mes  = pp.Mes,
+    Anio = pp.Anio,
+    PlanProduccion = SUM(CAST(pd.Peso AS DECIMAL(18,4)))
+INTO #plan_prod
+FROM dbo.PlanDetalle pd WITH (NOLOCK)
+INNER JOIN dbo.PlanProduccion pp WITH (NOLOCK)
+    ON pp.Id = pd.fk_Plan
+GROUP BY
+    UPPER(LTRIM(RTRIM(pd.ProductoCodigo))),
+    pp.Mes,
+    pp.Anio;
+
+CREATE CLUSTERED INDEX IX_tmp_plan_prod
+ON #plan_prod (SKU, Mes, Anio);
+
+SELECT
+    SKU  = UPPER(LTRIM(RTRIM(p.ArticuloCodigo))),
+    Mes  = MONTH(p.FechaProduccion),
+    Anio = YEAR(p.FechaProduccion),
+    Producido = SUM(CAST(p.KgProducidos AS DECIMAL(18,4)))
+INTO #producido_real
+FROM dbo.ProduccionSigo p WITH (NOLOCK)
+WHERE p.FechaProduccion IS NOT NULL
+GROUP BY
+    UPPER(LTRIM(RTRIM(p.ArticuloCodigo))),
+    MONTH(p.FechaProduccion),
+    YEAR(p.FechaProduccion);
+
+CREATE CLUSTERED INDEX IX_tmp_producido_real
+ON #producido_real (SKU, Mes, Anio);
+
+-- =========================================================
+-- 3) ORDENES DE VENTA / PENDIENTE
+-- =========================================================
+SELECT
+    o.Id,
+    Cliente    = UPPER(LTRIM(RTRIM(o.Cliente))),
+    o.VendedorId,
+    o.Estatus,
+    o.Serie,
+    FechaDate = TRY_CONVERT(date, o.FechaEntrega)
+INTO #ov
+FROM dbo.OrdenVenta o
+INNER JOIN dbo.Series ser
+    ON o.Serie = ser.NombreSerie
+WHERE o.FechaEntrega IS NOT NULL
+  AND o.Estatus BETWEEN 1 AND 6
+  AND ser.Sucursal = 'MATRIZ';
+
+CREATE CLUSTERED INDEX IX_tmp_ov
+ON #ov (Id);
+
+CREATE INDEX IX_tmp_ov_cliente_fecha
+ON #ov (Cliente, FechaDate);
+
+CREATE INDEX IX_tmp_ov_vendedor_fecha
+ON #ov (VendedorId, FechaDate);
+
+SELECT
+    PedidoId = op.PedidoId,
+    SKU      = UPPER(LTRIM(RTRIM(op.ProductoCodigo))),
+    KgPedido = SUM(CAST(op.Peso AS DECIMAL(18,4)))
+INTO #ov_peso_agg
+FROM dbo.OrdenVentaProducto op
+GROUP BY
+    op.PedidoId,
+    UPPER(LTRIM(RTRIM(op.ProductoCodigo)));
+
+CREATE CLUSTERED INDEX IX_tmp_ov_peso_agg
+ON #ov_peso_agg (PedidoId, SKU);
+
+/* =========================================================
+   SURTIDO FÍSICO REAL POR OV + SKU
+
+   Una solicitud se considera cerrada cuando:
+   - tiene FechaValidacion, o
+   - ya tiene Remision / VREM.
+
+   El surtido físico se conserva separado del pendiente.
+   ========================================================= */
+SELECT
+    PedidoId = o.Id,
+    SKU      = UPPER(LTRIM(RTRIM(sd.Articulo))),
+    KgSurtido = SUM(CAST(ISNULL(sd.Kg, 0) AS DECIMAL(18,4)))
+INTO #ov_surtido_agg
+FROM dbo.OrdenVenta o
+INNER JOIN dbo.Subpedido sp
+    ON sp.OrdenVentaId = o.Id
+INNER JOIN dbo.SurtidoEncabezado se
+    ON se.SolicitudSurtidoId =
+       TRY_CONVERT(
+           INT,
+           NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+       )
+INNER JOIN dbo.SurtidoDetalle sd
+    ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+WHERE
+    se.FechaValidacion IS NOT NULL
+    OR NULLIF(LTRIM(RTRIM(ISNULL(se.Remision, ''))), '') IS NOT NULL
+GROUP BY
+    o.Id,
+    UPPER(LTRIM(RTRIM(sd.Articulo)));
+
+CREATE CLUSTERED INDEX IX_tmp_ov_surtido_agg
+ON #ov_surtido_agg (PedidoId, SKU);
+
+/* =========================================================
+   ESTADO DE CIERRE DE LA OV
+
+   REGLA:
+   - NO se usa Estatus 5/6 para decidir que una OV está cerrada.
+   - NO basta con que exista SurtidoEncabezado.
+   - Cada subpedido debe tener una SolicitudSurtido cerrada.
+   - Cerrada = FechaValidacion o Remision/VREM.
+
+   Si TODOS los subpedidos están cerrados:
+       pendiente de la OV = 0
+   ========================================================= */
+SELECT
+    PedidoId = sp.OrdenVentaId,
+
+    TotalSubpedidos =
+        COUNT_BIG(*),
+
+    SubpedidosValidados =
+        SUM(
+            CASE
+                WHEN ISNULL(sev.EsCerrado, 0) = 1 THEN 1
+                ELSE 0
+            END
+        ),
+
+    PedidoCerrado =
+        CAST(
+            CASE
+                WHEN COUNT_BIG(*) > 0
+                 AND SUM(
+                        CASE
+                            WHEN ISNULL(sev.EsCerrado, 0) = 1 THEN 1
+                            ELSE 0
+                        END
+                     ) = COUNT_BIG(*)
+                    THEN 1
+                ELSE 0
+            END
+            AS BIT
+        )
+INTO #ov_validacion
+FROM dbo.Subpedido sp
+INNER JOIN #ov ov
+    ON ov.Id = sp.OrdenVentaId
+LEFT JOIN
+(
+    SELECT
+        SolicitudSurtidoId,
+
+        EsCerrado =
+            MAX(
+                CASE
+                    WHEN FechaValidacion IS NOT NULL
+                      OR NULLIF(LTRIM(RTRIM(ISNULL(Remision, ''))), '') IS NOT NULL
+                        THEN 1
+                    ELSE 0
+                END
+            )
+    FROM dbo.SurtidoEncabezado
+    GROUP BY
+        SolicitudSurtidoId
+) sev
+    ON sev.SolicitudSurtidoId =
+       TRY_CONVERT(
+           INT,
+           NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+       )
+GROUP BY
+    sp.OrdenVentaId;
+
+CREATE UNIQUE CLUSTERED INDEX IX_tmp_ov_validacion
+ON #ov_validacion (PedidoId);
+
+/* =========================================================
+   KG DE SUBPEDIDOS QUE YA QUEDARON CERRADOS
+
+   Esta parte resuelve las OV con varios subpedidos.
+
+   Ejemplo:
+       OV original       = 100 kg
+       Subpedido A       =  60 kg  CERRADO
+       Subpedido B       =  40 kg  ABIERTO
+       Pendiente         =  40 kg
+
+   Si A surtió físicamente sólo 52 kg, los 8 kg faltantes de A
+   NO vuelven a quedar pendientes porque esa solicitud ya cerró.
+   ========================================================= */
+SELECT
+    PedidoId = sp.OrdenVentaId,
+    SKU      = UPPER(LTRIM(RTRIM(spp.ProductoCodigo))),
+    KgCerrado =
+        SUM(
+            CAST(ISNULL(spp.KilosCaja, 0) AS DECIMAL(18,4))
+        )
+INTO #ov_cerrado_sku
+FROM dbo.Subpedido sp
+INNER JOIN dbo.SubpedidoProductos spp
+    ON spp.SubpedidoId = sp.Id
+WHERE
+    NULLIF(LTRIM(RTRIM(ISNULL(spp.ProductoCodigo, ''))), '') IS NOT NULL
+    AND EXISTS
+    (
+        SELECT 1
+        FROM dbo.SurtidoEncabezado se
+        WHERE se.SolicitudSurtidoId =
+              TRY_CONVERT(
+                  INT,
+                  NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+              )
+          AND
+          (
+              se.FechaValidacion IS NOT NULL
+              OR NULLIF(LTRIM(RTRIM(ISNULL(se.Remision, ''))), '') IS NOT NULL
+          )
+    )
+GROUP BY
+    sp.OrdenVentaId,
+    UPPER(LTRIM(RTRIM(spp.ProductoCodigo)));
+
+CREATE CLUSTERED INDEX IX_tmp_ov_cerrado_sku
+ON #ov_cerrado_sku (PedidoId, SKU);
+
+/* =========================================================
+   PENDIENTE REAL DE OV
+
+   REGLA FINAL:
+   1) Si TODOS los subpedidos están cerrados:
+          KgPendiente = 0
+
+   2) Si todavía existen subpedidos abiertos:
+          KgPendiente = KgPedidoOriginal - KgSubpedidosCerrados
+
+   3) El surtido físico NO determina el cierre del compromiso.
+
+   Ejemplo:
+       OV            = 6,000
+       Subpedido     = 6,000 cerrado
+       Surtido real  = 5,001
+       Pendiente     = 0
+
+   Los 999 kg no surtidos quedan liberados.
+   ========================================================= */
+SELECT
+    ov.Id,
+    ov.Cliente,
+    ov.VendedorId,
+    ov.Estatus,
+    ov.FechaDate,
+    p.SKU,
+
+    KgPendiente =
+        CAST(
+            CASE
+                /* Toda la OV ya quedó cerrada */
+                WHEN ISNULL(v.PedidoCerrado, 0) = 1
+                    THEN 0
+
+                /* OV parcialmente cerrada: sólo queda la parte abierta */
+                WHEN
+                (
+                    ISNULL(p.KgPedido, 0)
+                    - ISNULL(c.KgCerrado, 0)
+                ) <= 0
+                    THEN 0
+
+                ELSE
+                (
+                    ISNULL(p.KgPedido, 0)
+                    - ISNULL(c.KgCerrado, 0)
+                )
+            END
+            AS DECIMAL(18,4)
+        )
+INTO #ov_pendiente_sku
+FROM #ov ov
+INNER JOIN #ov_peso_agg p
+    ON p.PedidoId = ov.Id
+LEFT JOIN #ov_validacion v
+    ON v.PedidoId = ov.Id
+LEFT JOIN #ov_cerrado_sku c
+    ON c.PedidoId = ov.Id
+   AND c.SKU = p.SKU;
+
+CREATE INDEX IX_tmp_ov_pendiente_cliente
+ON #ov_pendiente_sku (Cliente, SKU, FechaDate);
+
+CREATE INDEX IX_tmp_ov_pendiente_vendedor
+ON #ov_pendiente_sku (VendedorId, SKU, FechaDate);
+
+-- =========================================================
+-- 4) PRESUPUESTO / CONSUMO CEDIS
+-- =========================================================
+SELECT
+    Canal = UPPER(LTRIM(RTRIM(pc.Canal))),
+    SKU   = UPPER(LTRIM(RTRIM(pc.ProductoCodigo))),
+    Mes   = pc.Mes,
+    Anio  = pc.Anio,
+    Presupuesto = SUM(pc.PresupuestoAsignado)
+INTO #presupuestos_cedis
+FROM dbo.PresupuestoCedis pc
+GROUP BY
+    UPPER(LTRIM(RTRIM(pc.Canal))),
+    UPPER(LTRIM(RTRIM(pc.ProductoCodigo))),
+    pc.Mes,
+    pc.Anio;
+
+CREATE CLUSTERED INDEX IX_tmp_presupuestos_cedis
+ON #presupuestos_cedis (Canal, SKU, Mes, Anio);
+
+SELECT
+    ts.TransferenciaId,
+    SKU = UPPER(LTRIM(RTRIM(ts.Sku))),
+    KgSurtido = SUM(CAST(ts.KgSurtido AS DECIMAL(18,4)))
+INTO #tr_surtido_agg
+FROM dbo.TransferenciaSurtido ts
+GROUP BY
+    ts.TransferenciaId,
+    UPPER(LTRIM(RTRIM(ts.Sku)));
+
+CREATE CLUSTERED INDEX IX_tmp_tr_surtido_agg
+ON #tr_surtido_agg (TransferenciaId, SKU);
+
+SELECT
+    Canal,
+    SKU,
+    Mes,
+    Anio,
+    Kg = SUM(Kg)
+INTO #consumo_cedis_base
+FROM
+(
+    SELECT
+        Canal = cli.U_CANAL,
+        SKU   = ovp.SKU,
+        Mes   = MONTH(ovp.FechaDate),
+        Anio  = YEAR(ovp.FechaDate),
+        Kg    = SUM(ovp.KgPendiente)
+    FROM #ov_pendiente_sku ovp
+    JOIN #clientes cli
+        ON cli.Cliente = ovp.Cliente
+    WHERE cli.U_CANAL LIKE 'CEDIS%'
+    GROUP BY
+        cli.U_CANAL,
+        ovp.SKU,
+        MONTH(ovp.FechaDate),
+        YEAR(ovp.FechaDate)
+
+    UNION ALL
+
+    SELECT
+        Canal = UPPER(LTRIM(RTRIM(s.Canal))),
+        SKU   = UPPER(LTRIM(RTRIM(td.ProductoCodigo))),
+        Mes   = MONTH(TRY_CONVERT(date, t.FechaSolicitud)),
+        Anio  = YEAR(TRY_CONVERT(date, t.FechaSolicitud)),
+        Kg    = SUM(
+                    CASE
+                        WHEN (CAST(td.CantidadKg AS DECIMAL(18,4)) - ISNULL(tsa.KgSurtido, 0)) < 0 THEN 0
+                        ELSE (CAST(td.CantidadKg AS DECIMAL(18,4)) - ISNULL(tsa.KgSurtido, 0))
+                    END
+               )
+    FROM dbo.Transferencias t
+    JOIN dbo.TransferenciaDetalles td
+        ON td.TransferenciaId = t.Id
+    JOIN dbo.Series s
+        ON s.Sucursal = t.Sucursal
+    LEFT JOIN #tr_surtido_agg tsa
+        ON tsa.TransferenciaId = t.Id
+       AND tsa.SKU = UPPER(LTRIM(RTRIM(td.ProductoCodigo)))
+    WHERE t.FechaSolicitud IS NOT NULL
+      AND t.Estatus BETWEEN 1 AND 4
+      AND UPPER(LTRIM(RTRIM(s.Canal))) LIKE 'CEDIS%'
+    GROUP BY
+        UPPER(LTRIM(RTRIM(s.Canal))),
+        UPPER(LTRIM(RTRIM(td.ProductoCodigo))),
+        MONTH(TRY_CONVERT(date, t.FechaSolicitud)),
+        YEAR(TRY_CONVERT(date, t.FechaSolicitud))
+) X
+GROUP BY
+    Canal, SKU, Mes, Anio;
+
+CREATE CLUSTERED INDEX IX_tmp_consumo_cedis_base
+ON #consumo_cedis_base (Canal, SKU, Mes, Anio);
+
+SELECT
+    'CEDIS' AS Origen,
+    pc.Mes,
+    pc.Anio,
+    CAST(NULL AS NVARCHAR(50)) AS Cliente,
+    pc.Canal,
+    CAST(NULL AS INT) AS VendedorId,
+    pc.SKU,
+    pc.Presupuesto,
+    ISNULL(cc.Kg, 0) AS Kg
+INTO #todo_cedis
+FROM #presupuestos_cedis pc
+LEFT JOIN #consumo_cedis_base cc
+    ON cc.Canal = pc.Canal
+   AND cc.SKU   = pc.SKU
+   AND cc.Mes   = pc.Mes
+   AND cc.Anio  = pc.Anio;
+
+CREATE INDEX IX_tmp_todo_cedis
+ON #todo_cedis (Mes, Anio, Canal, SKU);
+
+-- =========================================================
+-- 5) PRESUPUESTO / CONSUMO VENDEDOR
+-- =========================================================
+SELECT
+    VendedorId,
+    SKU = UPPER(LTRIM(RTRIM(pv.ProductoCodigo))),
+    Mes = pv.Mes,
+    Anio = pv.Anio,
+    Presupuesto = SUM(pv.PresupuestoAsignado)
+INTO #presupuestos_vendedor
+FROM dbo.PresupuestoVendedor pv
+GROUP BY
+    pv.VendedorId,
+    UPPER(LTRIM(RTRIM(pv.ProductoCodigo))),
+    pv.Mes,
+    pv.Anio;
+
+CREATE CLUSTERED INDEX IX_tmp_presupuestos_vendedor
+ON #presupuestos_vendedor (VendedorId, SKU, Mes, Anio);
+
+SELECT
+    cv.Canal,
+    pv.SKU,
+    pv.Mes,
+    pv.Anio,
+    PresTotalCanal = SUM(CAST(pv.Presupuesto AS DECIMAL(18,4)))
+INTO #pres_vendedor_x_canal
+FROM #presupuestos_vendedor pv
+JOIN #canal_vendedores cv
+    ON cv.VendedorId = pv.VendedorId
+GROUP BY
+    cv.Canal, pv.SKU, pv.Mes, pv.Anio;
+
+CREATE CLUSTERED INDEX IX_tmp_pres_vendedor_x_canal
+ON #pres_vendedor_x_canal (Canal, SKU, Mes, Anio);
+
+SELECT
+    ovp.VendedorId,
+    SKU  = ovp.SKU,
+    Mes  = MONTH(ovp.FechaDate),
+    Anio = YEAR(ovp.FechaDate),
+    Kg   = SUM(ovp.KgPendiente)
+INTO #consumo_vendedor_normal
+FROM #ov_pendiente_sku ovp
+JOIN #clientes c
+    ON c.Cliente = ovp.Cliente
+   AND ISNULL(c.U_CANAL, '') NOT LIKE 'CEDIS%'
+WHERE ovp.VendedorId IS NOT NULL
+GROUP BY
+    ovp.VendedorId,
+    ovp.SKU,
+    MONTH(ovp.FechaDate),
+    YEAR(ovp.FechaDate);
+
+CREATE CLUSTERED INDEX IX_tmp_consumo_vendedor_normal
+ON #consumo_vendedor_normal (VendedorId, SKU, Mes, Anio);
+
+SELECT
+    VendedorId = pv.VendedorId,
+    SKU        = pv.SKU,
+    Mes        = pv.Mes,
+    Anio       = pv.Anio,
+    Kg = SUM(
+            CASE
+                WHEN ISNULL(pxc.PresTotalCanal, 0) <= 0 THEN 0
+                ELSE (cb.Kg * (CAST(pv.Presupuesto AS DECIMAL(18,4)) / pxc.PresTotalCanal))
+            END
+        )
+INTO #consumo_vendedor_desde_cedis
+FROM #presupuestos_vendedor pv
+JOIN #canal_vendedores cv
+    ON cv.VendedorId = pv.VendedorId
+JOIN #pres_vendedor_x_canal pxc
+    ON pxc.Canal = cv.Canal
+   AND pxc.SKU   = pv.SKU
+   AND pxc.Mes   = pv.Mes
+   AND pxc.Anio  = pv.Anio
+JOIN #consumo_cedis_base cb
+    ON cb.Canal = cv.Canal
+   AND cb.SKU   = pv.SKU
+   AND cb.Mes   = pv.Mes
+   AND cb.Anio  = pv.Anio
+GROUP BY
+    pv.VendedorId, pv.SKU, pv.Mes, pv.Anio;
+
+CREATE CLUSTERED INDEX IX_tmp_consumo_vendedor_desde_cedis
+ON #consumo_vendedor_desde_cedis (VendedorId, SKU, Mes, Anio);
+
+SELECT
+    VendedorId,
+    SKU,
+    Mes,
+    Anio,
+    Kg = SUM(Kg)
+INTO #consumo_vendedor_total
+FROM
+(
+    SELECT * FROM #consumo_vendedor_normal
+    UNION ALL
+    SELECT * FROM #consumo_vendedor_desde_cedis
+) x
+GROUP BY
+    VendedorId, SKU, Mes, Anio;
+
+CREATE CLUSTERED INDEX IX_tmp_consumo_vendedor_total
+ON #consumo_vendedor_total (VendedorId, SKU, Mes, Anio);
+
+SELECT
+    'VENDEDOR' AS Origen,
+    pv.Mes,
+    pv.Anio,
+    CAST(NULL AS NVARCHAR(50)) AS Cliente,
+    CAST(NULL AS NVARCHAR(100)) AS Canal,
+    pv.VendedorId,
+    pv.SKU,
+    pv.Presupuesto,
+    ISNULL(cv.Kg, 0) AS Kg
+INTO #todo_vendedor
+FROM #presupuestos_vendedor pv
+LEFT JOIN #consumo_vendedor_total cv
+    ON cv.VendedorId = pv.VendedorId
+   AND cv.SKU        = pv.SKU
+   AND cv.Mes        = pv.Mes
+   AND cv.Anio       = pv.Anio;
+
+CREATE INDEX IX_tmp_todo_vendedor
+ON #todo_vendedor (Mes, Anio, VendedorId, SKU);
+
+-- =========================================================
+-- 6) VENTA REAL BASE / EXTRAS
+-- =========================================================
+SELECT
+    ArticuloCodigo = UPPER(LTRIM(RTRIM(b.Articulo))),
+    Mes            = MONTH(a.FechaValidacion),
+    Anio           = YEAR(a.FechaValidacion),
+    VendedorId     = cs.VendedorId,
+    Vendedor       = UPPER(LTRIM(RTRIM(cs.VendedorNombre))),
+    U_CANAL        = UPPER(LTRIM(RTRIM(cs.U_CANAL))),
+    KgVendidos     = SUM(CAST(b.Kg AS DECIMAL(18,4)))
+INTO #venta_real_base
+FROM dbo.SurtidoEncabezado a
+INNER JOIN dbo.SurtidoDetalle b
+    ON a.SolicitudSurtidoId = b.SolicitudSurtidoId
+LEFT JOIN dbo.ClienteSap cs
+    ON cs.Cliente = a.CodigoSap
+WHERE a.FechaValidacion IS NOT NULL
+GROUP BY
+    UPPER(LTRIM(RTRIM(b.Articulo))),
+    MONTH(a.FechaValidacion),
+    YEAR(a.FechaValidacion),
+    cs.VendedorId,
+    UPPER(LTRIM(RTRIM(cs.VendedorNombre))),
+    UPPER(LTRIM(RTRIM(cs.U_CANAL)));
+
+CREATE INDEX IX_tmp_venta_real_base_vendedor
+ON #venta_real_base (VendedorId, ArticuloCodigo, Mes, Anio);
+
+CREATE INDEX IX_tmp_venta_real_base_canal
+ON #venta_real_base (U_CANAL, ArticuloCodigo, Mes, Anio);
+
+/* =========================================================
+   VENTA REAL BRUTA POR CEDIS
+
+   Esta cifra corresponde a la venta real antes de descontar
+   devoluciones realizadas físicamente en las bodegas.
+   ========================================================= */
+SELECT
+    Canal = UPPER(LTRIM(RTRIM(vr.U_CANAL))),
+    SKU   = UPPER(LTRIM(RTRIM(vr.ArticuloCodigo))),
+    vr.Mes,
+    vr.Anio,
+    VentaRealBruta =
+        SUM(CAST(ISNULL(vr.KgVendidos, 0) AS DECIMAL(18,4)))
+INTO #venta_real_cedis
+FROM #venta_real_base vr
+WHERE ISNULL(UPPER(LTRIM(RTRIM(vr.U_CANAL))), '') LIKE 'CEDIS%'
+GROUP BY
+    UPPER(LTRIM(RTRIM(vr.U_CANAL))),
+    UPPER(LTRIM(RTRIM(vr.ArticuloCodigo))),
+    vr.Mes,
+    vr.Anio;
+
+CREATE UNIQUE CLUSTERED INDEX IX_tmp_venta_real_cedis
+ON #venta_real_cedis (Canal, SKU, Mes, Anio);
+
+/* =========================================================
+   DEVOLUCIONES REALIZADAS EN BODEGA POR CEDIS
+
+   Se excluyen los almacenes que comienzan con FRIGORIFICO.
+   Estas devoluciones:
+     - reducen la venta real;
+     - NO se suman nuevamente al disponible.
+   ========================================================= */
+SELECT
+    Canal =
+        UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, '')))),
+
+    SKU =
+        UPPER(LTRIM(RTRIM(b.Articulo))),
+
+    Mes =
+        MONTH(b.FechaDevolucion),
+
+    Anio =
+        YEAR(b.FechaDevolucion),
+
+    KgDevolucionesBodega =
+        SUM
+        (
+            CAST
+            (
+                ISNULL(b.Peso, 0)
+                AS DECIMAL(18,4)
+            )
+        )
+INTO #devoluciones_cedis
+FROM dbo.DevolucionMeat b
+INNER JOIN dbo.ClienteSap c
+    ON UPPER(LTRIM(RTRIM(b.CodigoSap))) =
+       UPPER(LTRIM(RTRIM(c.Cliente)))
+WHERE b.FechaDevolucion IS NOT NULL
+
+  /*
+      No se aplican parámetros de fecha adicionales porque
+      no forman parte de la firma actual del procedimiento.
+      La devolución se relaciona al resultado por Mes y Año.
+  */
+
+  /* Únicamente devoluciones asociadas con SUC01/SUC02 */
+  AND
+  (
+      b.Remision LIKE '%SUC01%'
+      OR b.Remision LIKE '%SUC02%'
+  )
+
+  /* Debe existir la solicitud en SIGO */
+  AND EXISTS
+  (
+      SELECT 1
+      FROM dbo.Subpedido sp
+      WHERE sp.U_DocMeat = b.SolicitudSurtidoId
+  )
+
+  /* Excluir devoluciones recibidas en frigorífico */
+  AND ISNULL
+      (
+          UPPER(LTRIM(RTRIM(b.AlmacenDevolucionNombre))),
+          ''
+      ) NOT LIKE 'FRIGORIFICO%'
+
+  /* Esta tabla se utilizará en los renglones CEDIS */
+  AND ISNULL
+      (
+          UPPER(LTRIM(RTRIM(c.U_CANAL))),
+          ''
+      ) LIKE 'CEDIS%'
+GROUP BY
+    UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, '')))),
+    UPPER(LTRIM(RTRIM(b.Articulo))),
+    MONTH(b.FechaDevolucion),
+    YEAR(b.FechaDevolucion);
+
+CREATE UNIQUE CLUSTERED INDEX IX_tmp_devoluciones_cedis
+ON #devoluciones_cedis (Canal, SKU, Mes, Anio);
+
+/* =========================================================
+   SKU CON VENTA REAL, PERO SIN PRESUPUESTO DE VENDEDOR
+
+   Se genera una fila con Presupuesto = 0 para que el SKU
+   aparezca en el resultado final aunque no esté presupuestado.
+   ========================================================= */
+SELECT DISTINCT
+    'VENDEDOR' AS Origen,
+    vr.Mes,
+    vr.Anio,
+    CAST(NULL AS NVARCHAR(50)) AS Cliente,
+    CAST(NULL AS NVARCHAR(100)) AS Canal,
+    vr.VendedorId,
+    vr.ArticuloCodigo AS SKU,
+    CAST(0 AS DECIMAL(18,4)) AS Presupuesto,
+    CAST(0 AS DECIMAL(18,4)) AS Kg
+INTO #todo_vendedor_venta_real_extra
+FROM #venta_real_base vr
+WHERE vr.VendedorId IS NOT NULL
+  AND ISNULL(vr.KgVendidos, 0) > 0
+  AND NOT EXISTS
+  (
+      SELECT 1
+      FROM #todo_vendedor tv
+      WHERE tv.VendedorId = vr.VendedorId
+        AND tv.SKU        = vr.ArticuloCodigo
+        AND tv.Mes        = vr.Mes
+        AND tv.Anio       = vr.Anio
+  );
+
+CREATE INDEX IX_tmp_todo_vendedor_venta_real_extra
+ON #todo_vendedor_venta_real_extra
+(
+    Mes,
+    Anio,
+    VendedorId,
+    SKU
+);
+
+-- =========================================================
+-- 7) SURTIDO REAL CEDIS / VENDEDOR
+-- =========================================================
+SELECT
+    Canal = cli.U_CANAL,
+    SKU   = UPPER(LTRIM(RTRIM(sd.Articulo))),
+    Mes   = MONTH(se.FechaValidacion),
+    Anio  = YEAR(se.FechaValidacion),
+    KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
+INTO #surtido_ov_cedis
+FROM dbo.OrdenVenta o
+JOIN dbo.Series ser
+    ON ser.NombreSerie = o.Serie
+JOIN dbo.Subpedido sp
+    ON sp.OrdenVentaId = o.Id
+JOIN dbo.SurtidoEncabezado se
+    ON se.SolicitudSurtidoId = sp.U_DocMeat
+JOIN dbo.SurtidoDetalle sd
+    ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+JOIN #clientes cli
+    ON cli.Cliente = UPPER(LTRIM(RTRIM(o.Cliente)))
+WHERE o.Estatus <> 0
+  AND se.FechaValidacion IS NOT NULL
+  AND ser.Sucursal = 'MATRIZ'
+  AND cli.U_CANAL LIKE 'CEDIS%'
+GROUP BY
+    cli.U_CANAL,
+    UPPER(LTRIM(RTRIM(sd.Articulo))),
+    MONTH(se.FechaValidacion),
+    YEAR(se.FechaValidacion);
+
+CREATE CLUSTERED INDEX IX_tmp_surtido_ov_cedis
+ON #surtido_ov_cedis (Canal, SKU, Mes, Anio);
+
+SELECT
+    Canal = UPPER(LTRIM(RTRIM(s.Canal))),
+    SKU   = UPPER(LTRIM(RTRIM(ts.Sku))),
+    Mes   = MONTH(TRY_CONVERT(date, t.FechaSolicitud)),
+    Anio  = YEAR(TRY_CONVERT(date, t.FechaSolicitud)),
+    KgSurtido = SUM(CAST(ts.KgSurtido AS DECIMAL(18,4)))
+INTO #surtido_transferencias_cedis
+FROM dbo.TransferenciaSurtido ts
+JOIN dbo.Transferencias t
+    ON t.Id = ts.TransferenciaId
+JOIN dbo.Series s
+    ON s.Sucursal = t.Sucursal
+WHERE t.FechaSolicitud IS NOT NULL
+  AND t.Estatus >= 5
+  AND ts.KgSurtido > 0
+  AND UPPER(LTRIM(RTRIM(s.Canal))) LIKE 'CEDIS%'
+GROUP BY
+    UPPER(LTRIM(RTRIM(s.Canal))),
+    UPPER(LTRIM(RTRIM(ts.Sku))),
+    MONTH(TRY_CONVERT(date, t.FechaSolicitud)),
+    YEAR(TRY_CONVERT(date, t.FechaSolicitud));
+
+CREATE CLUSTERED INDEX IX_tmp_surtido_transferencias_cedis
+ON #surtido_transferencias_cedis (Canal, SKU, Mes, Anio);
+
+SELECT
+    Canal,
+    SKU,
+    Mes,
+    Anio,
+    KgSurtido = SUM(KgSurtido)
+INTO #surtido_cedis_base
+FROM
+(
+    SELECT * FROM #surtido_ov_cedis
+    UNION ALL
+    SELECT * FROM #surtido_transferencias_cedis
+) x
+GROUP BY
+    Canal, SKU, Mes, Anio;
+
+CREATE CLUSTERED INDEX IX_tmp_surtido_cedis_base
+ON #surtido_cedis_base (Canal, SKU, Mes, Anio);
+
+SELECT
+    cli.VendedorId,
+    SKU       = UPPER(LTRIM(RTRIM(sd.Articulo))),
+    Mes       = MONTH(se.FechaValidacion),
+    Anio      = YEAR(se.FechaValidacion),
+    KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
+INTO #surtido_vendedor_normal
+FROM dbo.OrdenVenta o
+JOIN dbo.Series ser
+    ON ser.NombreSerie = o.Serie
+JOIN dbo.Subpedido sp
+    ON sp.OrdenVentaId = o.Id
+JOIN dbo.SurtidoEncabezado se
+    ON se.SolicitudSurtidoId = sp.U_DocMeat
+JOIN dbo.SurtidoDetalle sd
+    ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+JOIN #clientes cli
+    ON cli.Cliente = UPPER(LTRIM(RTRIM(o.Cliente)))
+WHERE o.Estatus <> 0
+  AND se.FechaValidacion IS NOT NULL
+  AND ser.Sucursal = 'MATRIZ'
+  AND ISNULL(cli.U_CANAL, '') NOT LIKE 'CEDIS%'
+  AND cli.VendedorId IS NOT NULL
+GROUP BY
+    cli.VendedorId,
+    UPPER(LTRIM(RTRIM(sd.Articulo))),
+    MONTH(se.FechaValidacion),
+    YEAR(se.FechaValidacion);
+
+CREATE CLUSTERED INDEX IX_tmp_surtido_vendedor_normal
+ON #surtido_vendedor_normal (VendedorId, SKU, Mes, Anio);
+
+SELECT
+    VendedorId = pv.VendedorId,
+    SKU        = pv.SKU,
+    Mes        = pv.Mes,
+    Anio       = pv.Anio,
+    KgSurtido  = SUM(
+                    CASE
+                        WHEN ISNULL(pxc.PresTotalCanal, 0) <= 0 THEN 0
+                        ELSE (sb.KgSurtido * (CAST(pv.Presupuesto AS DECIMAL(18,4)) / pxc.PresTotalCanal))
+                    END
+                 )
+INTO #surtido_vendedor_desde_cedis
+FROM #presupuestos_vendedor pv
+JOIN #canal_vendedores cv
+    ON cv.VendedorId = pv.VendedorId
+JOIN #pres_vendedor_x_canal pxc
+    ON pxc.Canal = cv.Canal
+   AND pxc.SKU   = pv.SKU
+   AND pxc.Mes   = pv.Mes
+   AND pxc.Anio  = pv.Anio
+JOIN #surtido_cedis_base sb
+    ON sb.Canal = cv.Canal
+   AND sb.SKU   = pv.SKU
+   AND sb.Mes   = pv.Mes
+   AND sb.Anio  = pv.Anio
+GROUP BY
+    pv.VendedorId, pv.SKU, pv.Mes, pv.Anio;
+
+CREATE CLUSTERED INDEX IX_tmp_surtido_vendedor_desde_cedis
+ON #surtido_vendedor_desde_cedis (VendedorId, SKU, Mes, Anio);
+
+SELECT
+    VendedorId,
+    SKU,
+    Mes,
+    Anio,
+    KgSurtido = SUM(KgSurtido)
+INTO #surtido_vendedor_total
+FROM
+(
+    SELECT * FROM #surtido_vendedor_normal
+    UNION ALL
+    SELECT * FROM #surtido_vendedor_desde_cedis
+) x
+GROUP BY
+    VendedorId, SKU, Mes, Anio;
+
+CREATE CLUSTERED INDEX IX_tmp_surtido_vendedor_total
+ON #surtido_vendedor_total (VendedorId, SKU, Mes, Anio);
+
+-- Tablas finales separadas por origen
+SELECT
+    Canal,
+    SKU,
+    Mes,
+    Anio,
+    KgSurtido
+INTO #surtido_real_cedis
+FROM #surtido_cedis_base;
+
+CREATE CLUSTERED INDEX IX_tmp_surtido_real_cedis
+ON #surtido_real_cedis (Canal, SKU, Mes, Anio);
+
+SELECT
+    VendedorId,
+    SKU,
+    Mes,
+    Anio,
+    KgSurtido
+INTO #surtido_real_vendedor
+FROM #surtido_vendedor_total;
+
+CREATE CLUSTERED INDEX IX_tmp_surtido_real_vendedor
+ON #surtido_real_vendedor (VendedorId, SKU, Mes, Anio);
+
+/* =========================================================
+   COMPLETAR VENDEDORES CON VENTA REAL Y SIN PRESUPUESTO
+
+   Si ya existe en #todo_vendedor o en la tabla extra,
+   no se vuelve a insertar.
+   ========================================================= */
+INSERT INTO #todo_vendedor_venta_real_extra
+(
+    Origen,
+    Mes,
+    Anio,
+    Cliente,
+    Canal,
+    VendedorId,
+    SKU,
+    Presupuesto,
+    Kg
+)
+SELECT
+    'VENDEDOR' AS Origen,
+    srv.Mes,
+    srv.Anio,
+    CAST(NULL AS NVARCHAR(50)) AS Cliente,
+    CAST(NULL AS NVARCHAR(100)) AS Canal,
+    srv.VendedorId,
+    srv.SKU,
+    CAST(0 AS DECIMAL(18,4)) AS Presupuesto,
+    CAST(0 AS DECIMAL(18,4)) AS Kg
+FROM #surtido_real_vendedor srv
+WHERE ISNULL(srv.KgSurtido, 0) > 0
+  AND NOT EXISTS
+  (
+      SELECT 1
+      FROM #todo_vendedor tv
+      WHERE tv.VendedorId = srv.VendedorId
+        AND tv.SKU        = srv.SKU
+        AND tv.Mes        = srv.Mes
+        AND tv.Anio       = srv.Anio
+  )
+  AND NOT EXISTS
+  (
+      SELECT 1
+      FROM #todo_vendedor_venta_real_extra tve
+      WHERE tve.VendedorId = srv.VendedorId
+        AND tve.SKU        = srv.SKU
+        AND tve.Mes        = srv.Mes
+        AND tve.Anio       = srv.Anio
+  );
+
+-- =========================================================
+-- 8) EXTRA CEDIS DESDE VENTA REAL
+-- =========================================================
+SELECT
+    'CEDIS' AS Origen,
+    src.Mes,
+    src.Anio,
+    CAST(NULL AS NVARCHAR(50)) AS Cliente,
+    src.Canal,
+    CAST(NULL AS INT) AS VendedorId,
+    src.SKU,
+    CAST(0 AS DECIMAL(18,4)) AS Presupuesto,
+    CAST(0 AS DECIMAL(18,4)) AS Kg
+INTO #todo_cedis_venta_real_extra
+FROM #surtido_real_cedis src
+WHERE ISNULL(src.KgSurtido, 0) > 0
+  AND NOT EXISTS
+  (
+      SELECT 1
+      FROM #todo_cedis tc
+      WHERE tc.Canal = src.Canal
+        AND tc.SKU   = src.SKU
+        AND tc.Mes   = src.Mes
+        AND tc.Anio  = src.Anio
+  );
+
+CREATE INDEX IX_tmp_todo_cedis_venta_real_extra
+ON #todo_cedis_venta_real_extra (Mes, Anio, Canal, SKU);
+
+-- =========================================================
+-- 9) BASE FINAL
+-- =========================================================
+SELECT *
+INTO #t_base
+FROM
+(
+    /* CEDIS: presupuesto normal */
+    SELECT * FROM #todo_cedis
+
+    UNION ALL
+
+    /* CEDIS: venta real sin presupuesto */
+    SELECT * FROM #todo_cedis_venta_real_extra
+
+    UNION ALL
+
+    /* Vendedor: presupuesto normal */
+    SELECT * FROM #todo_vendedor
+
+    UNION ALL
+
+    /* Vendedor: venta real sin presupuesto */
+    SELECT * FROM #todo_vendedor_venta_real_extra
+) t;
+
+CREATE INDEX IX_tmp_t_base
+ON #t_base (Origen, Anio, Mes, SKU, Canal, VendedorId);
+
+-- =========================================================
+-- 10) DÍAS LABORABLES
+-- =========================================================
+SELECT DISTINCT
+    Mes,
+    Anio
+INTO #meses_distintos
+FROM #t_base;
+
+CREATE CLUSTERED INDEX IX_tmp_meses_distintos
+ON #meses_distintos (Mes, Anio);
+
+SELECT
+    m.Mes,
+    m.Anio,
+    DiasMesLaborables = SUM(
+        CASE
+            WHEN (DATEDIFF(day, '19000101', cal.D) % 7) = 6 THEN 0
+            ELSE 1
+        END
+    ),
+    DiasLaborados = SUM(
+        CASE
+            WHEN cutoff.CutoffDate IS NULL THEN 0
+            WHEN cal.D <= cutoff.CutoffDate
+             AND (DATEDIFF(day, '19000101', cal.D) % 7) <> 6
+            THEN 1
+            ELSE 0
+        END
+    )
+INTO #dias_laborables
+FROM #meses_distintos m
+CROSS APPLY
+(
+    SELECT
+        StartDate = DATEFROMPARTS(m.Anio, m.Mes, 1),
+        EndDate   = EOMONTH(DATEFROMPARTS(m.Anio, m.Mes, 1))
+) rng
+CROSS APPLY
+(
+    SELECT
+        CutoffDate =
+            CASE
+                WHEN CONVERT(date, GETDATE()) < rng.StartDate THEN NULL
+                WHEN CONVERT(date, GETDATE()) > rng.EndDate   THEN rng.EndDate
+                ELSE CONVERT(date, GETDATE())
+            END
+) cutoff
+CROSS APPLY
+(
+    SELECT TOP (DATEDIFF(day, rng.StartDate, rng.EndDate) + 1)
+           n = ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) - 1
+    FROM sys.all_objects
+) nums
+CROSS APPLY
+(
+    SELECT D = DATEADD(day, nums.n, rng.StartDate)
+) cal
+GROUP BY
+    m.Mes,
+    m.Anio;
+
+CREATE CLUSTERED INDEX IX_tmp_dias_laborables
+ON #dias_laborables (Mes, Anio);
+
+-- =========================================================
+-- 11) SELECT FINAL
+--     SOLO CEDIS Y VENDEDORES
+-- =========================================================
+SELECT
+    t.Origen,
+    t.Mes  AS MesConsulta,
+    t.Anio AS AnioConsulta,
+    ISNULL(t.Canal, '-') AS Canal,
+    ISNULL(t.VendedorId, 0) AS VendedorId,
+    ISNULL(vend.VendedorNombre, '-') AS VendedorNombre,
+    t.SKU AS ProductoCodigo,
+    prd.ProductoNombre,
+    prd.U_MASTER AS U_MASTER,
+    ISNULL(prd.ClasificacionId, 99) AS ClasificacionId,
+    ISNULL(prd.ClasificacionNombre, 'POR DEFINIR') AS ClasificacionNombre,
+    ISNULL(prd.IdTipoSKU, 0) AS IdTipoSKU,
+    ISNULL(prd.TipoSKUDescripcion, 'POR DEFINIR') AS TipoSKUDescripcion,
+    CAST(t.Presupuesto AS DECIMAL(18,4)) AS PresupuestoAsignado,
+
+    CAST(t.Kg AS DECIMAL(18,4)) AS KgPedidosMes,
+
+    /* El surtido NO se reduce por devolución */
+    venta.KgSurtidoRealCalculado AS KgSurtidoReal,
+
+    /* Venta real antes de devoluciones */
+    venta.VentaRealBrutaCalculada AS VentaRealBruta,
+
+    /* Devoluciones realizadas en bodegas, no en frigorífico */
+    venta.KgDevolucionesBodegaCalculado AS DevolucionesBodega,
+
+    /* Venta real que debe mostrarse en el reporte */
+    ventaNeta.VentaRealNetaCalculada AS VentaRealNeta,
+
+    CAST
+    (
+        CASE
+            WHEN ISNULL(t.Presupuesto, 0) > 0
+                THEN 1
+            ELSE 0
+        END
+        AS BIT
+    ) AS TienePresupuesto,
+
+    CAST
+    (
+        CASE
+            WHEN ISNULL(ventaNeta.VentaRealNetaCalculada, 0) > 0
+                THEN 1
+            ELSE 0
+        END
+        AS BIT
+    ) AS TieneVenta,
+
+    CASE
+        WHEN ISNULL(t.Presupuesto, 0) > 0
+         AND ISNULL(ventaNeta.VentaRealNetaCalculada, 0) > 0
+            THEN 'PRESUPUESTO Y VENTA'
+
+        WHEN ISNULL(t.Presupuesto, 0) > 0
+            THEN 'SOLO PRESUPUESTO'
+
+        WHEN ISNULL(ventaNeta.VentaRealNetaCalculada, 0) > 0
+            THEN 'SOLO VENTA'
+    END AS EstatusPresupuestoVenta,
+
+    /*
+       DISPONIBLE:
+       Plan de venta - Surtido - Pedidos.
+
+       La devolución de bodega NO se suma al disponible.
+    */
+    CAST
+    (
+        CASE
+            WHEN
+            (
+                ISNULL(t.Presupuesto, 0)
+                - ISNULL(t.Kg, 0)
+                - ISNULL(venta.KgSurtidoRealCalculado, 0)
+            ) < 0
+                THEN 0
+
+            ELSE
+            (
+                ISNULL(t.Presupuesto, 0)
+                - ISNULL(t.Kg, 0)
+                - ISNULL(venta.KgSurtidoRealCalculado, 0)
+            )
+        END
+        AS DECIMAL(18,4)
+    ) AS DisponibleVenta,
+    CAST(ISNULL(pp.PlanProduccion, 0) AS DECIMAL(18,4)) AS PlanProduccion,
+    CAST(ISNULL(pr.Producido, 0) AS DECIMAL(18,4)) AS Producido,
+    CAST(
+        CASE
+            WHEN ISNULL(dl.DiasLaborados, 0) <= 0 THEN 0
+            ELSE (ISNULL(pr.Producido, 0) / NULLIF(CAST(dl.DiasLaborados AS DECIMAL(18,4)), 0))
+                 * CAST(ISNULL(dl.DiasMesLaborables, 0) AS DECIMAL(18,4))
+        END
+    AS DECIMAL(18,4)) AS TendenciaProduccion
+FROM #t_base t
+LEFT JOIN #productos prd
+    ON prd.SKU = t.SKU
+LEFT JOIN #vendedores vend
+    ON vend.VendedorId = t.VendedorId
+LEFT JOIN #surtido_real_cedis srd
+    ON t.Origen = 'CEDIS'
+   AND srd.Canal = t.Canal
+   AND srd.SKU   = t.SKU
+   AND srd.Mes   = t.Mes
+   AND srd.Anio  = t.Anio
+
+LEFT JOIN #venta_real_cedis vrc
+    ON t.Origen = 'CEDIS'
+   AND vrc.Canal = UPPER(LTRIM(RTRIM(t.Canal)))
+   AND vrc.SKU   = t.SKU
+   AND vrc.Mes   = t.Mes
+   AND vrc.Anio  = t.Anio
+
+LEFT JOIN #devoluciones_cedis dc
+    ON t.Origen = 'CEDIS'
+   AND dc.Canal = UPPER(LTRIM(RTRIM(t.Canal)))
+   AND dc.SKU   = t.SKU
+   AND dc.Mes   = t.Mes
+   AND dc.Anio  = t.Anio
+LEFT JOIN #surtido_real_vendedor srv
+    ON t.Origen = 'VENDEDOR'
+   AND srv.VendedorId = t.VendedorId
+   AND srv.SKU        = t.SKU
+   AND srv.Mes        = t.Mes
+   AND srv.Anio       = t.Anio
+OUTER APPLY
+(
+    SELECT
+        /* Surtido utilizado para consumo del plan */
+        KgSurtidoRealCalculado =
+            CAST
+            (
+                CASE
+                    WHEN t.Origen = 'CEDIS'
+                        THEN ISNULL(srd.KgSurtido, 0)
+
+                    WHEN t.Origen = 'VENDEDOR'
+                        THEN ISNULL(srv.KgSurtido, 0)
+
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        /* Venta real antes de devoluciones de bodega */
+        VentaRealBrutaCalculada =
+            CAST
+            (
+                CASE
+                    WHEN t.Origen = 'CEDIS'
+                        THEN ISNULL(vrc.VentaRealBruta, 0)
+
+                    WHEN t.Origen = 'VENDEDOR'
+                        THEN ISNULL(srv.KgSurtido, 0)
+
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        KgDevolucionesBodegaCalculado =
+            CAST
+            (
+                CASE
+                    WHEN t.Origen = 'CEDIS'
+                        THEN ISNULL(dc.KgDevolucionesBodega, 0)
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            )
+) AS venta
+OUTER APPLY
+(
+    SELECT
+        VentaRealNetaCalculada =
+            CAST
+            (
+                CASE
+                    WHEN
+                    (
+                        venta.VentaRealBrutaCalculada
+                        - venta.KgDevolucionesBodegaCalculado
+                    ) < 0
+                        THEN 0
+
+                    ELSE
+                    (
+                        venta.VentaRealBrutaCalculada
+                        - venta.KgDevolucionesBodegaCalculado
+                    )
+                END
+                AS DECIMAL(18,4)
+            )
+) AS ventaNeta
+LEFT JOIN #plan_prod pp
+    ON pp.SKU  = t.SKU
+   AND pp.Mes  = t.Mes
+   AND pp.Anio = t.Anio
+LEFT JOIN #producido_real pr
+    ON pr.SKU  = t.SKU
+   AND pr.Mes  = t.Mes
+   AND pr.Anio = t.Anio
+LEFT JOIN #dias_laborables dl
+    ON dl.Mes  = t.Mes
+   AND dl.Anio = t.Anio
+WHERE
+    /* El reporte únicamente considera CEDIS y VENDEDORES */
+    t.Origen IN ('CEDIS', 'VENDEDOR')
+    AND
+    /* Mostrar cuando exista presupuesto, venta real o ambos */
+    (
+        ISNULL(t.Presupuesto, 0) > 0
+        OR ISNULL(ventaNeta.VentaRealNetaCalculada, 0) > 0
+    )
+    AND
+    (
+        /* Si NO trae canal CEDIS, ve todo */
+        NOT EXISTS
+        (
+            SELECT 1
+            FROM STRING_SPLIT(ISNULL(@CanalesCsv, ''), ',') c
+            WHERE ISNULL(LTRIM(RTRIM(c.value)), '') <> ''
+              AND UPPER(LTRIM(RTRIM(c.value))) LIKE 'CEDIS%'
+        )
+
+        OR
+
+        /* Si SÍ trae canal CEDIS, se limita al canal correspondiente */
+        EXISTS
+        (
+            SELECT 1
+            FROM STRING_SPLIT(ISNULL(@CanalesCsv, ''), ',') c
+            WHERE ISNULL(LTRIM(RTRIM(c.value)), '') <> ''
+              AND UPPER(LTRIM(RTRIM(c.value))) LIKE 'CEDIS%'
+              AND
+              (
+                  UPPER(LTRIM(RTRIM(ISNULL(t.Canal, '')))) =
+                  UPPER(LTRIM(RTRIM(c.value)))
+
+                  OR 'CEDIS-' + UPPER(LTRIM(RTRIM(ISNULL(t.Canal, '')))) =
+                  UPPER(LTRIM(RTRIM(c.value)))
+
+                  OR REPLACE(
+                         UPPER(LTRIM(RTRIM(ISNULL(t.Canal, '')))),
+                         'CEDIS-',
+                         ''
+                     ) =
+                     REPLACE(
+                         UPPER(LTRIM(RTRIM(c.value))),
+                         'CEDIS-',
+                         ''
+                     )
+              )
+        )
+    )
+ORDER BY
+    t.Origen,
+    t.Anio,
+    t.Mes,
+    ISNULL(t.Canal, ''),
+    t.SKU;
+";
+
+            var conn = _context.Database.GetDbConnection();
+
+            bool cerrarConexionAlFinal =
+                conn.State != System.Data.ConnectionState.Open;
+
+            try
             {
-                canalRaw = await _context.ClienteSap.AsNoTracking()
-                    .Where(c => c.Cliente == card)
-                    .Select(c => c.U_CANAL)
-                    .FirstOrDefaultAsync();
-            }
-            var canalUp = Norm(canalRaw);
-            var usarCedis = EsCanalCedis(canalUp);
+                if (cerrarConexionAlFinal)
+                    await conn.OpenAsync(HttpContext.RequestAborted);
 
-            // 2) Presupuesto vendedor (siempre lo cargamos, sirve de fallback)
-            var vendList = await _context.PresupuestoVendedor.AsNoTracking()
-                .Where(p => p.VendedorId == vendedorId && p.Mes == mes && p.Anio == anio)
-                .GroupBy(p => p.ProductoCodigo)
-                .Select(g => new
+                var rows = (await conn.QueryAsync<PresupuestoConsumoDto>(
+                    new CommandDefinition(
+                        sqlDisponibleExacto,
+                        new
+                        {
+                            VendedorIdsCsv = vendedorIdsCsv,
+                            CanalesCsv = canalesCsv
+                        },
+                        cancellationToken: HttpContext.RequestAborted
+                    )
+                )).ToList();
+
+                // Helpers por reflexión para no depender de que el DTO
+                // tenga decimal vs decimal? en cada propiedad.
+                static object? GetProp(object row, string name)
+                    => row.GetType().GetProperty(name)?.GetValue(row);
+
+                static string GetString(object row, string name)
+                    => Convert.ToString(GetProp(row, name))?.Trim() ?? "";
+
+                static int GetInt(object row, string name)
                 {
-                    SKU = Norm(g.Key),
-                    Presupuesto = g.Sum(x => (decimal?)x.PresupuestoAsignado) ?? 0m
-                })
-                .ToListAsync();
-
-            var vendDict = vendList
-                .Where(x => x.SKU != "")
-                .ToDictionary(x => x.SKU, x => x.Presupuesto);
-
-            // 3) Presupuesto CEDIS por canal (solo si aplica)
-            Dictionary<string, decimal> cedisDict = new();
-            if (usarCedis)
-            {
-                var cedisList = await _context.PresupuestoCedis.AsNoTracking()
-                    .Where(pc => pc.Canal == canalUp && pc.Mes == mes && pc.Anio == anio)
-                    .GroupBy(pc => pc.ProductoCodigo)
-                    .Select(g => new
-                    {
-                        SKU = Norm(g.Key),
-                        Presupuesto = g.Sum(x => (decimal?)x.PresupuestoAsignado) ?? 0m
-                    })
-                    .ToListAsync();
-
-                cedisDict = cedisList
-                    .Where(x => x.SKU != "")
-                    .ToDictionary(x => x.SKU, x => x.Presupuesto);
-            }
-
-            // 4) Consumo por VENDEDOR (siempre, por si se usa fallback)
-
-            var consumoVend = await (
-                from o in _context.OrdenVenta.AsNoTracking()
-                join cli in _context.ClienteSap.AsNoTracking() on o.Cliente equals cli.Cliente
-                join op in _context.OrdenVentaProducto.AsNoTracking() on o.Id equals op.PedidoId
-                join ser in _context.Series.AsNoTracking() on o.Serie equals ser.NombreSerie
-                where cli.VendedorId == vendedorId
-                      && o.FechaEntrega.Month == mes
-                      && o.FechaEntrega.Year == anio
-                      && o.Estatus != 0
-                      && (op.Eliminado == null || op.Eliminado == false)
-                      && ser.Sucursal == "MATRIZ"
-                group op by op.ProductoCodigo into g
-                select new
-                {
-                    SKU = Norm(g.Key),
-                    Kg = g.Sum(x => (decimal?)x.Peso) ?? 0m
+                    var v = GetProp(row, name);
+                    if (v == null || v == DBNull.Value) return 0;
+                    return Convert.ToInt32(v);
                 }
-            ).ToListAsync();
 
-            var consumoVendDict = consumoVend
-                .Where(x => x.SKU != "")
-                .ToDictionary(x => x.SKU, x => x.Kg);
-
-            // 5) Consumo por CANAL (solo si CEDIS)
-            Dictionary<string, decimal> consumoCanalDict = new();
-            if (usarCedis)
-            {
-                // OV por canal (regla MATRIZ usa ClienteSap.U_CANAL; sucursales usan Series.Canal)
-                var consumoOVCanal = await (
-                    from o in _context.OrdenVenta.AsNoTracking()
-                    join cli in _context.ClienteSap.AsNoTracking() on o.Cliente equals cli.Cliente
-                    join s in _context.Series.AsNoTracking() on o.Serie equals s.NombreSerie
-                    join op in _context.OrdenVentaProducto.AsNoTracking() on o.Id equals op.PedidoId
-                    join ser in _context.Series.AsNoTracking() on o.Serie equals ser.NombreSerie
-                    where o.FechaEntrega.Month == mes
-                          && o.FechaEntrega.Year == anio
-                          && o.Estatus != 0
-                          && (op.Eliminado == null || op.Eliminado == false)
-                          && (
-                                ((s.Sucursal ?? "") == "MATRIZ" && (cli.U_CANAL ?? "") == canalUp)
-                                || ((s.Sucursal ?? "") != "MATRIZ" && (s.Canal ?? "") == canalUp)
-                             )
-                             && ser.Sucursal == "MATRIZ"
-                    group op by op.ProductoCodigo into g
-                    select new
-                    {
-                        SKU = Norm(g.Key),
-                        Kg = g.Sum(x => (decimal?)x.Peso) ?? 0m
-                    }
-                ).ToListAsync();
-
-                // Transferencias por canal
-                var consumoTrCanal = await (
-                    from t in _context.Transferencias.AsNoTracking()
-                    where t.FechaSolicitud.HasValue
-                          && t.FechaSolicitud.Value.Month == mes
-                          && t.FechaSolicitud.Value.Year == anio
-                    join td in _context.TransferenciaDetalles.AsNoTracking() on t.Id equals td.TransferenciaId
-                    join s in _context.Series.AsNoTracking() on t.Sucursal equals s.Sucursal
-                    where (s.Canal ?? "") == canalUp
-                    && t.Estatus != 0
-                    group td by td.ProductoCodigo into g
-                    select new
-                    {
-                        SKU = Norm(g.Key),
-                        Kg = g.Sum(x => (decimal?)x.CantidadKg) ?? 0m
-                    }
-                ).ToListAsync();
-
-                consumoCanalDict = consumoOVCanal
-                    .Concat(consumoTrCanal)
-                    .Where(x => x.SKU != "")
-                    .GroupBy(x => x.SKU)
-                    .ToDictionary(g => g.Key, g => g.Sum(v => v.Kg));
-            }
-
-            // 6) SKUs a regresar (LEFT “lógico”: CEDIS + los NO CEDIS/fallback vendedor)
-            var skus = new HashSet<string>(vendDict.Keys);
-            if (usarCedis) skus.UnionWith(cedisDict.Keys);
-
-            var respuesta = skus
-                .OrderBy(x => x)
-                .Select(sku =>
+                static decimal GetDecimal(object row, string name)
                 {
-                    bool esSkuCedis = usarCedis && cedisDict.ContainsKey(sku);
+                    var v = GetProp(row, name);
+                    if (v == null || v == DBNull.Value) return 0m;
+                    return Convert.ToDecimal(v);
+                }
 
-                    decimal presupuestoAsignado = esSkuCedis
-                        ? cedisDict[sku]
-                        : (vendDict.TryGetValue(sku, out var pv) ? pv : 0m);
+                IEnumerable<PresupuestoConsumoDto> seleccion = rows
+                    .Where(r =>
+                        GetInt(r, "MesConsulta") == mes
+                        && GetInt(r, "AnioConsulta") == anio
+                    );
 
-                    decimal kgPedidosMes = esSkuCedis
-                        ? (consumoCanalDict.TryGetValue(sku, out var kgC) ? kgC : 0m)
-                        : (consumoVendDict.TryGetValue(sku, out var kgV) ? kgV : 0m);
+                if (esClienteCedis)
+                {
+                    // IMPORTANTE:
+                    // El SQL puede devolver CEDIS-MDA y MDA como canales
+                    // equivalentes. Para la Orden de Venta NO debemos mezclar
+                    // ambos renglones ni dejar que uno sobrescriba al otro.
+                    //
+                    // 1) Primero tomamos el canal EXACTO del cliente.
+                    // 2) Sólo si no existe, usamos la equivalencia sin CEDIS-.
+                    var filasCedis = seleccion
+                        .Where(r => Norm(GetString(r, "Origen")) == "CEDIS")
+                        .ToList();
 
-                    return new
+                    var filasCedisExactas = filasCedis
+                        .Where(r => Norm(GetString(r, "Canal")) == canalCliente)
+                        .ToList();
+
+                    if (filasCedisExactas.Count > 0)
                     {
-                        productoCodigo = sku,
-                        presupuestoAsignado,
-                        kgPedidosMes,
-                        presupuestoDisponible = presupuestoAsignado - kgPedidosMes,
-                        origen = esSkuCedis ? "CEDIS" : "VENDEDOR",
-                        canal = canalUp
-                    };
-                })
-                .ToList();
+                        seleccion = filasCedisExactas;
+                    }
+                    else
+                    {
+                        var canalCedisKey = CanalCedisKey(canalCliente);
 
-            return Json(respuesta);
+                        seleccion = filasCedis.Where(r =>
+                            CanalCedisKey(GetString(r, "Canal")) == canalCedisKey
+                        );
+                    }
+                }
+                else
+                {
+                    seleccion = seleccion.Where(r =>
+                        Norm(GetString(r, "Origen")) == "VENDEDOR"
+                        && GetInt(r, "VendedorId") == vendedorId
+                    );
+                }
+
+                var respuesta = seleccion
+                    .OrderBy(r => Norm(GetString(r, "ProductoCodigo")))
+                    .Select(r => new
+                    {
+                        productoCodigo =
+                            Norm(GetString(r, "ProductoCodigo")),
+
+                        presupuestoAsignado =
+                            GetDecimal(r, "PresupuestoAsignado"),
+
+                        kgPedidosMes =
+                            GetDecimal(r, "KgPedidosMes"),
+
+                        kgSurtidoReal =
+                            GetDecimal(r, "KgSurtidoReal"),
+
+                        presupuestoDisponible =
+                            GetDecimal(r, "DisponibleVenta"),
+
+                        origen =
+                            Norm(GetString(r, "Origen")),
+
+                        canal =
+                            GetString(r, "Canal")
+                    })
+                    .ToList();
+
+                return Json(respuesta);
+            }
+            finally
+            {
+                if (cerrarConexionAlFinal)
+                    await conn.CloseAsync();
+            }
         }
 
 
@@ -16138,18 +18357,19 @@ ORDER BY UPPER(LTRIM(RTRIM(Sku)));
             cn.Open();
 
             var sql = @"
-DECLARE @SKU  varchar(50) = @pSku;
+DECLARE @SKU varchar(50) = @pSku;
 DECLARE @Origen varchar(20) = UPPER(LTRIM(RTRIM(@pOrigen)));
 
-DECLARE @Cliente        varchar(50)  = @pCliente;
-DECLARE @Canal          varchar(100) = @pCanal;
+DECLARE @Cliente varchar(50) = @pCliente;
+DECLARE @Canal varchar(100) = @pCanal;
 DECLARE @VendedorId int = @pVendedorId;
 
 DECLARE @Desde date = @pDesde;
 DECLARE @Hasta date = @pHasta;
 
 ;WITH
-ov AS (
+ov AS
+(
     SELECT
         o.Id,
         o.Cliente,
@@ -16158,40 +18378,252 @@ ov AS (
         o.Serie,
         FechaDate = TRY_CONVERT(date, o.FechaEntrega)
     FROM dbo.OrdenVenta o
-    INNER JOIN dbo.Series ser ON o.Serie = ser.NombreSerie
+    INNER JOIN dbo.Series ser
+        ON o.Serie = ser.NombreSerie
     WHERE o.FechaEntrega IS NOT NULL
       AND o.Estatus BETWEEN 1 AND 6
       AND ser.Sucursal = 'MATRIZ'
       AND TRY_CONVERT(date, o.FechaEntrega) >= @Desde
-      AND TRY_CONVERT(date, o.FechaEntrega) <  @Hasta
+      AND TRY_CONVERT(date, o.FechaEntrega) < @Hasta
 ),
-ov_con_surtido AS (
-    SELECT DISTINCT o.Id
-    FROM dbo.OrdenVenta o
-    JOIN dbo.Subpedido sp         ON sp.OrdenVentaId = o.Id
-    JOIN dbo.SurtidoEncabezado se ON se.SolicitudSurtidoId = sp.U_DocMeat
-),
-ov_peso_agg AS (
+
+/* =========================================================
+   KILOS ORIGINALES DEL PEDIDO POR OV / SKU
+   ========================================================= */
+ov_peso_agg AS
+(
     SELECT
         PedidoId = op.PedidoId,
-        SKU      = UPPER(LTRIM(RTRIM(op.ProductoCodigo))),
-        KgPedido = SUM(CAST(op.Peso AS DECIMAL(18,4)))
+        SKU = UPPER(LTRIM(RTRIM(op.ProductoCodigo))),
+        KgPedido = SUM(
+            CAST(ISNULL(op.Peso, 0) AS DECIMAL(18,4))
+        )
     FROM dbo.OrdenVentaProducto op
-    GROUP BY op.PedidoId, UPPER(LTRIM(RTRIM(op.ProductoCodigo)))
+    INNER JOIN ov
+        ON ov.Id = op.PedidoId
+    WHERE ISNULL(op.Eliminado, 0) = 0
+    GROUP BY
+        op.PedidoId,
+        UPPER(LTRIM(RTRIM(op.ProductoCodigo)))
 ),
-ov_surtido_agg AS (
+
+/* =========================================================
+   ESTADO REAL DE CADA SOLICITUD DE SURTIDO
+
+   Una solicitud queda CERRADA si:
+   - FechaValidacion IS NOT NULL
+   O
+   - ya tiene Remision / VREM.
+
+   IMPORTANTE:
+   - NO se usa el Estatus 5/6 de la OV para cerrar pendiente.
+   - NO basta con que exista SurtidoEncabezado.
+   ========================================================= */
+solicitud_estado AS
+(
     SELECT
-        PedidoId = o.Id,
-        SKU      = UPPER(LTRIM(RTRIM(sd.Articulo))),
-        KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
-    FROM dbo.OrdenVenta o
-    JOIN dbo.Subpedido sp         ON sp.OrdenVentaId = o.Id
-    JOIN dbo.SurtidoEncabezado se ON se.SolicitudSurtidoId = sp.U_DocMeat
-    JOIN dbo.SurtidoDetalle sd    ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
-    WHERE se.FechaValidacion IS NOT NULL
-    GROUP BY o.Id, UPPER(LTRIM(RTRIM(sd.Articulo)))
+        se.SolicitudSurtidoId,
+
+        EsCerrada =
+            MAX(
+                CASE
+                    WHEN se.FechaValidacion IS NOT NULL
+                      OR NULLIF(
+                             LTRIM(RTRIM(ISNULL(se.Remision, ''))),
+                             ''
+                         ) IS NOT NULL
+                        THEN 1
+                    ELSE 0
+                END
+            )
+    FROM dbo.SurtidoEncabezado se
+    GROUP BY
+        se.SolicitudSurtidoId
 ),
-ov_pendiente_sku AS (
+
+/* =========================================================
+   ESTADO DE CIERRE DE LA OV
+
+   Si TODOS los subpedidos de la OV están cerrados:
+       pendiente OV = 0
+
+   Si sólo algunos están cerrados:
+       queda pendiente únicamente la parte abierta.
+   ========================================================= */
+ov_estado_cierre AS
+(
+    SELECT
+        PedidoId = sp.OrdenVentaId,
+
+        TotalSubpedidos =
+            COUNT_BIG(*),
+
+        SubpedidosCerrados =
+            SUM(
+                CASE
+                    WHEN ISNULL(se.EsCerrada, 0) = 1
+                        THEN 1
+                    ELSE 0
+                END
+            ),
+
+        PedidoCerrado =
+            CAST(
+                CASE
+                    WHEN COUNT_BIG(*) > 0
+                     AND SUM(
+                            CASE
+                                WHEN ISNULL(se.EsCerrada, 0) = 1
+                                    THEN 1
+                                ELSE 0
+                            END
+                         ) = COUNT_BIG(*)
+                        THEN 1
+                    ELSE 0
+                END
+                AS BIT
+            )
+
+    FROM dbo.Subpedido sp
+
+    INNER JOIN ov
+        ON ov.Id = sp.OrdenVentaId
+
+    LEFT JOIN solicitud_estado se
+        ON se.SolicitudSurtidoId =
+           TRY_CONVERT(
+               INT,
+               NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+           )
+
+    GROUP BY
+        sp.OrdenVentaId
+),
+
+/* =========================================================
+   KG DE LOS SUBPEDIDOS QUE YA ESTÁN CERRADOS
+
+   Esto permite resolver correctamente una OV con varios
+   subpedidos.
+
+   Ejemplo:
+       OV original = 100
+       Subpedido A = 60 cerrado
+       Subpedido B = 40 abierto
+       Pendiente   = 40
+   ========================================================= */
+ov_cerrado_sku AS
+(
+    SELECT
+        PedidoId = sp.OrdenVentaId,
+        SKU = UPPER(LTRIM(RTRIM(spp.ProductoCodigo))),
+
+        KgCerrado =
+            SUM(
+                CAST(
+                    ISNULL(spp.KilosCaja, 0)
+                    AS DECIMAL(18,4)
+                )
+            )
+
+    FROM dbo.Subpedido sp
+
+    INNER JOIN ov
+        ON ov.Id = sp.OrdenVentaId
+
+    INNER JOIN dbo.SubpedidoProductos spp
+        ON spp.SubpedidoId = sp.Id
+
+    INNER JOIN solicitud_estado se
+        ON se.SolicitudSurtidoId =
+           TRY_CONVERT(
+               INT,
+               NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+           )
+       AND se.EsCerrada = 1
+
+    WHERE
+        NULLIF(
+            LTRIM(RTRIM(ISNULL(spp.ProductoCodigo, ''))),
+            ''
+        ) IS NOT NULL
+
+    GROUP BY
+        sp.OrdenVentaId,
+        UPPER(LTRIM(RTRIM(spp.ProductoCodigo)))
+),
+
+/* =========================================================
+   SURTIDO FÍSICO REAL POR OV / SKU
+
+   Se conserva separado del pendiente contractual.
+
+   Una solicitud cerrada puede haber surtido menos que lo
+   solicitado. Esa diferencia NO vuelve a quedar pendiente.
+   ========================================================= */
+ov_surtido_agg AS
+(
+    SELECT
+        PedidoId = sp.OrdenVentaId,
+        SKU = UPPER(LTRIM(RTRIM(sd.Articulo))),
+
+        KgSurtido =
+            SUM(
+                CAST(
+                    ISNULL(sd.Kg, 0)
+                    AS DECIMAL(18,4)
+                )
+            )
+
+    FROM dbo.Subpedido sp
+
+    INNER JOIN ov
+        ON ov.Id = sp.OrdenVentaId
+
+    INNER JOIN solicitud_estado seEstado
+        ON seEstado.SolicitudSurtidoId =
+           TRY_CONVERT(
+               INT,
+               NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+           )
+       AND seEstado.EsCerrada = 1
+
+    INNER JOIN dbo.SurtidoDetalle sd
+        ON sd.SolicitudSurtidoId = seEstado.SolicitudSurtidoId
+
+    GROUP BY
+        sp.OrdenVentaId,
+        UPPER(LTRIM(RTRIM(sd.Articulo)))
+),
+
+/* =========================================================
+   PENDIENTE REAL DE OV
+
+   REGLA FINAL:
+
+   1) Todos los subpedidos cerrados:
+          KgPendiente = 0
+
+   2) Hay subpedidos abiertos:
+          KgPendiente =
+              KgPedidoOriginal - KgSubpedidosCerrados
+
+   3) El surtido físico NO define el compromiso pendiente.
+
+   Ejemplo:
+       OV            = 6,000
+       Subpedido     = 6,000 cerrado
+       Surtido real  = 5,001
+       Pendiente     = 0
+
+   Ejemplo parcial:
+       OV            = 100
+       Subpedido A   = 60 cerrado
+       Subpedido B   = 40 abierto
+       Pendiente     = 40
+   ========================================================= */
+ov_pendiente_sku AS
+(
     SELECT
         ov.Id,
         ov.Cliente,
@@ -16200,62 +18632,137 @@ ov_pendiente_sku AS (
         ov.Serie,
         ov.FechaDate,
         p.SKU,
-        KgPedido   = p.KgPedido,
-        KgSurtido  = ISNULL(sa.KgSurtido,0),
+
+        KgPedido =
+            p.KgPedido,
+
+        KgSurtido =
+            ISNULL(sa.KgSurtido, 0),
+
         KgPendiente =
             CAST(
                 CASE
-                    WHEN ov.Estatus IN (5, 6) AND os.Id IS NOT NULL THEN 0
+
+                    /* Toda la OV ya quedó cerrada */
+                    WHEN ISNULL(ec.PedidoCerrado, 0) = 1
+                        THEN 0
+
+                    /* OV parcialmente cerrada:
+                       sólo queda la parte aún abierta */
+                    WHEN
+                    (
+                        ISNULL(p.KgPedido, 0)
+                        - ISNULL(cs.KgCerrado, 0)
+                    ) <= 0
+                        THEN 0
+
                     ELSE
-                        CASE
-                            WHEN (p.KgPedido - ISNULL(sa.KgSurtido,0)) < 0 THEN 0
-                            ELSE (p.KgPedido - ISNULL(sa.KgSurtido,0))
-                        END
+                    (
+                        ISNULL(p.KgPedido, 0)
+                        - ISNULL(cs.KgCerrado, 0)
+                    )
+
                 END
-            AS DECIMAL(18,4))
+                AS DECIMAL(18,4)
+            )
+
     FROM ov
-    JOIN ov_peso_agg p
+
+    INNER JOIN ov_peso_agg p
         ON p.PedidoId = ov.Id
+
+    LEFT JOIN ov_estado_cierre ec
+        ON ec.PedidoId = ov.Id
+
+    LEFT JOIN ov_cerrado_sku cs
+        ON cs.PedidoId = ov.Id
+       AND cs.SKU = p.SKU
+
     LEFT JOIN ov_surtido_agg sa
         ON sa.PedidoId = ov.Id
-       AND sa.SKU      = p.SKU
-    LEFT JOIN ov_con_surtido os
-        ON os.Id = ov.Id
+       AND sa.SKU = p.SKU
 ),
-tr_surtido_agg AS (
+
+/* =========================================================
+   SURTIDO DE TRANSFERENCIAS
+   SIN CAMBIOS
+   ========================================================= */
+tr_surtido_agg AS
+(
     SELECT
         ts.TransferenciaId,
         SKU = UPPER(LTRIM(RTRIM(ts.Sku))),
-        KgSurtido = SUM(CAST(ts.KgSurtido AS DECIMAL(18,4)))
+        KgSurtido = SUM(
+            CAST(ts.KgSurtido AS DECIMAL(18,4))
+        )
     FROM dbo.TransferenciaSurtido ts
-    GROUP BY ts.TransferenciaId, UPPER(LTRIM(RTRIM(ts.Sku)))
+    GROUP BY
+        ts.TransferenciaId,
+        UPPER(LTRIM(RTRIM(ts.Sku)))
 ),
-tr_pendiente AS (
+
+/* =========================================================
+   TRANSFERENCIAS PENDIENTES
+   SIN CAMBIOS
+
+   Sólo Estatus 1..4 permanece pendiente.
+   ========================================================= */
+tr_pendiente AS
+(
     SELECT
         Tipo = 'TRANSFERENCIA',
         DocumentoId = t.Id,
         Fecha = TRY_CONVERT(date, t.FechaSolicitud),
         Canal = UPPER(LTRIM(RTRIM(s.Canal))),
-        SKU   = UPPER(LTRIM(RTRIM(td.ProductoCodigo))),
-        KgPedido   = SUM(CAST(td.CantidadKg AS DECIMAL(18,4))),
-        KgSurtido  = SUM(ISNULL(tsa.KgSurtido,0)),
-        KgPendiente = SUM(
-            CASE
-                WHEN (CAST(td.CantidadKg AS DECIMAL(18,4)) - ISNULL(tsa.KgSurtido,0)) < 0 THEN 0
-                ELSE (CAST(td.CantidadKg AS DECIMAL(18,4)) - ISNULL(tsa.KgSurtido,0))
-            END
-        )
+        SKU = UPPER(LTRIM(RTRIM(td.ProductoCodigo))),
+
+        KgPedido =
+            SUM(
+                CAST(td.CantidadKg AS DECIMAL(18,4))
+            ),
+
+        KgSurtido =
+            SUM(
+                ISNULL(tsa.KgSurtido, 0)
+            ),
+
+        KgPendiente =
+            SUM(
+                CASE
+                    WHEN
+                    (
+                        CAST(td.CantidadKg AS DECIMAL(18,4))
+                        - ISNULL(tsa.KgSurtido, 0)
+                    ) < 0
+                        THEN 0
+
+                    ELSE
+                    (
+                        CAST(td.CantidadKg AS DECIMAL(18,4))
+                        - ISNULL(tsa.KgSurtido, 0)
+                    )
+                END
+            )
+
     FROM dbo.Transferencias t
-    JOIN dbo.TransferenciaDetalles td ON td.TransferenciaId = t.Id
-    JOIN dbo.Series s                 ON s.Sucursal = t.Sucursal
+
+    INNER JOIN dbo.TransferenciaDetalles td
+        ON td.TransferenciaId = t.Id
+
+    INNER JOIN dbo.Series s
+        ON s.Sucursal = t.Sucursal
+
     LEFT JOIN tr_surtido_agg tsa
-           ON tsa.TransferenciaId = t.Id
-          AND tsa.SKU = UPPER(LTRIM(RTRIM(td.ProductoCodigo)))
+        ON tsa.TransferenciaId = t.Id
+       AND tsa.SKU =
+           UPPER(LTRIM(RTRIM(td.ProductoCodigo)))
+
     WHERE t.FechaSolicitud IS NOT NULL
       AND t.Estatus BETWEEN 1 AND 4
       AND UPPER(LTRIM(RTRIM(s.Canal))) LIKE 'CEDIS%'
       AND TRY_CONVERT(date, t.FechaSolicitud) >= @Desde
-      AND TRY_CONVERT(date, t.FechaSolicitud) <  @Hasta
+      AND TRY_CONVERT(date, t.FechaSolicitud) < @Hasta
+
     GROUP BY
         t.Id,
         TRY_CONVERT(date, t.FechaSolicitud),
@@ -16263,61 +18770,111 @@ tr_pendiente AS (
         UPPER(LTRIM(RTRIM(td.ProductoCodigo)))
 )
 
+/* =========================================================
+   DETALLE DE ÓRDENES DE VENTA
+   ========================================================= */
 SELECT
-    Tipo        = 'OV',
+    Tipo = 'OV',
     DocumentoId = ovp.Id,
-    Serie       = ovp.Serie,
-    Fecha       = ovp.FechaDate,
-    Estatus     = ovp.Estatus,
-    Cliente     = ovp.Cliente,
+    Serie = ovp.Serie,
+    Fecha = ovp.FechaDate,
+    Estatus = ovp.Estatus,
+    Cliente = ovp.Cliente,
     RazonSocial = cs.NombreCliente,
-    Canal       = UPPER(LTRIM(RTRIM(cs.U_CANAL))),
-    VendedorId  = ovp.VendedorId,
-    Vendedor    = cs.VendedorNombre,
-    SKU         = ovp.SKU,
-    KgPedido    = ovp.KgPedido,
-    KgSurtido   = ovp.KgSurtido,
+    Canal = UPPER(LTRIM(RTRIM(cs.U_CANAL))),
+    VendedorId = ovp.VendedorId,
+    Vendedor = cs.VendedorNombre,
+    SKU = ovp.SKU,
+    KgPedido = ovp.KgPedido,
+    KgSurtido = ovp.KgSurtido,
     KgPendiente = ovp.KgPendiente
+
 FROM ov_pendiente_sku ovp
-LEFT JOIN dbo.ClienteSap cs ON cs.Cliente = ovp.Cliente
+
+LEFT JOIN dbo.ClienteSap cs
+    ON cs.Cliente = ovp.Cliente
+
 WHERE
-    ovp.SKU COLLATE DATABASE_DEFAULT = UPPER(LTRIM(RTRIM(@SKU))) COLLATE DATABASE_DEFAULT
+    ovp.SKU COLLATE DATABASE_DEFAULT =
+    UPPER(LTRIM(RTRIM(@SKU))) COLLATE DATABASE_DEFAULT
+
+    /* Sólo mostrar pedidos que REALMENTE sigan pendientes */
     AND ovp.KgPendiente > 0
-    AND (
-         @Origen = 'TODOS'
-      OR (@Origen = 'CLIENTE'  AND @Cliente IS NOT NULL AND UPPER(ovp.Cliente) = UPPER(@Cliente))
-      OR (@Origen = 'VENDEDOR' AND @VendedorId IS NOT NULL AND ovp.VendedorId = @VendedorId)
-      OR (@Origen = 'CEDIS'    AND @Canal IS NOT NULL AND UPPER(LTRIM(RTRIM(cs.U_CANAL))) = UPPER(LTRIM(RTRIM(@Canal))))
+
+    AND
+    (
+           @Origen = 'TODOS'
+
+        OR
+        (
+            @Origen = 'CLIENTE'
+            AND @Cliente IS NOT NULL
+            AND UPPER(ovp.Cliente) = UPPER(@Cliente)
+        )
+
+        OR
+        (
+            @Origen = 'VENDEDOR'
+            AND @VendedorId IS NOT NULL
+            AND ovp.VendedorId = @VendedorId
+        )
+
+        OR
+        (
+            @Origen = 'CEDIS'
+            AND @Canal IS NOT NULL
+            AND UPPER(LTRIM(RTRIM(cs.U_CANAL))) =
+                UPPER(LTRIM(RTRIM(@Canal)))
+        )
     )
 
 UNION ALL
 
+/* =========================================================
+   DETALLE DE TRANSFERENCIAS
+   ========================================================= */
 SELECT
-    Tipo        = tp.Tipo,
+    Tipo = tp.Tipo,
     DocumentoId = tp.DocumentoId,
-    Serie       = NULL,
-    Fecha       = tp.Fecha,
-    Estatus     = NULL,
-    Cliente     = NULL,
+    Serie = NULL,
+    Fecha = tp.Fecha,
+    Estatus = NULL,
+    Cliente = NULL,
     RazonSocial = NULL,
-    Canal       = tp.Canal,
-    VendedorId  = NULL,
-    Vendedor    = NULL,
-    SKU         = tp.SKU,
-    KgPedido    = tp.KgPedido,
-    KgSurtido   = tp.KgSurtido,
+    Canal = tp.Canal,
+    VendedorId = NULL,
+    Vendedor = NULL,
+    SKU = tp.SKU,
+    KgPedido = tp.KgPedido,
+    KgSurtido = tp.KgSurtido,
     KgPendiente = tp.KgPendiente
+
 FROM tr_pendiente tp
+
 WHERE
-    (@Origen IN ('TODOS','CEDIS'))
-    AND tp.SKU COLLATE DATABASE_DEFAULT = UPPER(LTRIM(RTRIM(@SKU))) COLLATE DATABASE_DEFAULT
+    @Origen IN ('TODOS', 'CEDIS')
+
+    AND tp.SKU COLLATE DATABASE_DEFAULT =
+        UPPER(LTRIM(RTRIM(@SKU))) COLLATE DATABASE_DEFAULT
+
     AND tp.KgPendiente > 0
-    AND (
-          @Origen = 'TODOS'
-       OR (@Canal IS NOT NULL AND UPPER(LTRIM(RTRIM(tp.Canal))) = UPPER(LTRIM(RTRIM(@Canal))))
+
+    AND
+    (
+           @Origen = 'TODOS'
+
+        OR
+        (
+            @Canal IS NOT NULL
+            AND UPPER(LTRIM(RTRIM(tp.Canal))) =
+                UPPER(LTRIM(RTRIM(@Canal)))
+        )
     )
 
-ORDER BY Fecha DESC, Tipo, DocumentoId DESC;
+ORDER BY
+    Fecha DESC,
+    Tipo,
+    DocumentoId DESC;
 ";
 
             using var cmd = new SqlCommand(sql, cn);
@@ -24405,7 +26962,7 @@ WHERE rn = 1;";
             string logoPath = Path.Combine(
                 _environment.WebRootPath,
                 "images",
-                "logoPDF.png");
+                "logoCubo.png");
 
             XImage? logo = null;
 
@@ -24452,7 +27009,7 @@ WHERE rn = 1;";
                     altoPagina - altoPie);
 
                 gfx.DrawString(
-                    "Carnes G S.A. de C.V. · Documento generado por Plataforma CG",
+                    "Carnes G S.A. de C.V. · Documento generado por Plataforma SIGO",
                     fontNormal,
                     XBrushes.Gray,
                     new XRect(
@@ -25373,6 +27930,1874 @@ WHERE rn = 1;";
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 $"{model.Consecutivo}_OrdenVenta.xlsx");
         }
+
+
+
+        // =====================================================================
+        // SEGUIMIENTO DE SURTIDO - AUDITORÍA / PLANEACIÓN - V4
+        // INCLUYE:
+        //   1) ÓRDENES DE VENTA
+        //   2) TRANSFERENCIAS
+        //
+        // OV:
+        //   OrdenVentaProducto -> SubpedidoProductos -> SurtidoDetalle
+        //
+        // TR:
+        //   TransferenciaDetalles -> PedidosTransferenciaDetalle -> TransferenciaSurtido
+        //
+        // IMPORTANTE SOBRE TRANSFERENCIAS:
+        // El ComercialController actual usa Estatus >= 5 para considerar el
+        // surtido de transferencia ya validado/real. No existe en las fuentes
+        // actuales una FechaValidacion de transferencia equivalente a
+        // SurtidoEncabezado.FechaValidacion, por lo que NO se inventa.
+        // =====================================================================
+
+        [HttpGet("Comercial/SeguimientoSurtidoAuditoria")]
+        public IActionResult SeguimientoSurtidoAuditoria()
+        {
+            return View("~/Views/Comercial/SeguimientoSurtidoAuditoria.cshtml");
+        }
+
+
+        private sealed class SeguimientoSurtidoAuditoriaRowDto
+        {
+            public int DocumentoId { get; set; }
+            public string TipoDocumento { get; set; } = "";
+            public string Consecutivo { get; set; } = "";
+            public string Serie { get; set; } = "";
+            public string Cliente { get; set; } = "";
+            public string ClienteNombre { get; set; } = "";
+            public string Vendedor { get; set; } = "";
+            public int? VendedorId { get; set; }
+            public string Canal { get; set; } = "";
+            public DateTime? FechaRegistro { get; set; }
+            public DateTime? FechaEntrega { get; set; }
+            public int Estatus { get; set; }
+            public string EstatusTexto { get; set; } = "";
+
+            public int SolicitudesCedis { get; set; }
+            public int SolicitudesValidadas { get; set; }
+            public int SolicitudesPendientesValidar { get; set; }
+            public DateTime? PrimeraFechaValidacion { get; set; }
+            public DateTime? UltimaFechaValidacion { get; set; }
+            public string EstadoValidacion { get; set; } = "";
+
+            public decimal? HorasHastaUltimaValidacion { get; set; }
+            public decimal? HorasPendienteValidacion { get; set; }
+            public decimal? HorasValidacionVsEntrega { get; set; }
+            public int DiasParaEntrega { get; set; }
+
+            public decimal KgOrdenOV { get; set; }
+            public decimal CajasOrdenOV { get; set; }
+            public decimal KgPedidoCedis { get; set; }
+            public decimal CajasPedidoCedis { get; set; }
+            public decimal KgSurtidoCedisBruto { get; set; }
+            public decimal CajasSurtidasCedisBruto { get; set; }
+            public decimal KgSurtidoAplicadoOV { get; set; }
+            public decimal CajasSurtidasAplicadasOV { get; set; }
+            public decimal KgPendienteOV { get; set; }
+            public decimal CajasPendientesOV { get; set; }
+
+            public decimal PctLiberadoACedisKg { get; set; }
+            public decimal PctAvanceOVKg { get; set; }
+            public decimal PctAvanceOVCajas { get; set; }
+
+            public decimal KgExtraVsOV { get; set; }
+            public decimal CajasExtraVsOV { get; set; }
+            public int SkuExtraNoEnOV { get; set; }
+            public int SkuExtraNoEnSolicitud { get; set; }
+            public int TieneAlerta { get; set; }
+
+            public string EstadoSurtido { get; set; } = "";
+            public string RiesgoEntrega { get; set; } = "";
+        }
+
+
+        private sealed class SeguimientoSurtidoAuditoriaKpiDto
+        {
+            public int Documentos { get; set; }
+            public int OrdenesVenta { get; set; }
+            public int Transferencias { get; set; }
+            public decimal KgOrdenados { get; set; }
+            public decimal KgSurtidosAplicados { get; set; }
+            public decimal KgPendientes { get; set; }
+            public decimal PctAvanceGlobalKg { get; set; }
+            public int PorSurtir { get; set; }
+            public int Surtiendo { get; set; }
+            public int Completos { get; set; }
+            public int Alertas { get; set; }
+            public int PendientesValidacion { get; set; }
+            public int RiesgoEntrega { get; set; }
+            public decimal? PromedioHorasValidacion { get; set; }
+        }
+
+
+        private sealed class SeguimientoSurtidoDetalleSkuDto
+        {
+            public string SKU { get; set; } = "";
+            public string Producto { get; set; } = "";
+            public decimal KgOrdenOV { get; set; }
+            public decimal CajasOrdenOV { get; set; }
+            public decimal KgPedidoCedis { get; set; }
+            public decimal CajasPedidoCedis { get; set; }
+            public decimal KgSurtidoCedis { get; set; }
+            public decimal CajasSurtidasCedis { get; set; }
+            public decimal KgPendienteOV { get; set; }
+            public decimal CajasPendientesOV { get; set; }
+            public decimal KgExtraVsOV { get; set; }
+            public decimal CajasExtraVsOV { get; set; }
+            public decimal PctAvanceKg { get; set; }
+            public int EsSkuExtraNoEnOV { get; set; }
+            public int EsSkuExtraNoEnSolicitud { get; set; }
+            public string EstadoSKU { get; set; } = "";
+        }
+
+
+        private sealed class SeguimientoSurtidoProcesoDto
+        {
+            public int ProcesoId { get; set; }
+            public string Referencia { get; set; } = "";
+            public string Documento { get; set; } = "";
+            public string EstadoValidacion { get; set; } = "";
+            public DateTime? FechaValidacion { get; set; }
+            public decimal? HorasDesdeRegistro { get; set; }
+            public decimal KgSurtido { get; set; }
+            public decimal CajasSurtidas { get; set; }
+            public string Nota { get; set; } = "";
+        }
+
+
+        // =====================================================================
+        // DATA GENERAL: OV + TRANSFERENCIAS
+        // =====================================================================
+        [HttpGet("Comercial/SeguimientoSurtidoAuditoriaData")]
+        public async Task<IActionResult> SeguimientoSurtidoAuditoriaData(
+            [FromQuery] DateTime? desde,
+            [FromQuery] DateTime? hasta,
+            [FromQuery] string? tipo,
+            [FromQuery] string? folio,
+            [FromQuery] string? cliente,
+            [FromQuery] string? vendedor,
+            [FromQuery] string? serie,
+            [FromQuery] string? canal,
+            [FromQuery] string? estado,
+            [FromQuery] string? validacion,
+            [FromQuery] string? riesgo,
+            [FromQuery] bool soloAlertas = false,
+            [FromQuery] bool soloConSolicitud = false,
+            CancellationToken ct = default)
+        {
+            try
+            {
+                var fechaDesde = (desde ?? DateTime.Today.AddDays(-7)).Date;
+                var fechaHasta = (hasta ?? DateTime.Today.AddDays(7)).Date;
+
+                if (fechaHasta < fechaDesde)
+                    return BadRequest(new { ok = false, msg = "El rango de fechas es inválido." });
+
+                if ((fechaHasta - fechaDesde).TotalDays > 366)
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = "Para proteger el rendimiento, utiliza un rango máximo de 366 días."
+                    });
+
+                const string sql = @"
+WITH
+/* ============================================================
+   ÓRDENES DE VENTA
+   ============================================================ */
+OV AS
+(
+    SELECT
+        ov.Id AS DocumentoId,
+        'OV' AS TipoDocumento,
+        ISNULL(ov.Consecutivo, '') AS Consecutivo,
+        ISNULL(ov.Serie, '') AS Serie,
+        ISNULL(ov.Cliente, '') AS Cliente,
+        ISNULL(cs.Nombrecliente, '') AS ClienteNombre,
+        ISNULL(ov.Vendedor, '') AS Vendedor,
+        cs.VendedorId,
+        ISNULL(cs.U_CANAL, '') AS Canal,
+        ov.FechaRegistro,
+        ov.FechaEntrega,
+        ov.Estatus,
+        EstatusTexto =
+            CASE
+                WHEN ov.Estatus = 0 THEN 'Cancelado'
+                WHEN ov.Estatus IN (1,3) THEN 'Pendiente'
+                WHEN ov.Estatus = 2 THEN 'Autorizacion'
+                WHEN ov.Estatus = 4 THEN 'Validado'
+                WHEN ov.Estatus = 5 THEN 'Enviado a SAP'
+                WHEN ov.Estatus = 6 THEN 'Logistica'
+                ELSE CONCAT('Estatus ', ov.Estatus)
+            END
+    FROM dbo.OrdenVenta ov WITH (NOLOCK)
+    LEFT JOIN dbo.ClienteSap cs WITH (NOLOCK)
+        ON cs.Cliente = ov.Cliente
+    WHERE
+        ov.Estatus <> 0
+        AND ov.FechaEntrega >= @FechaDesde
+        AND ov.FechaEntrega < DATEADD(DAY, 1, @FechaHasta)
+),
+
+OVSku AS
+(
+    SELECT
+        op.PedidoId AS DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(op.ProductoCodigo, ''))))
+            COLLATE DATABASE_DEFAULT,
+        KgOriginal =
+            SUM(CAST(ISNULL(op.Peso, 0) AS DECIMAL(18,4))),
+        CajasOriginal =
+            SUM(CAST(ISNULL(op.Cajas, 0) AS DECIMAL(18,4)))
+    FROM dbo.OrdenVentaProducto op WITH (NOLOCK)
+    INNER JOIN OV o
+        ON o.DocumentoId = op.PedidoId
+    WHERE
+        (op.Eliminado IS NULL OR op.Eliminado = 0)
+        AND NULLIF(LTRIM(RTRIM(ISNULL(op.ProductoCodigo,''))), '') IS NOT NULL
+    GROUP BY
+        op.PedidoId,
+        UPPER(LTRIM(RTRIM(ISNULL(op.ProductoCodigo, ''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+OVSolicitudes AS
+(
+    SELECT
+        sp.Id AS SubpedidoId,
+        sp.OrdenVentaId AS DocumentoId,
+        TRY_CONVERT(INT, NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')) AS SolicitudSurtidoId
+    FROM dbo.Subpedido sp WITH (NOLOCK)
+    INNER JOIN OV o
+        ON o.DocumentoId = sp.OrdenVentaId
+),
+
+OVSolicitudDistinct AS
+(
+    SELECT DISTINCT
+        DocumentoId,
+        SolicitudSurtidoId
+    FROM OVSolicitudes
+    WHERE SolicitudSurtidoId IS NOT NULL
+),
+
+OVSolicitudInfo AS
+(
+    SELECT
+        sd.DocumentoId,
+        SolicitudesCedis = COUNT(*),
+        SolicitudesValidadas =
+            SUM(CASE WHEN se.FechaValidacion IS NOT NULL THEN 1 ELSE 0 END),
+        SolicitudesPendientesValidar =
+            SUM(CASE WHEN se.FechaValidacion IS NULL THEN 1 ELSE 0 END),
+        PrimeraFechaValidacion = MIN(se.FechaValidacion),
+        UltimaFechaValidacion = MAX(se.FechaValidacion)
+    FROM OVSolicitudDistinct sd
+    LEFT JOIN dbo.SurtidoEncabezado se WITH (NOLOCK)
+        ON se.SolicitudSurtidoId = sd.SolicitudSurtidoId
+    GROUP BY
+        sd.DocumentoId
+),
+
+OVPedidoCedis AS
+(
+    SELECT
+        s.DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(p.ProductoCodigo, ''))))
+            COLLATE DATABASE_DEFAULT,
+        KgPedidoCedis =
+            SUM(CAST(ISNULL(p.KilosCaja, 0) AS DECIMAL(18,4))),
+        CajasPedidoCedis =
+            SUM(CAST(ISNULL(p.Cajas, 0) AS DECIMAL(18,4)))
+    FROM OVSolicitudes s
+    INNER JOIN dbo.SubpedidoProductos p WITH (NOLOCK)
+        ON p.SubpedidoId = s.SubpedidoId
+    WHERE
+        NULLIF(LTRIM(RTRIM(ISNULL(p.ProductoCodigo,''))), '') IS NOT NULL
+    GROUP BY
+        s.DocumentoId,
+        UPPER(LTRIM(RTRIM(ISNULL(p.ProductoCodigo, ''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+OVSurtido AS
+(
+    SELECT
+        sm.DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(sd.Articulo, ''))))
+            COLLATE DATABASE_DEFAULT,
+        KgSurtido =
+            SUM(CAST(ISNULL(sd.Kg, 0) AS DECIMAL(18,4))),
+        CajasSurtidas =
+            SUM(CAST(ISNULL(sd.Cajas, 0) AS DECIMAL(18,4)))
+    FROM OVSolicitudDistinct sm
+    INNER JOIN dbo.SurtidoDetalle sd WITH (NOLOCK)
+        ON sd.SolicitudSurtidoId = sm.SolicitudSurtidoId
+    WHERE
+        NULLIF(LTRIM(RTRIM(ISNULL(sd.Articulo,''))), '') IS NOT NULL
+    GROUP BY
+        sm.DocumentoId,
+        UPPER(LTRIM(RTRIM(ISNULL(sd.Articulo, ''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+OVKeys AS
+(
+    SELECT DocumentoId, SKU FROM OVSku
+    UNION
+    SELECT DocumentoId, SKU FROM OVPedidoCedis
+    UNION
+    SELECT DocumentoId, SKU FROM OVSurtido
+),
+
+OVDetalle AS
+(
+    SELECT
+        k.DocumentoId,
+        k.SKU,
+        KgOriginal = ISNULL(o.KgOriginal,0),
+        CajasOriginal = ISNULL(o.CajasOriginal,0),
+        KgPedidoCedis = ISNULL(p.KgPedidoCedis,0),
+        CajasPedidoCedis = ISNULL(p.CajasPedidoCedis,0),
+        KgSurtido = ISNULL(s.KgSurtido,0),
+        CajasSurtidas = ISNULL(s.CajasSurtidas,0),
+
+        KgAplicado =
+            CAST(
+                CASE
+                    WHEN ISNULL(o.KgOriginal,0) <= 0 THEN 0
+                    WHEN ISNULL(s.KgSurtido,0) >= ISNULL(o.KgOriginal,0)
+                        THEN ISNULL(o.KgOriginal,0)
+                    ELSE ISNULL(s.KgSurtido,0)
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        CajasAplicadas =
+            CAST(
+                CASE
+                    WHEN ISNULL(o.CajasOriginal,0) <= 0 THEN 0
+                    WHEN ISNULL(s.CajasSurtidas,0) >= ISNULL(o.CajasOriginal,0)
+                        THEN ISNULL(o.CajasOriginal,0)
+                    ELSE ISNULL(s.CajasSurtidas,0)
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        KgExtra =
+            CAST(
+                CASE
+                    WHEN ISNULL(s.KgSurtido,0) > ISNULL(o.KgOriginal,0)
+                        THEN ISNULL(s.KgSurtido,0) - ISNULL(o.KgOriginal,0)
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        CajasExtra =
+            CAST(
+                CASE
+                    WHEN ISNULL(s.CajasSurtidas,0) > ISNULL(o.CajasOriginal,0)
+                        THEN ISNULL(s.CajasSurtidas,0) - ISNULL(o.CajasOriginal,0)
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        EsSkuExtraOriginal =
+            CASE
+                WHEN ISNULL(s.KgSurtido,0) > 0
+                 AND o.DocumentoId IS NULL
+                    THEN 1
+                ELSE 0
+            END,
+
+        EsSkuExtraSolicitud =
+            CASE
+                WHEN ISNULL(s.KgSurtido,0) > 0
+                 AND p.DocumentoId IS NULL
+                    THEN 1
+                ELSE 0
+            END
+    FROM OVKeys k
+    LEFT JOIN OVSku o
+        ON o.DocumentoId = k.DocumentoId
+       AND o.SKU = k.SKU
+    LEFT JOIN OVPedidoCedis p
+        ON p.DocumentoId = k.DocumentoId
+       AND p.SKU = k.SKU
+    LEFT JOIN OVSurtido s
+        ON s.DocumentoId = k.DocumentoId
+       AND s.SKU = k.SKU
+),
+
+OVAgg AS
+(
+    SELECT
+        DocumentoId,
+        KgOrdenOV = SUM(KgOriginal),
+        CajasOrdenOV = SUM(CajasOriginal),
+        KgPedidoCedis = SUM(KgPedidoCedis),
+        CajasPedidoCedis = SUM(CajasPedidoCedis),
+        KgSurtidoCedisBruto = SUM(KgSurtido),
+        CajasSurtidasCedisBruto = SUM(CajasSurtidas),
+        KgSurtidoAplicadoOV = SUM(KgAplicado),
+        CajasSurtidasAplicadasOV = SUM(CajasAplicadas),
+        KgExtraVsOV = SUM(KgExtra),
+        CajasExtraVsOV = SUM(CajasExtra),
+        SkuExtraNoEnOV =
+            SUM(CASE WHEN EsSkuExtraOriginal = 1 THEN 1 ELSE 0 END),
+        SkuExtraNoEnSolicitud =
+            SUM(CASE WHEN EsSkuExtraSolicitud = 1 THEN 1 ELSE 0 END)
+    FROM OVDetalle
+    GROUP BY DocumentoId
+),
+
+OVFinalBase AS
+(
+    SELECT
+        o.DocumentoId,
+        o.TipoDocumento,
+        o.Consecutivo,
+        o.Serie,
+        o.Cliente,
+        o.ClienteNombre,
+        o.Vendedor,
+        o.VendedorId,
+        o.Canal,
+        o.FechaRegistro,
+        o.FechaEntrega,
+        o.Estatus,
+        o.EstatusTexto,
+
+        SolicitudesCedis = ISNULL(si.SolicitudesCedis,0),
+        SolicitudesValidadas = ISNULL(si.SolicitudesValidadas,0),
+        SolicitudesPendientesValidar = ISNULL(si.SolicitudesPendientesValidar,0),
+        si.PrimeraFechaValidacion,
+        si.UltimaFechaValidacion,
+
+        EstadoValidacion =
+            CASE
+                WHEN ISNULL(si.SolicitudesCedis,0) = 0 THEN 'SIN SOLICITUD'
+                WHEN ISNULL(si.SolicitudesValidadas,0) = 0 THEN 'PENDIENTE'
+                WHEN ISNULL(si.SolicitudesPendientesValidar,0) > 0 THEN 'PARCIAL'
+                ELSE 'VALIDADO'
+            END,
+
+        HorasHastaUltimaValidacion =
+            CAST(
+                CASE
+                    WHEN si.UltimaFechaValidacion IS NULL OR o.FechaRegistro IS NULL
+                        THEN NULL
+                    ELSE DATEDIFF(MINUTE, o.FechaRegistro, si.UltimaFechaValidacion) / 60.0
+                END
+                AS DECIMAL(18,2)
+            ),
+
+        HorasPendienteValidacion =
+            CAST(
+                CASE
+                    WHEN ISNULL(si.SolicitudesPendientesValidar,0) <= 0
+                      OR o.FechaRegistro IS NULL
+                        THEN NULL
+                    ELSE DATEDIFF(MINUTE, o.FechaRegistro, GETDATE()) / 60.0
+                END
+                AS DECIMAL(18,2)
+            ),
+
+        HorasValidacionVsEntrega =
+            CAST(
+                CASE
+                    WHEN si.UltimaFechaValidacion IS NULL OR o.FechaEntrega IS NULL
+                        THEN NULL
+                    ELSE DATEDIFF(MINUTE, o.FechaEntrega, si.UltimaFechaValidacion) / 60.0
+                END
+                AS DECIMAL(18,2)
+            ),
+
+        DiasParaEntrega =
+            DATEDIFF(DAY, CONVERT(DATE,GETDATE()), CONVERT(DATE,o.FechaEntrega)),
+
+        KgOrdenOV = ISNULL(a.KgOrdenOV,0),
+        CajasOrdenOV = ISNULL(a.CajasOrdenOV,0),
+        KgPedidoCedis = ISNULL(a.KgPedidoCedis,0),
+        CajasPedidoCedis = ISNULL(a.CajasPedidoCedis,0),
+        KgSurtidoCedisBruto = ISNULL(a.KgSurtidoCedisBruto,0),
+        CajasSurtidasCedisBruto = ISNULL(a.CajasSurtidasCedisBruto,0),
+        KgSurtidoAplicadoOV = ISNULL(a.KgSurtidoAplicadoOV,0),
+        CajasSurtidasAplicadasOV = ISNULL(a.CajasSurtidasAplicadasOV,0),
+
+        KgPendienteOV =
+            CAST(
+                CASE
+                    WHEN ISNULL(a.KgOrdenOV,0) - ISNULL(a.KgSurtidoAplicadoOV,0) > 0
+                        THEN ISNULL(a.KgOrdenOV,0) - ISNULL(a.KgSurtidoAplicadoOV,0)
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        CajasPendientesOV =
+            CAST(
+                CASE
+                    WHEN ISNULL(a.CajasOrdenOV,0) - ISNULL(a.CajasSurtidasAplicadasOV,0) > 0
+                        THEN ISNULL(a.CajasOrdenOV,0) - ISNULL(a.CajasSurtidasAplicadasOV,0)
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        PctLiberadoACedisKg =
+            CAST(
+                CASE
+                    WHEN ISNULL(a.KgOrdenOV,0) <= 0 THEN 0
+                    ELSE ISNULL(a.KgPedidoCedis,0) * 100.0 / NULLIF(a.KgOrdenOV,0)
+                END
+                AS DECIMAL(10,2)
+            ),
+
+        PctAvanceOVKg =
+            CAST(
+                CASE
+                    WHEN ISNULL(a.KgOrdenOV,0) <= 0 THEN 0
+                    ELSE ISNULL(a.KgSurtidoAplicadoOV,0) * 100.0 / NULLIF(a.KgOrdenOV,0)
+                END
+                AS DECIMAL(10,2)
+            ),
+
+        PctAvanceOVCajas =
+            CAST(
+                CASE
+                    WHEN ISNULL(a.CajasOrdenOV,0) <= 0 THEN 0
+                    ELSE ISNULL(a.CajasSurtidasAplicadasOV,0) * 100.0 / NULLIF(a.CajasOrdenOV,0)
+                END
+                AS DECIMAL(10,2)
+            ),
+
+        KgExtraVsOV = ISNULL(a.KgExtraVsOV,0),
+        CajasExtraVsOV = ISNULL(a.CajasExtraVsOV,0),
+        SkuExtraNoEnOV = ISNULL(a.SkuExtraNoEnOV,0),
+        SkuExtraNoEnSolicitud = ISNULL(a.SkuExtraNoEnSolicitud,0),
+
+        TieneAlerta =
+            CASE
+                WHEN ISNULL(a.SkuExtraNoEnOV,0) > 0
+                  OR ISNULL(a.SkuExtraNoEnSolicitud,0) > 0
+                  OR ISNULL(a.KgExtraVsOV,0) > 0.01
+                  OR ISNULL(a.CajasExtraVsOV,0) > 0
+                    THEN 1
+                ELSE 0
+            END
+    FROM OV o
+    LEFT JOIN OVAgg a
+        ON a.DocumentoId = o.DocumentoId
+    LEFT JOIN OVSolicitudInfo si
+        ON si.DocumentoId = o.DocumentoId
+),
+
+OVFinal AS
+(
+    SELECT
+        b.*,
+
+        EstadoSurtido =
+            CASE
+                WHEN b.SolicitudesCedis = 0 THEN 'SIN SOLICITUD CEDIS'
+                WHEN b.KgPedidoCedis <= 0 AND b.KgSurtidoCedisBruto > 0
+                    THEN 'SURTIDO SIN DETALLE SOLICITADO'
+                WHEN b.KgPedidoCedis <= 0
+                    THEN 'SOLICITUD SIN DETALLE'
+                WHEN b.KgSurtidoCedisBruto <= 0
+                    THEN 'POR SURTIR'
+                WHEN b.PctAvanceOVKg < 100 AND b.TieneAlerta = 1
+                    THEN 'SURTIENDO + ALERTA'
+                WHEN b.PctAvanceOVKg < 100
+                    THEN 'SURTIENDO'
+                WHEN b.TieneAlerta = 1
+                    THEN 'COMPLETO CON ALERTA'
+                ELSE 'COMPLETO'
+            END,
+
+        RiesgoEntrega =
+            CASE
+                WHEN b.DiasParaEntrega < 0 AND b.PctAvanceOVKg < 100 THEN 'ATRASADO'
+                WHEN b.DiasParaEntrega <= 1 AND b.PctAvanceOVKg < 100 THEN 'RIESGO'
+                WHEN b.TieneAlerta = 1 THEN 'REVISAR'
+                ELSE 'EN TIEMPO'
+            END
+    FROM OVFinalBase b
+),
+
+
+/* ============================================================
+   TRANSFERENCIAS
+   Original     = TransferenciaDetalles
+   Pedido CEDIS = PedidosTransferenciaDetalle
+   Surtido real = TransferenciaSurtido
+   ============================================================ */
+TR AS
+(
+    SELECT
+        t.Id AS DocumentoId,
+        'TR' AS TipoDocumento,
+        ISNULL(t.Consecutivo,'') AS Consecutivo,
+        ISNULL(t.Sucursal,'') AS Serie,
+        ISNULL(t.Sucursal,'') AS Cliente,
+
+        ClienteNombre =
+            ISNULL(
+                (
+                    SELECT TOP (1) ISNULL(pt.Destino,'')
+                    FROM dbo.PedidosTransferencia pt WITH (NOLOCK)
+                    WHERE pt.TransferenciaId = t.Id
+                    ORDER BY pt.Id
+                ),
+                ISNULL(t.Sucursal,'')
+            ),
+
+        Vendedor = '',
+        VendedorId = CAST(NULL AS INT),
+
+        Canal =
+            ISNULL(
+                (
+                    SELECT TOP (1) ISNULL(s.Canal,'')
+                    FROM dbo.Series s WITH (NOLOCK)
+                    WHERE s.Sucursal = t.Sucursal
+                    ORDER BY s.Id
+                ),
+                ''
+            ),
+
+        FechaRegistro = t.FechaSolicitud,
+        FechaEntrega = t.FechaSolicitud,
+        t.Estatus,
+
+        EstatusTexto =
+            CASE
+                WHEN t.Estatus = 0 THEN 'Cancelada'
+                WHEN t.Estatus BETWEEN 1 AND 4 THEN 'En proceso'
+                WHEN t.Estatus >= 5 THEN 'Validada / surtida'
+                ELSE CONCAT('Estatus ', t.Estatus)
+            END
+    FROM dbo.Transferencias t WITH (NOLOCK)
+    WHERE
+        t.Estatus <> 0
+        AND t.FechaSolicitud >= @FechaDesde
+        AND t.FechaSolicitud < DATEADD(DAY,1,@FechaHasta)
+),
+
+TRSku AS
+(
+    SELECT
+        td.TransferenciaId AS DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(td.ProductoCodigo,''))))
+            COLLATE DATABASE_DEFAULT,
+        KgOriginal =
+            SUM(CAST(ISNULL(td.CantidadKg,0) AS DECIMAL(18,4))),
+        CajasOriginal =
+            SUM(CAST(ISNULL(td.Cajas,0) AS DECIMAL(18,4)))
+    FROM dbo.TransferenciaDetalles td WITH (NOLOCK)
+    INNER JOIN TR t
+        ON t.DocumentoId = td.TransferenciaId
+    WHERE
+        NULLIF(LTRIM(RTRIM(ISNULL(td.ProductoCodigo,''))), '') IS NOT NULL
+    GROUP BY
+        td.TransferenciaId,
+        UPPER(LTRIM(RTRIM(ISNULL(td.ProductoCodigo,''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+TRPedidoCedis AS
+(
+    SELECT
+        pt.TransferenciaId AS DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(pd.ProductoCodigo,''))))
+            COLLATE DATABASE_DEFAULT,
+        KgPedidoCedis =
+            SUM(CAST(ISNULL(pd.CantidadKg,0) AS DECIMAL(18,4))),
+        CajasPedidoCedis =
+            SUM(CAST(ISNULL(pd.Cajas,0) AS DECIMAL(18,4)))
+    FROM dbo.PedidosTransferencia pt WITH (NOLOCK)
+    INNER JOIN dbo.PedidosTransferenciaDetalle pd WITH (NOLOCK)
+        ON pd.PedidoTransferenciaId = pt.Id
+    INNER JOIN TR t
+        ON t.DocumentoId = pt.TransferenciaId
+    WHERE
+        NULLIF(LTRIM(RTRIM(ISNULL(pd.ProductoCodigo,''))), '') IS NOT NULL
+    GROUP BY
+        pt.TransferenciaId,
+        UPPER(LTRIM(RTRIM(ISNULL(pd.ProductoCodigo,''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+TRPedidoInfo AS
+(
+    SELECT
+        pt.TransferenciaId AS DocumentoId,
+        SolicitudesCedis = COUNT(*)
+    FROM dbo.PedidosTransferencia pt WITH (NOLOCK)
+    INNER JOIN TR t
+        ON t.DocumentoId = pt.TransferenciaId
+    GROUP BY
+        pt.TransferenciaId
+),
+
+TRSurtido AS
+(
+    SELECT
+        ts.TransferenciaId AS DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(ts.Sku,''))))
+            COLLATE DATABASE_DEFAULT,
+        KgSurtido =
+            SUM(CAST(ISNULL(ts.KgSurtido,0) AS DECIMAL(18,4))),
+        CajasSurtidas =
+            SUM(CAST(ISNULL(ts.CajasSurtidas,0) AS DECIMAL(18,4)))
+    FROM dbo.TransferenciaSurtido ts WITH (NOLOCK)
+    INNER JOIN TR t
+        ON t.DocumentoId = ts.TransferenciaId
+    WHERE
+        NULLIF(LTRIM(RTRIM(ISNULL(ts.Sku,''))), '') IS NOT NULL
+    GROUP BY
+        ts.TransferenciaId,
+        UPPER(LTRIM(RTRIM(ISNULL(ts.Sku,''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+TRKeys AS
+(
+    SELECT DocumentoId, SKU FROM TRSku
+    UNION
+    SELECT DocumentoId, SKU FROM TRPedidoCedis
+    UNION
+    SELECT DocumentoId, SKU FROM TRSurtido
+),
+
+TRDetalle AS
+(
+    SELECT
+        k.DocumentoId,
+        k.SKU,
+        KgOriginal = ISNULL(o.KgOriginal,0),
+        CajasOriginal = ISNULL(o.CajasOriginal,0),
+        KgPedidoCedis = ISNULL(p.KgPedidoCedis,0),
+        CajasPedidoCedis = ISNULL(p.CajasPedidoCedis,0),
+        KgSurtido = ISNULL(s.KgSurtido,0),
+        CajasSurtidas = ISNULL(s.CajasSurtidas,0),
+
+        KgAplicado =
+            CAST(
+                CASE
+                    WHEN ISNULL(o.KgOriginal,0) <= 0 THEN 0
+                    WHEN ISNULL(s.KgSurtido,0) >= ISNULL(o.KgOriginal,0)
+                        THEN ISNULL(o.KgOriginal,0)
+                    ELSE ISNULL(s.KgSurtido,0)
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        CajasAplicadas =
+            CAST(
+                CASE
+                    WHEN ISNULL(o.CajasOriginal,0) <= 0 THEN 0
+                    WHEN ISNULL(s.CajasSurtidas,0) >= ISNULL(o.CajasOriginal,0)
+                        THEN ISNULL(o.CajasOriginal,0)
+                    ELSE ISNULL(s.CajasSurtidas,0)
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        KgExtra =
+            CAST(
+                CASE
+                    WHEN ISNULL(s.KgSurtido,0) > ISNULL(o.KgOriginal,0)
+                        THEN ISNULL(s.KgSurtido,0) - ISNULL(o.KgOriginal,0)
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        CajasExtra =
+            CAST(
+                CASE
+                    WHEN ISNULL(s.CajasSurtidas,0) > ISNULL(o.CajasOriginal,0)
+                        THEN ISNULL(s.CajasSurtidas,0) - ISNULL(o.CajasOriginal,0)
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        EsSkuExtraOriginal =
+            CASE
+                WHEN ISNULL(s.KgSurtido,0) > 0
+                 AND o.DocumentoId IS NULL
+                    THEN 1
+                ELSE 0
+            END,
+
+        EsSkuExtraSolicitud =
+            CASE
+                WHEN ISNULL(s.KgSurtido,0) > 0
+                 AND p.DocumentoId IS NULL
+                    THEN 1
+                ELSE 0
+            END
+    FROM TRKeys k
+    LEFT JOIN TRSku o
+        ON o.DocumentoId = k.DocumentoId
+       AND o.SKU = k.SKU
+    LEFT JOIN TRPedidoCedis p
+        ON p.DocumentoId = k.DocumentoId
+       AND p.SKU = k.SKU
+    LEFT JOIN TRSurtido s
+        ON s.DocumentoId = k.DocumentoId
+       AND s.SKU = k.SKU
+),
+
+TRAgg AS
+(
+    SELECT
+        DocumentoId,
+        KgOrdenOV = SUM(KgOriginal),
+        CajasOrdenOV = SUM(CajasOriginal),
+        KgPedidoCedis = SUM(KgPedidoCedis),
+        CajasPedidoCedis = SUM(CajasPedidoCedis),
+        KgSurtidoCedisBruto = SUM(KgSurtido),
+        CajasSurtidasCedisBruto = SUM(CajasSurtidas),
+        KgSurtidoAplicadoOV = SUM(KgAplicado),
+        CajasSurtidasAplicadasOV = SUM(CajasAplicadas),
+        KgExtraVsOV = SUM(KgExtra),
+        CajasExtraVsOV = SUM(CajasExtra),
+        SkuExtraNoEnOV =
+            SUM(CASE WHEN EsSkuExtraOriginal = 1 THEN 1 ELSE 0 END),
+        SkuExtraNoEnSolicitud =
+            SUM(CASE WHEN EsSkuExtraSolicitud = 1 THEN 1 ELSE 0 END)
+    FROM TRDetalle
+    GROUP BY DocumentoId
+),
+
+TRFinalBase AS
+(
+    SELECT
+        t.DocumentoId,
+        t.TipoDocumento,
+        t.Consecutivo,
+        t.Serie,
+        t.Cliente,
+        t.ClienteNombre,
+        t.Vendedor,
+        t.VendedorId,
+        t.Canal,
+        t.FechaRegistro,
+        t.FechaEntrega,
+        t.Estatus,
+        t.EstatusTexto,
+
+        SolicitudesCedis = ISNULL(pi.SolicitudesCedis,0),
+
+        SolicitudesValidadas =
+            CASE
+                WHEN ISNULL(pi.SolicitudesCedis,0) > 0 AND t.Estatus >= 5
+                    THEN ISNULL(pi.SolicitudesCedis,0)
+                ELSE 0
+            END,
+
+        SolicitudesPendientesValidar =
+            CASE
+                WHEN ISNULL(pi.SolicitudesCedis,0) > 0 AND t.Estatus < 5
+                    THEN ISNULL(pi.SolicitudesCedis,0)
+                ELSE 0
+            END,
+
+        PrimeraFechaValidacion = CAST(NULL AS DATETIME),
+        UltimaFechaValidacion = CAST(NULL AS DATETIME),
+
+        EstadoValidacion =
+            CASE
+                WHEN ISNULL(pi.SolicitudesCedis,0) = 0 THEN 'SIN SOLICITUD'
+                WHEN t.Estatus >= 5 THEN 'VALIDADO'
+                ELSE 'PENDIENTE'
+            END,
+
+        HorasHastaUltimaValidacion = CAST(NULL AS DECIMAL(18,2)),
+
+        HorasPendienteValidacion =
+            CAST(
+                CASE
+                    WHEN ISNULL(pi.SolicitudesCedis,0) > 0
+                     AND t.Estatus < 5
+                     AND t.FechaRegistro IS NOT NULL
+                        THEN DATEDIFF(MINUTE,t.FechaRegistro,GETDATE()) / 60.0
+                    ELSE NULL
+                END
+                AS DECIMAL(18,2)
+            ),
+
+        HorasValidacionVsEntrega = CAST(NULL AS DECIMAL(18,2)),
+        DiasParaEntrega = 0,
+
+        KgOrdenOV = ISNULL(a.KgOrdenOV,0),
+        CajasOrdenOV = ISNULL(a.CajasOrdenOV,0),
+        KgPedidoCedis = ISNULL(a.KgPedidoCedis,0),
+        CajasPedidoCedis = ISNULL(a.CajasPedidoCedis,0),
+        KgSurtidoCedisBruto = ISNULL(a.KgSurtidoCedisBruto,0),
+        CajasSurtidasCedisBruto = ISNULL(a.CajasSurtidasCedisBruto,0),
+        KgSurtidoAplicadoOV = ISNULL(a.KgSurtidoAplicadoOV,0),
+        CajasSurtidasAplicadasOV = ISNULL(a.CajasSurtidasAplicadasOV,0),
+
+        KgPendienteOV =
+            CAST(
+                CASE
+                    WHEN ISNULL(a.KgOrdenOV,0) - ISNULL(a.KgSurtidoAplicadoOV,0) > 0
+                        THEN ISNULL(a.KgOrdenOV,0) - ISNULL(a.KgSurtidoAplicadoOV,0)
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        CajasPendientesOV =
+            CAST(
+                CASE
+                    WHEN ISNULL(a.CajasOrdenOV,0) - ISNULL(a.CajasSurtidasAplicadasOV,0) > 0
+                        THEN ISNULL(a.CajasOrdenOV,0) - ISNULL(a.CajasSurtidasAplicadasOV,0)
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        PctLiberadoACedisKg =
+            CAST(
+                CASE
+                    WHEN ISNULL(a.KgOrdenOV,0) <= 0 THEN 0
+                    ELSE ISNULL(a.KgPedidoCedis,0) * 100.0 / NULLIF(a.KgOrdenOV,0)
+                END
+                AS DECIMAL(10,2)
+            ),
+
+        PctAvanceOVKg =
+            CAST(
+                CASE
+                    WHEN ISNULL(a.KgOrdenOV,0) <= 0 THEN 0
+                    ELSE ISNULL(a.KgSurtidoAplicadoOV,0) * 100.0 / NULLIF(a.KgOrdenOV,0)
+                END
+                AS DECIMAL(10,2)
+            ),
+
+        PctAvanceOVCajas =
+            CAST(
+                CASE
+                    WHEN ISNULL(a.CajasOrdenOV,0) <= 0 THEN 0
+                    ELSE ISNULL(a.CajasSurtidasAplicadasOV,0) * 100.0 / NULLIF(a.CajasOrdenOV,0)
+                END
+                AS DECIMAL(10,2)
+            ),
+
+        KgExtraVsOV = ISNULL(a.KgExtraVsOV,0),
+        CajasExtraVsOV = ISNULL(a.CajasExtraVsOV,0),
+        SkuExtraNoEnOV = ISNULL(a.SkuExtraNoEnOV,0),
+        SkuExtraNoEnSolicitud = ISNULL(a.SkuExtraNoEnSolicitud,0),
+
+        TieneAlerta =
+            CASE
+                WHEN ISNULL(a.SkuExtraNoEnOV,0) > 0
+                  OR ISNULL(a.SkuExtraNoEnSolicitud,0) > 0
+                  OR ISNULL(a.KgExtraVsOV,0) > 0.01
+                  OR ISNULL(a.CajasExtraVsOV,0) > 0
+                    THEN 1
+                ELSE 0
+            END
+    FROM TR t
+    LEFT JOIN TRAgg a
+        ON a.DocumentoId = t.DocumentoId
+    LEFT JOIN TRPedidoInfo pi
+        ON pi.DocumentoId = t.DocumentoId
+),
+
+TRFinal AS
+(
+    SELECT
+        b.*,
+
+        EstadoSurtido =
+            CASE
+                WHEN b.SolicitudesCedis = 0 AND b.KgSurtidoCedisBruto <= 0
+                    THEN 'SIN PEDIDO CEDIS'
+                WHEN b.KgSurtidoCedisBruto <= 0
+                    THEN 'POR SURTIR'
+                WHEN b.PctAvanceOVKg < 100 AND b.TieneAlerta = 1
+                    THEN 'SURTIENDO + ALERTA'
+                WHEN b.PctAvanceOVKg < 100
+                    THEN 'SURTIENDO'
+                WHEN b.TieneAlerta = 1
+                    THEN 'COMPLETO CON ALERTA'
+                ELSE 'COMPLETO'
+            END,
+
+        RiesgoEntrega =
+            CASE
+                WHEN b.TieneAlerta = 1 THEN 'REVISAR'
+                ELSE 'SIN SLA'
+            END
+    FROM TRFinalBase b
+),
+
+Final AS
+(
+    SELECT * FROM OVFinal
+    UNION ALL
+    SELECT * FROM TRFinal
+)
+
+SELECT TOP (3000)
+    f.*
+FROM Final f
+WHERE
+    (@Tipo = '' OR f.TipoDocumento = @Tipo)
+    AND (@Folio = '' OR f.Consecutivo LIKE '%' + @Folio + '%')
+    AND
+    (
+        @Cliente = ''
+        OR f.Cliente LIKE '%' + @Cliente + '%'
+        OR f.ClienteNombre LIKE '%' + @Cliente + '%'
+    )
+    AND
+    (
+        @Vendedor = ''
+        OR UPPER(LTRIM(RTRIM(f.Vendedor))) = UPPER(LTRIM(RTRIM(@Vendedor)))
+    )
+    AND
+    (
+        @Serie = ''
+        OR UPPER(LTRIM(RTRIM(f.Serie))) = UPPER(LTRIM(RTRIM(@Serie)))
+    )
+    AND
+    (
+        @Canal = ''
+        OR UPPER(LTRIM(RTRIM(f.Canal))) = UPPER(LTRIM(RTRIM(@Canal)))
+    )
+    AND
+    (
+        @Estado = ''
+        OR (@Estado = 'POR_SURTIR' AND f.EstadoSurtido IN ('POR SURTIR','SOLICITUD SIN DETALLE'))
+        OR (@Estado = 'SURTIENDO' AND f.EstadoSurtido LIKE 'SURTIENDO%')
+        OR (@Estado = 'COMPLETO' AND f.EstadoSurtido LIKE 'COMPLETO%')
+        OR (@Estado = 'SIN_SOLICITUD' AND f.EstadoSurtido IN ('SIN SOLICITUD CEDIS','SIN PEDIDO CEDIS'))
+        OR (@Estado = 'ALERTAS' AND f.TieneAlerta = 1)
+    )
+    AND (@Validacion = '' OR f.EstadoValidacion = @Validacion)
+    AND (@Riesgo = '' OR f.RiesgoEntrega = @Riesgo)
+    AND (@SoloAlertas = 0 OR f.TieneAlerta = 1)
+    AND (@SoloConSolicitud = 0 OR f.SolicitudesCedis > 0)
+ORDER BY
+    CASE f.TipoDocumento
+        WHEN 'OV' THEN 1
+        WHEN 'TR' THEN 2
+        ELSE 3
+    END,
+    CASE f.RiesgoEntrega
+        WHEN 'ATRASADO' THEN 1
+        WHEN 'RIESGO' THEN 2
+        WHEN 'REVISAR' THEN 3
+        ELSE 4
+    END,
+    CASE WHEN f.TieneAlerta = 1 THEN 0 ELSE 1 END,
+    f.FechaEntrega,
+    f.Consecutivo
+";
+
+                await using var cn =
+                    new Microsoft.Data.SqlClient.SqlConnection(
+                        _configuration.GetConnectionString("DefaultConnection"));
+
+                await cn.OpenAsync(ct);
+
+                var args = new
+                {
+                    FechaDesde = fechaDesde,
+                    FechaHasta = fechaHasta,
+                    Tipo = (tipo ?? "").Trim().ToUpperInvariant(),
+                    Folio = (folio ?? "").Trim(),
+                    Cliente = (cliente ?? "").Trim(),
+                    Vendedor = (vendedor ?? "").Trim(),
+                    Serie = (serie ?? "").Trim(),
+                    Canal = (canal ?? "").Trim(),
+                    Estado = (estado ?? "").Trim().ToUpperInvariant(),
+                    Validacion = (validacion ?? "").Trim().ToUpperInvariant(),
+                    Riesgo = (riesgo ?? "").Trim().ToUpperInvariant(),
+                    SoloAlertas = soloAlertas ? 1 : 0,
+                    SoloConSolicitud = soloConSolicitud ? 1 : 0
+                };
+
+                var rows =
+                    (await cn.QueryAsync<SeguimientoSurtidoAuditoriaRowDto>(
+                        new CommandDefinition(
+                            sql,
+                            args,
+                            commandTimeout: 180,
+                            cancellationToken: ct)))
+                    .ToList();
+
+                var kgOrdenados = rows.Sum(x => x.KgOrdenOV);
+                var kgSurtidos = rows.Sum(x => x.KgSurtidoAplicadoOV);
+
+                // Para promedio de validación sólo usamos OV,
+                // porque Transferencias no expone FechaValidacion en las fuentes actuales.
+                var horasValidadasOv =
+                    rows
+                        .Where(x =>
+                            x.TipoDocumento == "OV"
+                            && x.EstadoValidacion == "VALIDADO"
+                            && x.HorasHastaUltimaValidacion.HasValue)
+                        .Select(x => x.HorasHastaUltimaValidacion!.Value)
+                        .ToList();
+
+                var kpis = new SeguimientoSurtidoAuditoriaKpiDto
+                {
+                    Documentos = rows.Count,
+                    OrdenesVenta = rows.Count(x => x.TipoDocumento == "OV"),
+                    Transferencias = rows.Count(x => x.TipoDocumento == "TR"),
+                    KgOrdenados = kgOrdenados,
+                    KgSurtidosAplicados = kgSurtidos,
+                    KgPendientes = rows.Sum(x => x.KgPendienteOV),
+                    PctAvanceGlobalKg =
+                        kgOrdenados > 0
+                            ? Math.Round((kgSurtidos * 100m) / kgOrdenados, 2)
+                            : 0m,
+
+                    PorSurtir =
+                        rows.Count(x =>
+                            x.EstadoSurtido == "POR SURTIR"
+                            || x.EstadoSurtido == "SOLICITUD SIN DETALLE"),
+
+                    Surtiendo =
+                        rows.Count(x =>
+                            (x.EstadoSurtido ?? "").StartsWith(
+                                "SURTIENDO",
+                                StringComparison.OrdinalIgnoreCase)),
+
+                    Completos =
+                        rows.Count(x =>
+                            (x.EstadoSurtido ?? "").StartsWith(
+                                "COMPLETO",
+                                StringComparison.OrdinalIgnoreCase)),
+
+                    Alertas = rows.Count(x => x.TieneAlerta == 1),
+
+                    PendientesValidacion =
+                        rows.Count(x =>
+                            x.EstadoValidacion == "PENDIENTE"
+                            || x.EstadoValidacion == "PARCIAL"),
+
+                    RiesgoEntrega =
+                        rows.Count(x =>
+                            x.RiesgoEntrega == "ATRASADO"
+                            || x.RiesgoEntrega == "RIESGO"),
+
+                    PromedioHorasValidacion =
+                        horasValidadasOv.Count > 0
+                            ? Math.Round(horasValidadasOv.Average(), 2)
+                            : null
+                };
+
+                var series =
+                    rows.Select(x => (x.Serie ?? "").Trim())
+                        .Where(x => x.Length > 0)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(x => x)
+                        .ToList();
+
+                var vendedores =
+                    rows.Select(x => (x.Vendedor ?? "").Trim())
+                        .Where(x => x.Length > 0)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(x => x)
+                        .ToList();
+
+                var canales =
+                    rows.Select(x => (x.Canal ?? "").Trim())
+                        .Where(x => x.Length > 0)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(x => x)
+                        .ToList();
+
+                return Json(new
+                {
+                    ok = true,
+                    fechaDesde = fechaDesde.ToString("yyyy-MM-dd"),
+                    fechaHasta = fechaHasta.ToString("yyyy-MM-dd"),
+                    actualizado = DateTime.Now,
+                    rows,
+                    kpis,
+                    catalogos = new
+                    {
+                        series,
+                        vendedores,
+                        canales
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                var detalle = ex.GetBaseException().Message;
+
+                _logger.LogError(
+                    ex,
+                    "Error en SeguimientoSurtidoAuditoriaData OV/TR: {Detalle}",
+                    detalle);
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = "No fue posible cargar el seguimiento de surtido.",
+                    detalle
+                });
+            }
+        }
+
+
+        // =====================================================================
+        // DETALLE POR DOCUMENTO: OV O TRANSFERENCIA
+        // =====================================================================
+        [HttpGet("Comercial/SeguimientoSurtidoAuditoriaDetalle")]
+        public async Task<IActionResult> SeguimientoSurtidoAuditoriaDetalle(
+            [FromQuery] string tipo,
+            [FromQuery] int documentoId,
+            CancellationToken ct = default)
+        {
+            tipo = (tipo ?? "").Trim().ToUpperInvariant();
+
+            if (documentoId <= 0 || (tipo != "OV" && tipo != "TR"))
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    msg = "Documento o tipo inválido."
+                });
+            }
+
+            try
+            {
+                await using var cn =
+                    new Microsoft.Data.SqlClient.SqlConnection(
+                        _configuration.GetConnectionString("DefaultConnection"));
+
+                await cn.OpenAsync(ct);
+
+                if (tipo == "OV")
+                {
+                    const string sqlSkus = @"
+WITH
+Solicitudes AS
+(
+    SELECT
+        sp.Id AS SubpedidoId,
+        sp.OrdenVentaId AS DocumentoId,
+        TRY_CONVERT(INT, NULLIF(LTRIM(RTRIM(sp.U_DocMeat)),'')) AS SolicitudSurtidoId
+    FROM dbo.Subpedido sp WITH (NOLOCK)
+    WHERE sp.OrdenVentaId = @DocumentoId
+),
+
+OVSku AS
+(
+    SELECT
+        op.PedidoId AS DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(op.ProductoCodigo,''))))
+            COLLATE DATABASE_DEFAULT,
+        Producto = MAX(ISNULL(op.ProductoNombre,'')),
+        KgOriginal = SUM(CAST(ISNULL(op.Peso,0) AS DECIMAL(18,4))),
+        CajasOriginal = SUM(CAST(ISNULL(op.Cajas,0) AS DECIMAL(18,4)))
+    FROM dbo.OrdenVentaProducto op WITH (NOLOCK)
+    WHERE
+        op.PedidoId = @DocumentoId
+        AND (op.Eliminado IS NULL OR op.Eliminado = 0)
+        AND NULLIF(LTRIM(RTRIM(ISNULL(op.ProductoCodigo,''))), '') IS NOT NULL
+    GROUP BY
+        op.PedidoId,
+        UPPER(LTRIM(RTRIM(ISNULL(op.ProductoCodigo,''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+PedidoCedis AS
+(
+    SELECT
+        s.DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(p.ProductoCodigo,''))))
+            COLLATE DATABASE_DEFAULT,
+        Producto = MAX(ISNULL(p.ProductoNombre,'')),
+        KgPedidoCedis =
+            SUM(CAST(ISNULL(p.KilosCaja,0) AS DECIMAL(18,4))),
+        CajasPedidoCedis =
+            SUM(CAST(ISNULL(p.Cajas,0) AS DECIMAL(18,4)))
+    FROM Solicitudes s
+    INNER JOIN dbo.SubpedidoProductos p WITH (NOLOCK)
+        ON p.SubpedidoId = s.SubpedidoId
+    WHERE
+        NULLIF(LTRIM(RTRIM(ISNULL(p.ProductoCodigo,''))), '') IS NOT NULL
+    GROUP BY
+        s.DocumentoId,
+        UPPER(LTRIM(RTRIM(ISNULL(p.ProductoCodigo,''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+SolicitudMap AS
+(
+    SELECT DISTINCT SolicitudSurtidoId
+    FROM Solicitudes
+    WHERE SolicitudSurtidoId IS NOT NULL
+),
+
+Surtido AS
+(
+    SELECT
+        DocumentoId = @DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(sd.Articulo,''))))
+            COLLATE DATABASE_DEFAULT,
+        KgSurtido =
+            SUM(CAST(ISNULL(sd.Kg,0) AS DECIMAL(18,4))),
+        CajasSurtidas =
+            SUM(CAST(ISNULL(sd.Cajas,0) AS DECIMAL(18,4)))
+    FROM SolicitudMap sm
+    INNER JOIN dbo.SurtidoDetalle sd WITH (NOLOCK)
+        ON sd.SolicitudSurtidoId = sm.SolicitudSurtidoId
+    WHERE
+        NULLIF(LTRIM(RTRIM(ISNULL(sd.Articulo,''))), '') IS NOT NULL
+    GROUP BY
+        UPPER(LTRIM(RTRIM(ISNULL(sd.Articulo,''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+KeysSku AS
+(
+    SELECT DocumentoId, SKU FROM OVSku
+    UNION
+    SELECT DocumentoId, SKU FROM PedidoCedis
+    UNION
+    SELECT DocumentoId, SKU FROM Surtido
+)
+
+SELECT
+    k.SKU,
+
+    Producto =
+        COALESCE(
+            NULLIF(o.Producto,''),
+            NULLIF(p.Producto,''),
+            NULLIF(a.ProductoNombre,''),
+            ''
+        ),
+
+    KgOrdenOV = ISNULL(o.KgOriginal,0),
+    CajasOrdenOV = ISNULL(o.CajasOriginal,0),
+    KgPedidoCedis = ISNULL(p.KgPedidoCedis,0),
+    CajasPedidoCedis = ISNULL(p.CajasPedidoCedis,0),
+    KgSurtidoCedis = ISNULL(s.KgSurtido,0),
+    CajasSurtidasCedis = ISNULL(s.CajasSurtidas,0),
+
+    KgPendienteOV =
+        CAST(
+            CASE
+                WHEN ISNULL(o.KgOriginal,0) - ISNULL(s.KgSurtido,0) > 0
+                    THEN ISNULL(o.KgOriginal,0) - ISNULL(s.KgSurtido,0)
+                ELSE 0
+            END
+            AS DECIMAL(18,4)
+        ),
+
+    CajasPendientesOV =
+        CAST(
+            CASE
+                WHEN ISNULL(o.CajasOriginal,0) - ISNULL(s.CajasSurtidas,0) > 0
+                    THEN ISNULL(o.CajasOriginal,0) - ISNULL(s.CajasSurtidas,0)
+                ELSE 0
+            END
+            AS DECIMAL(18,4)
+        ),
+
+    KgExtraVsOV =
+        CAST(
+            CASE
+                WHEN ISNULL(s.KgSurtido,0) - ISNULL(o.KgOriginal,0) > 0
+                    THEN ISNULL(s.KgSurtido,0) - ISNULL(o.KgOriginal,0)
+                ELSE 0
+            END
+            AS DECIMAL(18,4)
+        ),
+
+    CajasExtraVsOV =
+        CAST(
+            CASE
+                WHEN ISNULL(s.CajasSurtidas,0) - ISNULL(o.CajasOriginal,0) > 0
+                    THEN ISNULL(s.CajasSurtidas,0) - ISNULL(o.CajasOriginal,0)
+                ELSE 0
+            END
+            AS DECIMAL(18,4)
+        ),
+
+    PctAvanceKg =
+        CAST(
+            CASE
+                WHEN ISNULL(o.KgOriginal,0) <= 0 THEN 0
+                WHEN ISNULL(s.KgSurtido,0) >= ISNULL(o.KgOriginal,0) THEN 100
+                ELSE ISNULL(s.KgSurtido,0) * 100.0 / NULLIF(o.KgOriginal,0)
+            END
+            AS DECIMAL(10,2)
+        ),
+
+    EsSkuExtraNoEnOV =
+        CASE
+            WHEN ISNULL(s.KgSurtido,0) > 0 AND o.DocumentoId IS NULL THEN 1
+            ELSE 0
+        END,
+
+    EsSkuExtraNoEnSolicitud =
+        CASE
+            WHEN ISNULL(s.KgSurtido,0) > 0 AND p.DocumentoId IS NULL THEN 1
+            ELSE 0
+        END,
+
+    EstadoSKU =
+        CASE
+            WHEN ISNULL(s.KgSurtido,0) > 0 AND o.DocumentoId IS NULL
+                THEN 'SKU SURTIDO NO EXISTE EN OV'
+            WHEN ISNULL(s.KgSurtido,0) > 0 AND p.DocumentoId IS NULL
+                THEN 'SKU NO SOLICITADO A CEDIS'
+            WHEN ISNULL(s.KgSurtido,0) > ISNULL(o.KgOriginal,0)
+                THEN 'SOBRESURTIDO'
+            WHEN ISNULL(o.KgOriginal,0) > 0 AND ISNULL(s.KgSurtido,0) = 0
+                THEN 'PENDIENTE'
+            WHEN ISNULL(s.KgSurtido,0) < ISNULL(o.KgOriginal,0)
+                THEN 'SURTIENDO'
+            WHEN ISNULL(o.KgOriginal,0) > 0
+                THEN 'COMPLETO'
+            ELSE 'SIN MOVIMIENTO'
+        END
+FROM KeysSku k
+LEFT JOIN OVSku o
+    ON o.DocumentoId = k.DocumentoId
+   AND o.SKU = k.SKU
+LEFT JOIN PedidoCedis p
+    ON p.DocumentoId = k.DocumentoId
+   AND p.SKU = k.SKU
+LEFT JOIN Surtido s
+    ON s.DocumentoId = k.DocumentoId
+   AND s.SKU = k.SKU
+LEFT JOIN dbo.ArticuloSap a WITH (NOLOCK)
+    ON UPPER(LTRIM(RTRIM(ISNULL(a.ProductoCodigo,'')))) COLLATE DATABASE_DEFAULT = k.SKU
+ORDER BY
+    CASE
+        WHEN ISNULL(s.KgSurtido,0) > 0 AND o.DocumentoId IS NULL THEN 1
+        WHEN ISNULL(s.KgSurtido,0) > 0 AND p.DocumentoId IS NULL THEN 2
+        WHEN ISNULL(s.KgSurtido,0) > ISNULL(o.KgOriginal,0) THEN 3
+        ELSE 4
+    END,
+    k.SKU
+";
+
+                    const string sqlProceso = @"
+SELECT
+    sp.Id AS ProcesoId,
+    Referencia = ISNULL(sp.SubFolio,''),
+    Documento = ISNULL(sp.U_DocMeat,''),
+    EstadoValidacion =
+        CASE
+            WHEN NULLIF(LTRIM(RTRIM(ISNULL(sp.U_DocMeat,''))), '') IS NULL
+                THEN 'SIN SOLICITUD'
+            WHEN se.SolicitudSurtidoId IS NULL
+                THEN 'NO ENCONTRADA'
+            WHEN se.FechaValidacion IS NULL
+                THEN 'PENDIENTE'
+            ELSE 'VALIDADO'
+        END,
+    se.FechaValidacion,
+
+    HorasDesdeRegistro =
+        CAST(
+            CASE
+                WHEN se.FechaValidacion IS NULL OR ov.FechaRegistro IS NULL
+                    THEN NULL
+                ELSE DATEDIFF(MINUTE,ov.FechaRegistro,se.FechaValidacion) / 60.0
+            END
+            AS DECIMAL(18,2)
+        ),
+
+    KgSurtido = ISNULL(x.KgSurtido,0),
+    CajasSurtidas = ISNULL(x.CajasSurtidas,0),
+
+    Nota =
+        CASE
+            WHEN se.FechaValidacion IS NULL
+                THEN 'Solicitud todavía no validada'
+            ELSE 'FechaValidacion de SurtidoEncabezado'
+        END
+FROM dbo.Subpedido sp WITH (NOLOCK)
+INNER JOIN dbo.OrdenVenta ov WITH (NOLOCK)
+    ON ov.Id = sp.OrdenVentaId
+LEFT JOIN dbo.SurtidoEncabezado se WITH (NOLOCK)
+    ON se.SolicitudSurtidoId =
+       TRY_CONVERT(INT,NULLIF(LTRIM(RTRIM(sp.U_DocMeat)),''))
+OUTER APPLY
+(
+    SELECT
+        KgSurtido =
+            SUM(CAST(ISNULL(sd.Kg,0) AS DECIMAL(18,4))),
+        CajasSurtidas =
+            SUM(CAST(ISNULL(sd.Cajas,0) AS DECIMAL(18,4)))
+    FROM dbo.SurtidoDetalle sd WITH (NOLOCK)
+    WHERE sd.SolicitudSurtidoId =
+          TRY_CONVERT(INT,NULLIF(LTRIM(RTRIM(sp.U_DocMeat)),''))
+) x
+WHERE
+    sp.OrdenVentaId = @DocumentoId
+ORDER BY
+    sp.Id
+";
+
+                    var skus =
+                        (await cn.QueryAsync<SeguimientoSurtidoDetalleSkuDto>(
+                            new CommandDefinition(
+                                sqlSkus,
+                                new { DocumentoId = documentoId },
+                                commandTimeout: 120,
+                                cancellationToken: ct)))
+                        .ToList();
+
+                    var procesos =
+                        (await cn.QueryAsync<SeguimientoSurtidoProcesoDto>(
+                            new CommandDefinition(
+                                sqlProceso,
+                                new { DocumentoId = documentoId },
+                                commandTimeout: 90,
+                                cancellationToken: ct)))
+                        .ToList();
+
+                    return Json(new
+                    {
+                        ok = true,
+                        tipo = "OV",
+                        documentoId,
+                        skus,
+                        procesos
+                    });
+                }
+
+
+                // =============================================================
+                // TRANSFERENCIA
+                // =============================================================
+                const string sqlTrSkus = @"
+WITH
+Original AS
+(
+    SELECT
+        td.TransferenciaId AS DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(td.ProductoCodigo,''))))
+            COLLATE DATABASE_DEFAULT,
+        KgOriginal =
+            SUM(CAST(ISNULL(td.CantidadKg,0) AS DECIMAL(18,4))),
+        CajasOriginal =
+            SUM(CAST(ISNULL(td.Cajas,0) AS DECIMAL(18,4)))
+    FROM dbo.TransferenciaDetalles td WITH (NOLOCK)
+    WHERE
+        td.TransferenciaId = @DocumentoId
+        AND NULLIF(LTRIM(RTRIM(ISNULL(td.ProductoCodigo,''))), '') IS NOT NULL
+    GROUP BY
+        td.TransferenciaId,
+        UPPER(LTRIM(RTRIM(ISNULL(td.ProductoCodigo,''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+PedidoCedis AS
+(
+    SELECT
+        pt.TransferenciaId AS DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(pd.ProductoCodigo,''))))
+            COLLATE DATABASE_DEFAULT,
+        KgPedidoCedis =
+            SUM(CAST(ISNULL(pd.CantidadKg,0) AS DECIMAL(18,4))),
+        CajasPedidoCedis =
+            SUM(CAST(ISNULL(pd.Cajas,0) AS DECIMAL(18,4)))
+    FROM dbo.PedidosTransferencia pt WITH (NOLOCK)
+    INNER JOIN dbo.PedidosTransferenciaDetalle pd WITH (NOLOCK)
+        ON pd.PedidoTransferenciaId = pt.Id
+    WHERE
+        pt.TransferenciaId = @DocumentoId
+        AND NULLIF(LTRIM(RTRIM(ISNULL(pd.ProductoCodigo,''))), '') IS NOT NULL
+    GROUP BY
+        pt.TransferenciaId,
+        UPPER(LTRIM(RTRIM(ISNULL(pd.ProductoCodigo,''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+Surtido AS
+(
+    SELECT
+        ts.TransferenciaId AS DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(ts.Sku,''))))
+            COLLATE DATABASE_DEFAULT,
+        KgSurtido =
+            SUM(CAST(ISNULL(ts.KgSurtido,0) AS DECIMAL(18,4))),
+        CajasSurtidas =
+            SUM(CAST(ISNULL(ts.CajasSurtidas,0) AS DECIMAL(18,4)))
+    FROM dbo.TransferenciaSurtido ts WITH (NOLOCK)
+    WHERE
+        ts.TransferenciaId = @DocumentoId
+        AND NULLIF(LTRIM(RTRIM(ISNULL(ts.Sku,''))), '') IS NOT NULL
+    GROUP BY
+        ts.TransferenciaId,
+        UPPER(LTRIM(RTRIM(ISNULL(ts.Sku,''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+KeysSku AS
+(
+    SELECT DocumentoId, SKU FROM Original
+    UNION
+    SELECT DocumentoId, SKU FROM PedidoCedis
+    UNION
+    SELECT DocumentoId, SKU FROM Surtido
+)
+
+SELECT
+    k.SKU,
+    Producto = ISNULL(a.ProductoNombre,''),
+
+    KgOrdenOV = ISNULL(o.KgOriginal,0),
+    CajasOrdenOV = ISNULL(o.CajasOriginal,0),
+    KgPedidoCedis = ISNULL(p.KgPedidoCedis,0),
+    CajasPedidoCedis = ISNULL(p.CajasPedidoCedis,0),
+    KgSurtidoCedis = ISNULL(s.KgSurtido,0),
+    CajasSurtidasCedis = ISNULL(s.CajasSurtidas,0),
+
+    KgPendienteOV =
+        CAST(
+            CASE
+                WHEN ISNULL(o.KgOriginal,0) - ISNULL(s.KgSurtido,0) > 0
+                    THEN ISNULL(o.KgOriginal,0) - ISNULL(s.KgSurtido,0)
+                ELSE 0
+            END
+            AS DECIMAL(18,4)
+        ),
+
+    CajasPendientesOV =
+        CAST(
+            CASE
+                WHEN ISNULL(o.CajasOriginal,0) - ISNULL(s.CajasSurtidas,0) > 0
+                    THEN ISNULL(o.CajasOriginal,0) - ISNULL(s.CajasSurtidas,0)
+                ELSE 0
+            END
+            AS DECIMAL(18,4)
+        ),
+
+    KgExtraVsOV =
+        CAST(
+            CASE
+                WHEN ISNULL(s.KgSurtido,0) - ISNULL(o.KgOriginal,0) > 0
+                    THEN ISNULL(s.KgSurtido,0) - ISNULL(o.KgOriginal,0)
+                ELSE 0
+            END
+            AS DECIMAL(18,4)
+        ),
+
+    CajasExtraVsOV =
+        CAST(
+            CASE
+                WHEN ISNULL(s.CajasSurtidas,0) - ISNULL(o.CajasOriginal,0) > 0
+                    THEN ISNULL(s.CajasSurtidas,0) - ISNULL(o.CajasOriginal,0)
+                ELSE 0
+            END
+            AS DECIMAL(18,4)
+        ),
+
+    PctAvanceKg =
+        CAST(
+            CASE
+                WHEN ISNULL(o.KgOriginal,0) <= 0 THEN 0
+                WHEN ISNULL(s.KgSurtido,0) >= ISNULL(o.KgOriginal,0) THEN 100
+                ELSE ISNULL(s.KgSurtido,0) * 100.0 / NULLIF(o.KgOriginal,0)
+            END
+            AS DECIMAL(10,2)
+        ),
+
+    EsSkuExtraNoEnOV =
+        CASE
+            WHEN ISNULL(s.KgSurtido,0) > 0 AND o.DocumentoId IS NULL THEN 1
+            ELSE 0
+        END,
+
+    EsSkuExtraNoEnSolicitud =
+        CASE
+            WHEN ISNULL(s.KgSurtido,0) > 0 AND p.DocumentoId IS NULL THEN 1
+            ELSE 0
+        END,
+
+    EstadoSKU =
+        CASE
+            WHEN ISNULL(s.KgSurtido,0) > 0 AND o.DocumentoId IS NULL
+                THEN 'SKU SURTIDO NO EXISTE EN TRANSFERENCIA'
+            WHEN ISNULL(s.KgSurtido,0) > 0 AND p.DocumentoId IS NULL
+                THEN 'SKU NO SOLICITADO EN PEDIDO CEDIS'
+            WHEN ISNULL(s.KgSurtido,0) > ISNULL(o.KgOriginal,0)
+                THEN 'SOBRESURTIDO'
+            WHEN ISNULL(o.KgOriginal,0) > 0 AND ISNULL(s.KgSurtido,0) = 0
+                THEN 'PENDIENTE'
+            WHEN ISNULL(s.KgSurtido,0) < ISNULL(o.KgOriginal,0)
+                THEN 'SURTIENDO'
+            WHEN ISNULL(o.KgOriginal,0) > 0
+                THEN 'COMPLETO'
+            ELSE 'SIN MOVIMIENTO'
+        END
+FROM KeysSku k
+LEFT JOIN Original o
+    ON o.DocumentoId = k.DocumentoId
+   AND o.SKU = k.SKU
+LEFT JOIN PedidoCedis p
+    ON p.DocumentoId = k.DocumentoId
+   AND p.SKU = k.SKU
+LEFT JOIN Surtido s
+    ON s.DocumentoId = k.DocumentoId
+   AND s.SKU = k.SKU
+LEFT JOIN dbo.ArticuloSap a WITH (NOLOCK)
+    ON UPPER(LTRIM(RTRIM(ISNULL(a.ProductoCodigo,'')))) COLLATE DATABASE_DEFAULT = k.SKU
+ORDER BY
+    CASE
+        WHEN ISNULL(s.KgSurtido,0) > 0 AND o.DocumentoId IS NULL THEN 1
+        WHEN ISNULL(s.KgSurtido,0) > 0 AND p.DocumentoId IS NULL THEN 2
+        WHEN ISNULL(s.KgSurtido,0) > ISNULL(o.KgOriginal,0) THEN 3
+        ELSE 4
+    END,
+    k.SKU
+";
+
+                const string sqlTrProceso = @"
+SELECT
+    ProcesoId = ISNULL(pt.Id, t.Id),
+
+    Referencia =
+        CASE
+            WHEN pt.Id IS NULL THEN 'Transferencia'
+            ELSE CONCAT('Pedido TR #', pt.Id)
+        END,
+
+    Documento = ISNULL(t.Consecutivo,''),
+
+    EstadoValidacion =
+        CASE
+            WHEN t.Estatus >= 5 THEN 'VALIDADO'
+            WHEN pt.Id IS NULL THEN 'SIN SOLICITUD'
+            ELSE 'PENDIENTE'
+        END,
+
+    FechaValidacion = CAST(NULL AS DATETIME),
+
+    HorasDesdeRegistro =
+        CAST(
+            CASE
+                WHEN t.Estatus >= 5 THEN NULL
+                WHEN t.FechaSolicitud IS NULL THEN NULL
+                ELSE DATEDIFF(MINUTE,t.FechaSolicitud,GETDATE()) / 60.0
+            END
+            AS DECIMAL(18,2)
+        ),
+
+    KgSurtido = ISNULL(x.KgSurtido,0),
+    CajasSurtidas = ISNULL(x.CajasSurtidas,0),
+
+    Nota =
+        CASE
+            WHEN t.Estatus >= 5
+                THEN 'Estatus >= 5. El esquema actual no expone una FechaValidacion exacta para TR'
+            WHEN pt.Id IS NULL
+                THEN 'Todavía no existe PedidosTransferencia'
+            ELSE 'Transferencia aún en proceso'
+        END
+FROM dbo.Transferencias t WITH (NOLOCK)
+LEFT JOIN dbo.PedidosTransferencia pt WITH (NOLOCK)
+    ON pt.TransferenciaId = t.Id
+OUTER APPLY
+(
+    SELECT
+        KgSurtido =
+            SUM(CAST(ISNULL(ts.KgSurtido,0) AS DECIMAL(18,4))),
+        CajasSurtidas =
+            SUM(CAST(ISNULL(ts.CajasSurtidas,0) AS DECIMAL(18,4)))
+    FROM dbo.TransferenciaSurtido ts WITH (NOLOCK)
+    WHERE ts.TransferenciaId = t.Id
+) x
+WHERE
+    t.Id = @DocumentoId
+ORDER BY
+    ISNULL(pt.Id,0)
+";
+
+                var trSkus =
+                    (await cn.QueryAsync<SeguimientoSurtidoDetalleSkuDto>(
+                        new CommandDefinition(
+                            sqlTrSkus,
+                            new { DocumentoId = documentoId },
+                            commandTimeout: 120,
+                            cancellationToken: ct)))
+                    .ToList();
+
+                var trProcesos =
+                    (await cn.QueryAsync<SeguimientoSurtidoProcesoDto>(
+                        new CommandDefinition(
+                            sqlTrProceso,
+                            new { DocumentoId = documentoId },
+                            commandTimeout: 90,
+                            cancellationToken: ct)))
+                    .ToList();
+
+                return Json(new
+                {
+                    ok = true,
+                    tipo = "TR",
+                    documentoId,
+                    skus = trSkus,
+                    procesos = trProcesos
+                });
+            }
+            catch (Exception ex)
+            {
+                var detalle = ex.GetBaseException().Message;
+
+                _logger.LogError(
+                    ex,
+                    "Error en detalle de seguimiento {Tipo} {DocumentoId}: {Detalle}",
+                    tipo,
+                    documentoId,
+                    detalle);
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = "No fue posible cargar el detalle del documento.",
+                    detalle
+                });
+            }
+        }
+
+
+
+
+
+
+
+
+
 
 
     }

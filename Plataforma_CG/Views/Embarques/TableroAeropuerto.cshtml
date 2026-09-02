@@ -922,6 +922,93 @@
         transform: translateZ(0);
     }
 
+    /* =========================================================
+       ROTADOR DE CLIENTES - ESTILO TABLERO AEROPUERTO
+       ========================================================= */
+
+    .cliente-cell {
+        min-width: 250px;
+    }
+
+    .cliente-rotator {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 30px;
+        perspective: 350px;
+    }
+
+    .cliente-display {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-width: 210px;
+        max-width: 300px;
+        padding: 3px 8px;
+        border-radius: 6px;
+        border: 1px solid rgba(255,255,255,.10);
+        background: linear-gradient( 180deg, #050505 0%, #171717 48%, #050505 52%, #111 100% );
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.85);
+        transform-origin: center center;
+        overflow: hidden;
+    }
+
+    .cliente-icono {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 32px;
+        height: 22px;
+        border-radius: 4px;
+        background: #198754;
+        box-shadow: 0 0 9px rgba(25,135,84,.45);
+        color: white;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        font-size: .60rem;
+        font-weight: 900;
+        letter-spacing: .04em;
+    }
+
+    .cliente-nombre {
+        display: block;
+        max-width: 235px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: #f5f5f5;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: .82rem;
+        font-weight: 900;
+        letter-spacing: .04em;
+        text-shadow: 0 0 7px rgba(255,255,255,.18);
+    }
+
+    .cliente-contador {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 34px;
+        padding: 2px 6px;
+        border-radius: 999px;
+        background: rgba(25,135,84,.18);
+        border: 1px solid rgba(25,135,84,.45);
+        color: #eee;
+        font-family: Consolas, monospace;
+        font-size: .62rem;
+        font-weight: 900;
+        letter-spacing: .03em;
+    }
+
+    /* SALIDA DEL CLIENTE ACTUAL */
+    .cliente-display.cliente-out {
+        animation: pedidoSalida .22s ease-in forwards;
+    }
+
+    /* ENTRADA DEL SIGUIENTE CLIENTE */
+    .cliente-display.cliente-in {
+        animation: pedidoEntrada .38s cubic-bezier(.2,.8,.2,1);
+    }
+
 </style>
 
 <div class="airport-shell">
@@ -1349,6 +1436,329 @@
         }, 3200);
     }
 
+    // ============================================================
+    // ROTADOR DE CLIENTES
+    // ============================================================
+
+    function obtenerClientes(x) {
+
+        if (
+            Array.isArray(x.clientes) &&
+            x.clientes.length > 0
+        ) {
+
+            const vistos = new Set();
+
+            return x.clientes
+                .filter(c =>
+                    c !== null &&
+                    c !== undefined &&
+                    String(c).trim() !== ""
+                )
+                .map(c => String(c).trim())
+                .filter(c => {
+
+                    const clave = c.toUpperCase();
+
+                    if (vistos.has(clave)) {
+                        return false;
+                    }
+
+                    vistos.add(clave);
+
+                    return true;
+                });
+        }
+
+
+        // Respaldo por compatibilidad con el formato anterior
+        if (
+            x.cliente !== null &&
+            x.cliente !== undefined &&
+            String(x.cliente).trim() !== "" &&
+            String(x.cliente).trim() !== "Sin cliente"
+        ) {
+
+            return [
+                String(x.cliente).trim()
+            ];
+        }
+
+
+        return [];
+    }
+
+
+    function crearClienteRotativo(x) {
+
+        const clientes = obtenerClientes(x);
+
+
+        // ========================================================
+        // SIN CLIENTES
+        // ========================================================
+        if (clientes.length === 0) {
+
+            return `
+                <div class="cliente-rotator">
+
+                    <span class="cliente-display">
+
+                        <span class="cliente-icono">
+                            CLI
+                        </span>
+
+                        <span class="cliente-nombre">
+                            N/A
+                        </span>
+
+                    </span>
+
+                </div>
+            `;
+        }
+
+
+        const primero = clientes[0];
+
+
+        // Todos los clientes guardados en el propio elemento
+        const datos = escapeHtml(
+            JSON.stringify(clientes)
+        );
+
+
+        // Tooltip para poder ver todos pasando el mouse
+        const tooltip = escapeHtml(
+            clientes.join(" • ")
+        );
+
+
+        // Contador únicamente cuando hay más de uno
+        const contador =
+            clientes.length > 1
+                ? `
+                    <span class="cliente-contador">
+                        1/${clientes.length}
+                    </span>
+                `
+                : "";
+
+
+        return `
+            <div
+                class="cliente-rotator"
+                data-clientes="${datos}"
+                data-index="0"
+                data-multiple="${clientes.length > 1 ? "1" : "0"}"
+                title="${tooltip}"
+            >
+
+                <span class="cliente-display">
+
+                    <span class="cliente-icono">
+                        CLI
+                    </span>
+
+                    <span class="cliente-nombre">
+                        ${escapeHtml(primero)}
+                    </span>
+
+                </span>
+
+                ${contador}
+
+            </div>
+        `;
+    }
+
+
+    let rotacionClientesTimer = null;
+
+
+    function rotarCliente(elemento) {
+
+        if (!elemento) {
+            return;
+        }
+
+
+        let clientes;
+
+
+        try {
+
+            clientes = JSON.parse(
+                elemento.dataset.clientes || "[]"
+            );
+
+        }
+        catch {
+
+            return;
+        }
+
+
+        if (
+            !Array.isArray(clientes) ||
+            clientes.length <= 1
+        ) {
+
+            return;
+        }
+
+
+        const display =
+            elemento.querySelector(
+                ".cliente-display"
+            );
+
+
+        const nombreEl =
+            elemento.querySelector(
+                ".cliente-nombre"
+            );
+
+
+        const contadorEl =
+            elemento.querySelector(
+                ".cliente-contador"
+            );
+
+
+        if (
+            !display ||
+            !nombreEl
+        ) {
+
+            return;
+        }
+
+
+        const indiceActual =
+            Number(
+                elemento.dataset.index || 0
+            );
+
+
+        const siguienteIndice =
+            (indiceActual + 1) % clientes.length;
+
+
+        const siguiente =
+            clientes[siguienteIndice];
+
+
+        // ========================================================
+        // 1. SALE EL CLIENTE ACTUAL
+        // ========================================================
+
+        display.classList.remove(
+            "cliente-in"
+        );
+
+        display.classList.add(
+            "cliente-out"
+        );
+
+
+        // ========================================================
+        // 2. CAMBIAMOS EL CLIENTE
+        // ========================================================
+
+        setTimeout(() => {
+
+            // El tablero pudo refrescarse mientras estaba animando
+            if (!document.body.contains(elemento)) {
+                return;
+            }
+
+
+            nombreEl.textContent =
+                siguiente;
+
+
+            elemento.dataset.index =
+                siguienteIndice;
+
+
+            if (contadorEl) {
+
+                contadorEl.textContent =
+                    `${siguienteIndice + 1}/${clientes.length}`;
+            }
+
+
+            // ====================================================
+            // 3. ENTRA EL SIGUIENTE CLIENTE
+            // ====================================================
+
+            display.classList.remove(
+                "cliente-out"
+            );
+
+
+            // Fuerza reinicio de animación
+            void display.offsetWidth;
+
+
+            display.classList.add(
+                "cliente-in"
+            );
+
+
+            setTimeout(() => {
+
+                display.classList.remove(
+                    "cliente-in"
+                );
+
+            }, 400);
+
+
+        }, 220);
+    }
+
+
+    function iniciarRotacionClientes() {
+
+        if (rotacionClientesTimer) {
+            return;
+        }
+
+
+        rotacionClientesTimer =
+            setInterval(() => {
+
+                const elementos =
+                    document.querySelectorAll(
+                        '.cliente-rotator[data-multiple="1"]'
+                    );
+
+
+                elementos.forEach(
+                    (elemento, index) => {
+
+                        // Igual que pedidos:
+                        // pequeño desfase por cada fila
+                        setTimeout(() => {
+
+                            if (
+                                document.body.contains(elemento)
+                            ) {
+
+                                rotarCliente(elemento);
+                            }
+
+                        }, index * 90);
+
+                    }
+                );
+
+
+            }, 3200);
+    }
+
     function animarFlipTextos(scope) {
         const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-:/ .";
         const elementos = scope.querySelectorAll(".flip-text");
@@ -1461,8 +1871,13 @@
         return JSON.stringify({
             id: x.id,
             consecutivo: x.consecutivo,
-            ruta: x.ruta,
+            nombreEmbarque: x.nombreEmbarque,
             cliente: x.cliente,
+
+            clientes:
+                Array.isArray(x.clientes)
+                    ? x.clientes
+                    : [],
 
             pedido: x.pedido,
 
@@ -1572,9 +1987,18 @@
 
                 return `
                     <tr data-id="${x.id}" class="${claseAnimacion}">
-                        <td><strong>${safe(x.consecutivo)}</strong></td>
-                        <td>${safe(x.ruta)}</td>
-                        <td>${safe(x.cliente)}</td>
+
+                        <td>
+                            <strong>${safe(x.consecutivo)}</strong>
+                        </td>
+
+                        <td>
+                            <strong>${safe(x.nombreEmbarque)}</strong>
+                        </td>
+
+                        <td class="cliente-cell">
+                            ${crearClienteRotativo(x)}
+                        </td>
 
                         <td class="pedido-cell">
                             ${crearPedidoRotativo(x)}
@@ -1991,8 +2415,9 @@
 
         iniciarAutoScroll();
 
-        // NUEVO
+        // ROTADORES
         iniciarRotacionPedidos();
+        iniciarRotacionClientes();
     });
 
 </script>

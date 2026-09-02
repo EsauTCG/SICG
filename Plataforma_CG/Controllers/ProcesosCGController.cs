@@ -2766,6 +2766,37 @@ ORDER BY FechaProduccion, FechaSolicitud;";
 
         // ========================= REIMPRESION ETIQUETAS =========================
 
+        public sealed class ReimpresionConFechasItemVM
+        {
+            public string CodigoEtiqueta { get; set; } = "";
+            public int Cantidad { get; set; } = 1;
+            public string ClaveReporte { get; set; } = "";
+        }
+
+        public sealed class ReimpresionConFechasRequestVM
+        {
+            public string Source { get; set; } = "P1";
+            public string PrinterName { get; set; } = "";
+            public string ClaveReporte { get; set; } = "";
+            public string EmpresaEysId { get; set; } = "CARNG";
+            public int TipoImpresion { get; set; } = 3;
+
+            public bool UsarFechasManuales { get; set; }
+            public DateTime? FechaSacrificio { get; set; }
+            public DateTime? FechaProduccion { get; set; }
+            public DateTime? FechaCaducidad { get; set; }
+
+            public List<ReimpresionConFechasItemVM> Items { get; set; } = new();
+        }
+
+        /*
+         * Evita que dos usuarios pisen temporalmente las fechas
+         * del mismo ProduccionId mientras PrintRest está leyendo el reporte.
+         */
+        private static readonly ConcurrentDictionary<string, SemaphoreSlim>
+            ReimpresionFechaGates = new(StringComparer.OrdinalIgnoreCase);
+
+
         [HttpGet("Reimpresion")]
         public IActionResult Reimpresion(string source = "TIF")
         {
@@ -2817,7 +2848,8 @@ ORDER BY FechaProduccion, FechaSolicitud;";
 
         [HttpPost("Imprimir")]
         [Produces("application/json")]
-        public async Task<IActionResult> ReimpresionImprimir([FromBody] RVM.ReimpresionRequestVM req)
+        public async Task<IActionResult> ReimpresionImprimir(
+            [FromBody] ReimpresionConFechasRequestVM req)
         {
             _logger.LogInformation(
                 ">>> HIT Imprimir. User={User}",
@@ -2841,6 +2873,44 @@ ORDER BY FechaProduccion, FechaSolicitud;";
 
             if (req.Items == null || req.Items.Count == 0)
                 return BadRequest(new { ok = false, msg = "Agrega al menos una etiqueta" });
+
+            if (req.UsarFechasManuales)
+            {
+                if (!req.FechaSacrificio.HasValue)
+                    return BadRequest(new { ok = false, msg = "Captura Fecha de sacrificio." });
+
+                if (!req.FechaProduccion.HasValue)
+                    return BadRequest(new { ok = false, msg = "Captura Fecha de producción." });
+
+                if (!req.FechaCaducidad.HasValue)
+                    return BadRequest(new { ok = false, msg = "Captura Fecha de caducidad." });
+
+                var fs = req.FechaSacrificio.Value.Date;
+                var fp = req.FechaProduccion.Value.Date;
+                var fc = req.FechaCaducidad.Value.Date;
+
+                if (fs > fp)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = "La Fecha de sacrificio no puede ser posterior a la Fecha de producción."
+                    });
+                }
+
+                if (fc < fp)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = "La Fecha de caducidad no puede ser anterior a la Fecha de producción."
+                    });
+                }
+
+                req.FechaSacrificio = fs;
+                req.FechaProduccion = fp;
+                req.FechaCaducidad = fc;
+            }
 
             var cs = GetMeatConnectionString(req.Source);
 
@@ -2884,6 +2954,13 @@ ORDER BY ProduccionId DESC;";
 
                 using var cn = new SqlConnection(cs);
                 await cn.OpenAsync();
+
+                /*
+                 * Limpieza preventiva.
+                 * Si una ejecución anterior se interrumpió, el override
+                 * caduca solo y aquí se elimina físicamente.
+                 */
+                await LimpiarOverridesFechasExpiradosAsync(cn);
 
                 async Task<int?> ResolveProduccionIdAsync(string code)
                 {
@@ -2929,7 +3006,11 @@ ORDER BY ProduccionId DESC;";
                             req.EmpresaEysId,
                             CodigoEtiqueta = code,
                             Cantidad = qty,
-                            ClaveReporte = clave
+                            ClaveReporte = clave,
+                            req.UsarFechasManuales,
+                            FechaSacrificio = req.FechaSacrificio?.ToString("yyyy-MM-dd"),
+                            FechaProduccion = req.FechaProduccion?.ToString("yyyy-MM-dd"),
+                            FechaCaducidad = req.FechaCaducidad?.ToString("yyyy-MM-dd")
                         })
                     };
 
@@ -3000,38 +3081,141 @@ ORDER BY ProduccionId DESC;";
                     string lastMsg = "";
                     int impresas = 0;
 
-                    for (int i = 0; i < qty; i++)
+                    SemaphoreSlim? fechaGate = null;
+                    var fechaGateKey =
+                        $"{req.Source}:{produccionId.Value}";
+
+                    try
                     {
-                        var innerObj = new
+                        /*
+                         * Si son fechas manuales:
+                         * 1) Bloqueamos ese ProduccionId.
+                         * 2) Guardamos el override temporal.
+                         * 3) PrintRest genera/imprime la etiqueta.
+                         * 4) Eliminamos el override en finally.
+                         */
+                        /*
+                         * Todas las impresiones del mismo ProduccionId pasan
+                         * por el mismo gate para evitar que una impresión
+                         * original borre el override de otra impresión manual.
+                         */
+                        fechaGate =
+                            ReimpresionFechaGates.GetOrAdd(
+                                fechaGateKey,
+                                _ => new SemaphoreSlim(1, 1));
+
+                        await fechaGate.WaitAsync();
+
+                        if (req.UsarFechasManuales)
                         {
-                            TipoImpresion = req.TipoImpresion,
-                            EmpresaEysId = req.EmpresaEysId,
-                            IdBusqueda = produccionId.Value.ToString(),
-                            ClaveReporte = clave,
-                            PrinterName = req.PrinterName
-                        };
+                            /*
+                             * Guardamos el override ANTES de llamar a PrintRest.
+                             * IMPORTANTE V2:
+                             * NO se elimina al terminar PrintAsync.
+                             * Se deja activo hasta Expira para permitir que
+                             * PrintRest / DevExpress lo lea aunque procese la
+                             * impresión de manera asíncrona.
+                             */
+                            await GuardarOverrideFechasImpresionAsync(
+                                cn,
+                                produccionId.Value,
+                                req.FechaSacrificio!.Value,
+                                req.FechaProduccion!.Value,
+                                req.FechaCaducidad!.Value,
+                                usuario,
+                                operacionId);
 
-                        var innerJson =
-                            JsonSerializer.Serialize(innerObj);
+                            var overrideOk =
+                                await ValidarOverrideFechasImpresionAsync(
+                                    cn,
+                                    produccionId.Value,
+                                    operacionId);
 
-                        var pr =
-                            await _print.PrintAsync(
-                                baseUrl,
-                                innerJson);
+                            if (!overrideOk)
+                            {
+                                throw new InvalidOperationException(
+                                    $"No se pudo confirmar el override de fechas para ProduccionId={produccionId.Value}.");
+                            }
 
-                        lastMsg = pr?.Mensaje ?? "";
-
-                        if (pr == null || pr.Estado != 0)
+                            _logger.LogInformation(
+                                "Override de fechas ACTIVO. Source={Source} ProduccionId={ProduccionId} Operacion={OperacionId} Sacrificio={Sacrificio:yyyy-MM-dd} Produccion={Produccion:yyyy-MM-dd} Caducidad={Caducidad:yyyy-MM-dd}",
+                                req.Source,
+                                produccionId.Value,
+                                operacionId,
+                                req.FechaSacrificio.Value,
+                                req.FechaProduccion.Value,
+                                req.FechaCaducidad.Value);
+                        }
+                        else
                         {
-                            okAll = false;
+                            /*
+                             * Fechas vacías = impresión ORIGINAL.
+                             * Eliminamos cualquier override anterior de este
+                             * ProduccionId antes de imprimir.
+                             */
+                            await EliminarOverridesFechasProduccionAsync(
+                                cn,
+                                produccionId.Value);
 
-                            if (string.IsNullOrWhiteSpace(lastMsg))
-                                lastMsg = "Error al imprimir";
-
-                            break;
+                            _logger.LogInformation(
+                                "Impresión ORIGINAL. Override limpiado para Source={Source} ProduccionId={ProduccionId}",
+                                req.Source,
+                                produccionId.Value);
                         }
 
-                        impresas++;
+                        for (int i = 0; i < qty; i++)
+                        {
+                            var innerObj = new
+                            {
+                                TipoImpresion = req.TipoImpresion,
+                                EmpresaEysId = req.EmpresaEysId,
+                                IdBusqueda = produccionId.Value.ToString(),
+                                ClaveReporte = clave,
+                                PrinterName = req.PrinterName
+                            };
+
+                            var innerJson =
+                                JsonSerializer.Serialize(innerObj);
+
+                            var pr =
+                                await _print.PrintAsync(
+                                    baseUrl,
+                                    innerJson);
+
+                            lastMsg = pr?.Mensaje ?? "";
+
+                            if (pr == null || pr.Estado != 0)
+                            {
+                                okAll = false;
+
+                                if (string.IsNullOrWhiteSpace(lastMsg))
+                                    lastMsg = "Error al imprimir";
+
+                                break;
+                            }
+
+                            impresas++;
+                        }
+                    }
+                    finally
+                    {
+                        /*
+                         * V2:
+                         * El override manual NO se elimina aquí.
+                         *
+                         * Motivo:
+                         * PrintRest puede devolver respuesta antes de que
+                         * DevExpress termine de consultar/generar el reporte.
+                         * Si se borra inmediatamente, el reporte alcanza a leer
+                         * las fechas originales.
+                         *
+                         * El registro expira automáticamente y se limpia en la
+                         * siguiente ejecución por LimpiarOverridesFechasExpiradosAsync.
+                         */
+                        if (fechaGate != null)
+                        {
+                            fechaGate.Release();
+                        }
                     }
 
                     auditRow.CantidadImpresa = impresas;
@@ -3057,6 +3241,11 @@ ORDER BY ProduccionId DESC;";
                     ok = true,
                     operacionId,
                     auditoriaRegistrada = auditoria.Count > 0,
+                    fechasManuales = req.UsarFechasManuales,
+                    overridePersistenteMinutos = req.UsarFechasManuales ? 15 : 0,
+                    fechaSacrificio = req.FechaSacrificio,
+                    fechaProduccion = req.FechaProduccion,
+                    fechaCaducidad = req.FechaCaducidad,
                     total = results.Count,
                     okCount = results.Count(x => x.Ok),
                     failCount = results.Count(x => !x.Ok),
@@ -3070,10 +3259,6 @@ ORDER BY ProduccionId DESC;";
                     "Imprimir ERROR. Operacion={OperacionId}",
                     operacionId);
 
-                /*
-                 * Si ya se generaron filas de auditoría antes del error,
-                 * intentamos guardarlas sin impedir que se reporte el fallo real.
-                 */
                 if (auditoria.Count > 0)
                 {
                     try
@@ -3095,9 +3280,140 @@ ORDER BY ProduccionId DESC;";
                     {
                         ok = false,
                         operacionId,
-                        msg = ex.Message
+                        msg = ex.GetBaseException().Message
                     });
             }
+        }
+
+
+        private static async Task LimpiarOverridesFechasExpiradosAsync(
+            SqlConnection cn)
+        {
+            const string sql = @"
+IF OBJECT_ID('dbo.EtiquetaImpresionFechaOverride', 'U') IS NOT NULL
+BEGIN
+    DELETE FROM dbo.EtiquetaImpresionFechaOverride
+    WHERE Expira <= SYSDATETIME();
+END;";
+
+            await cn.ExecuteAsync(
+                sql,
+                commandTimeout: 30);
+        }
+
+
+        private static async Task GuardarOverrideFechasImpresionAsync(
+            SqlConnection cn,
+            int produccionId,
+            DateTime fechaSacrificio,
+            DateTime fechaProduccion,
+            DateTime fechaCaducidad,
+            string usuario,
+            Guid operacionId)
+        {
+            const string sql = @"
+IF OBJECT_ID('dbo.EtiquetaImpresionFechaOverride', 'U') IS NULL
+BEGIN
+    THROW 51000,
+          'Falta dbo.EtiquetaImpresionFechaOverride. Ejecuta el SQL de instalación en la base Meat de esta planta.',
+          1;
+END;
+
+UPDATE dbo.EtiquetaImpresionFechaOverride
+SET
+    FechaSacrificio = @FechaSacrificio,
+    FechaProduccion = @FechaProduccion,
+    FechaCaducidad = @FechaCaducidad,
+    Usuario = @Usuario,
+    OperacionId = @OperacionId,
+    FechaHora = SYSDATETIME(),
+    Expira = DATEADD(MINUTE, 15, SYSDATETIME())
+WHERE ProduccionId = @ProduccionId;
+
+IF @@ROWCOUNT = 0
+BEGIN
+    INSERT INTO dbo.EtiquetaImpresionFechaOverride
+    (
+        ProduccionId,
+        FechaSacrificio,
+        FechaProduccion,
+        FechaCaducidad,
+        Usuario,
+        OperacionId,
+        FechaHora,
+        Expira
+    )
+    VALUES
+    (
+        @ProduccionId,
+        @FechaSacrificio,
+        @FechaProduccion,
+        @FechaCaducidad,
+        @Usuario,
+        @OperacionId,
+        SYSDATETIME(),
+        DATEADD(MINUTE, 15, SYSDATETIME())
+    );
+END;";
+
+            await cn.ExecuteAsync(
+                sql,
+                new
+                {
+                    ProduccionId = produccionId,
+                    FechaSacrificio = fechaSacrificio.Date,
+                    FechaProduccion = fechaProduccion.Date,
+                    FechaCaducidad = fechaCaducidad.Date,
+                    Usuario = usuario ?? "",
+                    OperacionId = operacionId
+                },
+                commandTimeout: 30);
+        }
+
+
+        private static async Task<bool> ValidarOverrideFechasImpresionAsync(
+            SqlConnection cn,
+            int produccionId,
+            Guid operacionId)
+        {
+            const string sql = @"
+SELECT COUNT_BIG(1)
+FROM dbo.EtiquetaImpresionFechaOverride
+WHERE ProduccionId = @ProduccionId
+  AND OperacionId = @OperacionId
+  AND Expira > SYSDATETIME();";
+
+            var count = await cn.ExecuteScalarAsync<long>(
+                sql,
+                new
+                {
+                    ProduccionId = produccionId,
+                    OperacionId = operacionId
+                },
+                commandTimeout: 30);
+
+            return count > 0;
+        }
+
+
+        private static async Task EliminarOverridesFechasProduccionAsync(
+            SqlConnection cn,
+            int produccionId)
+        {
+            const string sql = @"
+IF OBJECT_ID('dbo.EtiquetaImpresionFechaOverride', 'U') IS NOT NULL
+BEGIN
+    DELETE FROM dbo.EtiquetaImpresionFechaOverride
+    WHERE ProduccionId = @ProduccionId;
+END;";
+
+            await cn.ExecuteAsync(
+                sql,
+                new
+                {
+                    ProduccionId = produccionId
+                },
+                commandTimeout: 30);
         }
 
 
@@ -3570,7 +3886,14 @@ OPTION (RECOMPILE);";
                 var sql = $@"
                      SELECT
                          ColectorId,
-                         Nombre AS Etiquetacion
+                         Nombre AS Etiquetacion,
+                         DiasVida = TRY_CONVERT(
+                             int,
+                             NULLIF(
+                                 LTRIM(RTRIM(CONVERT(nvarchar(50), Interface))),
+                                 ''
+                             )
+                         )
                      FROM {db}.dbo.COLECTOR
                      WHERE SistemaId = 'eti'
                      ORDER BY Nombre;";

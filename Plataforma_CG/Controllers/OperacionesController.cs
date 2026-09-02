@@ -1,6 +1,7 @@
 using DocumentFormat.OpenXml.Drawing.Diagrams;
 using DocumentFormat.OpenXml.InkML;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -11,6 +12,7 @@ using Plataforma_CG.AccesoDatos.Operaciones.Planeacion;
 using Plataforma_CG.AccesoDatos.Operaciones.Planeacion;
 using Plataforma_CG.Data;
 using Plataforma_CG.Models;
+using Plataforma_CG.Models.Operaciones.Etiquetas;
 using Plataforma_CG.Models.Operaciones.Planeacion;
 using Plataforma_CG.Models.Operaciones.Planeacion.Diaria;
 using Plataforma_CG.Models.Operaciones.Planeacion.Extra;
@@ -69,27 +71,82 @@ namespace Plataforma_CG.Controllers
         }
         AccesoEtiquetacion aet = new AccesoEtiquetacion();
         [HttpGet]
-        public async Task<IActionResult> BuscarProductos(string busq)
+        public async Task<IActionResult> BuscarProductos(string busq,int ubic)
         {
-            var res = aet.ConsultarEtiquetacion(busq);
-            return Ok(res);
+            var res = new List<PlanEtiModel>();
+            if (ubic==0)
+            {
+                res= aet.ConsultarEtiquetacion(busq);
+            }
+            else
+            {
+                res=aet.ConsultarEtiquetacionP1(busq);
+            }
+                return Ok(res);
         }
         [HttpGet]
-        public async Task<IActionResult> ListarEtiquetas()
+        public async Task<IActionResult> ConsultarLogEtiq(int ubic,string fechain, string fechafin)
         {
-            var res = aet.ConsultarEtiquetas();
+            var eti = new List<EtiquetasModel>();
+            string ubica = "";
+            if (ubic == 0)
+            {
+                ubica = "TIF";
+                eti = aet.ConsultarEtiquetas();
+            }
+            else
+            {
+                ubica = "P1";
+                eti = aet.ConsultarEtiquetasP1();
+            }
+            var res = aet.ReporteEtiquetas(ubica,fechain,fechafin,eti);
+            return Ok(res);
+        
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ListarEtiquetas(int ubic)
+        {
+            var res = new List<EtiquetasModel>();
+            if (ubic==0)
+            {
+                res= aet.ConsultarEtiquetas();
+            }
+            else
+            {
+                res = aet.ConsultarEtiquetasP1();
+            }
                 return Ok(res);
         }
         
         [HttpPost]
-        public async Task<IActionResult> ModificarEtiqueta(string sku, int etiqueta)
+        public async Task<IActionResult> ModificarEtiqueta(string sku, int etiqueta, int ubic)
         {
-            var etold = aet.ConsultarEtiquetacion(sku).Where(id=> id.SKU==sku).FirstOrDefault().Etiquetacion;
+            int etold;
+
             var usr = User.Identity.Name;
             var res = false;
-            if (aet.LogEtiquetas(sku,etold,etiqueta,usr))
+            string ubica="";
+            if (ubic==0)
             {
-                res= aet.ModificarEtiquetacion(sku, etiqueta);
+                ubica = "TIF";
+                etold = aet.ConsultarEtiquetacion(sku).Where(id => id.SKU == sku).FirstOrDefault().Etiquetacion; 
+            }
+            else
+            {
+                ubica = "P1";
+                etold = aet.ConsultarEtiquetacionP1(sku).Where(id => id.SKU == sku).FirstOrDefault().Etiquetacion;
+            }
+            if (aet.LogEtiquetas(sku, etold, etiqueta, usr,ubica))
+            {
+                if (ubic==0)
+                {
+                    res = aet.ModificarEtiquetacion(sku, etiqueta);
+                }
+                else
+                {
+                    res= aet.ModificarEtiquetacionP1(sku, etiqueta);
+                }
             }
             return Ok(res);
         }
@@ -771,7 +828,7 @@ namespace Plataforma_CG.Controllers
         public IActionResult PlaneadorProduccionPdf([FromBody] PlaneadorPdfRequest req)
         {
             if (req == null || req.Rows == null) return BadRequest();
-            var logoPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "logoPDF.png");
+            var logoPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "logoCubo.png");
             byte[]? logoBytes = System.IO.File.Exists(logoPath) ? System.IO.File.ReadAllBytes(logoPath) : null;
 
             var pdfBytes = PlaneadorPdfBuilder.Build(req, logoBytes);

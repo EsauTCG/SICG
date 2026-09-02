@@ -1,6 +1,7 @@
 ﻿
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Plataforma_CG.AccesoDatos.Operaciones.Inyeccion;
 using Plataforma_CG.Filters;
 using Plataforma_CG.Models;
@@ -16,18 +17,23 @@ namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
     public class InyeccionController : ControllerBase
     {
         Lotes l = new Lotes();
-        Receta r = new Receta();
+        private readonly Receta r;
         Conexiones co = new Conexiones();
         AccesoPermisos permisos = new AccesoPermisos();
         private readonly ImagenProductoService _imgservice;
         private readonly BasculaService _basc;
+        private readonly ILogger<InyeccionController> _logger;
 
-        public InyeccionController(ImagenProductoService imgservice)
+        public InyeccionController(
+            ImagenProductoService imgservice,
+            AccesoRecetas accesoRecetas,
+            ILogger<InyeccionController> logger)
         {
             _imgservice = imgservice;
             _basc = new BasculaService();
+            _logger = logger;
             l = new Lotes();
-            r = new Receta();
+            r = new Receta(accesoRecetas);
             permisos = new AccesoPermisos();
         }
         [HttpGet("ObtenerLotes")]
@@ -70,9 +76,38 @@ namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
         [HttpPost("CapturarEntrada")]
         public async Task<IActionResult> InsertarEntrada([FromBody] EntradaModel model)
         {
-            string res = await r.InsertarEntrada(model);
-            Console.WriteLine("Respuesta raw InsertarEntrada: " + res);
-            return Ok(res);
+            try
+            {
+                EntradaModel entrada = await r.InsertarEntrada(model);
+                return Ok(new
+                {
+                    success = true,
+                    id = entrada.Id,
+                    folio = entrada.Folio
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
+            catch (SqlException ex) when (ex.Number == 208)
+            {
+                _logger.LogError(ex, "No existe dbo.Entradas para guardar la captura de Inyecciones");
+                return StatusCode(500, new
+                {
+                    success = false,
+                    message = "No existe dbo.Entradas en la base configurada. Ejecute el script SQL de instalación del módulo de Inyecciones."
+                });
+            }
+            catch (SqlException ex)
+            {
+                _logger.LogError(ex, "Error de SQL Server al guardar una captura de Inyecciones");
+                return StatusCode(503, new
+                {
+                    success = false,
+                    message = "No fue posible guardar la captura directamente en SQL Server. Verifique la conexión de InyeccionesSql."
+                });
+            }
         }
 
         [HttpPost("Imprimir")]
@@ -212,6 +247,9 @@ namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
         public async Task<IActionResult> ConsultarEntrada(int id)
         {
             var dato = await r.ConsultarEntrada(id);
+            if (dato == null)
+                return NotFound(new { success = false, message = "No se encontró la entrada solicitada." });
+
             return Ok(dato);
         }
     }

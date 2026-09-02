@@ -11,12 +11,17 @@
 
     var puedeConfirmar =
         string.IsNullOrWhiteSpace(Model.Error)
-        &&
-        Model.Caja.EsRecomendada
-        &&
-        Model.Caja.PuedeBajar
-        &&
-        ubicacionOk;
+        && Model.Caja.EsRecomendada
+        && Model.Caja.PuedeBajar
+        && ubicacionOk;
+
+    var destino = string.IsNullOrWhiteSpace(Model.Caja.UbicacionOrigen)
+        ? "PEPS #" + Model.Caja.OrdenPeps
+        : Model.Caja.UbicacionOrigen;
+
+    var codigoEsperado = string.IsNullOrWhiteSpace(Model.Caja.TarimaCodigo)
+        ? Model.Caja.CodigoEtiqueta
+        : Model.Caja.TarimaCodigo;
 }
 
 <link rel="stylesheet"
@@ -27,12 +32,449 @@
       href="~/css/surtido-picking-tarea-erp.css"
       asp-append-version="true" />
 
+<style>
+    :root {
+        --pk-bg:#f1f4f6;
+        --pk-card:#ffffff;
+        --pk-line:#d7e0e6;
+        --pk-text:#1f2b37;
+        --pk-muted:#607181;
+        --pk-wine:#7a2029;
+        --pk-wine-dark:#53161c;
+        --pk-blue:#0d6efd;
+        --pk-green:#198754;
+        --pk-orange:#d98200;
+        --pk-red:#b32635;
+        --pk-shadow:0 10px 28px rgba(25,40,55,.08);
+    }
 
-<div class="wms-v7">
+    html,body{
+        width:100%!important;
+        max-width:100%!important;
+        overflow-x:hidden!important;
+    }
 
-    <main class="wms-content">
+    body{
+        background:var(--pk-bg)!important;
+        color:var(--pk-text);
+        font-family:"Segoe UI",Tahoma,Arial,sans-serif;
+    }
 
-        <a class="wms-back"
+    .container,.container-fluid,.layout-container-fluid,.layout-main-content{
+        max-width:100%!important;
+        width:100%!important;
+    }
+
+    .pk-wrap{
+        width:100%;
+        max-width:100%;
+        padding:12px;
+        box-sizing:border-box;
+    }
+
+    .pk-shell{
+        max-width:1600px;
+        margin:0 auto;
+    }
+
+    .pk-back{
+        display:inline-flex;
+        align-items:center;
+        min-height:44px;
+        padding:0 16px;
+        background:#fff;
+        color:#475867!important;
+        border:1px solid var(--pk-line);
+        border-radius:14px;
+        font-size:15px;
+        font-weight:800;
+        text-decoration:none!important;
+        margin-bottom:10px;
+    }
+
+    .pk-back:hover{background:#f7ecee;color:var(--pk-wine)!important;}
+
+    .pk-alert{
+        margin-bottom:10px;
+        border-radius:14px;
+        padding:13px 15px;
+        font-size:14px;
+        font-weight:800;
+        border:1px solid transparent;
+    }
+
+    .pk-alert.bad{background:#fff0f2;color:#8e1f2b;border-color:#efc8ce;}
+    .pk-alert.ok{background:#eaf7ef;color:#176b42;border-color:#c9e8d5;}
+
+    .pk-hero{
+        background:linear-gradient(135deg,var(--pk-wine-dark),var(--pk-wine));
+        color:#fff;
+        border-radius:22px;
+        padding:20px;
+        box-shadow:var(--pk-shadow);
+        border:1px solid #491319;
+    }
+
+    .pk-hero-grid{
+        display:grid;
+        grid-template-columns:1.4fr .6fr;
+        gap:16px;
+        align-items:center;
+    }
+
+    .pk-kicker{
+        font-size:12px;
+        font-weight:900;
+        letter-spacing:.08em;
+        text-transform:uppercase;
+        opacity:.84;
+    }
+
+    .pk-destino{
+        margin:6px 0 4px;
+        font-size:46px;
+        line-height:1;
+        font-weight:950;
+    }
+
+    .pk-product{
+        font-size:17px;
+        line-height:1.45;
+        opacity:.95;
+    }
+
+    .pk-route{
+        margin-top:16px;
+        display:grid;
+        grid-template-columns:repeat(4,minmax(0,1fr));
+        gap:8px;
+    }
+
+    .pk-route-box{
+        background:rgba(255,255,255,.10);
+        border:1px solid rgba(255,255,255,.17);
+        border-radius:14px;
+        padding:10px 12px;
+        min-width:0;
+    }
+
+    .pk-route-box span{
+        display:block;
+        font-size:11px;
+        text-transform:uppercase;
+        letter-spacing:.05em;
+        font-weight:800;
+        opacity:.78;
+    }
+
+    .pk-route-box strong{
+        display:block;
+        margin-top:4px;
+        font-size:16px;
+        font-weight:900;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+    }
+
+    .pk-peps{
+        background:rgba(255,255,255,.10);
+        border:1px solid rgba(255,255,255,.20);
+        border-radius:18px;
+        padding:16px;
+        text-align:center;
+    }
+
+    .pk-peps strong{
+        display:block;
+        font-size:36px;
+        line-height:1;
+        font-weight:950;
+    }
+
+    .pk-peps span{
+        display:block;
+        margin-top:5px;
+        font-size:13px;
+        font-weight:800;
+        opacity:.86;
+    }
+
+    .pk-site{
+        display:flex;
+        gap:8px;
+        flex-wrap:wrap;
+        margin-top:10px;
+    }
+
+    .pk-site span{
+        background:#fff;
+        border:1px solid var(--pk-line);
+        border-radius:999px;
+        padding:7px 11px;
+        font-size:13px;
+        font-weight:800;
+        color:#536675;
+    }
+
+    .pk-steps{
+        margin-top:14px;
+        display:grid;
+        grid-template-columns:repeat(3,minmax(0,1fr));
+        gap:12px;
+    }
+
+    .pk-step{
+        position:relative;
+        background:var(--pk-card);
+        border:2px solid var(--pk-line);
+        border-radius:20px;
+        padding:17px;
+        box-shadow:var(--pk-shadow);
+    }
+
+    .pk-step.blue{border-color:#c9dcff;background:#f6f9ff;}
+    .pk-step.orange{border-color:#f2d7a3;background:#fffaf0;}
+    .pk-step.green{border-color:#c5e7d2;background:#f4fbf7;}
+
+    .pk-step-number{
+        width:42px;
+        height:42px;
+        border-radius:999px;
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        color:#fff;
+        font-size:20px;
+        font-weight:950;
+        margin-bottom:10px;
+    }
+
+    .pk-step.blue .pk-step-number{background:var(--pk-blue);}
+    .pk-step.orange .pk-step-number{background:var(--pk-orange);}
+    .pk-step.green .pk-step-number{background:var(--pk-green);}
+
+    .pk-step h2{
+        margin:0 0 6px;
+        font-size:25px;
+        font-weight:950;
+        color:var(--pk-text);
+    }
+
+    .pk-step p{
+        margin:0;
+        font-size:15px;
+        line-height:1.45;
+        color:var(--pk-muted);
+    }
+
+    .pk-big-value{
+        margin-top:12px;
+        border-radius:16px;
+        padding:16px;
+        background:#fff;
+        border:1px solid var(--pk-line);
+        font-size:28px;
+        line-height:1.1;
+        font-weight:950;
+        color:var(--pk-text);
+        word-break:break-word;
+    }
+
+    .pk-scan-label{
+        margin-top:14px;
+        font-size:13px;
+        font-weight:900;
+        color:#4f5f6d;
+        text-transform:uppercase;
+        letter-spacing:.04em;
+    }
+
+    .pk-scan-row{
+        margin-top:7px;
+        display:grid;
+        grid-template-columns:1fr 150px;
+        gap:9px;
+    }
+
+    #CodigoEscaneado{
+        width:100%;
+        min-height:58px!important;
+        height:58px!important;
+        padding:0 16px!important;
+        border:2px solid #9db8da!important;
+        border-radius:15px!important;
+        background:#fff!important;
+        color:#1f2b37!important;
+        font-size:19px!important;
+        font-weight:800!important;
+        box-shadow:none!important;
+        outline:none!important;
+    }
+
+    #CodigoEscaneado:focus{
+        border-color:var(--pk-blue)!important;
+        box-shadow:0 0 0 4px rgba(13,110,253,.11)!important;
+    }
+
+    #btnValidar{
+        min-height:58px!important;
+        height:58px!important;
+        border:0!important;
+        border-radius:15px!important;
+        background:linear-gradient(180deg,#2b83ff,#0d6efd)!important;
+        color:#fff!important;
+        font-size:16px!important;
+        font-weight:950!important;
+    }
+
+    #btnValidar:disabled,#CodigoEscaneado:disabled{
+        opacity:.55!important;
+        cursor:not-allowed!important;
+    }
+
+    #scanMessage{
+        min-height:22px;
+        margin-top:9px;
+        font-size:14px;
+        font-weight:800;
+    }
+
+    .pk-callout{
+        margin-top:14px;
+        padding:13px 14px;
+        border-radius:14px;
+        background:#eef7f2;
+        border:1px solid #c8e6d3;
+        color:#255d3d;
+        font-size:14px;
+        line-height:1.4;
+    }
+
+    .pk-callout strong{display:block;font-size:15px;margin-bottom:3px;}
+
+    #btnConfirmar{
+        width:100%!important;
+        min-height:66px!important;
+        height:66px!important;
+        margin-top:14px!important;
+        border:0!important;
+        border-radius:16px!important;
+        background:linear-gradient(180deg,#29a766,#198754)!important;
+        color:#fff!important;
+        font-size:19px!important;
+        font-weight:950!important;
+        box-shadow:0 8px 20px rgba(25,135,84,.18)!important;
+    }
+
+    #btnConfirmar:disabled{
+        background:#aeb8bf!important;
+        box-shadow:none!important;
+        opacity:.74!important;
+        cursor:not-allowed!important;
+    }
+
+    .pk-map{
+        margin-top:14px;
+        background:#fff;
+        border:1px solid var(--pk-line);
+        border-radius:20px;
+        box-shadow:var(--pk-shadow);
+        overflow:hidden;
+    }
+
+    .pk-map-head{
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        gap:12px;
+        padding:14px 16px;
+        background:linear-gradient(180deg,#fff,#f4f7f9);
+        border-bottom:1px solid var(--pk-line);
+    }
+
+    .pk-map-head h3{
+        margin:0;
+        font-size:22px;
+        font-weight:950;
+    }
+
+    .pk-map-head p{
+        margin:3px 0 0;
+        font-size:14px;
+        color:var(--pk-muted);
+    }
+
+    .pk-map-open{
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        min-height:46px;
+        padding:0 15px;
+        border-radius:14px;
+        background:var(--pk-blue);
+        color:#fff!important;
+        text-decoration:none!important;
+        font-size:14px;
+        font-weight:950;
+        white-space:nowrap;
+    }
+
+    .pk-map-body{padding:12px;}
+
+    .pk-map .wms-rack3d{
+        min-height:260px!important;
+        border-radius:14px!important;
+        overflow:hidden!important;
+    }
+
+    .pk-map .wms-3d-info{
+        margin-top:8px;
+        font-size:13px;
+        color:var(--pk-muted);
+    }
+
+    .pk-blocked{
+        margin-top:12px;
+        padding:13px 14px;
+        border-radius:14px;
+        background:#fff0f2;
+        border:1px solid #efc8ce;
+        color:#8e1f2b;
+        font-size:14px;
+        font-weight:800;
+    }
+
+    @@media(max-width:1100px){
+        .pk-hero-grid{grid-template-columns:1fr;}
+        .pk-steps{grid-template-columns:1fr;}
+    }
+
+    @@media(max-width:760px){
+        .pk-wrap{padding:6px;}
+        .pk-hero{border-radius:16px;padding:15px;}
+        .pk-destino{font-size:34px;}
+        .pk-route{grid-template-columns:1fr 1fr;}
+        .pk-scan-row{grid-template-columns:1fr;}
+        #btnValidar{width:100%!important;}
+        .pk-map-head{align-items:flex-start;flex-direction:column;}
+        .pk-map-open{width:100%;}
+    }
+</style>
+<style id="responsive-operativo-final">
+.pk-wrap,.pk-shell,.pk-hero,.pk-hero-grid,.pk-route,.pk-steps,.pk-step,.pk-map{min-width:0!important;max-width:100%!important}.pk-wrap{padding:7px!important}.pk-shell{max-width:none!important;margin:0!important}.pk-back{min-height:32px!important;margin-bottom:5px!important;padding:0 9px!important;border-radius:8px!important;font-size:9px!important}.pk-alert{margin-bottom:5px!important;padding:6px 8px!important;border-radius:8px!important;font-size:8px!important}
+.pk-hero{padding:10px 12px!important;border-radius:14px!important}.pk-hero-grid{grid-template-columns:minmax(0,1.5fr) 105px!important;gap:9px!important}.pk-kicker{font-size:8px!important}.pk-destino{margin:3px 0!important;font-size:clamp(28px,3vw,40px)!important}.pk-product{font-size:9px!important;line-height:1.3!important}.pk-route{margin-top:7px!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:4px!important}.pk-route-box{padding:5px 6px!important;border-radius:8px!important}.pk-route-box span{font-size:6.5px!important}.pk-route-box strong{font-size:10px!important}.pk-peps{padding:8px!important;border-radius:10px!important}.pk-peps strong{font-size:25px!important}.pk-peps span{font-size:7px!important}.pk-site{margin-top:5px!important;gap:4px!important}.pk-site span{padding:4px 7px!important;font-size:7px!important}
+.pk-map{margin-top:6px!important;border-radius:11px!important}.pk-map-head{padding:6px 8px!important}.pk-map-head h3{font-size:12px!important}.pk-map-head p{font-size:7px!important}.pk-map-open{min-height:30px!important;padding:0 8px!important;border-radius:8px!important;font-size:7px!important}.pk-map-body{padding:6px!important}.pk-map .wms-rack3d{min-height:150px!important;max-height:150px!important;border-radius:8px!important}.pk-map .wms-3d-info{margin-top:3px!important;font-size:7px!important}
+.pk-steps{margin-top:7px!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:7px!important}.pk-step{padding:9px!important;border-radius:12px!important}.pk-step-number{width:27px!important;height:27px!important;margin-bottom:5px!important;font-size:12px!important}.pk-step h2{margin:0 0 3px!important;font-size:15px!important}.pk-step p{font-size:8px!important;line-height:1.25!important}.pk-big-value{margin-top:6px!important;padding:8px!important;border-radius:9px!important;font-size:14px!important}.pk-scan-label{margin-top:7px!important;font-size:7px!important}.pk-scan-row{margin-top:4px!important;grid-template-columns:minmax(0,1fr) 90px!important;gap:5px!important}#CodigoEscaneado{min-height:38px!important;height:38px!important;padding:0 9px!important;border-radius:9px!important;font-size:11px!important}#btnValidar{min-height:38px!important;height:38px!important;border-radius:9px!important;font-size:9px!important}.pk-callout{margin-top:7px!important;padding:7px 8px!important;border-radius:8px!important;font-size:7px!important}.wms-success-large{min-height:42px!important;margin-top:8px!important;border-radius:9px!important;font-size:10px!important}.pk-blocked{margin-top:6px!important;padding:7px 8px!important;border-radius:8px!important;font-size:8px!important}
+@@media(max-width:1000px){.pk-hero-grid{grid-template-columns:minmax(0,1fr) 90px!important}.pk-steps{grid-template-columns:repeat(3,minmax(0,1fr))!important}.pk-step p{display:none!important}.pk-map .wms-rack3d{min-height:125px!important;max-height:125px!important}}
+@@media(max-width:720px){.pk-wrap{padding:5px!important}.pk-hero-grid{grid-template-columns:1fr 76px!important}.pk-route{grid-template-columns:1fr 1fr!important}.pk-steps{grid-template-columns:1fr!important}.pk-step p{display:block!important}.pk-map-head{display:grid!important;grid-template-columns:1fr!important}.pk-map-open{width:100%!important}.pk-map .wms-rack3d{min-height:180px!important;max-height:none!important}}
+</style>
+
+
+<div class="pk-wrap">
+    <div class="pk-shell">
+
+        <a class="pk-back"
            href="@Url.Action(
                 "PedidoPicking",
                 "Surtido",
@@ -42,122 +484,70 @@
                     solicitudSurtidoId = Model.Pedido.SolicitudSurtidoId
                 }
            )">
-            ‹ Cambiar tarea
+            ← Cambiar tarea
         </a>
-
 
         @if (TempData["Error"] != null)
         {
-            <div class="wms-alert-bad">
-                @TempData["Error"]
-            </div>
+            <div class="pk-alert bad">@TempData["Error"]</div>
         }
 
         @if (!string.IsNullOrWhiteSpace(Model.Error))
         {
-            <div class="wms-alert-bad">
-                @Model.Error
-            </div>
+            <div class="pk-alert bad">@Model.Error</div>
         }
 
+        <section class="pk-hero">
+            <div class="pk-hero-grid">
+                <div>
+                    <div class="pk-kicker">DESTINO PEPS · VE A ESTA UBICACIÓN</div>
+                    <div class="pk-destino">@destino</div>
+                    <div class="pk-product">
+                        @Model.Caja.ProductoNombre · @Model.Caja.CodigoEtiqueta · @Model.Caja.PesoNeto.ToString("N2") kg
+                    </div>
 
-        <section class="wms-step-strip">
+                    <div class="pk-route">
+                        <div class="pk-route-box">
+                            <span>Pedido</span>
+                            <strong>@Model.Pedido.Pedido</strong>
+                        </div>
+                        <div class="pk-route-box">
+                            <span>Lote</span>
+                            <strong>@Model.Caja.Lote</strong>
+                        </div>
+                        <div class="pk-route-box">
+                            <span>Tarima</span>
+                            <strong>@(string.IsNullOrWhiteSpace(Model.Caja.TarimaCodigo) ? "-" : Model.Caja.TarimaCodigo)</strong>
+                        </div>
+                        <div class="pk-route-box">
+                            <span>Almacén</span>
+                            <strong>@Model.Almacen.Codigo</strong>
+                        </div>
+                    </div>
+                </div>
 
-            <div class="wms-step active">
-                <i>1</i><span>Ir</span>
+                <div class="pk-peps">
+                    <strong>#@Model.Caja.OrdenPeps</strong>
+                    <span>ORDEN PEPS</span>
+                </div>
             </div>
-
-            <div class="wms-step @(ubicacionOk ? "active" : "")">
-                <i>2</i><span>Ubicación</span>
-            </div>
-
-            <div class="wms-step active">
-                <i>3</i><span>Tarima/Caja</span>
-            </div>
-
-            <div class="wms-step">
-                <i>4</i><span>Bajada</span>
-            </div>
-
         </section>
 
-
-        <article class="wms-navigate-card">
-
-            <span class="wms-overline">
-                DESTINO PEPS
-            </span>
-
-            <h1>
-                @(string.IsNullOrWhiteSpace(Model.Caja.UbicacionOrigen)
-                    ? "PEPS #" + Model.Caja.OrdenPeps
-                    : Model.Caja.UbicacionOrigen)
-            </h1>
-
-            <p>
-                @Model.Caja.ProductoNombre
-                · @Model.Caja.CodigoEtiqueta
-                · @Model.Caja.PesoNeto.ToString("N2") kg
-            </p>
-
-            <div class="wms-route-path">
-
-                <div class="wms-route-node">
-                    PEDIDO<br />
-                    <small>@Model.Pedido.Pedido</small>
-                </div>
-
-                <i>→</i>
-
-                <div class="wms-route-node">
-                    LOTE<br />
-                    <small>@Model.Caja.Lote</small>
-                </div>
-
-                <i>→</i>
-
-                <div class="wms-route-node">
-                    TARIMA<br />
-                    <small>
-                        @(string.IsNullOrWhiteSpace(Model.Caja.TarimaCodigo)
-                            ? "-"
-                            : Model.Caja.TarimaCodigo)
-                    </small>
-                </div>
-
-                <i>→</i>
-
-                <div class="wms-route-node target">
-                    PEPS<br />
-                    <small>#@Model.Caja.OrdenPeps</small>
-                </div>
-
-            </div>
-
-        </article>
-
+        <div class="pk-site">
+            <span>🏭 @Model.Almacen.Planta</span>
+            <span>📦 @Model.Almacen.Nombre</span>
+            <span>🏷️ @Model.Almacen.Clasificacion</span>
+        </div>
 
         @if (!string.IsNullOrWhiteSpace(Model.Caja.UbicacionOrigen))
         {
-            <section class="wms-3d-card">
-
-                <div class="wms-3d-head">
-
+            <section class="pk-map">
+                <div class="pk-map-head">
                     <div>
-                        <span class="wms-overline">
-                            UBICACIÓN FÍSICA · MAPA 3D
-                        </span>
-
-                        <h2>
-                            @Model.Caja.UbicacionOrigen
-                        </h2>
-
-                        <p>
-                            Destino real obtenido desde ProduccionReferencia Tipo 16.
-                        </p>
+                        <h3>📍 Ubicación física: @Model.Caja.UbicacionOrigen</h3>
+                        <p>Usa el mapa si necesitas confirmar rack, posición o altura.</p>
                     </div>
-
-                    <a class="wms-3d-open"
+                    <a class="pk-map-open"
                        href="@Url.Action(
                             "Mapa3D",
                             "Surtido",
@@ -167,86 +557,22 @@
                                 ubicacion = Model.Caja.UbicacionOrigen
                             }
                        )">
-                        MAPA COMPLETO
+                        Abrir mapa 3D
                     </a>
-
                 </div>
 
-                <div id="pickRack3d"
-                     class="wms-rack3d"
-                     data-location="@Model.Caja.UbicacionOrigen"
-                     data-layout-known="@Model.Almacen.TieneLayout3D.ToString().ToLowerInvariant()"
-                     data-compact="false"
-                     data-info-target="#pickRackInfo">
+                <div class="pk-map-body">
+                    <div id="pickRack3d"
+                         class="wms-rack3d"
+                         data-location="@Model.Caja.UbicacionOrigen"
+                         data-layout-known="@Model.Almacen.TieneLayout3D.ToString().ToLowerInvariant()"
+                         data-compact="false"
+                         data-info-target="#pickRackInfo">
+                    </div>
+                    <div id="pickRackInfo" class="wms-3d-info"></div>
                 </div>
-
-                <div id="pickRackInfo"
-                     class="wms-3d-info">
-                </div>
-
-                <div class="wms-3d-legend">
-                    <span><i class="target"></i>Ubicación objetivo</span>
-                    <span><i class="route"></i>Ruta</span>
-                    <span><i class="rack"></i>Estructura rack</span>
-                </div>
-
             </section>
         }
-
-
-        <article class="wms-card">
-
-            <div class="wms-step-number">
-                1
-            </div>
-
-            <span class="wms-overline">
-                UBICACIÓN FÍSICA
-            </span>
-
-            @if (Model.Almacen.ObligaUbicacion)
-            {
-                if (string.IsNullOrWhiteSpace(Model.Caja.UbicacionOrigen))
-                {
-                    <h2>
-                        Ubicación requerida
-                    </h2>
-
-                    <p>
-                        Este almacén está configurado en SIGO con ubicación obligatoria,
-                        pero esta producción no tiene una referencia de ubicación
-                        TipoReferenciaId = 16.
-                    </p>
-
-                    <div class="wms-alert-bad">
-                        BLOQUEADO: ProduccionId @Model.Caja.ProduccionId
-                        no tiene ubicación activa registrada en ProduccionReferencia.
-                    </div>
-                }
-                else
-                {
-                    <h2>
-                        @Model.Caja.UbicacionOrigen
-                    </h2>
-
-                    <p>
-                        Confirma físicamente la ubicación antes de escanear.
-                    </p>
-                }
-            }
-            else
-            {
-                <h2>
-                    Ubicación no obligatoria
-                </h2>
-
-                <p>
-                    SIGO permite continuar sin rack para este almacén.
-                </p>
-            }
-
-        </article>
-
 
         <form method="post"
               action="@Url.Action("ConfirmarBajada","Surtido")"
@@ -256,115 +582,89 @@
 
             @Html.AntiForgeryToken()
 
-            <input type="hidden"
-                   name="Almacen"
-                   value="@Model.Almacen.Codigo" />
+            <input type="hidden" name="Almacen" value="@Model.Almacen.Codigo" />
+            <input type="hidden" name="SolicitudSurtidoId" value="@Model.Pedido.SolicitudSurtidoId" />
+            <input type="hidden" name="ProduccionId" value="@Model.Caja.ProduccionId" />
 
-            <input type="hidden"
-                   name="SolicitudSurtidoId"
-                   value="@Model.Pedido.SolicitudSurtidoId" />
+            <section class="pk-steps">
 
-            <input type="hidden"
-                   name="ProduccionId"
-                   value="@Model.Caja.ProduccionId" />
+                <article class="pk-step blue">
+                    <div class="pk-step-number">1</div>
+                    <h2>Ve a la ubicación</h2>
+                    <p>Confirma físicamente que estás en la ubicación indicada antes de escanear.</p>
 
+                    @if (Model.Almacen.ObligaUbicacion)
+                    {
+                        if (string.IsNullOrWhiteSpace(Model.Caja.UbicacionOrigen))
+                        {
+                            <div class="pk-blocked">
+                                BLOQUEADO: ProduccionId @Model.Caja.ProduccionId no tiene ubicación activa registrada.
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="pk-big-value">📍 @Model.Caja.UbicacionOrigen</div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="pk-big-value">Ubicación no obligatoria</div>
+                    }
+                </article>
 
-            <article class="wms-card">
+                <article class="pk-step orange">
+                    <div class="pk-step-number">2</div>
+                    <h2>Escanea tarima o caja</h2>
+                    <p>Escanea exactamente el producto indicado. También se acepta la etiqueta de la caja.</p>
 
-                <div class="wms-step-number">
-                    2
-                </div>
+                    <div class="pk-scan-label">Esperado</div>
+                    <div class="pk-big-value">@codigoEsperado</div>
 
-                <span class="wms-overline">
-                    VALIDA TARIMA / CAJA
-                </span>
+                    <div class="pk-scan-row">
+                        <input id="CodigoEscaneado"
+                               name="CodigoEscaneado"
+                               placeholder="Escanea aquí..."
+                               autocomplete="off"
+                               @(puedeConfirmar ? "" : "disabled") />
 
-                <h2>
-                    Escanea el producto indicado
-                </h2>
+                        <button type="button"
+                                id="btnValidar"
+                                @(puedeConfirmar ? "" : "disabled")>
+                            VALIDAR
+                        </button>
+                    </div>
 
-                <p>
-                    Esperada:
-                    <strong>
-                        @(string.IsNullOrWhiteSpace(Model.Caja.TarimaCodigo)
-                            ? Model.Caja.CodigoEtiqueta
-                            : Model.Caja.TarimaCodigo)
-                    </strong>
-                    · también se acepta la etiqueta
-                    @Model.Caja.CodigoEtiqueta
-                </p>
+                    <div id="scanMessage" class="wms-validation"></div>
+                </article>
 
-                <div class="wms-input-action">
+                <article class="pk-step green">
+                    <div class="pk-step-number">3</div>
+                    <h2>Confirma la bajada</h2>
+                    <p>Cuando el producto ya esté físicamente en Zona de Surtido, confirma el movimiento.</p>
 
-                    <input id="CodigoEscaneado"
-                           name="CodigoEscaneado"
-                           placeholder="Escanea tarima o etiqueta"
-                           autocomplete="off"
-                           @(puedeConfirmar ? "" : "disabled") />
+                    <div class="pk-callout">
+                        <strong>Montacarguista</strong>
+                        Tu responsabilidad termina al dejar el producto en Zona de Surtido. El Capturista realiza después la vinculación oficial.
+                    </div>
 
-                    <button type="button"
-                            id="btnValidar"
-                            @(puedeConfirmar ? "" : "disabled")>
-                        VALIDAR
+                    <button class="wms-success-large"
+                            type="submit"
+                            id="btnConfirmar"
+                            disabled>
+                        ✓ CONFIRMAR PRODUCTO BAJADO
                     </button>
+                </article>
 
-                </div>
-
-                <div class="wms-validation"
-                     id="scanMessage">
-                </div>
-
-            </article>
-
-
-            <article class="wms-card">
-
-                <div class="wms-step-number">
-                    3
-                </div>
-
-                <span class="wms-overline">
-                    CONFIRMA MOVIMIENTO
-                </span>
-
-                <h2>
-                    ¿Ya bajaste el producto?
-                </h2>
-
-                <p>
-                    Se registrará en la Zona de Surtido de SIGO.
-                    Todavía no se vincula oficialmente a SalidaEmbarque.
-                </p>
-
-                <div class="wms-callout">
-                    <b>MONTACARGUISTA</b>
-                    <span>
-                        Tu responsabilidad termina al dejar el producto en Zona de Surtido.
-                        El Capturista escanea y realiza la vinculación oficial posteriormente.
-                    </span>
-                </div>
-
-                <button class="wms-success-large"
-                        type="submit"
-                        id="btnConfirmar"
-                        disabled>
-                    ✓ CONFIRMAR PRODUCTO BAJADO
-                </button>
-
-            </article>
-
+            </section>
         </form>
 
-    </main>
-
+    </div>
 </div>
-
 
 @section Scripts {
     <script src="~/js/surtido-picking-tarea-erp.js"
             asp-append-version="true"></script>
 }
-
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>

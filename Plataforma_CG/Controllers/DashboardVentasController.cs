@@ -13,18 +13,15 @@ using System.Threading.Tasks;
 namespace Plataforma_CG.Controllers
 {
     /// <summary>
-    /// Dashboard de ventas basado en surtido REAL validado.
+    /// Dashboard de ventas alineado con la consulta operativa de presupuestos.
     ///
-    /// Venta real:
-    /// - dbo.SurtidoEncabezado.FechaValidacion
-    /// - dbo.SurtidoDetalle.Kg
-    ///
-    /// Relaciones:
-    /// - SurtidoDetalle.Articulo -> ArticuloSap.ProductoCodigo -> U_MASTER
-    /// - SurtidoEncabezado.SolicitudSurtidoId -> Subpedido.U_DocMeat -> OrdenVenta
-    /// - Vendedor: primero OrdenVenta.VendedorId/Vendedor; si no existe OV, ClienteSap
-    /// - Precio: OrdenVentaProducto.Precio ponderado por OrdenVentaProducto.Peso
-    /// - Presupuesto: PresupuestoVendedor
+    /// Reglas principales:
+    /// - CEDIS: presupuesto desde PresupuestoCedis.
+    /// - VENDEDOR: presupuesto desde PresupuestoVendedor.
+    /// - CEDIS venta real: surtido validado menos devoluciones de bodega.
+    /// - VENDEDOR venta real: surtido normal más distribución proporcional del CEDIS.
+    /// - Transferencias CEDIS se consideran en la distribución del surtido a vendedores.
+    /// - Precio: OrdenVentaProducto.Precio ponderado por OrdenVentaProducto.Peso.
     ///
     /// Se conserva el mismo contrato JSON que consume dashboard-ventas.js.
     /// </summary>
@@ -56,10 +53,24 @@ namespace Plataforma_CG.Controllers
         public async Task<IActionResult> Catalogos(CancellationToken ct = default)
         {
             const string sql = @"
-/* 1) ÚLTIMA FECHA REAL VALIDADA */
-SELECT UltimaFechaVenta = MAX(CAST(se.FechaValidacion AS date))
-FROM dbo.SurtidoEncabezado se WITH (NOLOCK)
-WHERE se.FechaValidacion IS NOT NULL;
+/* 1) ÚLTIMA FECHA DE MOVIMIENTO QUE ALIMENTA VENTA REAL */
+SELECT UltimaFechaVenta = MAX(Fecha)
+FROM
+(
+    SELECT Fecha = MAX(CAST(se.FechaValidacion AS date))
+    FROM dbo.SurtidoEncabezado se WITH (NOLOCK)
+    WHERE se.FechaValidacion IS NOT NULL
+
+    UNION ALL
+
+    SELECT Fecha = MAX(CAST(t.FechaSolicitud AS date))
+    FROM dbo.Transferencias t WITH (NOLOCK)
+    INNER JOIN dbo.TransferenciaSurtido ts WITH (NOLOCK)
+        ON ts.TransferenciaId = t.Id
+    WHERE t.FechaSolicitud IS NOT NULL
+      AND t.Estatus >= 5
+      AND ISNULL(ts.KgSurtido, 0) > 0
+) f;
 
 /* 2) AÑOS CON SURTIDO REAL O PRESUPUESTO */
 SELECT Anio
@@ -68,6 +79,16 @@ FROM
     SELECT DISTINCT YEAR(se.FechaValidacion) AS Anio
     FROM dbo.SurtidoEncabezado se WITH (NOLOCK)
     WHERE se.FechaValidacion IS NOT NULL
+
+    UNION
+
+    SELECT DISTINCT YEAR(t.FechaSolicitud) AS Anio
+    FROM dbo.Transferencias t WITH (NOLOCK)
+    INNER JOIN dbo.TransferenciaSurtido ts WITH (NOLOCK)
+        ON ts.TransferenciaId = t.Id
+    WHERE t.FechaSolicitud IS NOT NULL
+      AND t.Estatus >= 5
+      AND ISNULL(ts.KgSurtido, 0) > 0
 
     UNION
 
@@ -93,7 +114,6 @@ SELECT DISTINCT
 FROM dbo.ArticuloSap a WITH (NOLOCK)
 WHERE a.ProductoCodigo IS NOT NULL
   AND a.ProductoCodigo <> ''
-  AND TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(a.U_TipoporSKU)), '')) IN (1, 2)
 ORDER BY Master;
 
 /* 4) SKUS */
@@ -107,7 +127,6 @@ SELECT
 FROM dbo.ArticuloSap a WITH (NOLOCK)
 WHERE a.ProductoCodigo IS NOT NULL
   AND a.ProductoCodigo <> ''
-  AND TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(a.U_TipoporSKU)), '')) IN (1, 2)
 ORDER BY Master, Sku;
 
 /* 5) VENDEDORES / SUCURSALES
@@ -116,7 +135,7 @@ ORDER BY Master, Sku;
    - Vendedor normal: ventas reales o presupuesto.
    - CEDIS: ventas reales o presupuesto en PresupuestoCedis.
    ============================================================ */
-;WITH Base AS
+WITH Base AS
 (
     SELECT
         VendedorId = c.VendedorId,
@@ -146,10 +165,6 @@ VendedoresConVenta AS
     INNER JOIN dbo.ClienteSap cs WITH (NOLOCK)
         ON cs.Cliente = se.CodigoSap
     WHERE se.FechaValidacion IS NOT NULL
-      AND TRY_CONVERT(
-            int,
-            NULLIF(LTRIM(RTRIM(a.U_TipoporSKU)), '')
-          ) IN (1, 2)
       AND UPPER(LTRIM(RTRIM(ISNULL(cs.U_CANAL, '')))) NOT LIKE 'CEDIS%'
 ),
 
@@ -161,10 +176,6 @@ VendedoresConPresupuesto AS
     INNER JOIN dbo.ArticuloSap a WITH (NOLOCK)
         ON a.ProductoCodigo = p.ProductoCodigo
     WHERE ISNULL(p.PresupuestoAsignado, 0) <> 0
-      AND TRY_CONVERT(
-            int,
-            NULLIF(LTRIM(RTRIM(a.U_TipoporSKU)), '')
-          ) IN (1, 2)
 ),
 
 CedisConVenta AS
@@ -180,10 +191,6 @@ CedisConVenta AS
         ON cs.Cliente = se.CodigoSap
     WHERE se.FechaValidacion IS NOT NULL
       AND UPPER(LTRIM(RTRIM(ISNULL(cs.U_CANAL, '')))) LIKE 'CEDIS%'
-      AND TRY_CONVERT(
-            int,
-            NULLIF(LTRIM(RTRIM(a.U_TipoporSKU)), '')
-          ) IN (1, 2)
 ),
 
 CedisConPresupuesto AS
@@ -195,92 +202,51 @@ CedisConPresupuesto AS
         ON a.ProductoCodigo = pc.ProductoCodigo
     WHERE NULLIF(LTRIM(RTRIM(ISNULL(pc.Canal, ''))), '') IS NOT NULL
       AND ISNULL(pc.PresupuestoAsignado, 0) <> 0
-      AND TRY_CONVERT(
-            int,
-            NULLIF(LTRIM(RTRIM(a.U_TipoporSKU)), '')
-          ) IN (1, 2)
+),
+
+VendedoresCatalogo AS
+(
+    SELECT VendedorId FROM VendedoresConVenta
+    UNION
+    SELECT VendedorId FROM VendedoresConPresupuesto
+),
+
+CedisCatalogo AS
+(
+    SELECT Canal FROM CedisConVenta
+    UNION
+    SELECT Canal FROM CedisConPresupuesto
 ),
 
 Catalogo AS
 (
     /* ========================================================
-       VENDEDORES NORMALES
-       Se excluyen los que no tengan venta ni presupuesto.
+       VENDEDORES
+       Igual que el reporte de presupuesto: PresupuestoVendedor
+       conserva al vendedor aunque también tenga relación CEDIS.
        ======================================================== */
     SELECT
-        Id = CONCAT('VENDEDOR|', b.VendedorId),
-
+        Id = CONCAT('VENDEDOR|', vc.VendedorId),
         Nombre = COALESCE(
             NULLIF(MAX(b.VendedorNombre), ''),
-            CONCAT('VENDEDOR ', b.VendedorId)
+            CONCAT('VENDEDOR ', vc.VendedorId)
         )
-
-    FROM Base b
-
-    WHERE b.EsCedis = 0
-
-      /* Si el mismo VendedorId está asociado a un CEDIS,
-         no duplicarlo como vendedor normal. */
-      AND NOT EXISTS
-      (
-          SELECT 1
-          FROM Base bx
-          WHERE bx.VendedorId = b.VendedorId
-            AND bx.EsCedis = 1
-      )
-
-      /* Debe tener venta o presupuesto */
-      AND
-      (
-          EXISTS
-          (
-              SELECT 1
-              FROM VendedoresConVenta vv
-              WHERE vv.VendedorId = b.VendedorId
-          )
-          OR EXISTS
-          (
-              SELECT 1
-              FROM VendedoresConPresupuesto vp
-              WHERE vp.VendedorId = b.VendedorId
-          )
-      )
-
-    GROUP BY b.VendedorId
+    FROM VendedoresCatalogo vc
+    LEFT JOIN Base b
+        ON b.VendedorId = vc.VendedorId
+    GROUP BY vc.VendedorId
 
     UNION ALL
 
     /* ========================================================
        CEDIS
-       Se agrupa por U_CANAL y sólo aparece si tiene venta
-       real o presupuesto en PresupuestoCedis.
+       Se toma directamente de venta real o PresupuestoCedis.
        ======================================================== */
     SELECT
-        Id = CONCAT('CEDIS|', b.Canal),
-        Nombre = b.Canal
-
-    FROM Base b
-
-    WHERE b.EsCedis = 1
-      AND b.Canal <> ''
-
-      AND
-      (
-          EXISTS
-          (
-              SELECT 1
-              FROM CedisConVenta cv
-              WHERE cv.Canal = b.Canal
-          )
-          OR EXISTS
-          (
-              SELECT 1
-              FROM CedisConPresupuesto cp
-              WHERE cp.Canal = b.Canal
-          )
-      )
-
-    GROUP BY b.Canal
+        Id = CONCAT('CEDIS|', cc.Canal),
+        Nombre = cc.Canal
+    FROM CedisCatalogo cc
+    WHERE NULLIF(LTRIM(RTRIM(ISNULL(cc.Canal, ''))), '') IS NOT NULL
 )
 
 SELECT
@@ -332,7 +298,10 @@ ORDER BY Nombre;";
 
         // ============================================================
         // KPIs GENERALES
-        // Venta Real = KG validados en SurtidoDetalle
+        // MISMA LÓGICA QUE EL REPORTE DE PRESUPUESTOS:
+        // - CEDIS: PresupuestoCedis + Venta real neta de devoluciones.
+        // - VENDEDOR: PresupuestoVendedor + surtido real, incluyendo
+        //   la distribución proporcional del surtido CEDIS.
         // ============================================================
         [HttpGet("DashboardVentasResumen")]
         public async Task<IActionResult> Resumen(
@@ -371,123 +340,34 @@ ORDER BY Nombre;";
 
             var modo = NormalizarComparacion(compararContra);
 
-            const string sql = @"
-/* VENTA REAL FILTRADA */
-SELECT
-    VentaReal = CAST(
-        ISNULL(
-            SUM(CAST(ISNULL(sd.Kg, 0) AS DECIMAL(18,4))),
-            0
-        )
-        AS DECIMAL(18,4)
-    ),
-    UltimaFechaVenta = MAX(CAST(se.FechaValidacion AS date))
-FROM dbo.SurtidoEncabezado se WITH (NOLOCK)
-INNER JOIN dbo.SurtidoDetalle sd WITH (NOLOCK)
-    ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
-LEFT JOIN dbo.ArticuloSap a WITH (NOLOCK)
-    ON a.ProductoCodigo = sd.Articulo
-LEFT JOIN dbo.ClienteSap cs WITH (NOLOCK)
-    ON cs.Cliente = se.CodigoSap
-WHERE se.FechaValidacion >= @Inicio
-  AND se.FechaValidacion <  @FinExclusivo
-  AND TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(a.U_TipoporSKU)), '')) IN (1, 2)
-  AND (
-        @TieneMaster = 0
-        OR COALESCE(
-            NULLIF(UPPER(LTRIM(RTRIM(a.U_MASTER))), ''),
-            'SIN_MASTER'
-        ) IN @Masters
-      )
-  AND (
-        @TieneSku = 0
-        OR UPPER(LTRIM(RTRIM(ISNULL(sd.Articulo, '')))) IN @Skus
-      )
-  AND (
-        @TieneVendedor = 0
-        OR UPPER(LTRIM(RTRIM(ISNULL(cs.U_CANAL, '')))) IN @CanalesCedis
-        OR (
-            cs.VendedorId IN @VendedorIds
-            AND UPPER(LTRIM(RTRIM(ISNULL(cs.U_CANAL, '')))) NOT LIKE 'CEDIS%'
-        )
-      );
+            var rows = await ObtenerPresupuestoVentaDashboardAsync(
+                inicio,
+                finExclusivo,
+                anio,
+                mes,
+                filtros,
+                ct);
 
-/* PRESUPUESTO FILTRADO */
-SELECT
-    PresupuestoMensual = CAST(
-        ISNULL(
-            SUM(CAST(ISNULL(p.PresupuestoAsignado, 0) AS DECIMAL(18,4))),
-            0
-        )
-        AS DECIMAL(18,4)
-    )
-FROM dbo.PresupuestoVendedor p WITH (NOLOCK)
-LEFT JOIN dbo.ArticuloSap a WITH (NOLOCK)
-    ON a.ProductoCodigo = p.ProductoCodigo
-WHERE p.Anio = @Anio
-  AND p.Mes = @Mes
-  AND TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(a.U_TipoporSKU)), '')) IN (1, 2)
-  AND (
-        @TieneMaster = 0
-        OR COALESCE(
-            NULLIF(UPPER(LTRIM(RTRIM(a.U_MASTER))), ''),
-            'SIN_MASTER'
-        ) IN @Masters
-      )
-  AND (
-        @TieneSku = 0
-        OR UPPER(LTRIM(RTRIM(ISNULL(p.ProductoCodigo, '')))) IN @Skus
-      )
-  AND (
-        @TieneVendedor = 0
-        OR p.VendedorId IN @VendedorIds
-        OR EXISTS
-        (
-            SELECT 1
-            FROM dbo.ClienteSap cv WITH (NOLOCK)
-            WHERE cv.VendedorId = p.VendedorId
-              AND UPPER(LTRIM(RTRIM(ISNULL(cv.U_CANAL, '')))) IN @CanalesCedis
-        )
-      )
-OPTION (RECOMPILE);";
+            var ventaReal = rows.Sum(x => x.VentaReal);
+            var presupuestoMensual = rows.Sum(x => x.PresupuestoMensual);
 
-            await using var con = await AbrirConexionAsync(ct);
-
-            using var multi = await con.QueryMultipleAsync(
-                new CommandDefinition(
-                    sql,
-                    new
-                    {
-                        Inicio = inicio,
-                        FinExclusivo = finExclusivo,
-                        Anio = anio,
-                        Mes = mes,
-                        filtros.TieneMaster,
-                        filtros.TieneSku,
-                        filtros.TieneVendedor,
-                        Masters = filtros.MastersSql,
-                        Skus = filtros.SkusSql,
-                        VendedorIds = filtros.VendedorIdsSql,
-                        CanalesCedis = filtros.CanalesCedisSql
-                    },
-                    commandTimeout: 60,
-                    cancellationToken: ct));
-
-            var venta = await multi.ReadSingleAsync<ResumenVentaSql>();
-            var presupuesto = await multi.ReadSingleAsync<ResumenPresupuestoSql>();
+            var ultimaFechaVenta = rows
+                .Where(x => x.VentaReal > 0 && x.UltimaFechaVenta.HasValue)
+                .Select(x => x.UltimaFechaVenta)
+                .Max();
 
             var alcance = Redondear(
-                presupuesto.PresupuestoMensual * factorAlcance);
+                presupuestoMensual * factorAlcance);
 
             var referencia = modo == "alcance"
                 ? alcance
-                : presupuesto.PresupuestoMensual;
+                : presupuestoMensual;
 
             var cumplimiento = referencia > 0
-                ? venta.VentaReal / referencia * 100m
+                ? ventaReal / referencia * 100m
                 : 0m;
 
-            var brechaKg = venta.VentaReal - alcance;
+            var brechaKg = ventaReal - alcance;
 
             var brechaPct = alcance > 0
                 ? brechaKg / alcance * 100m
@@ -501,15 +381,15 @@ OPTION (RECOMPILE);";
                 FechaCorte = fechaCorte,
                 DiasLaborablesMes = diasLaborablesMes,
                 DiaLaboral = diaLaboral,
-                VentaReal = Redondear(venta.VentaReal),
-                PresupuestoMensual = Redondear(presupuesto.PresupuestoMensual),
+                VentaReal = Redondear(ventaReal),
+                PresupuestoMensual = Redondear(presupuestoMensual),
                 Alcance = alcance,
                 Referencia = Redondear(referencia),
                 CumplimientoPct = Redondear(cumplimiento),
                 BrechaAlcanceKg = Redondear(brechaKg),
                 BrechaAlcancePct = Redondear(brechaPct),
                 CompararContra = modo,
-                UltimaFechaVenta = venta.UltimaFechaVenta,
+                UltimaFechaVenta = ultimaFechaVenta,
                 ConsultadoEn = DateTime.Now
             };
 
@@ -518,8 +398,7 @@ OPTION (RECOMPILE);";
 
         // ============================================================
         // 1) VENTAS X MÁSTER
-        // Filtro Vendedor afecta SOLO este gráfico.
-        // Vendedor histórico: OrdenVenta; fallback: ClienteSap.
+        // Usa la misma base de Presupuesto / Venta Real que el KPI.
         // ============================================================
         [HttpGet("DashboardVentasMaster")]
         public async Task<IActionResult> VentasPorMaster(
@@ -558,387 +437,58 @@ OPTION (RECOMPILE);";
 
             var modo = NormalizarComparacion(compararContra);
 
-            const string sql = @"
-;WITH Ventas AS
-(
-    /* ============================================================
-       VENTA REAL POR MÁSTER
+            var baseRows = await ObtenerPresupuestoVentaDashboardAsync(
+                inicio,
+                finExclusivo,
+                anio,
+                mes,
+                filtros,
+                ct);
 
-       CEDIS:
-       - Se filtra por ClienteSap.U_CANAL.
-       - Ejemplo: CEDIS-MXL.
-
-       VENDEDOR NORMAL:
-       - Se filtra por ClienteSap.VendedorId.
-
-       Únicamente Tipo SKU:
-       1 = PRIMARIO
-       2 = SECUNDARIO
-       ============================================================ */
-    SELECT
-        Master = COALESCE(
-            NULLIF(UPPER(LTRIM(RTRIM(a.U_MASTER))), ''),
-            'SIN_MASTER'
-        ),
-
-        VentaReal = SUM(
-            CAST(ISNULL(sd.Kg, 0) AS DECIMAL(18,4))
-        )
-
-    FROM dbo.SurtidoEncabezado se WITH (NOLOCK)
-
-    INNER JOIN dbo.SurtidoDetalle sd WITH (NOLOCK)
-        ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
-
-    INNER JOIN dbo.ArticuloSap a WITH (NOLOCK)
-        ON a.ProductoCodigo = sd.Articulo
-
-    LEFT JOIN dbo.ClienteSap cs WITH (NOLOCK)
-        ON cs.Cliente = se.CodigoSap
-
-    WHERE se.FechaValidacion >= @Inicio
-      AND se.FechaValidacion <  @FinExclusivo
-
-      /* SOLO PRIMARIO / SECUNDARIO */
-      AND TRY_CONVERT(
-            int,
-            NULLIF(LTRIM(RTRIM(a.U_TipoporSKU)), '')
-          ) IN (1, 2)
-
-      AND (
-            @TieneMaster = 0
-            OR COALESCE(
-                NULLIF(UPPER(LTRIM(RTRIM(a.U_MASTER))), ''),
-                'SIN_MASTER'
-            ) IN @Masters
-          )
-
-      AND (
-            @TieneSku = 0
-            OR UPPER(LTRIM(RTRIM(ISNULL(sd.Articulo, '')))) IN @Skus
-          )
-
-      AND (
-            @TieneVendedor = 0
-
-            /* CEDIS */
-            OR UPPER(
-                LTRIM(
-                    RTRIM(
-                        ISNULL(cs.U_CANAL, '')
-                    )
-                )
-            ) IN @CanalesCedis
-
-            /* VENDEDOR NORMAL */
-            OR (
-                cs.VendedorId IN @VendedorIds
-                AND UPPER(
-                    LTRIM(
-                        RTRIM(
-                            ISNULL(cs.U_CANAL, '')
-                        )
-                    )
-                ) NOT LIKE 'CEDIS%'
-            )
-          )
-
-    GROUP BY
-        COALESCE(
-            NULLIF(UPPER(LTRIM(RTRIM(a.U_MASTER))), ''),
-            'SIN_MASTER'
-        )
-),
-
-PresupuestoVendedorBase AS
-(
-    /* ============================================================
-       PRESUPUESTO DE VENDEDORES NORMALES
-       Fuente: dbo.PresupuestoVendedor
-
-       No se usan aquí los vendedores que estén ligados a CEDIS,
-       ya que el presupuesto del CEDIS sale de PresupuestoCedis.
-       ============================================================ */
-    SELECT
-        Master = COALESCE(
-            NULLIF(UPPER(LTRIM(RTRIM(a.U_MASTER))), ''),
-            'SIN_MASTER'
-        ),
-
-        Presupuesto = CAST(
-            ISNULL(p.PresupuestoAsignado, 0)
-            AS DECIMAL(18,4)
-        )
-
-    FROM dbo.PresupuestoVendedor p WITH (NOLOCK)
-
-    INNER JOIN dbo.ArticuloSap a WITH (NOLOCK)
-        ON a.ProductoCodigo = p.ProductoCodigo
-
-    WHERE p.Anio = @Anio
-      AND p.Mes = @Mes
-
-      /* SOLO PRIMARIO / SECUNDARIO */
-      AND TRY_CONVERT(
-            int,
-            NULLIF(LTRIM(RTRIM(a.U_TipoporSKU)), '')
-          ) IN (1, 2)
-
-      /* Evitar tomar como vendedor normal un presupuesto de CEDIS */
-      AND NOT EXISTS
-      (
-          SELECT 1
-          FROM dbo.ClienteSap cx WITH (NOLOCK)
-          WHERE cx.VendedorId = p.VendedorId
-            AND UPPER(
-                LTRIM(
-                    RTRIM(
-                        ISNULL(cx.U_CANAL, '')
-                    )
-                )
-            ) LIKE 'CEDIS%'
-      )
-
-      AND (
-            @TieneMaster = 0
-            OR COALESCE(
-                NULLIF(UPPER(LTRIM(RTRIM(a.U_MASTER))), ''),
-                'SIN_MASTER'
-            ) IN @Masters
-          )
-
-      AND (
-            @TieneSku = 0
-            OR UPPER(
-                LTRIM(
-                    RTRIM(
-                        ISNULL(p.ProductoCodigo, '')
-                    )
-                )
-            ) IN @Skus
-          )
-
-      AND (
-            @TieneVendedor = 0
-            OR p.VendedorId IN @VendedorIds
-          )
-),
-
-PresupuestoCedisBase AS
-(
-    /* ============================================================
-       PRESUPUESTO DE CEDIS
-       Fuente: dbo.PresupuestoCedis
-
-       La llave es:
-           PresupuestoCedis.Canal
-                   =
-           ClienteSap.U_CANAL
-
-       Ejemplo:
-           CEDIS-MXL = CEDIS-MXL
-
-       El Máster se toma desde ArticuloSap según ProductoCodigo,
-       para no depender de que PresupuestoCedis.Master esté actualizado.
-       ============================================================ */
-    SELECT
-        Master = COALESCE(
-            NULLIF(UPPER(LTRIM(RTRIM(a.U_MASTER))), ''),
-            'SIN_MASTER'
-        ),
-
-        Presupuesto = CAST(
-            ISNULL(pc.PresupuestoAsignado, 0)
-            AS DECIMAL(18,4)
-        )
-
-    FROM dbo.PresupuestoCedis pc WITH (NOLOCK)
-
-    INNER JOIN dbo.ArticuloSap a WITH (NOLOCK)
-        ON a.ProductoCodigo = pc.ProductoCodigo
-
-    WHERE pc.Anio = @Anio
-      AND pc.Mes = @Mes
-
-      AND NULLIF(
-            LTRIM(
-                RTRIM(
-                    ISNULL(pc.Canal, '')
-                )
-            ),
-            ''
-          ) IS NOT NULL
-
-      /* SOLO PRIMARIO / SECUNDARIO */
-      AND TRY_CONVERT(
-            int,
-            NULLIF(LTRIM(RTRIM(a.U_TipoporSKU)), '')
-          ) IN (1, 2)
-
-      AND (
-            @TieneMaster = 0
-            OR COALESCE(
-                NULLIF(UPPER(LTRIM(RTRIM(a.U_MASTER))), ''),
-                'SIN_MASTER'
-            ) IN @Masters
-          )
-
-      AND (
-            @TieneSku = 0
-            OR UPPER(
-                LTRIM(
-                    RTRIM(
-                        ISNULL(pc.ProductoCodigo, '')
-                    )
-                )
-            ) IN @Skus
-          )
-
-      AND (
-            @TieneVendedor = 0
-            OR UPPER(
-                LTRIM(
-                    RTRIM(
-                        pc.Canal
-                    )
-                )
-            ) IN @CanalesCedis
-          )
-),
-
-PresupuestoBase AS
-(
-    SELECT
-        Master,
-        Presupuesto
-    FROM PresupuestoVendedorBase
-
-    UNION ALL
-
-    SELECT
-        Master,
-        Presupuesto
-    FROM PresupuestoCedisBase
-),
-
-Presupuesto AS
-(
-    SELECT
-        Master,
-        PresupuestoMensual = SUM(Presupuesto)
-    FROM PresupuestoBase
-    GROUP BY Master
-)
-
-SELECT
-    Master =
-        COALESCE(
-            v.Master,
-            p.Master
-        ),
-
-    VentaReal =
-        CAST(
-            ISNULL(v.VentaReal, 0)
-            AS DECIMAL(18,4)
-        ),
-
-    PresupuestoMensual =
-        CAST(
-            ISNULL(p.PresupuestoMensual, 0)
-            AS DECIMAL(18,4)
-        )
-
-FROM Ventas v
-
-FULL OUTER JOIN Presupuesto p
-    ON p.Master = v.Master
-
-WHERE
-       ISNULL(v.VentaReal, 0) <> 0
-    OR ISNULL(p.PresupuestoMensual, 0) <> 0
-
-OPTION (RECOMPILE);";
-
-            await using var con = await AbrirConexionAsync(ct);
-
-            var rows = (
-                await con.QueryAsync<MasterSqlRow>(
-                    new CommandDefinition(
-                        sql,
-                        new
-                        {
-                            Inicio = inicio,
-                            FinExclusivo = finExclusivo,
-                            Anio = anio,
-                            Mes = mes,
-                            filtros.TieneMaster,
-                            filtros.TieneSku,
-                            filtros.TieneVendedor,
-                            Masters = filtros.MastersSql,
-                            Skus = filtros.SkusSql,
-                            VendedorIds = filtros.VendedorIdsSql,
-                            CanalesCedis = filtros.CanalesCedisSql
-                        },
-                        commandTimeout: 60,
-                        cancellationToken: ct
-                    )
-                )
-            ).ToList();
+            var rows = baseRows
+                .GroupBy(x => string.IsNullOrWhiteSpace(x.Master)
+                    ? "SIN_MASTER"
+                    : x.Master)
+                .Select(g => new MasterSqlRow
+                {
+                    Master = g.Key,
+                    VentaReal = g.Sum(x => x.VentaReal),
+                    PresupuestoMensual = g.Sum(x => x.PresupuestoMensual)
+                })
+                .ToList();
 
             var temp = rows
                 .Select(x =>
                 {
-                    var alcance =
-                        x.PresupuestoMensual * factorAlcance;
+                    var alcance = x.PresupuestoMensual * factorAlcance;
 
-                    var referencia =
-                        modo == "alcance"
-                            ? alcance
-                            : x.PresupuestoMensual;
+                    var referencia = modo == "alcance"
+                        ? alcance
+                        : x.PresupuestoMensual;
 
                     return new DashboardMasterItemVm
                     {
-                        Master =
-                            string.IsNullOrWhiteSpace(x.Master)
-                                ? "SIN_MASTER"
-                                : x.Master,
-
-                        VentaReal =
-                            Redondear(x.VentaReal),
-
-                        PresupuestoMensual =
-                            Redondear(x.PresupuestoMensual),
-
-                        Alcance =
-                            Redondear(alcance),
-
-                        Referencia =
-                            Redondear(referencia),
-
-                        AvancePct =
-                            referencia > 0
-                                ? Redondear(
-                                    x.VentaReal /
-                                    referencia *
-                                    100m)
-                                : 0m
+                        Master = string.IsNullOrWhiteSpace(x.Master)
+                            ? "SIN_MASTER"
+                            : x.Master,
+                        VentaReal = Redondear(x.VentaReal),
+                        PresupuestoMensual = Redondear(x.PresupuestoMensual),
+                        Alcance = Redondear(alcance),
+                        Referencia = Redondear(referencia),
+                        AvancePct = referencia > 0
+                            ? Redondear(x.VentaReal / referencia * 100m)
+                            : 0m
                     };
                 })
                 .ToList();
 
-            var totalReferencia =
-                temp.Sum(x => x.Referencia);
+            var totalReferencia = temp.Sum(x => x.Referencia);
 
             foreach (var item in temp)
             {
-                item.ParticipacionPct =
-                    totalReferencia > 0
-                        ? Redondear(
-                            item.Referencia /
-                            totalReferencia *
-                            100m)
-                        : 0m;
+                item.ParticipacionPct = totalReferencia > 0
+                    ? Redondear(item.Referencia / totalReferencia * 100m)
+                    : 0m;
             }
 
             return Json(
@@ -950,18 +500,9 @@ OPTION (RECOMPILE);";
             );
         }
 
-
         // ============================================================
         // 2) VENTAS X VENDEDOR / SUCURSAL
-        //
-        // CEDIS:
-        // - Se identifica por ClienteSap.U_CANAL LIKE 'CEDIS%'.
-        // - Se agrupa por U_CANAL.
-        // - Se muestra U_CANAL como nombre.
-        //
-        // VENDEDOR NORMAL:
-        // - Se agrupa por VendedorId.
-        // - Se muestra VendedorNombre.
+        // CEDIS y VENDEDOR usan exactamente la misma base que Resumen.
         // ============================================================
         [HttpGet("DashboardVentasVendedor")]
         public async Task<IActionResult> VentasPorVendedor(
@@ -1000,375 +541,57 @@ OPTION (RECOMPILE);";
 
             var modo = NormalizarComparacion(compararContra);
 
-            const string sql = @"
-;WITH VentasBase AS
-(
-    /* ============================================================
-       VENTA REAL
-       - CEDIS: se identifica y agrupa por ClienteSap.U_CANAL.
-       - Vendedor normal: se agrupa por ClienteSap.VendedorId.
-       - Sólo SKU Tipo 1=PRIMARIO y 2=SECUNDARIO.
-       ============================================================ */
-    SELECT
-        Grupo =
-            CASE
-                WHEN UPPER(LTRIM(RTRIM(ISNULL(cs.U_CANAL, '')))) LIKE 'CEDIS%'
-                    THEN 'CEDIS|' + UPPER(LTRIM(RTRIM(cs.U_CANAL)))
-                ELSE 'VENDEDOR|' + CONVERT(VARCHAR(20), ISNULL(cs.VendedorId, 0))
-            END,
+            var baseRows = await ObtenerPresupuestoVentaDashboardAsync(
+                inicio,
+                finExclusivo,
+                anio,
+                mes,
+                filtros,
+                ct);
 
-        VendedorId =
-            CASE
-                WHEN UPPER(LTRIM(RTRIM(ISNULL(cs.U_CANAL, '')))) LIKE 'CEDIS%'
-                    THEN 0
-                ELSE ISNULL(cs.VendedorId, 0)
-            END,
-
-        Vendedor =
-            CASE
-                WHEN UPPER(LTRIM(RTRIM(ISNULL(cs.U_CANAL, '')))) LIKE 'CEDIS%'
-                    THEN UPPER(LTRIM(RTRIM(cs.U_CANAL)))
-                ELSE COALESCE(
-                    NULLIF(LTRIM(RTRIM(cs.VendedorNombre)), ''),
-                    CASE
-                        WHEN ISNULL(cs.VendedorId, 0) = 0
-                            THEN 'SIN VENDEDOR'
-                        ELSE CONCAT('VENDEDOR ', ISNULL(cs.VendedorId, 0))
-                    END
-                )
-            END,
-
-        Kg = CAST(ISNULL(sd.Kg, 0) AS DECIMAL(18,4))
-
-    FROM dbo.SurtidoEncabezado se WITH (NOLOCK)
-
-    INNER JOIN dbo.SurtidoDetalle sd WITH (NOLOCK)
-        ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
-
-    INNER JOIN dbo.ArticuloSap a WITH (NOLOCK)
-        ON a.ProductoCodigo = sd.Articulo
-
-    LEFT JOIN dbo.ClienteSap cs WITH (NOLOCK)
-        ON cs.Cliente = se.CodigoSap
-
-    WHERE se.FechaValidacion >= @Inicio
-      AND se.FechaValidacion <  @FinExclusivo
-
-      /* ÚNICAMENTE PRIMARIO Y SECUNDARIO */
-      AND TRY_CONVERT(
-            int,
-            NULLIF(LTRIM(RTRIM(a.U_TipoporSKU)), '')
-          ) IN (1, 2)
-
-      AND (
-            @TieneMaster = 0
-            OR COALESCE(
-                NULLIF(UPPER(LTRIM(RTRIM(a.U_MASTER))), ''),
-                'SIN_MASTER'
-            ) IN @Masters
-          )
-
-      AND (
-            @TieneSku = 0
-            OR UPPER(LTRIM(RTRIM(ISNULL(sd.Articulo, '')))) IN @Skus
-          )
-
-      AND (
-            @TieneVendedor = 0
-
-            /* CEDIS seleccionado */
-            OR UPPER(LTRIM(RTRIM(ISNULL(cs.U_CANAL, '')))) IN @CanalesCedis
-
-            /* VENDEDOR NORMAL seleccionado */
-            OR (
-                cs.VendedorId IN @VendedorIds
-                AND UPPER(LTRIM(RTRIM(ISNULL(cs.U_CANAL, '')))) NOT LIKE 'CEDIS%'
-            )
-          )
-),
-
-Ventas AS
-(
-    SELECT
-        Grupo,
-        VendedorId = MAX(VendedorId),
-        Vendedor = MAX(Vendedor),
-        VentaReal = SUM(Kg)
-    FROM VentasBase
-    GROUP BY Grupo
-),
-
-PresupuestoVendedorBase AS
-(
-    /* ============================================================
-       PRESUPUESTO DE VENDEDORES NORMALES
-       Fuente: dbo.PresupuestoVendedor
-
-       Importante:
-       Si el VendedorId pertenece a clientes CEDIS, NO se usa aquí.
-       El CEDIS se presupuestará exclusivamente desde PresupuestoCedis.
-       ============================================================ */
-    SELECT
-        Grupo =
-            'VENDEDOR|' + CONVERT(VARCHAR(20), p.VendedorId),
-
-        VendedorId = p.VendedorId,
-
-        Vendedor = COALESCE(
-            NULLIF(
-                (
-                    SELECT TOP (1)
-                        LTRIM(RTRIM(cv.VendedorNombre))
-                    FROM dbo.ClienteSap cv WITH (NOLOCK)
-                    WHERE cv.VendedorId = p.VendedorId
-                      AND UPPER(LTRIM(RTRIM(ISNULL(cv.U_CANAL, '')))) NOT LIKE 'CEDIS%'
-                      AND NULLIF(LTRIM(RTRIM(ISNULL(cv.VendedorNombre, ''))), '') IS NOT NULL
-                    ORDER BY cv.Cliente
-                ),
-                ''
-            ),
-            CONCAT('VENDEDOR ', p.VendedorId)
-        ),
-
-        Presupuesto = CAST(
-            ISNULL(p.PresupuestoAsignado, 0)
-            AS DECIMAL(18,4)
-        )
-
-    FROM dbo.PresupuestoVendedor p WITH (NOLOCK)
-
-    INNER JOIN dbo.ArticuloSap a WITH (NOLOCK)
-        ON a.ProductoCodigo = p.ProductoCodigo
-
-    WHERE p.Anio = @Anio
-      AND p.Mes = @Mes
-
-      /* ÚNICAMENTE PRIMARIO Y SECUNDARIO */
-      AND TRY_CONVERT(
-            int,
-            NULLIF(LTRIM(RTRIM(a.U_TipoporSKU)), '')
-          ) IN (1, 2)
-
-      /* No mezclar presupuesto de vendedor con presupuesto CEDIS */
-      AND NOT EXISTS
-      (
-          SELECT 1
-          FROM dbo.ClienteSap cx WITH (NOLOCK)
-          WHERE cx.VendedorId = p.VendedorId
-            AND UPPER(LTRIM(RTRIM(ISNULL(cx.U_CANAL, '')))) LIKE 'CEDIS%'
-      )
-
-      AND (
-            @TieneMaster = 0
-            OR COALESCE(
-                NULLIF(UPPER(LTRIM(RTRIM(a.U_MASTER))), ''),
-                'SIN_MASTER'
-            ) IN @Masters
-          )
-
-      AND (
-            @TieneSku = 0
-            OR UPPER(LTRIM(RTRIM(ISNULL(p.ProductoCodigo, '')))) IN @Skus
-          )
-
-      AND (
-            @TieneVendedor = 0
-            OR p.VendedorId IN @VendedorIds
-          )
-),
-
-PresupuestoCedisBase AS
-(
-    /* ============================================================
-       PRESUPUESTO DE CEDIS
-       Fuente correcta: dbo.PresupuestoCedis
-       Relación: PresupuestoCedis.Canal = ClienteSap.U_CANAL
-       ============================================================ */
-    SELECT
-        Grupo =
-            'CEDIS|' + UPPER(LTRIM(RTRIM(pc.Canal))),
-
-        VendedorId = 0,
-
-        Vendedor =
-            UPPER(LTRIM(RTRIM(pc.Canal))),
-
-        Presupuesto = CAST(
-            ISNULL(pc.PresupuestoAsignado, 0)
-            AS DECIMAL(18,4)
-        )
-
-    FROM dbo.PresupuestoCedis pc WITH (NOLOCK)
-
-    INNER JOIN dbo.ArticuloSap a WITH (NOLOCK)
-        ON a.ProductoCodigo = pc.ProductoCodigo
-
-    WHERE pc.Anio = @Anio
-      AND pc.Mes = @Mes
-
-      AND NULLIF(
-            LTRIM(RTRIM(ISNULL(pc.Canal, ''))),
-            ''
-          ) IS NOT NULL
-
-      /* ÚNICAMENTE PRIMARIO Y SECUNDARIO */
-      AND TRY_CONVERT(
-            int,
-            NULLIF(LTRIM(RTRIM(a.U_TipoporSKU)), '')
-          ) IN (1, 2)
-
-      AND (
-            @TieneMaster = 0
-            OR COALESCE(
-                NULLIF(UPPER(LTRIM(RTRIM(a.U_MASTER))), ''),
-                'SIN_MASTER'
-            ) IN @Masters
-          )
-
-      AND (
-            @TieneSku = 0
-            OR UPPER(LTRIM(RTRIM(ISNULL(pc.ProductoCodigo, '')))) IN @Skus
-          )
-
-      AND (
-            @TieneVendedor = 0
-            OR UPPER(LTRIM(RTRIM(pc.Canal))) IN @CanalesCedis
-          )
-),
-
-PresupuestoBase AS
-(
-    SELECT
-        Grupo,
-        VendedorId,
-        Vendedor,
-        Presupuesto
-    FROM PresupuestoVendedorBase
-
-    UNION ALL
-
-    SELECT
-        Grupo,
-        VendedorId,
-        Vendedor,
-        Presupuesto
-    FROM PresupuestoCedisBase
-),
-
-Presupuesto AS
-(
-    SELECT
-        Grupo,
-        VendedorId = MAX(VendedorId),
-        Vendedor = MAX(Vendedor),
-        PresupuestoMensual = SUM(Presupuesto)
-    FROM PresupuestoBase
-    GROUP BY Grupo
-)
-
-SELECT
-    VendedorId =
-        COALESCE(v.VendedorId, p.VendedorId, 0),
-
-    Vendedor =
-        COALESCE(
-            NULLIF(v.Vendedor, ''),
-            NULLIF(p.Vendedor, ''),
-            'SIN VENDEDOR'
-        ),
-
-    VentaReal =
-        CAST(
-            ISNULL(v.VentaReal, 0)
-            AS DECIMAL(18,4)
-        ),
-
-    PresupuestoMensual =
-        CAST(
-            ISNULL(p.PresupuestoMensual, 0)
-            AS DECIMAL(18,4)
-        )
-
-FROM Ventas v
-
-FULL OUTER JOIN Presupuesto p
-    ON p.Grupo = v.Grupo
-
-WHERE
-       ISNULL(v.VentaReal, 0) <> 0
-    OR ISNULL(p.PresupuestoMensual, 0) <> 0
-
-ORDER BY
-    VentaReal DESC,
-    Vendedor
-
-OPTION (RECOMPILE);";
-
-            await using var con = await AbrirConexionAsync(ct);
-
-            var rows = (
-                await con.QueryAsync<VendedorSqlRow>(
-                    new CommandDefinition(
-                        sql,
-                        new
-                        {
-                            Inicio = inicio,
-                            FinExclusivo = finExclusivo,
-                            Anio = anio,
-                            Mes = mes,
-                            filtros.TieneMaster,
-                            filtros.TieneSku,
-                            filtros.TieneVendedor,
-                            Masters = filtros.MastersSql,
-                            Skus = filtros.SkusSql,
-                            VendedorIds = filtros.VendedorIdsSql,
-                            CanalesCedis = filtros.CanalesCedisSql
-                        },
-                        commandTimeout: 60,
-                        cancellationToken: ct
-                    )
-                )
-            ).ToList();
+            var rows = baseRows
+                .GroupBy(x => new
+                {
+                    x.Origen,
+                    Grupo = x.Origen == "CEDIS"
+                        ? (x.Canal ?? "")
+                        : x.VendedorId.ToString()
+                })
+                .Select(g => new VendedorSqlRow
+                {
+                    VendedorId = g.Key.Origen == "CEDIS"
+                        ? 0
+                        : g.First().VendedorId,
+                    Vendedor = g.Key.Origen == "CEDIS"
+                        ? (g.First().Canal ?? "SIN CEDIS")
+                        : (g.First().Vendedor ?? "SIN VENDEDOR"),
+                    VentaReal = g.Sum(x => x.VentaReal),
+                    PresupuestoMensual = g.Sum(x => x.PresupuestoMensual)
+                })
+                .ToList();
 
             var result = rows
                 .Select(x =>
                 {
-                    var alcance =
-                        x.PresupuestoMensual * factorAlcance;
+                    var alcance = x.PresupuestoMensual * factorAlcance;
 
-                    var referencia =
-                        modo == "alcance"
-                            ? alcance
-                            : x.PresupuestoMensual;
+                    var referencia = modo == "alcance"
+                        ? alcance
+                        : x.PresupuestoMensual;
 
                     return new DashboardVendedorItemVm
                     {
                         VendedorId = x.VendedorId,
-
-                        Vendedor =
-                            string.IsNullOrWhiteSpace(x.Vendedor)
-                                ? "SIN VENDEDOR"
-                                : x.Vendedor,
-
-                        VentaReal =
-                            Redondear(x.VentaReal),
-
-                        PresupuestoMensual =
-                            Redondear(x.PresupuestoMensual),
-
-                        Alcance =
-                            Redondear(alcance),
-
-                        Referencia =
-                            Redondear(referencia),
-
-                        CumplimientoPct =
-                            referencia > 0
-                                ? Redondear(
-                                    x.VentaReal /
-                                    referencia *
-                                    100m)
-                                : 0m
+                        Vendedor = string.IsNullOrWhiteSpace(x.Vendedor)
+                            ? "SIN VENDEDOR"
+                            : x.Vendedor,
+                        VentaReal = Redondear(x.VentaReal),
+                        PresupuestoMensual = Redondear(x.PresupuestoMensual),
+                        Alcance = Redondear(alcance),
+                        Referencia = Redondear(referencia),
+                        CumplimientoPct = referencia > 0
+                            ? Redondear(x.VentaReal / referencia * 100m)
+                            : 0m
                     };
                 })
                 .OrderByDescending(x => x.VentaReal)
@@ -1378,7 +601,6 @@ OPTION (RECOMPILE);";
 
             return Json(result);
         }
-
 
         // ============================================================
         // 3) ANÁLISIS DE PRECIOS (POR SKU)
@@ -1416,7 +638,7 @@ OPTION (RECOMPILE);";
             var filtros = PrepararFiltrosDashboard(master, sku, vendedorId);
 
             const string sql = @"
-;WITH PrecioBase AS
+WITH PrecioBase AS
 (
     SELECT
         Grupo =
@@ -1486,27 +708,26 @@ OPTION (RECOMPILE);";
             LTRIM(RTRIM(ISNULL(op.ProductoCodigo, ''))),
             ''
           ) IS NOT NULL
-      AND TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(a.U_TipoporSKU)), '')) IN (1, 2)
       AND (
             @TieneMaster = 0
             OR COALESCE(
                 NULLIF(UPPER(LTRIM(RTRIM(a.U_MASTER))), ''),
                 'SIN_MASTER'
-            ) IN @Masters
+            ) IN (SELECT UPPER(LTRIM(RTRIM(value))) FROM STRING_SPLIT(@MastersCsv, ',') WHERE NULLIF(LTRIM(RTRIM(value)), '') IS NOT NULL)
           )
       AND (
             @TieneSku = 0
-            OR UPPER(LTRIM(RTRIM(ISNULL(op.ProductoCodigo, '')))) IN @Skus
+            OR UPPER(LTRIM(RTRIM(ISNULL(op.ProductoCodigo, '')))) IN (SELECT UPPER(LTRIM(RTRIM(value))) FROM STRING_SPLIT(@SkusCsv, ',') WHERE NULLIF(LTRIM(RTRIM(value)), '') IS NOT NULL)
           )
       AND (
             @TieneVendedor = 0
-            OR UPPER(LTRIM(RTRIM(ISNULL(cs.U_CANAL, '')))) IN @CanalesCedis
+            OR UPPER(LTRIM(RTRIM(ISNULL(cs.U_CANAL, '')))) IN (SELECT UPPER(LTRIM(RTRIM(value))) FROM STRING_SPLIT(@CanalesCsv, ',') WHERE NULLIF(LTRIM(RTRIM(value)), '') IS NOT NULL)
             OR (
                 COALESCE(
                     NULLIF(o.VendedorId, 0),
                     cs.VendedorId,
                     0
-                ) IN @VendedorIds
+                ) IN (SELECT TRY_CONVERT(int, value) FROM STRING_SPLIT(@VendedorIdsCsv, ',') WHERE TRY_CONVERT(int, value) IS NOT NULL)
                 AND UPPER(LTRIM(RTRIM(ISNULL(cs.U_CANAL, '')))) NOT LIKE 'CEDIS%'
             )
           )
@@ -1545,7 +766,11 @@ OPTION (RECOMPILE);";
                             Masters = filtros.MastersSql,
                             Skus = filtros.SkusSql,
                             VendedorIds = filtros.VendedorIdsSql,
-                            CanalesCedis = filtros.CanalesCedisSql
+                            CanalesCedis = filtros.CanalesCedisSql,
+                            MastersCsv = string.Join(",", filtros.Masters),
+                            SkusCsv = string.Join(",", filtros.Skus),
+                            VendedorIdsCsv = string.Join(",", filtros.VendedorIds),
+                            CanalesCsv = string.Join(",", filtros.CanalesCedis)
                         },
                         commandTimeout: 60,
                         cancellationToken: ct
@@ -1575,7 +800,9 @@ OPTION (RECOMPILE);";
 
         // ============================================================
         // 4) TENDENCIA ACUMULADA
-        // Venta diaria real = SurtidoDetalle.Kg por FechaValidacion.
+        // La venta acumulada utiliza las mismas reglas del reporte:
+        // - CEDIS = venta bruta - devoluciones de bodega, mínimo 0 por SKU/CEDIS.
+        // - VENDEDOR = surtido normal + distribución proporcional del CEDIS.
         // ============================================================
         [HttpGet("DashboardVentasTendencia")]
         public async Task<IActionResult> Tendencia(
@@ -1593,7 +820,7 @@ OPTION (RECOMPILE);";
                     dia,
                     out var inicio,
                     out var fechaCorte,
-                    out _,
+                    out var finExclusivo,
                     out var error))
             {
                 return BadRequest(new { error });
@@ -1604,143 +831,90 @@ OPTION (RECOMPILE);";
             var finMes = inicio.AddMonths(1).AddDays(-1);
             var laborables = FechasLaborables(inicio, finMes).ToList();
 
-            const string sql = @"
-/* VENTA REAL DIARIA FILTRADA */
-SELECT
-    Fecha = CAST(se.FechaValidacion AS date),
-    Kilos = CAST(
-        SUM(CAST(ISNULL(sd.Kg, 0) AS DECIMAL(18,4)))
-        AS DECIMAL(18,4)
-    )
-FROM dbo.SurtidoEncabezado se WITH (NOLOCK)
-INNER JOIN dbo.SurtidoDetalle sd WITH (NOLOCK)
-    ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
-INNER JOIN dbo.ArticuloSap a WITH (NOLOCK)
-    ON a.ProductoCodigo = sd.Articulo
-LEFT JOIN dbo.ClienteSap cs WITH (NOLOCK)
-    ON cs.Cliente = se.CodigoSap
-WHERE se.FechaValidacion >= @Inicio
-  AND se.FechaValidacion <  @FinMesExclusivo
-  AND TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(a.U_TipoporSKU)), '')) IN (1, 2)
-  AND (
-        @TieneMaster = 0
-        OR COALESCE(
-            NULLIF(UPPER(LTRIM(RTRIM(a.U_MASTER))), ''),
-            'SIN_MASTER'
-        ) IN @Masters
-      )
-  AND (
-        @TieneSku = 0
-        OR UPPER(LTRIM(RTRIM(ISNULL(sd.Articulo, '')))) IN @Skus
-      )
-  AND (
-        @TieneVendedor = 0
-        OR UPPER(LTRIM(RTRIM(ISNULL(cs.U_CANAL, '')))) IN @CanalesCedis
-        OR (
-            cs.VendedorId IN @VendedorIds
-            AND UPPER(LTRIM(RTRIM(ISNULL(cs.U_CANAL, '')))) NOT LIKE 'CEDIS%'
-        )
-      )
-GROUP BY CAST(se.FechaValidacion AS date)
-ORDER BY Fecha;
+            var baseRows = await ObtenerPresupuestoVentaDashboardAsync(
+                inicio,
+                finExclusivo,
+                anio,
+                mes,
+                filtros,
+                ct);
 
-/* PRESUPUESTO PARA CURVA DE ALCANCE */
-SELECT
-    PresupuestoMensual = CAST(
-        ISNULL(
-            SUM(CAST(ISNULL(p.PresupuestoAsignado, 0) AS DECIMAL(18,4))),
-            0
-        )
-        AS DECIMAL(18,4)
-    )
-FROM dbo.PresupuestoVendedor p WITH (NOLOCK)
-LEFT JOIN dbo.ArticuloSap a WITH (NOLOCK)
-    ON a.ProductoCodigo = p.ProductoCodigo
-WHERE p.Anio = @Anio
-  AND p.Mes = @Mes
-  AND TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(a.U_TipoporSKU)), '')) IN (1, 2)
-  AND (
-        @TieneMaster = 0
-        OR COALESCE(
-            NULLIF(UPPER(LTRIM(RTRIM(a.U_MASTER))), ''),
-            'SIN_MASTER'
-        ) IN @Masters
-      )
-  AND (
-        @TieneSku = 0
-        OR UPPER(LTRIM(RTRIM(ISNULL(p.ProductoCodigo, '')))) IN @Skus
-      )
-  AND (
-        @TieneVendedor = 0
-        OR p.VendedorId IN @VendedorIds
-        OR EXISTS
-        (
-            SELECT 1
-            FROM dbo.ClienteSap cv WITH (NOLOCK)
-            WHERE cv.VendedorId = p.VendedorId
-              AND UPPER(LTRIM(RTRIM(ISNULL(cv.U_CANAL, '')))) IN @CanalesCedis
-        )
-      )
-OPTION (RECOMPILE);";
+            var presupuestoMensual = baseRows.Sum(x => x.PresupuestoMensual);
 
-            await using var con = await AbrirConexionAsync(ct);
+            var eventos = await ObtenerEventosVentaDashboardAsync(
+                inicio,
+                inicio.AddMonths(1),
+                anio,
+                mes,
+                filtros,
+                ct);
 
-            using var multi = await con.QueryMultipleAsync(
-                new CommandDefinition(
-                    sql,
-                    new
-                    {
-                        Inicio = inicio,
-                        FinMesExclusivo = inicio.AddMonths(1),
-                        Anio = anio,
-                        Mes = mes,
-                        filtros.TieneMaster,
-                        filtros.TieneSku,
-                        filtros.TieneVendedor,
-                        Masters = filtros.MastersSql,
-                        Skus = filtros.SkusSql,
-                        VendedorIds = filtros.VendedorIdsSql,
-                        CanalesCedis = filtros.CanalesCedisSql
-                    },
-                    commandTimeout: 60,
-                    cancellationToken: ct));
-
-            var ventasDiarias = (
-                await multi.ReadAsync<VentaDiaSqlRow>()
-            ).ToList();
-
-            var presupuesto =
-                await multi.ReadSingleAsync<ResumenPresupuestoSql>();
-
-            var ventaPorFecha = ventasDiarias
+            var eventosPorFecha = eventos
                 .GroupBy(x => x.Fecha.Date)
-                .ToDictionary(
-                    g => g.Key,
-                    g => g.Sum(x => x.Kilos));
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            var estados = new Dictionary<string, EstadoVentaAcumulada>(
+                StringComparer.OrdinalIgnoreCase);
 
             var result = new List<DashboardTendenciaItemVm>();
 
-            decimal acumulado = 0m;
             var cursor = inicio;
             var indiceLaboral = 0;
 
             while (cursor <= finMes)
             {
-                if (ventaPorFecha.TryGetValue(cursor.Date, out var kgDia))
-                    acumulado += kgDia;
+                if (eventosPorFecha.TryGetValue(cursor.Date, out var eventosDia))
+                {
+                    foreach (var evento in eventosDia)
+                    {
+                        var key = evento.Origen == "CEDIS"
+                            ? $"CEDIS|{evento.Canal}|{evento.Sku}"
+                            : $"VENDEDOR|{evento.VendedorId}|{evento.Sku}";
+
+                        if (!estados.TryGetValue(key, out var estado))
+                        {
+                            estado = new EstadoVentaAcumulada
+                            {
+                                Origen = evento.Origen
+                            };
+                            estados[key] = estado;
+                        }
+
+                        if (evento.Origen == "CEDIS")
+                        {
+                            estado.VentaBruta += evento.VentaBruta;
+                            estado.Devoluciones += evento.Devoluciones;
+                        }
+                        else
+                        {
+                            estado.VentaVendedor += evento.VentaVendedor;
+                        }
+                    }
+                }
 
                 if (EsDiaLaboral(cursor))
                 {
                     indiceLaboral++;
 
+                    var ventaAcumulada = estados.Values.Sum(estado =>
+                    {
+                        if (estado.Origen == "CEDIS")
+                        {
+                            var neta = estado.VentaBruta - estado.Devoluciones;
+                            return neta < 0 ? 0m : neta;
+                        }
+
+                        return estado.VentaVendedor;
+                    });
+
                     var alcance = laborables.Count > 0
-                        ? presupuesto.PresupuestoMensual
+                        ? presupuestoMensual
                             * indiceLaboral
                             / laborables.Count
                         : 0m;
 
                     decimal? real = cursor <= fechaCorte
-                        ? Redondear(acumulado)
+                        ? Redondear(ventaAcumulada)
                         : null;
 
                     decimal? brecha = real.HasValue
@@ -1762,10 +936,781 @@ OPTION (RECOMPILE);";
 
             return Json(new DashboardTendenciaVm
             {
-                PresupuestoMensual = Redondear(presupuesto.PresupuestoMensual),
+                PresupuestoMensual = Redondear(presupuestoMensual),
                 DiasLaborablesMes = laborables.Count,
                 Items = result
             });
+        }
+
+        // ============================================================
+        // BASE ÚNICA DE PRESUPUESTO / VENTA REAL
+        // ============================================================
+        private async Task<List<PresupuestoVentaSqlRow>> ObtenerPresupuestoVentaDashboardAsync(
+            DateTime inicio,
+            DateTime finExclusivo,
+            int anio,
+            int mes,
+            DashboardFiltrosInternos filtros,
+            CancellationToken ct)
+        {
+            const string sql = @"
+;WITH Productos AS
+(
+    SELECT
+        SKU = UPPER(LTRIM(RTRIM(a.ProductoCodigo))),
+        Master = COALESCE(
+            NULLIF(UPPER(LTRIM(RTRIM(a.U_MASTER))), ''),
+            'SIN_MASTER'
+        )
+    FROM dbo.ArticuloSap a WITH (NOLOCK)
+    WHERE NULLIF(LTRIM(RTRIM(ISNULL(a.ProductoCodigo, ''))), '') IS NOT NULL
+),
+Clientes AS
+(
+    SELECT
+        Cliente = UPPER(LTRIM(RTRIM(c.Cliente))),
+        VendedorId = c.VendedorId,
+        VendedorNombre = LTRIM(RTRIM(ISNULL(c.VendedorNombre, ''))),
+        Canal = UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, ''))))
+    FROM dbo.ClienteSap c WITH (NOLOCK)
+),
+Vendedores AS
+(
+    SELECT
+        VendedorId,
+        VendedorNombre = COALESCE(
+            NULLIF(MAX(VendedorNombre), ''),
+            CONCAT('VENDEDOR ', VendedorId)
+        )
+    FROM Clientes
+    WHERE VendedorId IS NOT NULL
+    GROUP BY VendedorId
+),
+CanalVendedores AS
+(
+    SELECT DISTINCT
+        Canal,
+        VendedorId
+    FROM Clientes
+    WHERE VendedorId IS NOT NULL
+      AND Canal LIKE 'CEDIS%'
+),
+PresupuestoVendedor AS
+(
+    SELECT
+        VendedorId = pv.VendedorId,
+        SKU = UPPER(LTRIM(RTRIM(pv.ProductoCodigo))),
+        Presupuesto = SUM(CAST(ISNULL(pv.PresupuestoAsignado, 0) AS DECIMAL(18,4)))
+    FROM dbo.PresupuestoVendedor pv WITH (NOLOCK)
+    WHERE pv.Anio = @Anio
+      AND pv.Mes = @Mes
+    GROUP BY
+        pv.VendedorId,
+        UPPER(LTRIM(RTRIM(pv.ProductoCodigo)))
+),
+PresupuestoCedis AS
+(
+    SELECT
+        Canal = UPPER(LTRIM(RTRIM(pc.Canal))),
+        SKU = UPPER(LTRIM(RTRIM(pc.ProductoCodigo))),
+        Presupuesto = SUM(CAST(ISNULL(pc.PresupuestoAsignado, 0) AS DECIMAL(18,4)))
+    FROM dbo.PresupuestoCedis pc WITH (NOLOCK)
+    WHERE pc.Anio = @Anio
+      AND pc.Mes = @Mes
+    GROUP BY
+        UPPER(LTRIM(RTRIM(pc.Canal))),
+        UPPER(LTRIM(RTRIM(pc.ProductoCodigo)))
+),
+PresVendedorXCanal AS
+(
+    SELECT
+        cv.Canal,
+        pv.SKU,
+        PresTotalCanal = SUM(CAST(pv.Presupuesto AS DECIMAL(18,4)))
+    FROM PresupuestoVendedor pv
+    INNER JOIN CanalVendedores cv
+        ON cv.VendedorId = pv.VendedorId
+    GROUP BY
+        cv.Canal,
+        pv.SKU
+),
+VentaRealBase AS
+(
+    SELECT
+        SKU = UPPER(LTRIM(RTRIM(sd.Articulo))),
+        VendedorId = cli.VendedorId,
+        Canal = cli.Canal,
+        KgVendidos = SUM(CAST(ISNULL(sd.Kg, 0) AS DECIMAL(18,4))),
+        UltimaFechaVenta = MAX(CAST(se.FechaValidacion AS date))
+    FROM dbo.SurtidoEncabezado se WITH (NOLOCK)
+    INNER JOIN dbo.SurtidoDetalle sd WITH (NOLOCK)
+        ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+    LEFT JOIN Clientes cli
+        ON cli.Cliente = UPPER(LTRIM(RTRIM(se.CodigoSap)))
+    WHERE se.FechaValidacion >= @Inicio
+      AND se.FechaValidacion < @FinExclusivo
+    GROUP BY
+        UPPER(LTRIM(RTRIM(sd.Articulo))),
+        cli.VendedorId,
+        cli.Canal
+),
+VentaRealCedis AS
+(
+    SELECT
+        Canal,
+        SKU,
+        VentaRealBruta = SUM(KgVendidos),
+        UltimaFechaVenta = MAX(UltimaFechaVenta)
+    FROM VentaRealBase
+    WHERE Canal LIKE 'CEDIS%'
+    GROUP BY Canal, SKU
+),
+DevolucionesCedis AS
+(
+    SELECT
+        Canal = UPPER(LTRIM(RTRIM(ISNULL(c.Canal, '')))),
+        SKU = UPPER(LTRIM(RTRIM(d.Articulo))),
+        KgDevoluciones = SUM(CAST(ISNULL(d.Peso, 0) AS DECIMAL(18,4)))
+    FROM dbo.DevolucionMeat d WITH (NOLOCK)
+    INNER JOIN Clientes c
+        ON UPPER(LTRIM(RTRIM(d.CodigoSap))) = c.Cliente
+    WHERE d.FechaDevolucion >= @Inicio
+      AND d.FechaDevolucion < @FinExclusivo
+      AND (
+            d.Remision LIKE '%SUC01%'
+            OR d.Remision LIKE '%SUC02%'
+          )
+      AND EXISTS
+      (
+          SELECT 1
+          FROM dbo.Subpedido sp WITH (NOLOCK)
+          WHERE CONVERT(varchar(100), sp.U_DocMeat) = CONVERT(varchar(100), d.SolicitudSurtidoId)
+      )
+      AND ISNULL(
+            UPPER(LTRIM(RTRIM(d.AlmacenDevolucionNombre))),
+            ''
+          ) NOT LIKE 'FRIGORIFICO%'
+      AND c.Canal LIKE 'CEDIS%'
+    GROUP BY
+        UPPER(LTRIM(RTRIM(ISNULL(c.Canal, '')))),
+        UPPER(LTRIM(RTRIM(d.Articulo)))
+),
+SurtidoOvCedis AS
+(
+    SELECT
+        Canal = cli.Canal,
+        SKU = UPPER(LTRIM(RTRIM(sd.Articulo))),
+        KgSurtido = SUM(CAST(ISNULL(sd.Kg, 0) AS DECIMAL(18,4))),
+        UltimaFechaVenta = MAX(CAST(se.FechaValidacion AS date))
+    FROM dbo.OrdenVenta o WITH (NOLOCK)
+    INNER JOIN dbo.Series ser WITH (NOLOCK)
+        ON ser.NombreSerie = o.Serie
+    INNER JOIN dbo.Subpedido sp WITH (NOLOCK)
+        ON sp.OrdenVentaId = o.Id
+    INNER JOIN dbo.SurtidoEncabezado se WITH (NOLOCK)
+        ON se.SolicitudSurtidoId = TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), ''))
+    INNER JOIN dbo.SurtidoDetalle sd WITH (NOLOCK)
+        ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+    INNER JOIN Clientes cli
+        ON cli.Cliente = UPPER(LTRIM(RTRIM(o.Cliente)))
+    WHERE o.Estatus <> 0
+      AND se.FechaValidacion >= @Inicio
+      AND se.FechaValidacion < @FinExclusivo
+      AND ser.Sucursal = 'MATRIZ'
+      AND cli.Canal LIKE 'CEDIS%'
+    GROUP BY
+        cli.Canal,
+        UPPER(LTRIM(RTRIM(sd.Articulo)))
+),
+SurtidoTransferenciasCedis AS
+(
+    SELECT
+        Canal = UPPER(LTRIM(RTRIM(s.Canal))),
+        SKU = UPPER(LTRIM(RTRIM(ts.Sku))),
+        KgSurtido = SUM(CAST(ISNULL(ts.KgSurtido, 0) AS DECIMAL(18,4))),
+        UltimaFechaVenta = MAX(CAST(t.FechaSolicitud AS date))
+    FROM dbo.TransferenciaSurtido ts WITH (NOLOCK)
+    INNER JOIN dbo.Transferencias t WITH (NOLOCK)
+        ON t.Id = ts.TransferenciaId
+    INNER JOIN dbo.Series s WITH (NOLOCK)
+        ON s.Sucursal = t.Sucursal
+    WHERE t.FechaSolicitud >= @Inicio
+      AND t.FechaSolicitud < @FinExclusivo
+      AND t.Estatus >= 5
+      AND ISNULL(ts.KgSurtido, 0) > 0
+      AND UPPER(LTRIM(RTRIM(ISNULL(s.Canal, '')))) LIKE 'CEDIS%'
+    GROUP BY
+        UPPER(LTRIM(RTRIM(s.Canal))),
+        UPPER(LTRIM(RTRIM(ts.Sku)))
+),
+SurtidoCedisBase AS
+(
+    SELECT
+        Canal,
+        SKU,
+        KgSurtido = SUM(KgSurtido),
+        UltimaFechaVenta = MAX(UltimaFechaVenta)
+    FROM
+    (
+        SELECT * FROM SurtidoOvCedis
+        UNION ALL
+        SELECT * FROM SurtidoTransferenciasCedis
+    ) x
+    GROUP BY Canal, SKU
+),
+SurtidoVendedorNormal AS
+(
+    SELECT
+        VendedorId = cli.VendedorId,
+        SKU = UPPER(LTRIM(RTRIM(sd.Articulo))),
+        KgSurtido = SUM(CAST(ISNULL(sd.Kg, 0) AS DECIMAL(18,4))),
+        UltimaFechaVenta = MAX(CAST(se.FechaValidacion AS date))
+    FROM dbo.OrdenVenta o WITH (NOLOCK)
+    INNER JOIN dbo.Series ser WITH (NOLOCK)
+        ON ser.NombreSerie = o.Serie
+    INNER JOIN dbo.Subpedido sp WITH (NOLOCK)
+        ON sp.OrdenVentaId = o.Id
+    INNER JOIN dbo.SurtidoEncabezado se WITH (NOLOCK)
+        ON se.SolicitudSurtidoId = TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), ''))
+    INNER JOIN dbo.SurtidoDetalle sd WITH (NOLOCK)
+        ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+    INNER JOIN Clientes cli
+        ON cli.Cliente = UPPER(LTRIM(RTRIM(o.Cliente)))
+    WHERE o.Estatus <> 0
+      AND se.FechaValidacion >= @Inicio
+      AND se.FechaValidacion < @FinExclusivo
+      AND ser.Sucursal = 'MATRIZ'
+      AND ISNULL(cli.Canal, '') NOT LIKE 'CEDIS%'
+      AND cli.VendedorId IS NOT NULL
+    GROUP BY
+        cli.VendedorId,
+        UPPER(LTRIM(RTRIM(sd.Articulo)))
+),
+SurtidoVendedorDesdeCedis AS
+(
+    SELECT
+        VendedorId = pv.VendedorId,
+        SKU = pv.SKU,
+        KgSurtido = SUM(
+            CASE
+                WHEN ISNULL(pxc.PresTotalCanal, 0) <= 0 THEN 0
+                ELSE sb.KgSurtido
+                     * (CAST(pv.Presupuesto AS DECIMAL(18,4)) / pxc.PresTotalCanal)
+            END
+        ),
+        UltimaFechaVenta = MAX(sb.UltimaFechaVenta)
+    FROM PresupuestoVendedor pv
+    INNER JOIN CanalVendedores cv
+        ON cv.VendedorId = pv.VendedorId
+    INNER JOIN PresVendedorXCanal pxc
+        ON pxc.Canal = cv.Canal
+       AND pxc.SKU = pv.SKU
+    INNER JOIN SurtidoCedisBase sb
+        ON sb.Canal = cv.Canal
+       AND sb.SKU = pv.SKU
+    GROUP BY
+        pv.VendedorId,
+        pv.SKU
+),
+SurtidoVendedorTotal AS
+(
+    SELECT
+        VendedorId,
+        SKU,
+        KgSurtido = SUM(KgSurtido),
+        UltimaFechaVenta = MAX(UltimaFechaVenta)
+    FROM
+    (
+        SELECT * FROM SurtidoVendedorNormal
+        UNION ALL
+        SELECT * FROM SurtidoVendedorDesdeCedis
+    ) x
+    GROUP BY VendedorId, SKU
+),
+CedisKeys AS
+(
+    SELECT Canal, SKU FROM PresupuestoCedis
+    UNION
+    SELECT Canal, SKU FROM VentaRealCedis
+),
+VendedorKeys AS
+(
+    SELECT VendedorId, SKU FROM PresupuestoVendedor
+    UNION
+    SELECT VendedorId, SKU FROM SurtidoVendedorTotal
+),
+Base AS
+(
+    SELECT
+        Origen = CONVERT(varchar(10), 'CEDIS'),
+        Canal = ck.Canal,
+        VendedorId = CONVERT(int, 0),
+        Vendedor = ck.Canal,
+        SKU = ck.SKU,
+        Master = ISNULL(pr.Master, 'SIN_MASTER'),
+        PresupuestoMensual = CAST(ISNULL(pc.Presupuesto, 0) AS DECIMAL(18,4)),
+        VentaReal = CAST(
+            CASE
+                WHEN ISNULL(vrc.VentaRealBruta, 0) - ISNULL(dc.KgDevoluciones, 0) < 0
+                    THEN 0
+                ELSE ISNULL(vrc.VentaRealBruta, 0) - ISNULL(dc.KgDevoluciones, 0)
+            END
+            AS DECIMAL(18,4)
+        ),
+        UltimaFechaVenta = vrc.UltimaFechaVenta
+    FROM CedisKeys ck
+    LEFT JOIN PresupuestoCedis pc
+        ON pc.Canal = ck.Canal
+       AND pc.SKU = ck.SKU
+    LEFT JOIN VentaRealCedis vrc
+        ON vrc.Canal = ck.Canal
+       AND vrc.SKU = ck.SKU
+    LEFT JOIN DevolucionesCedis dc
+        ON dc.Canal = ck.Canal
+       AND dc.SKU = ck.SKU
+    LEFT JOIN Productos pr
+        ON pr.SKU = ck.SKU
+
+    UNION ALL
+
+    SELECT
+        Origen = CONVERT(varchar(10), 'VENDEDOR'),
+        Canal = CONVERT(varchar(100), NULL),
+        VendedorId = vk.VendedorId,
+        Vendedor = ISNULL(v.VendedorNombre, CONCAT('VENDEDOR ', vk.VendedorId)),
+        SKU = vk.SKU,
+        Master = ISNULL(pr.Master, 'SIN_MASTER'),
+        PresupuestoMensual = CAST(ISNULL(pv.Presupuesto, 0) AS DECIMAL(18,4)),
+        VentaReal = CAST(ISNULL(srv.KgSurtido, 0) AS DECIMAL(18,4)),
+        UltimaFechaVenta = srv.UltimaFechaVenta
+    FROM VendedorKeys vk
+    LEFT JOIN PresupuestoVendedor pv
+        ON pv.VendedorId = vk.VendedorId
+       AND pv.SKU = vk.SKU
+    LEFT JOIN SurtidoVendedorTotal srv
+        ON srv.VendedorId = vk.VendedorId
+       AND srv.SKU = vk.SKU
+    LEFT JOIN Vendedores v
+        ON v.VendedorId = vk.VendedorId
+    LEFT JOIN Productos pr
+        ON pr.SKU = vk.SKU
+)
+SELECT
+    Origen,
+    Canal,
+    VendedorId,
+    Vendedor,
+    Sku = SKU,
+    Master,
+    PresupuestoMensual,
+    VentaReal,
+    UltimaFechaVenta
+FROM Base
+WHERE
+    (
+        ISNULL(PresupuestoMensual, 0) > 0
+        OR ISNULL(VentaReal, 0) > 0
+    )
+    AND (
+        @TieneMaster = 0
+        OR Master IN (SELECT UPPER(LTRIM(RTRIM(value))) FROM STRING_SPLIT(@MastersCsv, ',') WHERE NULLIF(LTRIM(RTRIM(value)), '') IS NOT NULL)
+    )
+    AND (
+        @TieneSku = 0
+        OR SKU IN (SELECT UPPER(LTRIM(RTRIM(value))) FROM STRING_SPLIT(@SkusCsv, ',') WHERE NULLIF(LTRIM(RTRIM(value)), '') IS NOT NULL)
+    )
+    AND (
+        @TieneVendedor = 0
+        OR (Origen = 'CEDIS' AND Canal IN (SELECT UPPER(LTRIM(RTRIM(value))) FROM STRING_SPLIT(@CanalesCsv, ',') WHERE NULLIF(LTRIM(RTRIM(value)), '') IS NOT NULL))
+        OR (Origen = 'VENDEDOR' AND VendedorId IN (SELECT TRY_CONVERT(int, value) FROM STRING_SPLIT(@VendedorIdsCsv, ',') WHERE TRY_CONVERT(int, value) IS NOT NULL))
+    )
+ORDER BY Origen, Canal, VendedorId, SKU
+OPTION (RECOMPILE);";
+
+            await using var con = await AbrirConexionAsync(ct);
+
+            return (
+                await con.QueryAsync<PresupuestoVentaSqlRow>(
+                    new CommandDefinition(
+                        sql,
+                        new
+                        {
+                            Inicio = inicio,
+                            FinExclusivo = finExclusivo,
+                            Anio = anio,
+                            Mes = mes,
+                            filtros.TieneMaster,
+                            filtros.TieneSku,
+                            filtros.TieneVendedor,
+                            Masters = filtros.MastersSql,
+                            Skus = filtros.SkusSql,
+                            VendedorIds = filtros.VendedorIdsSql,
+                            CanalesCedis = filtros.CanalesCedisSql,
+                            MastersCsv = string.Join(",", filtros.Masters),
+                            SkusCsv = string.Join(",", filtros.Skus),
+                            VendedorIdsCsv = string.Join(",", filtros.VendedorIds),
+                            CanalesCsv = string.Join(",", filtros.CanalesCedis)
+                        },
+                        commandTimeout: 180,
+                        cancellationToken: ct
+                    )
+                )
+            ).ToList();
+        }
+
+        // ============================================================
+        // EVENTOS DIARIOS PARA TENDENCIA
+        // ============================================================
+        private async Task<List<VentaDiaDetalleSqlRow>> ObtenerEventosVentaDashboardAsync(
+            DateTime inicio,
+            DateTime finExclusivo,
+            int anio,
+            int mes,
+            DashboardFiltrosInternos filtros,
+            CancellationToken ct)
+        {
+            const string sql = @"
+;WITH Productos AS
+(
+    SELECT
+        SKU = UPPER(LTRIM(RTRIM(a.ProductoCodigo))),
+        Master = COALESCE(
+            NULLIF(UPPER(LTRIM(RTRIM(a.U_MASTER))), ''),
+            'SIN_MASTER'
+        )
+    FROM dbo.ArticuloSap a WITH (NOLOCK)
+    WHERE NULLIF(LTRIM(RTRIM(ISNULL(a.ProductoCodigo, ''))), '') IS NOT NULL
+),
+Clientes AS
+(
+    SELECT
+        Cliente = UPPER(LTRIM(RTRIM(c.Cliente))),
+        VendedorId = c.VendedorId,
+        Canal = UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, ''))))
+    FROM dbo.ClienteSap c WITH (NOLOCK)
+),
+CanalVendedores AS
+(
+    SELECT DISTINCT Canal, VendedorId
+    FROM Clientes
+    WHERE VendedorId IS NOT NULL
+      AND Canal LIKE 'CEDIS%'
+),
+PresupuestoVendedor AS
+(
+    SELECT
+        VendedorId = pv.VendedorId,
+        SKU = UPPER(LTRIM(RTRIM(pv.ProductoCodigo))),
+        Presupuesto = SUM(CAST(ISNULL(pv.PresupuestoAsignado, 0) AS DECIMAL(18,4)))
+    FROM dbo.PresupuestoVendedor pv WITH (NOLOCK)
+    WHERE pv.Anio = @Anio
+      AND pv.Mes = @Mes
+    GROUP BY
+        pv.VendedorId,
+        UPPER(LTRIM(RTRIM(pv.ProductoCodigo)))
+),
+PresVendedorXCanal AS
+(
+    SELECT
+        cv.Canal,
+        pv.SKU,
+        PresTotalCanal = SUM(CAST(pv.Presupuesto AS DECIMAL(18,4)))
+    FROM PresupuestoVendedor pv
+    INNER JOIN CanalVendedores cv
+        ON cv.VendedorId = pv.VendedorId
+    GROUP BY cv.Canal, pv.SKU
+),
+VentaCedisDiaria AS
+(
+    SELECT
+        Canal = cli.Canal,
+        SKU = UPPER(LTRIM(RTRIM(sd.Articulo))),
+        Fecha = CAST(se.FechaValidacion AS date),
+        VentaBruta = SUM(CAST(ISNULL(sd.Kg, 0) AS DECIMAL(18,4)))
+    FROM dbo.SurtidoEncabezado se WITH (NOLOCK)
+    INNER JOIN dbo.SurtidoDetalle sd WITH (NOLOCK)
+        ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+    INNER JOIN Clientes cli
+        ON cli.Cliente = UPPER(LTRIM(RTRIM(se.CodigoSap)))
+    WHERE se.FechaValidacion >= @Inicio
+      AND se.FechaValidacion < @FinExclusivo
+      AND cli.Canal LIKE 'CEDIS%'
+    GROUP BY
+        cli.Canal,
+        UPPER(LTRIM(RTRIM(sd.Articulo))),
+        CAST(se.FechaValidacion AS date)
+),
+DevolucionesCedisDiarias AS
+(
+    SELECT
+        Canal = c.Canal,
+        SKU = UPPER(LTRIM(RTRIM(d.Articulo))),
+        Fecha = CAST(d.FechaDevolucion AS date),
+        Devoluciones = SUM(CAST(ISNULL(d.Peso, 0) AS DECIMAL(18,4)))
+    FROM dbo.DevolucionMeat d WITH (NOLOCK)
+    INNER JOIN Clientes c
+        ON UPPER(LTRIM(RTRIM(d.CodigoSap))) = c.Cliente
+    WHERE d.FechaDevolucion >= @Inicio
+      AND d.FechaDevolucion < @FinExclusivo
+      AND (
+            d.Remision LIKE '%SUC01%'
+            OR d.Remision LIKE '%SUC02%'
+          )
+      AND EXISTS
+      (
+          SELECT 1
+          FROM dbo.Subpedido sp WITH (NOLOCK)
+          WHERE CONVERT(varchar(100), sp.U_DocMeat) = CONVERT(varchar(100), d.SolicitudSurtidoId)
+      )
+      AND ISNULL(
+            UPPER(LTRIM(RTRIM(d.AlmacenDevolucionNombre))),
+            ''
+          ) NOT LIKE 'FRIGORIFICO%'
+      AND c.Canal LIKE 'CEDIS%'
+    GROUP BY
+        c.Canal,
+        UPPER(LTRIM(RTRIM(d.Articulo))),
+        CAST(d.FechaDevolucion AS date)
+),
+SurtidoOvCedisDiario AS
+(
+    SELECT
+        Canal = cli.Canal,
+        SKU = UPPER(LTRIM(RTRIM(sd.Articulo))),
+        Fecha = CAST(se.FechaValidacion AS date),
+        KgSurtido = SUM(CAST(ISNULL(sd.Kg, 0) AS DECIMAL(18,4)))
+    FROM dbo.OrdenVenta o WITH (NOLOCK)
+    INNER JOIN dbo.Series ser WITH (NOLOCK)
+        ON ser.NombreSerie = o.Serie
+    INNER JOIN dbo.Subpedido sp WITH (NOLOCK)
+        ON sp.OrdenVentaId = o.Id
+    INNER JOIN dbo.SurtidoEncabezado se WITH (NOLOCK)
+        ON se.SolicitudSurtidoId = TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), ''))
+    INNER JOIN dbo.SurtidoDetalle sd WITH (NOLOCK)
+        ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+    INNER JOIN Clientes cli
+        ON cli.Cliente = UPPER(LTRIM(RTRIM(o.Cliente)))
+    WHERE o.Estatus <> 0
+      AND se.FechaValidacion >= @Inicio
+      AND se.FechaValidacion < @FinExclusivo
+      AND ser.Sucursal = 'MATRIZ'
+      AND cli.Canal LIKE 'CEDIS%'
+    GROUP BY
+        cli.Canal,
+        UPPER(LTRIM(RTRIM(sd.Articulo))),
+        CAST(se.FechaValidacion AS date)
+),
+SurtidoTransferenciasCedisDiario AS
+(
+    SELECT
+        Canal = UPPER(LTRIM(RTRIM(s.Canal))),
+        SKU = UPPER(LTRIM(RTRIM(ts.Sku))),
+        Fecha = CAST(t.FechaSolicitud AS date),
+        KgSurtido = SUM(CAST(ISNULL(ts.KgSurtido, 0) AS DECIMAL(18,4)))
+    FROM dbo.TransferenciaSurtido ts WITH (NOLOCK)
+    INNER JOIN dbo.Transferencias t WITH (NOLOCK)
+        ON t.Id = ts.TransferenciaId
+    INNER JOIN dbo.Series s WITH (NOLOCK)
+        ON s.Sucursal = t.Sucursal
+    WHERE t.FechaSolicitud >= @Inicio
+      AND t.FechaSolicitud < @FinExclusivo
+      AND t.Estatus >= 5
+      AND ISNULL(ts.KgSurtido, 0) > 0
+      AND UPPER(LTRIM(RTRIM(ISNULL(s.Canal, '')))) LIKE 'CEDIS%'
+    GROUP BY
+        UPPER(LTRIM(RTRIM(s.Canal))),
+        UPPER(LTRIM(RTRIM(ts.Sku))),
+        CAST(t.FechaSolicitud AS date)
+),
+SurtidoCedisDiario AS
+(
+    SELECT
+        Canal,
+        SKU,
+        Fecha,
+        KgSurtido = SUM(KgSurtido)
+    FROM
+    (
+        SELECT * FROM SurtidoOvCedisDiario
+        UNION ALL
+        SELECT * FROM SurtidoTransferenciasCedisDiario
+    ) x
+    GROUP BY Canal, SKU, Fecha
+),
+SurtidoVendedorNormalDiario AS
+(
+    SELECT
+        VendedorId = cli.VendedorId,
+        SKU = UPPER(LTRIM(RTRIM(sd.Articulo))),
+        Fecha = CAST(se.FechaValidacion AS date),
+        KgSurtido = SUM(CAST(ISNULL(sd.Kg, 0) AS DECIMAL(18,4)))
+    FROM dbo.OrdenVenta o WITH (NOLOCK)
+    INNER JOIN dbo.Series ser WITH (NOLOCK)
+        ON ser.NombreSerie = o.Serie
+    INNER JOIN dbo.Subpedido sp WITH (NOLOCK)
+        ON sp.OrdenVentaId = o.Id
+    INNER JOIN dbo.SurtidoEncabezado se WITH (NOLOCK)
+        ON se.SolicitudSurtidoId = TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), ''))
+    INNER JOIN dbo.SurtidoDetalle sd WITH (NOLOCK)
+        ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+    INNER JOIN Clientes cli
+        ON cli.Cliente = UPPER(LTRIM(RTRIM(o.Cliente)))
+    WHERE o.Estatus <> 0
+      AND se.FechaValidacion >= @Inicio
+      AND se.FechaValidacion < @FinExclusivo
+      AND ser.Sucursal = 'MATRIZ'
+      AND ISNULL(cli.Canal, '') NOT LIKE 'CEDIS%'
+      AND cli.VendedorId IS NOT NULL
+    GROUP BY
+        cli.VendedorId,
+        UPPER(LTRIM(RTRIM(sd.Articulo))),
+        CAST(se.FechaValidacion AS date)
+),
+SurtidoVendedorDesdeCedisDiario AS
+(
+    SELECT
+        VendedorId = pv.VendedorId,
+        SKU = pv.SKU,
+        Fecha = sc.Fecha,
+        KgSurtido = SUM(
+            CASE
+                WHEN ISNULL(pxc.PresTotalCanal, 0) <= 0 THEN 0
+                ELSE sc.KgSurtido
+                     * (CAST(pv.Presupuesto AS DECIMAL(18,4)) / pxc.PresTotalCanal)
+            END
+        )
+    FROM PresupuestoVendedor pv
+    INNER JOIN CanalVendedores cv
+        ON cv.VendedorId = pv.VendedorId
+    INNER JOIN PresVendedorXCanal pxc
+        ON pxc.Canal = cv.Canal
+       AND pxc.SKU = pv.SKU
+    INNER JOIN SurtidoCedisDiario sc
+        ON sc.Canal = cv.Canal
+       AND sc.SKU = pv.SKU
+    GROUP BY
+        pv.VendedorId,
+        pv.SKU,
+        sc.Fecha
+),
+Eventos AS
+(
+    SELECT
+        Origen = CONVERT(varchar(10), 'CEDIS'),
+        Canal = v.Canal,
+        VendedorId = CONVERT(int, 0),
+        SKU = v.SKU,
+        Fecha = v.Fecha,
+        VentaBruta = v.VentaBruta,
+        Devoluciones = CAST(0 AS DECIMAL(18,4)),
+        VentaVendedor = CAST(0 AS DECIMAL(18,4))
+    FROM VentaCedisDiaria v
+
+    UNION ALL
+
+    SELECT
+        Origen = CONVERT(varchar(10), 'CEDIS'),
+        Canal = d.Canal,
+        VendedorId = CONVERT(int, 0),
+        SKU = d.SKU,
+        Fecha = d.Fecha,
+        VentaBruta = CAST(0 AS DECIMAL(18,4)),
+        Devoluciones = d.Devoluciones,
+        VentaVendedor = CAST(0 AS DECIMAL(18,4))
+    FROM DevolucionesCedisDiarias d
+
+    UNION ALL
+
+    SELECT
+        Origen = CONVERT(varchar(10), 'VENDEDOR'),
+        Canal = CONVERT(varchar(100), NULL),
+        VendedorId = v.VendedorId,
+        SKU = v.SKU,
+        Fecha = v.Fecha,
+        VentaBruta = CAST(0 AS DECIMAL(18,4)),
+        Devoluciones = CAST(0 AS DECIMAL(18,4)),
+        VentaVendedor = v.KgSurtido
+    FROM SurtidoVendedorNormalDiario v
+
+    UNION ALL
+
+    SELECT
+        Origen = CONVERT(varchar(10), 'VENDEDOR'),
+        Canal = CONVERT(varchar(100), NULL),
+        VendedorId = v.VendedorId,
+        SKU = v.SKU,
+        Fecha = v.Fecha,
+        VentaBruta = CAST(0 AS DECIMAL(18,4)),
+        Devoluciones = CAST(0 AS DECIMAL(18,4)),
+        VentaVendedor = v.KgSurtido
+    FROM SurtidoVendedorDesdeCedisDiario v
+)
+SELECT
+    e.Origen,
+    e.Canal,
+    e.VendedorId,
+    e.SKU AS Sku,
+    Master = ISNULL(p.Master, 'SIN_MASTER'),
+    e.Fecha,
+    VentaBruta = SUM(e.VentaBruta),
+    Devoluciones = SUM(e.Devoluciones),
+    VentaVendedor = SUM(e.VentaVendedor)
+FROM Eventos e
+LEFT JOIN Productos p
+    ON p.SKU = e.SKU
+WHERE
+    (
+        @TieneMaster = 0
+        OR ISNULL(p.Master, 'SIN_MASTER') IN (SELECT UPPER(LTRIM(RTRIM(value))) FROM STRING_SPLIT(@MastersCsv, ',') WHERE NULLIF(LTRIM(RTRIM(value)), '') IS NOT NULL)
+    )
+    AND (
+        @TieneSku = 0
+        OR e.SKU IN (SELECT UPPER(LTRIM(RTRIM(value))) FROM STRING_SPLIT(@SkusCsv, ',') WHERE NULLIF(LTRIM(RTRIM(value)), '') IS NOT NULL)
+    )
+    AND (
+        @TieneVendedor = 0
+        OR (e.Origen = 'CEDIS' AND e.Canal IN (SELECT UPPER(LTRIM(RTRIM(value))) FROM STRING_SPLIT(@CanalesCsv, ',') WHERE NULLIF(LTRIM(RTRIM(value)), '') IS NOT NULL))
+        OR (e.Origen = 'VENDEDOR' AND e.VendedorId IN (SELECT TRY_CONVERT(int, value) FROM STRING_SPLIT(@VendedorIdsCsv, ',') WHERE TRY_CONVERT(int, value) IS NOT NULL))
+    )
+GROUP BY
+    e.Origen,
+    e.Canal,
+    e.VendedorId,
+    e.SKU,
+    ISNULL(p.Master, 'SIN_MASTER'),
+    e.Fecha
+ORDER BY e.Fecha, e.Origen, e.Canal, e.VendedorId, e.SKU
+OPTION (RECOMPILE);";
+
+            await using var con = await AbrirConexionAsync(ct);
+
+            return (
+                await con.QueryAsync<VentaDiaDetalleSqlRow>(
+                    new CommandDefinition(
+                        sql,
+                        new
+                        {
+                            Inicio = inicio,
+                            FinExclusivo = finExclusivo,
+                            Anio = anio,
+                            Mes = mes,
+                            filtros.TieneMaster,
+                            filtros.TieneSku,
+                            filtros.TieneVendedor,
+                            Masters = filtros.MastersSql,
+                            Skus = filtros.SkusSql,
+                            VendedorIds = filtros.VendedorIdsSql,
+                            CanalesCedis = filtros.CanalesCedisSql,
+                            MastersCsv = string.Join(",", filtros.Masters),
+                            SkusCsv = string.Join(",", filtros.Skus),
+                            VendedorIdsCsv = string.Join(",", filtros.VendedorIds),
+                            CanalesCsv = string.Join(",", filtros.CanalesCedis)
+                        },
+                        commandTimeout: 180,
+                        cancellationToken: ct
+                    )
+                )
+            ).ToList();
         }
 
         // ============================================================
@@ -2024,6 +1969,40 @@ OPTION (RECOMPILE);";
             public string Vendedor { get; set; } = "";
             public decimal VentaReal { get; set; }
             public decimal PresupuestoMensual { get; set; }
+        }
+
+        private sealed class PresupuestoVentaSqlRow
+        {
+            public string Origen { get; set; } = "";
+            public string? Canal { get; set; }
+            public int VendedorId { get; set; }
+            public string? Vendedor { get; set; }
+            public string Sku { get; set; } = "";
+            public string Master { get; set; } = "SIN_MASTER";
+            public decimal PresupuestoMensual { get; set; }
+            public decimal VentaReal { get; set; }
+            public DateTime? UltimaFechaVenta { get; set; }
+        }
+
+        private sealed class VentaDiaDetalleSqlRow
+        {
+            public string Origen { get; set; } = "";
+            public string? Canal { get; set; }
+            public int VendedorId { get; set; }
+            public string Sku { get; set; } = "";
+            public string Master { get; set; } = "SIN_MASTER";
+            public DateTime Fecha { get; set; }
+            public decimal VentaBruta { get; set; }
+            public decimal Devoluciones { get; set; }
+            public decimal VentaVendedor { get; set; }
+        }
+
+        private sealed class EstadoVentaAcumulada
+        {
+            public string Origen { get; set; } = "";
+            public decimal VentaBruta { get; set; }
+            public decimal Devoluciones { get; set; }
+            public decimal VentaVendedor { get; set; }
         }
 
         private sealed class VentaDiaSqlRow

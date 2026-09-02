@@ -14,6 +14,11 @@ let correo = correoUsuario || "";
 let usuarioAutorizaId = 0;
 let intervaloRendimiento = null;
 let productosCache = [];
+
+// Paginación de "Últimas capturas"
+let capturasTiempoRealData = [];
+let capturasTiempoRealPagina = 1;
+const capturasTiempoRealPorPagina = 8;
 let ultimaEntradaParaImprimir = null;
 let impresionEnProceso = false;
 let toastImpresionTimeout = null;
@@ -69,6 +74,11 @@ let sesionCerrandosePorAfk = false;
 
 document.addEventListener("DOMContentLoaded", async () => {
     iniciarControlAfkInyecciones();
+
+    // UI de productos: tarjetas operativas e interactivas.
+    // Se inyecta desde este mismo archivo para no depender de cambios adicionales en la vista.
+    inyectarEstilosTarjetasProducto();
+    configurarBusquedaProductos();
 
     await cargarLotes();
     await cargarTaras();
@@ -227,6 +237,391 @@ function restaurarUltimoLote() {
     aplicarSeleccionLoteDesdeCombo(combo);
 }
 
+
+// ======================================================
+// UI PRODUCTOS - TARJETAS INTERACTIVAS
+// Todo el estilo vive aquí para no requerir cambios en la vista .cshtml.
+// ======================================================
+function inyectarEstilosTarjetasProducto() {
+    if (document.getElementById("iny-product-card-styles")) return;
+
+    const style = document.createElement("style");
+    style.id = "iny-product-card-styles";
+
+    style.textContent = `
+        /* Modal de productos */
+        #modalProducto {
+            width: min(96vw, 1180px) !important;
+        }
+
+        #modalProducto .modal-header {
+            font-weight: 800 !important;
+            color: #111820 !important;
+            background: #ffffff !important;
+            border-bottom: 1px solid #d9e1e8 !important;
+        }
+
+        #modalProducto .op-search-bar {
+            position: sticky;
+            top: 0;
+            z-index: 6;
+            padding: 0 0 12px !important;
+            background: #ffffff;
+        }
+
+        #modalProducto #searchProducto {
+            width: 100% !important;
+            min-height: 48px !important;
+            padding: 0 14px !important;
+            border: 1px solid #cfd9e3 !important;
+            border-radius: 12px !important;
+            background: #ffffff !important;
+            color: #1d2d3d !important;
+            font-size: 13px !important;
+            outline: none !important;
+            box-shadow: none !important;
+        }
+
+        #modalProducto #searchProducto:focus {
+            border-color: #7f9bb3 !important;
+            box-shadow: 0 0 0 3px rgba(70, 100, 125, .10) !important;
+        }
+
+        #modalProducto #resultadosBusqueda {
+            min-height: 15px;
+            margin-top: 5px !important;
+            font-size: 11px !important;
+            font-weight: 700;
+            color: #60758a !important;
+        }
+
+        #modalProducto .modal-body {
+            max-height: 72vh !important;
+            overflow-y: auto !important;
+            padding: 14px !important;
+            background: #f3f6f9 !important;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Scroll discreto */
+        #modalProducto .modal-body::-webkit-scrollbar {
+            width: 7px;
+        }
+
+        #modalProducto .modal-body::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        #modalProducto .modal-body::-webkit-scrollbar-thumb {
+            background: #b7c2cc;
+            border-radius: 999px;
+        }
+
+        #modalProducto .modal-body::-webkit-scrollbar-thumb:hover {
+            background: #96a5b2;
+        }
+
+        /* Grid */
+        #contenedorProductos.product-grid,
+        #contenedorProductos {
+            width: 100% !important;
+            display: grid !important;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)) !important;
+            gap: 10px !important;
+            align-items: stretch !important;
+        }
+
+        /* Tarjeta completa */
+        #contenedorProductos .product-card {
+            appearance: none !important;
+            -webkit-appearance: none !important;
+            position: relative !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            min-height: 204px !important;
+            margin: 0 !important;
+            padding: 9px !important;
+
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 7px !important;
+
+            border: 1px solid #d6e0e8 !important;
+            border-radius: 14px !important;
+            background: #ffffff !important;
+            color: #182b3d !important;
+            text-align: left !important;
+
+            box-shadow: 0 3px 10px rgba(30, 49, 65, .07) !important;
+            cursor: pointer !important;
+            overflow: hidden !important;
+
+            transition:
+                transform .15s ease,
+                border-color .15s ease,
+                box-shadow .15s ease,
+                background .15s ease !important;
+        }
+
+        #contenedorProductos .product-card:hover {
+            transform: translateY(-3px) !important;
+            border-color: #8da9bd !important;
+            background: #fbfdff !important;
+            box-shadow: 0 10px 22px rgba(30, 49, 65, .14) !important;
+        }
+
+        #contenedorProductos .product-card:focus-visible {
+            outline: 3px solid rgba(46, 108, 153, .20) !important;
+            outline-offset: 2px !important;
+            border-color: #5f88a7 !important;
+        }
+
+        #contenedorProductos .product-card:active {
+            transform: translateY(-1px) scale(.99) !important;
+        }
+
+        #contenedorProductos .product-card.is-selected {
+            border-color: #487a9e !important;
+            box-shadow:
+                0 0 0 3px rgba(72, 122, 158, .12),
+                0 10px 22px rgba(30, 49, 65, .13) !important;
+        }
+
+        /* Imagen */
+        #contenedorProductos .product-card-image {
+            width: 100% !important;
+            height: 88px !important;
+            display: grid !important;
+            place-items: center !important;
+            overflow: hidden !important;
+
+            border: 1px solid #e1e8ee !important;
+            border-radius: 11px !important;
+            background: linear-gradient(180deg, #ffffff 0%, #f2f5f8 100%) !important;
+        }
+
+        #contenedorProductos .product-card-image img {
+            display: block !important;
+            width: 100% !important;
+            height: 100% !important;
+            padding: 5px !important;
+            object-fit: contain !important;
+        }
+
+        #contenedorProductos .product-card-image-empty {
+            width: 100% !important;
+            height: 100% !important;
+            display: grid !important;
+            place-items: center !important;
+            color: #8191a0 !important;
+            font-size: 31px !important;
+            background: #f2f5f8 !important;
+        }
+
+        /* Fila SKU + porcentaje */
+        #contenedorProductos .product-card-meta {
+            width: 100% !important;
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) auto !important;
+            gap: 7px !important;
+            align-items: center !important;
+        }
+
+        /* SKU en su propio recuadro */
+        #contenedorProductos .product-card-sku {
+            min-width: 0 !important;
+            min-height: 27px !important;
+            padding: 5px 8px !important;
+
+            display: flex !important;
+            align-items: center !important;
+
+            border: 1px solid #ccd9e4 !important;
+            border-radius: 8px !important;
+            background: #edf3f7 !important;
+            color: #18364f !important;
+
+            font-size: 13px !important;
+            line-height: 1 !important;
+            font-weight: 900 !important;
+            letter-spacing: .15px !important;
+
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+        }
+
+        /* Porcentaje destacado, pero discreto */
+        #contenedorProductos .product-card-percent {
+            min-width: 48px !important;
+            min-height: 27px !important;
+            padding: 5px 7px !important;
+
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+
+            border: 1px solid #e2c882 !important;
+            border-radius: 8px !important;
+            background: #fff8e7 !important;
+            color: #765100 !important;
+
+            font-size: 13px !important;
+            line-height: 1 !important;
+            font-weight: 900 !important;
+            white-space: nowrap !important;
+        }
+
+        /* Nombre separado del SKU y del porcentaje */
+        #contenedorProductos .product-card-name-box {
+            min-height: 46px !important;
+            padding: 7px 8px !important;
+
+            display: flex !important;
+            align-items: flex-start !important;
+
+            border: 1px solid #e0e6eb !important;
+            border-radius: 9px !important;
+            background: #fafcfd !important;
+        }
+
+        #contenedorProductos .product-card-name {
+            width: 100% !important;
+            margin: 0 !important;
+            color: #21364a !important;
+
+            font-size: 12px !important;
+            line-height: 1.28 !important;
+            font-weight: 750 !important;
+
+            display: -webkit-box !important;
+            -webkit-line-clamp: 3 !important;
+            -webkit-box-orient: vertical !important;
+            overflow: hidden !important;
+        }
+
+        /* Acción inferior */
+        #contenedorProductos .product-card-action {
+            min-height: 28px !important;
+            margin-top: auto !important;
+            padding: 5px 8px !important;
+
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            gap: 7px !important;
+
+            border: 1px solid #17344b !important;
+            border-radius: 8px !important;
+            background: #173a55 !important;
+            color: #ffffff !important;
+
+            font-size: 10px !important;
+            line-height: 1 !important;
+            font-weight: 800 !important;
+        }
+
+        #contenedorProductos .product-card-action strong {
+            color: #ffffff !important;
+            font-size: 10px !important;
+        }
+
+        #contenedorProductos .product-card-action-icon {
+            width: 24px !important;
+            height: 24px !important;
+            flex: 0 0 24px !important;
+
+            display: grid !important;
+            place-items: center !important;
+
+            border-radius: 999px !important;
+            background: #ffffff !important;
+            color: #173a55 !important;
+            font-size: 12px !important;
+        }
+
+        /* El buscador usa esta clase.
+           Debe ganar al display:flex !important de la tarjeta. */
+        #contenedorProductos .product-card.product-filter-hidden {
+            display: none !important;
+        }
+
+        /* Paginador compacto de Últimas capturas */
+        #paginadorCapturasTiempoReal {
+            width: 100%;
+            margin-top: 5px;
+            padding: 4px 2px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 5px;
+            color: #63788b;
+            font-size: 8px;
+            font-weight: 800;
+        }
+
+        #paginadorCapturasTiempoReal .iny-cap-page-info {
+            flex: 1;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        #paginadorCapturasTiempoReal button {
+            min-width: 27px;
+            height: 24px;
+            padding: 0 7px;
+            border: 1px solid #cbd6df;
+            border-radius: 7px;
+            background: #f7fafc;
+            color: #29465f;
+            font-size: 10px;
+            font-weight: 900;
+            cursor: pointer;
+        }
+
+        #paginadorCapturasTiempoReal button:hover:not(:disabled) {
+            background: #eaf1f6;
+        }
+
+        #paginadorCapturasTiempoReal button:disabled {
+            opacity: .38;
+            cursor: default;
+        }
+
+        /* Tablet */
+        @media (max-width: 1000px) {
+            #contenedorProductos.product-grid,
+            #contenedorProductos {
+                grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+            }
+
+            #contenedorProductos .product-card {
+                min-height: 198px !important;
+            }
+        }
+
+        @media (max-width: 760px) {
+            #modalProducto {
+                width: 96vw !important;
+            }
+
+            #contenedorProductos.product-grid,
+            #contenedorProductos {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
+        }
+
+        @media (max-width: 480px) {
+            #contenedorProductos.product-grid,
+            #contenedorProductos {
+                grid-template-columns: 1fr !important;
+            }
+        }
+    `;
+
+    document.head.appendChild(style);
+}
+
 async function cargarProductosPorPlantilla(plantilla, loteIdEsperado = String(loteSeleccionado ?? "")) {
     const cargaId = ++secuenciaCargaProductos;
     const plantillaEsperada = String(plantilla ?? "");
@@ -277,36 +672,90 @@ async function cargarProductosPorPlantilla(plantilla, loteIdEsperado = String(lo
         for (const p of productosConImagen) {
             const sku = String(p.sku ?? "").trim();
             const nombre = String(p.nombre ?? "").trim();
-            const card = document.createElement("div");
 
+            const porcentajeRaw = p.porcentaje ?? p.Porcentaje;
+            const porcentajeNumero = Number(porcentajeRaw);
+            const porcentajeTexto = Number.isFinite(porcentajeNumero)
+                ? `${porcentajeNumero}%`
+                : "—";
+
+            // La tarjeta es un botón real: funciona con mouse, touch y teclado.
+            const card = document.createElement("button");
+            card.type = "button";
             card.className = "product-card";
             card.dataset.sku = sku.toLowerCase();
             card.dataset.nombre = nombre.toLowerCase();
-            card.addEventListener("click", () => seleccionarProducto(sku, nombre));
+            card.setAttribute("aria-label", `Seleccionar ${sku} ${nombre}`);
 
-            const img = document.createElement("img");
-            if (p.imgUrl) img.src = p.imgUrl;
-            img.alt = nombre;
-            img.style.cssText = "width:70px;height:70px;border-radius:6px;object-fit:cover;margin-bottom:8px;";
+            // Imagen en recuadro independiente.
+            const imageBox = document.createElement("div");
+            imageBox.className = "product-card-image";
+
+            if (p.imgUrl) {
+                const img = document.createElement("img");
+                img.src = p.imgUrl;
+                img.alt = nombre || sku;
+                img.loading = "lazy";
+                imageBox.appendChild(img);
+            } else {
+                const empty = document.createElement("div");
+                empty.className = "product-card-image-empty";
+                empty.textContent = "📦";
+                empty.setAttribute("aria-hidden", "true");
+                imageBox.appendChild(empty);
+            }
+
+            // SKU y porcentaje quedan separados en la misma fila.
+            const meta = document.createElement("div");
+            meta.className = "product-card-meta";
 
             const skuElement = document.createElement("span");
-            skuElement.style.fontWeight = "bold";
-            skuElement.textContent = sku;
+            skuElement.className = "product-card-sku";
+            skuElement.textContent = sku || "SIN SKU";
+            skuElement.title = sku || "Sin SKU";
 
-            const nombreElement = document.createElement("small");
-            nombreElement.textContent = nombre;
+            const porcentajeElement = document.createElement("span");
+            porcentajeElement.className = "product-card-percent";
+            porcentajeElement.textContent = porcentajeTexto;
+            porcentajeElement.title = "Porcentaje";
 
-            const porcentajeElement = document.createElement("b");
-            porcentajeElement.textContent = `${p.porcentaje}%`;
+            meta.append(skuElement, porcentajeElement);
 
-            card.append(
-                img,
-                skuElement,
-                document.createElement("br"),
-                nombreElement,
-                document.createElement("br"),
-                porcentajeElement
-            );
+            // Nombre en un recuadro separado.
+            const nameBox = document.createElement("div");
+            nameBox.className = "product-card-name-box";
+
+            const nombreElement = document.createElement("div");
+            nombreElement.className = "product-card-name";
+            nombreElement.textContent = nombre || "Producto sin nombre";
+            nombreElement.title = nombre || "Producto sin nombre";
+            nameBox.appendChild(nombreElement);
+
+            // Indicador inferior para dejar claro que la tarjeta es seleccionable.
+            const action = document.createElement("div");
+            action.className = "product-card-action";
+
+            const actionText = document.createElement("strong");
+            actionText.textContent = "Seleccionar producto";
+
+            const actionIcon = document.createElement("span");
+            actionIcon.className = "product-card-action-icon";
+            actionIcon.textContent = "›";
+            actionIcon.setAttribute("aria-hidden", "true");
+
+            action.append(actionText, actionIcon);
+
+            card.append(imageBox, meta, nameBox, action);
+
+            card.addEventListener("click", async () => {
+                document.querySelectorAll("#contenedorProductos .product-card")
+                    .forEach(x => x.classList.remove("is-selected"));
+
+                card.classList.add("is-selected");
+
+                await seleccionarProducto(sku, nombre);
+            });
+
             cont.appendChild(card);
         }
 
@@ -701,7 +1150,7 @@ function actualizarPesoP(peso) {
 
     const etiquetaPeso = document.getElementById("pesoActual");
 
-    etiquetaPeso.textContent = pesoConvertido.toFixed(3);
+    etiquetaPeso.textContent = pesoConvertido.toFixed(2);
 
     //etiquetaPeso.style.transform = "scale(1.25)";
     //etiquetaPeso.style.transition = ".15s ease-out";
@@ -837,7 +1286,7 @@ function abrirConfirmacionCaptura() {
         document.getElementById("confirmLote").textContent = capturaPendiente.LoteImpresion;
         document.getElementById("confirmProducto").textContent = capturaPendiente.Producto;
         document.getElementById("confirmSku").textContent = capturaPendiente.SKU;
-        document.getElementById("confirmPeso").textContent = `${Number(peso || 0).toFixed(3)} kg`;
+        document.getElementById("confirmPeso").textContent = `${Number(peso || 0).toFixed(2)} kg`;
         document.getElementById("confirmTara").textContent = `${capturaPendiente.Tara.toFixed(3)} kg`;
 
         abrirModal("modalConfirmarCaptura");
@@ -895,8 +1344,8 @@ async function confirmarCapturaEntrada() {
 
     const pesoConfirmado = Number(obtenerPesoActual());
 
-    if (!Number.isFinite(pesoConfirmado)) {
-        alert("El peso actual no es válido. No se realizó la captura.");
+    if (!Number.isFinite(pesoConfirmado) || pesoConfirmado <= 0) {
+        alert("El peso neto debe ser mayor a cero. No se realizó la captura.");
         return;
     }
 
@@ -944,8 +1393,8 @@ async function capturarEntrada(snapshot, loadingId = null) {
 
         const pesoActual = Number(snapshot.Peso);
 
-        if (!Number.isFinite(pesoActual)) {
-            throw new Error("El peso actual no es válido.");
+        if (!Number.isFinite(pesoActual) || pesoActual <= 0) {
+            throw new Error("El peso neto debe ser mayor a cero.");
         }
 
         const entrada = {
@@ -982,9 +1431,11 @@ async function capturarEntrada(snapshot, loadingId = null) {
             body: JSON.stringify(entrada)
         });
 
-        if (!resp.ok) throw new Error("Error al guardar la entrada");
+        const resultado = await resp.json().catch(() => null);
 
-        const resultado = await resp.json();
+        if (!resp.ok) {
+            throw new Error(resultado?.message || "Error al guardar la entrada directamente en SQL Server.");
+        }
         const idGenerado =
             typeof resultado === "object" && resultado !== null
                 ? (resultado.id ?? resultado.Id ?? 0)
@@ -996,7 +1447,10 @@ async function capturarEntrada(snapshot, loadingId = null) {
         }
 
         entrada.Id = idEntrada;
-        entrada.Folio = (await obtenerFolioEntrada(entrada.Id)) || "";
+        entrada.Folio = resultado?.folio ?? resultado?.Folio ?? "";
+        if (!entrada.Folio) {
+            entrada.Folio = (await obtenerFolioEntrada(entrada.Id)) || "";
+        }
 
         // La etiqueta se construye exclusivamente con la fotografía de esta captura.
         // Ya no consulta NombreSeleccionado, nombreLoteGlobal ni otra captura global.
@@ -1393,47 +1847,153 @@ function consultarReporteActivo() {
 
 async function cargarRendimiento() {
 
-    const ini = repFechaInicio.value;
-    const fin = repFechaFin.value;
+    const ini = document.getElementById("repFechaInicio")?.value || "";
+    const fin = document.getElementById("repFechaFin")?.value || "";
     const tbody = document.getElementById("tbodyRendimientoModal");
+
+    if (!tbody) return;
+
+    if (!ini || !fin) {
+        tbody.innerHTML = `<tr><td colspan="8">Seleccione fecha inicio y fecha fin.</td></tr>`;
+        return;
+    }
 
     tbody.innerHTML = `<tr><td colspan="8">Cargando...</td></tr>`;
 
-    const resp = await fetch(`/api/Reportes/RendimientoFecha?fechain=${ini}&fechafin=${fin}`);
-    const data = await resp.json();
+    try {
+        const resp = await fetch(
+            `/api/Reportes/RendimientoFecha?fechain=${encodeURIComponent(ini)}&fechafin=${encodeURIComponent(fin)}`,
+            { cache: "no-store" }
+        );
 
-    tbody.innerHTML = "";
-
-    data.forEach(item => {
-
-        const esperado = Number(item["Porcentaje Esperado"]);
-        const rendimiento = Number(item.Rendimiento);
-        const tolerancia = 2;
-
-        let claseFila = "";
-
-        if (rendimiento <= esperado - tolerancia) {
-            claseFila = "fila-roja";
+        if (!resp.ok) {
+            throw new Error(`Error API rendimiento HTTP ${resp.status}`);
         }
-        else if (rendimiento >= esperado + tolerancia) {
-            claseFila = "fila-amarilla";
+
+        let data = await resp.json();
+
+        if (!Array.isArray(data)) {
+            data = data ? [data] : [];
         }
-        // si no entra en ninguna → queda normal
 
-        tbody.innerHTML += `
-        <tr class="${claseFila}">
-            <td data-label="Fecha Produccion">${new Date(item.FechaProduccion).toLocaleDateString("es-MX")}</td>
-            <td data-label="Lote">${item.Lote}</td>
-            <td data-label="SKU">${item.SKU}</td>
-            <td data-label="Peso Entrada">${item["Peso Entrada"].toFixed(2)}</td>
-            <td data-label="Peso Salida">${item["Peso Salida"].toFixed(2)}</td>
-            <td data-label="Esperado %">${esperado}%</td>
-            <td data-label="Variacion">${item.Variacion.toFixed(2)}</td>
-            <td data-label="Rendimiento %">${rendimiento.toFixed(2)}%</td>
-        </tr>
-    `;
-    });
+        tbody.innerHTML = "";
 
+        if (!data.length) {
+            tbody.innerHTML = `<tr><td colspan="8">Sin registros</td></tr>`;
+            return;
+        }
+
+        data.forEach(item => {
+
+            const esperado = Number(
+                item["Porcentaje Esperado"] ??
+                item.PorcentajeEsperado ??
+                item.porcentajeEsperado ??
+                0
+            );
+
+            const rendimiento = Number(
+                item.Rendimiento ??
+                item.rendimiento ??
+                0
+            );
+
+            const pesoEntrada = Number(
+                item["Peso Entrada"] ??
+                item.PesoEntrada ??
+                item.pesoEntrada ??
+                0
+            );
+
+            const pesoSalida = Number(
+                item["Peso Salida"] ??
+                item.PesoSalida ??
+                item.pesoSalida ??
+                0
+            );
+
+            const variacion = Number(
+                item.Variacion ??
+                item.variacion ??
+                0
+            );
+
+            // ±2 puntos contra el rendimiento esperado.
+            const tolerancia = 2;
+
+            let estiloRendimiento = "";
+            let tituloRendimiento = "Rendimiento dentro del rango esperado";
+
+            // Negativo = alerta fuerte.
+            if (rendimiento < 0) {
+                estiloRendimiento =
+                    "background:#f8d7da !important;" +
+                    "color:#991b1b !important;" +
+                    "font-weight:900 !important;" +
+                    "box-shadow:inset 4px 0 0 #c62828 !important;";
+
+                tituloRendimiento = "ALERTA: rendimiento negativo";
+            }
+            // Bajo contra el esperado.
+            else if (rendimiento <= esperado - tolerancia) {
+                estiloRendimiento =
+                    "background:#fdebec !important;" +
+                    "color:#b4232f !important;" +
+                    "font-weight:900 !important;" +
+                    "box-shadow:inset 4px 0 0 #dc3545 !important;";
+
+                tituloRendimiento =
+                    `Rendimiento bajo. Esperado: ${esperado.toFixed(2)}%`;
+            }
+            // Muy alto contra el esperado.
+            else if (rendimiento >= esperado + tolerancia) {
+                estiloRendimiento =
+                    "background:#fff3cd !important;" +
+                    "color:#8a5700 !important;" +
+                    "font-weight:900 !important;" +
+                    "box-shadow:inset 4px 0 0 #e0a000 !important;";
+
+                tituloRendimiento =
+                    `Rendimiento alto. Esperado: ${esperado.toFixed(2)}%`;
+            }
+
+            const fechaRaw =
+                item.FechaProduccion ??
+                item.fechaProduccion ??
+                "";
+
+            let fechaTexto = "";
+
+            if (fechaRaw) {
+                const fecha = new Date(fechaRaw);
+                fechaTexto = Number.isNaN(fecha.getTime())
+                    ? String(fechaRaw)
+                    : fecha.toLocaleDateString("es-MX");
+            }
+
+            tbody.insertAdjacentHTML("beforeend", `
+                <tr>
+                    <td data-label="Fecha Produccion">${fechaTexto}</td>
+                    <td data-label="Lote">${item.Lote ?? item.lote ?? ""}</td>
+                    <td data-label="SKU">${item.SKU ?? item.sku ?? ""}</td>
+                    <td data-label="Peso Entrada">${pesoEntrada.toFixed(2)}</td>
+                    <td data-label="Peso Salida">${pesoSalida.toFixed(2)}</td>
+                    <td data-label="Esperado %">${esperado.toFixed(2)}%</td>
+                    <td data-label="Variación">${variacion.toFixed(2)}</td>
+                    <td data-label="Rendimiento %"
+                        title="${tituloRendimiento}"
+                        style="${estiloRendimiento}">
+                        ${rendimiento.toFixed(2)}%
+                    </td>
+                </tr>
+            `);
+        });
+
+    } catch (err) {
+        console.error("❌ Error cargando rendimiento:", err);
+        tbody.innerHTML =
+            `<tr><td colspan="8">Error consultando rendimiento</td></tr>`;
+    }
 }
 
 async function obtenerFolioEntrada(id) {
@@ -1455,33 +2015,50 @@ async function obtenerFolioEntrada(id) {
 
 async function cargarReporteDetallado() {
 
-    const ini = repFechaInicio.value;
-    const fin = repFechaFin.value;
+    const ini = document.getElementById("repFechaInicio")?.value || "";
+    const fin = document.getElementById("repFechaFin")?.value || "";
     const tbody = document.getElementById("tbodyDetallado");
+
+    if (!tbody) return;
+
+    if (!ini || !fin) {
+        tbody.innerHTML = `<tr><td colspan="11">Seleccione fecha inicio y fecha fin.</td></tr>`;
+        return;
+    }
 
     tbody.innerHTML = `<tr><td colspan="11">Cargando...</td></tr>`;
 
     try {
-        const resp = await fetch(`/api/Reportes/Detallado?fechain=${ini}&fechafin=${fin}`);
+        const resp = await fetch(
+            `/api/Reportes/Detallado?fechain=${encodeURIComponent(ini)}&fechafin=${encodeURIComponent(fin)}`,
+            { cache: "no-store" }
+        );
+
         if (!resp.ok) throw new Error("Error API detallado");
 
-        const data = await resp.json();
+        let data = await resp.json();
+
+        if (!Array.isArray(data)) {
+            data = data ? [data] : [];
+        }
 
         console.log("📊 Data detallado:", data);
 
         tbody.innerHTML = "";
 
-        for (const item of data) {
-            console.log("Fila detallado:", item);
+        if (!data.length) {
+            tbody.innerHTML = `<tr><td colspan="11">Sin registros</td></tr>`;
+            return;
+        }
 
-            // Intentar tomar folio directo del API primero
+        for (const item of data) {
+
             let folio =
                 item.Folio ??
                 item.folio ??
                 item.FOLIO ??
                 "";
 
-            // Si no viene, intentamos obtenerlo con la referencia/id
             if (!folio) {
                 const idEntrada =
                     item.Referencia ??
@@ -1493,10 +2070,39 @@ async function cargarReporteDetallado() {
                 folio = await obtenerFolioEntrada(idEntrada);
             }
 
-            const peso = Number(item.Peso ?? 0);
-            const tara = Number(item.Tara ?? 0);
+            const peso = Number(item.Peso ?? item.peso ?? 0);
+            const tara = Number(item.Tara ?? item.tara ?? 0);
 
-            tbody.innerHTML += `
+            const modoTexto = String(
+                item.TipoPeso ??
+                item.tipoPeso ??
+                item.Modo ??
+                item.modo ??
+                ""
+            ).trim();
+
+            const modoNormalizado = modoTexto.toLowerCase();
+
+            const esManual =
+                modoNormalizado === "man" ||
+                modoNormalizado === "m" ||
+                modoNormalizado === "manual" ||
+                modoNormalizado.includes("manual");
+
+            // Se usa estilo inline con !important para que ningún CSS posterior
+            // pueda quitar el rojo de la alerta.
+            const estiloModo = esManual
+                ? "background:#dc3545 !important;" +
+                  "color:#ffffff !important;" +
+                  "font-weight:900 !important;" +
+                  "text-transform:uppercase !important;"
+                : "";
+
+            const tituloModo = esManual
+                ? "ALERTA: captura realizada en modo manual"
+                : "Captura automática";
+
+            tbody.insertAdjacentHTML("beforeend", `
                 <tr>
                     <td data-label="Referencia">${item.Referencia ?? item.referencia ?? ""}</td>
                     <td data-label="Folio">${folio}</td>
@@ -1506,20 +2112,21 @@ async function cargarReporteDetallado() {
                     <td data-label="Producto">${item.Producto ?? item.producto ?? ""}</td>
                     <td data-label="Peso">${peso.toFixed(2)}</td>
                     <td data-label="Tara">${tara.toFixed(2)}</td>
-                    <td data-label="Modo">${item.TipoPeso ?? item.tipoPeso ?? ""}</td>
+                    <td data-label="Modo"
+                        title="${tituloModo}"
+                        style="${estiloModo}">
+                        ${modoTexto || "-"}
+                    </td>
                     <td data-label="Usuario">${item.InyUsuario ?? item.inyUsuario ?? ""}</td>
                     <td data-label="Autorización">${item.Autorizacion ?? item.autorizacion ?? ""}</td>
                 </tr>
-            `;
-        }
-
-        if (!data.length) {
-            tbody.innerHTML = `<tr><td colspan="11">Sin registros</td></tr>`;
+            `);
         }
 
     } catch (err) {
         console.error("❌ Error cargando reporte detallado:", err);
-        tbody.innerHTML = `<tr><td colspan="11">Error consultando reporte detallado</td></tr>`;
+        tbody.innerHTML =
+            `<tr><td colspan="11">Error consultando reporte detallado</td></tr>`;
     }
 }
 function abrirModalReportes() {
@@ -1538,8 +2145,166 @@ function numSeguro(valor) {
 }
 
 
-async function cargarDetalladoTiempoRealHoy() {
+function asegurarPaginadorCapturasTiempoReal() {
+    const tbody = document.getElementById("tbodyDetalladoTiempoReal");
+    const tabla = tbody?.closest("table");
 
+    if (!tbody || !tabla) return null;
+
+    let pager = document.getElementById("paginadorCapturasTiempoReal");
+    if (pager) return pager;
+
+    pager = document.createElement("div");
+    pager.id = "paginadorCapturasTiempoReal";
+
+    const btnPrev = document.createElement("button");
+    btnPrev.type = "button";
+    btnPrev.id = "btnCapturasPrev";
+    btnPrev.title = "Página anterior";
+    btnPrev.textContent = "‹";
+
+    const info = document.createElement("span");
+    info.className = "iny-cap-page-info";
+    info.id = "infoCapturasPagina";
+    info.textContent = "0 de 0";
+
+    const btnNext = document.createElement("button");
+    btnNext.type = "button";
+    btnNext.id = "btnCapturasNext";
+    btnNext.title = "Página siguiente";
+    btnNext.textContent = "›";
+
+    btnPrev.addEventListener("click", () => {
+        if (capturasTiempoRealPagina <= 1) return;
+        capturasTiempoRealPagina--;
+        renderCapturasTiempoReal();
+    });
+
+    btnNext.addEventListener("click", () => {
+        const totalPaginas = Math.max(
+            1,
+            Math.ceil(capturasTiempoRealData.length / capturasTiempoRealPorPagina)
+        );
+
+        if (capturasTiempoRealPagina >= totalPaginas) return;
+
+        capturasTiempoRealPagina++;
+        renderCapturasTiempoReal();
+    });
+
+    pager.append(btnPrev, info, btnNext);
+
+    // Preferimos poner el paginador fuera del scroll de la tabla.
+    const scroll = tabla.closest(".inj-table-scroll");
+    if (scroll) {
+        scroll.insertAdjacentElement("afterend", pager);
+    } else {
+        tabla.insertAdjacentElement("afterend", pager);
+    }
+
+    return pager;
+}
+
+function renderCapturasTiempoReal() {
+    const tbody = document.getElementById("tbodyDetalladoTiempoReal");
+    if (!tbody) return;
+
+    const total = capturasTiempoRealData.length;
+
+    if (!total) {
+        tbody.innerHTML = `<tr><td colspan="10">Sin capturas registradas hoy</td></tr>`;
+
+        const pagerVacio = asegurarPaginadorCapturasTiempoReal();
+        if (pagerVacio) pagerVacio.style.display = "none";
+        return;
+    }
+
+    const totalPaginas = Math.max(
+        1,
+        Math.ceil(total / capturasTiempoRealPorPagina)
+    );
+
+    if (capturasTiempoRealPagina > totalPaginas) {
+        capturasTiempoRealPagina = totalPaginas;
+    }
+
+    if (capturasTiempoRealPagina < 1) {
+        capturasTiempoRealPagina = 1;
+    }
+
+    const inicio = (capturasTiempoRealPagina - 1) * capturasTiempoRealPorPagina;
+    const fin = Math.min(inicio + capturasTiempoRealPorPagina, total);
+    const pagina = capturasTiempoRealData.slice(inicio, fin);
+
+    tbody.innerHTML = "";
+
+    pagina.forEach(item => {
+        const peso = numSeguro(item.Peso ?? item.peso);
+        const tara = numSeguro(item.Tara ?? item.tara);
+
+        const fechaRaw =
+            item.FechaHora ??
+            item.fechaHora ??
+            item.FechaProduccion ??
+            item.fechaProduccion ??
+            "";
+
+        const fechaTexto = fechaRaw
+            ? new Date(fechaRaw).toLocaleString("es-MX")
+            : "";
+
+        tbody.insertAdjacentHTML("beforeend", `
+            <tr>
+                <td data-label="Referencia">${item.Referencia ?? item.referencia ?? item.Id ?? item.id ?? ""}</td>
+                <td data-label="Fecha / Hora">${fechaTexto}</td>
+                <td data-label="Lote">${item.Lote ?? item.lote ?? ""}</td>
+                <td data-label="SKU">${item.SKU ?? item.sku ?? ""}</td>
+                <td data-label="Producto">${item.Producto ?? item.producto ?? ""}</td>
+                <td data-label="Peso">${peso.toFixed(2)}</td>
+                <td data-label="Tara">${tara.toFixed(2)}</td>
+                <td data-label="Modo"
+                    style="${
+                        (() => {
+                            const modo = String(item.TipoPeso ?? item.tipoPeso ?? "").trim().toLowerCase();
+                            const manual =
+                                modo === "man" ||
+                                modo === "m" ||
+                                modo === "manual" ||
+                                modo.includes("manual");
+
+                            return manual
+                                ? "background:#dc3545 !important;color:#fff !important;font-weight:900 !important;"
+                                : "";
+                        })()
+                    }">
+                    ${item.TipoPeso ?? item.tipoPeso ?? ""}
+                </td>
+                <td data-label="Usuario">${item.InyUsuario ?? item.inyUsuario ?? ""}</td>
+                <td data-label="Autorización">${item.Autorizacion ?? item.autorizacion ?? ""}</td>
+            </tr>
+        `);
+    });
+
+    const pager = asegurarPaginadorCapturasTiempoReal();
+
+    if (pager) {
+        pager.style.display = "flex";
+
+        const info = document.getElementById("infoCapturasPagina");
+        const prev = document.getElementById("btnCapturasPrev");
+        const next = document.getElementById("btnCapturasNext");
+
+        if (info) {
+            info.textContent =
+                `${inicio + 1}-${fin} de ${total} · Pág. ${capturasTiempoRealPagina}/${totalPaginas}`;
+        }
+
+        if (prev) prev.disabled = capturasTiempoRealPagina <= 1;
+        if (next) next.disabled = capturasTiempoRealPagina >= totalPaginas;
+    }
+}
+
+async function cargarDetalladoTiempoRealHoy() {
     const tbody = document.getElementById("tbodyDetalladoTiempoReal");
 
     if (!tbody) {
@@ -1552,7 +2317,10 @@ async function cargarDetalladoTiempoRealHoy() {
     tbody.innerHTML = `<tr><td colspan="10">Cargando últimas capturas...</td></tr>`;
 
     try {
-        const resp = await fetch(`/api/Reportes/Detallado?fechain=${hoy}&fechafin=${hoy}`);
+        const resp = await fetch(
+            `/api/Reportes/Detallado?fechain=${hoy}&fechafin=${hoy}`,
+            { cache: "no-store" }
+        );
 
         if (!resp.ok) {
             throw new Error("Error API detallado");
@@ -1560,64 +2328,33 @@ async function cargarDetalladoTiempoRealHoy() {
 
         let data = await resp.json();
 
-
-
         if (!Array.isArray(data)) {
-            data = [data];
+            data = data ? [data] : [];
         }
-
 
         data.sort((a, b) => {
             const refA = numSeguro(a.Referencia ?? a.referencia ?? a.Id ?? a.id);
             const refB = numSeguro(b.Referencia ?? b.referencia ?? b.Id ?? b.id);
-
             return refB - refA;
         });
 
-        data = data.slice(0, 50);
+        // Conservamos las 50 más recientes, pero sólo mostramos 8 por página.
+        capturasTiempoRealData = data.slice(0, 50);
+        capturasTiempoRealPagina = 1;
 
-        tbody.innerHTML = "";
-
-        if (!data.length) {
-            tbody.innerHTML = `<tr><td colspan="10">Sin capturas registradas hoy</td></tr>`;
-            return;
-        }
-
-        data.forEach(item => {
-
-            const peso = numSeguro(item.Peso ?? item.peso);
-            const tara = numSeguro(item.Tara ?? item.tara);
-
-            const fechaRaw =
-                item.FechaHora ??
-                item.fechaHora ??
-                item.FechaProduccion ??
-                item.fechaProduccion ??
-                "";
-
-            const fechaTexto = fechaRaw
-                ? new Date(fechaRaw).toLocaleString("es-MX")
-                : "";
-
-            tbody.innerHTML += `
-                <tr>
-                    <td data-label="Referencia">${item.Referencia ?? item.referencia ?? item.Id ?? item.id ?? ""}</td>
-                    <td data-label="Fecha / Hora">${fechaTexto}</td>
-                    <td data-label="Lote">${item.Lote ?? item.lote ?? ""}</td>
-                    <td data-label="SKU">${item.SKU ?? item.sku ?? ""}</td>
-                    <td data-label="Producto">${item.Producto ?? item.producto ?? ""}</td>
-                    <td data-label="Peso">${peso.toFixed(2)}</td>
-                    <td data-label="Tara">${tara.toFixed(2)}</td>
-                    <td data-label="Modo">${item.TipoPeso ?? item.tipoPeso ?? ""}</td>
-                    <td data-label="Usuario">${item.InyUsuario ?? item.inyUsuario ?? ""}</td>
-                    <td data-label="Autorización">${item.Autorizacion ?? item.autorizacion ?? ""}</td>
-                </tr>
-            `;
-        });
+        renderCapturasTiempoReal();
 
     } catch (err) {
-        console.error("❌ Error cargando detallado tiempo real ligero:", err);
-        tbody.innerHTML = `<tr><td colspan="10">Error consultando últimas capturas</td></tr>`;
+        console.error("❌ Error cargando detallado tiempo real:", err);
+
+        capturasTiempoRealData = [];
+        capturasTiempoRealPagina = 1;
+
+        tbody.innerHTML =
+            `<tr><td colspan="10">Error consultando últimas capturas</td></tr>`;
+
+        const pager = document.getElementById("paginadorCapturasTiempoReal");
+        if (pager) pager.style.display = "none";
     }
 }
 
@@ -1692,41 +2429,65 @@ function exportarReporteExcel() {
 }
 
 
+
+function configurarBusquedaProductos() {
+    const input = document.getElementById("searchProducto");
+    if (!input || input.dataset.filtroProductoBound === "1") return;
+
+    input.addEventListener("input", filtrarProductos);
+    input.dataset.filtroProductoBound = "1";
+}
+
+function normalizarBusquedaProducto(valor) {
+    return String(valor ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+}
+
 function filtrarProductos() {
-    const searchTerm = document.getElementById('searchProducto').value.toLowerCase().trim();
-    const cards = document.querySelectorAll('.product-card');
-    const resultadosDiv = document.getElementById('resultadosBusqueda');
-    const sinResultados = document.getElementById('sinResultados');
+    const input = document.getElementById("searchProducto");
+    const resultadosDiv = document.getElementById("resultadosBusqueda");
+    const sinResultados = document.getElementById("sinResultados");
+
+    const searchTerm = normalizarBusquedaProducto(input?.value || "");
+    const cards = document.querySelectorAll("#contenedorProductos .product-card");
 
     let contador = 0;
 
     cards.forEach(card => {
-        const sku = card.dataset.sku || '';
-        const nombre = card.dataset.nombre || '';
+        const sku = normalizarBusquedaProducto(card.dataset.sku || "");
+        const nombre = normalizarBusquedaProducto(card.dataset.nombre || "");
 
-        // Buscar coincidencias
-        const coincide = sku.includes(searchTerm) || nombre.includes(searchTerm);
+        const coincide =
+            searchTerm === "" ||
+            sku.includes(searchTerm) ||
+            nombre.includes(searchTerm);
 
-        if (coincide || searchTerm === '') {
-            card.style.display = '';
-            contador++;
-        } else {
-            card.style.display = 'none';
-        }
+        // No usamos style.display porque .product-card tiene display:flex !important.
+        // Una clase con display:none !important sí puede ocultarla correctamente.
+        card.classList.toggle("product-filter-hidden", !coincide);
+
+        if (coincide) contador++;
     });
 
-    // Actualizar mensaje de resultados
-    if (searchTerm === '') {
-        resultadosDiv.textContent = '';
-        if (sinResultados) sinResultados.style.display = 'none';
+    if (!resultadosDiv) return;
+
+    if (searchTerm === "") {
+        resultadosDiv.textContent = "";
+        resultadosDiv.style.color = "#60758a";
+        if (sinResultados) sinResultados.style.display = "none";
     } else if (contador === 0) {
-        resultadosDiv.textContent = '❌ No se encontraron productos';
-        resultadosDiv.style.color = '#dc3545';
-        if (sinResultados) sinResultados.style.display = 'block';
+        resultadosDiv.textContent = "No se encontraron productos";
+        resultadosDiv.style.color = "#6b7280";
+        if (sinResultados) sinResultados.style.display = "block";
     } else {
-        resultadosDiv.textContent = `✅ ${contador} producto${contador !== 1 ? 's' : ''} encontrado${contador !== 1 ? 's' : ''}`;
-        resultadosDiv.style.color = '#28a745';
-        if (sinResultados) sinResultados.style.display = 'none';
+        resultadosDiv.textContent =
+            `✓ ${contador} producto${contador !== 1 ? "s" : ""} encontrado${contador !== 1 ? "s" : ""}`;
+
+        resultadosDiv.style.color = "#4f6f86";
+        if (sinResultados) sinResultados.style.display = "none";
     }
 }
 

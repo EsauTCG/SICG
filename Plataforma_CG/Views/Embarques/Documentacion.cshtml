@@ -1,7 +1,10 @@
 ﻿@model IEnumerable<Plataforma_CG.Models.Embarque>
 
 @{
-    ViewData["Title"] = "Documentación de Embarques";
+    var esHistorial = Convert.ToBoolean(ViewBag.EsHistorial ?? false);
+    ViewData["Title"] = esHistorial
+        ? "Histórico de Documentación"
+        : "Documentación de Embarques";
     Layout = "~/Views/Shared/_Layout2.cshtml";
 
     var totalEmbarques = Model?.Count() ?? 0;
@@ -1276,9 +1279,13 @@
                 <i class="bi bi-folder2-open"></i>
             </div>
             <div>
-                <h1 class="page-title">Documentación de Embarques</h1>
+                <h1 class="page-title">
+                    @(esHistorial ? "Histórico de Documentación" : "Documentación de Embarques")
+                </h1>
                 <div class="page-subtitle">
-                    Configura si el embarque requiere Carta Porte y carga el documento correspondiente cuando aplique.
+                    @(esHistorial
+                        ? "Consulta por separado los embarques ya validados por documentación logística."
+                        : "Configura si el embarque requiere Carta Porte y carga el documento correspondiente cuando aplique.")
                 </div>
             </div>
         </div>
@@ -1289,12 +1296,20 @@
                 @DateTime.Now.ToShortDateString()
             </span>
 
+            <a class="btn-top btn-top-light"
+               asp-action="@(esHistorial ? "Documentacion" : "HistorialDocumentacion")">
+                <i class="bi @(esHistorial ? "bi-hourglass-split" : "bi-clock-history")"></i>
+                @(esHistorial ? "Ver pendientes" : "Ver histórico")
+            </a>
+
             <a class="btn-top btn-top-light" href="@Url.Action("Embarque", "Embarques")">
                 <i class="bi bi-arrow-left-circle"></i> Volver
             </a>
         </div>
     </div>
 
+    @if (!esHistorial)
+    {
     <div class="summary-grid">
         <div class="summary-card">
             <div class="summary-icon">
@@ -1890,6 +1905,11 @@
             }
         </div>
 
+    }
+    }
+
+    @if (esHistorial)
+    {
         <div class="section-block">
             <div class="section-head">
                 <div>
@@ -1914,10 +1934,7 @@
                     Filtros de historial
                 </div>
 
-                <form method="get" asp-action="Documentacion" class="docs-filter-grid">
-                    <input type="hidden" name="busqueda" value="@busqueda" />
-                    <input type="hidden" name="fechaInicio" value="@fechaInicio" />
-                    <input type="hidden" name="fechaFin" value="@fechaFin" />
+                <form method="get" asp-action="HistorialDocumentacion" class="docs-filter-grid">
 
                     <div>
                         <label class="form-label-ui">Buscar embarque</label>
@@ -1949,10 +1966,7 @@
                         Buscar historial
                     </button>
 
-                    <a asp-action="Documentacion"
-                       asp-route-busqueda="@busqueda"
-                       asp-route-fechaInicio="@fechaInicio"
-                       asp-route-fechaFin="@fechaFin"
+                    <a asp-action="HistorialDocumentacion"
                        class="btn-ui btn-secondary-ui">
                         <i class="bi bi-arrow-clockwise"></i>
                         Limpiar historial

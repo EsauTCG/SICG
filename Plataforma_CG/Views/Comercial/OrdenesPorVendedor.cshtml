@@ -471,6 +471,142 @@
         </div>
     </div>
 
+
+    <!-- =========================================================
+         CONFIRMACIÓN FLOTANTE PARA CANCELAR PEDIDO
+         ========================================================= -->
+    <style>
+        .sigo-confirm-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 5000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 18px;
+            background: rgba(0, 0, 0, .38);
+        }
+
+        .sigo-confirm-overlay.d-none {
+            display: none !important;
+        }
+
+        .sigo-confirm-card {
+            width: min(440px, calc(100vw - 36px));
+            background: #ffffff;
+            border: 1px solid #d5d9de;
+            border-radius: 12px;
+            box-shadow: 0 18px 55px rgba(0, 0, 0, .28);
+            overflow: hidden;
+            animation: sigoConfirmIn .16s ease-out;
+        }
+
+        .sigo-confirm-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 16px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e1e4e8;
+        }
+
+        .sigo-confirm-icon {
+            width: 34px;
+            height: 34px;
+            flex: 0 0 34px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff1f2;
+            color: #b4232f;
+            font-size: 18px;
+        }
+
+        .sigo-confirm-title {
+            margin: 0;
+            color: #30343a;
+            font-size: 15px;
+            font-weight: 800;
+        }
+
+        .sigo-confirm-body {
+            padding: 18px 16px;
+            color: #4b5158;
+            font-size: 13px;
+            line-height: 1.45;
+        }
+
+        .sigo-confirm-body strong {
+            color: #7f1d28;
+        }
+
+        .sigo-confirm-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 9px;
+            padding: 12px 16px 15px;
+            border-top: 1px solid #eceff2;
+            background: #fff;
+        }
+
+        .sigo-confirm-actions .btn {
+            min-width: 95px;
+            font-weight: 700;
+        }
+
+        @@keyframes sigoConfirmIn {
+            from {
+                opacity: 0;
+                transform: translateY(-8px) scale(.985);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+    </style>
+
+    <div id="cancelConfirmOverlay"
+         class="sigo-confirm-overlay d-none"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="cancelConfirmTitle"
+         aria-hidden="true">
+
+        <div class="sigo-confirm-card">
+            <div class="sigo-confirm-head">
+                <div class="sigo-confirm-icon">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                </div>
+
+                <h5 class="sigo-confirm-title" id="cancelConfirmTitle">
+                    Confirmar cancelación
+                </h5>
+            </div>
+
+            <div class="sigo-confirm-body">
+                <div id="cancelConfirmMessage">
+                    ¿Estás seguro de cancelar este pedido?
+                </div>
+            </div>
+
+            <div class="sigo-confirm-actions">
+                <button type="button"
+                        class="btn btn-secondary"
+                        id="btnCancelConfirmNo">
+                    No
+                </button>
+
+                <button type="button"
+                        class="btn btn-danger"
+                        id="btnCancelConfirmSi">
+                    Sí, cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+
     @section Scripts {
         <script>
                     // ========= utilidades =========
@@ -501,6 +637,61 @@
                                 ${text || ''}
                                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                             </div>`;
+                    }
+
+                    // =====================================================
+                    // CONFIRMACIÓN FLOTANTE SÍ / NO
+                    // =====================================================
+                    function confirmarCancelacionFlotante(consecutivo) {
+                        return new Promise(resolve => {
+                            const overlay = document.getElementById('cancelConfirmOverlay');
+                            const message = document.getElementById('cancelConfirmMessage');
+                            const btnNo = document.getElementById('btnCancelConfirmNo');
+                            const btnSi = document.getElementById('btnCancelConfirmSi');
+
+                            if (!overlay || !message || !btnNo || !btnSi) {
+                                resolve(false);
+                                return;
+                            }
+
+                            const pedido = (consecutivo || '').trim();
+
+                            message.innerHTML =
+                                `¿Estás seguro de cancelar el pedido ` +
+                                `<strong>${pedido || ''}</strong>?<br><br>` +
+                                `Si la solicitud de surtido ya tiene cajas asignadas, ` +
+                                `el sistema no permitirá la cancelación y no afectará SAP ni MEAT.`;
+
+                            overlay.classList.remove('d-none');
+                            overlay.setAttribute('aria-hidden', 'false');
+
+                            const cerrar = (resultado) => {
+                                overlay.classList.add('d-none');
+                                overlay.setAttribute('aria-hidden', 'true');
+
+                                btnNo.removeEventListener('click', onNo);
+                                btnSi.removeEventListener('click', onSi);
+                                document.removeEventListener('keydown', onKey);
+
+                                resolve(resultado);
+                            };
+
+                            const onNo = () => cerrar(false);
+                            const onSi = () => cerrar(true);
+
+                            const onKey = (e) => {
+                                if (e.key === 'Escape') {
+                                    e.preventDefault();
+                                    cerrar(false);
+                                }
+                            };
+
+                            btnNo.addEventListener('click', onNo);
+                            btnSi.addEventListener('click', onSi);
+                            document.addEventListener('keydown', onKey);
+
+                            setTimeout(() => btnNo.focus(), 0);
+                        });
                     }
 
 
@@ -1131,11 +1322,17 @@
 
                     const consecutivoActual = document.getElementById('ovm-consecutivo')?.textContent || '';
 
-                    const seguro = confirm(
-                        `¿Estás seguro de eliminar el pedido ${consecutivoActual}?`
-                    );
+                    const seguro =
+                        await confirmarCancelacionFlotante(consecutivoActual);
 
-                    if (!seguro) return;
+                    if (!seguro) {
+                        showMsg(
+                            'info',
+                            'NO se canceló el pedido. Motivo: la cancelación fue descartada por el usuario.'
+                        );
+                        setTimeout(() => { showMsg(); }, 3500);
+                        return;
+                    }
 
                     const url = `/Comercial/CancelarOV?id=${encodeURIComponent(ordenIdActual)}`;
 
@@ -1156,22 +1353,34 @@
                         try { json = JSON.parse(raw); } catch { }
 
                         if (resp.status === 404) {
-                            showMsg('danger', 'Orden no encontrada.');
+                            showMsg(
+                                'danger',
+                                `NO se pudo cancelar el pedido. Motivo: ${json.msg || 'Orden no encontrada.'}`
+                            );
                             return;
                         }
 
                         if (resp.status === 400) {
-                            showMsg('danger', 'Solicitud inválida o token faltante.');
+                            showMsg(
+                                'danger',
+                                `NO se pudo cancelar el pedido. Motivo: ${json.msg || 'Solicitud inválida o token faltante.'}`
+                            );
                             return;
                         }
 
                         if (resp.status === 409) {
-                            showMsg('warning', json.msg || 'No se puede cancelar este pedido.');
+                            showMsg(
+                                'warning',
+                                `NO se canceló el pedido. Motivo: ${json.msg || 'El pedido tiene cajas asignadas o existe una restricción para cancelarlo.'}`
+                            );
                             return;
                         }
 
                         if (!resp.ok || json.ok === false) {
-                            showMsg('danger', json.msg || `Error (${resp.status}).`);
+                            showMsg(
+                                'danger',
+                                `NO se pudo cancelar el pedido. Motivo: ${json.msg || `Error HTTP ${resp.status}.`}`
+                            );
                             return;
                         }
 
@@ -1192,12 +1401,37 @@
                             }
                         }
 
-                        showMsg('success', 'Pedido cancelado correctamente.');
-                        setTimeout(() => { showMsg(); }, 2500);
+                        const sapCancelados = Number(json.docsSapCancelados || 0);
+                        const sapNoCancelados = Number(json.docsSapNoCancelados || 0);
+                        const meatCancelados = Number(json.docsMeatCancelados || 0);
+                        const meatNoCancelados = Number(json.docsMeatNoCancelados || 0);
+
+                        let mensajeResultado =
+                            `SÍ se canceló el pedido en SIGO correctamente.`;
+
+                        if (sapCancelados > 0 || sapNoCancelados > 0) {
+                            mensajeResultado +=
+                                ` SAP: ${sapCancelados} cancelado(s), ${sapNoCancelados} no cancelado(s).`;
+                        }
+
+                        if (meatCancelados > 0 || meatNoCancelados > 0) {
+                            mensajeResultado +=
+                                ` MEAT: ${meatCancelados} cancelado(s), ${meatNoCancelados} no cancelado(s).`;
+                        }
+
+                        if (json.msg) {
+                            mensajeResultado += ` ${json.msg}`;
+                        }
+
+                        showMsg('success', mensajeResultado);
+                        setTimeout(() => { showMsg(); }, 6500);
 
                     } catch (err) {
                         console.error(err);
-                        showMsg('danger', 'Error de red al cancelar el pedido.');
+                        showMsg(
+                            'danger',
+                            'NO se pudo cancelar el pedido. Motivo: error de red o no fue posible comunicarse con el servidor.'
+                        );
                     } finally {
                         btnCancelarOV.textContent = 'Cancelar pedido';
                         toggleCancelarBtn(estatusActual);

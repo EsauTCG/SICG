@@ -571,8 +571,155 @@ ov AS (
     FROM dbo.OrdenVenta o
     INNER JOIN dbo.Series ser ON o.Serie = ser.NombreSerie
     WHERE o.FechaEntrega IS NOT NULL
-      AND o.Estatus BETWEEN 1 AND 4
+      AND o.Estatus BETWEEN 1 AND 6
       AND ser.Sucursal = 'MATRIZ'
+),
+
+/* Pedido original por OV + SKU */
+ov_peso_agg AS (
+    SELECT
+        PedidoId = op.PedidoId,
+        SKU = UPPER(LTRIM(RTRIM(op.ProductoCodigo))),
+        KgPedido = SUM(CAST(ISNULL(op.Peso, 0) AS DECIMAL(18,4)))
+    FROM dbo.OrdenVentaProducto op
+    INNER JOIN ov
+        ON ov.Id = op.PedidoId
+    WHERE ISNULL(op.Eliminado, 0) = 0
+    GROUP BY
+        op.PedidoId,
+        UPPER(LTRIM(RTRIM(op.ProductoCodigo)))
+),
+
+/* Estado operativo de cada SolicitudSurtido */
+solicitud_estado AS (
+    SELECT
+        se.SolicitudSurtidoId,
+        EsCerrado =
+            MAX(
+                CASE
+                    WHEN se.FechaValidacion IS NOT NULL
+                      OR NULLIF(LTRIM(RTRIM(ISNULL(se.Remision, ''))), '') IS NOT NULL
+                        THEN 1
+                    ELSE 0
+                END
+            )
+    FROM dbo.SurtidoEncabezado se
+    GROUP BY
+        se.SolicitudSurtidoId
+),
+
+/*
+   Cierre total de la OV.
+   Si todos sus subpedidos ya están cerrados, ya no existe
+   compromiso pendiente aunque el surtido físico haya sido menor.
+*/
+ov_estado_cierre AS (
+    SELECT
+        PedidoId = sp.OrdenVentaId,
+        TotalSubpedidos = COUNT_BIG(*),
+        SubpedidosCerrados =
+            SUM(
+                CASE
+                    WHEN ISNULL(se.EsCerrado, 0) = 1 THEN 1
+                    ELSE 0
+                END
+            )
+    FROM dbo.Subpedido sp
+    INNER JOIN ov
+        ON ov.Id = sp.OrdenVentaId
+    LEFT JOIN solicitud_estado se
+        ON se.SolicitudSurtidoId =
+           TRY_CONVERT(
+               INT,
+               NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+           )
+    GROUP BY
+        sp.OrdenVentaId
+),
+
+/*
+   Kilos de subpedidos que ya quedaron cerrados.
+   Esto permite manejar correctamente una OV con varios subpedidos:
+   sólo queda comprometida la parte que todavía sigue abierta.
+*/
+ov_cerrado_sku AS (
+    SELECT
+        PedidoId = sp.OrdenVentaId,
+        SKU = UPPER(LTRIM(RTRIM(ISNULL(spp.ProductoCodigo, '')))),
+        KgCerrado =
+            SUM(
+                CAST(
+                    ISNULL(spp.KilosCaja, 0)
+                    AS DECIMAL(18,4)
+                )
+            )
+    FROM dbo.Subpedido sp
+    INNER JOIN ov
+        ON ov.Id = sp.OrdenVentaId
+    INNER JOIN dbo.SubpedidoProductos spp
+        ON spp.SubpedidoId = sp.Id
+    INNER JOIN solicitud_estado se
+        ON se.SolicitudSurtidoId =
+           TRY_CONVERT(
+               INT,
+               NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+           )
+       AND se.EsCerrado = 1
+    WHERE
+        NULLIF(LTRIM(RTRIM(ISNULL(spp.ProductoCodigo, ''))), '') IS NOT NULL
+    GROUP BY
+        sp.OrdenVentaId,
+        UPPER(LTRIM(RTRIM(ISNULL(spp.ProductoCodigo, ''))))
+),
+
+/*
+   Pendiente contractual real:
+   - OV totalmente cerrada = 0
+   - OV parcialmente cerrada = Pedido original menos kilos cerrados
+   - el surtido físico se conserva por separado como surtido real
+*/
+ov_pendiente_sku AS (
+    SELECT
+        ov.Id,
+        ov.Cliente,
+        ov.VendedorId,
+        ov.Estatus,
+        ov.FechaDate,
+        p.SKU,
+
+        KgPendiente =
+            CAST(
+                CASE
+                    WHEN
+                        ISNULL(ec.TotalSubpedidos, 0) > 0
+                        AND ISNULL(ec.SubpedidosCerrados, 0)
+                            = ISNULL(ec.TotalSubpedidos, 0)
+                        THEN 0
+
+                    WHEN
+                        (
+                            ISNULL(p.KgPedido, 0)
+                            - ISNULL(cs.KgCerrado, 0)
+                        ) <= 0
+                        THEN 0
+
+                    ELSE
+                        (
+                            ISNULL(p.KgPedido, 0)
+                            - ISNULL(cs.KgCerrado, 0)
+                        )
+                END
+                AS DECIMAL(18,4)
+            )
+
+    FROM ov
+    INNER JOIN ov_peso_agg p
+        ON p.PedidoId = ov.Id
+    LEFT JOIN ov_estado_cierre ec
+        ON ec.PedidoId = ov.Id
+    LEFT JOIN ov_cerrado_sku cs
+        ON cs.PedidoId = ov.Id
+       AND cs.SKU = p.SKU
 ),
 
 presupuestos_cedis AS (
@@ -592,22 +739,22 @@ presupuestos_cedis AS (
 consumo_cedis_base AS (
     SELECT Canal, SKU, Mes, Anio, SUM(Kg) Kg
     FROM (
-        -- OV CEDIS
+        -- OV CEDIS: sólo kilos que siguen pendientes
         SELECT
             Canal = UPPER(LTRIM(RTRIM(cli.U_CANAL))),
-            SKU   = UPPER(op.ProductoCodigo),
-            Mes   = MONTH(ov.FechaDate),
-            Anio  = YEAR(ov.FechaDate),
-            Kg    = SUM(CAST(op.Peso AS DECIMAL(18,4)))
-        FROM ov
-        JOIN dbo.OrdenVentaProducto op ON op.PedidoId = ov.Id
-        JOIN dbo.ClienteSap cli        ON cli.Cliente = ov.Cliente
+            SKU   = ovp.SKU,
+            Mes   = MONTH(ovp.FechaDate),
+            Anio  = YEAR(ovp.FechaDate),
+            Kg    = SUM(CAST(ISNULL(ovp.KgPendiente, 0) AS DECIMAL(18,4)))
+        FROM ov_pendiente_sku ovp
+        JOIN dbo.ClienteSap cli
+            ON cli.Cliente = ovp.Cliente
         WHERE UPPER(LTRIM(RTRIM(cli.U_CANAL))) LIKE 'CEDIS%'
         GROUP BY
             UPPER(LTRIM(RTRIM(cli.U_CANAL))),
-            UPPER(op.ProductoCodigo),
-            MONTH(ov.FechaDate),
-            YEAR(ov.FechaDate)
+            ovp.SKU,
+            MONTH(ovp.FechaDate),
+            YEAR(ovp.FechaDate)
 
         UNION ALL
 
@@ -683,23 +830,21 @@ pres_vendedor_x_canal AS (
 
 consumo_vendedor_normal AS (
     SELECT
-        o.VendedorId,
-        SKU  = UPPER(op.ProductoCodigo),
-        Mes  = MONTH(o.FechaEntrega),
-        Anio = YEAR(o.FechaEntrega),
-        Kg   = SUM(CAST(op.Peso AS DECIMAL(18,4)))
-    FROM dbo.OrdenVenta o
-    JOIN dbo.OrdenVentaProducto op ON op.PedidoId = o.Id
-    JOIN dbo.Series s ON s.NombreSerie = o.Serie
-    JOIN dbo.ClienteSap c ON c.Cliente = o.Cliente
-                         AND ISNULL(UPPER(c.U_CANAL),'') NOT LIKE 'CEDIS%'
-    WHERE  o.Estatus BETWEEN 1 AND 4
-      AND s.Sucursal = 'MATRIZ'
+        ovp.VendedorId,
+        SKU  = ovp.SKU,
+        Mes  = MONTH(ovp.FechaDate),
+        Anio = YEAR(ovp.FechaDate),
+        Kg   = SUM(CAST(ISNULL(ovp.KgPendiente, 0) AS DECIMAL(18,4)))
+    FROM ov_pendiente_sku ovp
+    JOIN dbo.ClienteSap c
+        ON c.Cliente = ovp.Cliente
+       AND ISNULL(UPPER(c.U_CANAL),'') NOT LIKE 'CEDIS%'
+    WHERE ovp.VendedorId IS NOT NULL
     GROUP BY
-        o.VendedorId,
-        UPPER(op.ProductoCodigo),
-        MONTH(o.FechaEntrega),
-        YEAR(o.FechaEntrega)
+        ovp.VendedorId,
+        ovp.SKU,
+        MONTH(ovp.FechaDate),
+        YEAR(ovp.FechaDate)
 ),
 
 consumo_vendedor_desde_cedis AS (
@@ -802,32 +947,12 @@ surtido_transferencias_cedis AS (
         MONTH(TRY_CONVERT(date, t.FechaSolicitud)),
         YEAR(TRY_CONVERT(date, t.FechaSolicitud))
 ),
-surtido_pedidos_transferencia_cedis AS (
-    SELECT
-        Canal = UPPER(LTRIM(RTRIM(ser.Canal))),
-        SKU   = UPPER(LTRIM(RTRIM(ptd.ProductoCodigo))),
-        Mes   = MONTH(TRY_CONVERT(date, pt.FechaSolicitud)),
-        Anio  = YEAR(TRY_CONVERT(date, pt.FechaSolicitud)),
-        KgSurtido = SUM(CAST(ptd.CantidadKg AS DECIMAL(18,4)))
-    FROM dbo.PedidosTransferencia pt
-    JOIN dbo.PedidosTransferenciaDetalle ptd ON ptd.PedidoTransferenciaId = pt.Id
-    JOIN dbo.Series ser ON ser.Sucursal = pt.Destino
-    WHERE pt.FechaSolicitud IS NOT NULL
-      AND UPPER(LTRIM(RTRIM(ser.Canal))) LIKE 'CEDIS%'
-    GROUP BY
-        UPPER(LTRIM(RTRIM(ser.Canal))),
-        UPPER(LTRIM(RTRIM(ptd.ProductoCodigo))),
-        MONTH(TRY_CONVERT(date, pt.FechaSolicitud)),
-        YEAR(TRY_CONVERT(date, pt.FechaSolicitud))
-),
 surtido_cedis_base AS (
     SELECT Canal, SKU, Mes, Anio, SUM(KgSurtido) AS KgSurtido
     FROM (
         SELECT Canal, SKU, Mes, Anio, KgSurtido FROM surtido_ov_cedis
         UNION ALL
         SELECT Canal, SKU, Mes, Anio, KgSurtido FROM surtido_transferencias_cedis
-        UNION ALL
-        SELECT Canal, SKU, Mes, Anio, KgSurtido FROM surtido_pedidos_transferencia_cedis
     ) x
     GROUP BY Canal, SKU, Mes, Anio
 ),
@@ -1553,7 +1678,8 @@ ORDER BY Origen;";
 
                 /*
                  * Se incluyen 1..6.
-                 * 5 y 6 se manejan abajo con la regla de surtido.
+                 * El pendiente se determina por el estado real de cierre
+                 * de las solicitudes, no por la diferencia física surtida.
                  */
                 AND o.Estatus BETWEEN 1 AND 6
 
@@ -1591,41 +1717,91 @@ ORDER BY Origen;";
                 op.PedidoId
         ),
 
-        OVConSurtido AS
-        (
-            SELECT DISTINCT
-                o.Id
-            FROM OV o
-            INNER JOIN dbo.Subpedido sp WITH (NOLOCK)
-                ON sp.OrdenVentaId = o.Id
-            INNER JOIN dbo.SurtidoEncabezado se WITH (NOLOCK)
-                ON se.SolicitudSurtidoId = sp.U_DocMeat
-        ),
-
-        OVSurtidoValidado AS
+        SolicitudEstado AS
         (
             SELECT
-                o.Id AS PedidoId,
+                se.SolicitudSurtidoId,
 
-                KgSurtido =
+                EsCerrado =
+                    MAX(
+                        CASE
+                            WHEN se.FechaValidacion IS NOT NULL
+                              OR NULLIF(LTRIM(RTRIM(ISNULL(se.Remision, ''))), '') IS NOT NULL
+                                THEN 1
+                            ELSE 0
+                        END
+                    )
+
+            FROM dbo.SurtidoEncabezado se WITH (NOLOCK)
+
+            GROUP BY
+                se.SolicitudSurtidoId
+        ),
+
+        EstadoOV AS
+        (
+            SELECT
+                PedidoId = sp.OrdenVentaId,
+                TotalSubpedidos = COUNT_BIG(*),
+
+                SubpedidosCerrados =
+                    SUM(
+                        CASE
+                            WHEN ISNULL(se.EsCerrado, 0) = 1 THEN 1
+                            ELSE 0
+                        END
+                    )
+
+            FROM dbo.Subpedido sp WITH (NOLOCK)
+
+            INNER JOIN OV o
+                ON o.Id = sp.OrdenVentaId
+
+            LEFT JOIN SolicitudEstado se
+                ON se.SolicitudSurtidoId =
+                   TRY_CONVERT(
+                       INT,
+                       NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+                   )
+
+            GROUP BY
+                sp.OrdenVentaId
+        ),
+
+        CerradoSku AS
+        (
+            SELECT
+                PedidoId = sp.OrdenVentaId,
+
+                KgCerrado =
                     SUM(
                         CAST(
-                            ISNULL(sd.Kg, 0)
+                            ISNULL(spp.KilosCaja, 0)
                             AS DECIMAL(18,4)
                         )
                     )
-            FROM OV o
-            INNER JOIN dbo.Subpedido sp WITH (NOLOCK)
-                ON sp.OrdenVentaId = o.Id
-            INNER JOIN dbo.SurtidoEncabezado se WITH (NOLOCK)
-                ON se.SolicitudSurtidoId = sp.U_DocMeat
-            INNER JOIN dbo.SurtidoDetalle sd WITH (NOLOCK)
-                ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+
+            FROM dbo.Subpedido sp WITH (NOLOCK)
+
+            INNER JOIN OV o
+                ON o.Id = sp.OrdenVentaId
+
+            INNER JOIN dbo.SubpedidoProductos spp WITH (NOLOCK)
+                ON spp.SubpedidoId = sp.Id
+
+            INNER JOIN SolicitudEstado se
+                ON se.SolicitudSurtidoId =
+                   TRY_CONVERT(
+                       INT,
+                       NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+                   )
+               AND se.EsCerrado = 1
+
             WHERE
-                se.FechaValidacion IS NOT NULL
-                AND UPPER(LTRIM(RTRIM(ISNULL(sd.Articulo, '')))) = @SkuN
+                UPPER(LTRIM(RTRIM(ISNULL(spp.ProductoCodigo, '')))) = @SkuN
+
             GROUP BY
-                o.Id
+                sp.OrdenVentaId
         ),
 
         OVPendiente AS
@@ -1636,38 +1812,38 @@ ORDER BY Origen;";
                 KgPendiente =
                     CAST(
                         CASE
-                            /*
-                             * Misma regla usada en el disponible correcto:
-                             * si 5/6 ya tiene surtido, el pedido pendiente es cero.
-                             */
-                            WHEN o.Estatus IN (5, 6)
-                                 AND os.Id IS NOT NULL
+                            WHEN
+                                ISNULL(e.TotalSubpedidos, 0) > 0
+                                AND ISNULL(e.SubpedidosCerrados, 0)
+                                    = ISNULL(e.TotalSubpedidos, 0)
+                                THEN 0
+
+                            WHEN
+                                (
+                                    ISNULL(p.KgPedido, 0)
+                                    - ISNULL(c.KgCerrado, 0)
+                                ) <= 0
                                 THEN 0
 
                             ELSE
-                                CASE
-                                    WHEN
-                                        (
-                                            ISNULL(p.KgPedido, 0)
-                                            - ISNULL(sa.KgSurtido, 0)
-                                        ) < 0
-                                        THEN 0
-                                    ELSE
-                                        (
-                                            ISNULL(p.KgPedido, 0)
-                                            - ISNULL(sa.KgSurtido, 0)
-                                        )
-                                END
+                                (
+                                    ISNULL(p.KgPedido, 0)
+                                    - ISNULL(c.KgCerrado, 0)
+                                )
                         END
                         AS DECIMAL(18,4)
                     )
+
             FROM OV o
+
             INNER JOIN OVPeso p
                 ON p.PedidoId = o.Id
-            LEFT JOIN OVSurtidoValidado sa
-                ON sa.PedidoId = o.Id
-            LEFT JOIN OVConSurtido os
-                ON os.Id = o.Id
+
+            LEFT JOIN EstadoOV e
+                ON e.PedidoId = o.Id
+
+            LEFT JOIN CerradoSku c
+                ON c.PedidoId = o.Id
         ),
 
         /* ============================================================
@@ -4306,6 +4482,504 @@ WHEN NOT MATCHED THEN
 
         }
 
+        private const string SqlCaducidadTransferencias = @"
+/* ============================================================
+   CADUCIDAD POR TRANSFERENCIA (TIF -> P1) - SIN ERRORES SINTAXIS
+   ============================================================ */
+
+DECLARE @Pedido nvarchar(30) = @pPedido;
+
+;WITH BaseEtiquetas AS (
+    SELECT
+        a.TransferenciaId,
+        Pedido = LTRIM(RTRIM(CONVERT(nvarchar(30), a.Consecutivo))) COLLATE Modern_Spanish_CI_AS,
+        ProductoCodigo = CONVERT(nvarchar(50), d.ProductoCodigo) COLLATE Modern_Spanish_CI_AS,
+        ProductoNombre = CONVERT(nvarchar(200), d.ProductoNombre) COLLATE Modern_Spanish_CI_AS,
+        Sku = CONVERT(nvarchar(50), c.Sku) COLLATE Modern_Spanish_CI_AS,
+        CodigoEtiqueta = CONVERT(nvarchar(200), LTRIM(RTRIM(c.CodigoEtiqueta))) COLLATE Modern_Spanish_CI_AS,
+        Kg = CAST(COALESCE(c.Kg, 0) AS decimal(18,4))
+    FROM dbo.PedidosTransferencia a
+    INNER JOIN dbo.TransferenciaScanEtiqueta c
+        ON a.TransferenciaId = c.TransferenciaId
+    INNER JOIN dbo.ArticuloSap d
+        ON c.Sku = d.ProductoCodigo
+    WHERE LTRIM(RTRIM(CONVERT(nvarchar(30), a.Consecutivo))) COLLATE Modern_Spanish_CI_AS
+        = LTRIM(RTRIM(@Pedido)) COLLATE Modern_Spanish_CI_AS
+),
+
+EtiquetasPedido AS (
+    SELECT DISTINCT CodigoEtiqueta
+    FROM BaseEtiquetas
+),
+
+LogTIF AS (
+    SELECT
+        CodigoEtiqueta,
+        ProduccionId,
+        EtiquetacionId,
+        FechaHoraEvento,
+        rn = ROW_NUMBER() OVER (PARTITION BY CodigoEtiqueta ORDER BY FechaHoraEvento DESC)
+    FROM (
+        SELECT
+            CodigoEtiqueta = CONVERT(nvarchar(200), LTRIM(RTRIM(pel.CodigoEtiqueta))) COLLATE Modern_Spanish_CI_AS,
+            pel.ProduccionId,
+            pel.EtiquetacionId,
+            pel.FechaHoraEvento
+        FROM [Meat_TIF].TIF_MEAT.dbo.ProduccionEtiquetacionLog pel
+        INNER JOIN EtiquetasPedido ep
+            ON CONVERT(nvarchar(200), LTRIM(RTRIM(pel.CodigoEtiqueta))) COLLATE Modern_Spanish_CI_AS
+             = ep.CodigoEtiqueta
+    ) x
+),
+
+LogP1 AS (
+    SELECT
+        CodigoEtiqueta,
+        ProduccionId,
+        EtiquetacionId,
+        FechaHoraEvento,
+        rn = ROW_NUMBER() OVER (PARTITION BY CodigoEtiqueta ORDER BY FechaHoraEvento DESC)
+    FROM (
+        SELECT
+            CodigoEtiqueta = CONVERT(nvarchar(200), LTRIM(RTRIM(pel.CodigoEtiqueta))) COLLATE Modern_Spanish_CI_AS,
+            pel.ProduccionId,
+            pel.EtiquetacionId,
+            pel.FechaHoraEvento
+        FROM [Meat_P1].Meat.dbo.ProduccionEtiquetacionLog pel
+        INNER JOIN EtiquetasPedido ep
+            ON CONVERT(nvarchar(200), LTRIM(RTRIM(pel.CodigoEtiqueta))) COLLATE Modern_Spanish_CI_AS
+             = ep.CodigoEtiqueta
+    ) x
+),
+
+ConLog AS (
+    SELECT
+        b.Pedido,
+        b.ProductoCodigo,
+        b.ProductoNombre,
+        b.Sku,
+        b.CodigoEtiqueta,
+        b.Kg,
+
+        Planta = CONVERT(
+            nvarchar(10),
+            CASE
+                WHEN lt.ProduccionId IS NOT NULL THEN 'TIF'
+                WHEN lp.ProduccionId IS NOT NULL THEN 'P1'
+                ELSE 'SIN LOG'
+            END
+        ) COLLATE Modern_Spanish_CI_AS,
+
+        ProduccionId = COALESCE(lt.ProduccionId, lp.ProduccionId),
+        EtiquetacionId = COALESCE(lt.EtiquetacionId, lp.EtiquetacionId)
+    FROM BaseEtiquetas b
+    LEFT JOIN LogTIF lt
+        ON lt.CodigoEtiqueta = b.CodigoEtiqueta
+       AND lt.rn = 1
+    LEFT JOIN LogP1 lp
+        ON lp.CodigoEtiqueta = b.CodigoEtiqueta
+       AND lp.rn = 1
+),
+
+ProdTIF AS (
+    SELECT
+        pr.ProduccionId,
+        SKU = CONVERT(nvarchar(50), pr.Articulo) COLLATE Modern_Spanish_CI_AS,
+        FechaProduccion = CONVERT(date, pr.FechaProduccion),
+        PesoKg = CAST(pr.PesoNeto AS decimal(18,4)),
+        pr.LoteId
+    FROM [Meat_TIF].TIF_MEAT.dbo.Produccion pr
+),
+
+ProdP1 AS (
+    SELECT
+        pr.ProduccionId,
+        SKU = CONVERT(nvarchar(50), pr.Articulo) COLLATE Modern_Spanish_CI_AS,
+        FechaProduccion = CONVERT(date, pr.FechaProduccion),
+        PesoKg = CAST(pr.PesoNeto AS decimal(18,4)),
+        pr.LoteId
+    FROM [Meat_P1].Meat.dbo.Produccion pr
+),
+
+LoteTIF AS (
+    SELECT
+        l.LoteId,
+        Lote = CONVERT(nvarchar(200), LTRIM(RTRIM(l.Nombre))) COLLATE Modern_Spanish_CI_AS
+    FROM [Meat_TIF].TIF_MEAT.dbo.Lote l
+),
+
+LoteP1 AS (
+    SELECT
+        l.LoteId,
+        Lote = CONVERT(nvarchar(200), LTRIM(RTRIM(l.Nombre))) COLLATE Modern_Spanish_CI_AS
+    FROM [Meat_P1].Meat.dbo.Lote l
+),
+
+ColTIF AS (
+    SELECT
+        ColectorId,
+        DiasVida = TRY_CONVERT(int, Interface)
+    FROM [Meat_TIF].tif_CommerciaNet.dbo.colector
+    WHERE SistemaId = 'ETI'
+),
+
+ColP1 AS (
+    SELECT
+        ColectorId,
+        DiasVida = TRY_CONVERT(int, Interface)
+    FROM [Meat_P1].CommerciaNet.dbo.colector
+    WHERE SistemaId = 'ETI'
+),
+
+Detalle AS (
+    SELECT
+        c.CodigoEtiqueta,
+
+        Planta = c.Planta,
+
+        SKU = COALESCE(
+            NULLIF(c.Sku, N''),
+            NULLIF(c.ProductoCodigo, N''),
+            N'SIN SKU'
+        ) COLLATE Modern_Spanish_CI_AS,
+
+        Producto = COALESCE(
+            NULLIF(c.ProductoNombre, N''),
+            N'SIN PRODUCTO'
+        ) COLLATE Modern_Spanish_CI_AS,
+
+        Lote = COALESCE(
+            lt.Lote,
+            lp.Lote,
+            N'SIN LOTE'
+        ) COLLATE Modern_Spanish_CI_AS,
+
+        FechaProduccion = COALESCE(pt.FechaProduccion, pp.FechaProduccion),
+
+        PesoKg = COALESCE(
+            pt.PesoKg,
+            pp.PesoKg,
+            c.Kg,
+            CAST(0 AS decimal(18,4))
+        ),
+
+        DiasVida = COALESCE(ct.DiasVida, cp.DiasVida, 0),
+
+        FechaCaducidad = CASE
+            WHEN COALESCE(pt.FechaProduccion, pp.FechaProduccion) IS NULL THEN NULL
+            ELSE DATEADD(
+                day,
+                COALESCE(ct.DiasVida, cp.DiasVida, 0),
+                COALESCE(pt.FechaProduccion, pp.FechaProduccion)
+            )
+        END,
+
+        FechaSacrificio = TRY_CONVERT(date, sr.Referencia, 103)
+    FROM ConLog c
+    LEFT JOIN ProdTIF pt
+        ON c.Planta = N'TIF'
+       AND pt.ProduccionId = c.ProduccionId
+    LEFT JOIN ProdP1 pp
+        ON c.Planta = N'P1'
+       AND pp.ProduccionId = c.ProduccionId
+    LEFT JOIN LoteTIF lt
+        ON c.Planta = N'TIF'
+       AND lt.LoteId = pt.LoteId
+    LEFT JOIN LoteP1 lp
+        ON c.Planta = N'P1'
+       AND lp.LoteId = pp.LoteId
+    LEFT JOIN ColTIF ct
+        ON c.Planta = N'TIF'
+       AND ct.ColectorId = c.EtiquetacionId
+    LEFT JOIN ColP1 cp
+        ON c.Planta = N'P1'
+       AND cp.ColectorId = c.EtiquetacionId
+    LEFT JOIN [Meat_TIF].TIF_MEAT.dbo.LOTE ltf
+        ON CONVERT(nvarchar(200), LTRIM(RTRIM(ltf.nombre))) COLLATE Modern_Spanish_CI_AS
+         = COALESCE(lt.Lote, lp.Lote, N'') COLLATE Modern_Spanish_CI_AS
+    LEFT JOIN [Meat_TIF].TIF_MEAT.dbo.SolicitudReferencia sr
+        ON sr.solicitudProduccionid = ltf.loteid
+       AND sr.tiporeferenciaId = 47
+),
+
+Normalizado AS (
+    SELECT
+        Planta,
+        SKU,
+        Producto,
+        Lote,
+        FechaSacrificio,
+        FechaProduccion,
+        FechaCaducidad,
+        PesoKg
+    FROM Detalle
+)
+
+SELECT
+    planta = n.Planta,
+    sku = n.SKU,
+    producto = n.Producto,
+    lote = n.Lote,
+    fecha_sacrificio = CONVERT(varchar(10), n.FechaSacrificio, 103),
+    fecha_produccion = CONVERT(varchar(10), n.FechaProduccion, 103),
+    fecha_caducidad = CONVERT(varchar(10), n.FechaCaducidad, 103),
+    Cuenta_de_etiqueta = COUNT(1),
+    Suma_de_kg = CAST(SUM(n.PesoKg) AS decimal(18,3))
+FROM Normalizado n
+GROUP BY
+    n.Planta,
+    n.SKU,
+    n.Producto,
+    n.Lote,
+    n.FechaSacrificio,
+    n.FechaProduccion,
+    n.FechaCaducidad
+ORDER BY
+    n.Planta,
+    n.SKU,
+    n.Producto,
+    n.Lote,
+    n.FechaProduccion,
+    n.FechaCaducidad;
+";
+
+
+        private async Task<List<AvisoMovilizacionDTO>> ObtenerAvisoMovilizacionTransferenciaAsync(
+            string pedido,
+            CancellationToken ct)
+        {
+            pedido = (pedido ?? "").Trim();
+
+            if (string.IsNullOrWhiteSpace(pedido))
+                return new List<AvisoMovilizacionDTO>();
+
+            var conn = _context.Database.GetDbConnection();
+
+            if (conn.State != ConnectionState.Open)
+                await conn.OpenAsync(ct);
+
+            var cmd = new CommandDefinition(
+                SqlCaducidadTransferencias,
+                new { pPedido = pedido },
+                cancellationToken: ct,
+                commandTimeout: 600
+            );
+
+            return (await conn.QueryAsync<AvisoMovilizacionDTO>(cmd)).ToList();
+        }
+
+
+        // ============================================================
+        // AVISOS DE MOVILIZACIÓN - TRANSFERENCIAS
+        // Se consumen desde la misma pantalla de ProcesosCG/AvisosMovilizacion.
+        // Listado: dbo.RomaneoTransferencias
+        // Detalle sanitario: misma consulta usada por ExportCaducidadTransferencias.
+        // ============================================================
+
+        [HttpGet("Transferencias/AvisosMovilizacionData")]
+        public async Task<IActionResult> AvisosMovilizacionDataTransferencias(
+            DateTime? desde,
+            DateTime? hasta,
+            string? cliente = "",
+            string? venta = "",
+            string? lote = "",
+            CancellationToken ct = default)
+        {
+            try
+            {
+                var hoy = DateTime.Today;
+                var d1 = (desde ?? hoy.AddDays(-7)).Date;
+                var d2 = (hasta ?? hoy).Date;
+
+                if (d2 < d1)
+                    (d1, d2) = (d2, d1);
+
+                var raw = await _context.Set<RomaneoTransferenciasRowVM>()
+                    .FromSqlRaw("SELECT * FROM dbo.RomaneoTransferencias")
+                    .AsNoTracking()
+                    .Where(x => x.Fecha >= d1 && x.Fecha < d2.AddDays(1))
+                    .OrderBy(x => x.Fecha)
+                    .ThenBy(x => x.Pedido)
+                    .ThenBy(x => x.Tarima)
+                    .ThenBy(x => x.ProductoCodigo)
+                    .ToListAsync(ct);
+
+                var filtroDestino = (cliente ?? "").Trim();
+                var filtroPedido = (venta ?? "").Trim();
+                var filtroLote = (lote ?? "").Trim();
+
+                if (!string.IsNullOrWhiteSpace(filtroDestino))
+                {
+                    raw = raw
+                        .Where(x => (x.Destino ?? "")
+                            .Contains(filtroDestino, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                }
+
+                if (!string.IsNullOrWhiteSpace(filtroPedido))
+                {
+                    raw = raw
+                        .Where(x => (x.Pedido ?? "")
+                            .Contains(filtroPedido, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                }
+
+                var grupos = raw
+                    .Where(x => !string.IsNullOrWhiteSpace(x.Pedido))
+                    .GroupBy(x => new
+                    {
+                        Pedido = (x.Pedido ?? "").Trim(),
+                        Fecha = x.Fecha.Date,
+                        Destino = (x.Destino ?? "").Trim()
+                    })
+                    .OrderBy(g => g.Key.Fecha)
+                    .ThenBy(g => g.Key.Pedido)
+                    .ToList();
+
+                // El lote no existe directamente en RomaneoTransferencias.
+                // Sólo si el usuario captura lote consultamos el detalle sanitario
+                // de cada transferencia y conservamos las que sí tengan coincidencia.
+                if (!string.IsNullOrWhiteSpace(filtroLote))
+                {
+                    var pedidosConLote = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                    foreach (var pedido in grupos.Select(g => g.Key.Pedido).Distinct(StringComparer.OrdinalIgnoreCase))
+                    {
+                        ct.ThrowIfCancellationRequested();
+
+                        var detalle = await ObtenerAvisoMovilizacionTransferenciaAsync(pedido, ct);
+
+                        if (detalle.Any(x =>
+                            (x.lote ?? "").Contains(filtroLote, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            pedidosConLote.Add(pedido);
+                        }
+                    }
+
+                    grupos = grupos
+                        .Where(g => pedidosConLote.Contains(g.Key.Pedido))
+                        .ToList();
+                }
+
+                var rows = grupos.Select(g => new
+                {
+                    planta = "TRANSFER",
+                    origen = "Transferencias",
+                    solicitudSurtidoId = g.Key.Pedido,
+                    fechaVentaTxt = g.Key.Fecha.ToString("dd/MM/yyyy"),
+                    venta = g.Key.Pedido,
+                    cliente = g.Key.Destino,
+                    totalPartidas = g
+                        .Select(x => (x.ProductoCodigo ?? "").Trim())
+                        .Where(x => !string.IsNullOrWhiteSpace(x))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .Count(),
+                    totalCajas = g.Sum(x => x.Cajas),
+                    totalKg = g.Sum(x => x.Peso)
+                }).ToList();
+
+                return Ok(new
+                {
+                    ok = true,
+                    source = "TRANSFER",
+                    planta = "Transferencias",
+                    desde = d1.ToString("yyyy-MM-dd"),
+                    hasta = d2.ToString("yyyy-MM-dd"),
+                    totalSolicitudes = rows.Count,
+                    totalCajas = rows.Sum(x => x.totalCajas),
+                    totalKg = rows.Sum(x => x.totalKg),
+                    rows
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                return StatusCode(499, new
+                {
+                    ok = false,
+                    source = "TRANSFER",
+                    msg = "Consulta cancelada por cambio de filtro."
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    source = "TRANSFER",
+                    msg = "No se pudieron cargar los avisos de movilización de transferencias.",
+                    error = ex.Message,
+                    inner = ex.InnerException?.Message
+                });
+            }
+        }
+
+
+        [HttpGet("Transferencias/AvisosMovilizacionDetalle")]
+        public async Task<IActionResult> AvisosMovilizacionDetalleTransferencias(
+            string id,
+            CancellationToken ct = default)
+        {
+            try
+            {
+                id = (id ?? "").Trim();
+
+                if (string.IsNullOrWhiteSpace(id))
+                    return BadRequest(new { ok = false, msg = "Transferencia requerida." });
+
+                var data = await ObtenerAvisoMovilizacionTransferenciaAsync(id, ct);
+
+                var rows = data.Select((x, index) => new
+                {
+                    detalleKey = $"{id}|{x.sku}|{x.lote}|{x.fecha_produccion}|{index}",
+                    solicitudSurtidoId = id,
+                    sku = x.sku ?? "",
+                    producto = x.producto ?? "",
+                    lote = x.lote ?? "",
+                    fechaSacrificioTxt = x.fecha_sacrificio ?? "",
+                    fechaProduccionTxt = x.fecha_produccion ?? "",
+                    fechaCaducidadTxt = x.fecha_caducidad ?? "",
+                    cuentaDeEtiqueta = x.Cuenta_de_etiqueta,
+                    sumaDeKg = x.Suma_de_kg,
+                    requiereTif = false,
+                    estadoTif = "COMPLETO",
+                    mensajeTif = ""
+                }).ToList();
+
+                return Ok(new
+                {
+                    ok = true,
+                    source = "TRANSFER",
+                    planta = "Transferencias",
+                    solicitud = id,
+                    totalPartidas = rows.Count,
+                    totalCajas = rows.Sum(x => x.cuentaDeEtiqueta),
+                    totalKg = rows.Sum(x => x.sumaDeKg),
+                    rows
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                return StatusCode(499, new
+                {
+                    ok = false,
+                    source = "TRANSFER",
+                    msg = "Consulta cancelada."
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    source = "TRANSFER",
+                    msg = "No se pudo cargar el detalle de la transferencia.",
+                    error = ex.Message,
+                    inner = ex.InnerException?.Message
+                });
+            }
+        }
+
+
         [HttpGet]
         public async Task<IActionResult> RomaneoTransferencia(
     DateTime? desde,
@@ -4583,266 +5257,7 @@ ORDER BY Pedido;";
                 return BadRequest("No hay pedidos para exportar con esos filtros.");
 
             // 2) SQL de caducidad (EL MISMO QUE YA TIENES)
-            const string sqlCaducidad = @"
-/* ============================================================
-   CADUCIDAD POR TRANSFERENCIA (TIF -> P1) - SIN ERRORES SINTAXIS
-   ============================================================ */
-
-DECLARE @Pedido nvarchar(30) = @pPedido;
-
-;WITH BaseEtiquetas AS (
-    SELECT
-        a.TransferenciaId,
-        Pedido = LTRIM(RTRIM(CONVERT(nvarchar(30), a.Consecutivo))) COLLATE Modern_Spanish_CI_AS,
-        ProductoCodigo = CONVERT(nvarchar(50), d.ProductoCodigo) COLLATE Modern_Spanish_CI_AS,
-        ProductoNombre = CONVERT(nvarchar(200), d.ProductoNombre) COLLATE Modern_Spanish_CI_AS,
-        Sku = CONVERT(nvarchar(50), c.Sku) COLLATE Modern_Spanish_CI_AS,
-        CodigoEtiqueta = CONVERT(nvarchar(200), LTRIM(RTRIM(c.CodigoEtiqueta))) COLLATE Modern_Spanish_CI_AS,
-        Kg = CAST(COALESCE(c.Kg, 0) AS decimal(18,4))
-    FROM dbo.PedidosTransferencia a
-    INNER JOIN dbo.TransferenciaScanEtiqueta c
-        ON a.TransferenciaId = c.TransferenciaId
-    INNER JOIN dbo.ArticuloSap d
-        ON c.Sku = d.ProductoCodigo
-    WHERE LTRIM(RTRIM(CONVERT(nvarchar(30), a.Consecutivo))) COLLATE Modern_Spanish_CI_AS
-        = LTRIM(RTRIM(@Pedido)) COLLATE Modern_Spanish_CI_AS
-),
-
-EtiquetasPedido AS (
-    SELECT DISTINCT CodigoEtiqueta
-    FROM BaseEtiquetas
-),
-
-LogTIF AS (
-    SELECT
-        CodigoEtiqueta,
-        ProduccionId,
-        EtiquetacionId,
-        FechaHoraEvento,
-        rn = ROW_NUMBER() OVER (PARTITION BY CodigoEtiqueta ORDER BY FechaHoraEvento DESC)
-    FROM (
-        SELECT
-            CodigoEtiqueta = CONVERT(nvarchar(200), LTRIM(RTRIM(pel.CodigoEtiqueta))) COLLATE Modern_Spanish_CI_AS,
-            pel.ProduccionId,
-            pel.EtiquetacionId,
-            pel.FechaHoraEvento
-        FROM [Meat_TIF].TIF_MEAT.dbo.ProduccionEtiquetacionLog pel
-        INNER JOIN EtiquetasPedido ep
-            ON CONVERT(nvarchar(200), LTRIM(RTRIM(pel.CodigoEtiqueta))) COLLATE Modern_Spanish_CI_AS
-             = ep.CodigoEtiqueta
-    ) x
-),
-
-LogP1 AS (
-    SELECT
-        CodigoEtiqueta,
-        ProduccionId,
-        EtiquetacionId,
-        FechaHoraEvento,
-        rn = ROW_NUMBER() OVER (PARTITION BY CodigoEtiqueta ORDER BY FechaHoraEvento DESC)
-    FROM (
-        SELECT
-            CodigoEtiqueta = CONVERT(nvarchar(200), LTRIM(RTRIM(pel.CodigoEtiqueta))) COLLATE Modern_Spanish_CI_AS,
-            pel.ProduccionId,
-            pel.EtiquetacionId,
-            pel.FechaHoraEvento
-        FROM [Meat_P1].Meat.dbo.ProduccionEtiquetacionLog pel
-        INNER JOIN EtiquetasPedido ep
-            ON CONVERT(nvarchar(200), LTRIM(RTRIM(pel.CodigoEtiqueta))) COLLATE Modern_Spanish_CI_AS
-             = ep.CodigoEtiqueta
-    ) x
-),
-
-ConLog AS (
-    SELECT
-        b.Pedido,
-        b.ProductoCodigo,
-        b.ProductoNombre,
-        b.Sku,
-        b.CodigoEtiqueta,
-        b.Kg,
-
-        Planta = CONVERT(
-            nvarchar(10),
-            CASE
-                WHEN lt.ProduccionId IS NOT NULL THEN 'TIF'
-                WHEN lp.ProduccionId IS NOT NULL THEN 'P1'
-                ELSE 'SIN LOG'
-            END
-        ) COLLATE Modern_Spanish_CI_AS,
-
-        ProduccionId = COALESCE(lt.ProduccionId, lp.ProduccionId),
-        EtiquetacionId = COALESCE(lt.EtiquetacionId, lp.EtiquetacionId)
-    FROM BaseEtiquetas b
-    LEFT JOIN LogTIF lt
-        ON lt.CodigoEtiqueta = b.CodigoEtiqueta
-       AND lt.rn = 1
-    LEFT JOIN LogP1 lp
-        ON lp.CodigoEtiqueta = b.CodigoEtiqueta
-       AND lp.rn = 1
-),
-
-ProdTIF AS (
-    SELECT
-        pr.ProduccionId,
-        SKU = CONVERT(nvarchar(50), pr.Articulo) COLLATE Modern_Spanish_CI_AS,
-        FechaProduccion = CONVERT(date, pr.FechaProduccion),
-        PesoKg = CAST(pr.PesoNeto AS decimal(18,4)),
-        pr.LoteId
-    FROM [Meat_TIF].TIF_MEAT.dbo.Produccion pr
-),
-
-ProdP1 AS (
-    SELECT
-        pr.ProduccionId,
-        SKU = CONVERT(nvarchar(50), pr.Articulo) COLLATE Modern_Spanish_CI_AS,
-        FechaProduccion = CONVERT(date, pr.FechaProduccion),
-        PesoKg = CAST(pr.PesoNeto AS decimal(18,4)),
-        pr.LoteId
-    FROM [Meat_P1].Meat.dbo.Produccion pr
-),
-
-LoteTIF AS (
-    SELECT
-        l.LoteId,
-        Lote = CONVERT(nvarchar(200), LTRIM(RTRIM(l.Nombre))) COLLATE Modern_Spanish_CI_AS
-    FROM [Meat_TIF].TIF_MEAT.dbo.Lote l
-),
-
-LoteP1 AS (
-    SELECT
-        l.LoteId,
-        Lote = CONVERT(nvarchar(200), LTRIM(RTRIM(l.Nombre))) COLLATE Modern_Spanish_CI_AS
-    FROM [Meat_P1].Meat.dbo.Lote l
-),
-
-ColTIF AS (
-    SELECT
-        ColectorId,
-        DiasVida = TRY_CONVERT(int, Interface)
-    FROM [Meat_TIF].tif_CommerciaNet.dbo.colector
-    WHERE SistemaId = 'ETI'
-),
-
-ColP1 AS (
-    SELECT
-        ColectorId,
-        DiasVida = TRY_CONVERT(int, Interface)
-    FROM [Meat_P1].CommerciaNet.dbo.colector
-    WHERE SistemaId = 'ETI'
-),
-
-Detalle AS (
-    SELECT
-        c.CodigoEtiqueta,
-
-        Planta = c.Planta,
-
-        SKU = COALESCE(
-            NULLIF(c.Sku, N''),
-            NULLIF(c.ProductoCodigo, N''),
-            N'SIN SKU'
-        ) COLLATE Modern_Spanish_CI_AS,
-
-        Producto = COALESCE(
-            NULLIF(c.ProductoNombre, N''),
-            N'SIN PRODUCTO'
-        ) COLLATE Modern_Spanish_CI_AS,
-
-        Lote = COALESCE(
-            lt.Lote,
-            lp.Lote,
-            N'SIN LOTE'
-        ) COLLATE Modern_Spanish_CI_AS,
-
-        FechaProduccion = COALESCE(pt.FechaProduccion, pp.FechaProduccion),
-
-        PesoKg = COALESCE(
-            pt.PesoKg,
-            pp.PesoKg,
-            c.Kg,
-            CAST(0 AS decimal(18,4))
-        ),
-
-        DiasVida = COALESCE(ct.DiasVida, cp.DiasVida, 0),
-
-        FechaCaducidad = CASE
-            WHEN COALESCE(pt.FechaProduccion, pp.FechaProduccion) IS NULL THEN NULL
-            ELSE DATEADD(
-                day,
-                COALESCE(ct.DiasVida, cp.DiasVida, 0),
-                COALESCE(pt.FechaProduccion, pp.FechaProduccion)
-            )
-        END,
-
-        FechaSacrificio = TRY_CONVERT(date, sr.Referencia, 103)
-    FROM ConLog c
-    LEFT JOIN ProdTIF pt
-        ON c.Planta = N'TIF'
-       AND pt.ProduccionId = c.ProduccionId
-    LEFT JOIN ProdP1 pp
-        ON c.Planta = N'P1'
-       AND pp.ProduccionId = c.ProduccionId
-    LEFT JOIN LoteTIF lt
-        ON c.Planta = N'TIF'
-       AND lt.LoteId = pt.LoteId
-    LEFT JOIN LoteP1 lp
-        ON c.Planta = N'P1'
-       AND lp.LoteId = pp.LoteId
-    LEFT JOIN ColTIF ct
-        ON c.Planta = N'TIF'
-       AND ct.ColectorId = c.EtiquetacionId
-    LEFT JOIN ColP1 cp
-        ON c.Planta = N'P1'
-       AND cp.ColectorId = c.EtiquetacionId
-    LEFT JOIN [Meat_TIF].TIF_MEAT.dbo.LOTE ltf
-        ON CONVERT(nvarchar(200), LTRIM(RTRIM(ltf.nombre))) COLLATE Modern_Spanish_CI_AS
-         = COALESCE(lt.Lote, lp.Lote, N'') COLLATE Modern_Spanish_CI_AS
-    LEFT JOIN [Meat_TIF].TIF_MEAT.dbo.SolicitudReferencia sr
-        ON sr.solicitudProduccionid = ltf.loteid
-       AND sr.tiporeferenciaId = 47
-),
-
-Normalizado AS (
-    SELECT
-        Planta,
-        SKU,
-        Producto,
-        Lote,
-        FechaSacrificio,
-        FechaProduccion,
-        FechaCaducidad,
-        PesoKg
-    FROM Detalle
-)
-
-SELECT
-    planta = n.Planta,
-    sku = n.SKU,
-    producto = n.Producto,
-    lote = n.Lote,
-    fecha_sacrificio = CONVERT(varchar(10), n.FechaSacrificio, 103),
-    fecha_produccion = CONVERT(varchar(10), n.FechaProduccion, 103),
-    fecha_caducidad = CONVERT(varchar(10), n.FechaCaducidad, 103),
-    Cuenta_de_etiqueta = COUNT(1),
-    Suma_de_kg = CAST(SUM(n.PesoKg) AS decimal(18,3))
-FROM Normalizado n
-GROUP BY
-    n.Planta,
-    n.SKU,
-    n.Producto,
-    n.Lote,
-    n.FechaSacrificio,
-    n.FechaProduccion,
-    n.FechaCaducidad
-ORDER BY
-    n.Planta,
-    n.SKU,
-    n.Producto,
-    n.Lote,
-    n.FechaProduccion,
-    n.FechaCaducidad;
-";
+            var sqlCaducidad = SqlCaducidadTransferencias;
 
             var conn = _context.Database.GetDbConnection();
             if (conn.State != ConnectionState.Open)

@@ -1,7 +1,10 @@
 ﻿@model IEnumerable<Plataforma_CG.Models.Embarque>
 
 @{
-    ViewData["Title"] = "Documentación de Calidad";
+    var esHistorial = Convert.ToBoolean(ViewBag.EsHistorial ?? false);
+    ViewData["Title"] = esHistorial
+        ? "Histórico de Documentación de Calidad"
+        : "Documentación de Calidad";
     Layout = "~/Views/Shared/_Layout2.cshtml";
 
     var tiposCalidad = new[]
@@ -606,6 +609,20 @@
         box-shadow: 0 8px 18px rgba(139,0,0,.18);
     }
 
+    .btn-no-docs-ui {
+        background: #fff8e6;
+        color: #9a6700;
+        border: 1px solid #f5dfaa;
+        box-shadow: 0 6px 14px rgba(245, 158, 11, .10);
+    }
+
+        .btn-no-docs-ui:hover {
+            background: #ffefbf;
+            color: #7c5200;
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(245, 158, 11, .16);
+        }
+
     .btn-secondary-ui {
         background: #fff;
         color: var(--primary);
@@ -1053,6 +1070,18 @@ body[data-theme="dark"] .btn-primary-ui {
     box-shadow: 0 10px 22px rgba(0,0,0,.28) !important;
 }
 
+        body[data-theme="dark"] .btn-no-docs-ui {
+            background: rgba(245, 158, 11, .14) !important;
+            color: #fcd34d !important;
+            border: 1px solid rgba(245, 158, 11, .35) !important;
+        }
+
+            body[data-theme="dark"] .btn-no-docs-ui:hover {
+                background: rgba(245, 158, 11, .24) !important;
+                color: #fde68a !important;
+                border-color: rgba(245, 158, 11, .55) !important;
+            }
+
 body[data-theme="dark"] .btn-primary-ui:hover {
     color: #ffffff !important;
     box-shadow: 0 14px 28px rgba(0,0,0,.34) !important;
@@ -1249,9 +1278,13 @@ body[data-theme="dark"] input[type="file"]::file-selector-button:hover {
                 <i class="bi bi-shield-check"></i>
             </div>
             <div>
-                <h1 class="page-title">Documentación de Calidad</h1>
+                <h1 class="page-title">
+                    @(esHistorial ? "Histórico de Documentación de Calidad" : "Documentación de Calidad")
+                </h1>
                 <div class="page-subtitle">
-                    Carga y consulta cartas, avisos y hojas de trabajo requeridas por el área de calidad.
+                    @(esHistorial
+                        ? "Consulta por separado los embarques ya validados por documentación de calidad."
+                        : "Carga y consulta cartas, avisos y hojas de trabajo requeridas por el área de calidad.")
                 </div>
             </div>
         </div>
@@ -1262,12 +1295,20 @@ body[data-theme="dark"] input[type="file"]::file-selector-button:hover {
                 @DateTime.Now.ToShortDateString()
             </span>
 
+            <a class="btn-top btn-top-light"
+               asp-action="@(esHistorial ? "DocumentacionCalidad" : "HistorialDocumentacionCalidad")">
+                <i class="bi @(esHistorial ? "bi-hourglass-split" : "bi-clock-history")"></i>
+                @(esHistorial ? "Ver pendientes" : "Ver histórico")
+            </a>
+
             <a class="btn-top btn-top-light" href="@Url.Action("Documentacion", "Embarques")">
                 <i class="bi bi-folder2-open"></i> Documentación logística
             </a>
         </div>
     </div>
 
+    @if (!esHistorial)
+    {
     <div class="summary-grid">
         <div class="summary-card">
             <div class="summary-icon">
@@ -1555,12 +1596,29 @@ body[data-theme="dark"] input[type="file"]::file-selector-button:hover {
                                         </div>
                                     }
 
-                                    <div class="actions-bar">
-                                        <button type="submit" class="btn-ui btn-primary-ui">
-                                            <i class="bi bi-save"></i>
-                                            Guardar y validar documentación de calidad
-                                        </button>
-                                    </div>
+                                        <div class="actions-bar">
+
+                                            <button type="submit"
+                                                    formaction="@Url.Action("ValidarSinDocumentacionCalidad", "Embarques")"
+                                                    formmethod="post"
+                                                    formnovalidate
+                                                    class="btn-ui btn-no-docs-ui"
+                                                    onclick="return confirmarSinDocumentacion(this.form, '@consecutivoEmbarque');">
+
+                                                <i class="bi bi-file-earmark-x"></i>
+                                                Este embarque no tendrá documentación
+                                            </button>
+
+                                            <button type="submit"
+                                                    class="btn-ui btn-primary-ui">
+
+                                                <i class="bi bi-save"></i>
+                                                Guardar y validar documentación de calidad
+                                            </button>
+
+                                        </div>
+
+
                                 </form>
                             </div>
                         </div>
@@ -1569,6 +1627,11 @@ body[data-theme="dark"] input[type="file"]::file-selector-button:hover {
             }
         </div>
 
+    }
+    }
+
+    @if (esHistorial)
+    {
         <div class="section-block">
             <div class="section-head">
                 <div>
@@ -1593,10 +1656,7 @@ body[data-theme="dark"] input[type="file"]::file-selector-button:hover {
                     Filtros de historial
                 </div>
 
-                <form method="get" asp-action="DocumentacionCalidad" class="docs-filter-grid">
-                    <input type="hidden" name="busqueda" value="@busqueda" />
-                    <input type="hidden" name="fechaInicio" value="@fechaInicio" />
-                    <input type="hidden" name="fechaFin" value="@fechaFin" />
+                <form method="get" asp-action="HistorialDocumentacionCalidad" class="docs-filter-grid">
 
                     <div>
                         <label class="form-label-ui">Buscar embarque</label>
@@ -1628,10 +1688,7 @@ body[data-theme="dark"] input[type="file"]::file-selector-button:hover {
                         Buscar historial
                     </button>
 
-                    <a asp-action="DocumentacionCalidad"
-                       asp-route-busqueda="@busqueda"
-                       asp-route-fechaInicio="@fechaInicio"
-                       asp-route-fechaFin="@fechaFin"
+                    <a asp-action="HistorialDocumentacionCalidad"
                        class="btn-ui btn-secondary-ui">
                         <i class="bi bi-arrow-clockwise"></i>
                         Limpiar historial
@@ -1820,5 +1877,28 @@ body[data-theme="dark"] input[type="file"]::file-selector-button:hover {
             preview.classList.remove("active");
             nameBox.textContent = "";
         }
+    }
+
+    function confirmarSinDocumentacion(form, consecutivo) {
+
+        const confirmar = confirm(
+            `¿Confirmas que el embarque #${consecutivo} NO tendrá documentación de calidad?\n\n` +
+            `El embarque será marcado como validado y esta accion no se puede cancelar`
+        );
+
+        if (!confirmar) {
+            return false;
+        }
+
+        // Limpiamos cualquier archivo que el usuario pudiera
+        // haber seleccionado accidentalmente antes de presionar
+        // "No tendrá documentación".
+        const archivos = form.querySelectorAll('input[type="file"]');
+
+        archivos.forEach(input => {
+            input.value = "";
+        });
+
+        return true;
     }
 </script>

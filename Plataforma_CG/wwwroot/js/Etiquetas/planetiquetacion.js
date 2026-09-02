@@ -2,6 +2,8 @@
 
 let etiquetasResumen = [];
 let etiquetasCargadas = false;
+let ubicacionEtiquetacion = 0;
+let ubicacionEtiquetasCargada = null;
 let autocompleteEtiquetasInicializado = false;
 
 
@@ -12,6 +14,7 @@ let autocompleteEtiquetasInicializado = false;
 document.addEventListener("DOMContentLoaded", () => {
 
     inicializarEtiquetacion();
+    inicializarUbicacionEtiquetacion();
 
 });
 
@@ -19,7 +22,69 @@ document.addEventListener("DOMContentLoaded", () => {
 /* =========================================================
    PRODUCTOS
 ========================================================= */
+function inicializarUbicacionEtiquetacion() {
 
+    const opciones =
+        document.querySelectorAll(
+            'input[name="ubicacionEtiquetacion"]'
+        );
+
+    if (!opciones.length)
+        return;
+
+
+    /*
+     * Siempre inicia en TIF
+     */
+    ubicacionEtiquetacion = 0;
+
+
+    opciones.forEach(opcion => {
+
+        opcion.addEventListener(
+            "change",
+            function () {
+
+                if (!this.checked)
+                    return;
+
+
+                ubicacionEtiquetacion =
+                    Number(this.value);
+
+
+                console.log(
+                    "Ubicación seleccionada:",
+                    ubicacionEtiquetacion
+                );
+
+
+                /*
+                 * Al cambiar de ubicación,
+                 * volvemos a buscar.
+                 */
+                const buscador =
+                    document.getElementById(
+                        "buscadorArticulos"
+                    );
+
+
+                const busqueda =
+                    buscador
+                        ? buscador.value.trim()
+                        : "";
+
+
+                cargarProductosEtiquetacion(
+                    busqueda
+                );
+
+            }
+        );
+
+    });
+
+}
 function inicializarEtiquetacion() {
 
     const buscador =
@@ -97,7 +162,10 @@ async function cargarProductosEtiquetacion(busqueda) {
             "busq",
             busqueda || ""
         );
-
+        params.append(
+            "ubic",
+            ubicacionEtiquetacion
+        );
 
         const response =
             await fetch(
@@ -474,7 +542,7 @@ async function cargarEtiquetas() {
      * solamente nos aseguramos de que
      * el autocomplete esté inicializado.
      */
-    if (etiquetasCargadas) {
+    if (etiquetasCargadas && ubicacionEtiquetasCargada === ubicacionEtiquetacion) {
 
         inicializarAutocompleteEtiquetas();
 
@@ -484,9 +552,18 @@ async function cargarEtiquetas() {
 
     try {
 
+        const params =
+            new URLSearchParams();
+
+        params.append(
+            "ubic",
+            ubicacionEtiquetacion
+        );
+
+
         const response =
             await fetch(
-                "/Operaciones/ListarEtiquetas"
+                `/Operaciones/ListarEtiquetas?${params.toString()}`
             );
 
 
@@ -1009,7 +1086,10 @@ async function guardarEtiquetaArticulo() {
             "etiqueta",
             etiqueta
         );
-
+        params.append(
+            "ubic",
+            ubicacionEtiquetacion
+        );
 
         const response =
             await fetch(
@@ -1188,6 +1268,406 @@ async function guardarEtiquetaArticulo() {
         }
 
     }
+
+}
+async function abrirModalLogEtiquetacion() {
+
+    const modalElement =
+        document.getElementById(
+            "modalLogEtiquetacion"
+        );
+
+    if (!modalElement)
+        return;
+
+
+    /*
+     * =========================================
+     * FECHAS
+     * =========================================
+     */
+
+    const hoy =
+        new Date();
+
+    const fechaHoy =
+        hoy.toISOString()
+            .split("T")[0];
+
+
+    const fechaInicial =
+        document.getElementById(
+            "fechaInicialLogEtiq"
+        );
+
+    const fechaFinal =
+        document.getElementById(
+            "fechaFinalLogEtiq"
+        );
+
+
+    /*
+     * Si todavía no tienen fecha,
+     * usamos el día actual.
+     */
+
+    if (fechaInicial && !fechaInicial.value)
+        fechaInicial.value = fechaHoy;
+
+
+    if (fechaFinal && !fechaFinal.value)
+        fechaFinal.value = fechaHoy;
+
+
+    /*
+     * =========================================
+     * ABRIR MODAL
+     * =========================================
+     */
+
+    const modal =
+        bootstrap.Modal.getOrCreateInstance(
+            modalElement
+        );
+
+    modal.show();
+
+
+    /*
+     * =========================================
+     * CARGAR INFORMACIÓN
+     * =========================================
+     */
+
+    await cargarLogEtiquetacion();
+
+}
+async function cargarLogEtiquetacion() {
+
+    const tbody =
+        document.getElementById(
+            "tbodyLogEtiquetacion"
+        );
+
+    if (!tbody)
+        return;
+
+
+    const fechaInicial =
+        document.getElementById(
+            "fechaInicialLogEtiq"
+        )?.value;
+
+
+    const fechaFinal =
+        document.getElementById(
+            "fechaFinalLogEtiq"
+        )?.value;
+
+
+    /*
+     * =========================================
+     * VALIDACIONES
+     * =========================================
+     */
+
+    if (!fechaInicial || !fechaFinal) {
+
+        alert(
+            "Selecciona la fecha inicial y final."
+        );
+
+        return;
+    }
+
+
+    /*
+     * =========================================
+     * LOADING
+     * =========================================
+     */
+
+    tbody.innerHTML = `
+        <tr>
+
+            <td colspan="5"
+                class="text-center p-4">
+
+                <div class="spinner-border"
+                     role="status">
+                </div>
+
+                <div class="mt-2">
+                    Consultando historial...
+                </div>
+
+            </td>
+
+        </tr>
+    `;
+
+
+    try {
+
+        /*
+         * =========================================
+         * UBICACIÓN
+         * =========================================
+         */
+
+        const ubic =
+            Number(
+                ubicacionEtiquetacion
+            );
+
+
+        /*
+         * =========================================
+         * PARÁMETROS
+         * =========================================
+         */
+
+        const params =
+            new URLSearchParams();
+
+
+        params.append(
+            "ubic",
+            ubic
+        );
+
+
+        params.append(
+            "fechain",
+            fechaInicial
+        );
+
+
+        params.append(
+            "fechafin",
+            fechaFinal
+        );
+
+
+        /*
+         * =========================================
+         * CONSULTA
+         * =========================================
+         */
+
+        const response =
+            await fetch(
+                `/Operaciones/ConsultarLogEtiq?${params.toString()}`
+            );
+
+
+        if (!response.ok) {
+
+            const error =
+                await response.text();
+
+            throw new Error(
+                `HTTP ${response.status}: ${error}`
+            );
+        }
+
+
+        const resultado =
+            await response.json();
+
+
+        console.log(
+            "Log etiquetación:",
+            resultado
+        );
+
+
+        /*
+         * =========================================
+         * INTERPRETAR RESPUESTA
+         * =========================================
+         */
+
+        let registros;
+
+
+        if (Array.isArray(resultado)) {
+
+            registros =
+                resultado;
+
+        }
+        else {
+
+            registros =
+                resultado.datos ||
+                resultado.data ||
+                resultado.resultado ||
+                [];
+
+        }
+
+
+        renderizarLogEtiquetacion(
+            registros
+        );
+
+    }
+    catch (error) {
+
+        console.error(
+            "Error cargando log de etiquetación:",
+            error
+        );
+
+
+        tbody.innerHTML = `
+            <tr>
+
+                <td colspan="5"
+                    class="text-center text-danger p-4">
+
+                    Error al consultar el historial.
+
+                    <div class="small mt-2">
+                        ${escapeHtml(error.message)}
+                    </div>
+
+                </td>
+
+            </tr>
+        `;
+
+    }
+
+}
+function renderizarLogEtiquetacion(registros) {
+
+    const tbody =
+        document.getElementById(
+            "tbodyLogEtiquetacion"
+        );
+
+    if (!tbody)
+        return;
+
+
+    tbody.innerHTML = "";
+
+
+    if (
+        !Array.isArray(registros) ||
+        registros.length === 0
+    ) {
+
+        tbody.innerHTML = `
+            <tr>
+
+                <td colspan="5"
+                    class="text-center text-muted p-4">
+
+                    No se encontraron registros.
+
+                </td>
+
+            </tr>
+        `;
+
+        return;
+    }
+
+
+    registros.forEach(registro => {
+
+        const sku =
+            registro.articuloId ??
+            "";
+
+
+        const producto =
+            registro.productoNombre ??
+            "";
+
+
+        const etiquetaAnterior =
+            registro.nomOrigen ??
+            "";
+
+
+        const etiquetaNueva =
+            registro.nomNuevo ??
+            "";
+
+
+        let fechaHora = "";
+
+
+        if (registro.fechaHora) {
+
+            const fecha =
+                new Date(
+                    registro.fechaHora
+                );
+
+
+            if (!isNaN(fecha.getTime())) {
+
+                fechaHora =
+                    fecha.toLocaleString(
+                        "es-MX",
+                        {
+                            year: "numeric",
+                            month: "2-digit",
+                            day: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit"
+                        }
+                    );
+
+            }
+            else {
+
+                fechaHora =
+                    registro.fechaHora;
+
+            }
+
+        }
+
+
+        const tr =
+            document.createElement("tr");
+
+
+        tr.innerHTML = `
+
+            <td>
+                ${escapeHtml(sku)}
+            </td>
+
+            <td class="text-start">
+                ${escapeHtml(producto)}
+            </td>
+
+            <td>
+                ${escapeHtml(etiquetaAnterior)}
+            </td>
+
+            <td>
+                ${escapeHtml(etiquetaNueva)}
+            </td>
+
+            <td>
+                ${escapeHtml(fechaHora)}
+            </td>
+
+        `;
+
+
+        tbody.appendChild(tr);
+
+    });
 
 }
 function escapeHtml(valor) {

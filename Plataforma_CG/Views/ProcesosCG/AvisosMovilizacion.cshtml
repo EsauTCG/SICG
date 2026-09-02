@@ -17,11 +17,22 @@
     var loteTxt = Model?.Lote ?? "";
 
     var origenReq = ((ViewBag.Source as string) ?? Context?.Request?.Query["source"].ToString() ?? "TIF").Trim();
-    var origenSel = origenReq.Equals("P1", StringComparison.OrdinalIgnoreCase)
+    var origenSel =
+        origenReq.Equals("P1", StringComparison.OrdinalIgnoreCase)
         || origenReq.Equals("PLANTA 1", StringComparison.OrdinalIgnoreCase)
         || origenReq.Equals("PLANTA1", StringComparison.OrdinalIgnoreCase)
             ? "P1"
-            : "TIF";
+            : (
+                origenReq.Equals("TRANSFER", StringComparison.OrdinalIgnoreCase)
+                || origenReq.Equals("TRANSFERENCIA", StringComparison.OrdinalIgnoreCase)
+                || origenReq.Equals("TRANSFERENCIAS", StringComparison.OrdinalIgnoreCase)
+                    ? "TRANSFER"
+                    : "TIF"
+              );
+
+    var origenNombre = origenSel == "P1"
+        ? "Planta 1"
+        : (origenSel == "TRANSFER" ? "Transferencias" : "Planta TIF");
 }
 
 <link rel="stylesheet" href="~/css/avisos-movilizacion-grid.css" asp-append-version="true" />
@@ -52,11 +63,11 @@
         <div class="workspace">
 
             <div class="section">
-                <div class="section-title">Avisos de movilización - <span id="tituloPlanta">@(origenSel == "P1" ? "Planta 1" : "Planta TIF")</span></div>
+                <div class="section-title">Avisos de movilización - <span id="tituloPlanta">@origenNombre</span></div>
 
                 <form id="filtrosAvisosForm" autocomplete="off">
                     <input type="hidden" id="plantaHidden" name="planta" value="@origenSel" />
-                    <input type="hidden" id="origenHidden" name="origen" value="@(origenSel == "P1" ? "Planta 1" : "Planta TIF")" />
+                    <input type="hidden" id="origenHidden" name="origen" value="@origenNombre" />
                     <div class="filters">
 
                         <div class="filter-group">
@@ -65,12 +76,28 @@
                                 @if (origenSel == "P1")
                                 {
                                     <option value="P1" selected>Planta 1</option>
-                                    <option value="TIF">Planta TIF</option>
                                 }
                                 else
                                 {
                                     <option value="P1">Planta 1</option>
+                                }
+
+                                @if (origenSel == "TIF")
+                                {
                                     <option value="TIF" selected>Planta TIF</option>
+                                }
+                                else
+                                {
+                                    <option value="TIF">Planta TIF</option>
+                                }
+
+                                @if (origenSel == "TRANSFER")
+                                {
+                                    <option value="TRANSFER" selected>Transferencias</option>
+                                }
+                                else
+                                {
+                                    <option value="TRANSFER">Transferencias</option>
                                 }
                             </select>
                         </div>
@@ -90,16 +117,18 @@
                         </div>
 
                         <div class="filter-group">
-                            <label>Cliente</label>
+                            <label id="lblClienteFiltro">Cliente</label>
                             <input type="text"
+                                   id="clienteFiltro"
                                    name="cliente"
                                    value="@clienteTxt"
                                    placeholder="Buscar cliente..." />
                         </div>
 
                         <div class="filter-group">
-                            <label>Venta</label>
+                            <label id="lblVentaFiltro">Venta</label>
                             <input type="text"
+                                   id="ventaFiltro"
                                    name="venta"
                                    value="@ventaTxt"
                                    placeholder="Venta / pedido..." />
@@ -119,8 +148,8 @@
                                 <button id="btnBuscarAvisos" class="pm-btn pm-btn-primary" type="submit">🔎 Buscar</button>
                                 <button class="pm-btn pm-btn-warning" type="button" onclick="selectAllAvisos(true)">☑ Todos</button>
                                 <button class="pm-btn pm-btn-secondary" type="button" onclick="selectAllAvisos(false)">☐ Ninguno</button>
-                                <button class="pm-btn pm-btn-success" type="button" onclick="abrirEnvioMedico()">📧 Enviar médico</button>
-                                <button class="pm-btn pm-btn-primary" type="button" onclick="abrirPdfSeleccionados()">📄 PDF</button>
+                                <button id="btnEnviarMedicoAvisos" class="pm-btn pm-btn-success" type="button" onclick="abrirEnvioMedico()">📧 Enviar médico</button>
+                                <button id="btnPdfAvisos" class="pm-btn pm-btn-primary" type="button" onclick="abrirPdfSeleccionados()">📄 PDF</button>
                                 @*  <button class="pm-btn pm-btn-success" type="button" onclick="descargarExcelAvisoMovilizacion()">📊 Aviso de Movilización</button> *@
                             </div>
                         </div>
@@ -150,7 +179,7 @@
                     <div class="summary-card kpi-seleccionadas" id="kpiSeleccionadasCard">
                         <div class="label">Seleccionadas</div>
                         <div class="value" id="kpiSeleccionadas">0</div>
-                        <div class="hint">Para PDF / envío médico</div>
+                        <div class="hint" id="kpiSeleccionadasHint">Para PDF / envío médico</div>
                     </div>
                 </div>
 
@@ -290,6 +319,10 @@
     const URL_ENVIAR = '@Url.Action("EnviarAvisosMovilizacionSenasica", "ProcesosCg")';
     const URL_EXCEL_AVISO = '@Url.Action("AvisosMovilizacionExcel", "ProcesosCg")';
 
+    const URL_DATA_TRANSFER = '/Transferencias/AvisosMovilizacionData';
+    const URL_DETALLE_TRANSFER = '/Transferencias/AvisosMovilizacionDetalle';
+    const URL_EXCEL_TRANSFER = '/Transferencias/ExportCaducidadTransferencias';
+
     let avisosAbortController = null;
     let avisosRequestVersion = 0;
 
@@ -298,7 +331,16 @@
 
     function normalizePlanta(value) {
         const v = String(value || '').trim().toUpperCase();
-        return (v === 'P1' || v === 'PLANTA 1' || v === 'PLANTA1') ? 'P1' : 'TIF';
+
+        if (v === 'TRANSFER' || v === 'TRANSFERENCIA' || v === 'TRANSFERENCIAS') {
+            return 'TRANSFER';
+        }
+
+        if (v === 'P1' || v === 'PLANTA 1' || v === 'PLANTA1') {
+            return 'P1';
+        }
+
+        return 'TIF';
     }
 
     function getPlantaActual() {
@@ -306,7 +348,59 @@
     }
 
     function getNombrePlanta(value) {
-        return normalizePlanta(value) === 'P1' ? 'Planta 1' : 'Planta TIF';
+        const source = normalizePlanta(value);
+
+        if (source === 'P1') return 'Planta 1';
+        if (source === 'TRANSFER') return 'Transferencias';
+
+        return 'Planta TIF';
+    }
+
+    function syncAccionesOrigen() {
+        const source = getPlantaActual();
+        const esTransfer = source === 'TRANSFER';
+
+        const btnEnviar = document.getElementById('btnEnviarMedicoAvisos');
+        const btnPdf = document.getElementById('btnPdfAvisos');
+        const hint = document.getElementById('kpiSeleccionadasHint');
+        const lblCliente = document.getElementById('lblClienteFiltro');
+        const lblVenta = document.getElementById('lblVentaFiltro');
+        const clienteFiltro = document.getElementById('clienteFiltro');
+        const ventaFiltro = document.getElementById('ventaFiltro');
+
+        if (btnEnviar) {
+            btnEnviar.style.display = esTransfer ? 'none' : '';
+        }
+
+        if (btnPdf) {
+            btnPdf.textContent = esTransfer ? '📊 Aviso Excel' : '📄 PDF';
+        }
+
+        if (hint) {
+            hint.textContent = esTransfer
+                ? 'Para generar Aviso Excel'
+                : 'Para PDF / envío médico';
+        }
+
+        if (lblCliente) {
+            lblCliente.textContent = esTransfer ? 'Destino' : 'Cliente';
+        }
+
+        if (lblVenta) {
+            lblVenta.textContent = esTransfer ? 'Transferencia' : 'Venta';
+        }
+
+        if (clienteFiltro) {
+            clienteFiltro.placeholder = esTransfer
+                ? 'Buscar destino...'
+                : 'Buscar cliente...';
+        }
+
+        if (ventaFiltro) {
+            ventaFiltro.placeholder = esTransfer
+                ? 'Folio transferencia...'
+                : 'Venta / pedido...';
+        }
     }
 
     function syncOrigenFields() {
@@ -320,6 +414,8 @@
         if (plantaHidden) plantaHidden.value = planta;
         if (origenHidden) origenHidden.value = nombre;
         if (tituloPlanta) tituloPlanta.textContent = nombre;
+
+        syncAccionesOrigen();
 
         return { planta, nombre };
     }
@@ -501,7 +597,7 @@
                     <td class="text-end">
                         <div class="pm-actions">
                             <button type="button" class="pm-btn pm-btn-warning js-detalle-aviso" data-id="${escapeHtml(id)}">🔎 Detalle</button>
-                            <button type="button" class="pm-btn pm-btn-primary js-pdf-aviso" data-id="${escapeHtml(id)}">📄 PDF</button>
+                            <button type="button" class="pm-btn pm-btn-primary js-pdf-aviso" data-id="${escapeHtml(id)}">${normalizePlanta(planta) === 'TRANSFER' ? '📊 Aviso' : '📄 PDF'}</button>
                         </div>
                     </td>
                 </tr>
@@ -547,27 +643,44 @@
         const signal = avisosAbortController.signal;
         const params = appendOrigenParams(new URLSearchParams(new FormData(form)));
         const sourceActual = getPlantaActual();
+        const esTransfer = sourceActual === 'TRANSFER';
 
-        /*
-         * La tabla principal no muestra fechas de sacrificio, producción o
-         * caducidad. Por eso P1 carga únicamente datos locales aquí.
-         * Las fechas TIF se consultan progresivamente al abrir Detalle.
-         */
-        params.set('cargarTif', 'false');
-        params.set('tamanoLote', '50');
+        if (!esTransfer) {
+            /*
+             * P1 conserva su carga local rápida y el enriquecimiento TIF
+             * se realiza únicamente al abrir el detalle.
+             */
+            params.set('cargarTif', 'false');
+            params.set('tamanoLote', '50');
+        } else {
+            params.delete('cargarTif');
+            params.delete('tamanoLote');
+        }
 
         hideLog();
         setEstadoTif('', '');
-        setBuscando(true, sourceActual === 'P1'
-            ? '⏳ Cargando local...'
-            : '⏳ Cargando...');
-        setTableMessage(sourceActual === 'P1'
-            ? 'Cargando información local de Planta 1...'
-            : 'Cargando avisos de Planta TIF...');
+
+        setBuscando(
+            true,
+            sourceActual === 'P1'
+                ? '⏳ Cargando local...'
+                : (esTransfer ? '⏳ Cargando transferencias...' : '⏳ Cargando...')
+        );
+
+        setTableMessage(
+            sourceActual === 'P1'
+                ? 'Cargando información local de Planta 1...'
+                : (esTransfer
+                    ? 'Cargando avisos de Transferencias...'
+                    : 'Cargando avisos de Planta TIF...')
+        );
+
         renderResumen({ totalSolicitudes: 0, totalCajas: 0, totalKg: 0 }, []);
 
         try {
-            const res = await fetch(URL_DATA + '?' + params.toString(), {
+            const urlData = esTransfer ? URL_DATA_TRANSFER : URL_DATA;
+
+            const res = await fetch(urlData + '?' + params.toString(), {
                 method: 'GET',
                 headers: { 'Accept': 'application/json' },
                 cache: 'no-store',
@@ -593,18 +706,7 @@
 
             renderResumen(data, rows);
             renderAvisos(rows);
-
-            if (sourceActual === 'P1') {
-                setEstadoTif(
-                    'success',
-                    ''
-                );
-            } else {
-                setEstadoTif(
-                    'success',
-                    ''
-                );
-            }
+            setEstadoTif('success', '');
         }
         catch (e) {
             if (e?.name === 'AbortError') return;
@@ -949,17 +1051,14 @@
 
         const requestVersion = ++detalleRequestVersion;
         const signal = detalleAbortController.signal;
+        const sourceActual = getPlantaActual();
+        const esTransfer = sourceActual === 'TRANSFER';
 
         document.getElementById('detalleSolicitud').textContent = id;
         document.getElementById('detalleCajas').textContent = '0';
         document.getElementById('detalleKg').textContent = '0';
         document.getElementById('detalleBody').innerHTML =
-            '<tr><td colspan="8" class="text-center">Cargando información local...</td></tr>';
-
-        // setDetalleProgress(
-        //     'loading',
-        //     'Cargando partidas locales. No se está esperando a TIF.'
-        // );
+            '<tr><td colspan="8" class="text-center">Cargando detalle...</td></tr>';
 
         bootstrap.Modal
             .getOrCreateInstance(document.getElementById('detalleAvisoModal'))
@@ -968,10 +1067,18 @@
         try {
             const paramsLocal = getFiltroAvisosParams();
             paramsLocal.set('id', id);
-            paramsLocal.set('cargarTif', 'false');
-            paramsLocal.set('tamanoLote', '50');
 
-            const res = await fetch(URL_DETALLE + '?' + paramsLocal.toString(), {
+            if (!esTransfer) {
+                paramsLocal.set('cargarTif', 'false');
+                paramsLocal.set('tamanoLote', '50');
+            } else {
+                paramsLocal.delete('cargarTif');
+                paramsLocal.delete('tamanoLote');
+            }
+
+            const urlDetalle = esTransfer ? URL_DETALLE_TRANSFER : URL_DETALLE;
+
+            const res = await fetch(urlDetalle + '?' + paramsLocal.toString(), {
                 headers: { 'Accept': 'application/json' },
                 cache: 'no-store',
                 signal
@@ -985,7 +1092,7 @@
                 throw new Error(
                     data.msg ||
                     data.error ||
-                    'No se pudo cargar el detalle local.'
+                    'No se pudo cargar el detalle.'
                 );
             }
 
@@ -1000,19 +1107,17 @@
             renderDetalleRows(rowsLocal);
 
             if (!rowsLocal.length) {
-                setDetalleProgress('warning', 'No se encontraron partidas locales.');
+                setDetalleProgress('warning', 'No se encontraron partidas.');
                 return;
             }
 
-            if (getPlantaActual() !== 'P1') {
-                setDetalleProgress(
-                    'success',
-                    ''
-                );
+            // TIF y Transferencias ya traen el detalle sanitario completo.
+            if (sourceActual !== 'P1') {
+                setDetalleProgress('success', '');
                 return;
             }
 
-            // No se bloquea el modal: las filas locales ya están visibles.
+            // P1 conserva su enriquecimiento progresivo por lote contra TIF.
             await enriquecerDetalleTifPorLotes(
                 id,
                 rowsLocal,
@@ -1026,17 +1131,58 @@
             if (requestVersion !== detalleRequestVersion) return;
 
             document.getElementById('detalleBody').innerHTML =
-                '<tr><td colspan="8" class="text-center">No se pudo cargar el detalle local.</td></tr>';
+                '<tr><td colspan="8" class="text-center">No se pudo cargar el detalle.</td></tr>';
 
             setDetalleProgress(
                 'warning',
-                'No fue posible cargar las partidas locales: ' + (e?.message || e)
+                'No fue posible cargar las partidas: ' + (e?.message || e)
             );
         }
     }
 
+    function buildTransferExcelParams(ids) {
+        const params = getFiltroAvisosParams();
+
+        params.delete('source');
+        params.delete('planta');
+        params.delete('origen');
+        params.delete('cliente');
+        params.delete('venta');
+        params.delete('lote');
+        params.delete('pedidosSel');
+
+        (ids || []).forEach(id => {
+            const value = String(id || '').trim();
+            if (value) params.append('pedidosSel', value);
+        });
+
+        return params;
+    }
+
+    function descargarAvisoTransferencias(ids) {
+        const pedidos = (ids || [])
+            .map(x => String(x || '').trim())
+            .filter(x => x);
+
+        if (!pedidos.length) {
+            alert('Selecciona al menos una transferencia para generar el Aviso de Movilización.');
+            return;
+        }
+
+        const params = buildTransferExcelParams(pedidos);
+        const url = URL_EXCEL_TRANSFER + '?' + params.toString();
+
+        descargarBlobAvisoMovilizacion(url);
+    }
+
     function abrirPdfAviso(id) {
         if (!id) return;
+
+        if (getPlantaActual() === 'TRANSFER') {
+            descargarAvisoTransferencias([id]);
+            return;
+        }
+
         const params = getFiltroAvisosParams();
         params.set('ids', id);
         window.open(URL_PDF + '?' + params.toString(), '_blank');
@@ -1046,7 +1192,16 @@
         const ids = getSeleccionadas();
 
         if (!ids.length) {
-            alert('Selecciona al menos una solicitud para generar PDF.');
+            alert(
+                getPlantaActual() === 'TRANSFER'
+                    ? 'Selecciona al menos una transferencia para generar el Aviso de Movilización.'
+                    : 'Selecciona al menos una solicitud para generar PDF.'
+            );
+            return;
+        }
+
+        if (getPlantaActual() === 'TRANSFER') {
+            descargarAvisoTransferencias(ids);
             return;
         }
 
@@ -1056,6 +1211,11 @@
     }
 
     function abrirEnvioMedico() {
+        if (getPlantaActual() === 'TRANSFER') {
+            alert('Para Transferencias, genera el Aviso de Movilización desde el botón Aviso Excel.');
+            return;
+        }
+
         const ids = getSeleccionadas();
 
         if (!ids.length) {
@@ -1070,6 +1230,11 @@
     }
 
     function abrirPdfDesdeModal() {
+        if (getPlantaActual() === 'TRANSFER') {
+            descargarAvisoTransferencias(getSeleccionadas());
+            return;
+        }
+
         const ids = getSeleccionadas();
 
         if (!ids.length) {
@@ -1087,6 +1252,11 @@
     }
 
     async function enviarAvisosMedico() {
+        if (getPlantaActual() === 'TRANSFER') {
+            alert('El envío al médico continúa disponible para P1 y TIF. En Transferencias se genera el Aviso Excel.');
+            return;
+        }
+
         const ids = getSeleccionadas();
 
         if (!ids.length) {
@@ -1227,6 +1397,7 @@
         });
 
         document.getElementById('origenPlanta')?.addEventListener('change', () => {
+            syncOrigenFields();
             selectAllAvisos(false);
             cargarAvisos();
         });

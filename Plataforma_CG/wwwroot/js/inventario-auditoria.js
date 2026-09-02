@@ -3,7 +3,7 @@
 
     const BASE_URL = "/InventarioTiempoReal";
     const SITE_NAME = "Carnes G";
-    const LOGO_URL = "/images/logoPDF.png";
+    const LOGO_URL = "/images/logoCubo.png";
     const PAGE_SIZE = 200;
     const MAX_PAGES = 250;
 

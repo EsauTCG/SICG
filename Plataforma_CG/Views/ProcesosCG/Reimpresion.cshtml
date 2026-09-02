@@ -149,11 +149,36 @@
     /* ── Filtros / Config ── */
     .config-grid {
         display: grid;
-        grid-template-columns: 200px 240px 240px 1fr;
-        gap: 8px;
-        padding: 10px;
+        grid-template-columns:
+            120px
+            minmax(180px, 220px)
+            minmax(220px, 1.2fr)
+            140px
+            140px
+            82px
+            140px
+            auto;
+        gap: 6px;
+        padding: 8px 10px;
         background: var(--panel-2);
         align-items: end;
+    }
+
+    .date-filter-group.is-disabled {
+        opacity: .48;
+    }
+
+    .date-filter-group input:disabled {
+        background: #eee !important;
+        color: #777 !important;
+        cursor: not-allowed;
+    }
+
+    .fecha-help {
+        grid-column: 1 / -1;
+        margin-top: -1px;
+        font-size: 10px;
+        color: #6a3a3a;
     }
 
     .filter-group label {
@@ -413,12 +438,26 @@
         flex-wrap: wrap;
     }
 
-    @@media(max-width: 992px) {
-        .config-grid { grid-template-columns: 1fr 1fr; }
+    @@media(max-width: 1450px) {
+        .config-grid {
+            grid-template-columns:
+                105px
+                minmax(165px, 200px)
+                minmax(195px, 1fr)
+                125px
+                125px
+                76px
+                125px
+                auto;
+        }
+    }
+
+    @@media(max-width: 1100px) {
+        .config-grid { grid-template-columns: 1fr 1fr 1fr 1fr; }
     }
 
     @@media(max-width: 768px) {
-        .config-grid { grid-template-columns: 1fr; }
+        .config-grid { grid-template-columns: 1fr 1fr; }
     }
 
     /* Botones superiores a la derecha y con colores */
@@ -618,6 +657,39 @@
     .tbl-eti .lookup-picker-option span {
         white-space: normal !important;
         line-height: 1.2 !important;
+    }
+
+
+    /* =========================================================
+       FIX DESPLEGABLE DE ETIQUETACIONES DENTRO DE LA TABLA
+       ========================================================= */
+    .tbl-eti tbody td:nth-child(4) {
+        overflow: visible !important;
+        position: relative;
+    }
+
+    .tbl-eti .lookup-picker {
+        position: relative;
+        z-index: 30;
+    }
+
+    .tbl-eti .lookup-picker.open {
+        z-index: 1000000;
+    }
+
+    .tbl-eti .lookup-picker-menu.lookup-fixed-menu {
+        position: fixed !important;
+        z-index: 2147483000 !important;
+        margin: 0 !important;
+        max-width: none !important;
+        background: #fff !important;
+        border: 1px solid var(--ui-line-strong, #cfd5db) !important;
+        box-shadow: 0 14px 34px rgba(30,36,44,.22) !important;
+    }
+
+    .tbl-eti .lookup-picker-menu.lookup-fixed-menu .lookup-picker-list {
+        overflow-y: auto !important;
+        min-height: 36px;
     }
 
     .toolbar .tool-btn-add {
@@ -881,6 +953,306 @@
         }
     }
 
+
+
+    /* =========================================================
+       UI 2026 · OPERACIÓN FULL SCREEN
+       Solo presentación: conserva IDs, rutas y lógica existente.
+       ========================================================= */
+    :root {
+        --ui-brand: #8b1118;
+        --ui-brand-strong: #691015;
+        --ui-brand-soft: #f8ecee;
+        --ui-bg: #f3f5f7;
+        --ui-card: #ffffff;
+        --ui-text: #20252b;
+        --ui-muted: #69717c;
+        --ui-line: #dde2e7;
+        --ui-line-strong: #cfd5db;
+        --ui-focus: rgba(139,17,24,.16);
+        --ui-success: #168454;
+        --ui-info: #315f92;
+        --ui-violet: #6252a2;
+        --ui-danger: #a52731;
+        --ui-shadow: 0 8px 24px rgba(30, 36, 44, .08);
+    }
+
+    html, body {
+        min-height: 100%;
+        background: var(--ui-bg) !important;
+    }
+
+    body {
+        overflow: hidden;
+        color: var(--ui-text);
+        font-family: Inter, "Segoe UI", Tahoma, Arial, sans-serif;
+    }
+
+    .window {
+        height: 100vh;
+        min-height: 620px;
+        display: flex;
+        flex-direction: column;
+        border: 0;
+        background: var(--ui-bg);
+        box-shadow: none;
+        overflow: hidden !important;
+    }
+
+    .app-toolbar {
+        flex: 0 0 auto;
+        min-height: 68px;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center;
+        gap: 18px !important;
+        padding: 10px 16px !important;
+        background: #fff !important;
+        border-bottom: 1px solid var(--ui-line) !important;
+        box-shadow: 0 2px 10px rgba(30,36,44,.05);
+        z-index: 50;
+    }
+
+    .app-heading { display:flex; align-items:center; gap:11px; min-width:0; }
+    .app-heading-icon {
+        width: 42px; height: 42px; border-radius: 10px;
+        display:flex; align-items:center; justify-content:center;
+        color:#fff; background: linear-gradient(145deg,var(--ui-brand),var(--ui-brand-strong));
+        box-shadow: 0 5px 12px rgba(105,16,21,.18);
+        font-size: 19px; flex:0 0 auto;
+    }
+    .app-heading-copy { min-width:0; line-height:1.1; }
+    .app-heading-copy strong { display:block; color:#25282d; font-size:17px; font-weight:800; }
+    .app-heading-copy span { display:block; margin-top:5px; color:var(--ui-muted); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+    .toolbar-actions { display:flex; align-items:center; justify-content:flex-end; gap:7px; flex-wrap:wrap; }
+    .app-toolbar .tool-btn {
+        min-width:0; height:38px; padding:0 12px; border-radius:7px !important;
+        border:1px solid var(--ui-line-strong) !important;
+        background:#fff !important; color:#3f4750 !important;
+        font-size:12px; font-weight:750 !important; box-shadow:none !important;
+        transition: background .15s ease, border-color .15s ease, transform .08s ease;
+    }
+    .app-toolbar .tool-btn:hover { filter:none; background:#f7f8f9 !important; border-color:#bfc6cd !important; }
+    .app-toolbar .tool-btn:active { transform:translateY(1px); }
+    .app-toolbar .tool-btn i { font-size:14px; }
+    .app-toolbar .tool-btn-add { color:var(--ui-success) !important; border-color:#b9dccd !important; background:#f4fbf8 !important; }
+    .app-toolbar .tool-btn-paste { color:var(--ui-info) !important; border-color:#c7d7e7 !important; background:#f5f8fc !important; }
+    .app-toolbar .tool-btn-audit { color:var(--ui-violet) !important; border-color:#d3cce8 !important; background:#f8f6fc !important; }
+    .app-toolbar .tool-btn-clear { color:var(--ui-danger) !important; border-color:#e8c6ca !important; background:#fff8f8 !important; }
+    .app-toolbar .tool-btn-print {
+        color:#fff !important; border-color:var(--ui-brand-strong) !important;
+        background:linear-gradient(180deg,#9f1720 0%,var(--ui-brand) 100%) !important;
+        box-shadow:0 4px 11px rgba(139,17,24,.17) !important; padding-inline:15px;
+    }
+    .app-toolbar .tool-btn-print:hover { background:linear-gradient(180deg,#8f131b,var(--ui-brand-strong)) !important; border-color:var(--ui-brand-strong) !important; }
+
+    .content {
+        flex:1 1 auto; min-height:0; padding:10px 12px !important; background:var(--ui-bg) !important; overflow:hidden;
+    }
+    .workspace {
+        height:100%; min-height:0; display:grid; grid-template-rows:auto auto minmax(220px,1fr) auto;
+        gap:9px; padding:0; border:0; background:transparent;
+    }
+
+    .ops-overview {
+        display:grid; grid-template-columns:minmax(420px,1.5fr) minmax(500px,1fr); gap:9px; min-width:0;
+    }
+    .quick-capture, .live-metrics {
+        background:var(--ui-card); border:1px solid var(--ui-line); border-radius:10px; box-shadow:0 2px 8px rgba(30,36,44,.04);
+    }
+    .quick-capture { display:flex; align-items:center; gap:14px; padding:10px 12px; min-width:0; }
+    .quick-capture-label { display:flex; align-items:center; gap:9px; min-width:190px; }
+    .quick-capture-label > i { color:var(--ui-brand); font-size:22px; }
+    .quick-capture-label strong { display:block; font-size:12px; color:#30343a; }
+    .quick-capture-label span { display:block; margin-top:2px; font-size:10px; color:var(--ui-muted); white-space:nowrap; }
+    .quick-capture-control { display:flex; gap:7px; flex:1; min-width:0; }
+    #QuickCode {
+        height:38px !important; border:1px solid var(--ui-line-strong) !important; border-radius:7px !important;
+        background:#fff !important; color:var(--ui-text) !important; padding:0 11px !important; font-size:13px !important;
+    }
+    #QuickCode:focus { border-color:var(--ui-brand) !important; box-shadow:0 0 0 3px var(--ui-focus) !important; outline:0; }
+    .quick-add-btn {
+        height:38px; border:1px solid #b9dccd; border-radius:7px; padding:0 12px; white-space:nowrap;
+        background:#f4fbf8; color:var(--ui-success); font-size:12px; font-weight:800; cursor:pointer;
+    }
+    .quick-add-btn:hover { background:#eaf7f1; }
+
+    .live-metrics { display:grid; grid-template-columns:.7fr .8fr .7fr 1.45fr; overflow:hidden; }
+    .live-metric { padding:9px 12px; border-right:1px solid var(--ui-line); min-width:0; display:flex; flex-direction:column; justify-content:center; }
+    .live-metric:last-child { border-right:0; }
+    .live-metric span { font-size:9px; letter-spacing:.06em; text-transform:uppercase; font-weight:800; color:var(--ui-muted); }
+    .live-metric strong { margin-top:2px; font-size:18px; color:#292d32; line-height:1.05; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .live-metric-wide strong { font-size:13px; color:var(--ui-brand); }
+    .live-metric small { margin-top:3px; color:var(--ui-muted); font-size:9px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+    .section { margin:0; border:1px solid var(--ui-line); border-radius:10px; background:var(--ui-card); box-shadow:0 2px 8px rgba(30,36,44,.035); overflow:visible; }
+    .section-title {
+        min-height:34px; padding:7px 10px; border-radius:9px 9px 0 0; border-bottom:1px solid var(--ui-line);
+        background:#fff; color:#30343a; font-size:11px;
+    }
+    .section-title > span:first-child { display:flex; align-items:center; gap:7px; font-weight:800; }
+    .section-title > span:first-child i { color:var(--ui-brand); }
+    .estado-badge { border-radius:999px; padding:3px 9px; font-size:9px; }
+
+    .config-grid {
+        grid-template-columns: 90px minmax(190px,1fr) minmax(220px,1.2fr) 125px 125px 78px 125px !important;
+        gap:8px !important; padding:9px 10px !important; background:#fff !important; align-items:end;
+    }
+    .filter-group label { margin-bottom:4px; color:#555d66; font-size:10px; font-weight:800; }
+    .config-grid input, .config-grid select, .lookup-picker-btn {
+        height:32px !important; border:1px solid var(--ui-line-strong) !important; border-radius:6px !important;
+        background:#fff !important; color:#2f353c !important; font-size:11px !important;
+    }
+    .config-grid input:focus, .config-grid select:focus, .lookup-picker-btn:focus { border-color:var(--ui-brand) !important; box-shadow:0 0 0 3px var(--ui-focus) !important; outline:0; }
+    .lookup-picker-menu {
+        top:34px; border:1px solid var(--ui-line-strong); border-radius:8px; background:#fff; box-shadow:0 14px 34px rgba(30,36,44,.16);
+    }
+    .lookup-picker-option:hover { background:var(--ui-brand-soft); }
+    .fecha-help { margin-top:0; padding-top:6px; border-top:1px dashed #e2e6ea; color:var(--ui-muted); font-size:9px; }
+
+    .progress-wrap { padding:7px 10px; background:#fff; border-top:1px solid var(--ui-line); }
+    .progress-bar-wrap { height:7px; border:0; border-radius:99px; background:#e8ebee; }
+    .progress-bar-fill { border-radius:99px; background:linear-gradient(90deg,var(--ui-brand),#c63d46); }
+
+    #pasteBox { padding:10px; background:#f8f9fa; border-top:1px solid var(--ui-line); }
+    #pasteArea { border-radius:7px !important; border-color:var(--ui-line-strong) !important; }
+
+    .table-section { min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+    .table-section-head {
+        flex:0 0 auto; min-height:40px; padding:8px 10px; display:flex; align-items:center; justify-content:space-between; gap:12px;
+        border-bottom:1px solid var(--ui-line); background:#fff;
+    }
+    .table-section-head strong { display:block; color:#30343a; font-size:11px; }
+    .table-section-head strong i { color:var(--ui-brand); margin-right:6px; }
+    .table-section-head > div:first-child > span { display:block; margin-top:2px; color:var(--ui-muted); font-size:9px; }
+    .shortcut-hints { display:flex; align-items:center; gap:11px; color:var(--ui-muted); font-size:9px; white-space:nowrap; }
+    .shortcut-hints kbd { padding:2px 5px; border:1px solid var(--ui-line-strong); border-bottom-width:2px; border-radius:4px; background:#f7f8f9; color:#4b535c; font:700 9px/1 inherit; }
+
+    .table-wrap { flex:1 1 auto; min-height:0; max-height:none; overflow:auto; border:0; background:#fff; scrollbar-color:#b7bdc4 #eef0f2; scrollbar-width:thin; }
+    .table-wrap table { min-width:760px; table-layout:fixed; font-size:11px; background:#fff; }
+    .table-wrap thead, .table-wrap thead tr, .table-wrap thead th { background:var(--ui-brand-strong) !important; }
+    .table-wrap thead th {
+        top:0; height:34px; padding:7px 7px !important; border-color:rgba(255,255,255,.15) !important;
+        box-shadow:0 1px 0 rgba(0,0,0,.12); font-size:10px !important; letter-spacing:.015em;
+    }
+    .table-wrap tbody td {
+        height:39px; padding:4px 6px !important; background:#fff !important; border-color:#e7eaed !important; color:#30363d !important; font-size:11px !important;
+    }
+    .table-wrap tbody tr:nth-child(even) td { background:#fafbfc !important; }
+    .table-wrap tbody tr:hover td { background:#fff7f7 !important; }
+    .table-wrap tbody input, .table-wrap tbody select, .table-wrap tbody .lookup-picker-btn {
+        height:29px !important; border-radius:5px !important; border-color:#d5dbe0 !important; background:#fff !important; color:#2d333a !important;
+    }
+    .table-wrap tbody input:focus, .table-wrap tbody select:focus, .table-wrap tbody .lookup-picker-btn:focus { border-color:var(--ui-brand) !important; box-shadow:0 0 0 2px var(--ui-focus) !important; outline:0; }
+    .tbl-eti th:nth-child(1), .tbl-eti td:nth-child(1) { width:52px; }
+    .tbl-eti th:nth-child(2), .tbl-eti td:nth-child(2) { width:31%; }
+    .tbl-eti th:nth-child(3), .tbl-eti td:nth-child(3) { width:95px; }
+    .tbl-eti th:nth-child(4), .tbl-eti td:nth-child(4) { width:auto; }
+    .tbl-eti th:nth-child(5), .tbl-eti td:nth-child(5) { width:92px; }
+    .status { width:24px; height:24px; border-radius:50%; background:#f0f2f4; font-size:12px; }
+    .table-wrap .pm-btn-secondary { height:27px !important; border-radius:5px; border-color:#e0c8ca; background:#fff7f7; color:var(--ui-danger); }
+
+    #logBox { margin:0; }
+    .log-inner { border-radius:8px; font-size:10px; box-shadow:none; }
+
+    .statusbar {
+        flex:0 0 auto; min-height:30px; padding:6px 12px; border-top:1px solid var(--ui-line); background:#fff; color:#68717b; font-size:9px;
+    }
+
+    .re-audit-modal { background:rgba(20,24,28,.52); backdrop-filter:blur(2px); }
+    .re-audit-dialog { width:min(1740px,98vw); height:min(900px,95vh); border:0; border-radius:12px; background:#fff; box-shadow:0 28px 80px rgba(0,0,0,.30); }
+    .re-audit-head { min-height:54px; padding:9px 13px; background:linear-gradient(135deg,var(--ui-brand),var(--ui-brand-strong)); }
+    .re-audit-close { border-radius:6px; }
+    .re-audit-body { gap:9px; padding:10px; background:var(--ui-bg); }
+    .re-audit-filters, .re-audit-kpi, .re-audit-grid { border-color:var(--ui-line); background:#fff; }
+    .re-audit-filters { border-radius:8px; }
+    .re-audit-summary { gap:8px; }
+    .re-audit-kpi { border-radius:8px; }
+    .re-audit-kpi span { color:var(--ui-muted); }
+    .re-audit-kpi strong { color:var(--ui-brand); }
+    .re-audit-grid { border-radius:8px; }
+    .re-audit-grid th { background:var(--ui-brand-strong); }
+
+    @@media (max-width: 1280px) {
+        .ops-overview { grid-template-columns:1fr; }
+        .live-metrics { min-height:58px; }
+        .config-grid { grid-template-columns:repeat(4,minmax(0,1fr)) !important; }
+        .fecha-help { grid-column:1 / -1; }
+    }
+
+    @@media (max-width: 900px) {
+        body { overflow:auto; }
+        .window { height:auto; min-height:100vh; overflow:visible !important; }
+        .content { overflow:visible; }
+        .workspace { height:auto; display:flex; flex-direction:column; }
+        .app-toolbar { align-items:flex-start; }
+        .app-heading-copy span { display:none; }
+        .toolbar-actions { flex:1; }
+        .config-grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+        .table-section { min-height:430px; }
+        .shortcut-hints { display:none; }
+    }
+
+    @@media (max-width: 620px) {
+        .app-toolbar { padding:8px !important; gap:8px !important; }
+        .app-heading-icon { width:36px; height:36px; }
+        .app-heading-copy strong { font-size:13px; }
+        .toolbar-actions { display:grid; grid-template-columns:repeat(3,1fr); width:100%; }
+        .app-toolbar .tool-btn { width:100% !important; height:36px; padding:0 8px; }
+        .app-toolbar .tool-btn-print { grid-column:span 2; }
+        .ops-overview { display:block; }
+        .live-metrics { margin-top:8px; grid-template-columns:repeat(2,1fr); }
+        .live-metric:nth-child(2) { border-right:0; }
+        .live-metric:nth-child(-n+2) { border-bottom:1px solid var(--ui-line); }
+        .quick-capture { align-items:stretch; flex-direction:column; gap:8px; }
+        .quick-capture-label span { white-space:normal; }
+        .config-grid { grid-template-columns:1fr !important; }
+        .fecha-help { grid-column:1; }
+        .table-section-head { align-items:flex-start; }
+        .statusbar { display:none; }
+    }
+
+    /* =========================================================
+   TEXTO BLANCO EN BOTONES SUPERIORES
+   ========================================================= */
+
+.app-toolbar .tool-btn-paste,
+.app-toolbar .tool-btn-audit,
+.app-toolbar .tool-btn-clear,
+.app-toolbar .tool-btn-print,
+.app-toolbar .tool-btn-add {
+    color: #ffffff !important;
+}
+
+.app-toolbar .tool-btn-paste i,
+.app-toolbar .tool-btn-audit i,
+.app-toolbar .tool-btn-clear i,
+.app-toolbar .tool-btn-print i,
+.app-toolbar .tool-btn-add i {
+    color: #ffffff !important;
+}
+
+/* También los textos internos */
+.app-toolbar .tool-btn-paste span,
+.app-toolbar .tool-btn-audit span,
+.app-toolbar .tool-btn-clear span,
+.app-toolbar .tool-btn-print span,
+.app-toolbar .tool-btn-add span {
+    color: #ffffff !important;
+}
+
+.app-toolbar .tool-btn-add {
+    background: linear-gradient(180deg, #2fb66f 0%, #198754 100%) !important;
+    border-color: #157347 !important;
+    color: #ffffff !important;
+}
+
+.app-toolbar .tool-btn-add span,
+.app-toolbar .tool-btn-add i {
+    color: #ffffff !important;
+}
+
 </style>
 
 <div class="window">
@@ -894,17 +1266,32 @@
         </div>
     </div>
 
-    <div class="toolbar">
-        @* <button class="tool-btn" type="button" id="btnPrint" onclick="printAll()">Imprimir</button> *@
-        <button class="tool-btn tool-btn-add" type="button" onclick="addRow()">
-            <i class="bi bi-plus-lg"></i>  Fila
-        </button>
-        <button class="tool-btn" type="button" onclick="openPaste()">Pegar lista</button>
-        <button class="tool-btn tool-btn-audit" type="button" id="btnReAudit">
-            <i class="bi bi-shield-check"></i> Auditoría
-        </button>
-        <button class="tool-btn" type="button" onclick="clearAll()">Limpiar</button>
-       @*  <button class="tool-btn" type="button" onclick="location.reload()">Actualizar</button> *@
+    <div class="toolbar app-toolbar">
+        <div class="app-heading">
+            <div class="app-heading-icon"><i class="bi bi-printer-fill"></i></div>
+            <div class="app-heading-copy">
+                <strong>Reimpresión de etiquetas</strong>
+                <span>Captura, valida e imprime con seguimiento por etiqueta</span>
+            </div>
+        </div>
+
+        <div class="toolbar-actions">
+            <button class="tool-btn tool-btn-add" type="button" onclick="addRow()" title="Agregar una fila">
+                <i class="bi bi-plus-lg"></i> <span>Fila</span>
+            </button>
+            <button class="tool-btn tool-btn-paste" type="button" onclick="openPaste()" title="Pegar una lista de etiquetas">
+                <i class="bi bi-clipboard-plus"></i> <span>Pegar lista</span>
+            </button>
+            <button class="tool-btn tool-btn-audit" type="button" id="btnReAudit" title="Consultar auditoría de reimpresiones">
+                <i class="bi bi-shield-check"></i> <span>Auditoría</span>
+            </button>
+            <button class="tool-btn tool-btn-clear" type="button" onclick="clearAll()" title="Limpiar la lista">
+                <i class="bi bi-trash3"></i> <span>Limpiar</span>
+            </button>
+            <button class="tool-btn tool-btn-print" type="button" id="btnPrint2" onclick="printAll()" title="Imprimir todas las filas válidas">
+                <i class="bi bi-printer"></i> <span>Imprimir todo</span>
+            </button>
+        </div>
     </div>
 
     <div class="content">
@@ -913,10 +1300,48 @@
 
         <div class="workspace">
 
+            <div class="ops-overview">
+                <div class="quick-capture">
+                    <div class="quick-capture-label">
+                        <i class="bi bi-upc-scan"></i>
+                        <div>
+                            <strong>Captura rápida</strong>
+                            <span>Escanea o escribe el código y presiona Enter</span>
+                        </div>
+                    </div>
+                    <div class="quick-capture-control">
+                        <input id="QuickCode" type="text" autocomplete="off" placeholder="Código de etiqueta..." aria-label="Código de etiqueta para captura rápida" />
+                        <button id="btnQuickAdd" class="quick-add-btn" type="button">
+                            <i class="bi bi-plus-circle"></i> Agregar
+                        </button>
+                    </div>
+                </div>
+
+                <div class="live-metrics" aria-live="polite">
+                    <div class="live-metric">
+                        <span>Filas</span>
+                        <strong id="liveRows">0</strong>
+                    </div>
+                    <div class="live-metric">
+                        <span>Etiquetas</span>
+                        <strong id="liveQty">0</strong>
+                    </div>
+                    <div class="live-metric">
+                        <span>Listas</span>
+                        <strong id="liveReady">0</strong>
+                    </div>
+                    <div class="live-metric live-metric-wide">
+                        <span>Modo</span>
+                        <strong id="liveMode">Original</strong>
+                        <small id="livePrinter">Sin impresora</small>
+                    </div>
+                </div>
+            </div>
+
             <!-- Config -->
-            <div class="section">
+            <div class="section config-section">
                 <div class="section-title">
-                    Configuración de impresión
+                    <span><i class="bi bi-sliders"></i> Configuración de impresión</span>
                     <span id="uiState" class="estado-badge est-listo">Listo</span>
                 </div>
 
@@ -940,19 +1365,40 @@
                         <select id="ClaveReporte" class="form-select lookup-source"></select>
                     </div>
 
-                    <div class="filter-group">
-                        <label>&nbsp;</label>
-                        <div class="pm-actions">
-                            <button class="pm-btn pm-btn-primary" type="button" id="btnPrint2" onclick="printAll()">
-                                <i class="bi bi-printer"></i> Imprimir todo
-                            </button>
-                          @*   <button class="pm-btn pm-btn-outline" type="button" onclick="addRow()">
-                                + Fila
-                            </button>
-                            <button class="pm-btn pm-btn-outline" type="button" onclick="openPaste()">
-                                Pegar lista
-                            </button> *@
-                        </div>
+                    <div class="filter-group date-filter-group">
+                        <label>Fecha sacrificio</label>
+                        <input id="FechaSacrificio" type="date" class="form-control" />
+                    </div>
+
+                    <div class="filter-group date-filter-group">
+                        <label>Fecha producción</label>
+                        <input id="FechaProduccion" type="date" class="form-control" />
+                    </div>
+
+                    <div class="filter-group date-filter-group">
+                        <label>Días cad.</label>
+                        <input id="DiasCaducidadManual"
+                               type="number"
+                               min="1"
+                               max="5000"
+                               step="1"
+                               inputmode="numeric"
+                               class="form-control"
+                               placeholder="Ej. 45"
+                               title="Opcional. Si capturas días, la fecha de caducidad se calcula desde la fecha de producción." />
+                    </div>
+
+                    <div class="filter-group date-filter-group">
+                        <label>Fecha caducidad</label>
+                        <input id="FechaCaducidad" type="date" class="form-control" />
+                    </div>
+
+                    <div class="fecha-help" id="fechaHelp">
+                        <strong>Fechas opcionales:</strong>
+                        si dejas Sacrificio, Producción y Caducidad vacías se imprime la etiquetación original.
+                        Para fechas manuales completa las tres. En <strong>Días cad.</strong> puedes poner 20, 30, 45, 50,
+                        365 o cualquier cantidad; se calcula Caducidad desde Producción y todavía puedes modificar
+                        la fecha resultante manualmente.
                     </div>
 
                 </div>
@@ -985,8 +1431,17 @@
             </div>
 
             <!-- Tabla -->
-            <div class="section">
-               @*  <div class="section-title">Listado de etiquetas a imprimir</div> *@
+            <div class="section table-section">
+                <div class="table-section-head">
+                    <div>
+                        <strong><i class="bi bi-list-check"></i> Etiquetas a imprimir</strong>
+                        <span>La etiquetación actual se precarga al capturar el código.</span>
+                    </div>
+                    <div class="shortcut-hints">
+                        <span><kbd>F2</kbd> Captura rápida</span>
+                        <span><kbd>Ctrl</kbd> + <kbd>Enter</kbd> Imprimir</span>
+                    </div>
+                </div>
 
                 <div class="table-wrap">
                     <table class="tbl-eti">
@@ -1303,12 +1758,47 @@
 
             const btn = picker.querySelector('.lookup-picker-btn');
             const text = picker.querySelector('.lookup-picker-text');
+            const menu = picker.querySelector('.lookup-picker-menu');
             const search = picker.querySelector('.lookup-picker-search');
             const loading = picker.querySelector('.lookup-picker-loading');
             const list = picker.querySelector('.lookup-picker-list');
 
             function getOptions() {
-                return Array.from(select.options).filter(o => o.value && !o.disabled);
+                let opts =
+                    Array.from(select.options)
+                        .filter(o => o.value && !o.disabled);
+
+                if (
+                    !opts.length &&
+                    select.classList.contains('js-eti') &&
+                    Array.isArray(ETI_LIST) &&
+                    ETI_LIST.length
+                ) {
+                    const current = (select.value || '').toString();
+
+                    select.innerHTML = ETI_LIST
+                        .filter(x => x && x.idRaw)
+                        .map(x =>
+                            `<option value="${escapeHtml(x.idRaw)}">` +
+                            `${escapeHtml(x.name || x.idRaw)}` +
+                            `</option>`
+                        )
+                        .join('');
+
+                    if (
+                        current &&
+                        Array.from(select.options)
+                            .some(o => o.value === current)
+                    ) {
+                        select.value = current;
+                    }
+
+                    opts =
+                        Array.from(select.options)
+                            .filter(o => o.value && !o.disabled);
+                }
+
+                return opts;
             }
 
             function updateButton() {
@@ -1358,9 +1848,49 @@
                 }
             }
 
+            function positionRowMenu() {
+                if (!select.closest('.tbl-eti') || !menu || !btn) return;
+
+                const rect = btn.getBoundingClientRect();
+                const viewportGap = 8;
+                const availableBelow = Math.max(
+                    150,
+                    window.innerHeight - rect.bottom - viewportGap
+                );
+                const desiredHeight = Math.min(360, availableBelow);
+
+                menu.classList.add('lookup-fixed-menu');
+                menu.style.left = `${Math.max(viewportGap, rect.left)}px`;
+                menu.style.top = `${rect.bottom + 2}px`;
+                menu.style.width = `${Math.max(260, rect.width)}px`;
+                menu.style.minWidth = `${Math.max(260, rect.width)}px`;
+                menu.style.maxHeight = `${desiredHeight}px`;
+
+                if (list) {
+                    list.style.maxHeight =
+                        `${Math.max(90, desiredHeight - 62)}px`;
+                }
+            }
+
+            function clearRowMenuPosition() {
+                if (!menu) return;
+
+                menu.classList.remove('lookup-fixed-menu');
+                menu.style.left = '';
+                menu.style.top = '';
+                menu.style.width = '';
+                menu.style.minWidth = '';
+                menu.style.maxHeight = '';
+
+                if (list) {
+                    list.style.maxHeight = '';
+                }
+            }
+
             function open() {
                 picker.classList.add('open');
                 render();
+                positionRowMenu();
 
                 setTimeout(() => {
                     search.focus();
@@ -1373,6 +1903,7 @@
             function close() {
                 picker.classList.remove('open');
                 search.value = '';
+                clearRowMenuPosition();
                 document.removeEventListener('mousedown', closeOutside);
                 render();
             }
@@ -1732,6 +2263,58 @@
             setSelectOptionsPreserve(sel, sel?.value, input.value);
         };
 
+      function updateLiveSummary(){
+        const rows = Array.from(document.querySelectorAll('#rows tr'));
+        let qty = 0;
+        let ready = 0;
+
+        for(const tr of rows){
+          const code = (tr.querySelector('.js-code')?.value || '').trim();
+          const n = parseInt(tr.querySelector('.js-qty')?.value || '0', 10);
+          const eti = (tr.querySelector('.js-eti')?.value || '').trim();
+          if(Number.isFinite(n) && n > 0) qty += n;
+          if(code && Number.isFinite(n) && n > 0 && eti) ready++;
+        }
+
+        const setText = (id, value) => {
+          const el = document.getElementById(id);
+          if(el) el.textContent = value;
+        };
+
+        setText('liveRows', rows.length.toLocaleString('es-MX'));
+        setText('liveQty', qty.toLocaleString('es-MX'));
+        setText('liveReady', ready.toLocaleString('es-MX'));
+
+        const hasManualDates = !!(
+          document.getElementById('FechaSacrificio')?.value ||
+          document.getElementById('FechaProduccion')?.value ||
+          document.getElementById('FechaCaducidad')?.value
+        );
+        setText('liveMode', hasManualDates ? 'Fechas manuales' : 'Original');
+
+        const printerSel = document.getElementById('PrinterName');
+        const printerText = printerSel?.selectedOptions?.[0]?.textContent?.trim() || printerSel?.value || '';
+        setText('livePrinter', printerText || 'Sin impresora');
+      }
+
+      async function quickAddCode(){
+        const input = document.getElementById('QuickCode');
+        const code = (input?.value || '').trim();
+        if(!code){
+          input?.focus();
+          return;
+        }
+
+        const tr = window.addRow(code, 1);
+        if(input){
+          input.value = '';
+          input.focus();
+        }
+
+        updateLiveSummary();
+        if(tr) await precargarEtiquetacionActual([tr]);
+      }
+
       function rowTemplate(id, code, qty, etiId){
         return `
           <tr data-id="${id}">
@@ -1775,6 +2358,7 @@
 
             const tr = tbody.lastElementChild;
             enhanceRowEtiSelect(tr.querySelector('.js-eti'));
+            updateLiveSummary();
 
             return tr;
         };
@@ -1782,12 +2366,14 @@
       window.removeRow = function(id){
         const tr = document.querySelector(`tr[data-id="${CSS.escape(id)}"]`);
         if(tr) tr.remove();
+        updateLiveSummary();
       };
 
       window.clearAll = function(){
         document.getElementById('rows').innerHTML = '';
         showLog('secondary', 'Lista limpiada.');
         setUiState('Listo', 'text-bg-light');
+        updateLiveSummary();
       };
 
       window.openPaste  = openPaste;
@@ -1823,16 +2409,143 @@
         if(ok === true)       { st.textContent = '✅'; st.title = msg || 'OK'; }
         else if(ok === false) { st.textContent = '❌'; st.title = msg || 'Error'; }
         else                  { st.textContent = '—';  st.title = msg || 'Sin intento'; }
+        updateLiveSummary();
       }
 
       function getConfig(){
+        const fechaSacrificio =
+          document.getElementById('FechaSacrificio')?.value || null;
+
+        const fechaProduccion =
+          document.getElementById('FechaProduccion')?.value || null;
+
+        const fechaCaducidad =
+          document.getElementById('FechaCaducidad')?.value || null;
+
+        /*
+         * Si las tres fechas están vacías:
+         * UsarFechasManuales = false
+         * y el backend imprime la etiquetación ORIGINAL.
+         *
+         * Si el usuario captura al menos una fecha:
+         * entramos al modo manual y validamos las tres.
+         */
+        const usarFechasManuales =
+          !!fechaSacrificio ||
+          !!fechaProduccion ||
+          !!fechaCaducidad;
+
         return {
           plant: getPlant(),
           printerName: document.getElementById('PrinterName')?.value || '',
           claveReporte: document.getElementById('ClaveReporte')?.value || '',
-          empresaEysId: document.getElementById('EmpresaEysId')?.value || ''
+          empresaEysId: document.getElementById('EmpresaEysId')?.value || '',
+
+          usarFechasManuales,
+
+          fechaSacrificio,
+          fechaProduccion,
+          fechaCaducidad
         };
       }
+
+      function isoAddDays(isoDate, days){
+        if(!isoDate || !Number.isFinite(days)) return '';
+
+        const parts = isoDate.split('-').map(Number);
+        if(parts.length !== 3 || parts.some(x => !Number.isFinite(x))) return '';
+
+        const d = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0, 0);
+        d.setDate(d.getDate() + days);
+
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+
+        return `${y}-${m}-${day}`;
+      }
+
+      function diasVidaEtiquetacionActual(){
+        const id = (document.getElementById('ClaveReporte')?.value || '').trim();
+        if(!id) return 0;
+
+        const row = ETI_LIST.find(x => x.idRaw === id);
+        return Number(row?.diasVida || 0);
+      }
+
+      function diasCaducidadManualActual(){
+        const raw = document.getElementById('DiasCaducidadManual')?.value;
+        if(raw === null || raw === undefined || String(raw).trim() === '') return 0;
+
+        const dias = Number(raw);
+        if(!Number.isFinite(dias) || dias <= 0) return 0;
+
+        return Math.trunc(dias);
+      }
+
+      function recalcularCaducidadDesdeProduccion(force = false){
+        const prod = document.getElementById('FechaProduccion');
+        const cad = document.getElementById('FechaCaducidad');
+
+        if(!prod || !cad || !prod.value) return;
+
+        /*
+         * Prioridad:
+         * 1) Días escritos por el usuario.
+         * 2) Días de vida configurados en la etiquetación.
+         */
+        const diasManual = diasCaducidadManualActual();
+        const dias = diasManual > 0
+          ? diasManual
+          : diasVidaEtiquetacionActual();
+
+        if(!Number.isFinite(dias) || dias <= 0) return;
+
+        if(!force && cad.dataset.manual === '1' && diasManual <= 0) return;
+
+        const calculada = isoAddDays(prod.value, dias);
+        if(calculada){
+          cad.value = calculada;
+          cad.dataset.auto = '1';
+          cad.dataset.manual = '0';
+        }
+      }
+
+      function validarFechasImpresion(cfg){
+
+        /*
+         * Ninguna fecha capturada:
+         * NO es error. Se imprime exactamente con las fechas originales
+         * que ya obtiene el reporte.
+         */
+        if(!cfg.usarFechasManuales){
+          return '';
+        }
+
+        /*
+         * Si el usuario decidió cambiar fechas, entonces sí exigimos
+         * las tres para no imprimir una etiqueta parcialmente modificada.
+         */
+        if(!cfg.fechaSacrificio)
+          return 'Captura la Fecha de sacrificio o deja las tres fechas vacías para imprimir la original.';
+
+        if(!cfg.fechaProduccion)
+          return 'Captura la Fecha de producción o deja las tres fechas vacías para imprimir la original.';
+
+        if(!cfg.fechaCaducidad)
+          return 'Captura la Fecha de caducidad o deja las tres fechas vacías para imprimir la original.';
+
+        if(cfg.fechaSacrificio > cfg.fechaProduccion){
+          return 'La Fecha de sacrificio no puede ser posterior a la Fecha de producción.';
+        }
+
+        if(cfg.fechaCaducidad < cfg.fechaProduccion){
+          return 'La Fecha de caducidad no puede ser anterior a la Fecha de producción.';
+        }
+
+        return '';
+      }
+
 
       function collectItems(){
         return Array.from(document.querySelectorAll('#rows tr')).map(tr => ({
@@ -1989,10 +2702,14 @@
                     const idNum = Number.parseInt(idRaw, 10);
                     const name = (x.Etiquetacion ?? x.etiquetacion ?? x.Nombre ?? x.nombre ?? '').toString();
 
+                    const diasVidaRaw = x.DiasVida ?? x.diasVida ?? null;
+                    const diasVidaNum = Number.parseInt((diasVidaRaw ?? '').toString(), 10);
+
                     return {
                         idRaw,
                         idNum: Number.isFinite(idNum) ? idNum : 999999,
-                        name
+                        name,
+                        diasVida: Number.isFinite(diasVidaNum) ? diasVidaNum : 0
                     };
                 }).sort((a, b) => a.idNum - b.idNum);
 
@@ -2021,6 +2738,8 @@
 
                 sel.onchange = () => {
                     const v = sel.value || '';
+
+                    recalcularCaducidadDesdeProduccion(true);
 
                     if (!v) return;
 
@@ -2305,12 +3024,43 @@
         try{
           const cfg = getConfig();
           if(!cfg.printerName){ showLog('warning', 'Selecciona impresora.'); setUiState('Falta impresora', 'text-bg-warning'); return; }
+
+          const errorFechas = validarFechasImpresion(cfg);
+          if(errorFechas){
+            showLog('warning', errorFechas);
+            setUiState('Revisa fechas', 'text-bg-warning');
+            return;
+          }
+
+          if(cfg.usarFechasManuales){
+            showLog(
+              'info',
+              `Modo fechas manuales: Sacrificio ${cfg.fechaSacrificio}, ` +
+              `Producción ${cfg.fechaProduccion}, Caducidad ${cfg.fechaCaducidad}.`
+            );
+          }else{
+            showLog(
+              'info',
+              'Fechas vacías: se utilizarán las fechas originales de la etiquetación.'
+            );
+          }
+
           const items = collectItems();
           if(!items.length){ showLog('warning', 'Agrega al menos una etiqueta.'); setUiState('Sin filas', 'text-bg-warning'); return; }
           const valid = items.filter(it => (it.code||'').trim() && (it.qty||0) > 0 && (it.eti||'').trim());
           if(!valid.length){ showLog('warning', 'No hay filas válidas para imprimir.'); setUiState('Sin filas válidas', 'text-bg-warning'); return; }
           savePrinter(cfg.plant, cfg.printerName);
-          const baseReq = { source: cfg.plant, empresaEysId: cfg.empresaEysId || 'CARNG', tipoImpresion: 3, printerName: cfg.printerName };
+          const baseReq = {
+            source: cfg.plant,
+            empresaEysId: cfg.empresaEysId || 'CARNG',
+            tipoImpresion: 3,
+            printerName: cfg.printerName,
+            claveReporte: cfg.claveReporte || '',
+            usarFechasManuales: cfg.usarFechasManuales,
+            fechaSacrificio: cfg.fechaSacrificio,
+            fechaProduccion: cfg.fechaProduccion,
+            fechaCaducidad: cfg.fechaCaducidad
+          };
           const first = valid[0];
           setUiState(`Imprimiendo prueba (${cfg.plant})...`, 'text-bg-info');
           showLog('info', `Imprimiendo 1 etiqueta de prueba:\n${first.code}`);
@@ -2354,13 +3104,67 @@
           const plantSel = document.getElementById('PlantaId');
           if (plantSel) plantSel.value = (DEFAULT_SOURCE || 'P1').toUpperCase();
           await Promise.allSettled([loadPrinters(), loadEtiquetaciones()]);
+
+          const fechaProduccion = document.getElementById('FechaProduccion');
+          const diasCaducidadManual = document.getElementById('DiasCaducidadManual');
+          const fechaCaducidad = document.getElementById('FechaCaducidad');
+          const quickCode = document.getElementById('QuickCode');
+          const btnQuickAdd = document.getElementById('btnQuickAdd');
+          const rowsBody = document.getElementById('rows');
+          const printerSel = document.getElementById('PrinterName');
+
+          quickCode?.addEventListener('keydown', async e => {
+            if(e.key !== 'Enter') return;
+            e.preventDefault();
+            await quickAddCode();
+          });
+          btnQuickAdd?.addEventListener('click', quickAddCode);
+
+          rowsBody?.addEventListener('input', updateLiveSummary);
+          rowsBody?.addEventListener('change', updateLiveSummary);
+          printerSel?.addEventListener('change', updateLiveSummary);
+          document.getElementById('ClaveReporte')?.addEventListener('change', updateLiveSummary);
+          document.getElementById('FechaSacrificio')?.addEventListener('change', updateLiveSummary);
+          document.getElementById('FechaProduccion')?.addEventListener('change', updateLiveSummary);
+          document.getElementById('FechaCaducidad')?.addEventListener('change', updateLiveSummary);
+
+          document.addEventListener('keydown', e => {
+            if(e.key === 'F2'){
+              e.preventDefault();
+              quickCode?.focus();
+              quickCode?.select();
+              return;
+            }
+            if(e.ctrlKey && e.key === 'Enter'){
+              e.preventDefault();
+              window.printAll?.();
+            }
+          });
+
+          fechaProduccion?.addEventListener('change', () => {
+            recalcularCaducidadDesdeProduccion(false);
+          });
+
+          diasCaducidadManual?.addEventListener('input', () => {
+            if(!fechaProduccion?.value) return;
+            recalcularCaducidadDesdeProduccion(true);
+          });
+
+          fechaCaducidad?.addEventListener('input', () => {
+            fechaCaducidad.dataset.manual = '1';
+            fechaCaducidad.dataset.auto = '0';
+          });
+
           if (plantSel){
             plantSel.addEventListener('change', async () => {
               setUiState('Cambiando planta...', 'text-bg-info');
               await Promise.allSettled([loadPrinters(), loadEtiquetaciones()]);
+              recalcularCaducidadDesdeProduccion(true);
+              updateLiveSummary();
               setUiState('Listo', 'text-bg-light');
             });
           }
+          updateLiveSummary();
           setUiState('Listo', 'text-bg-light');
         }catch(e){ showLog('danger', 'Error inicializando: '+(e?.message||e)); setUiState('Error', 'text-bg-danger'); }
       })();

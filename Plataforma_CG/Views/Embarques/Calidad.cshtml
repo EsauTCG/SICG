@@ -1,7 +1,10 @@
 ﻿@model IEnumerable<Plataforma_CG.Models.Embarque>
 
 @{
-    ViewData["Title"] = "Calidad - Validación";
+    var esHistorial = Convert.ToBoolean(ViewBag.EsHistorial ?? false);
+    ViewData["Title"] = esHistorial
+        ? "Histórico de Calidad"
+        : "Calidad - Validación";
     Layout = "~/Views/Shared/_Layout2.cshtml";
 
     var pendientes = Model.Where(x => x.CalidadAprobada != true)
@@ -4832,20 +4835,32 @@
                     <span class="quality-title-icon">
                         <i class="bi bi-shield-check"></i>
                     </span>
-                    Validación de Calidad
+                    @(esHistorial ? "Histórico de Calidad" : "Validación de Calidad")
                 </h2>
                 <p class="quality-sub">
-                    Revisa los embarques pendientes, valida condiciones de unidad, temperaturas, producto y evidencia antes de liberar el QR para caseta.
+                    @(esHistorial
+                        ? "Consulta por separado los formularios de calidad que ya fueron validados."
+                        : "Revisa los embarques pendientes, valida condiciones de unidad, temperaturas, producto y evidencia antes de liberar el QR para caseta.")
                 </p>
             </div>
 
-            <div class="quality-date">
-                <i class="bi bi-calendar3"></i>
-                @DateTime.Now.ToString("dd/MM/yyyy")
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <a class="quality-date text-decoration-none"
+                   asp-action="@(esHistorial ? "Calidad" : "HistorialCalidad")">
+                    <i class="bi @(esHistorial ? "bi-hourglass-split" : "bi-clock-history")"></i>
+                    @(esHistorial ? "Ver pendientes" : "Ver histórico")
+                </a>
+
+                <div class="quality-date">
+                    <i class="bi bi-calendar3"></i>
+                    @DateTime.Now.ToString("dd/MM/yyyy")
+                </div>
             </div>
         </div>
     </div>
 
+    @if (!esHistorial)
+    {
     <div class="quality-kpis">
         <div class="kpi-card">
             <div class="kpi-icon">
@@ -5003,10 +5018,6 @@
                        value="@fechaFin"
                        class="quality-filter-input" />
             </div>
-
-            <input type="hidden" name="busquedaHistorial" value="@busquedaHistorial" />
-            <input type="hidden" name="fechaInicioHistorial" value="@fechaInicioHistorial" />
-            <input type="hidden" name="fechaFinHistorial" value="@fechaFinHistorial" />
 
             <button type="submit" class="quality-filter-btn primary">
                 <i class="bi bi-search"></i>
@@ -6007,6 +6018,10 @@
         </div>
     }
 
+    }
+
+    @if (esHistorial)
+    {
     <div class="quality-history-divider">
         <div class="quality-history-title">
             <i class="bi bi-clock-history"></i>
@@ -6020,10 +6035,7 @@
             Filtros de historial
         </div>
 
-        <form method="get" asp-action="Calidad" class="quality-filter-grid">
-            <input type="hidden" name="busqueda" value="@busqueda" />
-            <input type="hidden" name="fechaInicio" value="@fechaInicio" />
-            <input type="hidden" name="fechaFin" value="@fechaFin" />
+        <form method="get" asp-action="HistorialCalidad" class="quality-filter-grid">
 
             <div class="quality-filter-group">
                 <label>Buscar formulario</label>
@@ -6055,10 +6067,7 @@
                 Buscar historial
             </button>
 
-            <a asp-action="Calidad"
-               asp-route-busqueda="@busqueda"
-               asp-route-fechaInicio="@fechaInicio"
-               asp-route-fechaFin="@fechaFin"
+            <a asp-action="HistorialCalidad"
                class="quality-filter-btn secondary">
                 <i class="bi bi-arrow-clockwise"></i>
                 Limpiar historial
@@ -7124,6 +7133,8 @@
                 </div>
             }
         </div>
+    }
+
     }
 
     <div class="modal fade" id="modalFotoCalidad" tabindex="-1" aria-hidden="true">

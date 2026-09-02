@@ -4,720 +4,1017 @@
     var source = (ViewBag.Source as string ?? "TIF").ToUpperInvariant();
 }
 
+
+
 <style>
-    :root { --vino:#8b0000; --vino2:#5c0000; --line:#d6b4b4; --bg:#f5e7e7; }
-    .cl-app{font-family:Tahoma,Verdana,Arial,sans-serif;font-size:12px;background:var(--bg);border:1px solid #8c5b5b;min-height:80vh}
-    .cl-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:linear-gradient(#b30000,#8b0000,#5c0000);color:#fff;font-weight:700}
-    .cl-toolbar{display:grid;grid-template-columns:160px 150px 150px 150px 1fr;gap:7px;padding:9px;background:#f9eeee;border-bottom:1px solid var(--line);align-items:end}
-    .cl-field label{display:block;font-size:11px;font-weight:700;color:#5c1a1a;margin-bottom:3px}
-    .cl-field input,.cl-field select,.cl-modal input,.cl-modal textarea,.cl-modal select{width:100%;border:1px solid #b98d8d;border-radius:0;padding:5px 6px;font-size:12px;background:#fff}
-    .cl-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
-    .cl-btn{border:1px solid #7d4b4b;border-radius:0;padding:6px 10px;font-weight:700;font-size:11px;cursor:pointer;background:#fff}
-    .cl-btn-primary{background:linear-gradient(#b30000,#8b0000,#5c0000);color:#fff;border-color:#6f1d1d}
-    .cl-btn-success{background:#198754;color:#fff;border-color:#146c43}
-    .cl-btn-warning{background:#ffc107;color:#3c2700;border-color:#c89500}
-    .cl-btn-danger{background:#b02a37;color:#fff;border-color:#842029}
-    .cl-btn-info{background:#0d6efd;color:#fff;border-color:#0a58ca}
-    .cl-table-wrap{overflow:auto;max-height:68vh;background:#fff}
-    .cl-table{width:100%;border-collapse:separate;border-spacing:0;min-width:1250px}
-    .cl-table th{position:sticky;top:0;z-index:2;background:linear-gradient(#b30000,#8b0000,#5c0000);color:#fff;padding:7px 6px;border-right:1px solid #743030;white-space:nowrap;font-size:11px}
-    .cl-table td{padding:6px;border-right:1px solid #ead2d2;border-bottom:1px solid #ead2d2;white-space:nowrap;background:#fff}
-    .cl-table tr:nth-child(even) td{background:#fff8f8}
-    .cl-table tr:hover td{background:#f9e2e2}
-    .cl-badge{display:inline-block;padding:3px 7px;font-weight:700;border:1px solid;border-radius:10px;font-size:10px}
-    .b-ok{background:#e8f6ee;color:#146c43;border-color:#75b798}.b-warn{background:#fff3cd;color:#664d03;border-color:#ffda6a}.b-bad{background:#f8d7da;color:#842029;border-color:#ea868f}.b-info{background:#cff4fc;color:#055160;border-color:#6edff6}
-    .cl-summary{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:7px;margin-bottom:10px}
-    .cl-card{border:1px solid var(--line);background:#fff;padding:8px}.cl-card b{display:block;color:#6b1f1f;font-size:10px}.cl-card span{font-size:15px;font-weight:700}
-    .cl-modal .modal-content{border-radius:0;border:1px solid #7e4a4a}.cl-modal .modal-header{background:linear-gradient(#b30000,#8b0000,#5c0000);color:#fff;border-radius:0}.cl-modal .modal-body{background:#fffafa}
-    .cl-anom{border:1px solid #ddd;padding:8px;margin-bottom:6px;background:#fff}.cl-anom.bloqueo{border-left:5px solid #b02a37}.cl-anom.autorizacion{border-left:5px solid #ffc107}.cl-anom.advertencia{border-left:5px solid #0dcaf0}
-    .cl-note{margin:8px;padding:8px;border:1px solid #d7b36b;background:#fff7dc;color:#513c00}
-    .cl-tabs{display:flex;gap:5px;padding:7px 9px;background:#f4dddd;border-bottom:1px solid var(--line)}
-    .cl-status{padding:7px 10px;background:#fff;border-top:1px solid var(--line);font-size:11px}
-    @@media(max-width:900px){.cl-toolbar{grid-template-columns:1fr 1fr}.cl-summary{grid-template-columns:1fr 1fr}.cl-actions{justify-content:flex-start}}
-</style>
-
-
-<style id="cierre-lotes-erp-final">
-    @@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
-
-    body:not([data-theme="dark"]) {
-        --cl-erp-bg: #eef2f4 !important;
-        --cl-erp-panel: #ffffff !important;
-        --cl-erp-panel2: #f7f9fa !important;
-        --cl-erp-line: #bec9cf !important;
-        --cl-erp-line2: #aebbc3 !important;
-        --cl-erp-text: #30373b !important;
-        --cl-erp-muted: #66747c !important;
-        --cl-erp-tinto: #7a2029 !important;
-        --cl-erp-tinto-dark: #5e1820 !important;
-        --cl-erp-tinto-soft: #f3e7e9 !important;
-
-        --vino: var(--cl-erp-tinto) !important;
-        --vino2: var(--cl-erp-tinto-dark) !important;
-        --line: var(--cl-erp-line) !important;
-        --bg: var(--cl-erp-bg) !important;
+    :root{
+        --cl-brand:#7b1f29;
+        --cl-brand-dark:#53151c;
+        --cl-brand-soft:#f7eaec;
+        --cl-bg:#eef2f4;
+        --cl-card:#ffffff;
+        --cl-card-alt:#f8fafb;
+        --cl-line:#d4dde3;
+        --cl-line-strong:#becbd3;
+        --cl-text:#253746;
+        --cl-muted:#687b8b;
+        --cl-blue:#1769c2;
+        --cl-green:#218a54;
+        --cl-amber:#c88710;
+        --cl-red:#a8343e;
+        --cl-purple:#6651a6;
+        --cl-shadow:0 5px 16px rgba(27,42,56,.07);
     }
 
-    /* ===============================================================
-       TIPOGRAFÍA
-       =============================================================== */
-    body:not([data-theme="dark"]),
-    body:not([data-theme="dark"]) button,
-    body:not([data-theme="dark"]) input,
-    body:not([data-theme="dark"]) select,
-    body:not([data-theme="dark"]) textarea,
-    body:not([data-theme="dark"]) table,
-    body:not([data-theme="dark"]) .cl-app,
-    body:not([data-theme="dark"]) .cl-app * {
-        font-family: "Poppins", "Segoe UI", Arial, sans-serif !important;
-        -webkit-font-smoothing: antialiased !important;
-        -moz-osx-font-smoothing: grayscale !important;
-        text-rendering: geometricPrecision !important;
+    html,body{
+        width:100% !important;
+        max-width:100% !important;
+        min-width:0 !important;
+        overflow-x:hidden !important;
     }
 
-    /* ===============================================================
-       ANCHO CON SIDEBAR
-       =============================================================== */
-    html,
-    body {
-        width: 100% !important;
-        max-width: 100% !important;
-        overflow-x: hidden !important;
+    body:has(.cl-app) .layout-main-content,
+    body:has(.cl-app) .layout-container-fluid{
+        min-width:0 !important;
+        max-width:100% !important;
     }
 
-    body:has(.cl-app) .layout-main-content {
-        flex: 1 1 auto !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        min-width: 0 !important;
-        overflow-x: hidden !important;
-        overflow-y: visible !important;
-        box-sizing: border-box !important;
+    .cl-app,
+    .cl-app *{
+        box-sizing:border-box;
+        font-family:"Segoe UI",Arial,sans-serif;
     }
 
-    body:has(.cl-app) .layout-main-content.layout-sidebar-open {
-        width: calc(100% - var(--layout-sidebar-width)) !important;
-        max-width: calc(100% - var(--layout-sidebar-width)) !important;
-        margin-left: var(--layout-sidebar-width) !important;
+    .cl-app{
+        width:100%;
+        min-width:0;
+        max-width:100%;
+        padding:8px;
+        color:var(--cl-text);
+        background:var(--cl-bg);
     }
 
-    body:has(.layout-sidebar.layout-hidden):has(.cl-app) .layout-main-content,
-    body:has(.layout-sidebar.layout-hidden):has(.cl-app) .layout-main-content.layout-sidebar-open {
-        width: calc(100% - var(--layout-sidebar-collapsed-width, 60px)) !important;
-        max-width: calc(100% - var(--layout-sidebar-collapsed-width, 60px)) !important;
-        margin-left: var(--layout-sidebar-collapsed-width, 60px) !important;
+    /* ============================================================
+       CABECERA
+       ============================================================ */
+    .cl-hero{
+        display:grid;
+        grid-template-columns:minmax(0,1fr) auto;
+        gap:14px;
+        align-items:center;
+        padding:13px 16px;
+        border:1px solid #58171e;
+        border-radius:16px;
+        color:#fff;
+        background:linear-gradient(135deg,var(--cl-brand-dark),var(--cl-brand));
+        box-shadow:0 8px 22px rgba(83,21,28,.16);
     }
 
-    body:has(.cl-app) .layout-main-content .layout-container-fluid {
-        width: 100% !important;
-        max-width: 100% !important;
-        min-width: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        box-sizing: border-box !important;
-        overflow-x: hidden !important;
+    .cl-kicker{
+        font-size:10px;
+        font-weight:800;
+        letter-spacing:.07em;
+        text-transform:uppercase;
+        opacity:.86;
     }
 
-    /* ===============================================================
-       CONTENEDOR
-       =============================================================== */
-    body:not([data-theme="dark"]) .cl-app {
-        width: calc(100% - 12px) !important;
-        max-width: none !important;
-        min-width: 0 !important;
-
-        min-height: 0 !important;
-
-        margin: 7px auto 12px !important;
-        padding: 0 !important;
-
-        background: #eef2f4 !important;
-        color: #30373b !important;
-
-        border: 1px solid #bec9cf !important;
-        border-radius: 2px !important;
-
-        box-shadow: none !important;
-        overflow: hidden !important;
-
-        font-size: 10.2px !important;
-        line-height: 1.2 !important;
+    .cl-hero h1{
+        margin:3px 0 3px;
+        font-size:clamp(25px,2.2vw,36px);
+        line-height:1;
+        font-weight:800;
     }
 
-    /* ===============================================================
-       ENCABEZADO
-       =============================================================== */
-    body:not([data-theme="dark"]) .cl-head {
-        min-height: 40px !important;
-
-        padding: 6px 9px !important;
-
-        background:
-            linear-gradient(
-                180deg,
-                #5a171d 0%,
-                #481318 48%,
-                #351014 100%
-            ) !important;
-
-        color: #fff !important;
-
-        border-bottom: 1px solid #351014 !important;
-
-        font-size: 10px !important;
-        font-weight: 700 !important;
+    .cl-hero p{
+        margin:0;
+        color:#f3dfe2;
+        font-size:12px;
+        line-height:1.35;
     }
 
-    body:not([data-theme="dark"]) .cl-head > div:last-child {
-        color: #eadde0 !important;
-        font-size: 8.8px !important;
-        font-weight: 500 !important;
+    .cl-user-box{
+        min-width:220px;
+        padding:9px 12px;
+        border:1px solid rgba(255,255,255,.18);
+        border-radius:12px;
+        background:rgba(255,255,255,.09);
     }
 
-    /* ===============================================================
-       TABS
-       =============================================================== */
-    body:not([data-theme="dark"]) .cl-tabs {
-        min-height: 37px !important;
-
-        padding: 4px 6px !important;
-        gap: 4px !important;
-
-        background:
-            linear-gradient(
-                180deg,
-                #f4f7f8 0%,
-                #e8edef 100%
-            ) !important;
-
-        border-bottom: 1px solid #bec9cf !important;
+    .cl-user-box span{
+        display:block;
+        font-size:8px;
+        font-weight:800;
+        text-transform:uppercase;
+        opacity:.78;
     }
 
-    /* ===============================================================
-       FILTROS
-       =============================================================== */
-    body:not([data-theme="dark"]) .cl-toolbar {
-        grid-template-columns: 170px 145px 145px 150px minmax(150px, 1fr) !important;
-        gap: 6px !important;
-
-        padding: 6px !important;
-
-        background: #f7f9fa !important;
-
-        border-bottom: 1px solid #bec9cf !important;
+    .cl-user-box strong{
+        display:block;
+        margin-top:3px;
+        max-width:280px;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+        font-size:11px;
     }
 
-    body:not([data-theme="dark"]) .cl-field label,
-    body:not([data-theme="dark"]) .cl-modal label {
-        margin-bottom: 2px !important;
-
-        color: #3f474b !important;
-
-        font-size: 8.9px !important;
-        font-weight: 700 !important;
+    /* ============================================================
+       ACCIONES + FILTROS
+       ============================================================ */
+    .cl-control-bar{
+        margin-top:8px;
+        padding:8px;
+        display:grid;
+        grid-template-columns:auto minmax(0,1fr);
+        gap:8px;
+        align-items:end;
+        border:1px solid var(--cl-line);
+        border-radius:14px;
+        background:#fff;
+        box-shadow:var(--cl-shadow);
     }
 
-    body:not([data-theme="dark"]) .cl-field input,
-    body:not([data-theme="dark"]) .cl-field select,
-    body:not([data-theme="dark"]) .cl-modal input,
-    body:not([data-theme="dark"]) .cl-modal select,
-    body:not([data-theme="dark"]) .cl-modal textarea {
-        min-height: 29px !important;
-
-        padding: 4px 6px !important;
-
-        background: #fff !important;
-        color: #30373b !important;
-
-        border: 1px solid #b9c5cb !important;
-        border-radius: 2px !important;
-
-        box-shadow: none !important;
-
-        font-size: 9.6px !important;
-        font-weight: 500 !important;
+    .cl-shortcuts{
+        display:flex;
+        gap:6px;
+        flex-wrap:wrap;
     }
 
-    body:not([data-theme="dark"]) .cl-field input:focus,
-    body:not([data-theme="dark"]) .cl-field select:focus,
-    body:not([data-theme="dark"]) .cl-modal input:focus,
-    body:not([data-theme="dark"]) .cl-modal select:focus,
-    body:not([data-theme="dark"]) .cl-modal textarea:focus {
-        border-color: #9e7479 !important;
-        box-shadow: 0 0 0 2px rgba(122,32,41,.08) !important;
-        outline: none !important;
+    .cl-filter-grid{
+        display:grid;
+        grid-template-columns:minmax(150px,.8fr) minmax(135px,.65fr) minmax(135px,.65fr) minmax(145px,.7fr) auto;
+        gap:7px;
+        align-items:end;
     }
 
-    /* ===============================================================
-       BOTONES
-       =============================================================== */
-    body:not([data-theme="dark"]) .cl-btn {
-        min-height: 28px !important;
-        height: 28px !important;
-
-        padding: 0 8px !important;
-
-        background: #fff !important;
-        color: #424b50 !important;
-
-        border: 1px solid #b9c5cb !important;
-        border-radius: 2px !important;
-
-        box-shadow: none !important;
-
-        font-size: 8.8px !important;
-        font-weight: 700 !important;
-
-        display: inline-flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-
-        white-space: nowrap !important;
+    .cl-field label{
+        display:block;
+        margin-bottom:3px;
+        color:#596e7e;
+        font-size:8px;
+        font-weight:800;
+        text-transform:uppercase;
+        letter-spacing:.03em;
     }
 
-    body:not([data-theme="dark"]) .cl-btn-primary {
-        background: #7a2029 !important;
-        color: #fff !important;
-        border-color: #5e1820 !important;
+    .cl-field input,
+    .cl-field select,
+    .cl-modal input,
+    .cl-modal textarea,
+    .cl-modal select{
+        width:100%;
+        min-height:34px;
+        padding:5px 8px;
+        border:1px solid var(--cl-line-strong);
+        border-radius:9px;
+        background:#fff;
+        color:var(--cl-text);
+        font-size:10px;
     }
 
-    body:not([data-theme="dark"]) .cl-btn-success {
-        background: #25824d !important;
-        color: #fff !important;
-        border-color: #1d6d40 !important;
+    .cl-field input:focus,
+    .cl-field select:focus,
+    .cl-modal input:focus,
+    .cl-modal textarea:focus,
+    .cl-modal select:focus{
+        outline:none;
+        border-color:#9b7176;
+        box-shadow:0 0 0 3px rgba(123,31,41,.08);
     }
 
-    body:not([data-theme="dark"]) .cl-btn-warning {
-        background: #fff5dc !important;
-        color: #705a1a !important;
-        border-color: #d6bd79 !important;
+    .cl-actions{
+        display:flex;
+        justify-content:flex-end;
+        gap:6px;
     }
 
-    body:not([data-theme="dark"]) .cl-btn-danger {
-        background: #9b2e37 !important;
-        color: #fff !important;
-        border-color: #7b222a !important;
+    .cl-btn{
+        min-height:34px;
+        padding:0 10px;
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        gap:5px;
+        border:1px solid var(--cl-line-strong);
+        border-radius:9px;
+        background:#fff;
+        color:var(--cl-text);
+        font-size:9px;
+        line-height:1;
+        font-weight:800;
+        white-space:nowrap;
+        cursor:pointer;
+        transition:transform .12s ease,box-shadow .12s ease;
     }
 
-    body:not([data-theme="dark"]) .cl-btn-info {
-        background: #6d6265 !important;
-        color: #fff !important;
-        border-color: #5a5153 !important;
+    .cl-btn:hover{
+        transform:translateY(-1px);
+        box-shadow:0 5px 12px rgba(26,42,55,.10);
     }
 
-    /* ===============================================================
-       NOTA
-       =============================================================== */
-    body:not([data-theme="dark"]) .cl-note {
-        margin: 6px !important;
-        padding: 6px 8px !important;
-
-        background: #fff8df !important;
-        color: #66521c !important;
-
-        border: 1px solid #d7c27f !important;
-        border-left: 3px solid #b78a24 !important;
-        border-radius: 2px !important;
-
-        font-size: 8.8px !important;
-        font-weight: 500 !important;
+    .cl-btn-primary{
+        border-color:var(--cl-brand-dark);
+        background:var(--cl-brand);
+        color:#fff;
     }
 
-    /* ===============================================================
-       TABLA PRINCIPAL
-       =============================================================== */
-    body:not([data-theme="dark"]) .cl-table-wrap {
-        width: 100% !important;
-        max-width: 100% !important;
-        min-width: 0 !important;
-
-        max-height: 68vh !important;
-
-        background: #fff !important;
-
-        overflow: auto !important;
+    .cl-btn-review{
+        min-height:31px;
+        border-color:#145aa5;
+        background:var(--cl-blue);
+        color:#fff;
     }
 
-    body:not([data-theme="dark"]) .cl-table {
-        width: 100% !important;
-        min-width: 1180px !important;
-
-        background: #fff !important;
-        color: #30373b !important;
-
-        border-collapse: separate !important;
-        border-spacing: 0 !important;
-
-        font-size: 9.8px !important;
+    .cl-btn-success{
+        border-color:#176b40;
+        background:var(--cl-green);
+        color:#fff;
     }
 
-    body:not([data-theme="dark"]) .cl-table th {
-        position: sticky !important;
-        top: 0 !important;
-        z-index: 2 !important;
-
-        height: 31px !important;
-
-        padding: 4px 5px !important;
-
-        background:
-            linear-gradient(
-                180deg,
-                #dce4e8 0%,
-                #d1dbe0 100%
-            ) !important;
-
-        color: #3f4549 !important;
-
-        border-right: 1px solid #aebbc3 !important;
-        border-bottom: 1px solid #aebbc3 !important;
-
-        font-size: 8.9px !important;
-        font-weight: 700 !important;
-        line-height: 1.08 !important;
+    .cl-btn-warning{
+        border-color:#d0aa56;
+        background:#fff4d5;
+        color:#735614;
     }
 
-    body:not([data-theme="dark"]) .cl-table td {
-        height: 28px !important;
-
-        padding: 3px 5px !important;
-
-        background: #fff !important;
-        color: #30373b !important;
-
-        border-right: 1px solid #c5d0d6 !important;
-        border-bottom: 1px solid #c5d0d6 !important;
-
-        font-size: 9.8px !important;
-        font-weight: 500 !important;
-        line-height: 1.12 !important;
+    .cl-btn-danger{
+        border-color:#84272f;
+        background:var(--cl-red);
+        color:#fff;
     }
 
-    body:not([data-theme="dark"]) .cl-table tr:nth-child(even) td {
-        background: #f2f5f6 !important;
+    .cl-btn-info{
+        border-color:#4e6385;
+        background:#61749a;
+        color:#fff;
     }
 
-    body:not([data-theme="dark"]) .cl-table tr:hover td {
-        background: #f3e7e9 !important;
+    .cl-btn-auth{
+        border-color:#bc8a26;
+        background:#fff0c5;
+        color:#76530b;
     }
 
-    /* ===============================================================
-       BADGES
-       =============================================================== */
-    body:not([data-theme="dark"]) .cl-badge {
-        min-height: 19px !important;
-
-        padding: 2px 5px !important;
-
-        border-radius: 2px !important;
-
-        font-size: 8px !important;
-        font-weight: 700 !important;
+    .cl-btn-compat{
+        border-color:#5a4a92;
+        background:#6a56a6;
+        color:#fff;
     }
 
-    body:not([data-theme="dark"]) .b-ok {
-        background: #e7f2ea !important;
-        color: #315c3b !important;
-        border-color: #8eb59a !important;
+    /* ============================================================
+       KPIs
+       ============================================================ */
+    .cl-kpis{
+        margin-top:8px;
+        display:grid;
+        grid-template-columns:repeat(6,minmax(0,1fr));
+        gap:6px;
     }
 
-    body:not([data-theme="dark"]) .b-warn {
-        background: #fff5dc !important;
-        color: #705a1a !important;
-        border-color: #d6bd79 !important;
+    .cl-kpi{
+        min-width:0;
+        padding:8px 10px;
+        border:1px solid var(--cl-line);
+        border-radius:12px;
+        background:#fff;
+        box-shadow:var(--cl-shadow);
+        overflow:hidden;
     }
 
-    body:not([data-theme="dark"]) .b-bad {
-        background: #f6e3e5 !important;
-        color: #7a2029 !important;
-        border-color: #c9989e !important;
+    .cl-kpi span{
+        display:block;
+        color:var(--cl-muted);
+        font-size:7px;
+        font-weight:800;
+        text-transform:uppercase;
     }
 
-    body:not([data-theme="dark"]) .b-info {
-        background: #edf3f6 !important;
-        color: #4f5d64 !important;
-        border-color: #aebbc3 !important;
+    .cl-kpi strong{
+        display:block;
+        margin-top:2px;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+        color:var(--cl-text);
+        font-size:clamp(15px,1.3vw,21px);
+        line-height:1.1;
     }
 
-    /* ===============================================================
-       STATUS
-       =============================================================== */
-    body:not([data-theme="dark"]) .cl-status {
-        min-height: 27px !important;
+    .cl-kpi.open{border-left:4px solid var(--cl-green)}
+    .cl-kpi.closed{border-left:4px solid var(--cl-blue)}
+    .cl-kpi.in{border-left:4px solid #6d7990}
+    .cl-kpi.out{border-left:4px solid var(--cl-purple)}
+    .cl-kpi.yield{border-left:4px solid var(--cl-amber)}
 
-        padding: 4px 7px !important;
-
-        background: #e1e8eb !important;
-        color: #59666d !important;
-
-        border-top: 1px solid #bec9cf !important;
-
-        font-size: 8.7px !important;
-        font-weight: 500 !important;
+    /* ============================================================
+       AYUDA + RESULTADOS
+       ============================================================ */
+    .cl-help{
+        margin-top:8px;
+        padding:7px 10px;
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:10px;
+        border:1px solid #e0c98e;
+        border-radius:11px;
+        background:#fff8df;
+        color:#654f17;
+        font-size:9px;
+        line-height:1.3;
     }
 
-    /* ===============================================================
+    .cl-help strong{color:#5c4510}
+
+    .cl-results{
+        margin-top:8px;
+        min-height:0;
+        display:grid;
+        grid-template-rows:auto minmax(0,1fr);
+        border:1px solid var(--cl-line);
+        border-radius:14px;
+        background:#fff;
+        box-shadow:var(--cl-shadow);
+        overflow:hidden;
+    }
+
+    .cl-results-head{
+        min-height:40px;
+        padding:7px 10px;
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        gap:8px;
+        border-bottom:1px solid var(--cl-line);
+        background:linear-gradient(180deg,#fff,#f4f7f9);
+    }
+
+    .cl-results-head h2{
+        margin:0;
+        font-size:14px;
+        font-weight:800;
+    }
+
+    .cl-results-head p{
+        margin:1px 0 0;
+        color:var(--cl-muted);
+        font-size:8px;
+    }
+
+    #clResultCount{
+        padding:4px 8px;
+        border:1px solid #dec7cb;
+        border-radius:999px;
+        background:var(--cl-brand-soft);
+        color:var(--cl-brand);
+        font-size:8px;
+        font-weight:800;
+        white-space:nowrap;
+    }
+
+    .cl-table-wrap{
+        width:100%;
+        min-width:0;
+        min-height:0;
+        overflow:auto;
+        background:#fff;
+    }
+
+    .cl-table{
+        width:100%;
+        min-width:1080px;
+        border-collapse:separate;
+        border-spacing:0;
+        background:#fff;
+        font-size:9px;
+    }
+
+    .cl-table th{
+        position:sticky;
+        top:0;
+        z-index:2;
+        height:32px;
+        padding:4px 6px;
+        border-right:1px solid #c4d0d6;
+        border-bottom:1px solid #b5c4cc;
+        background:#dce5e9;
+        color:#3b4a54;
+        white-space:nowrap;
+        font-size:8px;
+        font-weight:800;
+        text-transform:uppercase;
+    }
+
+    .cl-table td{
+        height:34px;
+        padding:4px 6px;
+        border-right:1px solid #d9e1e5;
+        border-bottom:1px solid #d9e1e5;
+        background:#fff;
+        color:var(--cl-text);
+        white-space:nowrap;
+        vertical-align:middle;
+    }
+
+    .cl-table tbody tr:nth-child(even) td{
+        background:#f8fafb;
+    }
+
+    .cl-table tbody tr:hover td{
+        background:#f8ecee;
+    }
+
+    .cl-table tbody tr.is-closed td{
+        color:#657785;
+    }
+
+    .cl-lote-name{
+        font-weight:700;
+    }
+
+    .cl-mobile-label{
+        display:none;
+    }
+
+    .cl-action-cell{
+        text-align:center;
+    }
+
+    .cl-empty-row td{
+        height:110px !important;
+        text-align:center !important;
+        color:var(--cl-muted) !important;
+        font-size:11px !important;
+    }
+
+    /* ============================================================
+       BADGES + STATUS
+       ============================================================ */
+    .cl-badge{
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        min-height:20px;
+        padding:2px 6px;
+        border:1px solid;
+        border-radius:999px;
+        font-size:7px;
+        font-weight:800;
+    }
+
+    .b-ok{background:#e8f5ed;color:#236540;border-color:#9dcaae}
+    .b-warn{background:#fff4d9;color:#745813;border-color:#e2c578}
+    .b-bad{background:#f7e5e7;color:#7c2730;border-color:#d4a0a5}
+    .b-info{background:#e8f0f7;color:#355f84;border-color:#9db7cb}
+
+    .cl-status{
+        min-height:28px;
+        padding:5px 8px;
+        border-top:1px solid var(--cl-line);
+        background:#edf2f5;
+        color:#627481;
+        font-size:8px;
+    }
+
+    /* ============================================================
        MODALES
-       =============================================================== */
-    body:not([data-theme="dark"]) .cl-modal .modal-dialog {
-        margin: 24px auto !important;
+       ============================================================ */
+    .cl-modal .modal-dialog{
+        margin:18px auto;
     }
 
-    body:not([data-theme="dark"]) .cl-modal .modal-content {
-        background: #fff !important;
-
-        border: 1px solid #b9c5cb !important;
-        border-radius: 3px !important;
-
-        box-shadow: 0 14px 34px rgba(0,0,0,.18) !important;
-
-        overflow: hidden !important;
+    .cl-modal .modal-content{
+        overflow:hidden;
+        border:1px solid var(--cl-line-strong);
+        border-radius:14px;
+        background:#fff;
+        box-shadow:0 18px 42px rgba(0,0,0,.20);
     }
 
-    body:not([data-theme="dark"]) .cl-modal .modal-header {
-        min-height: 38px !important;
-
-        padding: 7px 9px !important;
-
-        background:
-            linear-gradient(
-                180deg,
-                #5a171d 0%,
-                #481318 48%,
-                #351014 100%
-            ) !important;
-
-        color: #fff !important;
-
-        border-bottom: 1px solid #351014 !important;
-        border-radius: 0 !important;
+    .cl-modal .modal-header{
+        min-height:45px;
+        padding:8px 11px;
+        border:0;
+        border-bottom:1px solid #431118;
+        background:linear-gradient(135deg,var(--cl-brand-dark),var(--cl-brand));
+        color:#fff;
     }
 
-    body:not([data-theme="dark"]) .cl-modal .modal-title {
-        color: #fff !important;
-
-        font-size: 11px !important;
-        font-weight: 700 !important;
+    .cl-modal .modal-title{
+        color:#fff;
+        font-size:13px;
+        font-weight:800;
     }
 
-    body:not([data-theme="dark"]) .cl-modal .modal-body {
-        padding: 7px !important;
-
-        background: #eef2f4 !important;
-        color: #30373b !important;
-
-        font-size: 9.8px !important;
-        font-weight: 500 !important;
+    .cl-modal .modal-body{
+        padding:10px;
+        background:#f5f8fa;
+        color:var(--cl-text);
+        font-size:9px;
     }
 
-    body:not([data-theme="dark"]) .cl-modal .modal-footer {
-        min-height: 39px !important;
-
-        padding: 5px 7px !important;
-
-        background: #e8edef !important;
-
-        border-top: 1px solid #c5d0d6 !important;
+    .cl-modal .modal-footer{
+        min-height:46px;
+        padding:7px 10px;
+        border-top:1px solid var(--cl-line);
+        background:#edf2f5;
     }
 
-    /* ===============================================================
-       TARJETAS RESUMEN DEL DIAGNÓSTICO
-       =============================================================== */
-    body:not([data-theme="dark"]) .cl-summary {
-        grid-template-columns: repeat(4, minmax(140px, 1fr)) !important;
-        gap: 5px !important;
-        margin-bottom: 7px !important;
+    .cl-note{
+        margin:7px 0;
+        padding:8px 10px;
+        border:1px solid #dfc98f;
+        border-left:4px solid var(--cl-amber);
+        border-radius:10px;
+        background:#fff8e3;
+        color:#644d13;
+        font-size:8.5px;
+        line-height:1.35;
     }
 
-    body:not([data-theme="dark"]) .cl-card {
-        padding: 6px !important;
-
-        background: #fff !important;
-
-        border: 1px solid #c5d0d6 !important;
-        border-radius: 2px !important;
+    .cl-summary{
+        display:grid;
+        grid-template-columns:repeat(4,minmax(0,1fr));
+        gap:6px;
+        margin-bottom:8px;
     }
 
-    body:not([data-theme="dark"]) .cl-card b {
-        color: #59666d !important;
-
-        font-size: 8px !important;
-        font-weight: 700 !important;
+    .cl-card{
+        min-width:0;
+        padding:8px;
+        border:1px solid var(--cl-line);
+        border-radius:10px;
+        background:#fff;
     }
 
-    body:not([data-theme="dark"]) .cl-card span {
-        color: #30373b !important;
-
-        font-size: 12px !important;
-        font-weight: 700 !important;
+    .cl-card b{
+        display:block;
+        color:var(--cl-muted);
+        font-size:7px;
+        text-transform:uppercase;
     }
 
-    /* ===============================================================
-       ANOMALÍAS
-       =============================================================== */
-    body:not([data-theme="dark"]) .cl-anom {
-        margin-bottom: 4px !important;
-        padding: 6px !important;
-
-        background: #fff !important;
-
-        border: 1px solid #c5d0d6 !important;
-        border-radius: 2px !important;
-
-        font-size: 9px !important;
+    .cl-card span{
+        display:block;
+        margin-top:3px;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+        color:var(--cl-text);
+        font-size:12px;
+        font-weight:800;
     }
 
-    body:not([data-theme="dark"]) .cl-anom.bloqueo {
-        border-left: 3px solid #9b2e37 !important;
+    .cl-anom{
+        margin-bottom:5px;
+        padding:7px 8px;
+        border:1px solid var(--cl-line);
+        border-radius:9px;
+        background:#fff;
+        font-size:8.5px;
     }
 
-    body:not([data-theme="dark"]) .cl-anom.autorizacion {
-        border-left: 3px solid #b78a24 !important;
+    .cl-anom.bloqueo{border-left:4px solid var(--cl-red)}
+    .cl-anom.autorizacion{border-left:4px solid var(--cl-amber)}
+    .cl-anom.advertencia{border-left:4px solid #5b8ba2}
+
+    .cl-modal table.table{
+        background:#fff;
+        color:var(--cl-text);
+        font-size:8.5px;
     }
 
-    body:not([data-theme="dark"]) .cl-anom.advertencia {
-        border-left: 3px solid #648796 !important;
+    .cl-modal table.table thead th{
+        background:#dde6ea;
+        color:#42515b;
+        border-color:#bac7ce;
+        font-size:8px;
+        font-weight:800;
+        white-space:nowrap;
     }
 
-    /* ===============================================================
-       TABLAS BOOTSTRAP DE LOS MODALES
-       =============================================================== */
-    body:not([data-theme="dark"]) .cl-modal table.table {
-        background: #fff !important;
-        color: #30373b !important;
-
-        font-size: 9.4px !important;
+    .cl-modal table.table tbody td{
+        border-color:#d3dde2;
+        font-size:8.5px;
     }
 
-    body:not([data-theme="dark"]) .cl-modal table.table thead th {
-        background:
-            linear-gradient(
-                180deg,
-                #dce4e8 0%,
-                #d1dbe0 100%
-            ) !important;
-
-        color: #3f4549 !important;
-
-        border-color: #aebbc3 !important;
-
-        font-size: 8.8px !important;
-        font-weight: 700 !important;
-        white-space: nowrap !important;
-    }
-
-    body:not([data-theme="dark"]) .cl-modal table.table tbody td {
-        background: #fff !important;
-        color: #30373b !important;
-
-        border-color: #c5d0d6 !important;
-
-        font-size: 9.4px !important;
-        font-weight: 500 !important;
-    }
-
-    body:not([data-theme="dark"]) .cl-modal table.table tbody tr:nth-child(even) td {
-        background: #f2f5f6 !important;
-    }
-
-    body:not([data-theme="dark"]) .cl-modal table.table tbody tr:hover td {
-        background: #f3e7e9 !important;
-    }
-
-    /* ===============================================================
-       RESPONSIVE
-       =============================================================== */
-    @@media (max-width: 1100px) {
-        body:not([data-theme="dark"]) .cl-toolbar {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    /* ============================================================
+       LAPTOP / DESKTOP: TODO EL MÓDULO USA LA PANTALLA
+       ============================================================ */
+    @@media (min-width:901px){
+        body:has(.cl-app){
+            overflow-y:hidden !important;
         }
 
-        body:not([data-theme="dark"]) .cl-actions {
-            justify-content: flex-start !important;
+        .cl-app{
+            height:calc(100dvh - 82px);
+            max-height:calc(100dvh - 82px);
+            display:grid;
+            grid-template-rows:auto auto auto auto minmax(0,1fr) auto;
+            gap:0;
+            overflow:hidden;
         }
 
-        body:not([data-theme="dark"]) .cl-summary {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        .cl-results{
+            min-height:0;
+        }
+
+        .cl-table-wrap{
+            height:100%;
+            max-height:none;
         }
     }
 
-    @@media (max-width: 768px) {
-        body:has(.cl-app) .layout-main-content,
-        body:has(.cl-app) .layout-main-content.layout-sidebar-open,
-        body:has(.layout-sidebar.layout-hidden):has(.cl-app) .layout-main-content,
-        body:has(.layout-sidebar.layout-hidden):has(.cl-app) .layout-main-content.layout-sidebar-open {
-            width: 100% !important;
-            max-width: 100% !important;
-            margin-left: 0 !important;
+    /* ============================================================
+       TABLET HORIZONTAL / LAPTOP ANGOSTA
+       ============================================================ */
+    @@media (max-width:1180px){
+        .cl-control-bar{
+            grid-template-columns:1fr;
         }
 
-        body:not([data-theme="dark"]) .cl-app {
-            width: 100% !important;
-            margin: 0 !important;
+        .cl-filter-grid{
+            grid-template-columns:repeat(4,minmax(0,1fr)) auto;
         }
 
-        body:not([data-theme="dark"]) .cl-head {
-            align-items: flex-start !important;
-            flex-direction: column !important;
-            gap: 3px !important;
+        .cl-shortcuts{
+            order:2;
         }
 
-        body:not([data-theme="dark"]) .cl-tabs {
-            flex-wrap: wrap !important;
+        .cl-kpis{
+            grid-template-columns:repeat(3,minmax(0,1fr));
+        }
+    }
+
+    /* ============================================================
+       TABLET: LA TABLA SE VUELVE TARJETAS
+       ============================================================ */
+    @@media (max-width:900px){
+        body:has(.cl-app){
+            overflow-y:auto !important;
         }
 
-        body:not([data-theme="dark"]) .cl-toolbar,
-        body:not([data-theme="dark"]) .cl-summary {
-            grid-template-columns: 1fr !important;
+        .cl-app{
+            padding:6px;
+        }
+
+        .cl-hero{
+            grid-template-columns:1fr;
+        }
+
+        .cl-user-box{
+            min-width:0;
+        }
+
+        .cl-control-bar{
+            grid-template-columns:1fr;
+        }
+
+        .cl-filter-grid{
+            grid-template-columns:repeat(2,minmax(0,1fr));
+        }
+
+        .cl-actions{
+            grid-column:1/-1;
+        }
+
+        .cl-actions .cl-btn{
+            width:100%;
+        }
+
+        .cl-kpis{
+            grid-template-columns:repeat(3,minmax(0,1fr));
+        }
+
+        .cl-help{
+            align-items:flex-start;
+            flex-direction:column;
+        }
+
+        .cl-results{
+            overflow:visible;
+        }
+
+        .cl-table-wrap{
+            overflow:visible;
+        }
+
+        .cl-table{
+            min-width:0;
+            display:block;
+        }
+
+        .cl-table thead{
+            display:none;
+        }
+
+        .cl-table tbody{
+            display:grid;
+            grid-template-columns:repeat(2,minmax(0,1fr));
+            gap:8px;
+            padding:8px;
+        }
+
+        .cl-table tbody tr{
+            min-width:0;
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:0;
+            padding:7px;
+            border:1px solid var(--cl-line);
+            border-radius:12px;
+            background:#fff;
+            box-shadow:0 4px 12px rgba(25,40,53,.06);
+            overflow:hidden;
+        }
+
+        .cl-table tbody tr:nth-child(even) td,
+        .cl-table tbody tr:hover td{
+            background:transparent;
+        }
+
+        .cl-table td{
+            min-width:0;
+            height:auto;
+            padding:5px 6px;
+            display:grid;
+            grid-template-columns:76px minmax(0,1fr);
+            gap:5px;
+            border:0;
+            border-bottom:1px solid #eef2f4;
+            background:transparent !important;
+            white-space:normal;
+            font-size:9px;
+        }
+
+        .cl-table td::before{
+            content:attr(data-label);
+            color:#718491;
+            font-size:7px;
+            font-weight:800;
+            text-transform:uppercase;
+        }
+
+        .cl-table .cl-lote-name{
+            grid-column:1/-1;
+            min-height:34px;
+            display:block;
+            padding:7px;
+            border-radius:8px;
+            background:#f4f7f9 !important;
+            color:#263a49;
+            font-size:11px;
+        }
+
+        .cl-table .cl-lote-name::before{
+            display:block;
+            margin-bottom:2px;
+        }
+
+        .cl-table .cl-action-cell{
+            grid-column:1/-1;
+            display:block;
+            padding-top:8px;
+            border-bottom:0;
+        }
+
+        .cl-table .cl-action-cell::before{
+            display:none;
+        }
+
+        .cl-table .cl-action-cell .cl-btn{
+            width:100%;
+            min-height:38px;
+            font-size:9px;
+        }
+
+        .cl-empty-row{
+            display:block !important;
+            grid-column:1/-1 !important;
+        }
+
+        .cl-empty-row td{
+            display:block !important;
+            width:100% !important;
+        }
+
+        .cl-empty-row td::before{
+            display:none !important;
+        }
+
+        .cl-status{
+            margin-top:6px;
+            border:1px solid var(--cl-line);
+            border-radius:9px;
+        }
+
+        .cl-summary{
+            grid-template-columns:repeat(2,minmax(0,1fr));
+        }
+    }
+
+    @@media (max-width:620px){
+        .cl-app{
+            padding:4px;
+        }
+
+        .cl-hero{
+            border-radius:12px;
+            padding:11px 12px;
+        }
+
+        .cl-hero h1{
+            font-size:25px;
+        }
+
+        .cl-filter-grid,
+        .cl-kpis,
+        .cl-summary{
+            grid-template-columns:1fr 1fr;
+        }
+
+        .cl-shortcuts{
+            display:grid;
+            grid-template-columns:1fr;
+        }
+
+        .cl-shortcuts .cl-btn{
+            width:100%;
+        }
+
+        .cl-table tbody{
+            grid-template-columns:1fr;
+        }
+    }
+
+    @@media (max-width:430px){
+        .cl-filter-grid,
+        .cl-kpis,
+        .cl-summary{
+            grid-template-columns:1fr;
         }
     }
 </style>
+
 
 <div class="cl-app">
-    <div class="cl-head">
-        <div>Cierre de lotes · control previo a costeo</div>
-        <div>Usuario: @(User?.Identity?.Name ?? "")</div>
-    </div>
 
-    <div class="cl-tabs">
-        <button class="cl-btn cl-btn-info" type="button" onclick="cargarPendientes()">Autorizaciones pendientes</button>
-        <button class="cl-btn" type="button" onclick="abrirCompatibilidad()">Compatibilidad entrada → salida</button>
-    </div>
-
-    <div class="cl-toolbar">
-        <div class="cl-field">
-            <label>Planta</label>
-            <select id="clSource">
-                <option value="TIF" selected="@(source == "TIF")">TIF 776</option>
-<option value="P1" selected="@(source == "P1")">Planta 1</option>
-            </select>
+    <section class="cl-hero">
+        <div>
+            <div class="cl-kicker">PRODUCCIÓN · CONTROL DE LOTES</div>
+            <h1>Cierre de lotes</h1>
+            <p>Busca el lote, revisa el diagnóstico y cierra únicamente cuando el sistema lo autorice.</p>
         </div>
-        <div class="cl-field"><label>Desde</label><input id="clDesde" type="date" value="@DateTime.Today.ToString("yyyy-MM-dd")" /></div>
-        <div class="cl-field"><label>Hasta</label><input id="clHasta" type="date" value="@DateTime.Today.ToString("yyyy-MM-dd")" /></div>
-        <div class="cl-field">
-            <label>Estado</label>
-            <select id="clEstado"><option value="ABIERTOS">Abiertos</option><option value="CERRADOS">Cerrados</option><option value="TODOS">Todos</option></select>
+
+        <div class="cl-user-box">
+            <span>Usuario actual</span>
+            <strong>@(User?.Identity?.Name ?? "")</strong>
         </div>
-        <div class="cl-actions">
-            <button class="cl-btn cl-btn-primary" type="button" onclick="buscarLotes()">Buscar lotes</button>
+    </section>
+
+    <section class="cl-control-bar">
+
+        <div class="cl-shortcuts">
+            <button class="cl-btn cl-btn-auth"
+                    type="button"
+                    onclick="cargarPendientes()">
+                ⚠ Autorizaciones pendientes
+            </button>
+
+            <button class="cl-btn cl-btn-compat"
+                    type="button"
+                    onclick="abrirCompatibilidad()">
+                ⇄ Compatibilidad entrada → salida
+            </button>
+        </div>
+
+        <div class="cl-filter-grid">
+
+            <div class="cl-field">
+                <label>Planta</label>
+                <select id="clSource">
+                    <option value="TIF" selected="@(source == "TIF")">TIF 776</option>
+                    <option value="P1" selected="@(source == "P1")">Planta 1</option>
+                </select>
+            </div>
+
+            <div class="cl-field">
+                <label>Desde</label>
+                <input id="clDesde"
+                       type="date"
+                       value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+            </div>
+
+            <div class="cl-field">
+                <label>Hasta</label>
+                <input id="clHasta"
+                       type="date"
+                       value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+            </div>
+
+            <div class="cl-field">
+                <label>Estado</label>
+                <select id="clEstado">
+                    <option value="ABIERTOS">Abiertos</option>
+                    <option value="CERRADOS">Cerrados</option>
+                    <option value="TODOS">Todos</option>
+                </select>
+            </div>
+
+            <div class="cl-actions">
+                <button class="cl-btn cl-btn-primary"
+                        type="button"
+                        onclick="buscarLotes()">
+                    🔎 Buscar lotes
+                </button>
+            </div>
+
+        </div>
+    </section>
+
+    <section class="cl-kpis">
+        <article class="cl-kpi">
+            <span>Lotes encontrados</span>
+            <strong id="clKpiTotal">0</strong>
+        </article>
+
+        <article class="cl-kpi open">
+            <span>Abiertos</span>
+            <strong id="clKpiAbiertos">0</strong>
+        </article>
+
+        <article class="cl-kpi closed">
+            <span>Cerrados</span>
+            <strong id="clKpiCerrados">0</strong>
+        </article>
+
+        <article class="cl-kpi in">
+            <span>Kg entrada</span>
+            <strong id="clKpiEntrada">0.000 kg</strong>
+        </article>
+
+        <article class="cl-kpi out">
+            <span>Kg salida</span>
+            <strong id="clKpiSalida">0.000 kg</strong>
+        </article>
+
+        <article class="cl-kpi yield">
+            <span>Rendimiento promedio</span>
+            <strong id="clKpiRendimiento">0.00%</strong>
+        </article>
+    </section>
+
+    <div class="cl-help">
+        <div>
+            <strong>Flujo de cierre:</strong>
+            Buscar lote → Revisar cierre → Validar anomalías → Autorizar si aplica → Costear → Cerrar lote.
+        </div>
+        <div>
+            El EstatusId cambia a 3 únicamente después de terminar correctamente el costeo y sus validaciones.
         </div>
     </div>
 
-    <div class="cl-note">
-        El cierre no cambia EstatusId hasta terminar: validación operacional → autorización cuando aplique → costeo por lote → validación de costo → EstatusId=3.
-    </div>
+    <section class="cl-results">
+        <header class="cl-results-head">
+            <div>
+                <h2>Lotes</h2>
+                <p>Selecciona <b>Revisar cierre</b> para ver el diagnóstico antes de costear.</p>
+            </div>
+            <div id="clResultCount">0 lotes encontrados</div>
+        </header>
 
-    <div class="cl-table-wrap">
-        <table class="cl-table">
-            <thead><tr>
-                <th>LoteId</th><th>Lote</th><th>Tipo</th><th>Fecha</th><th>Estado</th>
-                <th>Entradas</th><th>Kg entrada</th><th>Salidas</th><th>Kg salida</th><th>Diferencia kg</th><th>Rend. %</th><th>Acciones</th>
-            </tr></thead>
-            <tbody id="clRows"><tr><td colspan="12" style="text-align:center">Consulta los lotes.</td></tr></tbody>
-        </table>
+        <div class="cl-table-wrap">
+            <table class="cl-table">
+                <thead>
+                    <tr>
+                        <th>LoteId</th>
+                        <th>Lote</th>
+                        <th>Tipo</th>
+                        <th>Fecha</th>
+                        <th>Estado</th>
+                        <th>Entradas</th>
+                        <th>Kg entrada</th>
+                        <th>Salidas</th>
+                        <th>Kg salida</th>
+                        <th>Diferencia kg</th>
+                        <th>Rend. %</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="clRows">
+                    <tr class="cl-empty-row">
+                        <td colspan="12">Consulta los lotes.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <div id="clStatus" class="cl-status">
+        Listo.
     </div>
-    <div id="clStatus" class="cl-status">Listo.</div>
 </div>
+
 
 <div class="modal fade cl-modal" id="modalDiagnostico" tabindex="-1">
  <div class="modal-dialog modal-xl" style="max-width:96vw"><div class="modal-content">
@@ -794,22 +1091,90 @@ async function api(url,opt){
 
 async function cargarPermisos(){try{const d=await api('@Url.Action("CierreLotePermisos","ProcesosCG")'); permisos=d;}catch(e){setStatus(e.message,'bad')}}
 
+
+function actualizarResumenCierre(rows){
+    rows = Array.isArray(rows) ? rows : [];
+
+    const total = rows.length;
+    const abiertos = rows.filter(x => Number(x.estatusId) !== 3).length;
+    const cerrados = rows.filter(x => Number(x.estatusId) === 3).length;
+    const kgEntrada = rows.reduce((a,x) => a + Number(x.kgEntrada || 0), 0);
+    const kgSalida = rows.reduce((a,x) => a + Number(x.kgSalida || 0), 0);
+
+    const rendimientos = rows
+        .map(x => Number(x.rendimientoPct))
+        .filter(x => Number.isFinite(x));
+
+    const rendimientoProm = rendimientos.length
+        ? rendimientos.reduce((a,b)=>a+b,0) / rendimientos.length
+        : 0;
+
+    const set = (id, value) => {
+        const el = document.getElementById(id);
+        if(el) el.textContent = value;
+    };
+
+    set('clKpiTotal', total.toLocaleString('es-MX'));
+    set('clKpiAbiertos', abiertos.toLocaleString('es-MX'));
+    set('clKpiCerrados', cerrados.toLocaleString('es-MX'));
+    set('clKpiEntrada', `${n(kgEntrada)} kg`);
+    set('clKpiSalida', `${n(kgSalida)} kg`);
+    set('clKpiRendimiento', `${n(rendimientoProm,2)}%`);
+
+    const resultado = document.getElementById('clResultCount');
+    if(resultado){
+        resultado.textContent = total === 1 ? '1 lote encontrado' : `${total} lotes encontrados`;
+    }
+}
+
 async function buscarLotes(){
  try{
-  setStatus('Consultando...');
-  const q=new URLSearchParams({source:document.getElementById('clSource').value,desde:document.getElementById('clDesde').value,hasta:document.getElementById('clHasta').value,estado:document.getElementById('clEstado').value});
-  const d=await api('@Url.Action("CierreLotesBuscar","ProcesosCG")?'+q);
-  const tb=document.getElementById('clRows');
-  if(!d.rows?.length){tb.innerHTML='<tr><td colspan="12" class="text-center">Sin resultados.</td></tr>';setStatus('Sin resultados.');return}
-  console.log('CierreLotesBuscar primer registro:', d.rows[0]);
-  tb.innerHTML=d.rows.map(x=>`<tr>
-   <td>${x.loteId}</td><td>${safe(x.nombre)}</td><td>${x.tipoLoteId}</td><td>${fecha(x.fechaProduccion)}</td>
-   <td><span class="cl-badge ${x.estatusId===3?'b-info':'b-ok'}">${x.estatusId===3?'CERRADO':'ABIERTO'}</span></td>
-   <td>${x.entradas}</td><td class="text-end">${n(x.kgEntrada)}</td><td>${x.salidas}</td><td class="text-end">${n(x.kgSalida)}</td>
-   <td class="text-end">${n(x.diferenciaKg)}</td><td class="text-end">${n(x.rendimientoPct,2)}%</td>
-   <td><button class="cl-btn cl-btn-primary" onclick="diagnosticar(${x.loteId})">Revisar cierre</button></td></tr>`).join('');
-  setStatus(`${d.rows.length} lote(s).`,'ok');
- }catch(e){setStatus(e.message,'bad')}
+   setStatus('Consultando...');
+   const q=new URLSearchParams({
+       source:document.getElementById('clSource').value,
+       desde:document.getElementById('clDesde').value,
+       hasta:document.getElementById('clHasta').value,
+       estado:document.getElementById('clEstado').value
+   });
+
+   const d=await api('@Url.Action("CierreLotesBuscar","ProcesosCG")?'+q);
+   const tb=document.getElementById('clRows');
+   const rows = Array.isArray(d.rows) ? d.rows : [];
+
+   actualizarResumenCierre(rows);
+
+   if(!rows.length){
+       tb.innerHTML='<tr class="cl-empty-row"><td colspan="12">No hay lotes para los filtros seleccionados.</td></tr>';
+       setStatus('Sin resultados.');
+       return;
+   }
+
+   console.log('CierreLotesBuscar primer registro:', rows[0]);
+
+   tb.innerHTML=rows.map(x=>`<tr class="${x.estatusId===3?'is-closed':'is-open'}">
+    <td data-label="Lote ID"><span class="cl-mobile-label">ID</span>${x.loteId}</td>
+    <td data-label="Lote" class="cl-lote-name">${safe(x.nombre)}</td>
+    <td data-label="Tipo">${x.tipoLoteId}</td>
+    <td data-label="Fecha">${fecha(x.fechaProduccion)}</td>
+    <td data-label="Estado"><span class="cl-badge ${x.estatusId===3?'b-info':'b-ok'}">${x.estatusId===3?'CERRADO':'ABIERTO'}</span></td>
+    <td data-label="Entradas">${x.entradas}</td>
+    <td data-label="Kg entrada" class="text-end">${n(x.kgEntrada)}</td>
+    <td data-label="Salidas">${x.salidas}</td>
+    <td data-label="Kg salida" class="text-end">${n(x.kgSalida)}</td>
+    <td data-label="Diferencia kg" class="text-end">${n(x.diferenciaKg)}</td>
+    <td data-label="Rendimiento" class="text-end">${n(x.rendimientoPct,2)}%</td>
+    <td data-label="Acción" class="cl-action-cell">
+        <button class="cl-btn cl-btn-review" type="button" onclick="diagnosticar(${x.loteId})">
+            Revisar cierre →
+        </button>
+    </td>
+   </tr>`).join('');
+
+   setStatus(`${rows.length} lote(s) cargado(s).`,'ok');
+ }catch(e){
+   actualizarResumenCierre([]);
+   setStatus(e.message,'bad');
+ }
 }
 
 async function diagnosticar(loteId){

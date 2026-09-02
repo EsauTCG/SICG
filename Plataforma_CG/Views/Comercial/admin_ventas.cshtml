@@ -3948,7 +3948,7 @@ body:not([data-theme="dark"]) #trModal .modal-dialog{
 </div>
 
 <!-- ======== IMG LOGO PARA PDF (OCULTO) ======== -->
-<img id="pdfLogo" src="/images/logoPDF.png" alt="Logo" style="display:none;" />
+<img id="pdfLogo" src="/images/logoCubo.png" alt="Logo" style="display:none;" />
 <!-- ======== ANTIFORGERY ======== -->
 <form id="antiForgeryForm" style="display:none;">@Html.AntiForgeryToken()</form>
 
@@ -6455,21 +6455,119 @@ pvTbody.appendChild(tr);
                     $('#btnSubpedidosPreview').on('click', abrirSubpedidosPreview);
                     $('#btnGenerarSubpedidos').on('click', generarSubpedidos);
 
-                    // Cancelación con contraseña (CORREGIDO: usar el elemento DOM para getAttribute)
-                    $(document).on('click', '.btn-cancel-ov', function () {
-                        const el = this; // elemento DOM
-                        cancelCtx.id = el.getAttribute('data-id');
-                        cancelCtx.cons = (el.getAttribute('data-cons') || '').toString();
+                    // =====================================================
+                    // CANCELAR ORDEN DE VENTA
+                    // Usa el mismo endpoint que la vista de órdenes:
+                    // POST /Comercial/CancelarOV?id=...
+                    // =====================================================
+                    $(document).on('click', '.btn-cancel-ov', async function () {
+                        const btn = this;
+                        const ordenId = btn.getAttribute('data-id');
+                        const consecutivo = (btn.getAttribute('data-cons') || '').toString().trim();
 
-                        if (cancelCtx.id === null || cancelCtx.id === undefined || cancelCtx.id === '') {
-                            console.warn('⚠️ Botón cancelar sin data-id. Cons:', cancelCtx.cons);
-                            alert('No se pudo iniciar la cancelación (id vacío).');
+                        if (!ordenId || Number(ordenId) <= 0) {
+                            console.warn('Botón cancelar sin data-id. Cons:', consecutivo);
+                            alert('No se encontró el Id de la orden.');
                             return;
                         }
 
-                        $('#authCons').text(cancelCtx.cons || '—');
-                        $('#authPass').val('');
-                        new bootstrap.Modal(document.getElementById('authCancelModal')).show();
+                        const ok = confirm(`¿Estás seguro de cancelar la orden ${consecutivo || ordenId}?`);
+                        if (!ok) return;
+
+                        const token =
+                            document.querySelector('#antiForgeryForm input[name="__RequestVerificationToken"]')?.value || '';
+
+                        const textoOriginal = btn.innerHTML;
+
+                        try {
+                            btn.disabled = true;
+                            btn.innerHTML = `
+                                <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                Cancelando...
+                            `;
+
+                            const resp = await fetch(
+                                `/Comercial/CancelarOV?id=${encodeURIComponent(ordenId)}`,
+                                {
+                                    method: 'POST',
+                                    headers: {
+                                        'Accept': 'application/json',
+                                        ...(token ? { 'RequestVerificationToken': token } : {})
+                                    }
+                                }
+                            );
+
+                            const raw = await resp.text();
+                            let json = {};
+                            try { json = raw ? JSON.parse(raw) : {}; } catch {}
+
+                            if (resp.status === 409) {
+                                alert(json.msg || 'No se puede cancelar porque ya tiene cajas escaneadas/asignadas.');
+                                return;
+                            }
+
+                            if (resp.status === 503) {
+                                alert(json.msg || 'No fue posible validar las cajas en MEAT. La orden no fue cancelada.');
+                                return;
+                            }
+
+                            if (resp.status === 404) {
+                                alert(json.msg || 'Orden no encontrada.');
+                                return;
+                            }
+
+                            if (resp.status === 400) {
+                                alert(json.msg || 'Solicitud inválida.');
+                                return;
+                            }
+
+                            if (!resp.ok || json.ok === false) {
+                                console.error('Error CancelarOV:', resp.status, raw);
+                                alert(json.msg || raw || `No fue posible cancelar la orden. HTTP ${resp.status}`);
+                                return;
+                            }
+
+                            const idStr = String(ordenId);
+                            pedidosCache = pedidosCache.filter(x => {
+                                const anyId =
+                                    x.id ??
+                                    x.Id ??
+                                    x.IdOrden ??
+                                    x.idOrden ??
+                                    x.OVId ??
+                                    x.ovId;
+
+                                return String(anyId) !== idStr;
+                            });
+
+                            renderPedidos();
+                            setActualizadoAhora();
+
+                            const sapOk = Number(json.docsSapCancelados || 0);
+                            const sapNo = Number(json.docsSapNoCancelados || 0);
+                            const meatOk = Number(json.docsMeatCancelados || 0);
+                            const meatNo = Number(json.docsMeatNoCancelados || 0);
+
+                            let mensaje = json.msg || 'Orden cancelada correctamente.';
+
+                            if (sapOk > 0 || sapNo > 0) {
+                                mensaje += `\nSAP: ${sapOk} cancelado(s), ${sapNo} no cancelado(s).`;
+                            }
+
+                            if (meatOk > 0 || meatNo > 0) {
+                                mensaje += `\nMEAT: ${meatOk} cancelado(s), ${meatNo} no cancelado(s).`;
+                            }
+
+                            alert(mensaje);
+                        }
+                        catch (e) {
+                            console.error(e);
+                            alert('Error de red al cancelar la orden.');
+                        }
+                        finally {
+                            btn.disabled = false;
+                            btn.innerHTML = textoOriginal;
+                        }
                     });
 
         // ==============================
@@ -6781,41 +6879,6 @@ $(document).on('click', '#btnAlmInvApply', function () {
 
 
 
-                    // Confirmar cancelación (CORREGIDO: normalización de ordenId y limpieza robusta)
-                    $('#btnAuthConfirm').on('click', async function(){
-                        const pwd = $('#authPass').val()||'';
-                        if(!pwd){ alert('Ingresa la contraseña.'); return; }
-
-                        const tokenEl = document.querySelector('#antiForgeryForm input[name="__RequestVerificationToken"]');
-                        const token = tokenEl ? tokenEl.value : null;
-
-                        const ordenIdNormalized = isNaN(Number(cancelCtx.id)) ? cancelCtx.id : Number(cancelCtx.id);
-
-                        try{
-                            const res = await fetch('/Comercial/CancelarOrdenVenta', {
-                                method: 'POST',
-                                headers: { 'Content-Type':'application/json', ...(token?{'RequestVerificationToken':token}:{}) },
-                                body: JSON.stringify({ ordenId: ordenIdNormalized, password: pwd })
-                            });
-                            const text = await res.text();
-                            if(res.status===401 || res.status===403){ alert(text || 'Contraseña inválida.'); return; }
-                            if(!res.ok){ console.error('❌ Error HTTP', res.status, text); alert(text || 'No se pudo cancelar la orden.'); return; }
-
-                            bootstrap.Modal.getInstance(document.getElementById('authCancelModal'))?.hide();
-
-                            const idStr = String(cancelCtx.id);
-                            pedidosCache = pedidosCache.filter(x => {
-                                const anyId = (x.id ?? x.Id ?? x.IdOrden ?? x.idOrden ?? x.OVId ?? x.ovId);
-                                return String(anyId) !== idStr;
-                            });
-
-                            renderPedidos(); setActualizadoAhora();
-
-                            alert('Orden cancelada correctamente.');
-                        }catch(e){
-                            console.error(e); alert('Error al cancelar la orden.');
-                        }
-                    });
                 });
                 async function refrescarSubpedidosModal(ordenId){
           const $body = $('#spBody');

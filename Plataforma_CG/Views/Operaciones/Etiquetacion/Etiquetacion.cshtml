@@ -8,6 +8,40 @@
 
 <div class="articulos-container">
 
+    <div class="articulos-ubicacion">
+
+        <div class="ubicacion-slider">
+
+            <input type="radio"
+                   id="ubicacionTif"
+                   name="ubicacionEtiquetacion"
+                   value="0"
+                   checked />
+
+            <label for="ubicacionTif">
+                TIF
+            </label>
+
+
+            <input type="radio"
+                   id="ubicacionPlanta1"
+                   name="ubicacionEtiquetacion"
+                   value="1" />
+
+            <label for="ubicacionPlanta1">
+                Planta 1
+            </label>
+
+        </div>
+
+    </div>
+    <button type="button"
+            class="btn btn-outline-primary"
+            onclick="abrirModalLogEtiquetacion()">
+
+        Historial de etiquetación
+
+    </button>
     
     <div class="articulos-buscador">
 
@@ -48,7 +82,65 @@
 
 
 <style>
+    .articulos-ubicacion {
+        position: sticky;
+        top: 0;
+        z-index: 1001;
+        background: white;
+        padding: 10px 0 5px 0;
+    }
 
+
+    /*
+        Contenedor del slider
+    */
+    .ubicacion-slider {
+        display: flex;
+        width: 100%;
+        border: 1px solid #ced4da;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+
+        /*
+        Ocultamos los radio buttons
+    */
+        .ubicacion-slider input {
+            display: none;
+        }
+
+
+        /*
+        Opciones
+    */
+        .ubicacion-slider label {
+            flex: 1;
+            text-align: center;
+            padding: 10px;
+            cursor: pointer;
+            background: #f8f9fa;
+            color: #495057;
+            font-weight: 500;
+            user-select: none;
+        }
+
+
+        /*
+        Opción seleccionada
+    */
+        .ubicacion-slider input:checked + label {
+            background: #0d6efd;
+            color: white;
+        }
+
+
+        /*
+        Efecto al tocar
+    */
+        .ubicacion-slider label:active {
+            opacity: 0.8;
+        }
     .articulos-container {
         width: 100%;
         max-width: 100%;
@@ -162,6 +254,40 @@
             cursor: pointer;
         }
 
+    .log-etiquetacion-tabla-wrapper {
+        width: 100%;
+        overflow-x: auto;
+        overflow-y: auto;
+        max-height: 60vh;
+        -webkit-overflow-scrolling: touch;
+    }
+
+
+    #tablaLogEtiquetacion {
+        width: 100%;
+        min-width: 700px;
+        margin-bottom: 0;
+    }
+
+
+        #tablaLogEtiquetacion thead th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: #f8f9fa;
+            white-space: nowrap;
+        }
+
+
+        #tablaLogEtiquetacion td {
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+
+
+        #tablaLogEtiquetacion tbody tr {
+            cursor: default;
+        }
 </style>
 
 <div class="modal fade"
@@ -335,4 +461,163 @@
     </div>
 
 </div>
+
+<div class="modal fade"
+     id="modalLogEtiquetacion"
+     tabindex="-1"
+     aria-hidden="true">
+
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+
+        <div class="modal-content">
+
+            <!-- ========================================= -->
+            <!-- HEADER -->
+            <!-- ========================================= -->
+
+            <div class="modal-header">
+
+                <h5 class="modal-title">
+                    Historial de etiquetación
+                </h5>
+
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar">
+                </button>
+
+            </div>
+
+
+            <!-- ========================================= -->
+            <!-- BODY -->
+            <!-- ========================================= -->
+
+            <div class="modal-body">
+
+                <!-- ===================================== -->
+                <!-- FILTROS -->
+                <!-- ===================================== -->
+
+                <div class="card mb-3">
+
+                    <div class="card-body">
+
+                        <div class="row g-3 align-items-end">
+
+                            <div class="col-md-5">
+
+                                <label for="fechaInicialLogEtiq"
+                                       class="form-label">
+                                    Fecha inicial
+                                </label>
+
+                                <input type="date"
+                                       id="fechaInicialLogEtiq"
+                                       class="form-control" />
+
+                            </div>
+
+
+                            <div class="col-md-5">
+
+                                <label for="fechaFinalLogEtiq"
+                                       class="form-label">
+                                    Fecha final
+                                </label>
+
+                                <input type="date"
+                                       id="fechaFinalLogEtiq"
+                                       class="form-control" />
+
+                            </div>
+
+
+                            <div class="col-md-2">
+
+                                <button type="button"
+                                        id="btnConsultarLogEtiq"
+                                        class="btn btn-primary w-100"
+                                        onclick="cargarLogEtiquetacion()">
+
+                                    Consultar
+
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- ===================================== -->
+                <!-- TABLA -->
+                <!-- ===================================== -->
+
+                <div class="log-etiquetacion-tabla-wrapper">
+
+                    <table class="table table-bordered table-hover table-sm text-center"
+                           id="tablaLogEtiquetacion">
+
+                        <thead class="table-light">
+
+                            <tr>
+
+                                <th>
+                                    SKU
+                                </th>
+
+                                <th>
+                                    Producto
+                                </th>
+
+                                <th>
+                                    Etiqueta Anterior
+                                </th>
+
+                                <th>
+                                    Etiqueta Nueva
+                                </th>
+
+                                <th>
+                                    FechaHora
+                                </th>
+
+                            </tr>
+
+                        </thead>
+
+                        <tbody id="tbodyLogEtiquetacion">
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+
+            <div class="modal-footer">
+
+                <button type="button"
+                        class="btn btn-secondary"
+                        data-bs-dismiss="modal">
+
+                    Cerrar
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
 <script src="~/js/Etiquetas/planetiquetacion.js"></script>

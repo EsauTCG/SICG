@@ -4,7 +4,12 @@ namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
 {
     public class Receta
     {
-        AccesoRecetas ar = new AccesoRecetas();
+        private readonly AccesoRecetas ar;
+
+        public Receta(AccesoRecetas accesoRecetas)
+        {
+            ar = accesoRecetas;
+        }
         public async Task<List<ProductoModel>> ListarProductos(string plan)
         {
             var lista = await ar.ListarProductos(plan);
@@ -20,12 +25,12 @@ namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
             var lista = await ar.Taras();
             return lista;
         }
-        public async Task<string> InsertarEntrada(EntradaModel model)
+        public async Task<EntradaModel> InsertarEntrada(EntradaModel model)
         {
             var dato = await ar.InsertarEntrada(model);
             return dato;
         }
-        public async Task<EntradaModel> ConsultarEntrada(int id)
+        public async Task<EntradaModel?> ConsultarEntrada(int id)
         {
             return await ar.ConsultarEntrada(id);
         }

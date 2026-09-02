@@ -202,7 +202,7 @@ const STATIC_ASSETS = [
     "/images/filete.jpg",
     "/images/giba.png",
     "/images/ico_sigo.ico",
-    "/images/logoPDF.png",
+    "/images/logoCubo.png",
     "/images/logoTIF.png",
     "/images/logo_carnesg.png",
     "/images/logo_sigo_cg2_1.png",

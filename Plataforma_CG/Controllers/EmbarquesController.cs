@@ -1282,108 +1282,12 @@ public class EmbarquesController : Controller
         }
     }
 
-    public async Task<IActionResult> Calidad(
-        string? busqueda,
-        DateTime? fechaInicio,
-        DateTime? fechaFin,
-
-        // Filtros exclusivos para historial
-        string? busquedaHistorial,
-        DateTime? fechaInicioHistorial,
-        DateTime? fechaFinHistorial)
+    private async Task<Dictionary<int, object>> ConstruirEmbarquesDocumentosAsync(
+        IEnumerable<Embarque> embarques)
     {
-        // ============================================================
-        // LISTADO PRINCIPAL: SOLO PENDIENTES DE CALIDAD
-        // ============================================================
-        var query = _qrContext.Embarque
-            .AsNoTracking()
-            .Include(e => e.Documentos)
-            .Include(e => e.QR)
-            .Where(e =>
-                (e.Estatus == 1 || e.Estatus == 7) &&
-                e.CalidadAprobada != true
-            );
-
-        if (!string.IsNullOrWhiteSpace(busqueda))
-        {
-            busqueda = busqueda.Trim();
-
-            query = query.Where(e =>
-                e.Consecutivo.Contains(busqueda) ||
-                e.Id.ToString().Contains(busqueda) ||
-                (e.NombreEmbarque != null && e.NombreEmbarque.Contains(busqueda))
-            );
-        }
-
-        if (fechaInicio.HasValue)
-        {
-            var inicio = fechaInicio.Value.Date;
-            query = query.Where(e => e.FechaCreacion >= inicio);
-        }
-
-        if (fechaFin.HasValue)
-        {
-            var fin = fechaFin.Value.Date.AddDays(1).AddTicks(-1);
-            query = query.Where(e => e.FechaCreacion <= fin);
-        }
-
-        var embarques = await query
-            .OrderByDescending(e => e.FechaCreacion)
-            .ToListAsync();
-
-
-        // ============================================================
-        // HISTORIAL: FORMULARIOS YA VALIDADOS
-        // NO CARGA NADA HASTA QUE TENGA FECHA INICIO Y FECHA FIN
-        // ============================================================
-        var historialCalidad = new List<Embarque>();
-
-        bool buscoHistorial =
-            fechaInicioHistorial.HasValue &&
-            fechaFinHistorial.HasValue;
-
-        if (buscoHistorial)
-        {
-            var inicioHistorial = fechaInicioHistorial.Value.Date;
-            var finHistorial = fechaFinHistorial.Value.Date.AddDays(1).AddTicks(-1);
-
-            var queryHistorial = _qrContext.Embarque
-                .AsNoTracking()
-                .Include(e => e.Documentos)
-                .Include(e => e.QR)
-                .Where(e => e.CalidadAprobada == true)
-                .Where(e =>
-                    (e.FechaValidacionCalidad ?? e.FechaCreacion) >= inicioHistorial &&
-                    (e.FechaValidacionCalidad ?? e.FechaCreacion) <= finHistorial
-                );
-
-            if (!string.IsNullOrWhiteSpace(busquedaHistorial))
-            {
-                busquedaHistorial = busquedaHistorial.Trim();
-
-                queryHistorial = queryHistorial.Where(e =>
-                    e.Consecutivo.Contains(busquedaHistorial) ||
-                    e.Id.ToString().Contains(busquedaHistorial) ||
-                    (e.NombreEmbarque != null && e.NombreEmbarque.Contains(busquedaHistorial))
-                );
-            }
-
-            historialCalidad = await queryHistorial
-                .OrderByDescending(e => e.FechaValidacionCalidad ?? e.FechaCreacion)
-                .ToListAsync();
-        }
-
-
-        // ============================================================
-        // DOCUMENTOS PARA PENDIENTES + HISTORIAL
-        // ============================================================
         var embarquesDocumentos = new Dictionary<int, object>();
 
-        var todosLosEmbarques = new List<Embarque>();
-        todosLosEmbarques.AddRange(embarques);
-        todosLosEmbarques.AddRange(historialCalidad);
-
-        foreach (var embarque in todosLosEmbarques)
+        foreach (var embarque in embarques)
         {
             var ordenesIds = embarque.Documentos?
                 .Where(d => d.TipoDocumento == "OV")
@@ -1432,13 +1336,63 @@ public class EmbarquesController : Controller
             };
         }
 
+        return embarquesDocumentos;
+    }
+
+    public async Task<IActionResult> Calidad(
+        string? busqueda,
+        DateTime? fechaInicio,
+        DateTime? fechaFin)
+    {
+        // ============================================================
+        // LISTADO PRINCIPAL: SOLO PENDIENTES DE CALIDAD
+        // ============================================================
+        var query = _qrContext.Embarque
+            .AsNoTracking()
+            .Include(e => e.Documentos)
+            .Include(e => e.QR)
+            .Where(e =>
+                (e.Estatus == 1 || e.Estatus == 7) &&
+                e.CalidadAprobada != true
+            );
+
+        if (!string.IsNullOrWhiteSpace(busqueda))
+        {
+            busqueda = busqueda.Trim();
+
+            query = query.Where(e =>
+                e.Consecutivo.Contains(busqueda) ||
+                e.Id.ToString().Contains(busqueda) ||
+                (e.NombreEmbarque != null && e.NombreEmbarque.Contains(busqueda))
+            );
+        }
+
+        if (fechaInicio.HasValue)
+        {
+            var inicio = fechaInicio.Value.Date;
+            query = query.Where(e => e.FechaCreacion >= inicio);
+        }
+
+        if (fechaFin.HasValue)
+        {
+            var fin = fechaFin.Value.Date.AddDays(1).AddTicks(-1);
+            query = query.Where(e => e.FechaCreacion <= fin);
+        }
+
+        var embarques = await query
+            .OrderByDescending(e => e.FechaCreacion)
+            .ToListAsync();
+
+
+        var embarquesDocumentos = await ConstruirEmbarquesDocumentosAsync(embarques);
+
         // ============================================================
         // PRODUCTOS / SKUS PARA CAPTURA DE TEMPERATURA POR EMBARQUE
         // ============================================================
         var productosTemperaturaCalidad =
             new Dictionary<int, List<EmbarqueProductoTemperaturaItemVm>>();
 
-        foreach (var embarque in todosLosEmbarques)
+        foreach (var embarque in embarques)
         {
             productosTemperaturaCalidad[embarque.Id] =
                 await ConstruirProductosTemperaturaCalidad(embarque.Id);
@@ -1447,15 +1401,64 @@ public class EmbarquesController : Controller
         ViewBag.ProductosTemperaturaCalidad = productosTemperaturaCalidad;
 
 
-        // ============================================================
-        // FOTOS DE CALIDAD PARA HISTORIAL
-        // ============================================================
-        var fotosCalidadHistorial = new Dictionary<int, List<Embarque.EmbarqueCalidadFoto>>();
+        ViewBag.EmbarquesDocumentos = embarquesDocumentos;
+        ViewBag.EsHistorial = false;
+
+        return View(embarques);
+    }
+
+    public async Task<IActionResult> HistorialCalidad(
+        string? busquedaHistorial,
+        DateTime? fechaInicioHistorial,
+        DateTime? fechaFinHistorial)
+    {
+        var historialCalidad = new List<Embarque>();
+        var buscoHistorial = fechaInicioHistorial.HasValue && fechaFinHistorial.HasValue;
+
+        if (buscoHistorial)
+        {
+            var inicioHistorial = fechaInicioHistorial.Value.Date;
+            var finHistorial = fechaFinHistorial.Value.Date.AddDays(1).AddTicks(-1);
+
+            var queryHistorial = _qrContext.Embarque
+                .AsNoTracking()
+                .Include(e => e.Documentos)
+                .Include(e => e.QR)
+                .Where(e => e.CalidadAprobada == true)
+                .Where(e =>
+                    (e.FechaValidacionCalidad ?? e.FechaCreacion) >= inicioHistorial &&
+                    (e.FechaValidacionCalidad ?? e.FechaCreacion) <= finHistorial);
+
+            if (!string.IsNullOrWhiteSpace(busquedaHistorial))
+            {
+                busquedaHistorial = busquedaHistorial.Trim();
+                queryHistorial = queryHistorial.Where(e =>
+                    e.Consecutivo.Contains(busquedaHistorial) ||
+                    e.Id.ToString().Contains(busquedaHistorial) ||
+                    (e.NombreEmbarque != null && e.NombreEmbarque.Contains(busquedaHistorial)));
+            }
+
+            historialCalidad = await queryHistorial
+                .OrderByDescending(e => e.FechaValidacionCalidad ?? e.FechaCreacion)
+                .ToListAsync();
+        }
+
+        var embarquesDocumentos = await ConstruirEmbarquesDocumentosAsync(historialCalidad);
+        var productosTemperaturaCalidad =
+            new Dictionary<int, List<EmbarqueProductoTemperaturaItemVm>>();
+
+        foreach (var embarque in historialCalidad)
+        {
+            productosTemperaturaCalidad[embarque.Id] =
+                await ConstruirProductosTemperaturaCalidad(embarque.Id);
+        }
+
+        var fotosCalidadHistorial =
+            new Dictionary<int, List<Embarque.EmbarqueCalidadFoto>>();
 
         if (historialCalidad.Any())
         {
             var idsHistorial = historialCalidad.Select(x => x.Id).ToList();
-
             var fotos = await _qrContext.Set<Embarque.EmbarqueCalidadFoto>()
                 .AsNoTracking()
                 .Where(f => idsHistorial.Contains(f.EmbarqueId))
@@ -1467,11 +1470,9 @@ public class EmbarquesController : Controller
                 .ToDictionary(g => g.Key, g => g.ToList());
         }
 
-
-        // Pendientes
+        ViewBag.EsHistorial = true;
         ViewBag.EmbarquesDocumentos = embarquesDocumentos;
-
-        // Historial
+        ViewBag.ProductosTemperaturaCalidad = productosTemperaturaCalidad;
         ViewBag.HistorialCalidad = historialCalidad;
         ViewBag.BuscoHistorialCalidad = buscoHistorial;
         ViewBag.BusquedaHistorialCalidad = busquedaHistorial;
@@ -1479,7 +1480,7 @@ public class EmbarquesController : Controller
         ViewBag.FechaFinHistorialCalidad = fechaFinHistorial?.ToString("yyyy-MM-dd");
         ViewBag.FotosCalidadHistorial = fotosCalidadHistorial;
 
-        return View(embarques);
+        return View("HistorialCalidad", historialCalidad);
     }
 
     [HttpPost]
@@ -1897,12 +1898,7 @@ public class EmbarquesController : Controller
     public async Task<IActionResult> Documentacion(
         string? busqueda,
         DateTime? fechaInicio,
-        DateTime? fechaFin,
-
-        // Filtros exclusivos para historial
-        string? busquedaHistorial,
-        DateTime? fechaInicioHistorial,
-        DateTime? fechaFinHistorial)
+        DateTime? fechaFin)
     {
         // ============================================================
         // LISTADO PRINCIPAL: SOLO PENDIENTES DE DOCUMENTACIÓN LOGÍSTICA
@@ -1945,15 +1941,19 @@ public class EmbarquesController : Controller
             .ToListAsync();
 
 
-        // ============================================================
-        // HISTORIAL: DOCUMENTACIÓN LOGÍSTICA YA VALIDADA
-        // NO CARGA NADA HASTA QUE TENGA FECHA INICIO Y FECHA FIN
-        // ============================================================
-        var historialDocumentacion = new List<Embarque>();
+        ViewBag.EmbarquesDocumentos = await ConstruirEmbarquesDocumentosAsync(embarques);
+        ViewBag.EsHistorial = false;
 
-        bool buscoHistorial =
-            fechaInicioHistorial.HasValue &&
-            fechaFinHistorial.HasValue;
+        return View(embarques);
+    }
+
+    public async Task<IActionResult> HistorialDocumentacion(
+        string? busquedaHistorial,
+        DateTime? fechaInicioHistorial,
+        DateTime? fechaFinHistorial)
+    {
+        var historialDocumentacion = new List<Embarque>();
+        var buscoHistorial = fechaInicioHistorial.HasValue && fechaFinHistorial.HasValue;
 
         if (buscoHistorial)
         {
@@ -1968,18 +1968,15 @@ public class EmbarquesController : Controller
                 .Where(e => e.DocumentacionAprobada == true)
                 .Where(e =>
                     (e.FechaValidacionDocumentacion ?? e.FechaCreacion) >= inicioHistorial &&
-                    (e.FechaValidacionDocumentacion ?? e.FechaCreacion) <= finHistorial
-                );
+                    (e.FechaValidacionDocumentacion ?? e.FechaCreacion) <= finHistorial);
 
             if (!string.IsNullOrWhiteSpace(busquedaHistorial))
             {
                 busquedaHistorial = busquedaHistorial.Trim();
-
                 queryHistorial = queryHistorial.Where(e =>
                     e.Consecutivo.Contains(busquedaHistorial) ||
                     e.Id.ToString().Contains(busquedaHistorial) ||
-                    (e.NombreEmbarque != null && e.NombreEmbarque.Contains(busquedaHistorial))
-                );
+                    (e.NombreEmbarque != null && e.NombreEmbarque.Contains(busquedaHistorial)));
             }
 
             historialDocumentacion = await queryHistorial
@@ -1987,73 +1984,16 @@ public class EmbarquesController : Controller
                 .ToListAsync();
         }
 
-
-        // ============================================================
-        // DOCUMENTOS PARA PENDIENTES + HISTORIAL
-        // ============================================================
-        var embarquesDocumentos = new Dictionary<int, object>();
-
-        var todosLosEmbarques = new List<Embarque>();
-        todosLosEmbarques.AddRange(embarques);
-        todosLosEmbarques.AddRange(historialDocumentacion);
-
-        foreach (var embarque in todosLosEmbarques)
-        {
-            var ordenesIds = embarque.Documentos?
-                .Where(d => d.TipoDocumento == "OV")
-                .Select(d => d.DocumentoId)
-                .ToList() ?? new List<int>();
-
-            var transferenciasIds = embarque.Documentos?
-                .Where(d => d.TipoDocumento == "TRANSFERENCIA")
-                .Select(d => d.DocumentoId)
-                .ToList() ?? new List<int>();
-
-            var ordenesReal = await _ovContext.OrdenVenta
-                .AsNoTracking()
-                .Where(o => ordenesIds.Contains(o.Id))
-                .Select(o => new
-                {
-                    o.Id,
-                    o.Consecutivo,
-                    o.Ruta,
-                    CodigoCliente = o.Cliente,
-                    NombreCliente = _ovContext.ClienteSap
-                        .Where(c => c.Cliente == o.Cliente)
-                        .Select(c => c.Nombrecliente)
-                        .FirstOrDefault()
-                })
-                .ToListAsync();
-
-            var transferenciasReal = await _ovContext.Transferencias
-                .AsNoTracking()
-                .Where(t => transferenciasIds.Contains(t.Id))
-                .Select(t => new
-                {
-                    t.Id,
-                    t.Consecutivo,
-                    t.Sucursal,
-                    t.FechaSolicitud,
-                    t.UsuarioSolicita
-                })
-                .ToListAsync();
-
-            embarquesDocumentos[embarque.Id] = new
-            {
-                OrdenesVenta = ordenesReal,
-                Transferencias = transferenciasReal
-            };
-        }
-
-        ViewBag.EmbarquesDocumentos = embarquesDocumentos;
-
+        ViewBag.EsHistorial = true;
+        ViewBag.EmbarquesDocumentos =
+            await ConstruirEmbarquesDocumentosAsync(historialDocumentacion);
         ViewBag.HistorialDocumentacion = historialDocumentacion;
         ViewBag.BuscoHistorialDocumentacion = buscoHistorial;
         ViewBag.BusquedaHistorialDocumentacion = busquedaHistorial;
         ViewBag.FechaInicioHistorialDocumentacion = fechaInicioHistorial?.ToString("yyyy-MM-dd");
         ViewBag.FechaFinHistorialDocumentacion = fechaFinHistorial?.ToString("yyyy-MM-dd");
 
-        return View(embarques);
+        return View("HistorialDocumentacion", historialDocumentacion);
     }
 
     [HttpPost]
@@ -2446,6 +2386,20 @@ public class EmbarquesController : Controller
                 .Distinct()
                 .ToList();
 
+            // ============================================================
+            // TODOS LOS CLIENTES QUE MOSTRARÁ EL CARRUSEL
+            // ============================================================
+            var clientes = ordenesInfo
+                .Where(x => !string.IsNullOrWhiteSpace(x.Cliente))
+                .Select(x => x.Cliente!.Trim())
+                .Concat(
+                    transferenciasInfo
+                        .Where(x => !string.IsNullOrWhiteSpace(x.Cliente))
+                        .Select(x => x.Cliente!.Trim())
+                )
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
 
             var ovCount = emb.Documentos.Count(d =>
                 d.TipoDocumento == "OV");
@@ -2470,6 +2424,11 @@ public class EmbarquesController : Controller
             {
                 id = emb.Id,
                 consecutivo = emb.Consecutivo,
+
+                nombreEmbarque =
+                string.IsNullOrWhiteSpace(emb.NombreEmbarque)
+                    ? "Sin nombre"
+                    : emb.NombreEmbarque,
 
                 fechaCreacion =
                     emb.FechaCreacion.ToString("dd/MM/yyyy HH:mm"),
@@ -2500,7 +2459,11 @@ public class EmbarquesController : Controller
 
                 ruta = data?.Ruta ?? "Sin ruta",
 
-                cliente = data?.Cliente ?? "Sin cliente",
+                // Se conserva por compatibilidad
+                cliente = clientes.FirstOrDefault() ?? "Sin cliente",
+
+                // Lista completa para el rotador de clientes
+                clientes = clientes,
 
 
                 // Se conserva por compatibilidad
@@ -2572,14 +2535,9 @@ public class EmbarquesController : Controller
     }
 
     public async Task<IActionResult> DocumentacionCalidad(
-    string? busqueda,
-    DateTime? fechaInicio,
-    DateTime? fechaFin,
-
-    // Filtros exclusivos para historial
-    string? busquedaHistorial,
-    DateTime? fechaInicioHistorial,
-    DateTime? fechaFinHistorial)
+        string? busqueda,
+        DateTime? fechaInicio,
+        DateTime? fechaFin)
     {
         // ============================================================
         // LISTADO PRINCIPAL: SOLO PENDIENTES DE DOCUMENTACIÓN DE CALIDAD
@@ -2622,15 +2580,19 @@ public class EmbarquesController : Controller
             .ToListAsync();
 
 
-        // ============================================================
-        // HISTORIAL: DOCUMENTACIÓN DE CALIDAD YA VALIDADA
-        // NO CARGA NADA HASTA QUE TENGA FECHA INICIO Y FECHA FIN
-        // ============================================================
-        var historialDocumentacionCalidad = new List<Embarque>();
+        ViewBag.EmbarquesDocumentos = await ConstruirEmbarquesDocumentosAsync(embarques);
+        ViewBag.EsHistorial = false;
 
-        bool buscoHistorial =
-            fechaInicioHistorial.HasValue &&
-            fechaFinHistorial.HasValue;
+        return View(embarques);
+    }
+
+    public async Task<IActionResult> HistorialDocumentacionCalidad(
+        string? busquedaHistorial,
+        DateTime? fechaInicioHistorial,
+        DateTime? fechaFinHistorial)
+    {
+        var historialDocumentacionCalidad = new List<Embarque>();
+        var buscoHistorial = fechaInicioHistorial.HasValue && fechaFinHistorial.HasValue;
 
         if (buscoHistorial)
         {
@@ -2645,18 +2607,15 @@ public class EmbarquesController : Controller
                 .Where(e => e.DocumentacionCalidadAprobada == true)
                 .Where(e =>
                     (e.FechaValidacionDocumentacionCalidad ?? e.FechaCreacion) >= inicioHistorial &&
-                    (e.FechaValidacionDocumentacionCalidad ?? e.FechaCreacion) <= finHistorial
-                );
+                    (e.FechaValidacionDocumentacionCalidad ?? e.FechaCreacion) <= finHistorial);
 
             if (!string.IsNullOrWhiteSpace(busquedaHistorial))
             {
                 busquedaHistorial = busquedaHistorial.Trim();
-
                 queryHistorial = queryHistorial.Where(e =>
                     e.Consecutivo.Contains(busquedaHistorial) ||
                     e.Id.ToString().Contains(busquedaHistorial) ||
-                    (e.NombreEmbarque != null && e.NombreEmbarque.Contains(busquedaHistorial))
-                );
+                    (e.NombreEmbarque != null && e.NombreEmbarque.Contains(busquedaHistorial)));
             }
 
             historialDocumentacionCalidad = await queryHistorial
@@ -2664,73 +2623,16 @@ public class EmbarquesController : Controller
                 .ToListAsync();
         }
 
-
-        // ============================================================
-        // DOCUMENTOS PARA PENDIENTES + HISTORIAL
-        // ============================================================
-        var embarquesDocumentos = new Dictionary<int, object>();
-
-        var todosLosEmbarques = new List<Embarque>();
-        todosLosEmbarques.AddRange(embarques);
-        todosLosEmbarques.AddRange(historialDocumentacionCalidad);
-
-        foreach (var embarque in todosLosEmbarques)
-        {
-            var ordenesIds = embarque.Documentos?
-                .Where(d => d.TipoDocumento == "OV")
-                .Select(d => d.DocumentoId)
-                .ToList() ?? new List<int>();
-
-            var transferenciasIds = embarque.Documentos?
-                .Where(d => d.TipoDocumento == "TRANSFERENCIA")
-                .Select(d => d.DocumentoId)
-                .ToList() ?? new List<int>();
-
-            var ordenesReal = await _ovContext.OrdenVenta
-                .AsNoTracking()
-                .Where(o => ordenesIds.Contains(o.Id))
-                .Select(o => new
-                {
-                    o.Id,
-                    o.Consecutivo,
-                    o.Ruta,
-                    CodigoCliente = o.Cliente,
-                    NombreCliente = _ovContext.ClienteSap
-                        .Where(c => c.Cliente == o.Cliente)
-                        .Select(c => c.Nombrecliente)
-                        .FirstOrDefault()
-                })
-                .ToListAsync();
-
-            var transferenciasReal = await _ovContext.Transferencias
-                .AsNoTracking()
-                .Where(t => transferenciasIds.Contains(t.Id))
-                .Select(t => new
-                {
-                    t.Id,
-                    t.Consecutivo,
-                    t.Sucursal,
-                    t.FechaSolicitud,
-                    t.UsuarioSolicita
-                })
-                .ToListAsync();
-
-            embarquesDocumentos[embarque.Id] = new
-            {
-                OrdenesVenta = ordenesReal,
-                Transferencias = transferenciasReal
-            };
-        }
-
-        ViewBag.EmbarquesDocumentos = embarquesDocumentos;
-
+        ViewBag.EsHistorial = true;
+        ViewBag.EmbarquesDocumentos =
+            await ConstruirEmbarquesDocumentosAsync(historialDocumentacionCalidad);
         ViewBag.HistorialDocumentacionCalidad = historialDocumentacionCalidad;
         ViewBag.BuscoHistorialDocumentacionCalidad = buscoHistorial;
         ViewBag.BusquedaHistorialDocumentacionCalidad = busquedaHistorial;
         ViewBag.FechaInicioHistorialDocumentacionCalidad = fechaInicioHistorial?.ToString("yyyy-MM-dd");
         ViewBag.FechaFinHistorialDocumentacionCalidad = fechaFinHistorial?.ToString("yyyy-MM-dd");
 
-        return View(embarques);
+        return View("HistorialDocumentacionCalidad", historialDocumentacionCalidad);
     }
 
     [HttpPost]
@@ -2915,6 +2817,105 @@ public class EmbarquesController : Controller
 
         return RedirectToAction("DocumentacionCalidad");
     }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ValidarSinDocumentacionCalidad(int id)
+    {
+        var embarque = await _qrContext.Embarque
+            .FirstOrDefaultAsync(e => e.Id == id);
+
+        if (embarque == null)
+        {
+            TempData["Error"] = "El embarque no existe.";
+            return RedirectToAction("DocumentacionCalidad");
+        }
+
+        // ============================================================
+        // SI YA ESTÁ VALIDADO, NO HACEMOS NADA
+        // ============================================================
+        if (embarque.DocumentacionCalidadAprobada == true)
+        {
+            TempData["Error"] =
+                $"El embarque #{embarque.Consecutivo} ya tiene validada la documentación de calidad.";
+
+            return RedirectToAction("DocumentacionCalidad");
+        }
+
+        // ============================================================
+        // TIPOS DE DOCUMENTACIÓN DE CALIDAD
+        // ============================================================
+        var tiposCalidad = new[]
+        {
+        "CALIDAD_CARTA_GARANTIA",
+        "CALIDAD_LIBRE_CLEMBUTEROL",
+        "CALIDAD_LIBRE_RESIDUOS_TOXICOS",
+        "CALIDAD_CARTA_EEB",
+        "CALIDAD_AVISO_MOVILIZACION",
+        "CALIDAD_HOJA_TRABAJO",
+        "CALIDAD_MICROBIOLOGICOS",
+        "CALIDAD_FICHA_TECNICA",
+        "CALIDAD_FACTURA",
+        "CALIDAD_ROMANEOS",
+        "CALIDAD_REMISION"
+    };
+
+        // ============================================================
+        // EVITAR INCONSISTENCIA:
+        // SI YA TIENE DOCUMENTOS, NO DEBE MARCARSE COMO "SIN DOCUMENTOS"
+        // ============================================================
+        bool tieneDocumentosCalidad = await _qrContext.Set<EmbarqueArchivo>()
+            .AsNoTracking()
+            .AnyAsync(a =>
+                a.EmbarqueId == embarque.Id &&
+                tiposCalidad.Contains(a.Tipo));
+
+        if (tieneDocumentosCalidad)
+        {
+            TempData["Error"] =
+                $"El embarque #{embarque.Consecutivo} ya tiene documentación de calidad cargada. " +
+                "Utiliza el botón \"Guardar y validar documentación de calidad\".";
+
+            return RedirectToAction("DocumentacionCalidad");
+        }
+
+        // ============================================================
+        // VALIDAR SIN DOCUMENTACIÓN
+        // ============================================================
+        embarque.DocumentacionCalidadAprobada = true;
+
+        // Guardamos cuándo se realizó
+        embarque.FechaValidacionDocumentacionCalidad = DateTime.Now;
+
+        // Guardamos quién realizó la validación
+        embarque.UsuarioValidaDocumentacionCalidad =
+            User.Identity?.Name ?? "Sistema";
+
+        // ============================================================
+        // RECALCULAR ESTATUS DEL EMBARQUE
+        // ============================================================
+        embarque.Estatus =
+            embarque.CalidadAprobada == true &&
+            embarque.DocumentacionAprobada == true &&
+            embarque.DocumentacionCalidadAprobada == true
+                ? 7
+                : 1;
+
+        await _qrContext.SaveChangesAsync();
+
+        // ============================================================
+        // MENSAJE
+        // ============================================================
+        TempData["Success"] =
+            embarque.CalidadAprobada == true &&
+            embarque.DocumentacionAprobada == true
+                ? $"El embarque #{embarque.Consecutivo} fue validado SIN documentación de calidad. Ya puede generar QR."
+                : $"El embarque #{embarque.Consecutivo} fue validado SIN documentación de calidad. Aún faltan otras validaciones.";
+
+        return RedirectToAction("DocumentacionCalidad");
+    }
+
+
 
     private async Task GuardarArchivosPorTipo(
         int embarqueId,
