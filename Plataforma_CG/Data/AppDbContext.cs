@@ -115,6 +115,9 @@ namespace Plataforma_CG.Data
         public DbSet<TransferenciaInventario> TransferenciasInventario { get; set; }
         public DbSet<MarcaInventario> MarcasInventario { get; set; }
         public DbSet<AreaInventario> AreasInventario { get; set; }
+        public DbSet<AuditoriaInventario> AuditoriasInventario { get; set; }
+        public DbSet<AuditoriaInventarioDetalle> AuditoriasInventarioDetalle { get; set; }
+        public DbSet<AccionCorrectivaAuditoria> AccionesCorrectivasAuditoria { get; set; }
 
         public DbSet<ControlRedIp> ControlIPs { get; set; }
         public DbSet<VlanRed> VlanRedes { get; set; }

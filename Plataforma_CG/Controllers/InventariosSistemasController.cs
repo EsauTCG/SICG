@@ -103,7 +103,9 @@ namespace Plataforma_CG.Controllers
                         m.TipoMovimiento,
                         m.Cantidad,
                         m.Fecha,
-                        m.Referencia
+                        m.Referencia,
+                        m.AreaDestino,
+                        m.FechaEntrega
                     })
                     .ToList();
 
@@ -225,7 +227,7 @@ namespace Plataforma_CG.Controllers
 
         [HttpPost]
         [RevisarPermiso("INVENTARIOSISTEMAS", "ESCRIBIR")]
-        public IActionResult RegistrarMovimiento(int idArticulo, string tipo, int cantidad, string referencia)
+        public IActionResult RegistrarMovimiento(int idArticulo, string tipo, int cantidad, string referencia, string? areaDestino = null, string? fechaEntrega = null)
         {
             using var tx = _context.Database.BeginTransaction();
 
@@ -251,6 +253,10 @@ namespace Plataforma_CG.Controllers
                 else
                     return Json(new { ok = false, mensaje = "Tipo de movimiento no válido." });
 
+                DateTime? fechaEntregaParsed = null;
+                if (!string.IsNullOrWhiteSpace(fechaEntrega) && DateTime.TryParse(fechaEntrega, out var fe))
+                    fechaEntregaParsed = fe;
+
                 _context.MovimientoInventario.Add(new MovimientoInventario
                 {
                     ArticuloSap = articulo.IdArticuloSap,
@@ -258,7 +264,9 @@ namespace Plataforma_CG.Controllers
                     TipoMovimiento = tipo,
                     Cantidad = cantidad,
                     Fecha = DateTime.Now,
-                    Referencia = referencia
+                    Referencia = referencia,
+                    AreaDestino = tipo == "SALIDA" ? (areaDestino ?? "").Trim() : null,
+                    FechaEntrega = tipo == "SALIDA" ? (fechaEntregaParsed ?? DateTime.Now) : null
                 });
 
                 _context.SaveChanges();
@@ -269,8 +277,61 @@ namespace Plataforma_CG.Controllers
             catch (Exception ex)
             {
                 tx.Rollback();
+                var detalle = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                return Json(new { ok = false, mensaje = "Error: " + detalle });
+            }
+        }
+
+        [HttpGet]
+        public IActionResult ObtenerSeguimientoSalidas()
+        {
+            try
+            {
+                var salidas = _context.MovimientoInventario
+                    .Where(m => m.TipoMovimiento == "SALIDA" && !string.IsNullOrEmpty(m.AreaDestino))
+                    .OrderByDescending(m => m.Fecha)
+                    .ToList()
+                    .Select(m => new
+                    {
+                        m.Id,
+                        m.ArticuloSap,
+                        m.NombreArticulo,
+                        m.Cantidad,
+                        m.AreaDestino,
+                        FechaEntrega = (m.FechaEntrega ?? m.Fecha).ToString("dd/MM/yyyy HH:mm"),
+                        FechaSalida = m.Fecha.ToString("dd/MM/yyyy HH:mm"),
+                        m.FechaFinVida,
+                        FinVida = m.FechaFinVida?.ToString("dd/MM/yyyy HH:mm"),
+                        Activo = m.FechaFinVida == null,
+                        DiasTranscurridos = ((m.FechaFinVida ?? DateTime.Now) - (m.FechaEntrega ?? m.Fecha)).Days
+                    })
+                    .ToList();
+
+                return Json(new { ok = true, data = salidas });
+            }
+            catch (Exception ex)
+            {
                 return Json(new { ok = false, mensaje = ex.Message });
             }
+        }
+
+        [HttpPost]
+        [RevisarPermiso("INVENTARIOSISTEMAS", "ESCRIBIR")]
+        public IActionResult FinalizarVidaUtil(int idMovimiento)
+        {
+            try
+            {
+                var m = _context.MovimientoInventario.Find(idMovimiento);
+                if (m == null)
+                    return Json(new { ok = false, mensaje = "Movimiento no encontrado." });
+                if (m.FechaFinVida != null)
+                    return Json(new { ok = false, mensaje = "Esa salida ya fue finalizada." });
+
+                m.FechaFinVida = DateTime.Now;
+                _context.SaveChanges();
+                return Json(new { ok = true, mensaje = "Vida útil finalizada." });
+            }
+            catch (Exception ex) { return Json(new { ok = false, mensaje = ex.Message }); }
         }
 
         [HttpPost]
@@ -5036,6 +5097,226 @@ END;";
         // =========================================================================================
         // FIN MÓDULO CONTROL DE COMPRAS TI
         // =========================================================================================
+
+        // =========================================================================================
+        // MÓDULO: ÚLTIMA REVISIÓN DE AUDITORÍA (conteo físico + acciones correctivas)
+        // =========================================================================================
+
+        public class GuardarAuditoriaRequest
+        {
+            public string Planta { get; set; }
+            public string TipoFiltro { get; set; }
+            public int Esperados { get; set; }
+            public int Encontrados { get; set; }
+            public int Faltantes { get; set; }
+            public int Sobrantes { get; set; }
+            public int Descuadres { get; set; }
+            public int TotalDescuadre { get; set; }
+            public List<AuditoriaDetalleRequest> Detalles { get; set; }
+        }
+
+        public class AuditoriaDetalleRequest
+        {
+            public int IdInventario { get; set; }
+            public string IdArticuloSap { get; set; }
+            public string Nombre { get; set; }
+            public string NumeroSerie { get; set; }
+            public string TipoArticulo { get; set; }
+            public int Esperado { get; set; }
+            public int Escaneado { get; set; }
+            public string Estado { get; set; }
+            public string Planta { get; set; }
+        }
+
+        [HttpPost]
+        public IActionResult GuardarAuditoria([FromBody] GuardarAuditoriaRequest req)
+        {
+            try
+            {
+                string usuario = User?.Identity?.Name ?? "Sistema";
+
+                var auditoria = new AuditoriaInventario
+                {
+                    Fecha = DateTime.Now,
+                    Planta = req.Planta ?? "",
+                    TipoFiltro = req.TipoFiltro ?? "TODO",
+                    Usuario = usuario,
+                    Esperados = req.Esperados,
+                    Encontrados = req.Encontrados,
+                    Faltantes = req.Faltantes,
+                    Sobrantes = req.Sobrantes,
+                    Descuadres = req.Descuadres,
+                    TotalDescuadre = req.TotalDescuadre,
+                    Finalizada = false
+                };
+
+                _context.AuditoriasInventario.Add(auditoria);
+                _context.SaveChanges();
+
+                if (req.Detalles != null)
+                {
+                    foreach (var d in req.Detalles)
+                    {
+                        int diff = d.Escaneado - d.Esperado;
+                        _context.AuditoriasInventarioDetalle.Add(new AuditoriaInventarioDetalle
+                        {
+                            AuditoriaId = auditoria.Id,
+                            IdInventario = d.IdInventario,
+                            IdArticuloSap = d.IdArticuloSap ?? "",
+                            Nombre = d.Nombre ?? "",
+                            NumeroSerie = d.NumeroSerie ?? "",
+                            TipoArticulo = d.TipoArticulo ?? "",
+                            Esperado = d.Esperado,
+                            Escaneado = d.Escaneado,
+                            Estado = d.Estado ?? "",
+                            Diferencia = diff,
+                            Planta = d.Planta ?? ""
+                        });
+                    }
+                    _context.SaveChanges();
+                }
+
+                return Json(new { ok = true, id = auditoria.Id, mensaje = "Auditoría guardada" });
+            }
+            catch (Exception ex)
+            {
+                var detalle = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                return Json(new { ok = false, mensaje = "Error: " + detalle });
+            }
+        }
+
+        [HttpGet]
+        public IActionResult ObtenerUltimaRevision(string planta)
+        {
+            try
+            {
+                planta = (planta ?? "").Trim();
+                IQueryable<AuditoriaInventario> baseQuery = _context.AuditoriasInventario;
+                if (!string.IsNullOrEmpty(planta))
+                    baseQuery = baseQuery.Where(a => a.Planta == planta);
+
+                var audit = baseQuery
+                    .OrderByDescending(a => a.Fecha)
+                    .FirstOrDefault();
+
+                if (audit == null)
+                    return Json(new { ok = true, existe = false, plantaFiltro = planta });
+
+                var detalles = _context.AuditoriasInventarioDetalle
+                    .Where(d => d.AuditoriaId == audit.Id)
+                    .OrderByDescending(d => (d.Estado == "FALTANTE" || d.Estado == "PARCIAL" || d.Estado == "SOBRANTE"))
+                    .ThenBy(d => d.IdArticuloSap)
+                    .Select(d => new
+                    {
+                        d.Id,
+                        d.IdInventario,
+                        d.IdArticuloSap,
+                        d.Nombre,
+                        d.NumeroSerie,
+                        d.TipoArticulo,
+                        d.Esperado,
+                        d.Escaneado,
+                        d.Estado,
+                        d.Diferencia,
+                        d.Planta
+                    })
+                    .ToList();
+
+                var acciones = _context.AccionesCorrectivasAuditoria
+                    .Where(a => a.AuditoriaId == audit.Id)
+                    .ToList();
+
+                return Json(new
+                {
+                    ok = true,
+                    existe = true,
+                    auditoria = new
+                    {
+                        audit.Id,
+                        audit.Planta,
+                        audit.TipoFiltro,
+                        audit.Usuario,
+                        audit.Esperados,
+                        audit.Encontrados,
+                        audit.Faltantes,
+                        audit.Sobrantes,
+                        audit.Descuadres,
+                        audit.TotalDescuadre,
+                        audit.Finalizada,
+                        audit.Fecha
+                    },
+                    detalles,
+                    acciones = acciones.Select(a => new { a.Id, a.IdInventario, a.TipoAccion, a.Cantidad, a.Referencia, a.Usuario, a.Fecha })
+                });
+            }
+            catch (Exception ex)
+            {
+                var detalle = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                return Json(new { ok = false, mensaje = "Error: " + detalle });
+            }
+        }
+
+        [HttpPost]
+        public IActionResult EjecutarAccionCorrectiva(int auditoriaId, int idInventario, string tipoAccion, int cantidad, string referencia)
+        {
+            using var tx = _context.Database.BeginTransaction();
+            try
+            {
+                string usuario = User?.Identity?.Name ?? "Sistema";
+                tipoAccion = (tipoAccion ?? "").Trim().ToUpper();
+                if (tipoAccion != "AGREGAR" && tipoAccion != "ELIMINAR")
+                    return Json(new { ok = false, mensaje = "Tipo de acción no válido." });
+
+                var articulo = _context.InventarioSistemas.FirstOrDefault(x => x.Id == idInventario);
+                if (articulo == null)
+                    return Json(new { ok = false, mensaje = "Artículo no encontrado." });
+
+                if (cantidad <= 0)
+                    return Json(new { ok = false, mensaje = "La cantidad debe ser mayor a 0." });
+
+                string tipoMov = tipoAccion == "AGREGAR" ? "ENTRADA" : "SALIDA";
+                if (tipoMov == "SALIDA" && articulo.Stock < cantidad)
+                    return Json(new { ok = false, mensaje = "Stock insuficiente para eliminar." });
+
+                if (tipoMov == "ENTRADA")
+                    articulo.Stock += cantidad;
+                else
+                    articulo.Stock -= cantidad;
+
+                var refCompleta = $"[AUDITORÍA {auditoriaId}] " + (referencia ?? "");
+                _context.MovimientoInventario.Add(new MovimientoInventario
+                {
+                    ArticuloSap = articulo.IdArticuloSap,
+                    NombreArticulo = articulo.Nombre,
+                    TipoMovimiento = tipoMov,
+                    Cantidad = cantidad,
+                    Fecha = DateTime.Now,
+                    Referencia = refCompleta
+                });
+
+                _context.AccionesCorrectivasAuditoria.Add(new AccionCorrectivaAuditoria
+                {
+                    AuditoriaId = auditoriaId,
+                    IdInventario = idInventario,
+                    TipoAccion = tipoAccion,
+                    Cantidad = cantidad,
+                    Referencia = refCompleta,
+                    Usuario = usuario,
+                    Fecha = DateTime.Now
+                });
+
+                _context.SaveChanges();
+                tx.Commit();
+
+                return Json(new { ok = true, mensaje = "Acción aplicada y movimiento registrado.", nuevoStock = articulo.Stock });
+            }
+            catch (Exception ex)
+            {
+                tx.Rollback();
+                var detalle = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                return Json(new { ok = false, mensaje = "Error: " + detalle });
+            }
+        }
 
     }
 }
