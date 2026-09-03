@@ -4190,6 +4190,16 @@ body:has(#inventarioSistemasApp) {
                 </button>
 
                 <button type="button"
+                        class="btn btn-sm btn-outline-light fw-bold"
+                        onclick="abrirModalSeguimientoSalidas()"
+                        title="Ver el tiempo que llevan fuera los artículos sacados"
+                        aria-label="Seguimiento de tiempo de salidas">
+                    <span class="me-1"><i class="bi bi-hourglass-split"></i></span>
+                    <span>Seguimiento</span>
+                    <span class="stock-bell-count" id="seguimientoActivosCount" style="display:none;">0</span>
+                </button>
+
+                <button type="button"
                         class="btn btn-sm btn-outline-light fw-bold control-fugas-trigger is-clear"
                         id="controlFugasTrigger"
                         data-bs-toggle="modal"
@@ -4445,6 +4455,9 @@ body:has(#inventarioSistemasApp) {
                             <small>Lector USB/Bluetooth, cámara o captura manual.</small>
                         </div>
                         <span class="badge bg-light text-dark" id="qrReaderState">LISTO</span>
+                        <button type="button" class="btn btn-sm btn-outline-light ms-2 fw-bold border" onclick="abrirModalAuditoria()">
+                            <i class="bi bi-clipboard-check"></i> Iniciar Auditoría Física
+                        </button>
                     </div>
 
                     <div class="qr-panel-body">
@@ -4589,6 +4602,21 @@ body:has(#inventarioSistemasApp) {
                                 <div class="mb-4">
                                     <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">COMENTARIO / OBSERVACIONES *</label>
                                     <input type="text" class="form-control" id="salReferencia" placeholder="Motivo o comentario de la salida">
+                                </div>
+                                <div class="row g-2 mb-4" id="salSeguimientoWrap" style="display:none;">
+                                    <div class="col-12 col-md-7">
+                                        <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">ÁREA DESTINO (opcional, tiempo de vida)</label>
+                                        <div class="input-group">
+                                            <select id="salAreaDestino" class="form-select">
+                                                <option value="">Sin área (no aplica seguimiento)</option>
+                                            </select>
+                                            <button type="button" class="btn btn-outline-secondary" title="Agregar área" onclick="abrirModalAgregarCatalogo('area')"><i class="bi bi-plus-lg"></i></button>
+                                        </div>
+                                    </div>
+                                    <div class="col-12 col-md-5">
+                                        <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">FECHA DE ENTREGA (opcional)</label>
+                                        <input type="date" class="form-control" id="salFechaEntrega">
+                                    </div>
                                 </div>
                                 <button class="btn btn-brand w-100" onclick="ejecutarSalida(this)">Guardar movimiento</button>
                             </div>
@@ -5495,6 +5523,333 @@ body:has(#inventarioSistemasApp) {
 </div>
 
 <!-- ========================================================= -->
+<!-- MODAL SEGUIMIENTO DE SALIDAS (TIEMPO DE VIDA)            -->
+<!-- ========================================================= -->
+<div class="modal fade" id="modalSeguimientoSalidas" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header" style="background: var(--brand-main, #7a0c13); color:#fff;">
+                <div>
+                    <h5 class="modal-title"><i class="bi bi-hourglass-split me-2"></i>Seguimiento de salidas</h5>
+                    <div style="font-size:11px; opacity:.85;">Tiempo que llevan fuera los artículos entregados a un área.</div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3 d-flex justify-content-between align-items-center">
+                    <span class="text-muted small">Solo se listan salidas con área destino registrada.</span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="cargarSeguimientoSalidas()">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Refrescar
+                    </button>
+                </div>
+                <div class="input-group mb-2">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" id="buscarSeguimiento" class="form-control form-control-sm" placeholder="Buscar por SAP, artículo o área..." oninput="filtrarSeguimiento()">
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>SAP</th>
+                                <th>Artículo</th>
+                                <th>Área destino</th>
+                                <th class="text-center">Cant.</th>
+                                <th>Fecha entrega</th>
+                                <th class="text-center">Tiempo</th>
+                                <th class="text-end">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodySeguimientoSalidas">
+                            <tr><td colspan="7" class="text-center text-muted py-4">Cargando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- MODAL AUDITORÍA DE INVENTARIO FÍSICO -->
+<div class="modal fade" id="modalAuditoriaFisica" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content border-0">
+            <div class="modal-header text-white" style="background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);">
+                <div>
+                    <h5 class="modal-title"><i class="bi bi-clipboard-data me-2"></i>Conteo Físico General</h5>
+                    <div style="font-size:11px; opacity:.85;">Escanea físicamente los equipos para validar su existencia contra el sistema.</div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="cerrarAuditoria()"></button>
+            </div>
+            <div class="modal-body p-0" style="background: #f8fafc;">
+
+                <!-- PANTALLA 1: INICIO -->
+                <div id="auditConfigScreen" class="p-4">
+                    <div class="row justify-content-center">
+                        <div class="col-md-8 col-lg-6">
+                            <div class="card shadow-sm border-0 text-center">
+                                <div class="card-body p-5">
+                                    <i class="bi bi-boxes mb-3" style="font-size: 4rem; color: #1e3a8a;"></i>
+                                    <h4 class="fw-bold mb-3" style="color: #1e3a8a;">Auditoría de Inventario</h4>
+                                    <p class="text-muted mb-4">El sistema cargará los artículos y equipos activos de la planta asignada en la barra superior. Escanea cada etiqueta para marcar su existencia física.</p>
+
+                                    <div class="mb-4 p-3 rounded" style="background:#eff6ff; border:1px solid #bfdbfe;">
+                                        <span class="d-block fw-bold mb-1" style="font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:#1e3a8a;">Planta a auditar</span>
+                                        <strong class="fs-5" style="color:#1e3a8a;" id="auditPlantaSelTxt">Todas las plantas</strong>
+                                    </div>
+
+                                    <div class="text-start mb-4">
+                                        <label class="fw-bold mb-2 d-block" style="font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:#1e3a8a;">Tipo a verificar</label>
+                                        <select id="auditTipoSel" class="form-select form-select-lg fw-bold" onchange="auditTipoFiltro = this.value;">
+                                            <option value="TODO" selected>Todo (Consumibles + Activos Fijos + Otros)</option>
+                                            <option value="CONSUMIBLE">Consumibles</option>
+                                            <option value="ACTIVO">Activos Fijos</option>
+                                            <option value="OTROS">Otros (Herramientas, etc.)</option>
+                                        </select>
+                                    </div>
+
+                                    <button class="btn btn-primary btn-lg w-100 fw-bold shadow-sm" onclick="iniciarConteoAuditoria()">
+                                        <i class="bi bi-play-circle-fill me-2"></i> Iniciar Conteo Físico
+                                    </button>
+
+                                    <button type="button" class="btn btn-outline-secondary btn-lg w-100 fw-bold mt-2" onclick="abrirUltimaRevisionAuditoria()">
+                                        <i class="bi bi-clock-history me-2"></i> Última Revisión
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PANTALLA 2: EJECUCIÓN DEL CONTEO -->
+                <div id="auditRunScreen" style="display:none;">
+                    <div class="p-3" style="background: #eff6ff; border-bottom: 1px solid #bfdbfe;">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0 fw-bold" style="color: #1e3a8a;">Progreso General</h6>
+                            <span class="badge bg-primary" id="auditProgresoTxt">0% Completado</span>
+                        </div>
+                        <div class="progress" style="height: 12px; border-radius: 10px; background-color: #dbeafe;">
+                            <div id="auditProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width: 0%;"></div>
+                        </div>
+                    </div>
+
+                    <div class="row g-0">
+                        <div class="col-md-3 border-end" style="background: #fff;">
+                            <div class="p-3">
+                                <div class="p-3 mb-2 rounded" style="background: #f8fafc; border: 1px solid #e2e8f0;">
+                                    <span class="d-block text-muted fw-bold mb-1" style="font-size: 10px;" id="auditKPIEsperadosLabel">ESPERADOS (SISTEMA)</span>
+                                    <strong class="fs-3 text-dark" id="auditKPIEsperados">0</strong>
+                                </div>
+                                <div class="p-3 mb-2 rounded" style="background: #f0fdf4; border: 1px solid #bbf7d0;">
+                                    <span class="d-block text-success fw-bold mb-1" style="font-size: 10px;">ENCONTRADOS</span>
+                                    <strong class="fs-3 text-success" id="auditKPIEncontrados">0</strong>
+                                </div>
+                                <div class="p-3 mb-2 rounded" style="background: #fef2f2; border: 1px solid #fecaca;">
+                                    <span class="d-block text-danger fw-bold mb-1" style="font-size: 10px;">FALTANTES</span>
+                                    <strong class="fs-3 text-danger" id="auditKPIFaltantes">0</strong>
+                                </div>
+                                <div class="p-3 rounded" style="background: #fffbeb; border: 1px solid #fde68a;">
+                                    <span class="d-block text-warning fw-bold mb-1" style="font-size: 10px;">Hallazgos</span>
+                                    <strong class="fs-3 text-warning" id="auditKPISobrantes">0</strong>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-9">
+                            <div class="p-2" style="background: #f8fafc;">
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white"><i class="bi bi-upc-scan text-primary"></i></span>
+                                    <input type="text" id="auditInputLector" class="form-control form-control-lg fw-bold" placeholder="Dispara el escáner aquí..." autocomplete="off">
+                                </div>
+
+                                <!-- Panel de cantidad de consumibles -->
+                                <div id="auditCantPanel" class="p-3 mt-2 rounded shadow-sm" style="display:none; background:#fffbeb; border:1px solid #fde68a;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <div>
+                                            <strong style="color:#92400e;" id="auditCantSerieTxt">Serie</strong>
+                                            <div class="text-muted" style="font-size:12px;" id="auditCantInfoTxt">Esperado: 0</div>
+                                        </div>
+                                        <span class="badge bg-warning text-dark" id="auditCantEstadoTxt">FALTANTE</span>
+                                    </div>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-white fw-bold">¿Cuántos contaste?</span>
+                                        <input type="number" id="auditCantInput" class="form-control form-control-lg text-center fw-bold" min="0" value="0" style="max-width:130px;">
+                                        <button type="button" class="btn btn-warning fw-bold" onclick="auditRegistrarCantidad()">Registrar cantidad</button>
+                                        <button type="button" class="btn btn-outline-secondary px-3" onclick="$('#auditCantPanel').hide();" title="Cerrar panel"><i class="bi bi-x-lg"></i></button>
+                                    </div>
+                                    <div id="auditCantAlertaDescuadre" class="alert alert-danger d-none mt-2 mb-0 py-2 px-3" role="alert" style="font-size:13px;">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                        <strong id="auditCantAlertaDescuadreTxt"></strong>
+                                    </div>
+                                </div>
+
+                            </div>
+                            <div class="table-responsive" style="max-height: 480px;">
+                                <table class="table table-hover align-middle mb-0" style="font-size: 0.8rem;">
+                                    <thead style="position: sticky; top: 0; background: #fff; z-index: 5; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                                        <tr>
+                                            <th>Estado</th>
+                                            <th>SAP / Equipo</th>
+                                            <th>Serie</th>
+                                            <th>Info Adicional</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="auditTbody">
+                                        <!-- Se llena dinámicamente -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PANTALLA 3: RESUMEN FINAL -->
+                <div id="auditSummaryScreen" style="display:none;" class="p-4 bg-white">
+                    <div class="text-center mb-4">
+                        <i class="bi bi-clipboard-check text-success" style="font-size: 3.5rem;"></i>
+                        <h3 class="fw-bold text-dark mt-2">Revisión Finalizada</h3>
+                        <p class="text-muted">Resumen de las diferencias encontradas físicas vs el sistema.</p>
+                    </div>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3">
+                            <div class="p-3 border rounded text-center bg-light shadow-sm">
+                                <h2 class="fw-bold text-dark mb-0" id="sumEsperados">0</h2>
+                                <span class="text-muted small fw-bold">ESPERADOS</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="p-3 border rounded text-center bg-success text-white shadow-sm">
+                                <h2 class="fw-bold mb-0" id="sumEncontrados">0</h2>
+                                <span class="small fw-bold">ENCONTRADOS</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="p-3 border rounded text-center bg-danger text-white shadow-sm">
+                                <h2 class="fw-bold mb-0" id="sumFaltantes">0</h2>
+                                <span class="small fw-bold">FALTANTES TOTALES</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="p-3 border rounded text-center bg-warning text-dark shadow-sm">
+                                <h2 class="fw-bold mb-0" id="sumSobrantes">0</h2>
+                                <span class="small fw-bold">DESCUADRE / AJENOS</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold text-danger border-bottom pb-2"><i class="bi bi-exclamation-octagon me-2"></i>Detalle de Descuadres y Faltantes</h6>
+                    <div class="table-responsive border rounded bg-light" style="max-height: 250px; overflow-y: auto;">
+                        <table class="table table-sm table-hover mb-0" style="font-size: 0.8rem;">
+                            <thead class="table-light" style="position: sticky; top: 0;">
+                                <tr><th>Estado</th><th>Equipo / SAP</th><th>Observación</th></tr>
+                            </thead>
+                            <tbody id="tbodyDescuadresResumen">
+                                <!-- Se llena dinamicamente -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer" style="background: #f8fafc;">
+                <!-- Botones de la Pantalla de Inicio y Conteo -->
+                <button type="button" class="btn btn-outline-secondary" id="btnCancelarAuditoria" data-bs-dismiss="modal" onclick="cerrarAuditoria()">Cerrar</button>
+
+                <button type="button" class="btn btn-primary fw-bold px-4" id="btnFinalizarAuditoria" style="display:none;" onclick="finalizarAuditoria()">
+                    <i class="bi bi-flag-fill me-2"></i>Terminar Revisión
+                </button>
+
+                <!-- Botones exclusivos de la Pantalla de Resumen Final -->
+                <button type="button" class="btn btn-secondary" id="btnCerrarResumen" style="display:none;" onclick="volverMenuAuditoria()">Volver al menú</button>
+
+                <button type="button" class="btn btn-success fw-bold px-4" id="btnExportarAuditoria" style="display:none;" onclick="exportarAuditoriaCSV()">
+                    <i class="bi bi-file-earmark-excel me-1"></i> Exportar Resultado
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- ========================================================= -->
+<!-- MODAL ÚLTIMA REVISIÓN DE AUDITORÍA                       -->
+<!-- ========================================================= -->
+<div class="modal fade" id="modalUltimaRevisionAuditoria" tabindex="-1" aria-hidden="true" data-form="">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header" style="background:#1e3a8a; color:#fff;">
+                <h6 class="modal-title fw-bold"><i class="bi bi-clock-history me-2"></i>Última Revisión de Auditoría</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="revSinDatos" class="text-center text-muted py-5 d-none">
+                    <i class="bi bi-inbox" style="font-size:3rem;"></i>
+                    <p class="mt-3 fw-bold">Aún no hay revisiones guardadas<span id="revSinDatosPlanta"></span>.</p>
+                </div>
+
+                <div id="revDatos" class="d-none">
+                    <div class="row g-2 mb-3" id="revKpis">
+                        <div class="col-md-4">
+                            <div class="p-2 border rounded bg-light text-center">
+                                <span class="d-block text-muted fw-bold" style="font-size:10px;">FECHA</span>
+                                <strong id="revFecha">-</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-2 border rounded bg-light text-center">
+                                <span class="d-block text-muted fw-bold" style="font-size:10px;">PLANTA / TIPO</span>
+                                <strong id="revPlanta">-</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-2 border rounded bg-light text-center">
+                                <span class="d-block text-muted fw-bold" style="font-size:10px;">USUARIO</span>
+                                <strong id="revUsuario">-</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row text-center mb-3" id="revKpisResumen">
+                        <div class="col-md-2"><h4 class="fw-bold text-dark" id="revEsperados">0</h4><small class="text-muted fw-bold">ESPERADOS</small></div>
+                        <div class="col-md-2"><h4 class="fw-bold text-success" id="revEncontrados">0</h4><small class="text-muted fw-bold">ENCONTRADOS</small></div>
+                        <div class="col-md-2"><h4 class="fw-bold text-danger" id="revFaltantes">0</h4><small class="text-muted fw-bold">FALTANTES</small></div>
+                        <div class="col-md-2"><h4 class="fw-bold text-warning" id="revSobrantes">0</h4><small class="text-muted fw-bold">SOBRANTES</small></div>
+                        <div class="col-md-2"><h4 class="fw-bold text-info" id="revDescuadres">0</h4><small class="text-muted fw-bold">DESCUADRES</small></div>
+                        <div class="col-md-2"><h4 class="fw-bold text-danger" id="revTotalDescuadre">0</h4><small class="text-muted fw-bold">DIFF. UNIDADES</small></div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="fw-bold text-primary border-bottom pb-1 mb-0"><i class="bi bi-list-check me-2"></i>Detalle de la Revisión</h6>
+                        <span class="badge bg-success d-none" id="revFinalizadaBadge"><i class="bi bi-check-circle-fill me-1"></i>CERRADA</span>
+                    </div>
+                    <div class="table-responsive border rounded" style="max-height:360px;">
+                        <table class="table table-sm table-hover mb-0" style="font-size:0.8rem;">
+                            <thead class="table-light" style="position:sticky; top:0;">
+                                <tr>
+                                    <th>Estado</th><th>SAP / Equipo</th><th>Serie</th><th class="text-center">Sist.</th><th class="text-center">Fís.</th><th class="text-center">Diff.</th><th class="text-center">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="revTbody"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="mt-3 d-none" id="revAccionesAplicadas">
+                        <h6 class="fw-bold text-success border-bottom pb-1"><i class="bi bi-wrench-adjustable me-2"></i>Acciones correctivas aplicadas</h6>
+                        <div class="table-responsive border rounded">
+                            <table class="table table-sm table-striped mb-0" style="font-size:0.8rem;">
+                                <thead class="table-light"><tr><th>Fecha</th><th>Acción</th><th>Cant.</th><th>Referencia</th><th>Usuario</th></tr></thead>
+                                <tbody id="revAccionesTbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- ========================================================= -->
 <!-- MODAL MAPA TI INDUSTRIAL                                  -->
 <!-- ========================================================= -->
 <div class="modal fade mapa-ti-modal"
@@ -6395,7 +6750,7 @@ body:has(#inventarioSistemasApp) {
         let datosInventario = [];
         let plantaGlobal = (localStorage.getItem('invPlantaGlobal') || '');
         let movimientosInventario = [];
-        let consultarModal, historialModal, infoResponsableModal, camaraModal, visorHistorialModal, reportesModal, bajaModal, exploradorModal, alertasStockModal, modalTransferencias, agregarCatalogoModal;
+        let consultarModal, historialModal, infoResponsableModal, camaraModal, visorHistorialModal, reportesModal, bajaModal, exploradorModal, alertasStockModal, modalTransferencias, agregarCatalogoModal, seguimientoSalidasModal;
         let catalogoMarcas = [];
         let catalogoAreas = [];
         let alertasStockActuales = [];
@@ -6480,6 +6835,7 @@ body:has(#inventarioSistemasApp) {
             cargarInventario();
             cargarTransferencias();
             cargarCatalogosInventario();
+            cargarSeguimientoSalidas();
 
             $('#salArticulo').on('change', function() {
                 const id = parseInt($(this).val());
@@ -6487,7 +6843,23 @@ body:has(#inventarioSistemasApp) {
                     const item = datosInventario.find(i => i.id === id);
                     $('#lblStockSalida').text(item.stock);
                     $('#stockInfoSalida').slideDown(200);
-                } else { $('#stockInfoSalida').slideUp(200); }
+                    const tipo = (item.tipoArticulo || '');
+                    const aplicaSeguimiento = tipo === 'Consumible' || tipo === 'Activo Fijo';
+                    if (aplicaSeguimiento) {
+                        $('#salSeguimientoWrap').slideDown(200);
+                        const hoy = new Date().toISOString().split('T')[0];
+                        if (!$('#salFechaEntrega').val()) $('#salFechaEntrega').val(hoy);
+                    } else {
+                        $('#salSeguimientoWrap').slideUp(200);
+                        $('#salAreaDestino').val('');
+                        $('#salFechaEntrega').val('');
+                    }
+                } else {
+                    $('#stockInfoSalida').slideUp(200);
+                    $('#salSeguimientoWrap').slideUp(200);
+                    $('#salAreaDestino').val('');
+                    $('#salFechaEntrega').val('');
+                }
             });
 
             $('#resArticulo').on('change', function() {
@@ -6630,6 +7002,13 @@ body:has(#inventarioSistemasApp) {
                     const asigSel = selAsigUbi.value;
                     selAsigUbi.innerHTML = '<option value="">Seleccione área / ubicación...</option>' + catalogoAreas.map(a => `<option value="${a}">${a}</option>`).join('');
                     if (catalogoAreas.includes(asigSel)) selAsigUbi.value = asigSel;
+                }
+
+                const selSalArea = document.getElementById('salAreaDestino');
+                if (selSalArea) {
+                    const salAreaSel = selSalArea.value;
+                    selSalArea.innerHTML = '<option value="">Sin área (no aplica seguimiento)</option>' + catalogoAreas.map(a => `<option value="${a}">${a}</option>`).join('');
+                    if (catalogoAreas.includes(salAreaSel)) selSalArea.value = salAreaSel;
                 }
             } catch (e) { }
         }
@@ -6892,6 +7271,110 @@ body:has(#inventarioSistemasApp) {
                     aplicarFiltros();
                 } else {
                     alert(data.mensaje || 'No se pudo actualizar la transferencia.');
+                }
+            } catch (e) {
+                alert('Error de red: ' + e.message);
+            }
+        }
+
+        let filasSeguimiento = [];
+
+        function abrirModalSeguimientoSalidas() {
+            if (!seguimientoSalidasModal) {
+                const el = document.getElementById('modalSeguimientoSalidas');
+                if (el) seguimientoSalidasModal = bootstrap.Modal.getOrCreateInstance(el);
+            }
+            cargarSeguimientoSalidas();
+            seguimientoSalidasModal?.show();
+        }
+
+        async function cargarSeguimientoSalidas() {
+            try {
+                const res = await fetch('/InventariosSistemas/ObtenerSeguimientoSalidas');
+                const data = await res.json();
+                if (!data.ok) {
+                    $('#tbodySeguimientoSalidas').html('<tr><td colspan="7" class="text-center text-muted py-4">' + (data.mensaje || 'Error') + '</td></tr>');
+                    return;
+                }
+                const filas = data.data || [];
+                filasSeguimiento = filas;
+                renderSeguimiento();
+                const badgeActivos = document.getElementById('seguimientoActivosCount');
+                const activos = filas.filter(f => f.activo).length;
+                if (badgeActivos) {
+                    if (activos > 0) {
+                        badgeActivos.style.display = '';
+                        badgeActivos.textContent = activos;
+                    } else {
+                        badgeActivos.style.display = 'none';
+                    }
+                }
+            } catch (e) {
+                $('#tbodySeguimientoSalidas').html('<tr><td colspan="7" class="text-center text-muted py-4">Error: ' + e.message + '</td></tr>');
+            }
+        }
+
+        function filtrarSeguimiento() {
+            renderSeguimiento();
+        }
+
+        function renderSeguimiento() {
+            const termino = (document.getElementById('buscarSeguimiento')?.value || '').trim().toLowerCase();
+            const filas = filasSeguimiento || [];
+            let tbody = '';
+            if (filas.length === 0) {
+                tbody = '<tr><td colspan="7" class="text-center text-muted py-4">No hay salidas con área destino registrada.</td></tr>';
+            } else {
+                const filtradas = termino
+                    ? filas.filter(f =>
+                        String(f.articuloSap || '').toLowerCase().includes(termino) ||
+                        String(f.nombreArticulo || '').toLowerCase().includes(termino) ||
+                        String(f.areaDestino || '').toLowerCase().includes(termino))
+                    : filas;
+                if (filtradas.length === 0) {
+                    tbody = '<tr><td colspan="7" class="text-center text-muted py-4">Sin resultados para "' + termino + '".</td></tr>';
+                }
+                filtradas.forEach(f => {
+                    const dias = Number(f.diasTranscurridos) || 0;
+                    let claseTiempo = 'text-success';
+                    if (dias > 30) claseTiempo = 'text-danger fw-bold';
+                    else if (dias > 15) claseTiempo = 'text-warning fw-bold';
+                    const tiempoTxt = f.activo
+                        ? `<span class="${claseTiempo}">${dias} día${dias === 1 ? '' : 's'}</span> <small class="text-muted">en curso</small>`
+                        : `<span class="text-muted">Finalizado ${f.finVida || ''}</span>`;
+                    const accion = f.activo
+                        ? `<button class="btn btn-sm btn-outline-danger fw-bold" onclick="finalizarVidaUtil(${f.id})" title="Deja de contar el tiempo de esta salida"><i class="bi bi-check2-square me-1"></i>Finalizar vida útil</button>`
+                        : '<span class="text-muted small">Terminada</span>';
+                    tbody += `<tr>
+                        <td class="small">${f.articuloSap}</td>
+                        <td>${f.nombreArticulo}</td>
+                        <td><span class="badge bg-secondary">${f.areaDestino}</span></td>
+                        <td class="text-center fw-bold">${f.cantidad}</td>
+                        <td class="small">${f.fechaEntrega}</td>
+                        <td class="text-center">${tiempoTxt}</td>
+                        <td class="text-end">${accion}</td>
+                    </tr>`;
+                });
+            }
+            $('#tbodySeguimientoSalidas').html(tbody);
+        }
+
+        async function finalizarVidaUtil(id) {
+            if (!confirm('¿Finalizar la vida útil de esta salida? Dejará de contarse el tiempo transcurrido.')) return;
+            try {
+                const res = await fetch(`/InventariosSistemas/FinalizarVidaUtil?idMovimiento=${id}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || ''
+                    }
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    alert(data.mensaje);
+                    cargarSeguimientoSalidas();
+                } else {
+                    alert(data.mensaje || 'No se pudo finalizar.');
                 }
             } catch (e) {
                 alert('Error de red: ' + e.message);
@@ -8133,7 +8616,9 @@ body:has(#inventarioSistemasApp) {
                     Id: itemOriginal.id,
                     Costo: itemOriginal.costo,
                     Proveedor: itemOriginal.proveedor,
-                    FechaCompra: itemOriginal.fechaCompra
+                    FechaCompra: itemOriginal.fechaCompra,
+                    Planta: itemOriginal.planta || '',
+                    Ubicacion: itemOriginal.ubicacion || ''
                 };
 
                 let res1 = await fetch('@Url.Action("GuardarArticulo", "InventariosSistemas")', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(envio) });
@@ -8274,6 +8759,8 @@ body:has(#inventarioSistemasApp) {
             const id = $('#salArticulo').val();
             const cant = $('#salCantidad').val();
             const ref = $('#salReferencia').val().trim();
+            const area = $('#salAreaDestino').val() || '';
+            const fechaEntrega = $('#salFechaEntrega').val() || '';
 
             if(!id || cant <= 0 || !ref) { alert("Completa Artículo, Cantidad y Comentario para la salida."); return; }
 
@@ -8283,12 +8770,15 @@ body:has(#inventarioSistemasApp) {
                 btnElement.disabled = true;
                 btnElement.innerHTML = "Guardando...";
 
-                const res = await fetch(`@Url.Action("RegistrarMovimiento", "InventariosSistemas")?idArticulo=${id}&tipo=SALIDA&cantidad=${cant}&referencia=${ref}`, { method: 'POST' });
+                const areaParam = area ? `&areaDestino=${encodeURIComponent(area)}` : '';
+                const fechaParam = fechaEntrega ? `&fechaEntrega=${encodeURIComponent(fechaEntrega)}` : '';
+                const res = await fetch(`@Url.Action("RegistrarMovimiento", "InventariosSistemas")?idArticulo=${id}&tipo=SALIDA&cantidad=${cant}&referencia=${ref}${areaParam}${fechaParam}`, { method: 'POST' });
                 if(!res.ok) throw new Error("Error en el servidor al registrar salida.");
 
                 const data = await res.json();
                 if(data.ok) {
                     $('#salCantidad').val(''); $('#salReferencia').val('');
+                    $('#salAreaDestino').val(''); $('#salFechaEntrega').val('');
                     $('#stockInfoSalida').hide();
                     $('#salArticulo').val('').trigger('change');
                     cargarInventario();
@@ -8309,11 +8799,17 @@ body:has(#inventarioSistemasApp) {
                             ? '<span class="badge-entrada">ENTRADA</span>'
                             : '<span class="badge-salida">SALIDA</span>';
 
+                let refHtml = (m.referencia || '-');
+                if (m.areaDestino) {
+                    const dias = Math.max(0, Math.floor((new Date() - new Date(m.fechaEntrega || m.fecha)) / 86400000));
+                    refHtml += `<br><span class="badge bg-secondary mt-1">${m.areaDestino}</span> <small class="text-muted">entregado ${m.fechaEntrega ? new Date(m.fechaEntrega).toLocaleDateString('es-MX') : ''} · ${dias} día${dias === 1 ? '' : 's'}</small>`;
+                }
+
                 tbody += `<tr>
                     <td style="font-size:0.75rem;">${new Date(m.fecha).toLocaleString('es-MX')}</td>
                     <td><strong style="color:var(--brand-main);">${m.articuloSap}</strong><br>${m.nombreArticulo}</td>
                     <td>${badge}<br><small class="text-muted">Cant: ${m.cantidad}</small></td>
-                    <td style="font-size:0.75rem;"><strong>${m.referencia || '-'}</strong></td>
+                    <td style="font-size:0.75rem;"><strong>${refHtml}</strong></td>
                 </tr>`;
             });
             $('#tbodyMovimientos').html(tbody || '<tr><td colspan="4" class="text-center text-muted">No hay historial reciente</td></tr>');
@@ -8830,6 +9326,9 @@ body:has(#inventarioSistemasApp) {
         /* =====================================================
            CENTRO QR: identificación y operación rápida
            ===================================================== */
+        let qrBufferGlobal = '';
+        let lastQrKeyTimeGlobal = 0;
+
         function inicializarCentroQr() {
             const estacion = localStorage.getItem('inventario_qr_estacion') || 'ALMACÉN TI';
             $('#qrEstacion').val(estacion);
@@ -8839,10 +9338,12 @@ body:has(#inventarioSistemasApp) {
                 localStorage.setItem('inventario_qr_estacion', ($(this).val() || '').trim());
             });
 
+            // 1. Conservamos el evento manual por si el usuario SÍ tiene seleccionado el campo
             $('#qrManualInput').off('keydown.qr').on('keydown.qr', function (event) {
                 if (event.key === 'Enter') {
                     event.preventDefault();
                     procesarLecturaQr($(this).val(), 'LECTOR');
+                    $(this).val(''); // Limpiar para el próximo disparo
                 }
             });
 
@@ -8864,6 +9365,39 @@ body:has(#inventarioSistemasApp) {
 
             window.addEventListener('beforeunload', () => {
                 if (qrScannerActivo) detenerCamaraQr();
+            });
+
+            // 2. NUEVO: Atrapamos el escáner a nivel global si el usuario hizo clic fuera
+            $(document).off('keydown.globalqr').on('keydown.globalqr', function (e) {
+                // Solo escuchamos si estamos en la pestaña del Centro QR
+                if (!$('#scanner-qr').hasClass('active')) return;
+
+                // Si el usuario está escribiendo intencionalmente en otro input o textarea, lo dejamos en paz
+                const tag = e.target.tagName.toLowerCase();
+                if ((tag === 'input' && e.target.id !== 'qrManualInput') || tag === 'textarea') return;
+
+                // Si ya tiene seleccionado el campo correcto, dejamos que la función original haga el trabajo
+                if (document.activeElement.id === 'qrManualInput') return;
+
+                const now = Date.now();
+                // Una pistola escribe muy rápido. Si pasan más de 100ms entre letras, reseteamos (es un humano tecleando lento)
+                if (now - lastQrKeyTimeGlobal > 100) {
+                    qrBufferGlobal = '';
+                }
+                lastQrKeyTimeGlobal = now;
+
+                if (e.key === 'Enter') {
+                    if (qrBufferGlobal.length > 2) {
+                        e.preventDefault();
+                        $('#qrManualInput').val(qrBufferGlobal); // Reflejamos lo leído en el campo
+                        procesarLecturaQr(qrBufferGlobal, 'LECTOR');
+                        qrBufferGlobal = '';
+                    }
+                } else if (e.key.length === 1) {
+                    qrBufferGlobal += e.key;
+                    // Vamos rellenando la cajita en tiempo real aunque no tenga el puntero
+                    $('#qrManualInput').val(qrBufferGlobal);
+                }
             });
         }
 
@@ -8906,8 +9440,16 @@ body:has(#inventarioSistemasApp) {
         }
 
         function normalizarTextoQr(valor) {
-            return String(valor || '').replace(/\u0000/g, '').trim();
-        }
+              let texto = String(valor || '').replace(/\u0000/g, '').trim();
+
+              // Corrector automático de "teclado gringo a español" generado por lectores físicos
+              // Corrige: Ñ por : (dos puntos)
+              texto = texto.replace(/Ñ/g, ':');
+              // Corrige: ' (apóstrofe) por - (guion medio)
+              texto = texto.replace(/'/g, '-');
+
+              return texto;
+          }
 
         function extraerIdentificadorQr(valor) {
             const texto = normalizarTextoQr(valor);
@@ -8948,9 +9490,18 @@ body:has(#inventarioSistemasApp) {
                 return inventario.find(x => String(x.numeroSerie || '').toUpperCase().trim() === target) || null;
             }
 
-            if (token.tipo === 'ID_O_SAP') {
+          if (token.tipo === 'ID_O_SAP') {
                 return inventario.find(x => String(x.id) === String(token.valor)) ||
                        inventario.find(x => String(x.idArticuloSap || '').toUpperCase().trim() === target) ||
+                       inventario.find(x => String(x.numeroSerie || '').toUpperCase().trim() === target) ||
+                       null;
+            }
+
+            if (token.tipo === 'LIBRE') {
+                return inventario.find(x => String(x.id) === String(token.valor)) ||
+                       inventario.find(x => String(x.idArticuloSap || '').toUpperCase().trim() === target) ||
+                       inventario.find(x => String(x.numeroSerie || '').toUpperCase().trim() === target) ||
+                       inventario.find(x => String(x.ip || '').toUpperCase().trim() === target) ||
                        null;
             }
 
@@ -9420,7 +9971,7 @@ body:has(#inventarioSistemasApp) {
                 return;
             }
 
-            const contenidoQr = `${numeroSerie}`;
+            const contenidoQr = `SERIE:${numeroSerie}`;
             const qrUrl = `@Url.Action("GenerarQRLocal", "InventariosSistemas")?texto=${encodeURIComponent(contenidoQr)}`;
             const w = crearVentanaEtiqueta(`Etiqueta ${numeroSerie}`, 520, 340);
 
@@ -11660,4 +12211,792 @@ body:has(#inventarioSistemasApp) {
             generarControlFugas();
         });
     });
+    // =====================================================
+         // AUDITORÍA Y CONTEO FÍSICO (VERSIÓN DEFINITIVA V5)
+         // =====================================================
+         let auditModalInstance;
+         let auditActiva = false;
+         let auditListaTeorica = [];
+         let auditEscaneados = new Set();
+         let auditConteo = {};
+         let auditSobrantes = []; // Se mantiene la variable por compatibilidad, pero ya no se llena con items ajenos
+         let revModalInstance = null;
+         let revAuditoriaId = 0;
+         let revPlantaFiltro = '';
+         let revCorregidos = new Set();
+
+         function auditClaveItem(i) {
+             const esConsumible = (i.tipoArticulo || '').toUpperCase() === 'CONSUMIBLE';
+             const serie = String(i.numeroSerie || '').trim();
+             if (esConsumible && serie) return { clave: 'SERIE:' + serie, esConsumible: true };
+             return { clave: 'ID:' + i.id, esConsumible: false };
+         }
+
+         function auditConstruirConteo() {
+             auditConteo = {};
+             (auditListaTeorica || []).forEach(i => {
+                 const { clave, esConsumible } = auditClaveItem(i);
+                 const esperado = esConsumible ? (parseInt(i.stock) || 1) : 1;
+                 if (!auditConteo[clave]) {
+                     auditConteo[clave] = { esperado: 0, escaneado: 0, item: i, esConsumible, etiqueta: i.numeroSerie ? 'Serie: ' + i.numeroSerie : (i.idArticuloSap || i.nombre) };
+                 }
+                 auditConteo[clave].esperado += esperado;
+             });
+         }
+
+         let auditTipoFiltro = 'TODO';
+         let auditCantSerieActual = '';
+
+         function auditAplicaFiltroTipo(i) {
+             if (auditTipoFiltro === 'TODO') return true;
+             const t = (i.tipoArticulo || '').toUpperCase();
+             if (auditTipoFiltro === 'CONSUMIBLE') return t === 'CONSUMIBLE';
+             if (auditTipoFiltro === 'ACTIVO') return t === 'ACTIVO FIJO';
+             if (auditTipoFiltro === 'OTROS') return t !== 'CONSUMIBLE' && t !== 'ACTIVO FIJO';
+             return true;
+         }
+
+         function auditEstadoClave(c) {
+             const esc = c.escaneado, esp = c.esperado;
+             if (esc === esp) return { tipo: 'ENCONTRADO', detalle: '' };
+             if (esc > esp) return { tipo: 'SOBRANTE', detalle: 'Sobran ' + (esc - esp) + ' unidad(es)' };
+             if (esc === 0) return { tipo: 'FALTANTE', detalle: '' };
+             return { tipo: 'PARCIAL', detalle: 'Faltan ' + (esp - esc) + ' unidad(es)' };
+         }
+
+         let audioCtxAuditoria = null;
+         let auditAutoSubmitTimer = null;
+         let auditBuffer = '';
+         let auditBuffTimer = null;
+
+         function abrirModalAuditoria() {
+             if (!auditModalInstance) {
+                 auditModalInstance = new bootstrap.Modal(document.getElementById('modalAuditoriaFisica'));
+             }
+             $('#auditConfigScreen').show();
+             $('#auditRunScreen').hide();
+             $('#auditSummaryScreen').hide();
+             $('#btnExportarAuditoria').hide();
+             $('#btnFinalizarAuditoria').hide();
+             $('#btnCerrarResumen').hide();
+             $('#btnCancelarAuditoria').show();
+
+             auditActiva = false;
+             $('#auditPlantaSelTxt').text(plantaGlobal || 'Todas las plantas');
+             auditModalInstance.show();
+         }
+
+         function iniciarConteoAuditoria() {
+             auditPlantaSeleccionada = plantaGlobal || '';
+             auditTipoFiltro = ($('#auditTipoSel').length ? $('#auditTipoSel').val() : 'TODO') || 'TODO';
+             auditCantSerieActual = '';
+             auditListaTeorica = datosInventario.filter(i => {
+                 if (i.asignacion === 'BAJA DEFINITIVA' || i.asignacion === 'PARA PIEZAS' || i.tipoArticulo === 'Chatarra/Piezas') return false;
+                 if (auditPlantaSeleccionada && plantaDeArticulo(i) !== auditPlantaSeleccionada) return false;
+                 if (!auditAplicaFiltroTipo(i)) return false;
+                 return true;
+             });
+
+             if (auditListaTeorica.length === 0) {
+                 alert("No hay equipos activos registrados en el sistema para auditar bajo este filtro.");
+                 return;
+             }
+
+             auditEscaneados.clear();
+             auditSobrantes = [];
+             auditConstruirConteo();
+             auditActiva = true;
+             $('#auditPlantaSelTxt').text(auditPlantaSeleccionada || 'Todas las plantas');
+             const labelMap = { 'TODO': 'ESPERADOS (SISTEMA)', 'CONSUMIBLE': 'ESPERADOS CONSUMIBLES', 'ACTIVO': 'ESPERADOS ACTIVOS FIJOS', 'OTROS': 'ESPERADOS OTROS' };
+             $('#auditKPIEsperadosLabel').text(labelMap[auditTipoFiltro] || labelMap['TODO']);
+
+             auditBuffer = '';
+             if (auditBuffTimer) { clearTimeout(auditBuffTimer); auditBuffTimer = null; }
+             $('#auditInputLector').val('');
+
+             $('#auditConfigScreen').hide();
+             $('#auditSummaryScreen').hide();
+             $('#auditRunScreen').show();
+
+             $('#btnFinalizarAuditoria').show();
+             $('#btnExportarAuditoria').hide();
+             $('#btnCancelarAuditoria').show();
+             $('#btnCerrarResumen').hide();
+
+             renderTablaAuditoria();
+
+             // Iniciar motor de audio
+             try {
+                 if (!audioCtxAuditoria) audioCtxAuditoria = new (window.AudioContext || window.webkitAudioContext)();
+                 if (audioCtxAuditoria.state === 'suspended') audioCtxAuditoria.resume();
+                 const osc = audioCtxAuditoria.createOscillator();
+                 const gain = audioCtxAuditoria.createGain();
+                 osc.connect(gain);
+                 gain.connect(audioCtxAuditoria.destination);
+                 gain.gain.setValueAtTime(0, audioCtxAuditoria.currentTime);
+                 osc.start();
+                 osc.stop(audioCtxAuditoria.currentTime + 0.01);
+             } catch (e) { }
+         }
+
+         // Interceptor de teclado fase captura
+         document.addEventListener('keydown', function(evt) {
+             if (!auditActiva) return;
+
+             const tag = (evt.target.tagName || '').toLowerCase();
+             const id = evt.target.id;
+
+             if (id === 'auditCantInput') return;
+             if ((tag === 'input' && id !== 'auditInputLector') || tag === 'textarea') return;
+             if (evt.ctrlKey || evt.altKey || evt.metaKey || (evt.key.length > 1 && evt.key !== 'Enter')) return;
+
+             const inputLector = document.getElementById('auditInputLector');
+
+             if (evt.key === 'Enter') {
+                 evt.preventDefault();
+                 clearTimeout(auditBuffTimer);
+                 const finalVal = auditBuffer.length > 2 ? auditBuffer : (inputLector ? inputLector.value : '');
+                 if (finalVal.length > 2) {
+                     procesarEscaneoAuditoria(finalVal);
+                 }
+                 auditBuffer = '';
+                 if (inputLector) inputLector.value = '';
+                 return;
+             }
+
+             evt.preventDefault();
+
+             let char = evt.key;
+             if (char === 'Ñ' || char === 'ñ') char = ':';
+             if (char === "'" || char === "´") char = '-';
+
+             auditBuffer += char;
+             if (inputLector) inputLector.value = auditBuffer;
+
+             clearTimeout(auditBuffTimer);
+             auditBuffTimer = setTimeout(() => {
+                 if (auditBuffer.length > 2) {
+                     procesarEscaneoAuditoria(auditBuffer);
+                     auditBuffer = '';
+                     if (inputLector) inputLector.value = '';
+                 }
+             }, 300);
+
+         }, true);
+
+         let auditCantInputTimer = null;
+         $(document).on('input', '#auditCantInput', function() {
+             const val = ($(this).val() || '').trim();
+             if (val.length < 4) return;
+             clearTimeout(auditCantInputTimer);
+             const captura = val;
+             auditCantInputTimer = setTimeout(() => {
+                 $('#auditCantInput').val('');
+                 if (captura.length >= 4) procesarEscaneoAuditoria(captura);
+             }, 300);
+         });
+
+         function reproducirSonidoAuditoria(esExito) {
+             try {
+                 if (!audioCtxAuditoria) audioCtxAuditoria = new (window.AudioContext || window.webkitAudioContext)();
+                 if (audioCtxAuditoria.state === 'suspended') audioCtxAuditoria.resume();
+
+                 const osc = audioCtxAuditoria.createOscillator();
+                 const gain = audioCtxAuditoria.createGain();
+
+                 osc.connect(gain);
+                 gain.connect(audioCtxAuditoria.destination);
+
+                 if (esExito) {
+                     osc.type = 'sine';
+                     osc.frequency.setValueAtTime(900, audioCtxAuditoria.currentTime);
+                     gain.gain.setValueAtTime(0.1, audioCtxAuditoria.currentTime);
+                     osc.start();
+                     osc.stop(audioCtxAuditoria.currentTime + 0.15);
+                 } else {
+                     osc.type = 'sawtooth';
+                     osc.frequency.setValueAtTime(200, audioCtxAuditoria.currentTime);
+                     gain.gain.setValueAtTime(0.2, audioCtxAuditoria.currentTime);
+                     osc.start();
+                     osc.stop(audioCtxAuditoria.currentTime + 0.4);
+                 }
+             } catch (e) { }
+         }
+
+         function procesarEscaneoAuditoria(valorLector) {
+             const textoLimpio = normalizarTextoQr(valorLector);
+             const item = buscarArticuloPorQr(textoLimpio);
+
+             if (!item) {
+                 reproducirSonidoAuditoria(false);
+                 $('#auditInputLector').addClass('is-invalid');
+                 setTimeout(() => $('#auditInputLector').removeClass('is-invalid'), 500);
+                 $('#auditCantPanel').hide();
+                 return;
+             }
+
+             let pertenece = auditListaTeorica.find(i => i.id === item.id);
+
+             // Validacion extendida por si se escaneo el QR antiguo
+             if (!pertenece) {
+                 const sap = (item.idArticuloSap || '').toUpperCase().trim();
+                 const serie = (item.numeroSerie || '').toUpperCase().trim();
+                 if (sap) pertenece = auditListaTeorica.find(i => (i.idArticuloSap || '').toUpperCase().trim() === sap);
+                 if (!pertenece && serie) pertenece = auditListaTeorica.find(i => (i.numeroSerie || '').toUpperCase().trim() === serie);
+             }
+
+             if (pertenece) {
+                 const esConsumible = (pertenece.tipoArticulo || '').toUpperCase() === 'CONSUMIBLE';
+                 const serie = String(pertenece.numeroSerie || '').trim();
+
+                 if (esConsumible && serie && auditConteo['SERIE:' + serie]) {
+                     const c = auditConteo['SERIE:' + serie];
+                     c.escaneado++;
+                     if (c.escaneado === c.esperado) {
+                         c.item = pertenece;
+                         auditEscaneados.add(pertenece.id);
+                     }
+                     reproducirSonidoAuditoria(true);
+                     auditAbrirPanelCantidad(serie, c);
+                 } else {
+                     // Cierra panel si se escanea algo valido distinto
+                     $('#auditCantPanel').hide();
+                     $('#auditCantAlertaDescuadre').addClass('d-none');
+
+                     if (!auditEscaneados.has(pertenece.id)) {
+                         auditEscaneados.add(pertenece.id);
+                         if (auditConteo['ID:' + pertenece.id]) {
+                             auditConteo['ID:' + pertenece.id].escaneado = 1;
+                         }
+                         reproducirSonidoAuditoria(true);
+                     }
+                 }
+             } else {
+                 // El articulo existe pero no corresponde al filtro actual (es de otra planta o no es del tipo auditado)
+                 $('#auditCantPanel').hide();
+                 $('#auditCantAlertaDescuadre').addClass('d-none');
+
+                 reproducirSonidoAuditoria(false);
+                 $('#auditInputLector').addClass('is-invalid');
+                 setTimeout(() => $('#auditInputLector').removeClass('is-invalid'), 500);
+             }
+
+             renderTablaAuditoria();
+         }
+
+         function auditAbrirPanelCantidad(serie, c) {
+             auditCantSerieActual = serie;
+             $('#auditCantSerieTxt').text('Serie: ' + serie);
+             $('#auditCantInfoTxt').text('Esperado en sistema: ' + c.esperado + ' unidad(es)');
+             $('#auditCantInput').val(c.escaneado);
+             $('#auditCantPanel').show();
+             $('#auditCantAlertaDescuadre').addClass('d-none');
+             auditActualizarEstadoPanel(c);
+         }
+
+         function auditActualizarEstadoPanel(c) {
+             const map = { 'ENCONTRADO': ['bg-success', 'ENCONTRADO (' + c.escaneado + '/' + c.esperado + ')'],
+                           'FALTANTE': ['bg-danger', 'FALTANTE (0/' + c.esperado + ')'],
+                           'PARCIAL': ['bg-warning text-dark', 'FALTAN ' + (c.esperado - c.escaneado) + ' (' + c.escaneado + '/' + c.esperado + ')'],
+                           'SOBRANTE': ['bg-danger', 'SOBRAN ' + (c.escaneado - c.esperado) + ' (' + c.escaneado + '/' + c.esperado + ')'] };
+             const est = auditEstadoClave(c);
+             const cfg = map[est.tipo] || map['FALTANTE'];
+             $('#auditCantEstadoTxt').attr('class', 'badge ' + cfg[0]).text(cfg[1]);
+         }
+
+         function auditRegistrarCantidad() {
+             const serie = auditCantSerieActual;
+             const c = auditConteo['SERIE:' + serie];
+             if (!c) { alert('Primero escanea la etiqueta del consumible.'); return; }
+             const val = parseInt($('#auditCantInput').val(), 10);
+             const cantidad = isNaN(val) ? 0 : Math.max(0, val);
+             c.escaneado = cantidad;
+             if (cantidad >= c.esperado) {
+                 if (c.item) auditEscaneados.add(c.item.id);
+             } else {
+                 if (c.item) auditEscaneados.delete(c.item.id);
+             }
+             auditActualizarEstadoPanel(c);
+             renderTablaAuditoria();
+             const est = auditEstadoClave(c);
+             if (est.tipo === 'SOBRANTE') {
+                 reproducirSonidoAuditoria(false);
+                 $('#auditCantInput').addClass('is-invalid');
+                 setTimeout(() => $('#auditCantInput').removeClass('is-invalid'), 900);
+                 $('#auditCantAlertaDescuadre').removeClass('d-none alert-warning').addClass('alert-danger');
+                 $('#auditCantAlertaDescuadreTxt').text('Descuadre SOBRANTE: tienes ' + (cantidad - c.esperado) + ' unidad(es) de más. Se guardará el registro con esta diferencia.');
+             } else if (est.tipo === 'PARCIAL') {
+                 reproducirSonidoAuditoria(false);
+                 $('#auditCantAlertaDescuadre').removeClass('d-none alert-danger').addClass('alert-warning');
+                 $('#auditCantAlertaDescuadreTxt').text('Descuadre PARCIAL: faltan ' + (c.esperado - cantidad) + ' unidad(es). Se guardará el registro con esta diferencia.');
+             } else if (est.tipo === 'FALTANTE') {
+                 reproducirSonidoAuditoria(false);
+                 $('#auditCantAlertaDescuadre').removeClass('d-none alert-warning').addClass('alert-danger');
+                 $('#auditCantAlertaDescuadreTxt').text('FALTANTE TOTAL: no se encontraron unidades (0/' + c.esperado + ').');
+             } else {
+                 reproducirSonidoAuditoria(true);
+                 $('#auditCantAlertaDescuadre').addClass('d-none');
+             }
+         }
+
+         function renderTablaAuditoria() {
+             let tbody = '';
+             let esperados = 0;
+             let completos = 0;
+             let conDescuadre = 0;
+             const faltantes = [];
+
+             const filasUnicas = [];
+             const vistas = new Set();
+             auditListaTeorica.forEach(i => {
+                 const { clave, esConsumible } = auditClaveItem(i);
+                 const serie = String(i.numeroSerie || '').trim();
+                 const idUnico = esConsumible && serie ? ('SERIE:' + serie) : ('ID:' + i.id);
+                 if (!vistas.has(idUnico)) {
+                     vistas.add(idUnico);
+                     filasUnicas.push(i);
+                 }
+             });
+
+             filasUnicas.forEach(i => {
+                 const { clave, esConsumible } = auditClaveItem(i);
+                 const c = auditConteo[clave];
+                 const esperado = c ? c.esperado : 1;
+                 const escaneado = c ? c.escaneado : (auditEscaneados.has(i.id) ? 1 : 0);
+
+                 if (esConsumible) {
+                     esperados += 1;
+                 } else {
+                     esperados += esperado;
+                 }
+
+                 const est = c ? auditEstadoClave(c) : { tipo: escaneado ? 'ENCONTRADO' : 'FALTANTE', detalle: '' };
+                 const detalleInfo = esConsumible
+                     ? '<small class="fw-bold">Cant. ' + escaneado + ' / ' + esperado + (est.detalle ? ' — ' + est.detalle : '') + '</small>'
+                     : '<small class="text-muted">Asignado: ' + (i.asignacion || 'Disponible') + '</small>';
+
+                 let badge, trClass, tdColor;
+                 if (est.tipo === 'ENCONTRADO') {
+                     completos++;
+                     badge = '<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i> ENCONTRADO' + (esperado > 1 ? ' (' + escaneado + '/' + esperado + ')' : '') + '</span>';
+                     trClass = 'table-success';
+                     tdColor = 'text-success';
+                 } else if (est.tipo === 'SOBRANTE') {
+                     conDescuadre++;
+                     badge = '<span class="badge bg-danger"><i class="bi bi-exclamation-octagon me-1"></i> SOBRAN ' + (escaneado - esperado) + ' (' + escaneado + '/' + esperado + ')</span>';
+                     trClass = 'table-danger';
+                     tdColor = 'text-danger';
+                     faltantes.push(i);
+                 } else if (est.tipo === 'PARCIAL') {
+                     conDescuadre++;
+                     badge = '<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i> FALTAN ' + (esperado - escaneado) + ' (' + escaneado + '/' + esperado + ')</span>';
+                     trClass = 'table-warning';
+                     tdColor = 'text-warning';
+                     faltantes.push(i);
+                 } else {
+                     badge = '<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i> FALTANTE' + (esperado > 1 ? ' (0/' + esperado + ')' : '') + '</span>';
+                     trClass = '';
+                     tdColor = 'text-muted';
+                     faltantes.push(i);
+                 }
+
+                 tbody += `<tr class="${trClass}">
+                     <td>${badge}</td>
+                     <td><strong>${i.idArticuloSap}</strong><br><small>${i.nombre}</small></td>
+                     <td>${i.numeroSerie || '-'}</td>
+                     <td class="${tdColor}">${detalleInfo}</td>
+                 </tr>`;
+             });
+
+             $('#auditTbody').html(tbody);
+             $('#auditKPIEsperados').text(esperados);
+             $('#auditKPIEncontrados').text(completos);
+             $('#auditKPIFaltantes').text(faltantes.length);
+             $('#auditKPISobrantes').text(conDescuadre ? '+' + conDescuadre : '0'); // Muestra los descuadres de consumibles
+
+             const porcentaje = esperados > 0 ? Math.round((completos / esperados) * 100) : 0;
+             $('#auditProgressBar').css('width', porcentaje + '%');
+              $('#auditProgresoTxt').text(porcentaje + '% Encontrado' + (conDescuadre ? ' — ' + conDescuadre + ' con descuadre' : ''));
+          }
+
+         function abrirUltimaRevisionAuditoria() {
+             if (!revModalInstance) {
+                 revModalInstance = new bootstrap.Modal(document.getElementById('modalUltimaRevisionAuditoria'));
+             }
+             revPlantaFiltro = plantaGlobal || '';
+             revModalInstance.show();
+             cargarUltimaRevision(revPlantaFiltro);
+         }
+
+         async function cargarUltimaRevision(planta) {
+             $('#revSinDatos').addClass('d-none');
+             $('#revDatos').addClass('d-none');
+             $('#revAccionesAplicadas').addClass('d-none');
+             $('#revTbody').html('<tr><td colspan="7" class="text-center text-muted py-3">Cargando...</td></tr>');
+             try {
+                 const res = await fetch('@Url.Action("ObtenerUltimaRevision", "InventariosSistemas")?planta=' + encodeURIComponent(planta || ''));
+                 const data = await res.json();
+                 if (!data.ok) { alert(data.mensaje || 'Error al cargar la revisión.'); return; }
+                 if (!data.existe) {
+                     $('#revSinDatosPlanta').text(planta ? (' de la planta ' + planta) : '');
+                     $('#revSinDatos').removeClass('d-none');
+                     return;
+                 }
+                 const a = data.auditoria;
+                 revAuditoriaId = a.id;
+                 $('#revFecha').text(new Date(a.fecha).toLocaleString('es-MX'));
+                 $('#revPlanta').text((a.planta || 'Todas') + ' · ' + (a.tipoFiltro || 'TODO'));
+                 $('#revUsuario').text(a.usuario || '-');
+                 $('#revEsperados').text(a.esperados);
+                 $('#revEncontrados').text(a.encontrados);
+                 $('#revFaltantes').text(a.faltantes);
+                 $('#revSobrantes').text(a.sobrantes);
+                 $('#revDescuadres').text(a.descuadres);
+                 $('#revTotalDescuadre').text(a.totalDescuadre);
+                 if (a.finalizada) $('#revFinalizadaBadge').removeClass('d-none');
+                 else $('#revFinalizadaBadge').addClass('d-none');
+
+                 revCorregidos = new Set((data.acciones || []).map(x => x.idInventario));
+
+                 let tbody = '';
+                 (data.detalles || []).forEach(d => {
+                     let badge = '', trClass = '', accion = '';
+                     if (d.estado === 'ENCONTRADO') { badge = '<span class="badge bg-success">OK</span>'; trClass = 'table-success'; }
+                     else if (d.estado === 'SOBRANTE') { badge = '<span class="badge bg-warning text-dark">SOBRANTE</span>'; trClass = 'table-warning'; }
+                     else if (d.estado === 'PARCIAL') { badge = '<span class="badge bg-warning text-dark">PARCIAL</span>'; trClass = 'table-warning'; }
+                     else { badge = '<span class="badge bg-danger">FALTANTE</span>'; trClass = 'table-danger'; }
+
+                     const diff = d.escaneado - d.esperado;
+
+                     if (revCorregidos.has(d.idInventario)) {
+                         accion = '<span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Corregido</span>';
+                     } else if (diff < 0) {
+                         // Físico < Sistema: sobra en sistema, falta físicamente → ELIMINAR del sistema
+                         accion = `<button class="btn btn-sm btn-outline-danger py-0" onclick="ejecutarAccionCorrectiva(${d.idInventario}, 'ELIMINAR', ${Math.abs(diff)})">
+                             <i class="bi bi-dash-circle me-1"></i>Eliminar ${Math.abs(diff)} del sistema</button>`;
+                     } else if (diff > 0) {
+                         // Físico > Sistema: sobra físicamente, falta en sistema → AGREGAR al sistema
+                         accion = `<button class="btn btn-sm btn-outline-success py-0" onclick="ejecutarAccionCorrectiva(${d.idInventario}, 'AGREGAR', ${Math.abs(diff)})">
+                             <i class="bi bi-plus-circle me-1"></i>Agregar ${Math.abs(diff)} al sistema</button>`;
+                     } else {
+                         accion = '<span class="text-muted">—</span>';
+                     }
+
+                     tbody += `<tr class="${trClass}">
+                         <td>${badge}</td>
+                         <td><strong>${d.idArticuloSap}</strong><br><small>${d.nombre}</small></td>
+                         <td>${d.numeroSerie || '-'}</td>
+                         <td class="text-center fw-bold">${d.esperado}</td>
+                         <td class="text-center fw-bold">${d.escaneado}</td>
+                         <td class="text-center fw-bold">${diff > 0 ? '+' + diff : diff}</td>
+                         <td class="text-center">${accion}</td>
+                     </tr>`;
+                 });
+                 $('#revTbody').html(tbody);
+
+                 if (data.acciones && data.acciones.length) {
+                     $('#revAccionesAplicadas').removeClass('d-none');
+                     let at = '';
+                     data.acciones.forEach(x => {
+                         const color = x.tipoAccion === 'AGREGAR' ? 'text-success' : 'text-danger';
+                         at += `<tr>
+                             <td>${new Date(x.fecha).toLocaleString('es-MX')}</td>
+                             <td class="fw-bold ${color}">${x.tipoAccion}</td>
+                             <td class="text-center">${x.cantidad}</td>
+                             <td>${x.referencia || ''}</td>
+                             <td>${x.usuario || ''}</td>
+                         </tr>`;
+                     });
+                     $('#revAccionesTbody').html(at);
+                 }
+
+                 $('#revDatos').removeClass('d-none');
+             } catch (e) {
+                 alert('Error de conexión: ' + e.message);
+             }
+         }
+
+         async function ejecutarAccionCorrectiva(idInventario, tipoAccion, cantidad) {
+             const verbo = tipoAccion === 'AGREGAR' ? 'agregar' : 'eliminar';
+             if (!confirm(`¿Aplicar acción correctiva de ${verbo} ${cantidad} unidad(es) al stock? Se registrará el movimiento.`)) return;
+             try {
+                 const res = await fetch(`@Url.Action("EjecutarAccionCorrectiva", "InventariosSistemas")?auditoriaId=${revAuditoriaId}&idInventario=${idInventario}&tipoAccion=${tipoAccion}&cantidad=${cantidad}&referencia=${encodeURIComponent('Corrección por auditoría')}`, { method: 'POST' });
+                 const data = await res.json();
+                 if (!data.ok) { alert(data.mensaje || 'No se pudo aplicar la acción.'); return; }
+                 alert(data.mensaje);
+                 revCorregidos.add(idInventario);
+                 cargarUltimaRevision(revPlantaFiltro);
+                 cargarInventario();
+             } catch (e) {
+                 alert('Error de conexión: ' + e.message);
+             }
+         }
+
+         async function guardarAuditoriaEnBD() {
+             if (!auditListaTeorica.length) {
+                 console.error('guardarAuditoriaEnBD: auditListaTeorica vacío, no se guarda.');
+                 return;
+             }
+             let esperados = 0, completos = 0, faltantes = 0, sobrantes = 0, descuadres = 0, totalDiff = 0;
+             const detalles = [];
+
+             const filasUnicas = [];
+             const vistas = new Set();
+             auditListaTeorica.forEach(i => {
+                 const { clave, esConsumible } = auditClaveItem(i);
+                 const serie = String(i.numeroSerie || '').trim();
+                 const idUnico = esConsumible && serie ? ('SERIE:' + serie) : ('ID:' + i.id);
+                 if (!vistas.has(idUnico)) { vistas.add(idUnico); filasUnicas.push(i); }
+             });
+
+             filasUnicas.forEach(i => {
+                 const { clave, esConsumible } = auditClaveItem(i);
+                 const c = auditConteo[clave];
+                 const esperado = c ? c.esperado : 1;
+                 const escaneado = c ? c.escaneado : (auditEscaneados.has(i.id) ? 1 : 0);
+                 if (esConsumible) esperados += 1; else esperados += esperado;
+
+                 const est = c ? auditEstadoClave(c) : { tipo: escaneado ? 'ENCONTRADO' : 'FALTANTE' };
+                 const diff = escaneado - esperado;
+                 if (est.tipo === 'ENCONTRADO') completos++;
+                 else if (est.tipo === 'SOBRANTE') { sobrantes++; descuadres++; totalDiff += diff; }
+                 else if (est.tipo === 'PARCIAL') { faltantes++; descuadres++; totalDiff += diff; }
+                 else { faltantes++; totalDiff += diff; }
+
+                 detalles.push({
+                     IdInventario: i.id,
+                     IdArticuloSap: i.idArticuloSap || '',
+                     Nombre: i.nombre || '',
+                     NumeroSerie: i.numeroSerie || '',
+                     TipoArticulo: i.tipoArticulo || '',
+                     Esperado: esperado,
+                     Escaneado: escaneado,
+                     Estado: est.tipo,
+                     Planta: i.planta || ''
+                 });
+             });
+
+             faltantes += auditSobrantes.length;
+
+             const body = {
+                 Planta: auditPlantaSeleccionada || '',
+                 TipoFiltro: auditTipoFiltro || 'TODO',
+                 Esperados: esperados,
+                 Encontrados: completos,
+                 Faltantes: faltantes,
+                 Sobrantes: sobrantes,
+                 Descuadres: descuadres,
+                 TotalDescuadre: totalDiff,
+                 Detalles: detalles
+             };
+
+             try {
+                 const res = await fetch('@Url.Action("GuardarAuditoria", "InventariosSistemas")', {
+                     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+                 });
+                 const data = await res.json();
+                 if (data.ok) {
+                     revAuditoriaId = data.id;
+                     $('#btnExportarAuditoria').attr('data-audit-id', data.id);
+                     return true;
+                 } else {
+                     console.error('Guardado rechazado:', data.mensaje);
+                     alert('No se pudo guardar la auditoría en la base de datos: ' + (data.mensaje || 'error desconocido'));
+                     return false;
+                 }
+             } catch (e) {
+                 console.error('No se pudo guardar la auditoría: ', e);
+                 alert('Error de conexión al guardar la auditoría: ' + e.message);
+                 return false;
+             }
+         }
+
+         async function finalizarAuditoria() {
+             let esperados = 0;
+             let completos = 0;
+             let conDescuadre = 0;
+             const faltantesArr = [];
+             const descuadresArr = [];
+
+             const filasUnicas = [];
+             const vistas = new Set();
+             auditListaTeorica.forEach(i => {
+                 const { esConsumible } = auditClaveItem(i);
+                 const serie = String(i.numeroSerie || '').trim();
+                 const idUnico = esConsumible && serie ? ('SERIE:' + serie) : ('ID:' + i.id);
+                 if (!vistas.has(idUnico)) {
+                     vistas.add(idUnico);
+                     filasUnicas.push(i);
+                 }
+             });
+
+             filasUnicas.forEach(i => {
+                 const { clave, esConsumible } = auditClaveItem(i);
+                 const c = auditConteo[clave];
+                 const esperado = c ? c.esperado : 1;
+                 const escaneado = c ? c.escaneado : (auditEscaneados.has(i.id) ? 1 : 0);
+
+                 if (esConsumible) esperados += 1;
+                 else esperados += esperado;
+
+                 const est = c ? auditEstadoClave(c) : { tipo: escaneado ? 'ENCONTRADO' : 'FALTANTE', detalle: '' };
+
+                 if (est.tipo === 'ENCONTRADO') {
+                     completos++;
+                 } else if (est.tipo === 'SOBRANTE') {
+                     conDescuadre++;
+                     descuadresArr.push({ item: i, estado: 'SOBRANTE', dif: `+ ${escaneado - esperado}` });
+                 } else if (est.tipo === 'PARCIAL') {
+                     conDescuadre++;
+                     descuadresArr.push({ item: i, estado: 'PARCIAL', dif: `- ${esperado - escaneado}` });
+                     faltantesArr.push(i);
+                 } else {
+                     faltantesArr.push(i);
+                     descuadresArr.push({ item: i, estado: 'FALTANTE', dif: 'Faltante total' });
+                 }
+             });
+
+             $('#sumEsperados').text(esperados);
+             $('#sumEncontrados').text(completos);
+             $('#sumFaltantes').text(faltantesArr.length);
+             $('#sumSobrantes').text(conDescuadre);
+
+             let tbody = '';
+             if (descuadresArr.length === 0) {
+                 tbody = '<tr><td colspan="3" class="text-center text-success fw-bold py-4"><i class="bi bi-check-circle-fill me-1" style="font-size:1.5rem;"></i><br> Auditoría perfecta. Sin descuadres.</td></tr>';
+             } else {
+                 descuadresArr.forEach(d => {
+                     let badge = '';
+                     if (d.estado === 'SOBRANTE') badge = '<span class="badge bg-warning text-dark">SOBRANTE</span>';
+                     else if (d.estado === 'PARCIAL') badge = '<span class="badge bg-warning text-dark">FALTANTE PARCIAL</span>';
+                     else if (d.estado === 'FALTANTE') badge = '<span class="badge bg-danger">FALTANTE TOTAL</span>';
+
+                     tbody += `<tr>
+                         <td>${badge}</td>
+                         <td><strong>${d.item.idArticuloSap}</strong><br><small>${d.item.nombre}</small></td>
+                         <td class="fw-bold text-danger">${d.dif}</td>
+                     </tr>`;
+                 });
+             }
+              $('#tbodyDescuadresResumen').html(tbody);
+
+              const guardado = await guardarAuditoriaEnBD();
+
+              $('#auditRunScreen').hide();
+              $('#auditSummaryScreen').show();
+
+              $('#btnCancelarAuditoria').hide();
+              $('#btnFinalizarAuditoria').hide();
+              $('#btnCerrarResumen').show();
+              $('#btnExportarAuditoria').show();
+          }
+
+         function cerrarAuditoria() {
+             auditActiva = false;
+             auditBuffer = '';
+             auditConteo = {};
+             auditEscaneados.clear();
+             auditSobrantes = [];
+             auditListaTeorica = [];
+             auditCantSerieActual = '';
+             if (auditBuffTimer) { clearTimeout(auditBuffTimer); auditBuffTimer = null; }
+             if (auditCantInputTimer) { clearTimeout(auditCantInputTimer); auditCantInputTimer = null; }
+             $('#auditInputLector').val('');
+             $('#auditCantInput').val('');
+             $('#auditCantPanel').hide();
+             $('#auditCantAlertaDescuadre').addClass('d-none');
+             $('#auditTbody').html('');
+             $('#auditKPIEsperados').text('0');
+             $('#auditKPIEncontrados').text('0');
+             $('#auditKPIFaltantes').text('0');
+             $('#auditKPISobrantes').text('0');
+             $('#auditProgressBar').css('width', '0%');
+             $('#auditProgresoTxt').text('0% Completado');
+             $('#auditKPIEsperadosLabel').text('ESPERADOS (SISTEMA)');
+             $('#auditRunScreen').hide();
+             $('#auditConfigScreen').show();
+             $('#btnExportarAuditoria').hide();
+         }
+
+         function volverMenuAuditoria() {
+             auditActiva = false;
+             auditBuffer = '';
+             auditConteo = {};
+             auditEscaneados.clear();
+             auditSobrantes = [];
+             auditListaTeorica = [];
+             auditCantSerieActual = '';
+             if (auditBuffTimer) { clearTimeout(auditBuffTimer); auditBuffTimer = null; }
+             if (auditCantInputTimer) { clearTimeout(auditCantInputTimer); auditCantInputTimer = null; }
+             $('#auditInputLector').val('');
+             $('#auditCantInput').val('');
+             $('#auditCantPanel').hide();
+             $('#auditCantAlertaDescuadre').addClass('d-none');
+             $('#auditTbody').html('');
+             $('#auditKPIEsperados').text('0');
+             $('#auditKPIEncontrados').text('0');
+             $('#auditKPIFaltantes').text('0');
+             $('#auditKPISobrantes').text('0');
+             $('#auditProgressBar').css('width', '0%');
+             $('#auditProgresoTxt').text('0% Completado');
+             $('#auditKPIEsperadosLabel').text('ESPERADOS (SISTEMA)');
+             $('#auditRunScreen').hide();
+             $('#auditSummaryScreen').hide();
+             $('#auditConfigScreen').show();
+             $('#btnExportarAuditoria').hide();
+             $('#btnFinalizarAuditoria').hide();
+             $('#btnCerrarResumen').hide();
+             $('#btnCancelarAuditoria').show();
+         }
+
+         function exportarAuditoriaCSV() {
+             let csv = "REPORTE DE AUDITORIA DE INVENTARIO FISICO\n";
+             csv += `Fecha:,${new Date().toLocaleDateString('es-MX')} ${new Date().toLocaleTimeString('es-MX')}\n`;
+             csv += `Planta Auditada:,${auditPlantaSeleccionada || 'Todas las plantas'}\n`;
+             csv += `Tipo de Filtro:,${auditTipoFiltro}\n\n`;
+
+             const esperados = $('#auditKPIEsperados').text();
+             const encontrados = $('#auditKPIEncontrados').text();
+             const faltantesTotal = $('#auditKPIFaltantes').text();
+
+             csv += "RESUMEN DE CONTEO\n";
+             csv += `Total Esperados:,${esperados}\n`;
+             csv += `Total Encontrados:,${encontrados}\n`;
+             csv += `Total Faltantes:,${faltantesTotal}\n\n`;
+
+             csv += "DETALLE DE EQUIPOS\n";
+             csv += "Estado,SAP,Equipo,Serie,Asignacion,Planta_Ubicacion,Escaneado,Esperado\n";
+
+             const filasUnicas = [];
+             const vistas = new Set();
+             auditListaTeorica.forEach(i => {
+                 const { clave, esConsumible } = auditClaveItem(i);
+                 const serie = String(i.numeroSerie || '').trim();
+                 const idUnico = esConsumible && serie ? ('SERIE:' + serie) : ('ID:' + i.id);
+                 if (!vistas.has(idUnico)) {
+                     vistas.add(idUnico);
+                     filasUnicas.push(i);
+                 }
+             });
+
+             filasUnicas.forEach(i => {
+                 const { clave, esConsumible } = auditClaveItem(i);
+                 const c = auditConteo[clave];
+                 const esperado = c ? c.esperado : 1;
+                 const escaneado = c ? c.escaneado : (auditEscaneados.has(i.id) ? 1 : 0);
+                 const est = c ? auditEstadoClave(c) : { tipo: escaneado ? 'ENCONTRADO' : 'FALTANTE', detalle: '' };
+
+                 let estado = est.tipo;
+                 if (est.tipo === 'PARCIAL') estado = 'FALTANTE PARCIAL';
+                 else if (est.tipo === 'FALTANTE' && esperado > 1) estado = 'FALTANTE TOTAL';
+
+                 csv += `${estado},"${i.idArticuloSap}","${i.nombre}","${i.numeroSerie || ''}","${i.asignacion || 'Disponible'}","${i.planta} - ${i.ubicacion}",${escaneado},${esperado}\n`;
+             });
+
+             const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
+             const link = document.createElement("a");
+             link.href = URL.createObjectURL(blob);
+             link.download = `Reporte_Auditoria_${new Date().toISOString().split('T')[0]}.csv`;
+             link.click();
+         }
 </script>
