@@ -1,4 +1,6 @@
-﻿namespace Plataforma_CG.Models
+﻿using System.ComponentModel.DataAnnotations.Schema;
+
+namespace Plataforma_CG.Models
 {
     public class InventarioSistemas
     {
@@ -44,6 +46,10 @@
         public int Cantidad { get; set; }
         public DateTime Fecha { get; set; }
         public string Referencia { get; set; }
+        public string? AreaDestino { get; set; }
+        public DateTime? FechaEntrega { get; set; }
+        public DateTime? FechaFinVida { get; set; }
+        public DateTime? FechaDevolucion { get; set; }
     }
 
     public class RegistroHistorial
@@ -85,5 +91,52 @@
         public int Id { get; set; }
         public string Nombre { get; set; }
         public bool Activa { get; set; } = true;
+    }
+
+    [Table("AuditoriaInventario")]
+    public class AuditoriaInventario
+    {
+        public int Id { get; set; }
+        public DateTime Fecha { get; set; }
+        public string Planta { get; set; }
+        public string TipoFiltro { get; set; }
+        public string Usuario { get; set; }
+        public int Esperados { get; set; }
+        public int Encontrados { get; set; }
+        public int Faltantes { get; set; }
+        public int Sobrantes { get; set; }
+        public int Descuadres { get; set; }
+        public int TotalDescuadre { get; set; }
+        public bool Finalizada { get; set; }
+    }
+
+    [Table("AuditoriaInventarioDetalle")]
+    public class AuditoriaInventarioDetalle
+    {
+        public int Id { get; set; }
+        public int AuditoriaId { get; set; }
+        public int IdInventario { get; set; }
+        public string IdArticuloSap { get; set; }
+        public string Nombre { get; set; }
+        public string NumeroSerie { get; set; }
+        public string TipoArticulo { get; set; }
+        public int Esperado { get; set; }
+        public int Escaneado { get; set; }
+        public string Estado { get; set; }
+        public int Diferencia { get; set; }
+        public string Planta { get; set; }
+    }
+
+    [Table("AccionCorrectivaAuditoria")]
+    public class AccionCorrectivaAuditoria
+    {
+        public int Id { get; set; }
+        public int AuditoriaId { get; set; }
+        public int IdInventario { get; set; }
+        public string TipoAccion { get; set; }
+        public int Cantidad { get; set; }
+        public string Referencia { get; set; }
+        public string Usuario { get; set; }
+        public DateTime Fecha { get; set; }
     }
 }
