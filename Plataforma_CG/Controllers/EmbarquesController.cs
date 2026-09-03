@@ -9,7 +9,12 @@ using System.IO;
 using Microsoft.AspNetCore.Authorization;
 using ClosedXML.Excel;
 using System.Text.Json;
+using Plataforma_CG.ViewModels;
+using System.Globalization;
 using static Plataforma_CG.Models.Embarque;
+using MD = MigraDoc.DocumentObjectModel;
+using MDT = MigraDoc.DocumentObjectModel.Tables;
+using MDR = MigraDoc.Rendering;
 
 public class EmbarquesController : Controller
 {
@@ -143,125 +148,432 @@ public class EmbarquesController : Controller
         return View(embarques);
     }
 
-    // ============================================================ 
-    // 2. CREAR EMBARQUE – Listar órdenes autorizadas 
-    // ============================================================ 
+    // ============================================================
+    // CREAR EMBARQUE - PÁGINA INICIAL LIGERA
+    // ============================================================
+    [HttpGet]
     [Authorize(Roles = "Administracion de Ventas,Administrador")]
-    public async Task<IActionResult> Crear()
+    public async Task<IActionResult> Crear(CancellationToken cancellationToken)
     {
-        var ordenes = await _ovContext.OrdenVenta
-            .Where(o => o.Estatus == 5)
-            .Select(o => new OrdenVenta
+        // Solo obtenemos los conteos.
+        // Ya no cargamos miles de registros al abrir la página.
+        var totalOrdenes = await _ovContext.OrdenVenta
+            .AsNoTracking()
+            .CountAsync(o => o.Estatus == 5, cancellationToken);
+
+        var transferenciasYaEnEmbarque = await _qrContext.EmbarqueDocumento
+            .AsNoTracking()
+            .Where(d => d.TipoDocumento == "TRANSFERENCIA")
+            .Select(d => d.DocumentoId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var totalTransferencias = await _ovContext.Transferencias
+            .AsNoTracking()
+            .CountAsync(t =>
+                t.Estatus == 4 &&
+                !transferenciasYaEnEmbarque.Contains(t.Id),
+                cancellationToken);
+
+        var viewModel = new CrearEmbarqueViewModel
+        {
+            TotalOrdenes = totalOrdenes,
+            TotalTransferencias = totalTransferencias
+        };
+
+        return View(viewModel);
+    }
+
+    // ============================================================
+    // CONSULTAR OV DISPONIBLES CON FILTROS Y PAGINACIÓN
+    // ============================================================
+    [HttpGet]
+    [Authorize(Roles = "Administracion de Ventas,Administrador")]
+    public async Task<IActionResult> ObtenerOrdenesDisponibles(
+        string? busqueda,
+        string? cliente,
+        string? consecutivo,
+        string? ruta,
+        int pagina = 1,
+        int tamanoPagina = 50,
+        CancellationToken cancellationToken = default)
+    {
+        pagina = Math.Max(pagina, 1);
+        tamanoPagina = Math.Clamp(tamanoPagina, 10, 100);
+
+        busqueda = busqueda?.Trim();
+        cliente = cliente?.Trim();
+        consecutivo = consecutivo?.Trim();
+        ruta = ruta?.Trim();
+
+        // Agrupamos para evitar duplicados en caso de que ClienteSap
+        // tenga más de un registro para el mismo código.
+        var clientesSapQuery = _ovContext.ClienteSap
+            .AsNoTracking()
+            .GroupBy(c => c.Cliente)
+            .Select(g => new
+            {
+                Cliente = g.Key,
+                NombreCliente = g.Max(x => x.Nombrecliente)
+            });
+
+        var query =
+            from o in _ovContext.OrdenVenta.AsNoTracking()
+            join c in clientesSapQuery
+                on o.Cliente equals c.Cliente into clientes
+            from c in clientes.DefaultIfEmpty()
+            where o.Estatus == 5
+            select new OrdenDisponibleViewModel
             {
                 Id = o.Id,
-                Cliente = o.Cliente,
-                NombreCliente = _ovContext.ClienteSap
-                    .Where(c => c.Cliente == o.Cliente)
-                    .Select(c => c.Nombrecliente)
-                    .FirstOrDefault() ?? o.Cliente,
-                Consecutivo = o.Consecutivo,
-                Ruta = o.Ruta
+                Cliente = o.Cliente ?? "",
+                NombreCliente =
+                    c != null && c.NombreCliente != null
+                        ? c.NombreCliente
+                        : o.Cliente ?? "",
+                Consecutivo = o.Consecutivo ?? "",
+                Ruta = o.Ruta ?? ""
+            };
+
+        if (!string.IsNullOrWhiteSpace(busqueda))
+        {
+            query = query.Where(x =>
+                x.Id.ToString().Contains(busqueda) ||
+                x.Cliente.Contains(busqueda) ||
+                x.NombreCliente.Contains(busqueda) ||
+                x.Consecutivo.Contains(busqueda) ||
+                x.Ruta.Contains(busqueda));
+        }
+
+        if (!string.IsNullOrWhiteSpace(cliente))
+        {
+            query = query.Where(x =>
+                x.Cliente.Contains(cliente) ||
+                x.NombreCliente.Contains(cliente));
+        }
+
+        if (!string.IsNullOrWhiteSpace(consecutivo))
+        {
+            query = query.Where(x => x.Consecutivo.Contains(consecutivo));
+        }
+
+        if (!string.IsNullOrWhiteSpace(ruta))
+        {
+            query = query.Where(x => x.Ruta.Contains(ruta));
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderByDescending(x => x.Id)
+            .Skip((pagina - 1) * tamanoPagina)
+            .Take(tamanoPagina)
+            .ToListAsync(cancellationToken);
+
+        return Json(new
+        {
+            items,
+            total,
+            pagina,
+            tamanoPagina,
+            hayMas = pagina * tamanoPagina < total
+        });
+    }
+
+    // ============================================================
+    // CONSULTAR TRANSFERENCIAS CON FILTROS Y PAGINACIÓN
+    // ============================================================
+    [HttpGet]
+    [Authorize(Roles = "Administracion de Ventas,Administrador")]
+    public async Task<IActionResult> ObtenerTransferenciasDisponibles(
+        string? busqueda,
+        string? sucursal,
+        string? consecutivo,
+        string? fecha,
+        int pagina = 1,
+        int tamanoPagina = 50,
+        CancellationToken cancellationToken = default)
+    {
+        pagina = Math.Max(pagina, 1);
+        tamanoPagina = Math.Clamp(tamanoPagina, 10, 100);
+
+        busqueda = busqueda?.Trim();
+        sucursal = sucursal?.Trim();
+        consecutivo = consecutivo?.Trim();
+        fecha = fecha?.Trim();
+
+        // Transferencias que ya están ligadas a cualquier embarque.
+        // Estas ya no deben volver a salir como disponibles.
+        var transferenciasYaEnEmbarque = await _qrContext.EmbarqueDocumento
+            .AsNoTracking()
+            .Where(d => d.TipoDocumento == "TRANSFERENCIA")
+            .Select(d => d.DocumentoId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var query = _ovContext.Transferencias
+            .AsNoTracking()
+            .Where(t =>
+                t.Estatus == 4 &&
+                !transferenciasYaEnEmbarque.Contains(t.Id));
+
+        if (!string.IsNullOrWhiteSpace(busqueda))
+        {
+            query = query.Where(t =>
+                t.Id.ToString().Contains(busqueda) ||
+                (t.Sucursal != null && t.Sucursal.Contains(busqueda)) ||
+                (t.Consecutivo != null && t.Consecutivo.Contains(busqueda)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(sucursal))
+        {
+            query = query.Where(t =>
+                t.Sucursal != null &&
+                t.Sucursal.Contains(sucursal));
+        }
+
+        if (!string.IsNullOrWhiteSpace(consecutivo))
+        {
+            query = query.Where(t =>
+                t.Consecutivo != null &&
+                t.Consecutivo.Contains(consecutivo));
+        }
+
+        if (!string.IsNullOrWhiteSpace(fecha))
+        {
+            var culturaMexico = CultureInfo.GetCultureInfo("es-MX");
+
+            if (DateTime.TryParse(
+                fecha,
+                culturaMexico,
+                DateTimeStyles.None,
+                out var fechaFiltro))
+            {
+                var fechaInicio = fechaFiltro.Date;
+                var fechaFin = fechaInicio.AddDays(1);
+
+                query = query.Where(t =>
+                    t.FechaSolicitud >= fechaInicio &&
+                    t.FechaSolicitud < fechaFin);
+            }
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+
+        var datos = await query
+            .OrderByDescending(t => t.FechaSolicitud)
+            .ThenByDescending(t => t.Id)
+            .Skip((pagina - 1) * tamanoPagina)
+            .Take(tamanoPagina)
+            .Select(t => new
+            {
+                t.Id,
+                Sucursal = t.Sucursal ?? "",
+                Consecutivo = t.Consecutivo ?? "",
+                t.FechaSolicitud
             })
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
-        var transferencias = await _ovContext.Transferencias
-            .Where(t => t.Estatus == 5)
-            .ToListAsync();
+        var items = datos.Select(t => new TransferenciaDisponibleViewModel
+        {
+            Id = t.Id,
+            Sucursal = t.Sucursal,
+            Consecutivo = t.Consecutivo,
+            FechaSolicitud = t.FechaSolicitud,
+            FechaSolicitudTexto = t.FechaSolicitud?.ToString("dd/MM/yyyy") ?? ""
+        }).ToList();
 
-        ViewBag.Transferencias = transferencias;
-
-        return View(ordenes);
+        return Json(new
+        {
+            items,
+            total,
+            pagina,
+            tamanoPagina,
+            hayMas = pagina * tamanoPagina < total
+        });
     }
 
 
-    // ============================================================ 
-    // 3. GUARDAR EMBARQUE NUEVO 
-    // ============================================================ 
+    // ============================================================
+    // GUARDAR EMBARQUE NUEVO - OPTIMIZADO
+    // ============================================================
     [HttpPost]
+    [ValidateAntiForgeryToken]
     [Authorize(Roles = "Administracion de Ventas,Administrador")]
     public async Task<IActionResult> Crear(
-    List<int> ordenesSeleccionadas,
-    List<int> transferenciasSeleccionadas,
-    string? nombreEmbarque,
-    string? observaciones)
+        List<int>? ordenesSeleccionadas,
+        List<int>? transferenciasSeleccionadas,
+        string? nombreEmbarque,
+        string? observaciones,
+        CancellationToken cancellationToken)
     {
-        if ((ordenesSeleccionadas == null || !ordenesSeleccionadas.Any()) &&
-            (transferenciasSeleccionadas == null || !transferenciasSeleccionadas.Any()))
+        ordenesSeleccionadas = ordenesSeleccionadas?
+            .Where(id => id > 0)
+            .Distinct()
+            .ToList() ?? new List<int>();
+
+        transferenciasSeleccionadas = transferenciasSeleccionadas?
+            .Where(id => id > 0)
+            .Distinct()
+            .ToList() ?? new List<int>();
+
+        if (!ordenesSeleccionadas.Any() &&
+            !transferenciasSeleccionadas.Any())
         {
-            TempData["Error"] = "Debes seleccionar al menos una orden o transferencia.";
-            return RedirectToAction("Crear");
+            TempData["Error"] =
+                "Debes seleccionar al menos una orden o transferencia.";
+
+            return RedirectToAction(nameof(Crear));
         }
 
         nombreEmbarque = nombreEmbarque?.Trim();
         observaciones = observaciones?.Trim();
 
-        if (!string.IsNullOrWhiteSpace(nombreEmbarque) && nombreEmbarque.Length > 150)
+        if (!string.IsNullOrWhiteSpace(nombreEmbarque) &&
+            nombreEmbarque.Length > 150)
         {
-            TempData["Error"] = "El nombre del embarque no puede tener más de 150 caracteres.";
-            return RedirectToAction("Crear");
+            TempData["Error"] =
+                "El nombre del embarque no puede tener más de 150 caracteres.";
+
+            return RedirectToAction(nameof(Crear));
         }
 
-        var embarque = new Embarque
+        // Una sola consulta para todas las órdenes.
+        var ordenes = ordenesSeleccionadas.Any()
+            ? await _ovContext.OrdenVenta
+                .Where(o =>
+                    ordenesSeleccionadas.Contains(o.Id) &&
+                    o.Estatus == 5)
+                .ToListAsync(cancellationToken)
+            : new List<OrdenVenta>();
+
+        // Una sola consulta para todas las transferencias.
+        var transferenciasYaEnEmbarqueSeleccionadas = transferenciasSeleccionadas.Any()
+            ? await _qrContext.EmbarqueDocumento
+                .AsNoTracking()
+                .Where(d =>
+                    d.TipoDocumento == "TRANSFERENCIA" &&
+                    transferenciasSeleccionadas.Contains(d.DocumentoId))
+                .Select(d => d.DocumentoId)
+                .Distinct()
+                .ToListAsync(cancellationToken)
+            : new List<int>();
+
+        if (transferenciasYaEnEmbarqueSeleccionadas.Any())
         {
-            FechaCreacion = DateTime.Now,
-            UsuarioGenera = User.Identity?.Name ?? "Sistema",
-            Estatus = 1,
+            TempData["Error"] =
+                "Una o más transferencias seleccionadas ya pertenecen a otro embarque. Actualiza la página e intenta nuevamente.";
 
-            // NUEVO
-            NombreEmbarque = string.IsNullOrWhiteSpace(nombreEmbarque) ? null : nombreEmbarque,
+            return RedirectToAction(nameof(Crear));
+        }
 
-            Observaciones = observaciones,
-            CalidadAprobada = false,
-            DocumentacionAprobada = false,
-            DocumentacionCalidadAprobada = false
-        };
+        var transferencias = transferenciasSeleccionadas.Any()
+            ? await _ovContext.Transferencias
+                .Where(t =>
+                    transferenciasSeleccionadas.Contains(t.Id) &&
+                    t.Estatus == 4)
+                .ToListAsync(cancellationToken)
+            : new List<Transferencia>();
 
-        _qrContext.Embarque.Add(embarque);
-        await _qrContext.SaveChangesAsync();
-
-        if (ordenesSeleccionadas != null)
+        // Evita crear el embarque si algún registro ya fue utilizado
+        // por otro usuario mientras esta pantalla estaba abierta.
+        if (ordenes.Count != ordenesSeleccionadas.Count)
         {
-            foreach (var ovId in ordenesSeleccionadas)
+            TempData["Error"] =
+                "Una o más órdenes seleccionadas ya no están disponibles. Actualiza la página e intenta nuevamente.";
+
+            return RedirectToAction(nameof(Crear));
+        }
+
+        if (transferencias.Count != transferenciasSeleccionadas.Count)
+        {
+            TempData["Error"] =
+                "Una o más transferencias seleccionadas ya no están disponibles. Actualiza la página e intenta nuevamente.";
+
+            return RedirectToAction(nameof(Crear));
+        }
+
+        var ahora = DateTime.Now;
+
+        await using var transaccionQr =
+            await _qrContext.Database.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            var embarque = new Embarque
             {
-                _qrContext.EmbarqueDocumento.Add(new EmbarqueDocumento
+                FechaCreacion = ahora,
+                UsuarioGenera = User.Identity?.Name ?? "Sistema",
+                Estatus = 1,
+                NombreEmbarque = string.IsNullOrWhiteSpace(nombreEmbarque)
+                    ? null
+                    : nombreEmbarque,
+                Observaciones = observaciones,
+                CalidadAprobada = false,
+                DocumentacionAprobada = false,
+                DocumentacionCalidadAprobada = false
+            };
+
+            _qrContext.Embarque.Add(embarque);
+
+            // Necesitamos este guardado para obtener embarque.Id.
+            await _qrContext.SaveChangesAsync(cancellationToken);
+
+            var documentos = new List<EmbarqueDocumento>(
+                ordenes.Count + transferencias.Count);
+
+            documentos.AddRange(
+                ordenes.Select(o => new EmbarqueDocumento
                 {
                     EmbarqueId = embarque.Id,
-                    DocumentoId = ovId,
+                    DocumentoId = o.Id,
                     TipoDocumento = "OV"
-                });
+                }));
 
-                var orden = await _ovContext.OrdenVenta.FindAsync(ovId);
-                if (orden != null)
-                {
-                    orden.Estatus = 6;
-                    orden.FechaEmbarque = DateTime.Now;
-                }
-            }
-        }
-
-        if (transferenciasSeleccionadas != null)
-        {
-            foreach (var trId in transferenciasSeleccionadas)
-            {
-                _qrContext.EmbarqueDocumento.Add(new EmbarqueDocumento
+            documentos.AddRange(
+                transferencias.Select(t => new EmbarqueDocumento
                 {
                     EmbarqueId = embarque.Id,
-                    DocumentoId = trId,
+                    DocumentoId = t.Id,
                     TipoDocumento = "TRANSFERENCIA"
-                });
+                }));
 
-                var transferencia = await _ovContext.Transferencias.FindAsync(trId);
-                if (transferencia != null)
-                {
-                    transferencia.Estatus = 6;
-                }
+            // Una sola llamada AddRange.
+            _qrContext.EmbarqueDocumento.AddRange(documentos);
+
+            // Actualización en memoria de todos los registros recuperados
+            // en las dos consultas anteriores.
+            foreach (var orden in ordenes)
+            {
+                orden.Estatus = 6;
+                orden.FechaEmbarque = ahora;
             }
+
+            // IMPORTANTE:
+            // Las transferencias NO se cambian de estatus aquí.
+            // Se quedan en 4 para que su flujo externo pueda pasarlas a 5.
+            // El candado para que no vuelvan a aparecer es la relación en EmbarqueDocumento.
+
+            // Un guardado por DbContext.
+            await _qrContext.SaveChangesAsync(cancellationToken);
+            await _ovContext.SaveChangesAsync(cancellationToken);
+
+            await transaccionQr.CommitAsync(cancellationToken);
+
+            return RedirectToAction("Detalle", new
+            {
+                id = embarque.Id
+            });
         }
+        catch
+        {
+            await transaccionQr.RollbackAsync(cancellationToken);
 
-        await _qrContext.SaveChangesAsync();
-        await _ovContext.SaveChangesAsync();
+            TempData["Error"] =
+                "No fue posible crear el embarque. Ningún cambio del embarque fue confirmado.";
 
-        return RedirectToAction("Detalle", new { id = embarque.Id });
+            return RedirectToAction(nameof(Crear));
+        }
     }
 
 
@@ -331,6 +643,14 @@ public class EmbarquesController : Controller
 
         ViewBag.OrdenesVenta = ordenesReal;
         ViewBag.Transferencias = transferenciasReal;
+
+        var fotosCalidad = await _qrContext.Set<Embarque.EmbarqueCalidadFoto>()
+            .AsNoTracking()
+            .Where(f => f.EmbarqueId == embarque.Id)
+            .OrderByDescending(f => f.FechaRegistro)
+            .ToListAsync();
+
+        ViewBag.FotosCalidad = fotosCalidad;
 
         return View(embarque);
     }
@@ -562,11 +882,9 @@ public class EmbarquesController : Controller
                 }
                 else if (doc.TipoDocumento == "TRANSFERENCIA")
                 {
-                    var tr = await _ovContext.Transferencias
-                        .FirstOrDefaultAsync(x => x.Id == doc.DocumentoId);
-
-                    if (tr != null)
-                        tr.Estatus = 7;
+                    // No se modifica el estatus de la transferencia.
+                    // El seguimiento del viaje se maneja con el estatus del Embarque.
+                    // El flujo externo de Transferencias sigue controlando su 4 → 5.
                 }
             }
 
@@ -964,108 +1282,12 @@ public class EmbarquesController : Controller
         }
     }
 
-    public async Task<IActionResult> Calidad(
-        string? busqueda,
-        DateTime? fechaInicio,
-        DateTime? fechaFin,
-
-        // Filtros exclusivos para historial
-        string? busquedaHistorial,
-        DateTime? fechaInicioHistorial,
-        DateTime? fechaFinHistorial)
+    private async Task<Dictionary<int, object>> ConstruirEmbarquesDocumentosAsync(
+        IEnumerable<Embarque> embarques)
     {
-        // ============================================================
-        // LISTADO PRINCIPAL: SOLO PENDIENTES DE CALIDAD
-        // ============================================================
-        var query = _qrContext.Embarque
-            .AsNoTracking()
-            .Include(e => e.Documentos)
-            .Include(e => e.QR)
-            .Where(e =>
-                (e.Estatus == 1 || e.Estatus == 7) &&
-                e.CalidadAprobada != true
-            );
-
-        if (!string.IsNullOrWhiteSpace(busqueda))
-        {
-            busqueda = busqueda.Trim();
-
-            query = query.Where(e =>
-                e.Consecutivo.Contains(busqueda) ||
-                e.Id.ToString().Contains(busqueda) ||
-                (e.NombreEmbarque != null && e.NombreEmbarque.Contains(busqueda))
-            );
-        }
-
-        if (fechaInicio.HasValue)
-        {
-            var inicio = fechaInicio.Value.Date;
-            query = query.Where(e => e.FechaCreacion >= inicio);
-        }
-
-        if (fechaFin.HasValue)
-        {
-            var fin = fechaFin.Value.Date.AddDays(1).AddTicks(-1);
-            query = query.Where(e => e.FechaCreacion <= fin);
-        }
-
-        var embarques = await query
-            .OrderByDescending(e => e.FechaCreacion)
-            .ToListAsync();
-
-
-        // ============================================================
-        // HISTORIAL: FORMULARIOS YA VALIDADOS
-        // NO CARGA NADA HASTA QUE TENGA FECHA INICIO Y FECHA FIN
-        // ============================================================
-        var historialCalidad = new List<Embarque>();
-
-        bool buscoHistorial =
-            fechaInicioHistorial.HasValue &&
-            fechaFinHistorial.HasValue;
-
-        if (buscoHistorial)
-        {
-            var inicioHistorial = fechaInicioHistorial.Value.Date;
-            var finHistorial = fechaFinHistorial.Value.Date.AddDays(1).AddTicks(-1);
-
-            var queryHistorial = _qrContext.Embarque
-                .AsNoTracking()
-                .Include(e => e.Documentos)
-                .Include(e => e.QR)
-                .Where(e => e.CalidadAprobada == true)
-                .Where(e =>
-                    (e.FechaValidacionCalidad ?? e.FechaCreacion) >= inicioHistorial &&
-                    (e.FechaValidacionCalidad ?? e.FechaCreacion) <= finHistorial
-                );
-
-            if (!string.IsNullOrWhiteSpace(busquedaHistorial))
-            {
-                busquedaHistorial = busquedaHistorial.Trim();
-
-                queryHistorial = queryHistorial.Where(e =>
-                    e.Consecutivo.Contains(busquedaHistorial) ||
-                    e.Id.ToString().Contains(busquedaHistorial) ||
-                    (e.NombreEmbarque != null && e.NombreEmbarque.Contains(busquedaHistorial))
-                );
-            }
-
-            historialCalidad = await queryHistorial
-                .OrderByDescending(e => e.FechaValidacionCalidad ?? e.FechaCreacion)
-                .ToListAsync();
-        }
-
-
-        // ============================================================
-        // DOCUMENTOS PARA PENDIENTES + HISTORIAL
-        // ============================================================
         var embarquesDocumentos = new Dictionary<int, object>();
 
-        var todosLosEmbarques = new List<Embarque>();
-        todosLosEmbarques.AddRange(embarques);
-        todosLosEmbarques.AddRange(historialCalidad);
-
-        foreach (var embarque in todosLosEmbarques)
+        foreach (var embarque in embarques)
         {
             var ordenesIds = embarque.Documentos?
                 .Where(d => d.TipoDocumento == "OV")
@@ -1114,13 +1336,63 @@ public class EmbarquesController : Controller
             };
         }
 
+        return embarquesDocumentos;
+    }
+
+    public async Task<IActionResult> Calidad(
+        string? busqueda,
+        DateTime? fechaInicio,
+        DateTime? fechaFin)
+    {
+        // ============================================================
+        // LISTADO PRINCIPAL: SOLO PENDIENTES DE CALIDAD
+        // ============================================================
+        var query = _qrContext.Embarque
+            .AsNoTracking()
+            .Include(e => e.Documentos)
+            .Include(e => e.QR)
+            .Where(e =>
+                (e.Estatus == 1 || e.Estatus == 7) &&
+                e.CalidadAprobada != true
+            );
+
+        if (!string.IsNullOrWhiteSpace(busqueda))
+        {
+            busqueda = busqueda.Trim();
+
+            query = query.Where(e =>
+                e.Consecutivo.Contains(busqueda) ||
+                e.Id.ToString().Contains(busqueda) ||
+                (e.NombreEmbarque != null && e.NombreEmbarque.Contains(busqueda))
+            );
+        }
+
+        if (fechaInicio.HasValue)
+        {
+            var inicio = fechaInicio.Value.Date;
+            query = query.Where(e => e.FechaCreacion >= inicio);
+        }
+
+        if (fechaFin.HasValue)
+        {
+            var fin = fechaFin.Value.Date.AddDays(1).AddTicks(-1);
+            query = query.Where(e => e.FechaCreacion <= fin);
+        }
+
+        var embarques = await query
+            .OrderByDescending(e => e.FechaCreacion)
+            .ToListAsync();
+
+
+        var embarquesDocumentos = await ConstruirEmbarquesDocumentosAsync(embarques);
+
         // ============================================================
         // PRODUCTOS / SKUS PARA CAPTURA DE TEMPERATURA POR EMBARQUE
         // ============================================================
         var productosTemperaturaCalidad =
             new Dictionary<int, List<EmbarqueProductoTemperaturaItemVm>>();
 
-        foreach (var embarque in todosLosEmbarques)
+        foreach (var embarque in embarques)
         {
             productosTemperaturaCalidad[embarque.Id] =
                 await ConstruirProductosTemperaturaCalidad(embarque.Id);
@@ -1129,15 +1401,64 @@ public class EmbarquesController : Controller
         ViewBag.ProductosTemperaturaCalidad = productosTemperaturaCalidad;
 
 
-        // ============================================================
-        // FOTOS DE CALIDAD PARA HISTORIAL
-        // ============================================================
-        var fotosCalidadHistorial = new Dictionary<int, List<Embarque.EmbarqueCalidadFoto>>();
+        ViewBag.EmbarquesDocumentos = embarquesDocumentos;
+        ViewBag.EsHistorial = false;
+
+        return View(embarques);
+    }
+
+    public async Task<IActionResult> HistorialCalidad(
+        string? busquedaHistorial,
+        DateTime? fechaInicioHistorial,
+        DateTime? fechaFinHistorial)
+    {
+        var historialCalidad = new List<Embarque>();
+        var buscoHistorial = fechaInicioHistorial.HasValue && fechaFinHistorial.HasValue;
+
+        if (buscoHistorial)
+        {
+            var inicioHistorial = fechaInicioHistorial.Value.Date;
+            var finHistorial = fechaFinHistorial.Value.Date.AddDays(1).AddTicks(-1);
+
+            var queryHistorial = _qrContext.Embarque
+                .AsNoTracking()
+                .Include(e => e.Documentos)
+                .Include(e => e.QR)
+                .Where(e => e.CalidadAprobada == true)
+                .Where(e =>
+                    (e.FechaValidacionCalidad ?? e.FechaCreacion) >= inicioHistorial &&
+                    (e.FechaValidacionCalidad ?? e.FechaCreacion) <= finHistorial);
+
+            if (!string.IsNullOrWhiteSpace(busquedaHistorial))
+            {
+                busquedaHistorial = busquedaHistorial.Trim();
+                queryHistorial = queryHistorial.Where(e =>
+                    e.Consecutivo.Contains(busquedaHistorial) ||
+                    e.Id.ToString().Contains(busquedaHistorial) ||
+                    (e.NombreEmbarque != null && e.NombreEmbarque.Contains(busquedaHistorial)));
+            }
+
+            historialCalidad = await queryHistorial
+                .OrderByDescending(e => e.FechaValidacionCalidad ?? e.FechaCreacion)
+                .ToListAsync();
+        }
+
+        var embarquesDocumentos = await ConstruirEmbarquesDocumentosAsync(historialCalidad);
+        var productosTemperaturaCalidad =
+            new Dictionary<int, List<EmbarqueProductoTemperaturaItemVm>>();
+
+        foreach (var embarque in historialCalidad)
+        {
+            productosTemperaturaCalidad[embarque.Id] =
+                await ConstruirProductosTemperaturaCalidad(embarque.Id);
+        }
+
+        var fotosCalidadHistorial =
+            new Dictionary<int, List<Embarque.EmbarqueCalidadFoto>>();
 
         if (historialCalidad.Any())
         {
             var idsHistorial = historialCalidad.Select(x => x.Id).ToList();
-
             var fotos = await _qrContext.Set<Embarque.EmbarqueCalidadFoto>()
                 .AsNoTracking()
                 .Where(f => idsHistorial.Contains(f.EmbarqueId))
@@ -1149,11 +1470,9 @@ public class EmbarquesController : Controller
                 .ToDictionary(g => g.Key, g => g.ToList());
         }
 
-
-        // Pendientes
+        ViewBag.EsHistorial = true;
         ViewBag.EmbarquesDocumentos = embarquesDocumentos;
-
-        // Historial
+        ViewBag.ProductosTemperaturaCalidad = productosTemperaturaCalidad;
         ViewBag.HistorialCalidad = historialCalidad;
         ViewBag.BuscoHistorialCalidad = buscoHistorial;
         ViewBag.BusquedaHistorialCalidad = busquedaHistorial;
@@ -1161,7 +1480,7 @@ public class EmbarquesController : Controller
         ViewBag.FechaFinHistorialCalidad = fechaFinHistorial?.ToString("yyyy-MM-dd");
         ViewBag.FotosCalidadHistorial = fotosCalidadHistorial;
 
-        return View(embarques);
+        return View("HistorialCalidad", historialCalidad);
     }
 
     [HttpPost]
@@ -1198,6 +1517,103 @@ public class EmbarquesController : Controller
             return RedirectToAction("Calidad");
         }
 
+        const decimal temperaturaMinima = -25m;
+        const decimal temperaturaMaxima = 4m;
+
+        // ============================================================
+        // VALIDAR TEMPERATURAS GENERALES
+        // ============================================================
+        var temperaturasGenerales = new[]
+        {
+    new
+    {
+        Nombre = "Temperatura de programación",
+        Valor = temperaturaProgramacion
+    },
+    new
+    {
+        Nombre = "Temperatura de unidad al inicio",
+        Valor = temperaturaUnidadInicio
+    },
+    new
+    {
+        Nombre = "Temperatura de unidad al término",
+        Valor = temperaturaUnidadTermino
+    }
+};
+
+        var temperaturaGeneralFueraRango =
+            temperaturasGenerales.FirstOrDefault(x =>
+                x.Valor.HasValue &&
+                (
+                    x.Valor.Value < temperaturaMinima ||
+                    x.Valor.Value > temperaturaMaxima
+                ));
+
+        if (temperaturaGeneralFueraRango != null)
+        {
+            TempData["Error"] =
+                $"{temperaturaGeneralFueraRango.Nombre} " +
+                $"({temperaturaGeneralFueraRango.Valor:0.##} °C) " +
+                $"está fuera del rango permitido. " +
+                $"La temperatura debe estar entre -25 °C y 4 °C.";
+
+            return RedirectToAction("Calidad");
+        }
+
+        // ============================================================
+        // VALIDAR TEMPERATURAS DE TARIMAS / PRODUCTOS
+        // ============================================================
+        var productosTemperatura =
+            await ConstruirProductosTemperaturaCalidad(id);
+
+        var temperaturasFueraRango = productosTemperatura
+            .Where(x =>
+                x.Temperatura.HasValue &&
+                (
+                    x.Temperatura.Value < temperaturaMinima ||
+                    x.Temperatura.Value > temperaturaMaxima
+                ))
+            .ToList();
+
+        if (temperaturasFueraRango.Any())
+        {
+            var tarimas = temperaturasFueraRango
+                .Select(x =>
+                    string.IsNullOrWhiteSpace(x.Tarima)
+                        ? "Sin código"
+                        : x.Tarima.Trim())
+                .Distinct()
+                .Take(5)
+                .ToList();
+
+            TempData["Error"] =
+                $"No se puede validar Calidad del embarque #{embarque.Consecutivo}. " +
+                $"Existen temperaturas fuera del rango permitido de -25 °C a 4 °C. " +
+                $"Tarima(s): {string.Join(", ", tarimas)}.";
+
+            return RedirectToAction("Calidad");
+        }
+
+        // ============================================================
+        // COMPROBAR TEMPERATURAS FALTANTES
+        // ============================================================
+        if (productosTemperatura.Any())
+        {
+            var faltantes = productosTemperatura
+                .Where(x => !x.Temperatura.HasValue)
+                .ToList();
+
+            if (faltantes.Any())
+            {
+                TempData["Error"] =
+                    $"No se puede validar Calidad del embarque #{embarque.Consecutivo}. " +
+                    $"Faltan temperaturas por capturar en {faltantes.Count} SKU(s).";
+
+                return RedirectToAction("Calidad");
+            }
+        }
+
         embarque.SalidaTipo = salidaTipo;
         embarque.PlacaTransporte = placaTransporte;
         embarque.TemperaturaProgramacion = temperaturaProgramacion;
@@ -1227,24 +1643,6 @@ public class EmbarquesController : Controller
             embarque.DocumentacionCalidadAprobada == true
                 ? 7
                 : 1;
-
-        var productosTemperatura = await ConstruirProductosTemperaturaCalidad(id);
-
-        if (productosTemperatura.Any())
-        {
-            var faltantes = productosTemperatura
-                .Where(x => !x.Temperatura.HasValue)
-                .ToList();
-
-            if (faltantes.Any())
-            {
-                TempData["Error"] =
-                    $"No se puede validar Calidad del embarque #{embarque.Consecutivo}. " +
-                    $"Faltan temperaturas por capturar en {faltantes.Count} SKU(s).";
-
-                return RedirectToAction("Calidad");
-            }
-        }
 
         if (fotosCalidad != null && fotosCalidad.Any())
         {
@@ -1382,7 +1780,7 @@ public class EmbarquesController : Controller
                     .Distinct()
                     .Count(),
 
-                     Detalles = p.Productos
+                    Detalles = p.Productos
                     .OrderBy(d => d.Id)
                     .Select(d => new
                     {
@@ -1500,12 +1898,7 @@ public class EmbarquesController : Controller
     public async Task<IActionResult> Documentacion(
         string? busqueda,
         DateTime? fechaInicio,
-        DateTime? fechaFin,
-
-        // Filtros exclusivos para historial
-        string? busquedaHistorial,
-        DateTime? fechaInicioHistorial,
-        DateTime? fechaFinHistorial)
+        DateTime? fechaFin)
     {
         // ============================================================
         // LISTADO PRINCIPAL: SOLO PENDIENTES DE DOCUMENTACIÓN LOGÍSTICA
@@ -1548,15 +1941,19 @@ public class EmbarquesController : Controller
             .ToListAsync();
 
 
-        // ============================================================
-        // HISTORIAL: DOCUMENTACIÓN LOGÍSTICA YA VALIDADA
-        // NO CARGA NADA HASTA QUE TENGA FECHA INICIO Y FECHA FIN
-        // ============================================================
-        var historialDocumentacion = new List<Embarque>();
+        ViewBag.EmbarquesDocumentos = await ConstruirEmbarquesDocumentosAsync(embarques);
+        ViewBag.EsHistorial = false;
 
-        bool buscoHistorial =
-            fechaInicioHistorial.HasValue &&
-            fechaFinHistorial.HasValue;
+        return View(embarques);
+    }
+
+    public async Task<IActionResult> HistorialDocumentacion(
+        string? busquedaHistorial,
+        DateTime? fechaInicioHistorial,
+        DateTime? fechaFinHistorial)
+    {
+        var historialDocumentacion = new List<Embarque>();
+        var buscoHistorial = fechaInicioHistorial.HasValue && fechaFinHistorial.HasValue;
 
         if (buscoHistorial)
         {
@@ -1571,18 +1968,15 @@ public class EmbarquesController : Controller
                 .Where(e => e.DocumentacionAprobada == true)
                 .Where(e =>
                     (e.FechaValidacionDocumentacion ?? e.FechaCreacion) >= inicioHistorial &&
-                    (e.FechaValidacionDocumentacion ?? e.FechaCreacion) <= finHistorial
-                );
+                    (e.FechaValidacionDocumentacion ?? e.FechaCreacion) <= finHistorial);
 
             if (!string.IsNullOrWhiteSpace(busquedaHistorial))
             {
                 busquedaHistorial = busquedaHistorial.Trim();
-
                 queryHistorial = queryHistorial.Where(e =>
                     e.Consecutivo.Contains(busquedaHistorial) ||
                     e.Id.ToString().Contains(busquedaHistorial) ||
-                    (e.NombreEmbarque != null && e.NombreEmbarque.Contains(busquedaHistorial))
-                );
+                    (e.NombreEmbarque != null && e.NombreEmbarque.Contains(busquedaHistorial)));
             }
 
             historialDocumentacion = await queryHistorial
@@ -1590,82 +1984,32 @@ public class EmbarquesController : Controller
                 .ToListAsync();
         }
 
-
-        // ============================================================
-        // DOCUMENTOS PARA PENDIENTES + HISTORIAL
-        // ============================================================
-        var embarquesDocumentos = new Dictionary<int, object>();
-
-        var todosLosEmbarques = new List<Embarque>();
-        todosLosEmbarques.AddRange(embarques);
-        todosLosEmbarques.AddRange(historialDocumentacion);
-
-        foreach (var embarque in todosLosEmbarques)
-        {
-            var ordenesIds = embarque.Documentos?
-                .Where(d => d.TipoDocumento == "OV")
-                .Select(d => d.DocumentoId)
-                .ToList() ?? new List<int>();
-
-            var transferenciasIds = embarque.Documentos?
-                .Where(d => d.TipoDocumento == "TRANSFERENCIA")
-                .Select(d => d.DocumentoId)
-                .ToList() ?? new List<int>();
-
-            var ordenesReal = await _ovContext.OrdenVenta
-                .AsNoTracking()
-                .Where(o => ordenesIds.Contains(o.Id))
-                .Select(o => new
-                {
-                    o.Id,
-                    o.Consecutivo,
-                    o.Ruta,
-                    CodigoCliente = o.Cliente,
-                    NombreCliente = _ovContext.ClienteSap
-                        .Where(c => c.Cliente == o.Cliente)
-                        .Select(c => c.Nombrecliente)
-                        .FirstOrDefault()
-                })
-                .ToListAsync();
-
-            var transferenciasReal = await _ovContext.Transferencias
-                .AsNoTracking()
-                .Where(t => transferenciasIds.Contains(t.Id))
-                .Select(t => new
-                {
-                    t.Id,
-                    t.Consecutivo,
-                    t.Sucursal,
-                    t.FechaSolicitud,
-                    t.UsuarioSolicita
-                })
-                .ToListAsync();
-
-            embarquesDocumentos[embarque.Id] = new
-            {
-                OrdenesVenta = ordenesReal,
-                Transferencias = transferenciasReal
-            };
-        }
-
-        ViewBag.EmbarquesDocumentos = embarquesDocumentos;
-
+        ViewBag.EsHistorial = true;
+        ViewBag.EmbarquesDocumentos =
+            await ConstruirEmbarquesDocumentosAsync(historialDocumentacion);
         ViewBag.HistorialDocumentacion = historialDocumentacion;
         ViewBag.BuscoHistorialDocumentacion = buscoHistorial;
         ViewBag.BusquedaHistorialDocumentacion = busquedaHistorial;
         ViewBag.FechaInicioHistorialDocumentacion = fechaInicioHistorial?.ToString("yyyy-MM-dd");
         ViewBag.FechaFinHistorialDocumentacion = fechaFinHistorial?.ToString("yyyy-MM-dd");
 
-        return View(embarques);
+        return View("HistorialDocumentacion", historialDocumentacion);
     }
 
     [HttpPost]
     public async Task<IActionResult> CargarDocumentos(
         int id,
         bool? requiereCartaPorte,
+
+        // NUEVO
+        DateTime? fechaEstimadaLlegada,
+
         List<IFormFile>? cartaPorteArchivos,
         List<IFormFile>? fichaTecnicaArchivos,
-        List<IFormFile>? cartaGarantiaArchivos)
+        List<IFormFile>? cartaGarantiaArchivos,
+
+        List<IFormFile>? certificacionLavadoArchivos,
+        List<IFormFile>? certificacionFumigacionArchivos)
     {
         var embarque = await _qrContext.Embarque
             .Include(e => e.QR)
@@ -1689,11 +2033,22 @@ public class EmbarquesController : Controller
             TempData["Error"] = $"Debes indicar si el embarque #{embarque.Consecutivo} requiere Carta Porte o si no aplica.";
             return RedirectToAction("Documentacion");
         }
+        if (!fechaEstimadaLlegada.HasValue)
+        {
+            TempData["Error"] =
+                $"Debes indicar la fecha estimada de llegada del embarque #{embarque.Consecutivo}.";
+
+            return RedirectToAction("Documentacion");
+        }
 
         // Guardamos la decisión de logística:
         // true = requiere Carta Porte
         // false = no aplica
         embarque.RequiereCartaPorte = requiereCartaPorte.Value;
+
+        // NUEVO:
+        // Fecha estimada proporcionada por Logística
+        embarque.FechaEstimadaLlegada = fechaEstimadaLlegada.Value;
 
         bool seCargoAlgunArchivoNuevo = false;
 
@@ -1721,6 +2076,7 @@ public class EmbarquesController : Controller
 
         // =========================================================
         // 2. GUARDAR MÚLTIPLES ARCHIVOS DE FICHA TÉCNICA
+        // Se deja por compatibilidad aunque actualmente no lo estés mostrando.
         // =========================================================
         if (fichaTecnicaArchivos != null && fichaTecnicaArchivos.Any(f => f.Length > 0))
         {
@@ -1743,6 +2099,7 @@ public class EmbarquesController : Controller
 
         // =========================================================
         // 3. GUARDAR MÚLTIPLES ARCHIVOS DE CARTA GARANTÍA
+        // Se deja por compatibilidad aunque actualmente no lo estés mostrando.
         // =========================================================
         if (cartaGarantiaArchivos != null && cartaGarantiaArchivos.Any(f => f.Length > 0))
         {
@@ -1763,12 +2120,56 @@ public class EmbarquesController : Controller
             }
         }
 
+        // =========================================================
+        // 4. GUARDAR CERTIFICACIÓN DE LAVADO - OPCIONAL
+        // =========================================================
+        if (certificacionLavadoArchivos != null && certificacionLavadoArchivos.Any(f => f.Length > 0))
+        {
+            foreach (var archivo in certificacionLavadoArchivos.Where(f => f.Length > 0))
+            {
+                var ruta = await GuardarArchivo(archivo, "certificacionesLavado", "certificacion_lavado");
+
+                _qrContext.Set<EmbarqueArchivo>().Add(new EmbarqueArchivo
+                {
+                    EmbarqueId = embarque.Id,
+                    Tipo = "CERTIFICACION_LAVADO",
+                    RutaArchivo = ruta,
+                    FechaRegistro = DateTime.Now,
+                    UsuarioRegistro = User.Identity?.Name ?? "Sistema"
+                });
+
+                seCargoAlgunArchivoNuevo = true;
+            }
+        }
+
+        // =========================================================
+        // 5. GUARDAR CERTIFICACIÓN DE FUMIGACIÓN - OPCIONAL
+        // =========================================================
+        if (certificacionFumigacionArchivos != null && certificacionFumigacionArchivos.Any(f => f.Length > 0))
+        {
+            foreach (var archivo in certificacionFumigacionArchivos.Where(f => f.Length > 0))
+            {
+                var ruta = await GuardarArchivo(archivo, "certificacionesFumigacion", "certificacion_fumigacion");
+
+                _qrContext.Set<EmbarqueArchivo>().Add(new EmbarqueArchivo
+                {
+                    EmbarqueId = embarque.Id,
+                    Tipo = "CERTIFICACION_FUMIGACION",
+                    RutaArchivo = ruta,
+                    FechaRegistro = DateTime.Now,
+                    UsuarioRegistro = User.Identity?.Name ?? "Sistema"
+                });
+
+                seCargoAlgunArchivoNuevo = true;
+            }
+        }
+
         await _qrContext.SaveChangesAsync();
 
         // =========================================================
-        // NUEVA VALIDACIÓN:
-        // Carta Porte solo es obligatoria si Logística marcó que aplica.
-        // Si no aplica, puede validar sin Carta Porte.
+        // VALIDACIÓN CARTA PORTE
+        // Esta se queda como ya estaba:
+        // solo es obligatoria si logística indicó que aplica.
         // =========================================================
         bool tieneCartaPorte = await _qrContext.Set<EmbarqueArchivo>()
             .AnyAsync(a => a.EmbarqueId == embarque.Id && a.Tipo == "CARTA_PORTE");
@@ -1785,11 +2186,14 @@ public class EmbarquesController : Controller
             return RedirectToAction("Documentacion");
         }
 
+        // =========================================================
+        // VALIDACIÓN FINAL LOGÍSTICA
+        // Lavado y Fumigación NO bloquean, solo se avisan en frontend.
+        // =========================================================
         embarque.DocumentacionAprobada = true;
         embarque.FechaValidacionDocumentacion = DateTime.Now;
         embarque.UsuarioValidaDocumentacion = User.Identity?.Name ?? "Sistema";
 
-        // Solo se libera si también Calidad y Documentación de Calidad ya fueron aprobadas
         embarque.Estatus =
             embarque.CalidadAprobada == true &&
             embarque.DocumentacionAprobada == true &&
@@ -1799,15 +2203,30 @@ public class EmbarquesController : Controller
 
         await _qrContext.SaveChangesAsync();
 
+        bool tieneLavado = await _qrContext.Set<EmbarqueArchivo>()
+            .AnyAsync(a => a.EmbarqueId == embarque.Id && a.Tipo == "CERTIFICACION_LAVADO");
+
+        bool tieneFumigacion = await _qrContext.Set<EmbarqueArchivo>()
+            .AnyAsync(a => a.EmbarqueId == embarque.Id && a.Tipo == "CERTIFICACION_FUMIGACION");
+
         string textoCartaPorte = embarque.RequiereCartaPorte == true
             ? "Carta Porte requerida y validada."
             : "Carta Porte marcada como No aplica.";
 
+        string textoCertificaciones =
+            tieneLavado && tieneFumigacion
+                ? "Certificaciones de Lavado y Fumigación cargadas."
+                : !tieneLavado && !tieneFumigacion
+                    ? "Se validó sin Certificación de Lavado ni Certificación de Fumigación."
+                    : !tieneLavado
+                        ? "Se validó sin Certificación de Lavado."
+                        : "Se validó sin Certificación de Fumigación.";
+
         TempData["Success"] =
             embarque.CalidadAprobada == true &&
             embarque.DocumentacionCalidadAprobada == true
-                ? $"Documentación logística validada correctamente para el embarque #{embarque.Consecutivo}. {textoCartaPorte} Ya puede generar QR."
-                : $"Documentación logística validada correctamente para el embarque #{embarque.Consecutivo}. {textoCartaPorte} Aún faltan otras validaciones.";
+                ? $"Documentación logística validada correctamente para el embarque #{embarque.Consecutivo}. {textoCartaPorte} {textoCertificaciones} Ya puede generar QR."
+                : $"Documentación logística validada correctamente para el embarque #{embarque.Consecutivo}. {textoCartaPorte} {textoCertificaciones} Aún faltan otras validaciones.";
 
         return RedirectToAction("Documentacion");
     }
@@ -1860,21 +2279,20 @@ public class EmbarquesController : Controller
                 e.Estatus == 4 ||
                 e.Estatus == 6 ||
 
-                // Entregados: solo visibles durante 2 horas después de entregarse
+                // Entregados: solo visibles durante 2 horas
                 (
                     e.Estatus == 5 &&
                     e.FechaEntregado != null &&
                     e.FechaEntregado >= limiteEntregados
                 )
             )
-            // Prioriza embarques activos sobre entregados recientes
             .OrderBy(e => e.Estatus == 5 ? 1 : 0)
             .ThenByDescending(e =>
                 e.Estatus == 5
                     ? (e.FechaEntregado ?? e.FechaCreacion)
                     : (e.FechaSalida ?? e.FechaCreacion)
             )
-            .Take(80)
+            .Take(100)
             .ToListAsync();
 
         var resultado = new List<object>();
@@ -1891,34 +2309,44 @@ public class EmbarquesController : Controller
                 .Select(d => d.DocumentoId)
                 .ToList();
 
-            ControlCenterDocumentoInfo? orden = null;
-            ControlCenterDocumentoInfo? transferencia = null;
+            var ordenesInfo = new List<ControlCenterDocumentoInfo>();
+            var transferenciasInfo = new List<ControlCenterDocumentoInfo>();
 
-            // ORDEN
+
+            // ============================================================
+            // TODAS LAS ÓRDENES DEL EMBARQUE
+            // ============================================================
             if (ordenesIds.Any())
             {
-                orden = await _ovContext.OrdenVenta
+                ordenesInfo = await _ovContext.OrdenVenta
                     .AsNoTracking()
                     .Where(o => ordenesIds.Contains(o.Id))
+                    .OrderBy(o => o.Id)
                     .Select(o => new ControlCenterDocumentoInfo
                     {
                         Pedido = o.Consecutivo,
                         Ruta = o.Ruta,
+
                         Cliente = _ovContext.ClienteSap
                             .Where(c => c.Cliente == o.Cliente)
                             .Select(c => c.Nombrecliente)
                             .FirstOrDefault() ?? o.Cliente,
+
                         FechaEntrega = o.FechaEntrega
                     })
-                    .FirstOrDefaultAsync();
+                    .ToListAsync();
             }
 
-            // TRANSFERENCIA
+
+            // ============================================================
+            // TODAS LAS TRANSFERENCIAS DEL EMBARQUE
+            // ============================================================
             if (transferenciasIds.Any())
             {
-                transferencia = await _ovContext.Transferencias
+                transferenciasInfo = await _ovContext.Transferencias
                     .AsNoTracking()
                     .Where(t => transferenciasIds.Contains(t.Id))
+                    .OrderBy(t => t.Id)
                     .Select(t => new ControlCenterDocumentoInfo
                     {
                         Pedido = t.Consecutivo,
@@ -1926,62 +2354,180 @@ public class EmbarquesController : Controller
                         Cliente = t.Sucursal,
                         FechaEntrega = t.FechaSolicitud
                     })
-                    .FirstOrDefaultAsync();
+                    .ToListAsync();
             }
 
-            var data = orden ?? transferencia;
 
-            var ovCount = emb.Documentos.Count(d => d.TipoDocumento == "OV");
-            var trCount = emb.Documentos.Count(d => d.TipoDocumento == "TRANSFERENCIA");
+            // Se conserva tu lógica actual para Ruta / Cliente
+            var data =
+                ordenesInfo.FirstOrDefault() ??
+                transferenciasInfo.FirstOrDefault();
+
+
+            // ============================================================
+            // TODOS LOS PEDIDOS QUE MOSTRARÁ EL CARRUSEL
+            // ============================================================
+            var pedidos = ordenesInfo
+                .Where(x => !string.IsNullOrWhiteSpace(x.Pedido))
+                .Select(x => new
+                {
+                    tipo = "OV",
+                    consecutivo = x.Pedido ?? ""
+                })
+                .Concat(
+                    transferenciasInfo
+                        .Where(x => !string.IsNullOrWhiteSpace(x.Pedido))
+                        .Select(x => new
+                        {
+                            tipo = "TR",
+                            consecutivo = x.Pedido ?? ""
+                        })
+                )
+                .Distinct()
+                .ToList();
+
+            // ============================================================
+            // TODOS LOS CLIENTES QUE MOSTRARÁ EL CARRUSEL
+            // ============================================================
+            var clientes = ordenesInfo
+                .Where(x => !string.IsNullOrWhiteSpace(x.Cliente))
+                .Select(x => x.Cliente!.Trim())
+                .Concat(
+                    transferenciasInfo
+                        .Where(x => !string.IsNullOrWhiteSpace(x.Cliente))
+                        .Select(x => x.Cliente!.Trim())
+                )
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+
+            var ovCount = emb.Documentos.Count(d =>
+                d.TipoDocumento == "OV");
+
+            var trCount = emb.Documentos.Count(d =>
+                d.TipoDocumento == "TRANSFERENCIA");
+
 
             bool validadoParaQR =
                 emb.CalidadAprobada == true &&
                 emb.DocumentacionAprobada == true &&
                 emb.DocumentacionCalidadAprobada == true;
 
+
             int estatusVisual =
                 emb.Estatus == 7 && !validadoParaQR
                     ? 1
                     : emb.Estatus;
 
+
             resultado.Add(new
             {
                 id = emb.Id,
                 consecutivo = emb.Consecutivo,
-                fechaCreacion = emb.FechaCreacion.ToString("dd/MM/yyyy HH:mm"),
-                fechaSalida = emb.FechaSalida?.ToString("dd/MM/yyyy HH:mm") ?? "",
-                fechaDestino = emb.FechaLlegadaDestino?.ToString("dd/MM/yyyy HH:mm") ?? "",
-                fechaEntregado = emb.FechaEntregado?.ToString("dd/MM/yyyy HH:mm") ?? "",
-                fechaDevuelto = emb.FechaDevuelto?.ToString("dd/MM/yyyy HH:mm") ?? "",
+
+                nombreEmbarque =
+                string.IsNullOrWhiteSpace(emb.NombreEmbarque)
+                    ? "Sin nombre"
+                    : emb.NombreEmbarque,
+
+                fechaCreacion =
+                    emb.FechaCreacion.ToString("dd/MM/yyyy HH:mm"),
+
+                fechaCreacionOrden =
+                    emb.FechaCreacion,
+
+                fechaEstimadaLlegada =
+                    emb.FechaEstimadaLlegada?
+                        .ToString("dd/MM/yyyy HH:mm") ?? "",
+
+                fechaSalida =
+                    emb.FechaSalida?
+                        .ToString("dd/MM/yyyy HH:mm") ?? "",
+
+                fechaDestino =
+                    emb.FechaLlegadaDestino?
+                        .ToString("dd/MM/yyyy HH:mm") ?? "",
+
+                fechaEntregado =
+                    emb.FechaEntregado?
+                        .ToString("dd/MM/yyyy HH:mm") ?? "",
+
+                fechaDevuelto =
+                    emb.FechaDevuelto?
+                        .ToString("dd/MM/yyyy HH:mm") ?? "",
+
 
                 ruta = data?.Ruta ?? "Sin ruta",
-                cliente = data?.Cliente ?? "Sin cliente",
-                pedido = data?.Pedido ?? "N/A",
-                fechaEntrega = data?.FechaEntrega?.ToString("dd/MM/yyyy") ?? "",
+
+                // Se conserva por compatibilidad
+                cliente = clientes.FirstOrDefault() ?? "Sin cliente",
+
+                // Lista completa para el rotador de clientes
+                clientes = clientes,
+
+
+                // Se conserva por compatibilidad
+                pedido = pedidos.FirstOrDefault()?.consecutivo ?? "N/A",
+
+                // NUEVO:
+                // Lista completa que utilizará la animación
+                pedidos = pedidos,
+
+
+                fechaEntrega =
+                    data?.FechaEntrega?
+                        .ToString("dd/MM/yyyy") ?? "",
+
 
                 estatus = estatusVisual,
-                estatusTexto = ObtenerTextoEstatusTablero(estatusVisual),
-                estatusTipo = ObtenerTipoEstatusTablero(estatusVisual),
 
-                calidad = emb.CalidadAprobada == true ? "OK" : "PENDIENTE",
-                documentacion = emb.DocumentacionAprobada == true ? "OK" : "PENDIENTE",
-                documentacionCalidad = emb.DocumentacionCalidadAprobada == true ? "OK" : "PENDIENTE",
+                estatusTexto =
+                    ObtenerTextoEstatusTablero(estatusVisual),
+
+                estatusTipo =
+                    ObtenerTipoEstatusTablero(estatusVisual),
+
+
+                calidad =
+                    emb.CalidadAprobada == true
+                        ? "OK"
+                        : "PENDIENTE",
+
+                documentacion =
+                    emb.DocumentacionAprobada == true
+                        ? "OK"
+                        : "PENDIENTE",
+
+                documentacionCalidad =
+                    emb.DocumentacionCalidadAprobada == true
+                        ? "OK"
+                        : "PENDIENTE",
+
 
                 placa = emb.PlacaTransporte ?? "",
                 salidaTipo = emb.SalidaTipo ?? "",
-                temperatura = emb.TemperaturaUnidadCalidad?.ToString("0.##") ?? "",
 
-                tipoDocumento = ovCount > 0 && trCount > 0
-                    ? "MIXTO"
-                    : ovCount > 0
-                        ? "OV"
-                        : trCount > 0
-                            ? "TR"
-                            : "N/A",
+                temperatura =
+                    emb.TemperaturaUnidadCalidad?
+                        .ToString("0.##") ?? "",
+
+
+                tipoDocumento =
+                    ovCount > 0 && trCount > 0
+                        ? "MIXTO"
+                        : ovCount > 0
+                            ? "OV"
+                            : trCount > 0
+                                ? "TR"
+                                : "N/A",
 
                 totalOV = ovCount,
                 totalTR = trCount,
-                token = validadoParaQR ? emb.QR?.Token ?? "" : ""
+
+                token =
+                    validadoParaQR
+                        ? emb.QR?.Token ?? ""
+                        : ""
             });
         }
 
@@ -1989,14 +2535,9 @@ public class EmbarquesController : Controller
     }
 
     public async Task<IActionResult> DocumentacionCalidad(
-    string? busqueda,
-    DateTime? fechaInicio,
-    DateTime? fechaFin,
-
-    // Filtros exclusivos para historial
-    string? busquedaHistorial,
-    DateTime? fechaInicioHistorial,
-    DateTime? fechaFinHistorial)
+        string? busqueda,
+        DateTime? fechaInicio,
+        DateTime? fechaFin)
     {
         // ============================================================
         // LISTADO PRINCIPAL: SOLO PENDIENTES DE DOCUMENTACIÓN DE CALIDAD
@@ -2039,15 +2580,19 @@ public class EmbarquesController : Controller
             .ToListAsync();
 
 
-        // ============================================================
-        // HISTORIAL: DOCUMENTACIÓN DE CALIDAD YA VALIDADA
-        // NO CARGA NADA HASTA QUE TENGA FECHA INICIO Y FECHA FIN
-        // ============================================================
-        var historialDocumentacionCalidad = new List<Embarque>();
+        ViewBag.EmbarquesDocumentos = await ConstruirEmbarquesDocumentosAsync(embarques);
+        ViewBag.EsHistorial = false;
 
-        bool buscoHistorial =
-            fechaInicioHistorial.HasValue &&
-            fechaFinHistorial.HasValue;
+        return View(embarques);
+    }
+
+    public async Task<IActionResult> HistorialDocumentacionCalidad(
+        string? busquedaHistorial,
+        DateTime? fechaInicioHistorial,
+        DateTime? fechaFinHistorial)
+    {
+        var historialDocumentacionCalidad = new List<Embarque>();
+        var buscoHistorial = fechaInicioHistorial.HasValue && fechaFinHistorial.HasValue;
 
         if (buscoHistorial)
         {
@@ -2062,18 +2607,15 @@ public class EmbarquesController : Controller
                 .Where(e => e.DocumentacionCalidadAprobada == true)
                 .Where(e =>
                     (e.FechaValidacionDocumentacionCalidad ?? e.FechaCreacion) >= inicioHistorial &&
-                    (e.FechaValidacionDocumentacionCalidad ?? e.FechaCreacion) <= finHistorial
-                );
+                    (e.FechaValidacionDocumentacionCalidad ?? e.FechaCreacion) <= finHistorial);
 
             if (!string.IsNullOrWhiteSpace(busquedaHistorial))
             {
                 busquedaHistorial = busquedaHistorial.Trim();
-
                 queryHistorial = queryHistorial.Where(e =>
                     e.Consecutivo.Contains(busquedaHistorial) ||
                     e.Id.ToString().Contains(busquedaHistorial) ||
-                    (e.NombreEmbarque != null && e.NombreEmbarque.Contains(busquedaHistorial))
-                );
+                    (e.NombreEmbarque != null && e.NombreEmbarque.Contains(busquedaHistorial)));
             }
 
             historialDocumentacionCalidad = await queryHistorial
@@ -2081,73 +2623,16 @@ public class EmbarquesController : Controller
                 .ToListAsync();
         }
 
-
-        // ============================================================
-        // DOCUMENTOS PARA PENDIENTES + HISTORIAL
-        // ============================================================
-        var embarquesDocumentos = new Dictionary<int, object>();
-
-        var todosLosEmbarques = new List<Embarque>();
-        todosLosEmbarques.AddRange(embarques);
-        todosLosEmbarques.AddRange(historialDocumentacionCalidad);
-
-        foreach (var embarque in todosLosEmbarques)
-        {
-            var ordenesIds = embarque.Documentos?
-                .Where(d => d.TipoDocumento == "OV")
-                .Select(d => d.DocumentoId)
-                .ToList() ?? new List<int>();
-
-            var transferenciasIds = embarque.Documentos?
-                .Where(d => d.TipoDocumento == "TRANSFERENCIA")
-                .Select(d => d.DocumentoId)
-                .ToList() ?? new List<int>();
-
-            var ordenesReal = await _ovContext.OrdenVenta
-                .AsNoTracking()
-                .Where(o => ordenesIds.Contains(o.Id))
-                .Select(o => new
-                {
-                    o.Id,
-                    o.Consecutivo,
-                    o.Ruta,
-                    CodigoCliente = o.Cliente,
-                    NombreCliente = _ovContext.ClienteSap
-                        .Where(c => c.Cliente == o.Cliente)
-                        .Select(c => c.Nombrecliente)
-                        .FirstOrDefault()
-                })
-                .ToListAsync();
-
-            var transferenciasReal = await _ovContext.Transferencias
-                .AsNoTracking()
-                .Where(t => transferenciasIds.Contains(t.Id))
-                .Select(t => new
-                {
-                    t.Id,
-                    t.Consecutivo,
-                    t.Sucursal,
-                    t.FechaSolicitud,
-                    t.UsuarioSolicita
-                })
-                .ToListAsync();
-
-            embarquesDocumentos[embarque.Id] = new
-            {
-                OrdenesVenta = ordenesReal,
-                Transferencias = transferenciasReal
-            };
-        }
-
-        ViewBag.EmbarquesDocumentos = embarquesDocumentos;
-
+        ViewBag.EsHistorial = true;
+        ViewBag.EmbarquesDocumentos =
+            await ConstruirEmbarquesDocumentosAsync(historialDocumentacionCalidad);
         ViewBag.HistorialDocumentacionCalidad = historialDocumentacionCalidad;
         ViewBag.BuscoHistorialDocumentacionCalidad = buscoHistorial;
         ViewBag.BusquedaHistorialDocumentacionCalidad = busquedaHistorial;
         ViewBag.FechaInicioHistorialDocumentacionCalidad = fechaInicioHistorial?.ToString("yyyy-MM-dd");
         ViewBag.FechaFinHistorialDocumentacionCalidad = fechaFinHistorial?.ToString("yyyy-MM-dd");
 
-        return View(embarques);
+        return View("HistorialDocumentacionCalidad", historialDocumentacionCalidad);
     }
 
     [HttpPost]
@@ -2332,6 +2817,105 @@ public class EmbarquesController : Controller
 
         return RedirectToAction("DocumentacionCalidad");
     }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ValidarSinDocumentacionCalidad(int id)
+    {
+        var embarque = await _qrContext.Embarque
+            .FirstOrDefaultAsync(e => e.Id == id);
+
+        if (embarque == null)
+        {
+            TempData["Error"] = "El embarque no existe.";
+            return RedirectToAction("DocumentacionCalidad");
+        }
+
+        // ============================================================
+        // SI YA ESTÁ VALIDADO, NO HACEMOS NADA
+        // ============================================================
+        if (embarque.DocumentacionCalidadAprobada == true)
+        {
+            TempData["Error"] =
+                $"El embarque #{embarque.Consecutivo} ya tiene validada la documentación de calidad.";
+
+            return RedirectToAction("DocumentacionCalidad");
+        }
+
+        // ============================================================
+        // TIPOS DE DOCUMENTACIÓN DE CALIDAD
+        // ============================================================
+        var tiposCalidad = new[]
+        {
+        "CALIDAD_CARTA_GARANTIA",
+        "CALIDAD_LIBRE_CLEMBUTEROL",
+        "CALIDAD_LIBRE_RESIDUOS_TOXICOS",
+        "CALIDAD_CARTA_EEB",
+        "CALIDAD_AVISO_MOVILIZACION",
+        "CALIDAD_HOJA_TRABAJO",
+        "CALIDAD_MICROBIOLOGICOS",
+        "CALIDAD_FICHA_TECNICA",
+        "CALIDAD_FACTURA",
+        "CALIDAD_ROMANEOS",
+        "CALIDAD_REMISION"
+    };
+
+        // ============================================================
+        // EVITAR INCONSISTENCIA:
+        // SI YA TIENE DOCUMENTOS, NO DEBE MARCARSE COMO "SIN DOCUMENTOS"
+        // ============================================================
+        bool tieneDocumentosCalidad = await _qrContext.Set<EmbarqueArchivo>()
+            .AsNoTracking()
+            .AnyAsync(a =>
+                a.EmbarqueId == embarque.Id &&
+                tiposCalidad.Contains(a.Tipo));
+
+        if (tieneDocumentosCalidad)
+        {
+            TempData["Error"] =
+                $"El embarque #{embarque.Consecutivo} ya tiene documentación de calidad cargada. " +
+                "Utiliza el botón \"Guardar y validar documentación de calidad\".";
+
+            return RedirectToAction("DocumentacionCalidad");
+        }
+
+        // ============================================================
+        // VALIDAR SIN DOCUMENTACIÓN
+        // ============================================================
+        embarque.DocumentacionCalidadAprobada = true;
+
+        // Guardamos cuándo se realizó
+        embarque.FechaValidacionDocumentacionCalidad = DateTime.Now;
+
+        // Guardamos quién realizó la validación
+        embarque.UsuarioValidaDocumentacionCalidad =
+            User.Identity?.Name ?? "Sistema";
+
+        // ============================================================
+        // RECALCULAR ESTATUS DEL EMBARQUE
+        // ============================================================
+        embarque.Estatus =
+            embarque.CalidadAprobada == true &&
+            embarque.DocumentacionAprobada == true &&
+            embarque.DocumentacionCalidadAprobada == true
+                ? 7
+                : 1;
+
+        await _qrContext.SaveChangesAsync();
+
+        // ============================================================
+        // MENSAJE
+        // ============================================================
+        TempData["Success"] =
+            embarque.CalidadAprobada == true &&
+            embarque.DocumentacionAprobada == true
+                ? $"El embarque #{embarque.Consecutivo} fue validado SIN documentación de calidad. Ya puede generar QR."
+                : $"El embarque #{embarque.Consecutivo} fue validado SIN documentación de calidad. Aún faltan otras validaciones.";
+
+        return RedirectToAction("DocumentacionCalidad");
+    }
+
+
 
     private async Task GuardarArchivosPorTipo(
         int embarqueId,
@@ -2845,9 +3429,9 @@ public class EmbarquesController : Controller
         ? embarque.NombreEmbarque
         : embarque.Consecutivo;
 
-            nombreBaseExcel = LimpiarNombreArchivo(nombreBaseExcel);
+        nombreBaseExcel = LimpiarNombreArchivo(nombreBaseExcel);
 
-            var fileName = $"{nombreBaseExcel}_{DateTime.Now:yyyyMMdd_HHmm}.xlsx";
+        var fileName = $"{nombreBaseExcel}_{DateTime.Now:yyyyMMdd_HHmm}.xlsx";
 
         return File(
             stream.ToArray(),
@@ -2939,13 +3523,9 @@ public class EmbarquesController : Controller
         }
         else if (tipoDocumento == "TRANSFERENCIA")
         {
-            var transferencia = await _ovContext.Transferencias
-                .FirstOrDefaultAsync(t => t.Id == documentoId);
-
-            if (transferencia != null)
-            {
-                transferencia.Estatus = 5;
-            }
+            // No modificamos el estatus de la transferencia.
+            // Al quitar la relación de EmbarqueDocumento, si sigue en estatus 4,
+            // volverá a aparecer como disponible automáticamente.
         }
 
         await _qrContext.SaveChangesAsync();
@@ -2959,100 +3539,13 @@ public class EmbarquesController : Controller
     }
 
     // ============================================================
-    // 4.2 PANTALLA PARA EDITAR EMBARQUE / AGREGAR DOCUMENTOS
-    // ============================================================
-    [HttpGet]
-    [Authorize(Roles = "Administracion de Ventas,Administrador")]
-    public async Task<IActionResult> EditarEmbarques(int id)
-    {
-        var embarque = await _qrContext.Embarque
-            .Include(e => e.Documentos)
-            .Include(e => e.QR)
-            .FirstOrDefaultAsync(e => e.Id == id);
-
-        if (embarque == null)
-        {
-            TempData["Error"] = "No se encontró el embarque.";
-            return RedirectToAction("Embarque");
-        }
-
-        if (embarque.FechaSalida != null || embarque.Estatus == 2 || embarque.Estatus == 3 || embarque.Estatus == 4 || embarque.Estatus == 5 || embarque.Estatus == 6)
-        {
-            TempData["Error"] = "No se pueden agregar documentos porque el embarque ya salió o ya está en seguimiento.";
-            return RedirectToAction("Detalle", new { id });
-        }
-
-        if (embarque.QR != null)
-        {
-            TempData["Error"] = "No se pueden agregar documentos porque el embarque ya tiene QR generado.";
-            return RedirectToAction("Detalle", new { id });
-        }
-
-        var ordenesYaAgregadas = embarque.Documentos
-            .Where(d => d.TipoDocumento == "OV")
-            .Select(d => d.DocumentoId)
-            .ToList();
-
-        var transferenciasYaAgregadas = embarque.Documentos
-            .Where(d => d.TipoDocumento == "TRANSFERENCIA")
-            .Select(d => d.DocumentoId)
-            .ToList();
-
-        var ordenesDisponibles = await _ovContext.OrdenVenta
-            .Where(o => o.Estatus == 5 && !ordenesYaAgregadas.Contains(o.Id))
-            .Select(o => new OrdenVenta
-            {
-                Id = o.Id,
-                Cliente = o.Cliente,
-                NombreCliente = _ovContext.ClienteSap
-                    .Where(c => c.Cliente == o.Cliente)
-                    .Select(c => c.Nombrecliente)
-                    .FirstOrDefault() ?? o.Cliente,
-                Consecutivo = o.Consecutivo,
-                Ruta = o.Ruta,
-                FechaEntrega = o.FechaEntrega
-            })
-            .ToListAsync();
-
-        var transferenciasDisponibles = await _ovContext.Transferencias
-            .Where(t => t.Estatus == 5 && !transferenciasYaAgregadas.Contains(t.Id))
-            .ToListAsync();
-
-        ViewBag.OrdenesDisponibles = ordenesDisponibles;
-        ViewBag.TransferenciasDisponibles = transferenciasDisponibles;
-
-        return View(embarque);
-    }
-
-
-    // ============================================================
-    // 4.3 AGREGAR DOCUMENTOS AL EMBARQUE EXISTENTE
+    // 4.1.1 ELIMINAR EMBARQUE COMPLETO
     // ============================================================
     [HttpPost]
     [ValidateAntiForgeryToken]
     [Authorize(Roles = "Administracion de Ventas,Administrador")]
-    public async Task<IActionResult> AgregarDocumentosEmbarque(
-        int embarqueId,
-        List<int>? ordenesSeleccionadas,
-        List<int>? transferenciasSeleccionadas)
+    public async Task<IActionResult> EliminarEmbarque(int embarqueId)
     {
-        ordenesSeleccionadas ??= new List<int>();
-        transferenciasSeleccionadas ??= new List<int>();
-
-        ordenesSeleccionadas = ordenesSeleccionadas
-            .Distinct()
-            .ToList();
-
-        transferenciasSeleccionadas = transferenciasSeleccionadas
-            .Distinct()
-            .ToList();
-
-        if (!ordenesSeleccionadas.Any() && !transferenciasSeleccionadas.Any())
-        {
-            TempData["Error"] = "Debes seleccionar al menos una orden o transferencia para agregar.";
-            return RedirectToAction("EditarEmbarques", new { id = embarqueId });
-        }
-
         var embarque = await _qrContext.Embarque
             .Include(e => e.Documentos)
             .Include(e => e.QR)
@@ -3064,96 +3557,344 @@ public class EmbarquesController : Controller
             return RedirectToAction("Embarque");
         }
 
-        if (embarque.FechaSalida != null || embarque.Estatus == 2 || embarque.Estatus == 3 || embarque.Estatus == 4 || embarque.Estatus == 5 || embarque.Estatus == 6)
+        if (embarque.FechaSalida != null
+            || embarque.Estatus == 2
+            || embarque.Estatus == 3
+            || embarque.Estatus == 4
+            || embarque.Estatus == 5
+            || embarque.Estatus == 6)
         {
-            TempData["Error"] = "No se pueden agregar documentos porque el embarque ya salió o ya está en seguimiento.";
+            TempData["Error"] = "No se puede eliminar el embarque porque ya salió o está en seguimiento.";
             return RedirectToAction("Detalle", new { id = embarqueId });
         }
 
         if (embarque.QR != null)
         {
-            TempData["Error"] = "No se pueden agregar documentos porque el embarque ya tiene QR generado.";
+            TempData["Error"] = "No se puede eliminar el embarque porque ya tiene QR generado.";
             return RedirectToAction("Detalle", new { id = embarqueId });
         }
 
-        int agregadosOV = 0;
-        int agregadosTR = 0;
+        var documentos = embarque.Documentos.ToList();
 
-        foreach (var ovId in ordenesSeleccionadas)
+        foreach (var doc in documentos)
         {
-            bool yaExiste = embarque.Documentos.Any(d =>
-                d.TipoDocumento == "OV" &&
-                d.DocumentoId == ovId);
-
-            if (yaExiste)
-                continue;
-
-            var orden = await _ovContext.OrdenVenta
-                .FirstOrDefaultAsync(o => o.Id == ovId && o.Estatus == 5);
-
-            if (orden == null)
-                continue;
-
-            _qrContext.EmbarqueDocumento.Add(new EmbarqueDocumento
+            if (doc.TipoDocumento == "OV")
             {
-                EmbarqueId = embarque.Id,
-                DocumentoId = ovId,
-                TipoDocumento = "OV"
-            });
+                var orden = await _ovContext.OrdenVenta
+                    .FirstOrDefaultAsync(o => o.Id == doc.DocumentoId);
 
-            orden.Estatus = 6;
-            orden.FechaEmbarque = DateTime.Now;
-
-            agregadosOV++;
+                if (orden != null)
+                {
+                    orden.Estatus = 5;
+                    orden.FechaEmbarque = null;
+                }
+            }
         }
 
-        foreach (var trId in transferenciasSeleccionadas)
+        _qrContext.EmbarqueDocumento.RemoveRange(documentos);
+
+        if (embarque.QR != null)
         {
-            bool yaExiste = embarque.Documentos.Any(d =>
-                d.TipoDocumento == "TRANSFERENCIA" &&
-                d.DocumentoId == trId);
-
-            if (yaExiste)
-                continue;
-
-            var transferencia = await _ovContext.Transferencias
-                .FirstOrDefaultAsync(t => t.Id == trId && t.Estatus == 5);
-
-            if (transferencia == null)
-                continue;
-
-            _qrContext.EmbarqueDocumento.Add(new EmbarqueDocumento
-            {
-                EmbarqueId = embarque.Id,
-                DocumentoId = trId,
-                TipoDocumento = "TRANSFERENCIA"
-            });
-
-            transferencia.Estatus = 6;
-
-            agregadosTR++;
+            _qrContext.EmbarqueQR.Remove(embarque.QR);
         }
 
-        if (agregadosOV == 0 && agregadosTR == 0)
+        var archivos = await _qrContext.EmbarqueArchivo
+            .Where(a => a.EmbarqueId == embarqueId)
+            .ToListAsync();
+
+        if (archivos.Any())
         {
-            TempData["Error"] = "No se agregó ningún documento. Es posible que ya no estén disponibles o que ya pertenezcan a otro embarque.";
-            return RedirectToAction("EditarEmbarques", new { id = embarqueId });
+            _qrContext.EmbarqueArchivo.RemoveRange(archivos);
         }
 
-        // Si el embarque ya estaba validado para QR, al agregar documentos nuevos
-        // se reinician validaciones para que calidad/documentación vuelvan a revisar.
-        //embarque.CalidadAprobada = false;
-        //embarque.DocumentacionAprobada = false;
-        //embarque.DocumentacionCalidadAprobada = false;
+        var fotosCalidad = await _qrContext.Set<Embarque.EmbarqueCalidadFoto>()
+            .Where(f => f.EmbarqueId == embarqueId)
+            .ToListAsync();
 
-        //embarque.Estatus = 1;
+        if (fotosCalidad.Any())
+        {
+            _qrContext.Set<Embarque.EmbarqueCalidadFoto>().RemoveRange(fotosCalidad);
+        }
+
+        var temperaturas = await _qrContext.EmbarqueProductoTemperaturas
+            .Where(t => t.EmbarqueId == embarqueId)
+            .ToListAsync();
+
+        if (temperaturas.Any())
+        {
+            _qrContext.EmbarqueProductoTemperaturas.RemoveRange(temperaturas);
+        }
+
+        _qrContext.Embarque.Remove(embarque);
 
         await _qrContext.SaveChangesAsync();
         await _ovContext.SaveChangesAsync();
 
-        TempData["Success"] = $"Se agregaron {agregadosOV} orden(es) y {agregadosTR} transferencia(s) al embarque.";
+        TempData["Success"] = $"El embarque {embarque.Consecutivo} fue eliminado correctamente. Las órdenes de venta regresaron a estatus autorizado.";
 
-        return RedirectToAction("Detalle", new { id = embarqueId });
+        return RedirectToAction("Embarque");
+    }
+
+    // ============================================================
+    // 4.2 PANTALLA PARA EDITAR EMBARQUE - CARGA INICIAL LIGERA
+    // ============================================================
+    [HttpGet]
+    [Authorize(Roles = "Administracion de Ventas,Administrador")]
+    public async Task<IActionResult> EditarEmbarques(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        // Solo obtenemos la información básica del embarque.
+        // Las órdenes y transferencias se consultarán después por AJAX.
+        var embarque = await _qrContext.Embarque
+            .AsNoTracking()
+            .Include(e => e.QR)
+            .FirstOrDefaultAsync(
+                e => e.Id == id,
+                cancellationToken);
+
+        if (embarque == null)
+        {
+            TempData["Error"] = "No se encontró el embarque.";
+            return RedirectToAction("Embarque");
+        }
+
+        if (embarque.FechaSalida != null ||
+            embarque.Estatus == 2 ||
+            embarque.Estatus == 3 ||
+            embarque.Estatus == 4 ||
+            embarque.Estatus == 5 ||
+            embarque.Estatus == 6)
+        {
+            TempData["Error"] =
+                "No se pueden agregar documentos porque el embarque ya salió o ya está en seguimiento.";
+
+            return RedirectToAction("Detalle", new
+            {
+                id
+            });
+        }
+
+        if (embarque.QR != null)
+        {
+            TempData["Error"] =
+                "No se pueden agregar documentos porque el embarque ya tiene QR generado.";
+
+            return RedirectToAction("Detalle", new
+            {
+                id
+            });
+        }
+
+        // Únicamente obtenemos los conteos.
+        // Ya no cargamos todas las filas al abrir la vista.
+        var totalOrdenes = await _ovContext.OrdenVenta
+            .AsNoTracking()
+            .CountAsync(
+                o => o.Estatus == 5,
+                cancellationToken);
+
+        var transferenciasYaEnEmbarque = await _qrContext.EmbarqueDocumento
+            .AsNoTracking()
+            .Where(d => d.TipoDocumento == "TRANSFERENCIA")
+            .Select(d => d.DocumentoId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var totalTransferencias = await _ovContext.Transferencias
+            .AsNoTracking()
+            .CountAsync(
+                t => t.Estatus == 4 &&
+                     !transferenciasYaEnEmbarque.Contains(t.Id),
+                cancellationToken);
+
+        ViewBag.TotalOrdenesDisponibles = totalOrdenes;
+        ViewBag.TotalTransferenciasDisponibles = totalTransferencias;
+
+        return View(embarque);
+    }
+
+
+    // ============================================================
+    // 4.3 AGREGAR DOCUMENTOS AL EMBARQUE - OPTIMIZADO
+    // ============================================================
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Roles = "Administracion de Ventas,Administrador")]
+    public async Task<IActionResult> AgregarDocumentosEmbarque(
+        int embarqueId,
+        List<int>? ordenesSeleccionadas,
+        List<int>? transferenciasSeleccionadas,
+        CancellationToken cancellationToken)
+    {
+        ordenesSeleccionadas = ordenesSeleccionadas?
+            .Where(id => id > 0)
+            .Distinct()
+            .ToList() ?? new List<int>();
+
+        transferenciasSeleccionadas = transferenciasSeleccionadas?
+            .Where(id => id > 0)
+            .Distinct()
+            .ToList() ?? new List<int>();
+
+        if (!ordenesSeleccionadas.Any() &&
+            !transferenciasSeleccionadas.Any())
+        {
+            TempData["Error"] =
+                "Debes seleccionar al menos una orden o transferencia para agregar.";
+
+            return RedirectToAction("EditarEmbarques", new
+            {
+                id = embarqueId
+            });
+        }
+
+        var embarque = await _qrContext.Embarque
+            .Include(e => e.Documentos)
+            .Include(e => e.QR)
+            .FirstOrDefaultAsync(
+                e => e.Id == embarqueId,
+                cancellationToken);
+
+        if (embarque == null)
+        {
+            TempData["Error"] = "No se encontró el embarque.";
+            return RedirectToAction("Embarque");
+        }
+
+        if (embarque.FechaSalida != null ||
+            embarque.Estatus == 2 ||
+            embarque.Estatus == 3 ||
+            embarque.Estatus == 4 ||
+            embarque.Estatus == 5 ||
+            embarque.Estatus == 6)
+        {
+            TempData["Error"] =
+                "No se pueden agregar documentos porque el embarque ya salió o ya está en seguimiento.";
+
+            return RedirectToAction("Detalle", new
+            {
+                id = embarqueId
+            });
+        }
+
+        if (embarque.QR != null)
+        {
+            TempData["Error"] =
+                "No se pueden agregar documentos porque el embarque ya tiene QR generado.";
+
+            return RedirectToAction("Detalle", new
+            {
+                id = embarqueId
+            });
+        }
+
+        // Evita volver a agregar documentos que ya estén relacionados.
+        var ordenesExistentes = embarque.Documentos
+            .Where(d => d.TipoDocumento == "OV")
+            .Select(d => d.DocumentoId)
+            .ToHashSet();
+
+        var transferenciasExistentes = embarque.Documentos
+            .Where(d => d.TipoDocumento == "TRANSFERENCIA")
+            .Select(d => d.DocumentoId)
+            .ToHashSet();
+
+        var idsOrdenesPorAgregar = ordenesSeleccionadas
+            .Where(id => !ordenesExistentes.Contains(id))
+            .ToList();
+
+        var idsTransferenciasPorAgregar = transferenciasSeleccionadas
+            .Where(id => !transferenciasExistentes.Contains(id))
+            .ToList();
+
+        // Una sola consulta para todas las órdenes seleccionadas.
+        var ordenes = idsOrdenesPorAgregar.Any()
+            ? await _ovContext.OrdenVenta
+                .Where(o =>
+                    idsOrdenesPorAgregar.Contains(o.Id) &&
+                    o.Estatus == 5)
+                .ToListAsync(cancellationToken)
+            : new List<OrdenVenta>();
+
+        // Una sola consulta para todas las transferencias seleccionadas.
+        var transferenciasYaEnOtroEmbarque = idsTransferenciasPorAgregar.Any()
+            ? await _qrContext.EmbarqueDocumento
+                .AsNoTracking()
+                .Where(d =>
+                    d.TipoDocumento == "TRANSFERENCIA" &&
+                    idsTransferenciasPorAgregar.Contains(d.DocumentoId))
+                .Select(d => d.DocumentoId)
+                .Distinct()
+                .ToListAsync(cancellationToken)
+            : new List<int>();
+
+        idsTransferenciasPorAgregar = idsTransferenciasPorAgregar
+            .Where(id => !transferenciasYaEnOtroEmbarque.Contains(id))
+            .ToList();
+
+        var transferencias = idsTransferenciasPorAgregar.Any()
+            ? await _ovContext.Transferencias
+                .Where(t =>
+                    idsTransferenciasPorAgregar.Contains(t.Id) &&
+                    t.Estatus == 4)
+                .ToListAsync(cancellationToken)
+            : new List<Transferencia>();
+
+        if (!ordenes.Any() && !transferencias.Any())
+        {
+            TempData["Error"] =
+                "No se agregó ningún documento. Es posible que ya no estén disponibles o que ya pertenezcan a otro embarque.";
+
+            return RedirectToAction("EditarEmbarques", new
+            {
+                id = embarqueId
+            });
+        }
+
+        var ahora = DateTime.Now;
+
+        var documentosNuevos = new List<EmbarqueDocumento>(
+            ordenes.Count + transferencias.Count);
+
+        documentosNuevos.AddRange(
+            ordenes.Select(orden => new EmbarqueDocumento
+            {
+                EmbarqueId = embarque.Id,
+                DocumentoId = orden.Id,
+                TipoDocumento = "OV"
+            }));
+
+        documentosNuevos.AddRange(
+            transferencias.Select(transferencia => new EmbarqueDocumento
+            {
+                EmbarqueId = embarque.Id,
+                DocumentoId = transferencia.Id,
+                TipoDocumento = "TRANSFERENCIA"
+            }));
+
+        _qrContext.EmbarqueDocumento.AddRange(documentosNuevos);
+
+        foreach (var orden in ordenes)
+        {
+            orden.Estatus = 6;
+            orden.FechaEmbarque = ahora;
+        }
+
+        // Las transferencias no se cambian de estatus.
+        // Se bloquean para este módulo por EmbarqueDocumento.
+
+        await _qrContext.SaveChangesAsync(cancellationToken);
+        await _ovContext.SaveChangesAsync(cancellationToken);
+
+        TempData["Success"] =
+            $"Se agregaron {ordenes.Count} orden(es) y " +
+            $"{transferencias.Count} transferencia(s) al embarque.";
+
+        return RedirectToAction("Detalle", new
+        {
+            id = embarqueId
+        });
     }
 
     private string ObtenerTextoEstatusTablero(int estatus)
@@ -3249,6 +3990,30 @@ public class EmbarquesController : Controller
             .ToDictionary(g => g.Key, g => g.First());
 
         var itemsRequest = request.Items ?? new List<GuardarTemperaturaSkuItemRequest>();
+
+        const decimal temperaturaMinima = -25m;
+        const decimal temperaturaMaxima = 4m;
+
+        var temperaturasFueraRango = itemsRequest
+            .Where(x =>
+                x.Temperatura.HasValue &&
+                (
+                    x.Temperatura.Value < temperaturaMinima ||
+                    x.Temperatura.Value > temperaturaMaxima
+                ))
+            .ToList();
+
+        if (temperaturasFueraRango.Any())
+        {
+            return Json(new
+            {
+                success = false,
+                message =
+                    $"No se guardaron las temperaturas. " +
+                    $"Se encontraron {temperaturasFueraRango.Count} registro(s) " +
+                    $"fuera del rango permitido de -25 °C a 4 °C."
+            });
+        }
 
         var itemsDic = itemsRequest
             .Where(x =>
@@ -3357,6 +4122,12 @@ public class EmbarquesController : Controller
             total,
             capturadas,
             completo = total > 0 && capturadas == total,
+
+            // Se usarán para actualizar visualmente las filas
+            // sin tener que recargar la página.
+            fechaGuardado = fecha.ToString("yyyy-MM-dd HH:mm"),
+            usuario,
+
             message = $"Temperaturas guardadas: {capturadas}/{total} SKU(s)."
         });
     }
@@ -3472,76 +4243,165 @@ public class EmbarquesController : Controller
         var productos = new List<EmbarqueProductoTemperaturaItemVm>();
 
         // ============================================================
-        // OV: usar PedidoVenta + PedidoVentaProducto
-        // Igual que en Mapa de Carga
+        // OV: usar Subpedido → U_DocMeat → SurtidoEncabezado → SurtidoDetalleTarimas
+        // SKUs realmente surtidos en vez de los generales de PedidoVentaProducto
         // ============================================================
-        var pedidosVenta = await _ovContext.PedidoVenta
+
+        // 1. Obtener Subpedidos de las OVs del embarque
+        var subpedidos = await _ovContext.Subpedidos
             .AsNoTracking()
-            .Include(p => p.Productos)
-            .Where(p => ordenesIds.Contains(p.OrdenVentaId))
+            .Where(s => ordenesIds.Contains(s.OrdenVentaId))
             .ToListAsync();
 
-        foreach (var pedido in pedidosVenta)
+        // 2. Mapear OrdenVentaId → U_DocMeat (tomar el primero por OV)
+        var docMeatPorOV = subpedidos
+            .Where(s => !string.IsNullOrWhiteSpace(s.U_DocMeat))
+            .GroupBy(s => s.OrdenVentaId)
+            .ToDictionary(g => g.Key, g => g.First().U_DocMeat!.Trim());
+
+        // 3. Consultar SurtidoEncabezado usando los U_DocMeat
+        //    SolicitudSurtidoId es int pero U_DocMeat es string, convertir a int para la query
+        var docMeatInts = docMeatPorOV.Values
+            .Distinct()
+            .Select(v => int.TryParse(v, out var n) ? n : (int?)null)
+            .Where(n => n.HasValue)
+            .Select(n => n!.Value)
+            .ToList();
+
+        var surtidoEncabezados = docMeatInts.Any()
+            ? await _ovContext.SurtidoEncabezado
+                .AsNoTracking()
+                .Where(se => docMeatInts.Contains(se.SolicitudSurtidoId))
+                .ToListAsync()
+            : new List<SurtidoEncabezado>();
+
+        // 4. Consultar SurtidoDetalleTarimas para estos encabezados
+        var surtidoDetalle = docMeatInts.Any()
+            ? await _ovContext.SurtidoDetalleTarimas
+                .AsNoTracking()
+                .Where(sd => docMeatInts.Contains(sd.SolicitudSurtidoId))
+                .OrderBy(sd => sd.Articulo)
+                .ThenBy(sd => sd.Tarima)
+                .ToListAsync()
+            : new List<SurtidoDetalleTarima>();
+
+        // 5. Lookup de nombres de producto desde ArticuloSap
+        var skusUnicos = surtidoDetalle
+            .Select(sd => sd.Articulo)
+            .Where(a => !string.IsNullOrWhiteSpace(a))
+            .Select(a => a!.Trim())
+            .Distinct()
+            .ToList();
+
+        var nombresArticulo = skusUnicos.Any()
+            ? await _ovContext.ArticuloSap
+                .AsNoTracking()
+                .Where(a => skusUnicos.Contains(a.ProductoCodigo))
+                .ToDictionaryAsync(a => a.ProductoCodigo, a => a.ProductoNombre)
+            : new Dictionary<string, string>();
+
+        // 6. Construir productos desde SurtidoDetalleTarimas
+        //    Crear diccionario inverso: SolicitudSurtidoId (int) → OrdenVentaId
+        var ovPorSurtidoId = docMeatPorOV
+            .Where(x => int.TryParse(x.Value, out _))
+            .ToDictionary(
+                x => int.Parse(x.Value),
+                x => x.Key);
+
+        foreach (var detalle in surtidoDetalle)
         {
-            ordenesMeta.TryGetValue(pedido.OrdenVentaId, out var metaOv);
+            // Encontrar a qué OV pertenece este surtido
+            ovPorSurtidoId.TryGetValue(detalle.SolicitudSurtidoId, out var ordenVentaId);
+            ordenesMeta.TryGetValue(ordenVentaId, out var metaOv);
 
-            foreach (var detalle in pedido.Productos
-                .Where(d => !string.IsNullOrWhiteSpace(d.ProductoCodigo))
-                .OrderBy(d => d.Id))
+            var skuCodigo = (detalle.Articulo ?? "").Trim();
+            var nombreProducto = nombresArticulo.TryGetValue(skuCodigo, out var nombre)
+                ? nombre
+                : skuCodigo;
+
+            productos.Add(new EmbarqueProductoTemperaturaItemVm
             {
-                productos.Add(new EmbarqueProductoTemperaturaItemVm
-                {
-                    TipoDocumento = "OV",
-                    DocumentoId = pedido.OrdenVentaId,
-                    DocumentoConsecutivo = metaOv?.Consecutivo ?? pedido.OrdenVentaConsecutivo ?? "",
-                    DocumentoCliente = metaOv?.Cliente ?? "",
-                    OrigenDetalleId = detalle.Id,
+                TipoDocumento = "OV",
+                DocumentoId = ordenVentaId,
+                DocumentoConsecutivo = metaOv?.Consecutivo ?? "",
+                DocumentoCliente = metaOv?.Cliente ?? "",
+                OrigenDetalleId = detalle.SurtidoDetalleTarimaId,
 
-                    ProductoCodigo = detalle.ProductoCodigo ?? "",
-                    ProductoNombre = detalle.ProductoNombre ?? "",
-                    Almacen = detalle.Almacen ?? "",
+                ProductoCodigo = skuCodigo,
+                ProductoNombre = nombre,
+                Almacen = (detalle.Sucursal ?? "").Trim(),
 
-                    Cajas = detalle.Cajas,
-                    Kilos = detalle.KilosCaja
-                });
-            }
+                Cajas = detalle.Cajas,
+                Kilos = detalle.Kg,
+                Tarima = (detalle.Tarima ?? "").Trim()
+            });
         }
 
         // ============================================================
-        // TRANSFERENCIAS: usar PedidosTransferencia + Detalles
-        // Igual que en Mapa de Carga
+        // TRANSFERENCIAS: usar TransferenciaScanEtiqueta
+        // Agrupar por TransferenciaId + Sku + TarimaCodigo
+        // Cada grupo = 1 fila en calidad (misma tarima = misma temperatura)
         // ============================================================
-        var pedidosTransferencia = await _ovContext.PedidosTransferencia
-            .AsNoTracking()
-            .Include(p => p.Detalles)
-            .Where(p => transferenciasIds.Contains(p.TransferenciaId))
-            .ToListAsync();
+        var scanEtiquetas = transferenciasIds.Any()
+            ? await _ovContext.TransferenciaScanEtiquetas
+                .AsNoTracking()
+                .Where(s => transferenciasIds.Contains(s.TransferenciaId))
+                .ToListAsync()
+            : new List<TransferenciaScanEtiqueta>();
 
-        foreach (var tr in pedidosTransferencia)
-        {
-            transferenciasMeta.TryGetValue(tr.TransferenciaId, out var metaTr);
+        // Lookup de nombres de producto desde ArticuloSap
+        var skusTr = scanEtiquetas
+            .Select(s => (s.Sku ?? "").Trim())
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Distinct()
+            .ToList();
 
-            foreach (var detalle in tr.Detalles
-                .Where(d => !string.IsNullOrWhiteSpace(d.ProductoCodigo))
-                .OrderBy(d => d.Orden)
-                .ThenBy(d => d.Id))
+        var nombresArticuloTr = skusTr.Any()
+            ? await _ovContext.ArticuloSap
+                .AsNoTracking()
+                .Where(a => skusTr.Contains(a.ProductoCodigo))
+                .ToDictionaryAsync(a => a.ProductoCodigo, a => a.ProductoNombre)
+            : new Dictionary<string, string>();
+
+        // Agrupar por TransferenciaId + Sku + TarimaCodigo
+        var trGroups = scanEtiquetas
+            .Where(s => !string.IsNullOrWhiteSpace(s.TarimaCodigo))
+            .GroupBy(s => new
             {
-                productos.Add(new EmbarqueProductoTemperaturaItemVm
-                {
-                    TipoDocumento = "TRANSFERENCIA",
-                    DocumentoId = tr.TransferenciaId,
-                    DocumentoConsecutivo = metaTr?.Consecutivo ?? tr.Consecutivo ?? "",
-                    DocumentoCliente = metaTr?.Cliente ?? "",
-                    OrigenDetalleId = detalle.Id,
+                s.TransferenciaId,
+                Sku = (s.Sku ?? "").Trim(),
+                Tarima = (s.TarimaCodigo ?? "").Trim()
+            });
 
-                    ProductoCodigo = detalle.ProductoCodigo ?? "",
-                    ProductoNombre = detalle.ProductoCodigo ?? "",
-                    Almacen = "",
+        foreach (var g in trGroups)
+        {
+            var key = g.Key;
+            transferenciasMeta.TryGetValue(key.TransferenciaId, out var metaTr);
 
-                    Cajas = detalle.Cajas,
-                    Kilos = detalle.CantidadKg
-                });
-            }
+            var skuCodigo = key.Sku;
+            var nombreProducto = nombresArticuloTr.TryGetValue(skuCodigo, out var nombre)
+                ? nombre
+                : skuCodigo;
+
+            // min(Id) como OrigenDetalleId estable para la clave
+            var minId = g.Min(s => s.Id);
+
+            productos.Add(new EmbarqueProductoTemperaturaItemVm
+            {
+                TipoDocumento = "TRANSFERENCIA",
+                DocumentoId = key.TransferenciaId,
+                DocumentoConsecutivo = metaTr?.Consecutivo ?? "",
+                DocumentoCliente = metaTr?.Cliente ?? "",
+                OrigenDetalleId = minId,
+
+                ProductoCodigo = skuCodigo,
+                ProductoNombre = nombreProducto,
+                Almacen = "",
+
+                Cajas = g.Count(),
+                Kilos = g.Sum(s => s.Kg),
+                Tarima = key.Tarima
+            });
         }
 
         var guardadas = await _qrContext.EmbarqueProductoTemperaturas
@@ -3571,6 +4431,1139 @@ public class EmbarquesController : Controller
         }
 
         return productos;
+    }
+
+    // ============================================================
+    // PDF DE TEMPERATURAS - HISTÓRICO DE CALIDAD
+    //
+    // NuGet requerido:
+    // PDFsharp-MigraDoc 6.2.4
+    //
+    // En Windows / IIS, en Program.cs, antes de app.Run():
+    //
+    // PdfSharp.Fonts.GlobalFontSettings.UseWindowsFontsUnderWindows = true;
+    //
+    // ============================================================
+    [HttpGet]
+    public async Task<IActionResult> DescargarTemperaturasPdf(int id)
+    {
+        var embarque = await _qrContext.Embarque
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == id);
+
+        if (embarque == null)
+            return NotFound();
+
+        // ============================================================
+        // EVIDENCIA FOTOGRÁFICA DE CALIDAD
+        // ============================================================
+        var fotosCalidad = await _qrContext
+            .Set<Embarque.EmbarqueCalidadFoto>()
+            .AsNoTracking()
+            .Where(f => f.EmbarqueId == id)
+            .OrderBy(f => f.FechaRegistro)
+            .ToListAsync();
+
+        var productos = await ConstruirProductosTemperaturaCalidad(id);
+
+        // ============================================================
+        // AGRUPAR: 1 TARIMA = 1 TEMPERATURA
+        // ============================================================
+        var tarimas = productos
+            .GroupBy(x =>
+                string.IsNullOrWhiteSpace(x.Tarima)
+                    ? $"__SIN_TARIMA__|{x.TipoDocumento}|{x.DocumentoId}|{x.OrigenDetalleId}"
+                    : $"{x.TipoDocumento}|{x.DocumentoId}|{x.Tarima.Trim().ToUpperInvariant()}")
+            .Select(g =>
+            {
+                var items = g.ToList();
+
+                var ultimaCaptura = items
+                    .Where(x => x.Temperatura.HasValue)
+                    .OrderByDescending(
+                        x => x.FechaUltimaCaptura ?? DateTime.MinValue)
+                    .FirstOrDefault();
+
+                var productosTarima = items
+                    .GroupBy(x => new
+                    {
+                        Codigo = (x.ProductoCodigo ?? "").Trim(),
+                        Nombre = (x.ProductoNombre ?? "").Trim()
+                    })
+                    .Select(pg => new
+                    {
+                        pg.Key.Codigo,
+                        pg.Key.Nombre,
+                        Cajas = pg.Sum(x => x.Cajas),
+                        Kilos = pg.Sum(x => x.Kilos)
+                    })
+                    .OrderBy(x => x.Codigo)
+                    .ToList();
+
+                return new
+                {
+                    TipoDocumento = items.First().TipoDocumento,
+                    DocumentoId = items.First().DocumentoId,
+                    DocumentoConsecutivo =
+                        items.First().DocumentoConsecutivo ?? "",
+                    DocumentoCliente =
+                        items.First().DocumentoCliente ?? "",
+
+                    Tarima = items
+                        .Select(x => x.Tarima)
+                        .FirstOrDefault(
+                            x => !string.IsNullOrWhiteSpace(x))
+                        ?? "Sin código",
+
+                    Productos = productosTarima,
+
+                    TotalCajas = items.Sum(x => x.Cajas),
+                    TotalKilos = items.Sum(x => x.Kilos),
+
+                    Temperatura = ultimaCaptura?.Temperatura,
+
+                    Observaciones =
+                        ultimaCaptura?.Observaciones
+                        ?? items
+                            .Select(x => x.Observaciones)
+                            .FirstOrDefault(
+                                x => !string.IsNullOrWhiteSpace(x)),
+
+                    FechaCaptura =
+                        ultimaCaptura?.FechaUltimaCaptura,
+
+                    UsuarioCaptura =
+                        ultimaCaptura?.UsuarioUltimaCaptura
+                        ?? items
+                            .Select(x => x.UsuarioUltimaCaptura)
+                            .FirstOrDefault(
+                                x => !string.IsNullOrWhiteSpace(x))
+                };
+            })
+            .OrderBy(x => x.TipoDocumento == "OV" ? 0 : 1)
+            .ThenBy(x => x.DocumentoConsecutivo)
+            .ThenBy(x => x.Tarima)
+            .ToList();
+
+        if (!tarimas.Any())
+        {
+            TempData["Error"] =
+                "El embarque seleccionado no tiene temperaturas para generar el PDF.";
+
+            return RedirectToAction(nameof(Calidad));
+        }
+
+        var consecutivo =
+            string.IsNullOrWhiteSpace(embarque.Consecutivo)
+                ? $"EMB-{embarque.Id}"
+                : embarque.Consecutivo.Trim();
+
+        var nombreEmbarque =
+            string.IsNullOrWhiteSpace(embarque.NombreEmbarque)
+                ? ""
+                : embarque.NombreEmbarque.Trim();
+
+        var totalCajas = tarimas.Sum(x => x.TotalCajas);
+        var totalKilos = tarimas.Sum(x => x.TotalKilos);
+        var tarimasCapturadas =
+            tarimas.Count(x => x.Temperatura.HasValue);
+
+        // ============================================================
+        // DOCUMENTO PDF
+        // ============================================================
+        var document = new MD.Document();
+
+        document.Info.Title =
+            $"Reporte de Calidad - {consecutivo}";
+
+        document.Info.Subject =
+            "Reporte de validación de calidad del embarque";
+
+        // Estilo general
+        var normal = document.Styles[MD.StyleNames.Normal];
+
+        normal.Font.Name = "Arial";
+        normal.Font.Size = 8.5;
+
+        var section = document.AddSection();
+
+        section.PageSetup.PageFormat =
+            MD.PageFormat.A4;
+
+        section.PageSetup.Orientation =
+            MD.Orientation.Portrait;
+
+        section.PageSetup.TopMargin =
+            MD.Unit.FromCentimeter(1.1);
+
+        section.PageSetup.BottomMargin =
+            MD.Unit.FromCentimeter(1.1);
+
+        section.PageSetup.LeftMargin =
+            MD.Unit.FromCentimeter(1.2);
+
+        section.PageSetup.RightMargin =
+            MD.Unit.FromCentimeter(1.2);
+
+        // ============================================================
+        // ENCABEZADO
+        // ============================================================
+        var eyebrow = section.AddParagraph();
+
+        eyebrow.AddText("CONTROL DE CALIDAD");
+
+        eyebrow.Format.Font.Size = 8;
+        eyebrow.Format.Font.Bold = true;
+        eyebrow.Format.Font.Color = MD.Colors.DarkRed;
+        eyebrow.Format.SpaceAfter =
+            MD.Unit.FromPoint(2);
+
+        var titulo = section.AddParagraph();
+
+        titulo.AddText(
+            "Reporte de validación de calidad");
+
+        titulo.Format.Font.Size = 18;
+        titulo.Format.Font.Bold = true;
+        titulo.Format.Font.Color = MD.Colors.Black;
+        titulo.Format.SpaceAfter =
+            MD.Unit.FromPoint(2);
+
+        var sub = section.AddParagraph();
+
+        sub.AddText($"Embarque #{consecutivo}");
+
+        if (!string.IsNullOrWhiteSpace(nombreEmbarque))
+            sub.AddText($" · {nombreEmbarque}");
+
+        sub.Format.Font.Size = 9;
+        sub.Format.Font.Color = MD.Colors.Gray;
+        sub.Format.SpaceAfter =
+            MD.Unit.FromPoint(8);
+
+        // Línea superior
+        var linea = section.AddTable();
+
+        linea.AddColumn(
+            MD.Unit.FromCentimeter(18.6));
+
+        linea.Borders.Visible = false;
+
+        var lineaRow = linea.AddRow();
+
+        lineaRow.Height =
+            MD.Unit.FromPoint(2);
+
+        lineaRow.Cells[0].Shading.Color =
+            MD.Colors.DarkRed;
+
+        var espacioLinea = section.AddParagraph();
+
+        espacioLinea.Format.SpaceAfter =
+            MD.Unit.FromPoint(3);
+
+        // ============================================================
+        // RESUMEN
+        // ============================================================
+        var resumen = section.AddTable();
+
+        resumen.Borders.Width = 0.5;
+        resumen.Borders.Color =
+            MD.Colors.LightGray;
+
+        resumen.TopPadding =
+            MD.Unit.FromPoint(5);
+
+        resumen.BottomPadding =
+            MD.Unit.FromPoint(5);
+
+        resumen.LeftPadding =
+            MD.Unit.FromPoint(5);
+
+        resumen.RightPadding =
+            MD.Unit.FromPoint(5);
+
+        for (var i = 0; i < 4; i++)
+        {
+            resumen.AddColumn(
+                MD.Unit.FromCentimeter(4.65));
+        }
+
+        var resumenRow = resumen.AddRow();
+
+        resumenRow.Shading.Color =
+            MD.Colors.WhiteSmoke;
+
+        AgregarCeldaResumenPdf(
+            resumenRow.Cells[0],
+            "Fecha de validación",
+            embarque.FechaValidacionCalidad
+                ?.ToString("dd/MM/yyyy HH:mm")
+            ?? "-");
+
+        AgregarCeldaResumenPdf(
+            resumenRow.Cells[1],
+            "Validó",
+            string.IsNullOrWhiteSpace(
+                embarque.UsuarioValidaCalidad)
+                    ? "Sistema"
+                    : embarque.UsuarioValidaCalidad);
+
+        AgregarCeldaResumenPdf(
+            resumenRow.Cells[2],
+            "Tarimas",
+            $"{tarimasCapturadas} / {tarimas.Count}");
+
+        AgregarCeldaResumenPdf(
+            resumenRow.Cells[3],
+            "Totales",
+            $"{totalCajas} cajas · {totalKilos:N2} kg");
+
+        var espacioResumen =
+            section.AddParagraph();
+
+        espacioResumen.Format.SpaceAfter =
+            MD.Unit.FromPoint(5);
+
+        // ============================================================
+        // 1. SALIDA Y TRANSPORTE
+        // ============================================================
+        AgregarTituloSeccionPdf(
+            section,
+            "1. Salida y transporte"
+        );
+
+        AgregarTablaCamposPdf(
+            section,
+            (
+                "Tipo de salida",
+                ValorTextoPdf(embarque.SalidaTipo)
+            ),
+            (
+                "Placa del transporte",
+                ValorTextoPdf(embarque.PlacaTransporte)
+            ),
+            (
+                "Temperatura de programación",
+                ValorTemperaturaPdf(embarque.TemperaturaProgramacion)
+            ),
+            (
+                "Condiciones de la unidad",
+                ValorTextoPdf(embarque.EstadoUnidadCalidad)
+            )
+        );
+
+        // ============================================================
+        // 2. TIEMPOS Y TEMPERATURAS DE UNIDAD
+        // ============================================================
+        AgregarTituloSeccionPdf(
+            section,
+            "2. Tiempos y temperaturas de unidad"
+        );
+
+        AgregarTablaCamposPdf(
+            section,
+            (
+                "Inicio de embarque",
+                ValorFechaPdf(embarque.HoraInicioEmbarque)
+            ),
+            (
+                "Término de embarque",
+                ValorFechaPdf(embarque.HoraTerminoEmbarque)
+            ),
+            (
+                "Temperatura de unidad al inicio",
+                ValorTemperaturaPdf(embarque.TemperaturaUnidadInicio)
+            ),
+            (
+                "Temperatura de unidad al término",
+                ValorTemperaturaPdf(embarque.TemperaturaUnidadTermino)
+            )
+        );
+
+        // ============================================================
+        // 3. PRODUCTO Y EQUIPOS DE MEDICIÓN
+        // ============================================================
+        AgregarTituloSeccionPdf(
+            section,
+            "3. Producto y equipos de medición"
+        );
+
+        AgregarTablaCamposPdf(
+            section,
+            (
+                "Condiciones del producto",
+                ValorTextoPdf(embarque.EstadoProductosCalidad)
+            ),
+            (
+                "Código de termograficador",
+                ValorTextoPdf(embarque.CodigoTermograficador)
+            ),
+            (
+                "Número de termómetro",
+                ValorTextoPdf(embarque.NumeroTermometro)
+            ),
+            (
+                "Estado de validación",
+                embarque.CalidadAprobada == true
+                    ? "APROBADO"
+                    : "PENDIENTE"
+            )
+        );
+
+        // ============================================================
+        // 4. ACCIONES CORRECTIVAS Y OBSERVACIONES
+        // ============================================================
+        AgregarTituloSeccionPdf(
+            section,
+            "4. Acciones correctivas y observaciones"
+        );
+
+        AgregarBloqueTextoPdf(
+            section,
+            "Acciones correctivas",
+            embarque.AccionesCorrectivasCalidad
+        );
+
+        AgregarBloqueTextoPdf(
+            section,
+            "Observaciones de calidad",
+            embarque.ObservacionesCalidad
+        );
+
+        // ============================================================
+        // 5. EVIDENCIA FOTOGRÁFICA
+        // ============================================================
+        AgregarTituloSeccionPdf(
+            section,
+            "5. Evidencia fotográfica"
+        );
+
+        if (fotosCalidad.Any())
+        {
+            var resumenFotos = section.AddParagraph();
+
+            resumenFotos.AddText(
+                $"{fotosCalidad.Count} fotografía(s) registrada(s) durante la validación."
+            );
+
+            resumenFotos.Format.Font.Size = 8;
+            resumenFotos.Format.Font.Color = MD.Colors.Gray;
+            resumenFotos.Format.SpaceAfter = MD.Unit.FromPoint(5);
+
+            var tablaFotos = section.AddTable();
+            tablaFotos.Borders.Visible = false;
+            tablaFotos.LeftPadding = MD.Unit.FromPoint(5);
+            tablaFotos.RightPadding = MD.Unit.FromPoint(5);
+
+            tablaFotos.AddColumn(MD.Unit.FromCentimeter(9.15));
+            tablaFotos.AddColumn(MD.Unit.FromCentimeter(9.15));
+
+            MDT.Row? filaFotos = null;
+
+            for (var i = 0; i < fotosCalidad.Count; i++)
+            {
+                if (i % 2 == 0)
+                {
+                    filaFotos = tablaFotos.AddRow();
+                    filaFotos.TopPadding = MD.Unit.FromPoint(5);
+                    filaFotos.BottomPadding = MD.Unit.FromPoint(5);
+                }
+
+                if (filaFotos == null)
+                    continue;
+
+                var celda = filaFotos.Cells[i % 2];
+
+                celda.Borders.Width = 0.5;
+                celda.Borders.Color = MD.Colors.LightGray;
+
+                var foto = fotosCalidad[i];
+
+                var rutaRelativa =
+                    (foto.RutaArchivo ?? "")
+                        .TrimStart('/', '\\')
+                        .Replace('/', Path.DirectorySeparatorChar)
+                        .Replace('\\', Path.DirectorySeparatorChar);
+
+                var rutaFisica = Path.Combine(
+                    _environment.WebRootPath,
+                    rutaRelativa
+                );
+
+                bool imagenAgregada = false;
+
+                if (!string.IsNullOrWhiteSpace(rutaRelativa) &&
+                    System.IO.File.Exists(rutaFisica))
+                {
+                    try
+                    {
+                        var parrafoImagen = celda.AddParagraph();
+                        parrafoImagen.Format.Alignment = MD.ParagraphAlignment.Center;
+
+                        var imagen = parrafoImagen.AddImage(rutaFisica);
+                        imagen.LockAspectRatio = true;
+                        imagen.Width = MD.Unit.FromCentimeter(7.8);
+                        imagenAgregada = true;
+                    }
+                    catch
+                    {
+                        // La evidencia no debe impedir la generación del reporte.
+                        imagenAgregada = false;
+                    }
+                }
+
+                if (!imagenAgregada)
+                {
+                    var noDisponible = celda.AddParagraph();
+                    noDisponible.AddText("Vista previa no disponible");
+                    noDisponible.Format.Font.Size = 8;
+                    noDisponible.Format.Font.Color = MD.Colors.Gray;
+                    noDisponible.Format.Alignment = MD.ParagraphAlignment.Center;
+                }
+
+                var caption = celda.AddParagraph();
+                caption.Format.SpaceBefore = MD.Unit.FromPoint(4);
+                caption.Format.Alignment = MD.ParagraphAlignment.Center;
+
+                var tituloFoto = caption.AddFormattedText(
+                    $"Evidencia {i + 1}\n"
+                );
+
+                tituloFoto.Font.Bold = true;
+                tituloFoto.Font.Size = 8;
+                tituloFoto.Font.Color = MD.Colors.DarkRed;
+
+                var fechaFoto = caption.AddFormattedText(
+                    foto.FechaRegistro.ToString("dd/MM/yyyy HH:mm")
+                );
+
+                fechaFoto.Font.Size = 7;
+                fechaFoto.Font.Color = MD.Colors.Gray;
+
+                if (!string.IsNullOrWhiteSpace(foto.UsuarioRegistro))
+                {
+                    var usuarioFoto = caption.AddFormattedText(
+                        $"\n{foto.UsuarioRegistro}"
+                    );
+
+                    usuarioFoto.Font.Size = 7;
+                    usuarioFoto.Font.Color = MD.Colors.Gray;
+                }
+            }
+        }
+        else
+        {
+            var sinFotos = section.AddParagraph();
+            sinFotos.AddText("No se encontraron fotografías de evidencia.");
+            sinFotos.Format.Font.Size = 8;
+            sinFotos.Format.Font.Color = MD.Colors.Gray;
+        }
+
+        var espacioAntesTemperaturas = section.AddParagraph();
+        espacioAntesTemperaturas.Format.SpaceAfter = MD.Unit.FromPoint(5);
+
+        // ============================================================
+        // 6. TEMPERATURAS POR TARIMA
+        // Se conserva sin cambios el detalle actual de cada tarima.
+        // ============================================================
+        AgregarTituloSeccionPdf(
+            section,
+            "6. Temperaturas por tarima",
+            "Detalle de lecturas, productos y captura por código de tarima."
+        );
+
+        // ============================================================
+        // DETALLE POR TARIMA
+        // ============================================================
+        foreach (var tarima in tarimas)
+        {
+            var tipoDocumento =
+                tarima.TipoDocumento == "OV"
+                    ? "Orden de Venta"
+                    : "Transferencia";
+
+            var documentoTexto =
+                string.IsNullOrWhiteSpace(
+                    tarima.DocumentoConsecutivo)
+                    ? $"ID {tarima.DocumentoId}"
+                    : tarima.DocumentoConsecutivo;
+
+            // --------------------------------------------------------
+            // CABECERA TARIMA / TEMPERATURA
+            // --------------------------------------------------------
+            var cabecera = section.AddTable();
+
+            cabecera.Borders.Width = 0.75;
+            cabecera.Borders.Color =
+                MD.Colors.LightGray;
+
+            cabecera.TopPadding =
+                MD.Unit.FromPoint(6);
+
+            cabecera.BottomPadding =
+                MD.Unit.FromPoint(6);
+
+            cabecera.LeftPadding =
+                MD.Unit.FromPoint(7);
+
+            cabecera.RightPadding =
+                MD.Unit.FromPoint(7);
+
+            cabecera.AddColumn(
+                MD.Unit.FromCentimeter(12.7));
+
+            cabecera.AddColumn(
+                MD.Unit.FromCentimeter(5.9));
+
+            var cabeceraRow =
+                cabecera.AddRow();
+
+            cabeceraRow.Shading.Color =
+                MD.Colors.WhiteSmoke;
+
+            var pTarima =
+                cabeceraRow.Cells[0]
+                    .AddParagraph();
+
+            var labelTarima =
+                pTarima.AddFormattedText(
+                    "TARIMA\n");
+
+            labelTarima.Font.Size = 7;
+            labelTarima.Font.Bold = true;
+            labelTarima.Font.Color =
+                MD.Colors.Gray;
+
+            var codigoTarima =
+                pTarima.AddFormattedText(
+                    tarima.Tarima);
+
+            codigoTarima.Font.Size = 13;
+            codigoTarima.Font.Bold = true;
+            codigoTarima.Font.Color =
+                MD.Colors.DarkRed;
+
+            var pTemp =
+                cabeceraRow.Cells[1]
+                    .AddParagraph();
+
+            pTemp.Format.Alignment =
+                MD.ParagraphAlignment.Center;
+
+            var labelTemp =
+                pTemp.AddFormattedText(
+                    "TEMPERATURA\n");
+
+            labelTemp.Font.Size = 7;
+            labelTemp.Font.Bold = true;
+            labelTemp.Font.Color =
+                MD.Colors.Gray;
+
+            var valorTemperatura =
+                tarima.Temperatura.HasValue
+                    ? $"{tarima.Temperatura.Value:N2} °C"
+                    : "Sin captura";
+
+            var valorTemp =
+                pTemp.AddFormattedText(
+                    valorTemperatura);
+
+            valorTemp.Font.Size = 13;
+            valorTemp.Font.Bold = true;
+
+            valorTemp.Font.Color =
+                tarima.Temperatura.HasValue
+                    ? MD.Colors.DarkGreen
+                    : MD.Colors.DarkRed;
+
+            // --------------------------------------------------------
+            // METADATA TARIMA
+            // --------------------------------------------------------
+            var meta = section.AddTable();
+
+            meta.Borders.Width = 0.5;
+            meta.Borders.Color =
+                MD.Colors.LightGray;
+
+            meta.TopPadding =
+                MD.Unit.FromPoint(4);
+
+            meta.BottomPadding =
+                MD.Unit.FromPoint(4);
+
+            meta.LeftPadding =
+                MD.Unit.FromPoint(5);
+
+            meta.RightPadding =
+                MD.Unit.FromPoint(5);
+
+            meta.AddColumn(
+                MD.Unit.FromCentimeter(4.65));
+
+            meta.AddColumn(
+                MD.Unit.FromCentimeter(7.45));
+
+            meta.AddColumn(
+                MD.Unit.FromCentimeter(2.7));
+
+            meta.AddColumn(
+                MD.Unit.FromCentimeter(3.8));
+
+            var metaRow = meta.AddRow();
+
+            AgregarCeldaResumenPdf(
+                metaRow.Cells[0],
+                "Documento",
+                $"{tipoDocumento} · {documentoTexto}");
+
+            AgregarCeldaResumenPdf(
+                metaRow.Cells[1],
+                "Cliente / Sucursal",
+                string.IsNullOrWhiteSpace(
+                    tarima.DocumentoCliente)
+                    ? "-"
+                    : tarima.DocumentoCliente);
+
+            AgregarCeldaResumenPdf(
+                metaRow.Cells[2],
+                "Cajas",
+                tarima.TotalCajas.ToString());
+
+            AgregarCeldaResumenPdf(
+                metaRow.Cells[3],
+                "Kilos",
+                $"{tarima.TotalKilos:N2} kg");
+
+            // --------------------------------------------------------
+            // PRODUCTOS / SKUS
+            // --------------------------------------------------------
+            var tablaProductos =
+                section.AddTable();
+
+            tablaProductos.Borders.Width = 0.5;
+            tablaProductos.Borders.Color =
+                MD.Colors.LightGray;
+
+            tablaProductos.TopPadding =
+                MD.Unit.FromPoint(4);
+
+            tablaProductos.BottomPadding =
+                MD.Unit.FromPoint(4);
+
+            tablaProductos.LeftPadding =
+                MD.Unit.FromPoint(5);
+
+            tablaProductos.RightPadding =
+                MD.Unit.FromPoint(5);
+
+            tablaProductos.AddColumn(
+                MD.Unit.FromCentimeter(3.0));
+
+            tablaProductos.AddColumn(
+                MD.Unit.FromCentimeter(10.0));
+
+            tablaProductos.AddColumn(
+                MD.Unit.FromCentimeter(2.3));
+
+            tablaProductos.AddColumn(
+                MD.Unit.FromCentimeter(3.3));
+
+            var header =
+                tablaProductos.AddRow();
+
+            header.HeadingFormat = true;
+            header.Shading.Color =
+                MD.Colors.WhiteSmoke;
+
+            AgregarEncabezadoPdf(
+                header.Cells[0],
+                "SKU",
+                MD.ParagraphAlignment.Left);
+
+            AgregarEncabezadoPdf(
+                header.Cells[1],
+                "Producto",
+                MD.ParagraphAlignment.Left);
+
+            AgregarEncabezadoPdf(
+                header.Cells[2],
+                "Cajas",
+                MD.ParagraphAlignment.Right);
+
+            AgregarEncabezadoPdf(
+                header.Cells[3],
+                "Kilos",
+                MD.ParagraphAlignment.Right);
+
+            foreach (var producto
+                     in tarima.Productos)
+            {
+                var row =
+                    tablaProductos.AddRow();
+
+                AgregarDatoPdf(
+                    row.Cells[0],
+                    string.IsNullOrWhiteSpace(
+                        producto.Codigo)
+                        ? "S/SKU"
+                        : producto.Codigo,
+                    MD.ParagraphAlignment.Left);
+
+                AgregarDatoPdf(
+                    row.Cells[1],
+                    string.IsNullOrWhiteSpace(
+                        producto.Nombre)
+                        ? "Producto sin descripción"
+                        : producto.Nombre,
+                    MD.ParagraphAlignment.Left);
+
+                AgregarDatoPdf(
+                    row.Cells[2],
+                    producto.Cajas.ToString(),
+                    MD.ParagraphAlignment.Right);
+
+                AgregarDatoPdf(
+                    row.Cells[3],
+                    producto.Kilos.ToString("N2"),
+                    MD.ParagraphAlignment.Right);
+            }
+
+            // --------------------------------------------------------
+            // OBSERVACIONES / CAPTURA
+            // --------------------------------------------------------
+            var pieTarima =
+                section.AddTable();
+
+            pieTarima.Borders.Width = 0.5;
+            pieTarima.Borders.Color =
+                MD.Colors.LightGray;
+
+            pieTarima.TopPadding =
+                MD.Unit.FromPoint(5);
+
+            pieTarima.BottomPadding =
+                MD.Unit.FromPoint(5);
+
+            pieTarima.LeftPadding =
+                MD.Unit.FromPoint(5);
+
+            pieTarima.RightPadding =
+                MD.Unit.FromPoint(5);
+
+            pieTarima.AddColumn(
+                MD.Unit.FromCentimeter(9.3));
+
+            pieTarima.AddColumn(
+                MD.Unit.FromCentimeter(9.3));
+
+            var pieRow =
+                pieTarima.AddRow();
+
+            AgregarCeldaResumenPdf(
+                pieRow.Cells[0],
+                "Observaciones",
+                string.IsNullOrWhiteSpace(
+                    tarima.Observaciones)
+                    ? "Sin observaciones"
+                    : tarima.Observaciones);
+
+            var fechaCapturaTexto =
+                tarima.FechaCaptura.HasValue
+                    ? tarima.FechaCaptura.Value
+                        .ToString("dd/MM/yyyy HH:mm")
+                    : "-";
+
+            var usuarioCapturaTexto =
+                string.IsNullOrWhiteSpace(
+                    tarima.UsuarioCaptura)
+                    ? "-"
+                    : tarima.UsuarioCaptura;
+
+            AgregarCeldaResumenPdf(
+                pieRow.Cells[1],
+                "Captura",
+                $"{fechaCapturaTexto} · {usuarioCapturaTexto}");
+
+            var separador =
+                section.AddParagraph();
+
+            separador.Format.SpaceAfter =
+                MD.Unit.FromPoint(6);
+        }
+
+        // ============================================================
+        // FOOTER
+        // ============================================================
+        var footer =
+            section.Footers.Primary
+                .AddParagraph();
+
+        footer.AddText(
+            $"Reporte de Calidad · Embarque #{consecutivo} · Página ");
+
+        footer.AddPageField();
+
+        footer.Format.Font.Size = 7;
+        footer.Format.Font.Color =
+            MD.Colors.Gray;
+
+        footer.Format.Alignment =
+            MD.ParagraphAlignment.Center;
+
+        // ============================================================
+        // RENDER PDF
+        // ============================================================
+        var renderer =
+            new MDR.PdfDocumentRenderer
+            {
+                Document = document
+            };
+
+        renderer.RenderDocument();
+
+        using var stream =
+            new MemoryStream();
+
+        renderer.PdfDocument.Save(stream);
+
+        var invalidos =
+            Path.GetInvalidFileNameChars();
+
+        var consecutivoSeguro =
+            new string(
+                consecutivo
+                    .Select(c =>
+                        invalidos.Contains(c)
+                            ? '_'
+                            : c)
+                    .ToArray());
+
+        return File(
+            stream.ToArray(),
+            "application/pdf",
+            $"Reporte_Calidad_{consecutivoSeguro}.pdf"
+        );
+    }
+
+    // ============================================================
+    // HELPERS PDF
+    // Los dejamos como métodos privados del Controller para evitar
+    // problemas con funciones locales y tipos ambiguos.
+    // ============================================================
+    private static string ValorTextoPdf(string? valor)
+    {
+        return string.IsNullOrWhiteSpace(valor)
+            ? "-"
+            : valor.Trim();
+    }
+
+    private static string ValorTemperaturaPdf(decimal? valor)
+    {
+        return valor.HasValue
+            ? $"{valor.Value:N2} °C"
+            : "-";
+    }
+
+    private static string ValorFechaPdf(DateTime? valor)
+    {
+        return valor.HasValue
+            ? valor.Value.ToString("dd/MM/yyyy HH:mm")
+            : "-";
+    }
+
+    private static void AgregarTituloSeccionPdf(
+        MD.Section section,
+        string titulo,
+        string? subtitulo = null)
+    {
+        var espacio = section.AddParagraph();
+        espacio.Format.SpaceBefore = MD.Unit.FromPoint(5);
+        espacio.Format.SpaceAfter = MD.Unit.FromPoint(3);
+
+        var tabla = section.AddTable();
+        var columna = tabla.AddColumn(MD.Unit.FromCentimeter(18.6));
+        tabla.Borders.Visible = false;
+
+        columna.LeftPadding = MD.Unit.FromPoint(6);
+        columna.RightPadding = MD.Unit.FromPoint(6);
+
+        var row = tabla.AddRow();
+        row.TopPadding = MD.Unit.FromPoint(5);
+        row.BottomPadding = MD.Unit.FromPoint(5);
+
+        row.Cells[0].Shading.Color = MD.Colors.WhiteSmoke;
+        row.Cells[0].Borders.Bottom.Width = 1.5;
+        row.Cells[0].Borders.Bottom.Color = MD.Colors.DarkRed;
+
+        var p = row.Cells[0].AddParagraph();
+
+        var textoTitulo = p.AddFormattedText(titulo);
+        textoTitulo.Font.Size = 10;
+        textoTitulo.Font.Bold = true;
+        textoTitulo.Font.Color = MD.Colors.DarkRed;
+
+        if (!string.IsNullOrWhiteSpace(subtitulo))
+        {
+            var textoSub = p.AddFormattedText($"\n{subtitulo}");
+            textoSub.Font.Size = 7.3;
+            textoSub.Font.Bold = false;
+            textoSub.Font.Color = MD.Colors.Gray;
+        }
+
+        var espacioDespues = section.AddParagraph();
+        espacioDespues.Format.SpaceAfter = MD.Unit.FromPoint(2);
+    }
+
+    private static void AgregarTablaCamposPdf(
+        MD.Section section,
+        params (string Etiqueta, string Valor)[] campos)
+    {
+        var tabla = section.AddTable();
+
+        tabla.Borders.Width = 0.5;
+        tabla.Borders.Color = MD.Colors.LightGray;
+        tabla.TopPadding = MD.Unit.FromPoint(5);
+        tabla.BottomPadding = MD.Unit.FromPoint(5);
+        tabla.LeftPadding = MD.Unit.FromPoint(5);
+        tabla.RightPadding = MD.Unit.FromPoint(5);
+
+        tabla.AddColumn(MD.Unit.FromCentimeter(9.3));
+        tabla.AddColumn(MD.Unit.FromCentimeter(9.3));
+
+        for (var i = 0; i < campos.Length; i += 2)
+        {
+            var row = tabla.AddRow();
+
+            if ((i / 2) % 2 == 0)
+                row.Shading.Color = MD.Colors.WhiteSmoke;
+
+            AgregarCeldaResumenPdf(
+                row.Cells[0],
+                campos[i].Etiqueta,
+                campos[i].Valor
+            );
+
+            if (i + 1 < campos.Length)
+            {
+                AgregarCeldaResumenPdf(
+                    row.Cells[1],
+                    campos[i + 1].Etiqueta,
+                    campos[i + 1].Valor
+                );
+            }
+            else
+            {
+                AgregarCeldaResumenPdf(
+                    row.Cells[1],
+                    "",
+                    ""
+                );
+            }
+        }
+
+        var espacio = section.AddParagraph();
+        espacio.Format.SpaceAfter = MD.Unit.FromPoint(4);
+    }
+
+    private static void AgregarBloqueTextoPdf(
+        MD.Section section,
+        string etiqueta,
+        string? valor)
+    {
+        var tabla = section.AddTable();
+        var columna = tabla.AddColumn(MD.Unit.FromCentimeter(18.6));
+
+        tabla.Borders.Width = 0.5;
+        tabla.Borders.Color = MD.Colors.LightGray;
+
+        columna.LeftPadding = MD.Unit.FromPoint(6);
+        columna.RightPadding = MD.Unit.FromPoint(6);
+
+        var row = tabla.AddRow();
+        row.TopPadding = MD.Unit.FromPoint(6);
+        row.BottomPadding = MD.Unit.FromPoint(6);
+
+        var p = row.Cells[0].AddParagraph();
+
+        var label = p.AddFormattedText(
+            etiqueta.ToUpperInvariant() + "\n"
+        );
+
+        label.Font.Size = 6.8;
+        label.Font.Bold = true;
+        label.Font.Color = MD.Colors.Gray;
+
+        var texto = p.AddFormattedText(
+            string.IsNullOrWhiteSpace(valor)
+                ? "-"
+                : valor.Trim()
+        );
+
+        texto.Font.Size = 8.5;
+        texto.Font.Color = MD.Colors.Black;
+
+        var espacio = section.AddParagraph();
+        espacio.Format.SpaceAfter = MD.Unit.FromPoint(3);
+    }
+
+    private static void AgregarCeldaResumenPdf(
+        MDT.Cell cell,
+        string etiqueta,
+        string? valor)
+    {
+        var p = cell.AddParagraph();
+
+        var label =
+            p.AddFormattedText(
+                etiqueta.ToUpperInvariant()
+                + "\n");
+
+        label.Font.Size = 6.8;
+        label.Font.Bold = true;
+        label.Font.Color =
+            MD.Colors.Gray;
+
+        var value =
+            p.AddFormattedText(
+                string.IsNullOrWhiteSpace(valor)
+                    ? "-"
+                    : valor);
+
+        value.Font.Size = 8.3;
+        value.Font.Bold = true;
+        value.Font.Color =
+            MD.Colors.Black;
+    }
+
+    private static void AgregarEncabezadoPdf(
+        MDT.Cell cell,
+        string texto,
+        MD.ParagraphAlignment alignment)
+    {
+        var p =
+            cell.AddParagraph(texto);
+
+        p.Format.Alignment = alignment;
+        p.Format.Font.Size = 7;
+        p.Format.Font.Bold = true;
+        p.Format.Font.Color =
+            MD.Colors.Gray;
+    }
+
+    private static void AgregarDatoPdf(
+        MDT.Cell cell,
+        string? texto,
+        MD.ParagraphAlignment alignment)
+    {
+        var p =
+            cell.AddParagraph(
+                texto ?? "");
+
+        p.Format.Alignment = alignment;
+        p.Format.Font.Size = 8;
+        p.Format.Font.Color =
+            MD.Colors.Black;
     }
 
     public class GuardarTemperaturasSkuRequest
@@ -3639,3 +5632,4 @@ public class EmbarquesController : Controller
         public int Orden { get; set; }
     }
 }
+

@@ -1,8 +1,10 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using DocumentFormat.OpenXml.InkML;
+using Microsoft.EntityFrameworkCore;
 using Plataforma_CG.Data.Entities;
 using Plataforma_CG.Models;
 using Plataforma_CG.Models.Chat;
 using Plataforma_CG.Models.Reportes;
+using Plataforma_CG.Services;
 using Plataforma_CG.ViewModels;
 using Plataforma_CG.Views.Sidebar;
 
@@ -29,6 +31,8 @@ namespace Plataforma_CG.Data
         public DbSet<Presentacion> Presentacion { get; set; }
         public DbSet<ClienteSap> ClienteSap { get; set; }
 
+        public DbSet<ImpresoraMuestra> ImpresoraMuestras { get; set; }
+
         public DbSet<CatalogoPrecioSap> CatalogoPrecioSap { get; set; }
 
         public DbSet<PedidoVenta> PedidoVenta { get; set; }
@@ -41,7 +45,7 @@ namespace Plataforma_CG.Data
         public DbSet<Subpedido> Subpedidos => Set<Subpedido>();
         public DbSet<SubpedidoProducto> SubpedidoProductos => Set<SubpedidoProducto>();
 
-        public DbSet<Transferencia> Transferencias { get; set; }       
+        public DbSet<Transferencia> Transferencias { get; set; }
 
         public DbSet<TransferenciaDetalle> TransferenciaDetalles { get; set; }
 
@@ -56,6 +60,7 @@ namespace Plataforma_CG.Data
         public DbSet<PresupuestoLineaHistorico> PresupuestoLineasHistorico { get; set; }
         public DbSet<EntregaSapLog> EntregaSapLogs { get; set; } = null!;
         public DbSet<InventarioScanEtiqueta> InventarioScanEtiquetas { get; set; } = null!;
+        public DbSet<TransferenciaScanEtiqueta> TransferenciaScanEtiquetas { get; set; } = null!;
         public DbSet<PlanDeshueseKpiRow> PlanDeshueseKpiRows { get; set; } = null!;
         public DbSet<Plataforma_CG.Models.SkuConversion> SkuConversion { get; set; } = null!;
 
@@ -107,6 +112,12 @@ namespace Plataforma_CG.Data
         public DbSet<InventarioSistemas> InventarioSistemas { get; set; }
         public DbSet<MovimientoInventario> MovimientoInventario { get; set; }
         public DbSet<RegistroHistorial> RegistroHistorial { get; set; }
+        public DbSet<TransferenciaInventario> TransferenciasInventario { get; set; }
+        public DbSet<MarcaInventario> MarcasInventario { get; set; }
+        public DbSet<AreaInventario> AreasInventario { get; set; }
+        public DbSet<AuditoriaInventario> AuditoriasInventario { get; set; }
+        public DbSet<AuditoriaInventarioDetalle> AuditoriasInventarioDetalle { get; set; }
+        public DbSet<AccionCorrectivaAuditoria> AccionesCorrectivasAuditoria { get; set; }
 
         public DbSet<ControlRedIp> ControlIPs { get; set; }
         public DbSet<VlanRed> VlanRedes { get; set; }
@@ -118,8 +129,16 @@ namespace Plataforma_CG.Data
         public DbSet<PermisoModel> PermisosAutoArticulos { get; set; }
         public DbSet<LogExcepcionModel> LogsExcepcionesArticulos { get; set; }
         public DbSet<PinArticulosModel> PinArticulos { get; set; }
+        public DbSet<LogDanoEquipoModel> LogsDanosEquipos { get; set; }
+
+        public DbSet<OrdenVentaMuestra> OrdenVentaMuestra { get; set; }
+
 
         public DbSet<ListaPreciosSap> ListaPreciosSap { get; set; }
+
+        // Surtido (BD SIGO - solo lectura)
+        public DbSet<SurtidoEncabezado> SurtidoEncabezado { get; set; }
+        public DbSet<SurtidoDetalleTarima> SurtidoDetalleTarimas { get; set; }
 
         //==================================
         // Reporteador(Reportes)
@@ -130,6 +149,20 @@ namespace Plataforma_CG.Data
         public DbSet<TransferenciasDetallesCabecera> TransferenciasDetallesCabeceras { get; set; }
 
         public DbSet<UsuarioSerie> UsuarioSeries { get; set; }
+
+        public DbSet<ProveedorSap> ProveedorSap { get; set; }
+
+        // Agregar dentro de AppDbContext:
+        public DbSet<CompraTiSolicitud> CompraTiSolicitudes { get; set; }
+        public DbSet<CompraTiDetalle> CompraTiDetalles { get; set; }
+        public DbSet<CompraTiCotizacion> CompraTiCotizaciones { get; set; }
+        public DbSet<CompraTiFactura> CompraTiFacturas { get; set; }
+        public DbSet<CompraTiRecepcion> CompraTiRecepciones { get; set; }
+        public DbSet<CompraTiAutorizacion> CompraTiAutorizaciones { get; set; }
+        public DbSet<CompraTiBitacora> CompraTiBitacoras { get; set; }
+
+        public DbSet<CompraTiOrdenCompraSap> CompraTiOrdenesCompraSap { get; set; }
+
 
         // =========================
         // ======= MODEL CONFIG =====
@@ -263,6 +296,20 @@ namespace Plataforma_CG.Data
                 e.Property(x => x.Sku).HasMaxLength(60).IsRequired();
                 e.Property(x => x.Origen).HasMaxLength(10).IsRequired();
                 e.Property(x => x.Usuario).HasMaxLength(120);
+            });
+
+            // =========================
+            // TransferenciaScanEtiqueta
+            // =========================
+            modelBuilder.Entity<TransferenciaScanEtiqueta>(e =>
+            {
+                e.ToTable("TransferenciaScanEtiqueta");
+                e.HasKey(x => x.Id);
+
+                e.Property(x => x.Sku).HasMaxLength(30).IsRequired();
+                e.Property(x => x.CodigoEtiqueta).HasMaxLength(80).IsRequired();
+                e.Property(x => x.Usuario).HasMaxLength(120);
+                e.Property(x => x.TarimaCodigo).HasMaxLength(50).IsRequired();
             });
 
             // =========================
@@ -401,6 +448,10 @@ namespace Plataforma_CG.Data
 
             modelBuilder.Entity<VentaRealRow>().HasNoKey();
 
+            // Surtido (BD SIGO - solo lectura, keyless)
+            modelBuilder.Entity<SurtidoEncabezado>().HasNoKey();
+            modelBuilder.Entity<SurtidoDetalleTarima>().HasNoKey();
+
             modelBuilder.Entity<PermisoModel>()
             .HasKey(p => new { p.UsuarioId, p.CategoriaId });
 
@@ -450,6 +501,191 @@ namespace Plataforma_CG.Data
                     .HasForeignKey(x => x.SerieId)
                     .OnDelete(DeleteBehavior.Restrict);
             });
+
+
+            modelBuilder.Entity<ProveedorSap>(entity =>
+            {
+                entity.ToTable("ProveedorSap");
+                entity.HasKey(x => x.Proveedor);
+
+                entity.Property(x => x.Proveedor).HasMaxLength(30);
+                entity.Property(x => x.NombreProveedor).HasMaxLength(200);
+                entity.Property(x => x.NombreExtranjero).HasMaxLength(200);
+                entity.Property(x => x.RFC).HasMaxLength(30);
+                entity.Property(x => x.Telefono).HasMaxLength(50);
+                entity.Property(x => x.Celular).HasMaxLength(50);
+                entity.Property(x => x.Correo).HasMaxLength(150);
+                entity.Property(x => x.Moneda).HasMaxLength(10);
+                entity.Property(x => x.GrupoNombre).HasMaxLength(150);
+                entity.Property(x => x.CondicionPagoNombre).HasMaxLength(150);
+                entity.Property(x => x.SaldoCuenta).HasColumnType("decimal(19,6)");
+                entity.Property(x => x.Direccion).HasMaxLength(250);
+                entity.Property(x => x.Ciudad).HasMaxLength(100);
+                entity.Property(x => x.Estado).HasMaxLength(100);
+                entity.Property(x => x.Pais).HasMaxLength(100);
+                entity.Property(x => x.CodigoPostal).HasMaxLength(20);
+            });
+
+
+            // =========================
+            // Compras TI
+            // =========================
+            modelBuilder.Entity<CompraTiSolicitud>(e =>
+            {
+                e.ToTable("CompraTiSolicitud");
+                e.HasKey(x => x.Id);
+
+                e.HasIndex(x => x.Folio).IsUnique();
+                e.HasIndex(x => x.SolicitudSap).IsUnique();
+                e.HasIndex(x => new { x.Estatus, x.FechaCreacion });
+                e.HasIndex(x => new { x.ProveedorSapCodigo, x.FechaCreacion });
+
+                e.Property(x => x.SubtotalCotizado).HasColumnType("decimal(19,4)");
+                e.Property(x => x.IvaCotizado).HasColumnType("decimal(19,4)");
+                e.Property(x => x.TotalCotizado).HasColumnType("decimal(19,4)");
+                e.Property(x => x.SubtotalFactura).HasColumnType("decimal(19,4)");
+                e.Property(x => x.IvaFactura).HasColumnType("decimal(19,4)");
+                e.Property(x => x.TotalFactura).HasColumnType("decimal(19,4)");
+                e.Property(x => x.DiferenciaFacturaCotizacion).HasColumnType("decimal(19,4)");
+
+                e.Property(x => x.FechaLiberacionPago).HasColumnType("datetime2(0)");
+                e.Property(x => x.FechaCreacion).HasColumnType("datetime2(0)");
+                e.Property(x => x.FechaModificacion).HasColumnType("datetime2(0)");
+
+                e.Property(x => x.RowVersion)
+                    .IsRowVersion()
+                    .IsConcurrencyToken();
+            });
+
+            modelBuilder.Entity<CompraTiDetalle>(e =>
+            {
+                e.ToTable("CompraTiDetalle");
+                e.HasKey(x => x.Id);
+                e.HasIndex(x => x.SolicitudId);
+
+                e.Property(x => x.CantidadSolicitada).HasColumnType("decimal(19,4)");
+                e.Property(x => x.CantidadRecibida).HasColumnType("decimal(19,4)");
+                e.Property(x => x.PrecioUnitarioCotizado).HasColumnType("decimal(19,4)");
+                e.Property(x => x.PrecioUnitarioFacturado).HasColumnType("decimal(19,4)");
+
+                e.HasOne<CompraTiSolicitud>()
+                    .WithMany()
+                    .HasForeignKey(x => x.SolicitudId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<CompraTiCotizacion>(e =>
+            {
+                e.ToTable("CompraTiCotizacion");
+                e.HasKey(x => x.Id);
+                e.HasIndex(x => new { x.SolicitudId, x.FechaRegistro });
+
+                e.Property(x => x.FechaCotizacion).HasColumnType("date");
+                e.Property(x => x.VigenciaHasta).HasColumnType("date");
+                e.Property(x => x.Subtotal).HasColumnType("decimal(19,4)");
+                e.Property(x => x.Iva).HasColumnType("decimal(19,4)");
+                e.Property(x => x.Total).HasColumnType("decimal(19,4)");
+                e.Property(x => x.HashSha256)
+                    .HasColumnType("char(64)")
+                    .IsUnicode(false);
+                e.Property(x => x.FechaRegistro).HasColumnType("datetime2(0)");
+
+                e.HasOne<CompraTiSolicitud>()
+                    .WithMany()
+                    .HasForeignKey(x => x.SolicitudId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<CompraTiFactura>(e =>
+            {
+                e.ToTable("CompraTiFactura");
+                e.HasKey(x => x.Id);
+                e.HasIndex(x => new { x.SolicitudId, x.FechaRegistro });
+                e.HasIndex(x => x.Uuid)
+                    .IsUnique()
+                    .HasFilter("[Uuid] <> ''");
+
+                e.Property(x => x.FechaFactura).HasColumnType("date");
+                e.Property(x => x.Subtotal).HasColumnType("decimal(19,4)");
+                e.Property(x => x.Iva).HasColumnType("decimal(19,4)");
+                e.Property(x => x.Total).HasColumnType("decimal(19,4)");
+                e.Property(x => x.DiferenciaContraCotizacion).HasColumnType("decimal(19,4)");
+                e.Property(x => x.FechaRegistro).HasColumnType("datetime2(0)");
+
+                e.HasOne<CompraTiSolicitud>()
+                    .WithMany()
+                    .HasForeignKey(x => x.SolicitudId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<CompraTiRecepcion>(e =>
+            {
+                e.ToTable("CompraTiRecepcion");
+                e.HasKey(x => x.Id);
+                e.HasIndex(x => new { x.SolicitudId, x.FechaRecepcion });
+                e.Property(x => x.FechaRecepcion).HasColumnType("datetime2(0)");
+
+                e.HasOne<CompraTiSolicitud>()
+                    .WithMany()
+                    .HasForeignKey(x => x.SolicitudId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<CompraTiAutorizacion>(e =>
+            {
+                e.ToTable("CompraTiAutorizacion");
+                e.HasKey(x => x.Id);
+                e.HasIndex(x => new { x.SolicitudId, x.Fecha });
+                e.Property(x => x.Fecha).HasColumnType("datetime2(0)");
+
+                e.HasOne<CompraTiSolicitud>()
+                    .WithMany()
+                    .HasForeignKey(x => x.SolicitudId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<CompraTiBitacora>(e =>
+            {
+                e.ToTable("CompraTiBitacora");
+                e.HasKey(x => x.Id);
+                e.HasIndex(x => new { x.SolicitudId, x.Fecha });
+                e.Property(x => x.Fecha).HasColumnType("datetime2(0)");
+
+                e.HasOne<CompraTiSolicitud>()
+                    .WithMany()
+                    .HasForeignKey(x => x.SolicitudId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<CompraTiOrdenCompraSap>(e =>
+            {
+                e.ToTable("CompraTiOrdenCompraSap");
+                e.HasKey(x => x.Id);
+
+                e.HasIndex(x => new { x.SolicitudId, x.DocEntry })
+                    .IsUnique();
+
+                e.HasIndex(x => new { x.DocNum, x.Activa });
+
+                e.Property(x => x.FechaDocumento)
+                    .HasColumnType("date");
+
+                e.Property(x => x.FechaEntrega)
+                    .HasColumnType("date");
+
+                e.Property(x => x.Total)
+                    .HasColumnType("decimal(19,4)");
+
+                e.Property(x => x.FechaUltimaConsulta)
+                    .HasColumnType("datetime2(0)");
+
+                e.HasOne<CompraTiSolicitud>()
+                    .WithMany()
+                    .HasForeignKey(x => x.SolicitudId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+
 
 
         }

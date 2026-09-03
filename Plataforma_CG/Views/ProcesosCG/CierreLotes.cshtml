@@ -1,0 +1,1281 @@
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Cierre de lotes";
+    var source = (ViewBag.Source as string ?? "TIF").ToUpperInvariant();
+}
+
+
+
+<style>
+    :root{
+        --cl-brand:#7b1f29;
+        --cl-brand-dark:#53151c;
+        --cl-brand-soft:#f7eaec;
+        --cl-bg:#eef2f4;
+        --cl-card:#ffffff;
+        --cl-card-alt:#f8fafb;
+        --cl-line:#d4dde3;
+        --cl-line-strong:#becbd3;
+        --cl-text:#253746;
+        --cl-muted:#687b8b;
+        --cl-blue:#1769c2;
+        --cl-green:#218a54;
+        --cl-amber:#c88710;
+        --cl-red:#a8343e;
+        --cl-purple:#6651a6;
+        --cl-shadow:0 5px 16px rgba(27,42,56,.07);
+    }
+
+    html,body{
+        width:100% !important;
+        max-width:100% !important;
+        min-width:0 !important;
+        overflow-x:hidden !important;
+    }
+
+    body:has(.cl-app) .layout-main-content,
+    body:has(.cl-app) .layout-container-fluid{
+        min-width:0 !important;
+        max-width:100% !important;
+    }
+
+    .cl-app,
+    .cl-app *{
+        box-sizing:border-box;
+        font-family:"Segoe UI",Arial,sans-serif;
+    }
+
+    .cl-app{
+        width:100%;
+        min-width:0;
+        max-width:100%;
+        padding:8px;
+        color:var(--cl-text);
+        background:var(--cl-bg);
+    }
+
+    /* ============================================================
+       CABECERA
+       ============================================================ */
+    .cl-hero{
+        display:grid;
+        grid-template-columns:minmax(0,1fr) auto;
+        gap:14px;
+        align-items:center;
+        padding:13px 16px;
+        border:1px solid #58171e;
+        border-radius:16px;
+        color:#fff;
+        background:linear-gradient(135deg,var(--cl-brand-dark),var(--cl-brand));
+        box-shadow:0 8px 22px rgba(83,21,28,.16);
+    }
+
+    .cl-kicker{
+        font-size:10px;
+        font-weight:800;
+        letter-spacing:.07em;
+        text-transform:uppercase;
+        opacity:.86;
+    }
+
+    .cl-hero h1{
+        margin:3px 0 3px;
+        font-size:clamp(25px,2.2vw,36px);
+        line-height:1;
+        font-weight:800;
+    }
+
+    .cl-hero p{
+        margin:0;
+        color:#f3dfe2;
+        font-size:12px;
+        line-height:1.35;
+    }
+
+    .cl-user-box{
+        min-width:220px;
+        padding:9px 12px;
+        border:1px solid rgba(255,255,255,.18);
+        border-radius:12px;
+        background:rgba(255,255,255,.09);
+    }
+
+    .cl-user-box span{
+        display:block;
+        font-size:8px;
+        font-weight:800;
+        text-transform:uppercase;
+        opacity:.78;
+    }
+
+    .cl-user-box strong{
+        display:block;
+        margin-top:3px;
+        max-width:280px;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+        font-size:11px;
+    }
+
+    /* ============================================================
+       ACCIONES + FILTROS
+       ============================================================ */
+    .cl-control-bar{
+        margin-top:8px;
+        padding:8px;
+        display:grid;
+        grid-template-columns:auto minmax(0,1fr);
+        gap:8px;
+        align-items:end;
+        border:1px solid var(--cl-line);
+        border-radius:14px;
+        background:#fff;
+        box-shadow:var(--cl-shadow);
+    }
+
+    .cl-shortcuts{
+        display:flex;
+        gap:6px;
+        flex-wrap:wrap;
+    }
+
+    .cl-filter-grid{
+        display:grid;
+        grid-template-columns:minmax(150px,.8fr) minmax(135px,.65fr) minmax(135px,.65fr) minmax(145px,.7fr) auto;
+        gap:7px;
+        align-items:end;
+    }
+
+    .cl-field label{
+        display:block;
+        margin-bottom:3px;
+        color:#596e7e;
+        font-size:8px;
+        font-weight:800;
+        text-transform:uppercase;
+        letter-spacing:.03em;
+    }
+
+    .cl-field input,
+    .cl-field select,
+    .cl-modal input,
+    .cl-modal textarea,
+    .cl-modal select{
+        width:100%;
+        min-height:34px;
+        padding:5px 8px;
+        border:1px solid var(--cl-line-strong);
+        border-radius:9px;
+        background:#fff;
+        color:var(--cl-text);
+        font-size:10px;
+    }
+
+    .cl-field input:focus,
+    .cl-field select:focus,
+    .cl-modal input:focus,
+    .cl-modal textarea:focus,
+    .cl-modal select:focus{
+        outline:none;
+        border-color:#9b7176;
+        box-shadow:0 0 0 3px rgba(123,31,41,.08);
+    }
+
+    .cl-actions{
+        display:flex;
+        justify-content:flex-end;
+        gap:6px;
+    }
+
+    .cl-btn{
+        min-height:34px;
+        padding:0 10px;
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        gap:5px;
+        border:1px solid var(--cl-line-strong);
+        border-radius:9px;
+        background:#fff;
+        color:var(--cl-text);
+        font-size:9px;
+        line-height:1;
+        font-weight:800;
+        white-space:nowrap;
+        cursor:pointer;
+        transition:transform .12s ease,box-shadow .12s ease;
+    }
+
+    .cl-btn:hover{
+        transform:translateY(-1px);
+        box-shadow:0 5px 12px rgba(26,42,55,.10);
+    }
+
+    .cl-btn-primary{
+        border-color:var(--cl-brand-dark);
+        background:var(--cl-brand);
+        color:#fff;
+    }
+
+    .cl-btn-review{
+        min-height:31px;
+        border-color:#145aa5;
+        background:var(--cl-blue);
+        color:#fff;
+    }
+
+    .cl-btn-success{
+        border-color:#176b40;
+        background:var(--cl-green);
+        color:#fff;
+    }
+
+    .cl-btn-warning{
+        border-color:#d0aa56;
+        background:#fff4d5;
+        color:#735614;
+    }
+
+    .cl-btn-danger{
+        border-color:#84272f;
+        background:var(--cl-red);
+        color:#fff;
+    }
+
+    .cl-btn-info{
+        border-color:#4e6385;
+        background:#61749a;
+        color:#fff;
+    }
+
+    .cl-btn-auth{
+        border-color:#bc8a26;
+        background:#fff0c5;
+        color:#76530b;
+    }
+
+    .cl-btn-compat{
+        border-color:#5a4a92;
+        background:#6a56a6;
+        color:#fff;
+    }
+
+    /* ============================================================
+       KPIs
+       ============================================================ */
+    .cl-kpis{
+        margin-top:8px;
+        display:grid;
+        grid-template-columns:repeat(6,minmax(0,1fr));
+        gap:6px;
+    }
+
+    .cl-kpi{
+        min-width:0;
+        padding:8px 10px;
+        border:1px solid var(--cl-line);
+        border-radius:12px;
+        background:#fff;
+        box-shadow:var(--cl-shadow);
+        overflow:hidden;
+    }
+
+    .cl-kpi span{
+        display:block;
+        color:var(--cl-muted);
+        font-size:7px;
+        font-weight:800;
+        text-transform:uppercase;
+    }
+
+    .cl-kpi strong{
+        display:block;
+        margin-top:2px;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+        color:var(--cl-text);
+        font-size:clamp(15px,1.3vw,21px);
+        line-height:1.1;
+    }
+
+    .cl-kpi.open{border-left:4px solid var(--cl-green)}
+    .cl-kpi.closed{border-left:4px solid var(--cl-blue)}
+    .cl-kpi.in{border-left:4px solid #6d7990}
+    .cl-kpi.out{border-left:4px solid var(--cl-purple)}
+    .cl-kpi.yield{border-left:4px solid var(--cl-amber)}
+
+    /* ============================================================
+       AYUDA + RESULTADOS
+       ============================================================ */
+    .cl-help{
+        margin-top:8px;
+        padding:7px 10px;
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:10px;
+        border:1px solid #e0c98e;
+        border-radius:11px;
+        background:#fff8df;
+        color:#654f17;
+        font-size:9px;
+        line-height:1.3;
+    }
+
+    .cl-help strong{color:#5c4510}
+
+    .cl-results{
+        margin-top:8px;
+        min-height:0;
+        display:grid;
+        grid-template-rows:auto minmax(0,1fr);
+        border:1px solid var(--cl-line);
+        border-radius:14px;
+        background:#fff;
+        box-shadow:var(--cl-shadow);
+        overflow:hidden;
+    }
+
+    .cl-results-head{
+        min-height:40px;
+        padding:7px 10px;
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        gap:8px;
+        border-bottom:1px solid var(--cl-line);
+        background:linear-gradient(180deg,#fff,#f4f7f9);
+    }
+
+    .cl-results-head h2{
+        margin:0;
+        font-size:14px;
+        font-weight:800;
+    }
+
+    .cl-results-head p{
+        margin:1px 0 0;
+        color:var(--cl-muted);
+        font-size:8px;
+    }
+
+    #clResultCount{
+        padding:4px 8px;
+        border:1px solid #dec7cb;
+        border-radius:999px;
+        background:var(--cl-brand-soft);
+        color:var(--cl-brand);
+        font-size:8px;
+        font-weight:800;
+        white-space:nowrap;
+    }
+
+    .cl-table-wrap{
+        width:100%;
+        min-width:0;
+        min-height:0;
+        overflow:auto;
+        background:#fff;
+    }
+
+    .cl-table{
+        width:100%;
+        min-width:1080px;
+        border-collapse:separate;
+        border-spacing:0;
+        background:#fff;
+        font-size:9px;
+    }
+
+    .cl-table th{
+        position:sticky;
+        top:0;
+        z-index:2;
+        height:32px;
+        padding:4px 6px;
+        border-right:1px solid #c4d0d6;
+        border-bottom:1px solid #b5c4cc;
+        background:#dce5e9;
+        color:#3b4a54;
+        white-space:nowrap;
+        font-size:8px;
+        font-weight:800;
+        text-transform:uppercase;
+    }
+
+    .cl-table td{
+        height:34px;
+        padding:4px 6px;
+        border-right:1px solid #d9e1e5;
+        border-bottom:1px solid #d9e1e5;
+        background:#fff;
+        color:var(--cl-text);
+        white-space:nowrap;
+        vertical-align:middle;
+    }
+
+    .cl-table tbody tr:nth-child(even) td{
+        background:#f8fafb;
+    }
+
+    .cl-table tbody tr:hover td{
+        background:#f8ecee;
+    }
+
+    .cl-table tbody tr.is-closed td{
+        color:#657785;
+    }
+
+    .cl-lote-name{
+        font-weight:700;
+    }
+
+    .cl-mobile-label{
+        display:none;
+    }
+
+    .cl-action-cell{
+        text-align:center;
+    }
+
+    .cl-empty-row td{
+        height:110px !important;
+        text-align:center !important;
+        color:var(--cl-muted) !important;
+        font-size:11px !important;
+    }
+
+    /* ============================================================
+       BADGES + STATUS
+       ============================================================ */
+    .cl-badge{
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        min-height:20px;
+        padding:2px 6px;
+        border:1px solid;
+        border-radius:999px;
+        font-size:7px;
+        font-weight:800;
+    }
+
+    .b-ok{background:#e8f5ed;color:#236540;border-color:#9dcaae}
+    .b-warn{background:#fff4d9;color:#745813;border-color:#e2c578}
+    .b-bad{background:#f7e5e7;color:#7c2730;border-color:#d4a0a5}
+    .b-info{background:#e8f0f7;color:#355f84;border-color:#9db7cb}
+
+    .cl-status{
+        min-height:28px;
+        padding:5px 8px;
+        border-top:1px solid var(--cl-line);
+        background:#edf2f5;
+        color:#627481;
+        font-size:8px;
+    }
+
+    /* ============================================================
+       MODALES
+       ============================================================ */
+    .cl-modal .modal-dialog{
+        margin:18px auto;
+    }
+
+    .cl-modal .modal-content{
+        overflow:hidden;
+        border:1px solid var(--cl-line-strong);
+        border-radius:14px;
+        background:#fff;
+        box-shadow:0 18px 42px rgba(0,0,0,.20);
+    }
+
+    .cl-modal .modal-header{
+        min-height:45px;
+        padding:8px 11px;
+        border:0;
+        border-bottom:1px solid #431118;
+        background:linear-gradient(135deg,var(--cl-brand-dark),var(--cl-brand));
+        color:#fff;
+    }
+
+    .cl-modal .modal-title{
+        color:#fff;
+        font-size:13px;
+        font-weight:800;
+    }
+
+    .cl-modal .modal-body{
+        padding:10px;
+        background:#f5f8fa;
+        color:var(--cl-text);
+        font-size:9px;
+    }
+
+    .cl-modal .modal-footer{
+        min-height:46px;
+        padding:7px 10px;
+        border-top:1px solid var(--cl-line);
+        background:#edf2f5;
+    }
+
+    .cl-note{
+        margin:7px 0;
+        padding:8px 10px;
+        border:1px solid #dfc98f;
+        border-left:4px solid var(--cl-amber);
+        border-radius:10px;
+        background:#fff8e3;
+        color:#644d13;
+        font-size:8.5px;
+        line-height:1.35;
+    }
+
+    .cl-summary{
+        display:grid;
+        grid-template-columns:repeat(4,minmax(0,1fr));
+        gap:6px;
+        margin-bottom:8px;
+    }
+
+    .cl-card{
+        min-width:0;
+        padding:8px;
+        border:1px solid var(--cl-line);
+        border-radius:10px;
+        background:#fff;
+    }
+
+    .cl-card b{
+        display:block;
+        color:var(--cl-muted);
+        font-size:7px;
+        text-transform:uppercase;
+    }
+
+    .cl-card span{
+        display:block;
+        margin-top:3px;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+        color:var(--cl-text);
+        font-size:12px;
+        font-weight:800;
+    }
+
+    .cl-anom{
+        margin-bottom:5px;
+        padding:7px 8px;
+        border:1px solid var(--cl-line);
+        border-radius:9px;
+        background:#fff;
+        font-size:8.5px;
+    }
+
+    .cl-anom.bloqueo{border-left:4px solid var(--cl-red)}
+    .cl-anom.autorizacion{border-left:4px solid var(--cl-amber)}
+    .cl-anom.advertencia{border-left:4px solid #5b8ba2}
+
+    .cl-modal table.table{
+        background:#fff;
+        color:var(--cl-text);
+        font-size:8.5px;
+    }
+
+    .cl-modal table.table thead th{
+        background:#dde6ea;
+        color:#42515b;
+        border-color:#bac7ce;
+        font-size:8px;
+        font-weight:800;
+        white-space:nowrap;
+    }
+
+    .cl-modal table.table tbody td{
+        border-color:#d3dde2;
+        font-size:8.5px;
+    }
+
+    /* ============================================================
+       LAPTOP / DESKTOP: TODO EL MÓDULO USA LA PANTALLA
+       ============================================================ */
+    @@media (min-width:901px){
+        body:has(.cl-app){
+            overflow-y:hidden !important;
+        }
+
+        .cl-app{
+            height:calc(100dvh - 82px);
+            max-height:calc(100dvh - 82px);
+            display:grid;
+            grid-template-rows:auto auto auto auto minmax(0,1fr) auto;
+            gap:0;
+            overflow:hidden;
+        }
+
+        .cl-results{
+            min-height:0;
+        }
+
+        .cl-table-wrap{
+            height:100%;
+            max-height:none;
+        }
+    }
+
+    /* ============================================================
+       TABLET HORIZONTAL / LAPTOP ANGOSTA
+       ============================================================ */
+    @@media (max-width:1180px){
+        .cl-control-bar{
+            grid-template-columns:1fr;
+        }
+
+        .cl-filter-grid{
+            grid-template-columns:repeat(4,minmax(0,1fr)) auto;
+        }
+
+        .cl-shortcuts{
+            order:2;
+        }
+
+        .cl-kpis{
+            grid-template-columns:repeat(3,minmax(0,1fr));
+        }
+    }
+
+    /* ============================================================
+       TABLET: LA TABLA SE VUELVE TARJETAS
+       ============================================================ */
+    @@media (max-width:900px){
+        body:has(.cl-app){
+            overflow-y:auto !important;
+        }
+
+        .cl-app{
+            padding:6px;
+        }
+
+        .cl-hero{
+            grid-template-columns:1fr;
+        }
+
+        .cl-user-box{
+            min-width:0;
+        }
+
+        .cl-control-bar{
+            grid-template-columns:1fr;
+        }
+
+        .cl-filter-grid{
+            grid-template-columns:repeat(2,minmax(0,1fr));
+        }
+
+        .cl-actions{
+            grid-column:1/-1;
+        }
+
+        .cl-actions .cl-btn{
+            width:100%;
+        }
+
+        .cl-kpis{
+            grid-template-columns:repeat(3,minmax(0,1fr));
+        }
+
+        .cl-help{
+            align-items:flex-start;
+            flex-direction:column;
+        }
+
+        .cl-results{
+            overflow:visible;
+        }
+
+        .cl-table-wrap{
+            overflow:visible;
+        }
+
+        .cl-table{
+            min-width:0;
+            display:block;
+        }
+
+        .cl-table thead{
+            display:none;
+        }
+
+        .cl-table tbody{
+            display:grid;
+            grid-template-columns:repeat(2,minmax(0,1fr));
+            gap:8px;
+            padding:8px;
+        }
+
+        .cl-table tbody tr{
+            min-width:0;
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:0;
+            padding:7px;
+            border:1px solid var(--cl-line);
+            border-radius:12px;
+            background:#fff;
+            box-shadow:0 4px 12px rgba(25,40,53,.06);
+            overflow:hidden;
+        }
+
+        .cl-table tbody tr:nth-child(even) td,
+        .cl-table tbody tr:hover td{
+            background:transparent;
+        }
+
+        .cl-table td{
+            min-width:0;
+            height:auto;
+            padding:5px 6px;
+            display:grid;
+            grid-template-columns:76px minmax(0,1fr);
+            gap:5px;
+            border:0;
+            border-bottom:1px solid #eef2f4;
+            background:transparent !important;
+            white-space:normal;
+            font-size:9px;
+        }
+
+        .cl-table td::before{
+            content:attr(data-label);
+            color:#718491;
+            font-size:7px;
+            font-weight:800;
+            text-transform:uppercase;
+        }
+
+        .cl-table .cl-lote-name{
+            grid-column:1/-1;
+            min-height:34px;
+            display:block;
+            padding:7px;
+            border-radius:8px;
+            background:#f4f7f9 !important;
+            color:#263a49;
+            font-size:11px;
+        }
+
+        .cl-table .cl-lote-name::before{
+            display:block;
+            margin-bottom:2px;
+        }
+
+        .cl-table .cl-action-cell{
+            grid-column:1/-1;
+            display:block;
+            padding-top:8px;
+            border-bottom:0;
+        }
+
+        .cl-table .cl-action-cell::before{
+            display:none;
+        }
+
+        .cl-table .cl-action-cell .cl-btn{
+            width:100%;
+            min-height:38px;
+            font-size:9px;
+        }
+
+        .cl-empty-row{
+            display:block !important;
+            grid-column:1/-1 !important;
+        }
+
+        .cl-empty-row td{
+            display:block !important;
+            width:100% !important;
+        }
+
+        .cl-empty-row td::before{
+            display:none !important;
+        }
+
+        .cl-status{
+            margin-top:6px;
+            border:1px solid var(--cl-line);
+            border-radius:9px;
+        }
+
+        .cl-summary{
+            grid-template-columns:repeat(2,minmax(0,1fr));
+        }
+    }
+
+    @@media (max-width:620px){
+        .cl-app{
+            padding:4px;
+        }
+
+        .cl-hero{
+            border-radius:12px;
+            padding:11px 12px;
+        }
+
+        .cl-hero h1{
+            font-size:25px;
+        }
+
+        .cl-filter-grid,
+        .cl-kpis,
+        .cl-summary{
+            grid-template-columns:1fr 1fr;
+        }
+
+        .cl-shortcuts{
+            display:grid;
+            grid-template-columns:1fr;
+        }
+
+        .cl-shortcuts .cl-btn{
+            width:100%;
+        }
+
+        .cl-table tbody{
+            grid-template-columns:1fr;
+        }
+    }
+
+    @@media (max-width:430px){
+        .cl-filter-grid,
+        .cl-kpis,
+        .cl-summary{
+            grid-template-columns:1fr;
+        }
+    }
+</style>
+
+
+<div class="cl-app">
+
+    <section class="cl-hero">
+        <div>
+            <div class="cl-kicker">PRODUCCIÓN · CONTROL DE LOTES</div>
+            <h1>Cierre de lotes</h1>
+            <p>Busca el lote, revisa el diagnóstico y cierra únicamente cuando el sistema lo autorice.</p>
+        </div>
+
+        <div class="cl-user-box">
+            <span>Usuario actual</span>
+            <strong>@(User?.Identity?.Name ?? "")</strong>
+        </div>
+    </section>
+
+    <section class="cl-control-bar">
+
+        <div class="cl-shortcuts">
+            <button class="cl-btn cl-btn-auth"
+                    type="button"
+                    onclick="cargarPendientes()">
+                ⚠ Autorizaciones pendientes
+            </button>
+
+            <button class="cl-btn cl-btn-compat"
+                    type="button"
+                    onclick="abrirCompatibilidad()">
+                ⇄ Compatibilidad entrada → salida
+            </button>
+        </div>
+
+        <div class="cl-filter-grid">
+
+            <div class="cl-field">
+                <label>Planta</label>
+                <select id="clSource">
+                    <option value="TIF" selected="@(source == "TIF")">TIF 776</option>
+                    <option value="P1" selected="@(source == "P1")">Planta 1</option>
+                </select>
+            </div>
+
+            <div class="cl-field">
+                <label>Desde</label>
+                <input id="clDesde"
+                       type="date"
+                       value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+            </div>
+
+            <div class="cl-field">
+                <label>Hasta</label>
+                <input id="clHasta"
+                       type="date"
+                       value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+            </div>
+
+            <div class="cl-field">
+                <label>Estado</label>
+                <select id="clEstado">
+                    <option value="ABIERTOS">Abiertos</option>
+                    <option value="CERRADOS">Cerrados</option>
+                    <option value="TODOS">Todos</option>
+                </select>
+            </div>
+
+            <div class="cl-actions">
+                <button class="cl-btn cl-btn-primary"
+                        type="button"
+                        onclick="buscarLotes()">
+                    🔎 Buscar lotes
+                </button>
+            </div>
+
+        </div>
+    </section>
+
+    <section class="cl-kpis">
+        <article class="cl-kpi">
+            <span>Lotes encontrados</span>
+            <strong id="clKpiTotal">0</strong>
+        </article>
+
+        <article class="cl-kpi open">
+            <span>Abiertos</span>
+            <strong id="clKpiAbiertos">0</strong>
+        </article>
+
+        <article class="cl-kpi closed">
+            <span>Cerrados</span>
+            <strong id="clKpiCerrados">0</strong>
+        </article>
+
+        <article class="cl-kpi in">
+            <span>Kg entrada</span>
+            <strong id="clKpiEntrada">0.000 kg</strong>
+        </article>
+
+        <article class="cl-kpi out">
+            <span>Kg salida</span>
+            <strong id="clKpiSalida">0.000 kg</strong>
+        </article>
+
+        <article class="cl-kpi yield">
+            <span>Rendimiento promedio</span>
+            <strong id="clKpiRendimiento">0.00%</strong>
+        </article>
+    </section>
+
+    <div class="cl-help">
+        <div>
+            <strong>Flujo de cierre:</strong>
+            Buscar lote → Revisar cierre → Validar anomalías → Autorizar si aplica → Costear → Cerrar lote.
+        </div>
+        <div>
+            El EstatusId cambia a 3 únicamente después de terminar correctamente el costeo y sus validaciones.
+        </div>
+    </div>
+
+    <section class="cl-results">
+        <header class="cl-results-head">
+            <div>
+                <h2>Lotes</h2>
+                <p>Selecciona <b>Revisar cierre</b> para ver el diagnóstico antes de costear.</p>
+            </div>
+            <div id="clResultCount">0 lotes encontrados</div>
+        </header>
+
+        <div class="cl-table-wrap">
+            <table class="cl-table">
+                <thead>
+                    <tr>
+                        <th>LoteId</th>
+                        <th>Lote</th>
+                        <th>Tipo</th>
+                        <th>Fecha</th>
+                        <th>Estado</th>
+                        <th>Entradas</th>
+                        <th>Kg entrada</th>
+                        <th>Salidas</th>
+                        <th>Kg salida</th>
+                        <th>Diferencia kg</th>
+                        <th>Rend. %</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="clRows">
+                    <tr class="cl-empty-row">
+                        <td colspan="12">Consulta los lotes.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <div id="clStatus" class="cl-status">
+        Listo.
+    </div>
+</div>
+
+
+<div class="modal fade cl-modal" id="modalDiagnostico" tabindex="-1">
+ <div class="modal-dialog modal-xl" style="max-width:96vw"><div class="modal-content">
+  <div class="modal-header"><h5 class="modal-title">Diagnóstico de cierre</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+    <div id="diagResumen" class="cl-summary"></div>
+    <div id="diagEstado"></div>
+    <h6 style="margin-top:12px">Anomalías</h6><div id="diagAnomalias"></div>
+    <div class="row mt-3">
+      <div class="col-md-6"><h6>Entradas</h6><div style="max-height:260px;overflow:auto"><table class="table table-sm table-bordered"><thead><tr><th>ID</th><th>Etiqueta</th><th>SKU</th><th>Producto</th><th>Kg</th></tr></thead><tbody id="diagEntradas"></tbody></table></div></div>
+      <div class="col-md-6"><h6>Salidas</h6><div style="max-height:260px;overflow:auto"><table class="table table-sm table-bordered"><thead><tr><th>ID</th><th>Etiqueta</th><th>SKU</th><th>Producto</th><th>Kg</th></tr></thead><tbody id="diagSalidas"></tbody></table></div></div>
+    </div>
+    <div id="solicitudBox" style="display:none;margin-top:12px;border-top:1px solid #ddd;padding-top:10px">
+       <label><b>Motivo para solicitar excepción</b></label>
+       <textarea id="solMotivo" rows="3" placeholder="Explique por qué debe cerrarse a pesar de las anomalías..."></textarea>
+       <button class="cl-btn cl-btn-warning mt-2" type="button" onclick="solicitarAutorizacion()">Solicitar autorización</button>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button class="cl-btn" data-bs-dismiss="modal">Cerrar ventana</button>
+    <button id="btnCostearCerrar" class="cl-btn cl-btn-success" type="button" onclick="costearYCerrar()">Costear y cerrar lote</button>
+  </div>
+ </div></div>
+</div>
+
+<div class="modal fade cl-modal" id="modalPendientes" tabindex="-1">
+ <div class="modal-dialog modal-xl" style="max-width:96vw"><div class="modal-content">
+  <div class="modal-header"><h5 class="modal-title">Autorizaciones pendientes</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+   <div class="cl-note">Cada gerente/director registra su propia decisión y justificación. El solicitante no puede autorizarse a sí mismo. La cantidad de aprobaciones requeridas es configurable por TipoLoteId.</div>
+   <div style="overflow:auto;max-height:65vh"><table class="table table-sm table-bordered align-middle"><thead><tr><th>Solicitud</th><th>Lote</th><th>Solicita</th><th>Motivo</th><th>Anomalías</th><th>Aprobaciones</th><th>Autorizadores</th><th>Decisión</th></tr></thead><tbody id="pendRows"></tbody></table></div>
+  </div>
+ </div></div>
+</div>
+
+<div class="modal fade cl-modal" id="modalCompatibilidad" tabindex="-1">
+ <div class="modal-dialog modal-xl"><div class="modal-content">
+  <div class="modal-header"><h5 class="modal-title">Catálogo de compatibilidad producto entrada → salida</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+   <div class="cl-note">Use reglas PERMITIDAS para definir de qué materias primas puede salir un producto. También puede registrar reglas PROHIBIDAS explícitas. Ejemplo conceptual: HUESO → ARRACHERA = prohibido. Use sus SKU reales; no escriba nombres genéricos.</div>
+   <div class="row g-2">
+    <div class="col-md-2"><label>SKU entrada</label><input id="cmpEntrada" /></div>
+    <div class="col-md-2"><label>SKU salida</label><input id="cmpSalida" /></div>
+    <div class="col-md-2"><label>Regla</label><select id="cmpPermitido"><option value="true">PERMITIDO</option><option value="false">PROHIBIDO</option></select></div>
+    <div class="col-md-4"><label>Motivo</label><input id="cmpMotivo" placeholder="Justificación de la relación" /></div>
+    <div class="col-md-2 d-flex align-items-end"><button class="cl-btn cl-btn-primary w-100" onclick="guardarCompatibilidad()">Guardar</button></div>
+   </div>
+   <div class="row g-2 mt-2"><div class="col-md-4"><input id="cmpBuscar" placeholder="Buscar SKU o motivo" /></div><div class="col-md-2"><button class="cl-btn" onclick="cargarCompatibilidad()">Buscar</button></div></div>
+   <div style="overflow:auto;max-height:55vh;margin-top:10px"><table class="table table-sm table-bordered"><thead><tr><th>ID</th><th>Entrada</th><th>Salida</th><th>Regla</th><th>Motivo</th><th>Usuario</th><th>Fecha</th><th></th></tr></thead><tbody id="cmpRows"></tbody></table></div>
+  </div>
+ </div></div>
+</div>
+
+<script>
+let diagActual = null;
+let authActual = null;
+let permisos = { puedeLeer:false, puedeEscribir:false, puedeAutorizar:false };
+const modalDiag = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalDiagnostico'));
+const modalPend = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalPendientes'));
+const modalCmp = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCompatibilidad'));
+
+function safe(v){return String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;')}
+function n(v,d=3){return Number(v||0).toLocaleString('es-MX',{minimumFractionDigits:d,maximumFractionDigits:d})}
+function fecha(v){if(!v)return '-'; const x=new Date(v); return Number.isNaN(x.getTime())?safe(v):x.toLocaleDateString('es-MX')}
+function setStatus(m,t='info'){document.getElementById('clStatus').innerHTML=`<span class="cl-badge ${t==='ok'?'b-ok':t==='bad'?'b-bad':t==='warn'?'b-warn':'b-info'}">${safe(m)}</span>`}
+function normalizarJsonServidor(v){ return v; }
+async function api(url,opt){
+ const r=await fetch(url,{credentials:'same-origin',...(opt||{})});
+ let d={};
+ try{d=await r.json()}catch{}
+ if(!r.ok||d?.ok===false) throw new Error(d?.msg||`HTTP ${r.status}`);
+ return normalizarJsonServidor(d);
+}
+
+async function cargarPermisos(){try{const d=await api('@Url.Action("CierreLotePermisos","ProcesosCG")'); permisos=d;}catch(e){setStatus(e.message,'bad')}}
+
+
+function actualizarResumenCierre(rows){
+    rows = Array.isArray(rows) ? rows : [];
+
+    const total = rows.length;
+    const abiertos = rows.filter(x => Number(x.estatusId) !== 3).length;
+    const cerrados = rows.filter(x => Number(x.estatusId) === 3).length;
+    const kgEntrada = rows.reduce((a,x) => a + Number(x.kgEntrada || 0), 0);
+    const kgSalida = rows.reduce((a,x) => a + Number(x.kgSalida || 0), 0);
+
+    const rendimientos = rows
+        .map(x => Number(x.rendimientoPct))
+        .filter(x => Number.isFinite(x));
+
+    const rendimientoProm = rendimientos.length
+        ? rendimientos.reduce((a,b)=>a+b,0) / rendimientos.length
+        : 0;
+
+    const set = (id, value) => {
+        const el = document.getElementById(id);
+        if(el) el.textContent = value;
+    };
+
+    set('clKpiTotal', total.toLocaleString('es-MX'));
+    set('clKpiAbiertos', abiertos.toLocaleString('es-MX'));
+    set('clKpiCerrados', cerrados.toLocaleString('es-MX'));
+    set('clKpiEntrada', `${n(kgEntrada)} kg`);
+    set('clKpiSalida', `${n(kgSalida)} kg`);
+    set('clKpiRendimiento', `${n(rendimientoProm,2)}%`);
+
+    const resultado = document.getElementById('clResultCount');
+    if(resultado){
+        resultado.textContent = total === 1 ? '1 lote encontrado' : `${total} lotes encontrados`;
+    }
+}
+
+async function buscarLotes(){
+ try{
+   setStatus('Consultando...');
+   const q=new URLSearchParams({
+       source:document.getElementById('clSource').value,
+       desde:document.getElementById('clDesde').value,
+       hasta:document.getElementById('clHasta').value,
+       estado:document.getElementById('clEstado').value
+   });
+
+   const d=await api('@Url.Action("CierreLotesBuscar","ProcesosCG")?'+q);
+   const tb=document.getElementById('clRows');
+   const rows = Array.isArray(d.rows) ? d.rows : [];
+
+   actualizarResumenCierre(rows);
+
+   if(!rows.length){
+       tb.innerHTML='<tr class="cl-empty-row"><td colspan="12">No hay lotes para los filtros seleccionados.</td></tr>';
+       setStatus('Sin resultados.');
+       return;
+   }
+
+   console.log('CierreLotesBuscar primer registro:', rows[0]);
+
+   tb.innerHTML=rows.map(x=>`<tr class="${x.estatusId===3?'is-closed':'is-open'}">
+    <td data-label="Lote ID"><span class="cl-mobile-label">ID</span>${x.loteId}</td>
+    <td data-label="Lote" class="cl-lote-name">${safe(x.nombre)}</td>
+    <td data-label="Tipo">${x.tipoLoteId}</td>
+    <td data-label="Fecha">${fecha(x.fechaProduccion)}</td>
+    <td data-label="Estado"><span class="cl-badge ${x.estatusId===3?'b-info':'b-ok'}">${x.estatusId===3?'CERRADO':'ABIERTO'}</span></td>
+    <td data-label="Entradas">${x.entradas}</td>
+    <td data-label="Kg entrada" class="text-end">${n(x.kgEntrada)}</td>
+    <td data-label="Salidas">${x.salidas}</td>
+    <td data-label="Kg salida" class="text-end">${n(x.kgSalida)}</td>
+    <td data-label="Diferencia kg" class="text-end">${n(x.diferenciaKg)}</td>
+    <td data-label="Rendimiento" class="text-end">${n(x.rendimientoPct,2)}%</td>
+    <td data-label="Acción" class="cl-action-cell">
+        <button class="cl-btn cl-btn-review" type="button" onclick="diagnosticar(${x.loteId})">
+            Revisar cierre →
+        </button>
+    </td>
+   </tr>`).join('');
+
+   setStatus(`${rows.length} lote(s) cargado(s).`,'ok');
+ }catch(e){
+   actualizarResumenCierre([]);
+   setStatus(e.message,'bad');
+ }
+}
+
+async function diagnosticar(loteId){
+ loteId = Number(loteId || 0);
+ if(!Number.isInteger(loteId) || loteId <= 0){
+  setStatus(`LoteId inválido o no recibido. Valor recibido: ${loteId || 'NULL'}`,'bad');
+  return;
+ }
+ try{
+  setStatus(`Diagnosticando lote ${loteId}...`);
+  const source=document.getElementById('clSource').value;
+  const d=await api('@Url.Action("CierreLoteDiagnostico","ProcesosCG")?'+new URLSearchParams({source,loteId}));
+  diagActual=d.diagnostico; authActual=d.autorizacion;
+  renderDiag(); modalDiag().show(); setStatus('Diagnóstico terminado.','ok');
+ }catch(e){setStatus(e.message,'bad')}
+}
+
+function renderDiag(){
+ const d=diagActual;if(!d)return;
+ document.getElementById('diagResumen').innerHTML=[
+  ['Lote',`${safe(d.loteNombre)} (${d.loteId})`],['Tipo / costeo',`${d.tipoLoteId} / ${safe(d.tipoProceso||'SIN CONFIG')}`],
+  ['Tipo peso canal',d.tipoProceso==='CANALES' ? `${d.tipoPesoIdCanal ?? '-'} · ${safe(d.tipoPesoCanal||'')}` : '-'],
+  ['Entradas',`${d.entradas} · ${n(d.kgEntrada)} kg`],['Salidas / canales',`${d.salidas} · ${n(d.kgSalida)} kg`],
+  ['Variación',d.tipoProceso==='CANALES' ? 'N/A' : `${n(d.variacionPct,2)}%`],['Rendimiento',d.tipoProceso==='CANALES' ? 'N/A' : `${n(d.rendimientoPct,2)}%`]
+ ].map(x=>`<div class="cl-card"><b>${x[0]}</b><span>${x[1]}</span></div>`).join('');
+ let est='';
+ if(d.tieneBloqueos) est='<span class="cl-badge b-bad">BLOQUEADO</span> Hay anomalías técnicas no autorizables.';
+ else if(d.requiereAutorizacion){const a=authActual||{}; est=`<span class="cl-badge ${a.aprobada?'b-ok':'b-warn'}">${a.aprobada?'AUTORIZADO':'REQUIERE AUTORIZACIÓN'}</span> Aprobaciones ${a.aprobacionesActuales||0}/${a.aprobacionesRequeridas||d.aprobacionesRequeridas}. ${safe(a.autorizadores||'')}`}
+ else est='<span class="cl-badge b-ok">LISTO</span> Puede costearse y cerrarse.';
+ document.getElementById('diagEstado').innerHTML=`<div class="cl-note">${est}</div>`;
+ const an=document.getElementById('diagAnomalias');
+ an.innerHTML=d.anomalias?.length?d.anomalias.map(x=>`<div class="cl-anom ${(x.nivel||'').toLowerCase()}"><b>${safe(x.nivel)} · ${safe(x.codigo)} · ${safe(x.titulo)}</b><div>${safe(x.detalle)}</div></div>`).join(''):'<div class="cl-anom"><b>Sin anomalías operativas.</b></div>';
+ const row=x=>`<tr><td>${x.produccionId}</td><td>${safe(x.codigoEtiqueta)}</td><td>${safe(x.articulo)}</td><td>${safe(x.producto)}</td><td class="text-end">${n(x.pesoNeto)}</td></tr>`;
+ document.getElementById('diagEntradas').innerHTML=d.movimientosEntrada?.map(row).join('')||'<tr><td colspan="5">Sin entradas.</td></tr>';
+ document.getElementById('diagSalidas').innerHTML=d.movimientosSalida?.map(row).join('')||'<tr><td colspan="5">Sin salidas.</td></tr>';
+ document.getElementById('solicitudBox').style.display=(!d.tieneBloqueos&&d.requiereAutorizacion&&!authActual?.aprobada&&permisos.puedeEscribir)?'block':'none';
+ const btn=document.getElementById('btnCostearCerrar');
+ btn.style.display=permisos.puedeEscribir?'inline-block':'none';
+ btn.disabled=d.tieneBloqueos || (d.requiereAutorizacion&&!authActual?.aprobada);
+}
+
+async function solicitarAutorizacion(){
+ if(!diagActual)return;
+ const motivo=document.getElementById('solMotivo').value.trim();
+ try{
+  const d=await api('@Url.Action("CierreLoteSolicitarAutorizacion","ProcesosCG")',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source:diagActual.source,loteId:diagActual.loteId,motivo})});
+  alert(d.msg); await diagnosticar(diagActual.loteId);
+ }catch(e){alert(e.message)}
+}
+
+async function costearYCerrar(){
+ if(!diagActual)return;
+ if(!confirm(`Se ejecutará el costeo del lote ${diagActual.loteNombre} y solo si termina correcto se cambiará EstatusId=3. ¿Continuar?`))return;
+ try{
+  const btn=document.getElementById('btnCostearCerrar');btn.disabled=true;btn.textContent='Costeando y validando...';
+  const d=await api('@Url.Action("CierreLoteCerrar","ProcesosCG")',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source:diagActual.source,loteId:diagActual.loteId})});
+  alert(d.msg);modalDiag().hide();await buscarLotes();
+ }catch(e){alert(e.message); if(diagActual) await diagnosticar(diagActual.loteId)}finally{const btn=document.getElementById('btnCostearCerrar');btn.disabled=false;btn.textContent='Costear y cerrar lote'}
+}
+
+async function cargarPendientes(){
+ if(!permisos.puedeAutorizar){alert('Tu perfil no tiene permiso ELIMINAR en CIERRE_LOTES para autorizar excepciones.');return}
+ try{
+  const source=document.getElementById('clSource').value;
+  const d=await api('@Url.Action("CierreLotePendientesAutorizacion","ProcesosCG")?'+new URLSearchParams({source}));
+  document.getElementById('pendRows').innerHTML=d.rows?.length?d.rows.map(x=>`<tr>
+   <td>#${x.solicitudId}<br><span class="cl-badge ${x.estado==='APROBADA'?'b-ok':'b-warn'}">${safe(x.estado)}</span></td>
+   <td>${safe(x.loteNombre)}<br>ID ${x.loteId}</td><td>${safe(x.usuarioSolicita)}<br>${fecha(x.fechaSolicitud)}</td>
+   <td style="white-space:normal;min-width:220px">${safe(x.motivoSolicitud)}</td><td style="white-space:normal;min-width:280px">${safe(x.resumenAnomalias)}</td>
+   <td>${x.aprobacionesActuales}/${x.aprobacionesRequeridas}</td><td style="white-space:normal;min-width:220px">${safe(x.autorizadores)}</td>
+   <td style="min-width:260px"><textarea id="mot_${x.solicitudId}" rows="2" placeholder="Justificación obligatoria"></textarea><div class="mt-1"><button class="cl-btn cl-btn-success" onclick="decidir(${x.solicitudId},'APROBAR')">Autorizar</button> <button class="cl-btn cl-btn-danger" onclick="decidir(${x.solicitudId},'RECHAZAR')">Rechazar</button></div></td></tr>`).join(''):'<tr><td colspan="8">Sin solicitudes pendientes.</td></tr>';
+  modalPend().show();
+ }catch(e){alert(e.message)}
+}
+async function decidir(id,decision){
+ const motivo=document.getElementById(`mot_${id}`).value.trim();
+ const url=decision==='APROBAR'?'@Url.Action("CierreLoteAutorizar","ProcesosCG")':'@Url.Action("CierreLoteRechazar","ProcesosCG")';
+ try{const d=await api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source:document.getElementById('clSource').value,solicitudId:id,motivo})});alert(d.msg);await cargarPendientes()}catch(e){alert(e.message)}
+}
+
+async function abrirCompatibilidad(){
+ modalCmp().show(); await cargarCompatibilidad();
+}
+async function cargarCompatibilidad(){
+ try{
+  const source=document.getElementById('clSource').value;const texto=document.getElementById('cmpBuscar').value;
+  const d=await api('@Url.Action("CierreLoteCompatibilidad","ProcesosCG")?'+new URLSearchParams({source,texto}));
+  document.getElementById('cmpRows').innerHTML=d.rows?.length?d.rows.map(x=>`<tr><td>${x.compatibilidadId}</td><td>${safe(x.articuloEntrada)}</td><td>${safe(x.articuloSalida)}</td><td><span class="cl-badge ${x.permitido?'b-ok':'b-bad'}">${x.permitido?'PERMITIDO':'PROHIBIDO'}</span></td><td>${safe(x.motivo)}</td><td>${safe(x.usuario)}</td><td>${fecha(x.fechaHora)}</td><td>${permisos.puedeAutorizar?`<button class="cl-btn cl-btn-danger" onclick="eliminarCompatibilidad(${x.compatibilidadId})">Quitar</button>`:''}</td></tr>`).join(''):'<tr><td colspan="8">Sin reglas configuradas.</td></tr>';
+ }catch(e){alert(e.message)}
+}
+async function guardarCompatibilidad(){
+ if(!permisos.puedeAutorizar){alert('Requiere permiso de autorización para modificar el catálogo.');return}
+ try{
+  const req={source:document.getElementById('clSource').value,articuloEntrada:document.getElementById('cmpEntrada').value,articuloSalida:document.getElementById('cmpSalida').value,permitido:document.getElementById('cmpPermitido').value==='true',motivo:document.getElementById('cmpMotivo').value};
+  const d=await api('@Url.Action("CierreLoteCompatibilidadGuardar","ProcesosCG")',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(req)});alert(d.msg);await cargarCompatibilidad();
+ }catch(e){alert(e.message)}
+}
+async function eliminarCompatibilidad(id){
+ if(!confirm('¿Desactivar esta regla?'))return;
+ try{const d=await api('@Url.Action("CierreLoteCompatibilidadEliminar","ProcesosCG")?'+new URLSearchParams({source:document.getElementById('clSource').value,id}),{method:'POST'});alert(d.msg);await cargarCompatibilidad()}catch(e){alert(e.message)}
+}
+
+document.addEventListener('DOMContentLoaded',async()=>{await cargarPermisos();await buscarLotes()});
+</script>

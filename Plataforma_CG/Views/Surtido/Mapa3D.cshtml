@@ -1,0 +1,142 @@
+@model Plataforma_CG.ViewModels.SurtidoMapa3DVM
+
+@{
+    ViewData["Title"] = "Mapa 3D";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<link rel="stylesheet"
+      href="~/css/surtido-wms-v7.css"
+      asp-append-version="true" />
+
+<link rel="stylesheet"
+      href="~/css/surtido-mapa3d-erp.css"
+      asp-append-version="true" />
+
+<div class="wms-v7">
+
+    <main class="wms-content">
+
+        <a class="wms-back"
+           href="@Url.Action(
+                "Surtido_cedis",
+                "Surtido",
+                new
+                {
+                    almacen = Model.Almacen.Codigo
+                }
+           )">
+            ‹ Volver a Surtido
+        </a>
+
+
+        <section class="wms-page-title">
+
+            <span class="wms-overline">
+                GEMELO DIGITAL · @Model.Almacen.Codigo
+            </span>
+
+            <h1>
+                Mapa 3D · @Model.Almacen.Nombre
+            </h1>
+
+            <p>
+                Busca una ubicación física como R4-04A.
+                La ubicación PEPS viene de ProduccionReferencia TipoReferenciaId = 16.
+            </p>
+
+        </section>
+
+
+        <div class="wms-site-line">
+            <span>@Model.Almacen.Planta</span>
+            <span>@Model.Almacen.Sucursal</span>
+            <span>@Model.Almacen.Clasificacion</span>
+
+            @if (Model.LayoutCompletoConfirmado)
+            {
+                <span>3D COMPLETO CONFIRMADO</span>
+            }
+            else
+            {
+                <span>VISTA 3D DE RACK</span>
+            }
+        </div>
+
+
+        @if (!Model.LayoutCompletoConfirmado)
+        {
+            <div class="wms-layout-warning">
+                Para este almacén no se dibuja una planta completa provisional.
+                SIGO muestra únicamente el rack/posición de la ubicación buscada.
+                Esto evita inventar geometría física que todavía no ha sido confirmada.
+            </div>
+        }
+
+
+        <div class="wms-map-search">
+
+            <input id="map3dSearch"
+                   value="@Model.UbicacionInicial"
+                   placeholder="R4-04A"
+                   autocomplete="off" />
+
+            <button id="map3dSearchBtn"
+                    type="button">
+                BUSCAR
+            </button>
+
+        </div>
+
+
+        <section class="wms-3d-card">
+
+            <div class="wms-3d-head">
+
+                <div>
+                    <span class="wms-overline">
+                        UBICACIÓN
+                    </span>
+
+                    <h2 id="map3dTitle">
+                        @(string.IsNullOrWhiteSpace(Model.UbicacionInicial)
+                            ? "Selecciona una ubicación"
+                            : Model.UbicacionInicial)
+                    </h2>
+
+                    <p>
+                        Arrastra para rotar · rueda para acercar/alejar.
+                    </p>
+                </div>
+
+            </div>
+
+            <div id="warehouseRack3d"
+                 class="wms-rack3d map"
+                 data-location="@Model.UbicacionInicial"
+                 data-layout-known="@Model.LayoutCompletoConfirmado.ToString().ToLowerInvariant()"
+                 data-compact="false"
+                 data-info-target="#warehouseRackInfo">
+            </div>
+
+            <div id="warehouseRackInfo"
+                 class="wms-3d-info">
+            </div>
+
+            <div class="wms-3d-legend">
+                <span><i class="target"></i>Destino</span>
+                <span><i class="route"></i>Ruta desde acceso</span>
+                <span><i class="rack"></i>Rack</span>
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="~/js/surtido-wms-3d.js" asp-append-version="true"></script>
+<script src="~/js/surtido-mapa3d-erp.js" asp-append-version="true"></script>

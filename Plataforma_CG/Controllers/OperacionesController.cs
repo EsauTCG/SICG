@@ -1,14 +1,18 @@
 using DocumentFormat.OpenXml.Drawing.Diagrams;
 using DocumentFormat.OpenXml.InkML;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
+using Plataforma_CG.AccesoDatos.JSON;
+using Plataforma_CG.AccesoDatos.Operaciones;
 using Plataforma_CG.AccesoDatos.Operaciones.Planeacion;
 using Plataforma_CG.AccesoDatos.Operaciones.Planeacion;
 using Plataforma_CG.Data;
 using Plataforma_CG.Models;
+using Plataforma_CG.Models.Operaciones.Etiquetas;
 using Plataforma_CG.Models.Operaciones.Planeacion;
 using Plataforma_CG.Models.Operaciones.Planeacion.Diaria;
 using Plataforma_CG.Models.Operaciones.Planeacion.Extra;
@@ -30,6 +34,25 @@ namespace Plataforma_CG.Controllers
         private readonly AppDbContext _db;
         private readonly string _connString;
         private readonly PlaneadorOptions _planeadorOpts;
+        AccesoJSON aj = new AccesoJSON();
+        
+        public IActionResult ActivarPlantilla([FromBody] string fecha)
+        {
+            // model.Fecha contiene la fecha enviada
+            var res = false;
+            try
+            {
+                aj.APIPLAN(fecha);
+            }
+            catch (Exception)
+            {
+
+            }
+            return Json(new
+            {ok=res,
+                mensaje = "Plantilla activada correctamente."
+            });
+        }
 
         public OperacionesController(AppDbContext db, IConfiguration config, IOptions<PlaneadorOptions> planeadorOpts)
         {
@@ -42,6 +65,92 @@ namespace Plataforma_CG.Controllers
         {
             return View("~/Views/Operaciones/Inyecciones.cshtml");
         }
+        public async Task<IActionResult> Etiquetacion()
+        {
+            return View("~/Views/Operaciones/Etiquetacion/Etiquetacion.cshtml");
+        }
+        AccesoEtiquetacion aet = new AccesoEtiquetacion();
+        [HttpGet]
+        public async Task<IActionResult> BuscarProductos(string busq,int ubic)
+        {
+            var res = new List<PlanEtiModel>();
+            if (ubic==0)
+            {
+                res= aet.ConsultarEtiquetacion(busq);
+            }
+            else
+            {
+                res=aet.ConsultarEtiquetacionP1(busq);
+            }
+                return Ok(res);
+        }
+        [HttpGet]
+        public async Task<IActionResult> ConsultarLogEtiq(int ubic,string fechain, string fechafin)
+        {
+            var eti = new List<EtiquetasModel>();
+            string ubica = "";
+            if (ubic == 0)
+            {
+                ubica = "TIF";
+                eti = aet.ConsultarEtiquetas();
+            }
+            else
+            {
+                ubica = "P1";
+                eti = aet.ConsultarEtiquetasP1();
+            }
+            var res = aet.ReporteEtiquetas(ubica,fechain,fechafin,eti);
+            return Ok(res);
+        
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ListarEtiquetas(int ubic)
+        {
+            var res = new List<EtiquetasModel>();
+            if (ubic==0)
+            {
+                res= aet.ConsultarEtiquetas();
+            }
+            else
+            {
+                res = aet.ConsultarEtiquetasP1();
+            }
+                return Ok(res);
+        }
+        
+        [HttpPost]
+        public async Task<IActionResult> ModificarEtiqueta(string sku, int etiqueta, int ubic)
+        {
+            int etold;
+
+            var usr = User.Identity.Name;
+            var res = false;
+            string ubica="";
+            if (ubic==0)
+            {
+                ubica = "TIF";
+                etold = aet.ConsultarEtiquetacion(sku).Where(id => id.SKU == sku).FirstOrDefault().Etiquetacion; 
+            }
+            else
+            {
+                ubica = "P1";
+                etold = aet.ConsultarEtiquetacionP1(sku).Where(id => id.SKU == sku).FirstOrDefault().Etiquetacion;
+            }
+            if (aet.LogEtiquetas(sku, etold, etiqueta, usr,ubica))
+            {
+                if (ubic==0)
+                {
+                    res = aet.ModificarEtiquetacion(sku, etiqueta);
+                }
+                else
+                {
+                    res= aet.ModificarEtiquetacionP1(sku, etiqueta);
+                }
+            }
+            return Ok(res);
+        }
+
 
         public async Task<IActionResult> FactorCritico()
         {
@@ -81,6 +190,13 @@ namespace Plataforma_CG.Controllers
 
             //return View("~/Views/Operaciones/PlaneadorProduccion.cshtml", vm);
             return View("~/Views/Operaciones/Planeacion/Mensual.cshtml");
+        }
+        [HttpGet]
+        public IActionResult ResumenPlaneacion()
+        {
+            return PartialView(
+                "~/Views/Operaciones/Planeacion/ResumenPlaneacion.cshtml"
+            );
         }
         public IActionResult PlaneacionMensual(string anio, string mes)
         {
@@ -712,7 +828,7 @@ namespace Plataforma_CG.Controllers
         public IActionResult PlaneadorProduccionPdf([FromBody] PlaneadorPdfRequest req)
         {
             if (req == null || req.Rows == null) return BadRequest();
-            var logoPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "logoPDF.png");
+            var logoPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "logoCubo.png");
             byte[]? logoBytes = System.IO.File.Exists(logoPath) ? System.IO.File.ReadAllBytes(logoPath) : null;
 
             var pdfBytes = PlaneadorPdfBuilder.Build(req, logoBytes);
@@ -746,7 +862,83 @@ namespace Plataforma_CG.Controllers
             }
             return Ok(new { ok = true });
         }
+        #region ResumenPlaneacion
+        AccesoReporteSemanal ars = new AccesoReporteSemanal();
+        [HttpGet]
+        public IActionResult ObtenerResumenPlaneacion(
+    DateTime fechaInicial,
+    DateTime fechaFinal,
+    int clasificacionId)
+        {
+            try
+            {
+                var resultado =
+                    ars.ConsultarReporte(
+                        fechaInicial.ToString("yyyy-MM-dd"),
+                        fechaFinal.ToString("yyyy-MM-dd"),
+                        clasificacionId
+                    );
 
+                return Ok(resultado);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    mensaje = ex.Message
+                });
+            }
+        }
+        [HttpGet]
+        public IActionResult ObtenerPorcentajeInyeccionProduccion(string fechain, string fechafin, string sku, int clasi)
+        {
+            if (string.IsNullOrWhiteSpace(sku))
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "SKU requerido."
+                });
+            }
+
+            // Posteriormente aquí irá la consulta real
+            double porcentaje = 5.5;
+
+            return Ok(new
+            {
+                ok = true,
+                sku = sku,
+                porcentaje = porcentaje
+            });
+        }
+
+
+        [HttpGet]
+        public IActionResult ObtenerKgEmpaqueProduccion(string fechain,string fechafin,string sku,int clasi)
+        {
+            
+            if (string.IsNullOrWhiteSpace(sku))
+            {
+                return BadRequest(new
+                {
+
+                    ok = false,
+                    mensaje = "SKU requerido."
+                });
+            }
+
+            // Posteriormente aquí irá la consulta real
+            double kg = ars.ConsultarProduccion(fechain, fechafin, sku, clasi); 
+
+            return Ok(new
+            {
+                ok = true,
+                sku = sku,
+                kg = kg
+            });
+        }
+        #endregion
         [HttpGet]
         public IActionResult ObtenerCatalogoExtra()
         {
@@ -760,6 +952,26 @@ namespace Plataforma_CG.Controllers
             var res=ape.ConsultarEstatusSolicitud();
             return Json(res);
         }
+
+        #region PlanMensual
+        [HttpGet]
+        public async Task<IActionResult> ObtenerDetalleMensual(
+    int clasificacionId,
+    DateTime fecha)
+        {
+            //var modelo = await ape
+            //    .ObtenerDetalleMensual(clasificacionId, fecha);
+
+            //return PartialView(
+            //    "_PlaneacionMensualDetalle",
+            //    modelo);
+            return Ok("");
+        }
+        #endregion
+
+
+
+
         [HttpPost]
         [Route("Operaciones/PlaneadorProduccionGuardar")]
         public async Task<IActionResult> PlaneadorProduccionGuardar([FromBody] PlaneadorSaveDto dto)

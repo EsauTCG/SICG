@@ -1,0 +1,1830 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Planeación Ejecutiva de Inventario";
+}
+
+<link rel="stylesheet" href="~/css/inventario-minmax-grid.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/inventario-minmax-erp-compacto-v2.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/inventario-minmax-color-fix.css" asp-append-version="true" />
+
+<div class="minmax-root">
+    <div class="minmax-shell">
+        <header class="minmax-header">
+            <div class="minmax-heading">
+                <div class="minmax-heading-icon">
+                    <i class="fa-solid fa-chart-line"></i>
+                </div>
+                <div class="minmax-title">
+                    <h1>Indicador de Inventario Mínimo, Ideal y Máximo</h1>
+                    <small>Planeación operativa por clasificación, SKU, inventario actual y parámetros objetivo</small>
+                </div>
+            </div>
+
+            <div class="minmax-live">
+                <span class="minmax-live-dot"></span>
+                <span>Información operativa</span>
+            </div>
+        </header>
+
+        <main class="minmax-body">
+            <section class="mm-card">
+                <div class="mm-card-title">
+                    <span>
+                        <i class="fa-solid fa-filter me-1"></i>
+                        Filtros y actualización
+                    </span>
+                    <span id="mmUpdatedText" style="color:var(--mm-muted);font-size:.66rem">
+                        Sin consultar
+                    </span>
+                </div>
+
+                <div class="mm-filters">
+                    <div class="mm-field">
+                        <label for="buscarInput">Buscar SKU, producto o master</label>
+                        <input id="buscarInput"
+                               type="search"
+                               autocomplete="off"
+                               placeholder="Ej. N108, costilla, pulpa..." />
+                    </div>
+
+                    <div class="mm-field">
+                        <label for="mesInput">Mes de análisis</label>
+                        <input id="mesInput" type="month" />
+                    </div>
+
+                    <div class="mm-field">
+                        <label for="clasificacionSelect">Clasificación</label>
+                        <select id="clasificacionSelect">
+                            <option value="">Todas</option>
+                        </select>
+                    </div>
+
+                    <div class="mm-field">
+                        <label for="masterSelect">Master</label>
+                        <select id="masterSelect">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+
+                    <div class="mm-field">
+                        <label for="estatusSelect">Indicador</label>
+                        <select id="estatusSelect">
+                            <option value="">Todos</option>
+                            <option value="BAJO">Bajo mínimo</option>
+                            <option value="MIN">Entre mínimo e ideal</option>
+                            <option value="OK">Dentro de rango</option>
+                            <option value="SOBRE">Sobre máximo</option>
+                            <option value="NOPROD">No producir</option>
+                            <option value="SIN">Sin configuración/base</option>
+                        </select>
+                    </div>
+
+                    <div class="mm-actions">
+                        <button id="btnActualizar"
+                                class="mm-btn primary"
+                                type="button">
+                            <i class="fa-solid fa-rotate"></i>
+                            Actualizar
+                        </button>
+
+                        <button id="btnCatalogo"
+                                class="mm-btn"
+                                type="button">
+                            <i class="fa-solid fa-sliders"></i>
+                            Catálogo
+                        </button>
+
+                        <button id="btnCsv"
+                                class="mm-btn success"
+                                type="button">
+                            <i class="fa-solid fa-file-csv"></i>
+                            CSV
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="mm-card">
+                <div class="mm-kpis">
+                    <div class="mm-kpi general">
+                        <span>SKUs filtrados</span>
+                        <strong id="kpiSkus">0</strong>
+                        <em>Total visible en la consulta</em>
+                    </div>
+
+                    <div class="mm-kpi bajo">
+                        <span>Bajo mínimo</span>
+                        <strong id="kpiBajo">0</strong>
+                        <em>Inventario por debajo del mínimo</em>
+                    </div>
+
+                    <div class="mm-kpi alerta">
+                        <span>Entre mínimo e ideal</span>
+                        <strong id="kpiMin">0</strong>
+                        <em>Productos en nivel preventivo</em>
+                    </div>
+
+                    <div class="mm-kpi ok">
+                        <span>Dentro de rango</span>
+                        <strong id="kpiOk">0</strong>
+                        <em>Inventario dentro del objetivo</em>
+                    </div>
+
+                    <div class="mm-kpi sobre">
+                        <span>Sobre máximo</span>
+                        <strong id="kpiSobre">0</strong>
+                        <em>Productos excedidos sobre parámetro</em>
+                    </div>
+
+                    <div class="mm-kpi sin">
+                        <span>Sin parámetro / no prod.</span>
+                        <strong id="kpiSin">0</strong>
+                        <em>Registros sin clasificación operativa</em>
+                    </div>
+
+                    <div class="mm-kpi kg">
+                        <span>Inventario actual</span>
+                        <strong id="kpiActual">0 kg</strong>
+                        <em>Peso total del inventario filtrado</em>
+                    </div>
+                </div>
+            </section>
+
+            <section class="mm-summary-grid">
+                <div class="mm-card mm-chart-card">
+                    <h2 class="mm-chart-heading">Distribución por indicador</h2>
+                    <div id="semaforoChart" class="mm-status-list"></div>
+                </div>
+
+                <div class="mm-card mm-chart-card">
+                    <h2 class="mm-chart-heading">Mayor exceso o faltante contra ideal</h2>
+                    <div id="topChart" class="mm-top-list"></div>
+                </div>
+            </section>
+
+            <section class="mm-card mm-detail-card">
+                <div class="mm-card-title">
+                    <span>
+                        <i class="fa-solid fa-table-list me-1"></i>
+                        Detalle por SKU
+                    </span>
+                    <span id="mmResultCount" style="color:var(--mm-muted);font-size:.66rem">
+                        0 registros
+                    </span>
+                </div>
+
+                <div class="mm-table-wrap">
+                    <table class="mm-table">
+                        <thead>
+                            <tr id="mmTableHeader">
+                                <th class="sticky-clas mm-sortable" data-sort="clasificacion" tabindex="0" title="Ordenar por clasificación">
+                                    <span class="mm-sort-head">Clasificación <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="sticky-master mm-sortable" data-sort="master" tabindex="0" title="Ordenar por MASTER">
+                                    <span class="mm-sort-head">Master <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="sticky-sku mm-sortable" data-sort="sku" tabindex="0" title="Ordenar por SKU">
+                                    <span class="mm-sort-head">SKU <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="mm-sortable" data-sort="producto" tabindex="0" title="Ordenar por producto">
+                                    <span class="mm-sort-head">Producto <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="num mm-sortable" data-sort="kgProduccionMes" tabindex="0" title="Ordenar por producción del mes">
+                                    <span class="mm-sort-head">Producción mes <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="num mm-sortable" data-sort="kgInventarioInicial" tabindex="0" title="Ordenar por inventario inicial">
+                                    <span class="mm-sort-head">Inv. inicial <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="num mm-sortable" data-sort="kgBaseCalculo" tabindex="0" title="Ordenar por base de cálculo">
+                                    <span class="mm-sort-head">Base cálculo <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="num mm-sortable" data-sort="kgActual" tabindex="0" title="Ordenar por inventario actual">
+                                    <span class="mm-sort-head">Inv. actual <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="num mm-sortable" data-sort="minimo" tabindex="0" title="Ordenar por mínimo">
+                                    <span class="mm-sort-head">Mínimo <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="num mm-sortable" data-sort="ideal" tabindex="0" title="Ordenar por ideal">
+                                    <span class="mm-sort-head">Ideal <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="num mm-sortable" data-sort="maximo" tabindex="0" title="Ordenar por máximo">
+                                    <span class="mm-sort-head">Máximo <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="num mm-sortable" data-sort="gapIdeal" tabindex="0" title="Ordenar por diferencia contra ideal">
+                                    <span class="mm-sort-head">Gap ideal <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="num mm-sortable" data-sort="diasActual" tabindex="0" title="Ordenar por días actuales">
+                                    <span class="mm-sort-head">Días actual <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="num mm-sortable" data-sort="porcentajeMaximo" tabindex="0" title="Ordenar por porcentaje del máximo">
+                                    <span class="mm-sort-head">% máximo <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="mm-sortable" data-sort="estatus" tabindex="0" title="Ordenar por indicador">
+                                    <span class="mm-sort-head">Indicador <span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaBody">
+                            <tr>
+                                <td colspan="15" class="mm-loading">
+                                    Selecciona el mes y actualiza.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <footer class="mm-footer">
+            <div>
+                Regla del Excel: Base = producción mensual + inventario inicial.
+                Umbrales = Base / 30.4 × días definidos por clasificación.
+            </div>
+            <div id="fuenteDatos">
+                Inventario actual: última actualización disponible en dbo.InventarioSigo.
+            </div>
+        </footer>
+    </div>
+</div>
+
+<div id="catalogoModal" class="mm-modal" aria-hidden="true">
+    <div class="mm-modal-shell">
+        <div class="mm-modal-header">
+            <div>
+                <strong>
+                    <i class="fa-solid fa-sliders me-1" style="color:var(--mm-brand)"></i>
+                    Catálogo de clasificación Min–Ideal–Max
+                </strong>
+                <div style="margin-top:3px;color:var(--mm-muted);font-size:.68rem">
+                    Configura días por clasificación y asigna cada SKU.
+                </div>
+            </div>
+
+            <button id="btnCerrarCatalogo"
+                    type="button"
+                    class="mm-btn dark">
+                <i class="fa-solid fa-xmark"></i>
+                Cerrar
+            </button>
+        </div>
+
+        <div class="mm-modal-body">
+            <div class="mm-catalog-grid">
+                <section class="mm-catalog-card">
+                    <h3>Reglas por clasificación</h3>
+                    <div class="mm-catalog-scroll">
+                        <table class="mm-catalog-table">
+                            <thead>
+                                <tr>
+                                    <th>Clasificación</th>
+                                    <th>Mín.</th>
+                                    <th>Ideal</th>
+                                    <th>Máx.</th>
+                                    <th>Orden</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="catalogoClasificacionesBody"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="mm-catalog-card">
+                    <h3>Asignación por SKU</h3>
+                    <div class="mm-catalog-search">
+                        <input id="catalogoSkuBuscar"
+                               type="search"
+                               autocomplete="off"
+                               placeholder="Buscar SKU, producto o master..." />
+                    </div>
+                    <div class="mm-catalog-scroll">
+                        <table class="mm-catalog-table">
+                            <thead>
+                                <tr>
+                                    <th>SKU</th>
+                                    <th>Producto / master</th>
+                                    <th>Clasificación</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="catalogoSkuBody"></tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script>
+    (function () {
+        function prepararContenedorMinMax() {
+            const root = document.querySelector('.minmax-root');
+            if (!root) return;
+
+            let parent = root.parentElement;
+
+            while (parent && parent !== document.body) {
+                if (
+                    parent.matches('.container, .container-fluid, .pb-3') ||
+                    parent.matches('main[role="main"]')
+                ) {
+                    parent.classList.add(
+                        'mm-minmax-host',
+                        'mm-minmax-host-clean'
+                    );
+                }
+
+                parent = parent.parentElement;
+            }
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', prepararContenedorMinMax);
+        } else {
+            prepararContenedorMinMax();
+        }
+    })();
+</script>
+
+
+<script>
+    (function () {
+        'use strict';
+
+        const ROOT_SELECTOR = '.minmax-root';
+        const SIDEBAR_SELECTORS = [
+            '#sidebar',
+            '.sidebar',
+            '.main-sidebar',
+            '.app-sidebar',
+            '.sidebar-wrapper',
+            '.left-sidebar',
+            'aside',
+            '[id*="sidebar" i]',
+            '[class*="sidebar" i]',
+            '[data-sidebar]'
+        ].join(',');
+
+        let root = null;
+        let parent = null;
+        let sidebar = null;
+
+        let intervalId = 0;
+        let finalTimerId = 0;
+        let lastWidth = -1;
+        let lastLeft = -1;
+
+        function esSidebarValido(element) {
+            if (!element || !document.documentElement.contains(element)) {
+                return false;
+            }
+
+            if (root && (element === root || root.contains(element))) {
+                return false;
+            }
+
+            const style = window.getComputedStyle(element);
+            const rect = element.getBoundingClientRect();
+            const viewportWidth = document.documentElement.clientWidth;
+            const viewportHeight = window.innerHeight;
+
+            return (
+                style.display !== 'none' &&
+                style.visibility !== 'hidden' &&
+                Number.parseFloat(style.opacity || '1') > 0.05 &&
+                rect.left <= 10 &&
+                rect.width >= 150 &&
+                rect.width <= Math.min(470, viewportWidth * 0.60) &&
+                rect.height >= Math.max(400, viewportHeight * 0.52)
+            );
+        }
+
+        function buscarSidebar() {
+            let mejor = null;
+            let mejorPuntaje = -1;
+
+            document.querySelectorAll(SIDEBAR_SELECTORS).forEach(function (element) {
+                if (!esSidebarValido(element)) return;
+
+                const rect = element.getBoundingClientRect();
+                const puntaje = rect.height + (rect.width * 2);
+
+                if (puntaje > mejorPuntaje) {
+                    mejor = element;
+                    mejorPuntaje = puntaje;
+                }
+            });
+
+            if (mejor) return mejor;
+
+            /*
+             * Búsqueda geométrica de respaldo. Sólo se ejecuta cuando todavía
+             * no se conoce el sidebar; no se repite durante cada ajuste.
+             */
+            const puntosY = [
+                140,
+                Math.round(window.innerHeight * 0.40),
+                Math.round(window.innerHeight * 0.72)
+            ];
+
+            puntosY.some(function (y) {
+                return [5, 24, 70].some(function (x) {
+                    const elementos = document.elementsFromPoint(x, y);
+
+                    for (const element of elementos) {
+                        let actual = element;
+
+                        while (actual && actual !== document.body) {
+                            if (esSidebarValido(actual)) {
+                                mejor = actual;
+                                return true;
+                            }
+
+                            actual = actual.parentElement;
+                        }
+                    }
+
+                    return false;
+                });
+            });
+
+            return mejor;
+        }
+
+        function bordeDerechoSidebar() {
+            if (!sidebar || !esSidebarValido(sidebar)) {
+                sidebar = buscarSidebar();
+            }
+
+            if (!sidebar) return 0;
+
+            const rect = sidebar.getBoundingClientRect();
+
+            /*
+             * Cuando el menú está contraído fuera de pantalla, su borde derecho
+             * puede ser cero o negativo.
+             */
+            return Math.max(0, Math.round(rect.right));
+        }
+
+        function aplicarAjuste() {
+            root ??= document.querySelector(ROOT_SELECTOR);
+            if (!root) return;
+
+            parent = root.parentElement;
+            if (!parent) return;
+
+            const parentRect = parent.getBoundingClientRect();
+            const sidebarRight = bordeDerechoSidebar();
+
+            const targetLeft = Math.max(parentRect.left, sidebarRight);
+            const leftOffset = Math.max(
+                0,
+                Math.round(targetLeft - parentRect.left)
+            );
+
+            const availableWidth = Math.max(
+                320,
+                Math.floor(parentRect.right - targetLeft)
+            );
+
+            /*
+             * No escribir estilos cuando el valor no cambió. Esto evita
+             * recalcular toda la tabla y los KPIs innecesariamente.
+             */
+            if (
+                Math.abs(availableWidth - lastWidth) < 2 &&
+                Math.abs(leftOffset - lastLeft) < 2
+            ) {
+                return;
+            }
+
+            lastWidth = availableWidth;
+            lastLeft = leftOffset;
+
+            root.style.setProperty('position', 'relative', 'important');
+            root.style.setProperty('left', leftOffset + 'px', 'important');
+            root.style.setProperty('width', availableWidth + 'px', 'important');
+            root.style.setProperty('max-width', availableWidth + 'px', 'important');
+            root.style.setProperty('margin-left', '0', 'important');
+            root.style.setProperty('margin-right', '0', 'important');
+        }
+
+        function detenerSecuencia() {
+            if (intervalId) {
+                window.clearInterval(intervalId);
+                intervalId = 0;
+            }
+
+            if (finalTimerId) {
+                window.clearTimeout(finalTimerId);
+                finalTimerId = 0;
+            }
+        }
+
+        function ajustarDuranteTransicion() {
+            detenerSecuencia();
+
+            /*
+             * Se mide aproximadamente cada 70 ms, no en cada frame.
+             * Esto mantiene el movimiento del sidebar sin recalcular la vista
+             * completa decenas de veces por segundo.
+             */
+            aplicarAjuste();
+
+            intervalId = window.setInterval(aplicarAjuste, 70);
+
+            finalTimerId = window.setTimeout(function () {
+                detenerSecuencia();
+                aplicarAjuste();
+            }, 490);
+        }
+
+        function clickRelacionadoConSidebar(event) {
+            const target = event.target instanceof Element
+                ? event.target
+                : null;
+
+            if (!target) return false;
+
+            const control = target.closest(
+                'button, a, [role="button"], [aria-expanded], [aria-controls]'
+            );
+
+            if (!control) return false;
+
+            const descriptor = [
+                control.id,
+                control.className,
+                control.getAttribute('aria-controls'),
+                control.getAttribute('title'),
+                control.getAttribute('data-target'),
+                control.getAttribute('data-bs-target')
+            ]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase();
+
+            const rect = control.getBoundingClientRect();
+
+            return (
+                descriptor.includes('sidebar') ||
+                descriptor.includes('menu') ||
+                descriptor.includes('toggle') ||
+                descriptor.includes('collapse') ||
+                rect.left < 330
+            );
+        }
+
+        function iniciar() {
+            root = document.querySelector(ROOT_SELECTOR);
+            if (!root) return;
+
+            parent = root.parentElement;
+            sidebar = buscarSidebar();
+
+            aplicarAjuste();
+
+            window.addEventListener(
+                'resize',
+                ajustarDuranteTransicion,
+                { passive: true }
+            );
+
+            window.addEventListener(
+                'orientationchange',
+                ajustarDuranteTransicion,
+                { passive: true }
+            );
+
+            document.addEventListener('click', function (event) {
+                if (clickRelacionadoConSidebar(event)) {
+                    /*
+                     * La clase del menú suele cambiar después del evento click.
+                     */
+                    window.setTimeout(function () {
+                        sidebar = buscarSidebar() || sidebar;
+                        ajustarDuranteTransicion();
+                    }, 0);
+                }
+            }, true);
+
+            /*
+             * Sólo se observan cambios del propio sidebar y del padre inmediato.
+             * Ya no se observa todo el documento ni todos sus estilos.
+             */
+            if ('ResizeObserver' in window) {
+                const resizeObserver = new ResizeObserver(
+                    ajustarDuranteTransicion
+                );
+
+                if (parent) {
+                    resizeObserver.observe(parent);
+                }
+
+                if (sidebar) {
+                    resizeObserver.observe(sidebar);
+                }
+            }
+
+            if (sidebar) {
+                const mutationObserver = new MutationObserver(
+                    ajustarDuranteTransicion
+                );
+
+                mutationObserver.observe(sidebar, {
+                    attributes: true,
+                    attributeFilter: [
+                        'class',
+                        'style',
+                        'aria-expanded',
+                        'aria-hidden',
+                        'data-state'
+                    ]
+                });
+            }
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', iniciar, { once: true });
+        } else {
+            iniciar();
+        }
+    })();
+</script>
+
+
+<script>
+    (() => {
+        "use strict";
+
+        const URLS = {
+            datos: '@Url.Action("InventarioMinMaxDatos", "ProcesosCg")',
+            catalogo: '@Url.Action("InventarioMinMaxCatalogo", "ProcesosCg")',
+            guardarClasificacion: '@Url.Action("GuardarInventarioMinMaxClasificacion", "ProcesosCg")',
+            guardarSku: '@Url.Action("GuardarInventarioMinMaxSkuClasificacion", "ProcesosCg")'
+        };
+
+        const LABELS = {
+            BAJO: "Bajo mínimo",
+            MIN: "Entre mínimo e ideal",
+            OK: "Dentro de rango",
+            SOBRE: "Sobre máximo",
+            NOPROD: "No producir",
+            SIN: "Sin configuración/base"
+        };
+
+        const STATUS_ORDER = ["BAJO", "MIN", "OK", "SOBRE", "NOPROD", "SIN"];
+
+        let datos = [];
+        let clasificaciones = [];
+        let catalogoSkus = [];
+        let cargando = false;
+
+        let ordenTabla = {
+            campo: "clasificacion",
+            direccion: "asc"
+        };
+
+        const el = id => document.getElementById(id);
+
+        const tablaBody = el("tablaBody");
+        const buscarInput = el("buscarInput");
+        const mesInput = el("mesInput");
+        const clasificacionSelect = el("clasificacionSelect");
+        const masterSelect = el("masterSelect");
+        const estatusSelect = el("estatusSelect");
+        const btnActualizar = el("btnActualizar");
+        const btnCatalogo = el("btnCatalogo");
+        const catalogoModal = el("catalogoModal");
+
+        function normalizarNumero(value) {
+            const n = Number(value);
+            return Number.isFinite(n) ? n : 0;
+        }
+
+        function normalizarTexto(value) {
+            return String(value ?? "").trim();
+        }
+
+        function getVal(obj, ...keys) {
+            for (const key of keys) {
+                if (obj && obj[key] !== undefined && obj[key] !== null) {
+                    return obj[key];
+                }
+            }
+            return null;
+        }
+
+        function esc(value) {
+            return normalizarTexto(value)
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+
+        function formatoNumero(value, decimals = 0) {
+            return normalizarNumero(value).toLocaleString("es-MX", {
+                minimumFractionDigits: decimals,
+                maximumFractionDigits: decimals
+            });
+        }
+
+        function formatoFecha(value) {
+            if (!value) return "N/D";
+
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return normalizarTexto(value);
+
+            return date.toLocaleString("es-MX", {
+                dateStyle: "medium",
+                timeStyle: "short"
+            });
+        }
+
+        function mesActual() {
+            const now = new Date();
+            const month = String(now.getMonth() + 1).padStart(2, "0");
+            return `${now.getFullYear()}-${month}`;
+        }
+
+        function normalizarFila(row) {
+            return {
+                clasificacion: normalizarTexto(
+                    getVal(row, "clasificacion", "Clasificacion")
+                ).toUpperCase(),
+
+                clasificacionOrden: normalizarNumero(
+                    getVal(row, "clasificacionOrden", "ClasificacionOrden")
+                ),
+
+                master: normalizarTexto(
+                    getVal(row, "master", "Master", "masterProducto", "MasterProducto")
+                ) || "SIN MASTER",
+
+                sku: normalizarTexto(
+                    getVal(row, "sku", "Sku", "SKU")
+                ).toUpperCase(),
+
+                producto: normalizarTexto(
+                    getVal(row, "producto", "Producto")
+                ),
+
+                kgProduccionMes: normalizarNumero(
+                    getVal(row, "kgProduccionMes", "KgProduccionMes")
+                ),
+
+                kgInventarioInicial: normalizarNumero(
+                    getVal(row, "kgInventarioInicial", "KgInventarioInicial")
+                ),
+
+                kgBaseCalculo: normalizarNumero(
+                    getVal(row, "kgBaseCalculo", "KgBaseCalculo")
+                ),
+
+                kgActual: normalizarNumero(
+                    getVal(row, "kgActual", "KgActual")
+                ),
+
+                cajasActuales: normalizarNumero(
+                    getVal(row, "cajasActuales", "CajasActuales")
+                ),
+
+                lotes: normalizarNumero(
+                    getVal(row, "lotes", "Lotes")
+                ),
+
+                diasMinimo: normalizarNumero(
+                    getVal(row, "diasMinimo", "DiasMinimo")
+                ),
+
+                diasIdeal: normalizarNumero(
+                    getVal(row, "diasIdeal", "DiasIdeal")
+                ),
+
+                diasMaximo: normalizarNumero(
+                    getVal(row, "diasMaximo", "DiasMaximo")
+                ),
+
+                minimo: normalizarNumero(
+                    getVal(row, "minimo", "Minimo")
+                ),
+
+                ideal: normalizarNumero(
+                    getVal(row, "ideal", "Ideal")
+                ),
+
+                maximo: normalizarNumero(
+                    getVal(row, "maximo", "Maximo")
+                ),
+
+                gapIdeal: normalizarNumero(
+                    getVal(row, "gapIdeal", "GapIdeal")
+                ),
+
+                consumoDiario: normalizarNumero(
+                    getVal(row, "consumoDiario", "ConsumoDiario")
+                ),
+
+                diasActual: normalizarNumero(
+                    getVal(row, "diasActual", "DiasActual")
+                ),
+
+                porcentajeMaximo: normalizarNumero(
+                    getVal(row, "porcentajeMaximo", "PorcentajeMaximo")
+                ),
+
+                estatus: normalizarTexto(
+                    getVal(row, "estatus", "Estatus")
+                ).toUpperCase() || "SIN",
+
+                fechaActualizacion: getVal(
+                    row,
+                    "fechaActualizacion",
+                    "FechaActualizacion"
+                ),
+
+                fechaInventarioInicial: getVal(
+                    row,
+                    "fechaInventarioInicial",
+                    "FechaInventarioInicial"
+                )
+            };
+        }
+
+        async function leerJson(response) {
+            const raw = await response.text();
+            let data = null;
+
+            try {
+                data = raw ? JSON.parse(raw) : null;
+            } catch {
+                data = null;
+            }
+
+            if (!response.ok) {
+                const mensajeBase =
+                    data?.msg ||
+                    data?.message ||
+                    `HTTP ${response.status}`;
+
+                const detalle = [
+                    data?.error,
+                    data?.inner
+                ]
+                    .filter(Boolean)
+                    .join(" | ");
+
+                throw new Error(
+                    detalle
+                        ? `${mensajeBase} Detalle: ${detalle}`
+                        : (mensajeBase || raw || `HTTP ${response.status}`)
+                );
+            }
+
+            return data;
+        }
+
+        async function postJson(url, payload) {
+            const response = await fetch(url, {
+                method: "POST",
+                cache: "no-store",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await leerJson(response);
+
+            if (data?.ok === false) {
+                throw new Error(data.msg || data.error || "La operación no se completó.");
+            }
+
+            return data;
+        }
+
+        function setCargando(value) {
+            cargando = value;
+            btnActualizar.disabled = value;
+            btnActualizar.innerHTML = value
+                ? `<span class="spinner-border spinner-border-sm"></span> Consultando`
+                : `<i class="fa-solid fa-rotate"></i> Actualizar`;
+        }
+
+        function renderLoading(message) {
+            tablaBody.innerHTML = `
+                <tr>
+                    <td colspan="15" class="mm-loading">
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                        ${esc(message)}
+                    </td>
+                </tr>`;
+        }
+
+        async function cargarDatos() {
+            if (cargando) return;
+
+            const mes = mesInput.value || mesActual();
+            const mesFecha = `${mes}-01`;
+
+            setCargando(true);
+            renderLoading("Consultando planeación, inventario inicial y existencias actuales…");
+            el("fuenteDatos").textContent = "Consultando fuentes de información…";
+
+            try {
+                const url =
+                    `${URLS.datos}?mes=${encodeURIComponent(mesFecha)}&_=${Date.now()}`;
+
+                const response = await fetch(url, {
+                    method: "GET",
+                    cache: "no-store",
+                    headers: { "Accept": "application/json" }
+                });
+
+                const data = await leerJson(response);
+
+                if (data?.ok === false) {
+                    throw new Error(data.msg || data.error || "No se pudo consultar.");
+                }
+
+                const rows = Array.isArray(data?.data) ? data.data : [];
+                datos = rows
+                    .map(normalizarFila)
+                    .filter(x =>
+                        x.sku &&
+                        x.kgProduccionMes > 0
+                    );
+
+                llenarFiltros();
+                renderizar();
+
+                el("mmUpdatedText").textContent =
+                    `SIGO: ${formatoFecha(data?.fechaActualizacion)} · ` +
+                    `Inventario inicial: ${formatoFecha(data?.fechaInventarioInicial)}`;
+
+                el("fuenteDatos").textContent =
+                    `${data?.criterio || "Base mensual dinámica."} ` +
+                    `Registros: ${formatoNumero(datos.length)}.`;
+            } catch (error) {
+                console.error(error);
+                datos = [];
+                renderizar();
+
+                tablaBody.innerHTML = `
+                    <tr>
+                        <td colspan="15" class="mm-loading" style="color:#b42318 !important">
+                            <i class="fa-solid fa-triangle-exclamation me-1"></i>
+                            ${esc(error?.message || "No se pudo cargar la información.")}
+                        </td>
+                    </tr>`;
+
+                el("mmUpdatedText").textContent = "Error de consulta";
+                el("fuenteDatos").textContent =
+                    "No se muestran valores simulados. Revisa la migración SQL y el endpoint InventarioMinMaxDatos.";
+            } finally {
+                setCargando(false);
+            }
+        }
+
+        function llenarFiltros() {
+            const clasActual = clasificacionSelect.value;
+            const masterActual = masterSelect.value;
+
+            const clasificacionesDisponibles = [
+                ...new Set(datos.map(x => x.clasificacion).filter(Boolean))
+            ].sort();
+
+            const masters = [
+                ...new Set(datos.map(x => x.master).filter(Boolean))
+            ].sort();
+
+            clasificacionSelect.innerHTML =
+                `<option value="">Todas</option>` +
+                clasificacionesDisponibles
+                    .map(x => `<option value="${esc(x)}">${esc(x)}</option>`)
+                    .join("");
+
+            masterSelect.innerHTML =
+                `<option value="">Todos</option>` +
+                masters
+                    .map(x => `<option value="${esc(x)}">${esc(x)}</option>`)
+                    .join("");
+
+            if (clasificacionesDisponibles.includes(clasActual)) {
+                clasificacionSelect.value = clasActual;
+            }
+
+            if (masters.includes(masterActual)) {
+                masterSelect.value = masterActual;
+            }
+        }
+
+        function obtenerFiltrados() {
+            const buscar = buscarInput.value.trim().toLowerCase();
+            const clasificacion = clasificacionSelect.value;
+            const master = masterSelect.value;
+            const estatus = estatusSelect.value;
+
+            return datos.filter(item => {
+                const texto =
+                    `${item.clasificacion} ${item.master} ${item.sku} ${item.producto}`
+                    .toLowerCase();
+
+                if (buscar && !texto.includes(buscar)) return false;
+                if (clasificacion && item.clasificacion !== clasificacion) return false;
+                if (master && item.master !== master) return false;
+                if (estatus && item.estatus !== estatus) return false;
+
+                return true;
+            });
+        }
+
+        function esNumeroOrden(campo) {
+            return [
+                "kgProduccionMes",
+                "kgInventarioInicial",
+                "kgBaseCalculo",
+                "kgActual",
+                "minimo",
+                "ideal",
+                "maximo",
+                "gapIdeal",
+                "diasActual",
+                "porcentajeMaximo"
+            ].includes(campo);
+        }
+
+        function ordenarLista(lista) {
+            const campo = ordenTabla.campo;
+            const factor = ordenTabla.direccion === "desc" ? -1 : 1;
+
+            return [...lista].sort((a, b) => {
+                let resultado = 0;
+
+                if (esNumeroOrden(campo)) {
+                    const valorA = normalizarNumero(a[campo]);
+                    const valorB = normalizarNumero(b[campo]);
+                    resultado = valorA - valorB;
+                } else {
+                    const valorA = normalizarTexto(a[campo]).toLocaleUpperCase("es-MX");
+                    const valorB = normalizarTexto(b[campo]).toLocaleUpperCase("es-MX");
+                    resultado = valorA.localeCompare(valorB, "es-MX", {
+                        numeric: true,
+                        sensitivity: "base"
+                    });
+                }
+
+                if (resultado === 0 && campo !== "sku") {
+                    resultado = normalizarTexto(a.sku).localeCompare(
+                        normalizarTexto(b.sku),
+                        "es-MX",
+                        { numeric: true, sensitivity: "base" }
+                    );
+                }
+
+                return resultado * factor;
+            });
+        }
+
+        function actualizarIndicadoresOrden() {
+            document.querySelectorAll("#mmTableHeader [data-sort]").forEach(th => {
+                const indicador = th.querySelector(".mm-sort-indicator");
+                const activo = th.dataset.sort === ordenTabla.campo;
+
+                th.classList.toggle("mm-sort-active", activo);
+                th.setAttribute("aria-sort", activo
+                    ? (ordenTabla.direccion === "asc" ? "ascending" : "descending")
+                    : "none");
+
+                if (indicador) {
+                    indicador.textContent = activo
+                        ? (ordenTabla.direccion === "asc" ? "▲" : "▼")
+                        : "◇";
+                }
+            });
+        }
+
+        function cambiarOrden(campo) {
+            if (!campo) return;
+
+            if (ordenTabla.campo === campo) {
+                ordenTabla.direccion = ordenTabla.direccion === "asc" ? "desc" : "asc";
+            } else {
+                ordenTabla.campo = campo;
+                ordenTabla.direccion = "asc";
+            }
+
+            renderizar();
+        }
+
+        function renderizar() {
+            const lista = ordenarLista(obtenerFiltrados());
+
+            actualizarIndicadoresOrden();
+            renderTabla(lista);
+            renderKpis(lista);
+            renderSemaforo(lista);
+            renderTop(lista);
+
+            el("mmResultCount").textContent =
+                `${formatoNumero(lista.length)} registro${lista.length === 1 ? "" : "s"}`;
+        }
+
+        function renderTabla(lista) {
+            if (!lista.length) {
+                tablaBody.innerHTML = `
+                    <tr>
+                        <td colspan="15" class="mm-loading">
+                            No hay registros para los filtros seleccionados.
+                        </td>
+                    </tr>`;
+                return;
+            }
+
+            tablaBody.innerHTML = lista.map(item => {
+                const pct = Math.min(Math.max(item.porcentajeMaximo, 0), 120);
+                const gapClass = item.gapIdeal < 0
+                    ? "mm-gap-negative"
+                    : item.gapIdeal > 0
+                        ? "mm-gap-positive"
+                        : "";
+
+                const clasificacion = item.clasificacion || "SIN ASIGNAR";
+                const tooltip =
+                    `Días: ${formatoNumero(item.diasMinimo, 2)} / ` +
+                    `${formatoNumero(item.diasIdeal, 2)} / ` +
+                    `${formatoNumero(item.diasMaximo, 2)} · ` +
+                    `Cajas: ${formatoNumero(item.cajasActuales)} · ` +
+                    `Lotes: ${formatoNumero(item.lotes)}`;
+
+                return `
+                    <tr>
+                        <td class="sticky-clas" title="${esc(tooltip)}">
+                            <strong>${esc(clasificacion)}</strong>
+                        </td>
+
+                        <td class="sticky-master">
+                            ${esc(item.master)}
+                        </td>
+
+                        <td class="sticky-sku">
+                            ${esc(item.sku)}
+                        </td>
+
+                        <td class="product" title="${esc(item.producto)}">
+                            ${esc(item.producto || "Sin descripción")}
+                        </td>
+
+                        <td class="num">${formatoNumero(item.kgProduccionMes, 0)}</td>
+                        <td class="num">${formatoNumero(item.kgInventarioInicial, 0)}</td>
+                        <td class="num"><strong>${formatoNumero(item.kgBaseCalculo, 0)}</strong></td>
+                        <td class="num"><strong>${formatoNumero(item.kgActual, 0)}</strong></td>
+                        <td class="num">${formatoNumero(item.minimo, 0)}</td>
+                        <td class="num">${formatoNumero(item.ideal, 0)}</td>
+                        <td class="num">${formatoNumero(item.maximo, 0)}</td>
+
+                        <td class="num ${gapClass}">
+                            ${formatoNumero(item.gapIdeal, 0)}
+                        </td>
+
+                        <td class="num">
+                            ${formatoNumero(item.diasActual, 1)}
+                        </td>
+
+                        <td class="num">
+                            <div class="mm-bar"
+                                 title="${formatoNumero(item.porcentajeMaximo, 1)}% del máximo">
+                                <div class="mm-bar-fill fill-${esc(item.estatus)}"
+                                     style="width:${pct}%"></div>
+                            </div>
+                            <div style="margin-top:2px">
+                                ${formatoNumero(item.porcentajeMaximo, 1)}%
+                            </div>
+                        </td>
+
+                        <td>
+                            <span class="mm-badge status-${esc(item.estatus)}">
+                                ${esc(LABELS[item.estatus] || item.estatus)}
+                            </span>
+                        </td>
+                    </tr>`;
+            }).join("");
+        }
+
+        function renderKpis(lista) {
+            const counts = {
+                BAJO: 0,
+                MIN: 0,
+                OK: 0,
+                SOBRE: 0,
+                NOPROD: 0,
+                SIN: 0
+            };
+
+            let actual = 0;
+
+            lista.forEach(item => {
+                actual += item.kgActual;
+                counts[item.estatus] = (counts[item.estatus] || 0) + 1;
+            });
+
+            el("kpiSkus").textContent = formatoNumero(lista.length);
+            el("kpiBajo").textContent = formatoNumero(counts.BAJO);
+            el("kpiMin").textContent = formatoNumero(counts.MIN);
+            el("kpiOk").textContent = formatoNumero(counts.OK);
+            el("kpiSobre").textContent = formatoNumero(counts.SOBRE);
+            el("kpiSin").textContent =
+                formatoNumero(counts.SIN + counts.NOPROD);
+            el("kpiActual").textContent = `${formatoNumero(actual, 0)} kg`;
+        }
+
+        function renderSemaforo(lista) {
+            const counts = Object.fromEntries(
+                STATUS_ORDER.map(key => [key, 0])
+            );
+
+            lista.forEach(item => {
+                counts[item.estatus] = (counts[item.estatus] || 0) + 1;
+            });
+
+            const max = Math.max(...Object.values(counts), 1);
+
+            el("semaforoChart").innerHTML = STATUS_ORDER.map(key => {
+                const width = (counts[key] / max) * 100;
+
+                return `
+                    <div class="mm-status-row">
+                        <span class="mm-badge status-${key}">
+                            ${esc(LABELS[key])}
+                        </span>
+
+                        <div class="mm-bar">
+                            <div class="mm-bar-fill fill-${key}"
+                                 style="width:${width}%"></div>
+                        </div>
+
+                        <strong style="text-align:right">
+                            ${formatoNumero(counts[key])}
+                        </strong>
+                    </div>`;
+            }).join("");
+        }
+
+        function renderTop(lista) {
+            const top = [...lista]
+                .filter(x => x.ideal > 0)
+                .sort((a, b) => Math.abs(b.gapIdeal) - Math.abs(a.gapIdeal))
+                .slice(0, 15);
+
+            if (!top.length) {
+                el("topChart").innerHTML =
+                    `<div style="color:var(--mm-muted);font-size:.72rem">Sin información.</div>`;
+                return;
+            }
+
+            const max = Math.max(...top.map(x => Math.abs(x.gapIdeal)), 1);
+
+            el("topChart").innerHTML = top.map(item => {
+                const width = (Math.abs(item.gapIdeal) / max) * 100;
+
+                return `
+                    <div class="mm-top-row mm-top-clickable"
+                         data-sku="${esc(item.sku)}"
+                         role="button"
+                         tabindex="0"
+                         aria-label="Ver detalle del SKU ${esc(item.sku)}"
+                         title="Clic para ver el detalle del SKU ${esc(item.sku)}">
+
+                        <strong>${esc(item.sku)}</strong>
+
+                        <div>
+                            <div class="mm-top-name" title="${esc(item.producto)}">
+                                ${esc(item.producto)}
+                            </div>
+
+                            <div class="mm-bar mm-top-bar" style="margin-top:3px">
+                                <div class="mm-bar-fill fill-${esc(item.estatus)}"
+                                     style="width:${width}%"></div>
+                            </div>
+                        </div>
+
+                        <strong class="${item.gapIdeal < 0 ? "mm-gap-negative" : "mm-gap-positive"}"
+                                style="text-align:right">
+                            ${item.gapIdeal > 0 ? "+" : ""}${formatoNumero(item.gapIdeal, 0)}
+                        </strong>
+                    </div>`;
+            }).join("");
+        }
+
+        function abrirDetalleSku(sku) {
+            const skuNormalizado = normalizarTexto(sku).toUpperCase();
+            if (!skuNormalizado) return;
+
+            const filtroActual = normalizarTexto(buscarInput.value).toUpperCase();
+
+            /*
+             * TOGGLE DEL FILTRO:
+             * - Primer clic: filtra el SKU seleccionado.
+             * - Segundo clic sobre el mismo SKU: quita el filtro.
+             * - Clic sobre otro SKU: cambia directamente al nuevo SKU.
+             */
+            if (filtroActual === skuNormalizado) {
+                buscarInput.value = "";
+                renderizar();
+
+                /*
+                 * Al quitar el filtro regresamos a la gráfica para que el usuario
+                 * vuelva a tener visibles todos los productos del filtro general.
+                 */
+                const grafica = el("topChart");
+
+                if (grafica) {
+                    window.requestAnimationFrame(() => {
+                        grafica.scrollIntoView({
+                            behavior: "smooth",
+                            block: "center"
+                        });
+                    });
+                }
+
+                buscarInput.blur();
+                return;
+            }
+
+            /*
+             * Aplica el SKU en el buscador existente. No realiza una segunda
+             * consulta al servidor; solamente vuelve a renderizar los datos
+             * ya cargados en memoria.
+             */
+            buscarInput.value = skuNormalizado;
+            renderizar();
+
+            /*
+             * Baja al detalle una vez que el DOM ya fue actualizado.
+             */
+            const detalle = document.querySelector(".mm-detail-card");
+
+            if (detalle) {
+                window.requestAnimationFrame(() => {
+                    detalle.scrollIntoView({
+                        behavior: "smooth",
+                        block: "start"
+                    });
+                });
+            }
+        }
+
+        async function cargarCatalogo() {
+            const bodyClas = el("catalogoClasificacionesBody");
+            const bodySku = el("catalogoSkuBody");
+
+            bodyClas.innerHTML = `
+                <tr><td colspan="6" class="mm-loading">Cargando reglas…</td></tr>`;
+            bodySku.innerHTML = `
+                <tr><td colspan="4" class="mm-loading">Cargando asignaciones…</td></tr>`;
+
+            const response = await fetch(
+                `${URLS.catalogo}?_=${Date.now()}`,
+                {
+                    method: "GET",
+                    cache: "no-store",
+                    headers: { "Accept": "application/json" }
+                }
+            );
+
+            const data = await leerJson(response);
+
+            if (data?.ok === false) {
+                throw new Error(data.msg || data.error || "No se pudo consultar el catálogo.");
+            }
+
+            clasificaciones = Array.isArray(data?.clasificaciones)
+                ? data.clasificaciones.map(x => ({
+                    clasificacion: normalizarTexto(
+                        getVal(x, "clasificacion", "Clasificacion")
+                    ).toUpperCase(),
+                    diasMinimo: normalizarNumero(
+                        getVal(x, "diasMinimo", "DiasMinimo")
+                    ),
+                    diasIdeal: normalizarNumero(
+                        getVal(x, "diasIdeal", "DiasIdeal")
+                    ),
+                    diasMaximo: normalizarNumero(
+                        getVal(x, "diasMaximo", "DiasMaximo")
+                    ),
+                    orden: normalizarNumero(
+                        getVal(x, "orden", "Orden")
+                    ),
+                    activo: Boolean(
+                        getVal(x, "activo", "Activo")
+                    )
+                }))
+                : [];
+
+            catalogoSkus = Array.isArray(data?.skus)
+                ? data.skus.map(x => ({
+                    sku: normalizarTexto(
+                        getVal(x, "sku", "Sku")
+                    ).toUpperCase(),
+                    producto: normalizarTexto(
+                        getVal(x, "producto", "Producto")
+                    ),
+                    master: normalizarTexto(
+                        getVal(x, "master", "Master")
+                    ) || "SIN MASTER",
+                    clasificacion: normalizarTexto(
+                        getVal(x, "clasificacion", "Clasificacion")
+                    ).toUpperCase()
+                }))
+                : [];
+
+            renderCatalogoClasificaciones();
+            renderCatalogoSkus();
+        }
+
+        function renderCatalogoClasificaciones() {
+            const body = el("catalogoClasificacionesBody");
+
+            if (!clasificaciones.length) {
+                body.innerHTML = `
+                    <tr><td colspan="6" class="mm-loading">No hay clasificaciones.</td></tr>`;
+                return;
+            }
+
+            body.innerHTML = clasificaciones.map((item, index) => `
+                <tr data-clas-index="${index}">
+                    <td>
+                        <strong>${esc(item.clasificacion)}</strong>
+                    </td>
+                    <td>
+                        <input data-field="diasMinimo"
+                               type="number"
+                               min="0"
+                               step="0.1"
+                               value="${item.diasMinimo}" />
+                    </td>
+                    <td>
+                        <input data-field="diasIdeal"
+                               type="number"
+                               min="0"
+                               step="0.1"
+                               value="${item.diasIdeal}" />
+                    </td>
+                    <td>
+                        <input data-field="diasMaximo"
+                               type="number"
+                               min="0"
+                               step="0.1"
+                               value="${item.diasMaximo}" />
+                    </td>
+                    <td>
+                        <input data-field="orden"
+                               type="number"
+                               min="1"
+                               step="1"
+                               value="${item.orden}" />
+                    </td>
+                    <td>
+                        <button type="button"
+                                class="mm-btn primary"
+                                data-save-clas="${index}">
+                            Guardar
+                        </button>
+                    </td>
+                </tr>`).join("");
+        }
+
+        function clasificacionOptions(selected) {
+            const options = [
+                `<option value="">Sin asignar</option>`,
+                ...clasificaciones
+                    .filter(x => x.activo)
+                    .map(x => `
+                        <option value="${esc(x.clasificacion)}"
+                                ${x.clasificacion === selected ? "selected" : ""}>
+                            ${esc(x.clasificacion)}
+                        </option>`)
+            ];
+
+            return options.join("");
+        }
+
+        function renderCatalogoSkus() {
+            const buscar = el("catalogoSkuBuscar").value
+                .trim()
+                .toLowerCase();
+
+            const rows = catalogoSkus
+                .filter(item => {
+                    if (!buscar) return true;
+
+                    return `${item.sku} ${item.producto} ${item.master}`
+                        .toLowerCase()
+                        .includes(buscar);
+                })
+                .slice(0, 500);
+
+            const body = el("catalogoSkuBody");
+
+            if (!rows.length) {
+                body.innerHTML = `
+                    <tr><td colspan="4" class="mm-loading">Sin resultados.</td></tr>`;
+                return;
+            }
+
+            body.innerHTML = rows.map(item => `
+                <tr data-sku="${esc(item.sku)}">
+                    <td>
+                        <strong>${esc(item.sku)}</strong>
+                    </td>
+                    <td>
+                        <div style="font-weight:800">${esc(item.producto || "Sin descripción")}</div>
+                        <div style="color:var(--mm-muted);font-size:.64rem">${esc(item.master)}</div>
+                    </td>
+                    <td>
+                        <select data-sku-select="${esc(item.sku)}">
+                            ${clasificacionOptions(item.clasificacion)}
+                        </select>
+                    </td>
+                    <td>
+                        <button type="button"
+                                class="mm-btn"
+                                data-save-sku="${esc(item.sku)}">
+                            Guardar
+                        </button>
+                    </td>
+                </tr>`).join("");
+        }
+
+        async function guardarClasificacion(index, button) {
+            const item = clasificaciones[index];
+            const row = button.closest("tr");
+
+            if (!item || !row) return;
+
+            const payload = {
+                clasificacion: item.clasificacion,
+                diasMinimo: normalizarNumero(
+                    row.querySelector('[data-field="diasMinimo"]').value
+                ),
+                diasIdeal: normalizarNumero(
+                    row.querySelector('[data-field="diasIdeal"]').value
+                ),
+                diasMaximo: normalizarNumero(
+                    row.querySelector('[data-field="diasMaximo"]').value
+                ),
+                orden: normalizarNumero(
+                    row.querySelector('[data-field="orden"]').value
+                ),
+                activo: true
+            };
+
+            if (
+                payload.diasMinimo < 0 ||
+                payload.diasIdeal < payload.diasMinimo ||
+                payload.diasMaximo < payload.diasIdeal
+            ) {
+                alert("La regla debe cumplir mínimo ≤ ideal ≤ máximo.");
+                return;
+            }
+
+            button.disabled = true;
+            button.textContent = "Guardando…";
+
+            try {
+                await postJson(URLS.guardarClasificacion, payload);
+                await cargarCatalogo();
+                await cargarDatos();
+            } catch (error) {
+                alert(error?.message || "No se pudo guardar la clasificación.");
+            } finally {
+                button.disabled = false;
+                button.textContent = "Guardar";
+            }
+        }
+
+        async function guardarSku(sku, button) {
+            const row = button.closest("tr");
+            const select = row?.querySelector("[data-sku-select]");
+
+            if (!select) return;
+
+            button.disabled = true;
+            button.textContent = "Guardando…";
+
+            try {
+                await postJson(
+                    URLS.guardarSku,
+                    {
+                        sku,
+                        clasificacion: select.value
+                    }
+                );
+
+                const item = catalogoSkus.find(x => x.sku === sku);
+                if (item) item.clasificacion = select.value;
+
+                await cargarDatos();
+            } catch (error) {
+                alert(error?.message || "No se pudo guardar el SKU.");
+            } finally {
+                button.disabled = false;
+                button.textContent = "Guardar";
+            }
+        }
+
+        function abrirCatalogo() {
+            catalogoModal.classList.add("show");
+            catalogoModal.setAttribute("aria-hidden", "false");
+            document.body.style.overflow = "hidden";
+
+            cargarCatalogo().catch(error => {
+                console.error(error);
+                alert(error?.message || "No se pudo abrir el catálogo.");
+            });
+        }
+
+        function cerrarCatalogo() {
+            catalogoModal.classList.remove("show");
+            catalogoModal.setAttribute("aria-hidden", "true");
+            document.body.style.overflow = "";
+        }
+
+        function exportarCsv() {
+            const lista = obtenerFiltrados();
+
+            const headers = [
+                "CLASIFICACION",
+                "MASTER",
+                "SKU",
+                "PRODUCTO",
+                "PRODUCCION_MES",
+                "INVENTARIO_INICIAL",
+                "BASE_CALCULO",
+                "INVENTARIO_ACTUAL",
+                "DIAS_MINIMO",
+                "DIAS_IDEAL",
+                "DIAS_MAXIMO",
+                "MINIMO",
+                "IDEAL",
+                "MAXIMO",
+                "GAP_IDEAL",
+                "DIAS_ACTUAL",
+                "PORCENTAJE_MAXIMO",
+                "INDICADOR"
+            ];
+
+            const rows = lista.map(item => [
+                item.clasificacion,
+                item.master,
+                item.sku,
+                item.producto,
+                item.kgProduccionMes,
+                item.kgInventarioInicial,
+                item.kgBaseCalculo,
+                item.kgActual,
+                item.diasMinimo,
+                item.diasIdeal,
+                item.diasMaximo,
+                item.minimo,
+                item.ideal,
+                item.maximo,
+                item.gapIdeal,
+                item.diasActual,
+                item.porcentajeMaximo,
+                LABELS[item.estatus] || item.estatus
+            ]);
+
+            const csv = [headers, ...rows]
+                .map(row =>
+                    row
+                        .map(value =>
+                            `"${String(value ?? "").replaceAll('"', '""')}"`
+                        )
+                        .join(",")
+                )
+                .join("\r\n");
+
+            const blob = new Blob(
+                ["\uFEFF" + csv],
+                { type: "text/csv;charset=utf-8" }
+            );
+
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+
+            link.href = url;
+            link.download =
+                `inventario_min_max_${mesInput.value || mesActual()}.csv`;
+
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        let searchTimer = null;
+
+        buscarInput.addEventListener("input", () => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(renderizar, 130);
+        });
+
+        clasificacionSelect.addEventListener("change", renderizar);
+        masterSelect.addEventListener("change", renderizar);
+        estatusSelect.addEventListener("change", renderizar);
+
+        /*
+         * Gráfica "Mayor exceso o faltante contra ideal":
+         * clic / Enter / Espacio abre el detalle del SKU seleccionado.
+         */
+        el("topChart").addEventListener("click", event => {
+            const row = event.target.closest(".mm-top-clickable[data-sku]");
+            if (!row) return;
+
+            abrirDetalleSku(row.dataset.sku);
+        });
+
+        el("topChart").addEventListener("keydown", event => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+
+            const row = event.target.closest(".mm-top-clickable[data-sku]");
+            if (!row) return;
+
+            event.preventDefault();
+            abrirDetalleSku(row.dataset.sku);
+        });
+
+        const mmTableHeader = el("mmTableHeader");
+
+        mmTableHeader?.addEventListener("click", event => {
+            const th = event.target.closest("[data-sort]");
+            if (!th) return;
+            cambiarOrden(th.dataset.sort);
+        });
+
+        mmTableHeader?.addEventListener("keydown", event => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+
+            const th = event.target.closest("[data-sort]");
+            if (!th) return;
+
+            event.preventDefault();
+            cambiarOrden(th.dataset.sort);
+        });
+
+        btnActualizar.addEventListener("click", cargarDatos);
+        btnCatalogo.addEventListener("click", abrirCatalogo);
+        el("btnCerrarCatalogo").addEventListener("click", cerrarCatalogo);
+        el("btnCsv").addEventListener("click", exportarCsv);
+
+
+        el("catalogoSkuBuscar").addEventListener("input", () => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(renderCatalogoSkus, 130);
+        });
+
+        el("catalogoClasificacionesBody").addEventListener("click", event => {
+            const button = event.target.closest("[data-save-clas]");
+            if (!button) return;
+
+            guardarClasificacion(
+                Number(button.getAttribute("data-save-clas")),
+                button
+            );
+        });
+
+        el("catalogoSkuBody").addEventListener("click", event => {
+            const button = event.target.closest("[data-save-sku]");
+            if (!button) return;
+
+            guardarSku(
+                button.getAttribute("data-save-sku"),
+                button
+            );
+        });
+
+        catalogoModal.addEventListener("click", event => {
+            if (event.target === catalogoModal) {
+                cerrarCatalogo();
+            }
+        });
+
+        document.addEventListener("keydown", event => {
+            if (event.key === "Escape" && catalogoModal.classList.contains("show")) {
+                cerrarCatalogo();
+            }
+        });
+
+        mesInput.value = mesActual();
+        actualizarIndicadoresOrden();
+        cargarDatos();
+    })();
+</script>

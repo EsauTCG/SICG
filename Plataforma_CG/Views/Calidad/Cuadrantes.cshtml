@@ -1,0 +1,3560 @@
+﻿@model List<Plataforma_CG.Models.CanalViewModel>
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Cuadrantes";
+}
+<style>
+    :root {
+        /* PALETA DE COLORES SIGO: Inyectando "tonos rojitos" a los fondos */
+        --bg: #fdf5f5; /* Fondo general con toque calido rojizo */
+        --surface: #fffafa; /* Fondo de tarjetas y modales blanco-rojizo */
+        --surface-2: #fce8e8; /* Fondos secundarios mas rojitos */
+        --text: #212529;
+        --muted: #856464; /* Textos atenuados en tono vino */
+        --line: #f5dcdc; /* Lineas rojizas suaves */
+        /* Tonos fuertes corporativos SIGO */
+        --primary: #8B0000;
+        --primary-dark: #660000;
+        --primary-soft: #fde8e8;
+        --success: #198754;
+        --success-soft: #d1e7dd;
+        --warning: #ffc107;
+        --warning-soft: #fff3cd;
+        --danger: #dc3545;
+        --danger-soft: #f8d7da;
+        --shadow: 0 4px 14px rgba(139, 0, 0, 0.08);
+        --radius: 10px;
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    html {
+        scroll-behavior: smooth;
+    }
+
+    button, input, textarea, select {
+        font: inherit;
+    }
+
+    button {
+        cursor: pointer;
+    }
+
+    .app-shell {
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--text);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 13px;
+    }
+
+    /* Encabezado SIGO */
+    .topbar {
+        height: 60px;
+        background: var(--primary);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 24px;
+        position: sticky;
+        top: 0;
+        z-index: 40;
+        box-shadow: 0 4px 15px rgba(0,0,0,.15);
+        border-bottom: 3px solid var(--primary-dark);
+    }
+
+    .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+        .brand h1 {
+            margin: 0;
+            font-size: 22px;
+            font-weight: 900;
+            letter-spacing: 1px;
+        }
+
+    .brand-details {
+        border-left: 1px solid rgba(255,255,255,0.3);
+        padding-left: 12px;
+        margin-left: 4px;
+    }
+
+        .brand-details h2 {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .brand-details small {
+            display: block;
+            color: rgba(255,255,255,0.8);
+            margin-top: 2px;
+        }
+
+    .top-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .online-badge, .shift-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 7px 10px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.1);
+        color: #fff;
+        border: 1px solid rgba(255,255,255,.15);
+    }
+
+    .pulse {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #36d399;
+        box-shadow: 0 0 0 0 rgba(54,211,153,.7);
+        animation: pulse 1.8s infinite;
+    }
+
+    @@keyframes pulse {
+        70% {
+            box-shadow: 0 0 0 8px rgba(54,211,153,0);
+        }
+
+        100% {
+            box-shadow: 0 0 0 0 rgba(54,211,153,0);
+        }
+    }
+
+    .user-menu {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding-left: 6px;
+    }
+
+    .avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: rgba(255,255,255,0.2);
+        font-weight: 700;
+        color: #fff;
+    }
+
+    .main {
+        padding: 18px 22px 30px;
+    }
+
+    /* ====== FLUJO GUIADO POR PASOS ====== */
+    .stepper {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-bottom: 16px;
+    }
+
+    .step-btn {
+        flex: 1 1 180px;
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        padding: 12px 14px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--surface);
+        color: var(--text);
+        text-align: left;
+        transition: .18s ease;
+        min-width: 0;
+        cursor: pointer;
+    }
+
+        .step-btn:hover:not(.active) {
+            border-color: var(--primary);
+            background: var(--surface-2);
+        }
+
+        .step-btn .step-num {
+            width: 30px;
+            height: 30px;
+            flex-shrink: 0;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            background: var(--surface-2);
+            color: var(--primary-dark);
+            font-weight: 800;
+            font-size: 14px;
+            transition: .18s ease;
+        }
+
+        .step-btn .step-title {
+            display: block;
+            font-weight: 800;
+            font-size: 12.5px;
+            line-height: 1.2;
+        }
+
+        .step-btn .step-sub {
+            display: block;
+            font-size: 10.5px;
+            color: var(--muted);
+            font-weight: 600;
+            margin-top: 3px;
+        }
+
+        .step-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #fff;
+            box-shadow: 0 6px 16px rgba(139,0,0,.3);
+            transform: translateY(-1px);
+        }
+
+            .step-btn.active .step-num {
+                background: #fff;
+                color: var(--primary);
+            }
+
+            .step-btn.active .step-sub {
+                color: rgba(255,255,255,.88);
+            }
+
+        .step-btn.done {
+            border-color: var(--success);
+        }
+
+            .step-btn.done .step-num {
+                background: var(--success);
+                color: #fff;
+            }
+
+            .step-btn.done .step-title::after {
+                content: " ✓";
+                color: var(--success);
+                font-weight: 800;
+            }
+
+        .step-btn.locked {
+            opacity: .55;
+            cursor: not-allowed;
+        }
+
+            .step-btn.locked:hover {
+                border-color: var(--line);
+                background: var(--surface);
+            }
+
+    .step-panel {
+        display: none;
+    }
+
+        .step-panel.active {
+            display: block;
+            animation: stepIn .22s ease;
+        }
+
+        .step-panel[hidden] {
+            display: none !important;
+        }
+
+    @@keyframes stepIn {
+        from {
+            opacity: 0;
+            transform: translateY(6px);
+        }
+
+        to {
+            opacity: 1;
+            transform: none;
+        }
+    }
+
+    #step2.active {
+        display: grid;
+        grid-template-columns: minmax(520px, 1fr) 360px;
+        gap: 14px;
+        align-items: stretch;
+    }
+
+    #step1 .queue-card {
+        max-width: 840px;
+        margin: 0 auto;
+        min-height: 560px;
+    }
+
+    #step3 .bottom-grid {
+        margin-top: 0;
+    }
+
+    .step-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        margin-top: 14px;
+        flex-wrap: wrap;
+    }
+
+        .step-actions .step-hint {
+            color: var(--muted);
+            font-size: 11.5px;
+            font-weight: 600;
+        }
+
+    .side-progress {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        margin-bottom: 14px;
+    }
+
+    .side-chip {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 9px 11px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: var(--surface);
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+        .side-chip .side-mark {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            font-size: 11px;
+            font-weight: 800;
+            background: var(--surface-2);
+            color: var(--muted);
+            flex-shrink: 0;
+        }
+
+        .side-chip.done {
+            border-color: var(--success);
+            background: rgba(25,135,84,.06);
+        }
+
+            .side-chip.done .side-mark {
+                background: var(--success);
+                color: #fff;
+            }
+
+    .overview-grid {
+        display: grid;
+        grid-template-columns: repeat(4,1fr);
+        gap: 12px;
+        margin-bottom: 14px;
+    }
+
+    .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+    }
+
+    .lookup-card {
+        padding: 14px;
+    }
+
+    .lookup-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 9px;
+    }
+
+    .label {
+        display: block;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--muted);
+        margin-bottom: 7px;
+        text-transform: uppercase;
+        letter-spacing: .45px;
+    }
+
+    .input, .select, textarea {
+        width: 100%;
+        border: 1px solid #e2d1d1;
+        border-radius: 8px;
+        background: #fff;
+        color: var(--text);
+        outline: none;
+        padding: 10px 11px;
+        transition: .18s ease;
+    }
+
+        .input:focus, .select:focus, textarea:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(139,0,0,.15);
+        }
+
+    textarea {
+        min-height: 76px;
+        resize: vertical;
+    }
+
+    .btn {
+        border: 0;
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        transition: .18s ease;
+        white-space: nowrap;
+    }
+
+        .btn:hover {
+            transform: translateY(-1px);
+        }
+
+    .btn-primary {
+        background: var(--primary);
+        color: #fff;
+        box-shadow: 0 4px 10px rgba(139,0,0,.25);
+    }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+    .btn-soft {
+        background: var(--surface-2);
+        color: var(--text);
+        border: 1px solid var(--line);
+    }
+
+        .btn-soft:hover {
+            background: #f5e6e6;
+        }
+
+    .btn-ghost {
+        background: transparent;
+        color: var(--text);
+        border: 1px solid transparent;
+    }
+
+        .btn-ghost:hover {
+            background: var(--surface-2);
+            border-color: var(--line);
+        }
+
+    .btn-danger {
+        background: var(--danger-soft);
+        color: var(--danger);
+        border: 1px solid #f5c2c7;
+    }
+
+    .btn-success {
+        background: var(--success);
+        color: #fff;
+    }
+
+    .btn-sm {
+        padding: 7px 9px;
+        font-size: 12px;
+        border-radius: 6px;
+    }
+
+    .metric-card {
+        padding: 14px;
+        position: relative;
+        overflow: hidden;
+    }
+
+        .metric-card::after {
+            content: "";
+            position: absolute;
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            right: -20px;
+            top: -20px;
+            background: var(--surface-2);
+        }
+
+    .metric-title {
+        color: var(--muted);
+        font-weight: 700;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: .4px;
+    }
+
+    .metric-value {
+        font-size: 25px;
+        font-weight: 800;
+        margin-top: 7px;
+        line-height: 1;
+    }
+
+    .metric-foot {
+        color: var(--muted);
+        margin-top: 7px;
+        font-size: 11px;
+    }
+
+    .metric-card.danger::after {
+        background: var(--danger-soft);
+    }
+
+    .metric-card.warning::after {
+        background: var(--warning-soft);
+    }
+
+    .metric-card.success::after {
+        background: var(--success-soft);
+    }
+
+    .panel-header {
+        padding: 14px 15px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid var(--line);
+    }
+
+    .panel-title {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 700;
+    }
+
+    .panel-subtitle {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 11px;
+    }
+
+    .queue-card {
+        min-height: 650px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .queue-tools {
+        padding: 12px;
+        border-bottom: 1px solid var(--line);
+        display: grid;
+        grid-template-columns: 1fr auto auto; /* Ajustado a 3 columnas */
+        gap: 8px;
+    }
+
+    .filter-menu {
+        position: relative;
+    }
+
+    .filter-popover {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: 42px;
+        width: 210px;
+        padding: 9px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        box-shadow: var(--shadow);
+        z-index: 15;
+    }
+
+        .filter-popover.open {
+            display: block;
+        }
+
+    .filter-option {
+        padding: 8px 9px;
+        border-radius: 6px;
+        display: flex;
+        justify-content: space-between;
+    }
+
+        .filter-option:hover {
+            background: var(--surface-2);
+        }
+
+    .queue-list {
+        padding: 8px;
+        overflow: auto;
+        flex: 1;
+        max-height: 550px;
+    }
+
+    .queue-item {
+        padding: 14px 16px; /* Area de toque mas grande */
+        border-radius: 10px;
+        border: 1px solid var(--line); /* Borde sutil para que parezca tarjeta */
+        display: grid;
+        grid-template-columns: minmax(150px, 1fr) auto auto; /* 3 Columnas: Datos | Botones | Estatus */
+        gap: 16px;
+        margin-bottom: 10px;
+        cursor: pointer;
+        transition: .16s ease;
+        align-items: center; /* Alinea todo al centro verticalmente */
+    }
+
+        .queue-item:hover {
+            background: var(--surface-2);
+            border-color: #f5c2c7;
+        }
+
+        .queue-item.active {
+            background: var(--primary-soft);
+            border-color: #f5c2c7;
+            box-shadow: inset 4px 0 0 var(--primary);
+        }
+
+    .queue-actions {
+        display: flex;
+        gap: 8px; /* Separacion entre botones */
+    }
+
+    .btn-queue {
+        padding: 10px 16px; /* Botones mucho mas anchos y altos */
+        border-radius: 8px;
+        border: none;
+        font-size: 13px; /* Texto mas legible */
+        font-weight: 700;
+        cursor: pointer;
+        transition: .15s ease;
+        white-space: nowrap;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.06); /* Sombra para indicar que es clickeable */
+    }
+
+        .btn-queue:disabled {
+            opacity: .4;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .btn-queue:hover:not(:disabled) {
+            filter: brightness(1.05);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.12);
+        }
+
+    .btn-queue-green  { background: #d1e7dd; color: #0f5132; }
+    .btn-queue-blue   { background: #cfe2ff; color: #084298; }
+    .btn-queue-yellow { background: #fff3cd; color: #664d03; }
+
+    .queue-id {
+        font-weight: 700;
+        letter-spacing: .2px;
+    }
+
+    .queue-provider {
+        color: var(--muted);
+        font-size: 11px;
+        margin-top: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 180px;
+    }
+
+    .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 10px;
+        font-weight: 700;
+        border-radius: 999px;
+        padding: 5px 8px;
+        height: fit-content;
+    }
+
+    .status-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+    }
+
+    .status.pendiente {
+        color: #052c65;
+        background: #cfe2ff;
+    }
+
+        .status.pendiente .status-dot {
+            background: #0d6efd;
+        }
+
+    .status.inspeccion {
+        color: #664d03;
+        background: #fff3cd;
+    }
+
+        .status.inspeccion .status-dot {
+            background: #ffc107;
+        }
+
+    .status.retenida {
+        color: #842029;
+        background: #f8d7da;
+    }
+
+        .status.retenida .status-dot {
+            background: #dc3545;
+        }
+
+    .status.liberada {
+        color: #0a3622;
+        background: #d1e7dd;
+    }
+
+        .status.liberada .status-dot {
+            background: #198754;
+        }
+
+    .status.revision {
+        color: #41464b;
+        background: #dee2e6;
+    }
+
+        .status.revision .status-dot {
+            background: #6c757d;
+        }
+
+    .queue-footer {
+        padding: 10px 12px;
+        border-top: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: var(--muted);
+        font-size: 11px;
+    }
+
+    .pagination {
+        display: flex;
+        gap: 5px;
+    }
+
+    .page-btn {
+        width: 26px;
+        height: 26px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #fff;
+        color: var(--muted);
+        font-weight: bold;
+    }
+
+        .page-btn.active {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
+
+    .inspection-card {
+        min-height: 650px;
+    }
+
+    .inspection-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .view-switch {
+        display: flex;
+        background: var(--surface-2);
+        border-radius: 8px;
+        padding: 3px;
+    }
+
+        .view-switch button {
+            border: 0;
+            background: transparent;
+            padding: 6px 10px;
+            border-radius: 6px;
+            color: var(--muted);
+            font-weight: 600;
+        }
+
+            .view-switch button.active {
+                background: #fff;
+                color: var(--primary);
+                box-shadow: 0 2px 5px rgba(0,0,0,.08);
+            }
+
+    .diagram-wrap {
+        padding: 15px 16px 13px;
+    }
+
+    .instruction {
+        text-align: center;
+        color: var(--muted);
+        margin: 0 0 10px;
+    }
+
+    /* ====== ZONAS DE CUADRANTES SIGO ====== */
+    .carcass-stage {
+        position: relative;
+        min-height: 480px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: radial-gradient(circle at 50% 50%, #fff 0, var(--surface-2) 100%);
+        overflow: hidden;
+    }
+
+    .carcass-layout {
+        display: grid;
+        grid-template-columns: repeat(2,minmax(0,1fr));
+        gap: 14px;
+        min-height: 530px;
+    }
+
+    .carcass-view {
+        min-width: 0;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
+        overflow: hidden;
+    }
+
+    .carcass-view-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line);
+        background: var(--surface);
+    }
+
+        .carcass-view-title span {
+            font-weight: 850;
+            color: var(--text);
+        }
+
+        .carcass-view-title small {
+            color: var(--muted);
+            font-weight: 600;
+        }
+
+    .carcass-container {
+        position: relative;
+        width: 100%;
+        height: 445px;
+        display: flex;
+        justify-content: center;
+    }
+
+    .carcass-real-img {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        pointer-events: none;
+        filter: drop-shadow(0px 8px 12px rgba(139,0,0,0.15));
+        padding: 8px;
+    }
+
+    .carcass-real-svg {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 10;
+        padding: 8px;
+    }
+    /* Efecto fantasma para la mitad de la canal que no se está revisando */
+    .quadrant-zone.inactive-side {
+        fill: rgba(255, 255, 255, 0.88);
+        stroke: rgba(200, 200, 200, 0.3);
+        stroke-width: 2;
+        cursor: not-allowed;
+    }
+
+        .quadrant-zone.inactive-side:hover {
+            fill: rgba(255, 255, 255, 0.88);
+            stroke-width: 2;
+        }
+    /* Hover y selected con FUERTE AZUL para resaltar la carne */
+    .quadrant-zone {
+        fill: transparent;
+        stroke: rgba(255,255,255,.9);
+        stroke-width: 4;
+        stroke-dasharray: 12 8;
+        cursor: pointer;
+        transition: .18s ease;
+        outline: none;
+    }
+
+        .quadrant-zone:hover, .quadrant-zone:focus-visible {
+            fill: rgba(13, 110, 253, 0.4);
+            stroke: #0d6efd;
+            stroke-width: 6;
+            stroke-dasharray: none;
+        }
+
+        .quadrant-zone.selected {
+            fill: rgba(13, 110, 253, 0.65);
+            stroke: #0a58ca;
+            stroke-width: 7;
+            stroke-dasharray: none;
+        }
+
+        /* Indicadores de severidad en el diagrama */
+        .quadrant-zone.has-leve {
+            fill: rgba(25,135,84,.65);
+            stroke: var(--success);
+        }
+
+        .quadrant-zone.has-moderado {
+            fill: rgba(255,193,7,.4);
+            stroke: var(--warning);
+        }
+
+        .quadrant-zone.has-severo {
+            fill: rgba(220,53,69,.65);
+            stroke: var(--danger);
+        }
+
+            .quadrant-zone.has-leve.selected, .quadrant-zone.has-moderado.selected, .quadrant-zone.has-severo.selected {
+                stroke: var(--primary-dark);
+                stroke-width: 8;
+            }
+
+    .quadrant-divider {
+        stroke: #fff;
+        stroke-width: 5;
+        stroke-dasharray: 15 10;
+        opacity: .95;
+        pointer-events: none;
+        filter: drop-shadow(0 1px 2px rgba(0,0,0,.3));
+    }
+
+    .zone-chip {
+        pointer-events: none;
+    }
+
+        .zone-chip circle {
+            fill: rgba(33,37,41,.9);
+            stroke: #fff;
+            stroke-width: 3;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,.3));
+        }
+
+        .zone-chip text {
+            fill: #fff;
+            font-size: 24px;
+            font-weight: 800;
+            text-anchor: middle;
+            font-family: Inter,system-ui,sans-serif;
+        }
+
+    .carcass-zone-labels {
+        display: grid;
+        grid-template-columns: repeat(3,1fr);
+        gap: 7px;
+        padding: 10px;
+        background: var(--surface);
+        border-top: 1px solid var(--line);
+    }
+
+        .carcass-zone-labels span {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-height: 38px;
+            text-align: center;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: #fff;
+            color: var(--text);
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .carcass-zone-labels b {
+            width: 23px;
+            height: 23px;
+            border-radius: 6px;
+            display: grid;
+            place-items: center;
+            background: var(--primary-soft);
+            color: var(--primary-dark);
+        }
+
+    .legend {
+        display: flex;
+        justify-content: center;
+        gap: 22px;
+        padding-top: 12px;
+        color: var(--muted);
+        font-size: 11px;
+    }
+
+        .legend span {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 600;
+        }
+
+        .legend i {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+    /* ====== FORMULARIO ====== */
+    .form-card {
+        min-height: 650px;
+    }
+
+    .form-body {
+        padding: 13px 14px 15px;
+    }
+
+    .selection-box {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px;
+        background: var(--surface-2);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        margin-bottom: 14px;
+    }
+
+    .selection-number {
+        min-width: 36px;
+        height: 36px;
+        padding: 0 9px;
+        border-radius: 6px;
+        display: grid;
+        place-items: center;
+        background: var(--text);
+        color: #fff;
+        font-size: 16px;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .selection-name {
+        font-weight: 700;
+    }
+
+    .selection-code {
+        color: var(--muted);
+        font-size: 11px;
+        margin-top: 2px;
+    }
+
+    .damage-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-bottom: 13px;
+    }
+
+    .damage-btn {
+        min-height: 54px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        padding: 7px 5px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        color: var(--text);
+        font-size: 10px;
+        font-weight: 600;
+        transition: .16s ease;
+    }
+
+        .damage-btn:hover {
+            border-color: #f5c2c7;
+            background: var(--surface-2);
+        }
+
+        .damage-btn.active {
+            border-color: var(--primary);
+            background: var(--primary-soft);
+            color: var(--primary-dark);
+            box-shadow: 0 0 0 2px rgba(139,0,0,.1);
+        }
+
+    .damage-icon {
+        font-size: 16px;
+    }
+
+    .choice-row {
+        display: grid;
+        gap: 8px;
+        margin-bottom: 13px;
+    }
+
+        .choice-row.two {
+            grid-template-columns: repeat(2,minmax(0,1fr));
+        }
+
+    .choice-btn {
+        min-height: 48px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-weight: 600;
+    }
+
+        .choice-btn b {
+            font-size: 17px;
+            color: var(--text);
+        }
+
+        .choice-btn span {
+            font-size: 11px;
+        }
+
+        .choice-btn.active {
+            border-color: var(--primary);
+            background: var(--primary-soft);
+            color: var(--primary-dark);
+            box-shadow: 0 0 0 2px rgba(139,0,0,.1);
+        }
+
+            .choice-btn.active b {
+                color: var(--primary-dark);
+            }
+
+    .success-choice.active {
+        border-color: var(--success);
+        background: var(--success-soft);
+        color: #0f5132;
+        box-shadow: 0 0 0 2px rgba(25,135,84,.15);
+    }
+
+        .success-choice.active b {
+            color: #0f5132;
+        }
+
+    .danger-choice.active {
+        border-color: var(--danger);
+        background: var(--danger-soft);
+        color: #842029;
+        box-shadow: 0 0 0 2px rgba(220,53,69,.15);
+    }
+
+        .danger-choice.active b {
+            color: #842029;
+        }
+
+    .choice-btn:disabled {
+        opacity: .45;
+        cursor: not-allowed;
+    }
+
+    .pcc-instructions {
+        padding: 11px 12px;
+        margin-bottom: 14px;
+        border: 1px solid var(--primary-soft);
+        border-left: 4px solid var(--primary);
+        border-radius: 8px;
+        background: var(--surface-2);
+        color: var(--text);
+        line-height: 1.45;
+    }
+
+        .pcc-instructions b {
+            color: var(--primary-dark);
+        }
+
+        .pcc-instructions p {
+            margin: 5px 0 0;
+            font-size: 11px;
+        }
+
+    .section-line {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 8px;
+    }
+
+    .no-findings-btn {
+        border: 1px solid var(--success-soft);
+        background: var(--surface-2);
+        color: var(--success);
+        border-radius: 6px;
+        padding: 7px 9px;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+        .no-findings-btn.active {
+            background: var(--success);
+            color: #fff;
+            border-color: var(--success);
+            box-shadow: 0 0 0 3px rgba(25,135,84,.15);
+        }
+
+    .field-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .verification-box {
+        display: grid;
+        grid-template-columns: minmax(0,1fr) auto;
+        gap: 9px;
+        align-items: center;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        margin-bottom: 13px;
+        background: var(--surface-2);
+    }
+
+        .verification-box > label:first-child {
+            display: grid;
+            grid-template-columns: auto minmax(0,1fr);
+            gap: 7px;
+            align-items: center;
+        }
+
+    .verify-check {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 40px;
+        padding: 0 10px;
+        border: 1px solid var(--success-soft);
+        border-radius: 6px;
+        background: var(--success-soft);
+        color: #0f5132;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+        .verify-check input {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--success);
+        }
+
+    .action-row {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 25px;
+    }
+
+        .action-row .btn {
+            flex: 1;
+            min-width: 100px;
+        }
+
+        .action-row #saveBtn {
+            flex: 2;
+            min-width: 180px;
+            font-size: 14px;
+            padding: 12px 20px;
+        }
+
+    /* ====== TABLAS Y BITÁCORA ====== */
+    .bottom-grid {
+        display: grid;
+        grid-template-columns: 1fr 330px;
+        gap: 14px;
+        margin-top: 14px;
+    }
+
+    .table-card {
+        overflow: hidden;
+    }
+
+    .table-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .table-wrap {
+        overflow: auto;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    th, td {
+        padding: 11px 12px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: middle;
+    }
+
+    th {
+        background: var(--surface-2);
+        color: var(--text);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: .4px;
+        position: sticky;
+        top: 0;
+    }
+
+    td {
+        font-size: 12px;
+    }
+
+    tr:hover td {
+        background: var(--surface-2);
+    }
+
+    .tag-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+    }
+
+    .finding-tag {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 4px;
+        padding: 4px 6px;
+        background: var(--danger-soft);
+        color: #842029;
+        font-size: 10px;
+        font-weight: 700;
+    }
+
+        .finding-tag.clean {
+            background: var(--success-soft);
+            color: #0f5132;
+        }
+
+    .quadrant-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    .quadrant-pill {
+        display: inline-grid;
+        place-items: center;
+        min-width: 24px;
+        height: 24px;
+        border-radius: 4px;
+        background: var(--primary-soft);
+        color: var(--primary-dark);
+        font-weight: 700;
+        border: 1px solid #f5c2c7;
+    }
+
+    .result-chip {
+        display: inline-flex;
+        min-width: 34px;
+        justify-content: center;
+        border-radius: 4px;
+        padding: 4px 6px;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+        .result-chip.ok {
+            color: #0f5132;
+            background: var(--success-soft);
+        }
+
+        .result-chip.bad {
+            color: #842029;
+            background: var(--danger-soft);
+        }
+
+    .row-actions {
+        display: flex;
+        gap: 5px;
+    }
+
+    .icon-btn {
+        width: 29px;
+        height: 29px;
+        border-radius: 6px;
+        border: 1px solid var(--line);
+        background: #fff;
+        display: grid;
+        place-items: center;
+        font-weight: bold;
+    }
+
+        .icon-btn:hover {
+            background: var(--surface-2);
+        }
+
+    .activity-card {
+        overflow: hidden;
+    }
+
+    .activity-list {
+        max-height: 330px;
+        overflow: auto;
+        padding: 8px 13px 13px;
+    }
+
+    .activity-item {
+        display: grid;
+        grid-template-columns: 28px 1fr;
+        gap: 9px;
+        padding: 10px 0;
+        border-bottom: 1px dashed var(--line);
+    }
+
+    .activity-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        display: grid;
+        place-items: center;
+        background: var(--surface-2);
+        color: var(--text);
+        font-weight: bold;
+        border: 1px solid var(--line);
+    }
+
+    .activity-text {
+        font-size: 11px;
+        line-height: 1.45;
+    }
+
+    .activity-time {
+        color: var(--muted);
+        font-size: 10px;
+        margin-top: 3px;
+    }
+
+    .form-editing {
+        box-shadow: 0 0 0 3px rgba(255,193,7,.2);
+    }
+
+    /* ====== MODALES ====== */
+    .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(33, 37, 41, 0.6);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1060;
+        padding: 20px;
+    }
+
+        .modal-backdrop.open {
+            display: flex;
+        }
+
+    .custom-modal {
+        width: min(760px, 92vw);
+        max-height: 90vh;
+        overflow: auto;
+        background: var(--surface);
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0,0,0,.3);
+        display: block;
+    }
+
+    .modal-header {
+        padding: 16px 18px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        position: sticky;
+        top: 0;
+        background: var(--surface);
+        z-index: 2;
+    }
+
+    .modal-body {
+        padding: 16px 18px;
+    }
+
+    .modal-footer {
+        padding: 14px 18px;
+        border-top: 1px solid var(--line);
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        position: sticky;
+        bottom: 0;
+        background: var(--surface);
+    }
+
+    .close-btn {
+        border: 0;
+        background: transparent;
+        font-size: 22px;
+        color: var(--muted);
+    }
+
+    .retained-grid {
+        display: grid;
+        grid-template-columns: repeat(2,1fr);
+        gap: 10px;
+    }
+
+    .retained-card {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+        background: #fff;
+    }
+
+        .retained-card h4 {
+            margin: 0 0 7px;
+        }
+
+    .retained-meta {
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.6;
+    }
+
+    .toast-stack {
+        position: fixed;
+        right: 20px;
+        bottom: 20px;
+        z-index: 140;
+        display: grid;
+        gap: 8px;
+    }
+
+    .toast {
+        min-width: 300px;
+        max-width: 420px;
+        background: #212529;
+        color: #fff;
+        border-radius: 8px;
+        padding: 12px 14px;
+        box-shadow: 0 8px 20px rgba(0,0,0,.15);
+        display: flex;
+        gap: 9px;
+        align-items: flex-start;
+        animation: slidein .22s ease;
+    }
+
+        .toast.success {
+            border-left: 4px solid var(--success);
+        }
+
+        .toast.warning {
+            border-left: 4px solid var(--warning);
+        }
+
+        .toast.danger {
+            border-left: 4px solid var(--danger);
+        }
+
+    @@keyframes slidein {
+        from {
+            transform: translateX(20px);
+            opacity: 0;
+        }
+    }
+
+    .empty {
+        text-align: center;
+        color: var(--muted);
+        padding: 35px 10px;
+    }
+
+    .kbd {
+        padding: 2px 5px;
+        border: 1px solid var(--line);
+        border-bottom-width: 2px;
+        border-radius: 4px;
+        background: var(--surface-2);
+        font-size: 10px;
+        color: var(--text);
+    }
+
+    .mobile-nav {
+        display: none;
+    }
+
+    .action-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 20px;
+    }
+
+        .action-grid .btn-full {
+            grid-column: 1 / -1;
+            padding: 12px;
+        }
+
+    /* Estilos para filas que necesitan corrección */
+    .row-needs-correction td {
+        background-color: var(--danger-soft) !important;
+    }
+
+    .row-needs-correction {
+        border-left: 4px solid var(--danger);
+    }
+
+    .btn-correct {
+        background: var(--danger);
+        color: white;
+        font-size: 11px;
+        padding: 6px 12px;
+        border-radius: 6px;
+        border: none;
+        font-weight: 800;
+        box-shadow: 0 2px 5px rgba(220,53,69,.3);
+        transition: 0.2s ease;
+    }
+
+        .btn-correct:hover {
+            background: #b02a37;
+            transform: translateY(-1px);
+        }
+    /* ====== RESPONSIVO ====== */
+    @@media (max-width: 1280px) {
+        .overview-grid
+
+    {
+        grid-template-columns: 1.2fr repeat(3, 1fr);
+    }
+
+    #step2.active {
+        grid-template-columns: minmax(0, 1.2fr) 320px;
+        gap: 10px;
+    }
+
+    .carcass-container {
+        height: 380px;
+        min-height: 380px;
+    }
+
+    .bottom-grid {
+        grid-template-columns: minmax(0, 1fr) 280px;
+    }
+
+    }
+
+    /* Ajuste para Tablets (mantiene 2 columnas hasta 601px) */
+    @@media (max-width: 992px) {
+        .main
+
+    {
+        padding: 8px;
+    }
+
+    .overview-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    .lookup-card {
+        grid-column: 1 / -1;
+    }
+
+    /* Fuerza diagrama y formulario lado a lado */
+    #step2.active {
+        grid-template-columns: minmax(0, 1fr) 300px;
+        gap: 8px;
+    }
+
+    /* Reduce el diagrama para evitar scroll horizontal */
+    .carcass-container {
+        height: 330px;
+        min-height: 330px;
+    }
+
+    .carcass-view-title {
+        padding: 6px 8px;
+    }
+
+        .carcass-view-title span {
+            font-size: 11px;
+        }
+
+    .carcass-zone-labels span {
+        font-size: 9px;
+        min-height: 28px;
+        padding: 2px;
+    }
+
+    .carcass-zone-labels b {
+        width: 18px;
+        height: 18px;
+    }
+
+    /* Comprime el formulario */
+    .damage-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 4px;
+    }
+
+    .damage-btn {
+        min-height: 38px;
+        font-size: 9px;
+        padding: 4px;
+    }
+
+    .pcc-instructions {
+        padding: 8px;
+        font-size: 10px;
+        line-height: 1.2;
+        margin-bottom: 8px;
+    }
+
+    .form-body {
+        padding: 8px;
+    }
+
+    .selection-box {
+        margin-bottom: 8px;
+        padding: 6px;
+    }
+
+    .action-row {
+        margin-top: 10px;
+        gap: 6px;
+    }
+
+        .action-row #saveBtn {
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+
+    }
+
+    /* Vista apilada exclusiva para telefonos */
+    @@media (max-width: 600px) {
+        body
+
+    {
+        padding-bottom: 70px;
+    }
+
+    .topbar {
+        height: auto;
+        min-height: 58px;
+        padding: 9px 12px;
+        flex-wrap: wrap;
+    }
+
+    .brand-details, .online-badge, .shift-badge:not(#liveClock), .user-menu > div:last-child {
+        display: none;
+    }
+
+    .overview-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    /* Apila verticalmente */
+    #step2.active {
+        grid-template-columns: 1fr;
+    }
+
+    .carcass-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .carcass-container {
+        height: 100vw;
+        min-height: 300px;
+    }
+
+    .bottom-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* Ancla botones de guardar al fondo en movil */
+    .action-row {
+        position: sticky;
+        bottom: 60px;
+        padding: 10px 14px;
+        margin: 13px -14px -15px;
+        background: var(--surface);
+        box-shadow: 0 -8px 20px rgba(0,0,0,.08);
+        z-index: 20;
+    }
+
+    /* Muestra navegacion inferior */
+    .mobile-nav {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 90;
+        height: 62px;
+        padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+        background: rgba(33, 37, 41, .97);
+        backdrop-filter: blur(10px);
+    }
+
+        .mobile-nav button {
+            border: 0;
+            background: transparent;
+            color: #adb5bd;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 700;
+            display: grid;
+            place-items: center;
+        }
+
+            .mobile-nav button.active {
+                color: #fff;
+                background: rgba(255, 255, 255, .1);
+            }
+
+    /* Transforma tablas en tarjetas */
+    thead {
+        display: none;
+    }
+
+    table, tbody, tr {
+        display: block;
+        width: 100%;
+    }
+
+    tr {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        margin-bottom: 9px;
+        background: #fff;
+    }
+
+    td {
+        display: grid;
+        grid-template-columns: 112px minmax(0, 1fr);
+        padding: 9px 10px;
+        border-bottom: 1px solid var(--line);
+    }
+
+        td::before {
+            content: attr(data-label);
+            color: var(--muted);
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+    }
+
+    @@media print {
+        body {
+            min-width: 0;
+            background: #fff;
+        }
+
+        .app-shell, .toast-stack, .no-print, .stepper, .overview-grid, .queue-card, .form-card, .activity-card, .modal-overlay, .mobile-nav {
+            display: none !important;
+        }
+
+        #printArea {
+            display: block !important;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #fff;
+            padding: 24px 32px;
+            z-index: 99999;
+            overflow-y: auto;
+        }
+
+        #printArea .pr-header {
+            text-align: center;
+            border-bottom: 3px solid #8B0000;
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+        }
+
+        #printArea .pr-header h1 {
+            font-size: 20px;
+            font-weight: 800;
+            color: #8B0000;
+            margin: 0 0 4px;
+            letter-spacing: 1px;
+        }
+
+        #printArea .pr-header p {
+            font-size: 11px;
+            color: #555;
+            margin: 2px 0;
+        }
+
+        #printArea .pr-meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 8px 24px;
+            font-size: 12px;
+            margin-bottom: 16px;
+            padding: 10px 14px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+        }
+
+        #printArea .pr-meta b {
+            color: #333;
+        }
+
+        #printArea .pr-section-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #8B0000;
+            border-bottom: 2px solid #8B0000;
+            padding-bottom: 4px;
+            margin: 18px 0 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        #printArea table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            margin-bottom: 16px;
+        }
+
+        #printArea th {
+            background: #8B0000;
+            color: #fff;
+            padding: 6px 8px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        #printArea td {
+            padding: 5px 8px;
+            border-bottom: 1px solid #e0e0e0;
+            vertical-align: top;
+        }
+
+        #printArea tr:nth-child(even) td {
+            background: #fafafa;
+        }
+
+        #printArea .pr-footer {
+            margin-top: 24px;
+            border-top: 2px solid #ddd;
+            padding-top: 10px;
+            font-size: 11px;
+            color: #666;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        #printArea .pr-signatures {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 24px;
+            margin-top: 30px;
+            font-size: 11px;
+            text-align: center;
+        }
+
+        #printArea .pr-sig-line {
+            border-top: 1px solid #333;
+            padding-top: 4px;
+            margin-top: 40px;
+        }
+
+        #printArea .badge-print {
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        #printArea .badge-ok { background: #d4edda; color: #155724; }
+        #printArea .badge-warn { background: #fff3cd; color: #856404; }
+        #printArea .badge-danger { background: #f8d7da; color: #721c24; }
+    }
+</style>
+
+<div class="app-shell">
+    <header class="topbar">
+        <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+            <div class="brand">
+                <h1 style="font-weight: 900; letter-spacing: 1px; font-size: 20px;">Calidad · Inspección de Canal</h1>
+                <small style="color: rgba(255,255,255,0.8); display: block; margin-top: 2px;">Monitoreo PCC1B</small>
+            </div>
+            <div class="top-actions no-print">
+                <a href="/Calidad/Historico" style="background: rgba(255,255,255,0.2); color: #fff; text-decoration: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; font-size: 12px; border: 1px solid rgba(255,255,255,0.4);">Ver Log Histórico</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="main">
+        <section class="overview-grid">
+           
+            <div class="card metric-card">
+                <div class="metric-title">Monitoreadas 100%</div>
+                <div class="metric-value" id="metricProcessed">0</div>
+                <div class="metric-foot">Ambas vistas EXT / INT registradas</div>
+            </div>
+            <div class="card metric-card warning">
+                <div class="metric-title">Con hallazgos</div>
+                <div class="metric-value" id="metricObserved">0</div>
+                <div class="metric-foot">A, MF, L u otros</div>
+            </div>
+            <div class="card metric-card danger">
+                <div class="metric-title">No conformes</div>
+                <div class="metric-value" id="metricRetained">0</div>
+                <div class="metric-foot"><button class="btn btn-sm btn-danger" style="background:#fff" id="openRetained">Ver no conformes</button></div>
+            </div>
+            <div class="card metric-card success">
+                <div class="metric-title">Conformes</div>
+                <div class="metric-value" id="metricReleased">0</div>
+                <div class="metric-foot">Reinspección SC</div>
+            </div>
+        </section>
+
+        <div class="stepper no-print" id="stepper" aria-label="Pasos del monitoreo">
+            <button type="button" class="step-btn active" data-step="1">
+                <span class="step-num">1</span>
+                <span><span class="step-title">Seleccionar canal</span><span class="step-sub">Elija la canal de la cola de trabajo</span></span>
+            </button>
+            <button type="button" class="step-btn" data-step="2">
+                <span class="step-num">2</span>
+                <span><span class="step-title">Cuadrantes y hallazgos</span><span class="step-sub">Marque zonas y registre el hallazgo</span></span>
+            </button>
+            <button type="button" class="step-btn locked" data-step="3">
+                <span class="step-num">3</span>
+                <span><span class="step-title">Verificar y guardar</span><span class="step-sub">Revise la tabla y cierre la canal</span></span>
+            </button>
+        </div>
+
+        <section class="step-panel active" id="step1">
+            <aside class="card queue-card" id="queuePanel">
+                <div class="panel-header">
+                    <div><h2 class="panel-title">Consecutivo de canales</h2><p class="panel-subtitle">Seleccione una canal para inspeccionar</p></div>
+
+                </div>
+                <div class="queue-tools">
+                    <input class="input" id="queueSearch" placeholder="Buscar canal o proveedor..." />
+                    <button class="btn btn-warning btn-sm" id="globalAuditBtn" style="color: #000; font-weight: bold;">✦ Auditoría</button>
+                    <div class="filter-menu">
+                        <button class="btn btn-soft" id="filterBtn" title="Filtrar">Config.</button>
+                        <div class="filter-popover" id="filterPopover">
+                            <div class="label" style="margin:3px 5px 5px">Estado</div>
+                            <label class="filter-option">Todos <input type="radio" name="statusFilter" value="todos" checked></label>
+                            <label class="filter-option">Pendientes <input type="radio" name="statusFilter" value="Pendiente"></label>
+                            <label class="filter-option">En inspección <input type="radio" name="statusFilter" value="En inspección"></label>
+                            <label class="filter-option">No conformes <input type="radio" name="statusFilter" value="No conforme"></label>
+                            <label class="filter-option">Conformes <input type="radio" name="statusFilter" value="Conforme"></label>
+                        </div>
+                    </div>
+                </div>
+                <div class="queue-list" id="queueList"></div>
+                <div class="queue-footer">
+                    <span id="queueCount">0 registros</span>
+                    <div class="pagination" id="pagination"></div>
+                </div>
+            </aside>
+            <div class="step-actions no-print">
+                <span class="step-hint">Use los botones de acción en cada canal para continuar.</span>
+            </div>
+        </section>
+
+        <section class="step-panel" id="step2" hidden>
+            <section class="card inspection-card" id="inspectionPanel">
+                <div class="panel-header">
+                    <div>
+                        <h2 class="panel-title">Selecciona uno o varios cuadrantes</h2>
+                        <p class="panel-subtitle">Toque cada cuadrante donde se detectó el hallazgo; puede seleccionar varios</p>
+                    </div>
+                    <div class="inspection-toolbar">
+                        <div class="view-switch">
+                            <button class="active" data-view="diagram">Diagrama</button>
+                            <button data-view="summary">Resumen</button>
+                        </div>
+                        <button class="btn btn-ghost btn-sm no-print" id="printBtn">Imprimir</button>
+                    </div>
+                </div>
+                <div class="diagram-wrap" id="diagramView">
+                    <p class="instruction" id="diagramTitle" style="font-weight:800; font-size:14px; color: var(--text);">Monitoreo visual PCC1B</p>
+                    <div class="carcass-stage" id="carcassStage">
+                        <div class="carcass-layout">
+
+                            <!-- VISTA EXTERNA (2, 4, 6 a la izq | 1, 3, 5 a la der) -->
+                            <article class="carcass-view">
+                                <div class="carcass-view-title"><span>Vista externa</span><small>Cuadrantes 1 al 6</small></div>
+                                <div class="carcass-container">
+                                    <!-- IMAGEN DE CARNE ORIGINAL - Mismo aspect ratio sin cortarse -->
+                                    <img src="/images/canalcuadrantes.png" class="carcass-real-img" />
+
+                                    <!-- CAPA INTERACTIVA: Enmascarada con CSS Mask usando la misma imagen -->
+                                    <svg class="carcass-real-svg" viewBox="0 0 360 1000" preserveAspectRatio="xMidYMid meet">
+                                        <g style="-webkit-mask-image: url('/images/canalcuadrantes.png'); -webkit-mask-size: contain; -webkit-mask-position: center; -webkit-mask-repeat: no-repeat; mask-image: url('/images/canalcuadrantes.png'); mask-size: contain; mask-position: center; mask-repeat: no-repeat;">
+                                            <!-- Izquierda: 2, 4, 6 -->
+                                            <rect class="quadrant-zone" data-quadrant="2" x="0" y="0" width="180" height="360" />
+                                            <rect class="quadrant-zone" data-quadrant="4" x="0" y="360" width="180" height="290" />
+                                            <rect class="quadrant-zone" data-quadrant="6" x="0" y="650" width="180" height="350" />
+                                            <!-- Derecha: 1, 3, 5 -->
+                                            <rect class="quadrant-zone" data-quadrant="1" x="180" y="0" width="180" height="360" />
+                                            <rect class="quadrant-zone" data-quadrant="3" x="180" y="360" width="180" height="290" />
+                                            <rect class="quadrant-zone" data-quadrant="5" x="180" y="650" width="180" height="350" />
+                                        </g>
+
+                                        <!-- Lineas divisorias y etiquetas -->
+                                        <line class="quadrant-divider" x1="180" y1="0" x2="180" y2="1000" />
+                                        <line class="quadrant-divider" x1="0" y1="360" x2="360" y2="360" />
+                                        <line class="quadrant-divider" x1="0" y1="650" x2="360" y2="650" />
+
+                                        <g class="zone-chip"><circle cx="100" cy="180" r="24" /><text x="100" y="188">2</text></g>
+                                        <g class="zone-chip"><circle cx="260" cy="180" r="24" /><text x="260" y="188">1</text></g>
+                                        <g class="zone-chip"><circle cx="100" cy="505" r="24" /><text x="100" y="513">4</text></g>
+                                        <g class="zone-chip"><circle cx="260" cy="505" r="24" /><text x="260" y="513">3</text></g>
+                                        <g class="zone-chip"><circle cx="100" cy="790" r="24" /><text x="100" y="798">6</text></g>
+                                        <g class="zone-chip"><circle cx="260" cy="790" r="24" /><text x="260" y="798">5</text></g>
+                                    </svg>
+                                </div>
+                                <div class="carcass-zone-labels"><span><b>1</b> Cuadrante 1</span><span><b>2</b> Cuadrante 2</span><span><b>3</b> Cuadrante 3</span><span><b>4</b> Cuadrante 4</span><span><b>5</b> Cuadrante 5</span><span><b>6</b> Cuadrante 6</span></div>
+                            </article>
+
+                            <!-- VISTA INTERNA (1, 3, 5 a la izq | 2, 4, 6 a la der) -->
+                            <article class="carcass-view">
+                                <div class="carcass-view-title"><span>Vista interna</span><small>Cuadrantes 1 al 6</small></div>
+                                <div class="carcass-container">
+                                    <!-- IMAGEN DE CARNE ORIGINAL -->
+                                    <img src="/images/canalcuadrantes2.png" class="carcass-real-img" />
+
+                                    <!-- CAPA INTERACTIVA: Enmascarada con CSS Mask usando la misma imagen -->
+                                    <svg class="carcass-real-svg" viewBox="0 0 360 1000" preserveAspectRatio="xMidYMid meet">
+                                        <g style="-webkit-mask-image: url('/images/canalcuadrantes2.png'); -webkit-mask-size: contain; -webkit-mask-position: center; -webkit-mask-repeat: no-repeat; mask-image: url('/images/canalcuadrantes2.png'); mask-size: contain; mask-position: center; mask-repeat: no-repeat;">
+                                            <!-- Izquierda: 1, 3, 5 -->
+                                            <rect class="quadrant-zone" data-quadrant="1" x="0" y="0" width="180" height="360" />
+                                            <rect class="quadrant-zone" data-quadrant="3" x="0" y="360" width="180" height="290" />
+                                            <rect class="quadrant-zone" data-quadrant="5" x="0" y="650" width="180" height="350" />
+                                            <!-- Derecha: 2, 4, 6 -->
+                                            <rect class="quadrant-zone" data-quadrant="2" x="180" y="0" width="180" height="360" />
+                                            <rect class="quadrant-zone" data-quadrant="4" x="180" y="360" width="180" height="290" />
+                                            <rect class="quadrant-zone" data-quadrant="6" x="180" y="650" width="180" height="350" />
+                                        </g>
+
+                                        <!-- Lineas divisorias y etiquetas -->
+                                        <line class="quadrant-divider" x1="180" y1="0" x2="180" y2="1000" />
+                                        <line class="quadrant-divider" x1="0" y1="360" x2="360" y2="360" />
+                                        <line class="quadrant-divider" x1="0" y1="650" x2="360" y2="650" />
+
+                                        <g class="zone-chip"><circle cx="100" cy="180" r="24" /><text x="100" y="188">1</text></g>
+                                        <g class="zone-chip"><circle cx="260" cy="180" r="24" /><text x="260" y="188">2</text></g>
+                                        <g class="zone-chip"><circle cx="100" cy="505" r="24" /><text x="100" y="513">3</text></g>
+                                        <g class="zone-chip"><circle cx="260" cy="505" r="24" /><text x="260" y="513">4</text></g>
+                                        <g class="zone-chip"><circle cx="100" cy="790" r="24" /><text x="100" y="798">5</text></g>
+                                        <g class="zone-chip"><circle cx="260" cy="790" r="24" /><text x="260" y="798">6</text></g>
+                                    </svg>
+                                </div>
+                                <div class="carcass-zone-labels"><span><b>1</b> Cuadrante 1</span><span><b>2</b> Cuadrante 2</span><span><b>3</b> Cuadrante 3</span><span><b>4</b> Cuadrante 4</span><span><b>5</b> Cuadrante 5</span><span><b>6</b> Cuadrante 6</span></div>
+                            </article>
+                        </div>
+                    </div>
+                    <div class="legend" style="flex-wrap: wrap; margin-bottom: 20px;">
+                        <span><i style="background:#0d6efd"></i> Seleccionado</span>
+                        <!-- NUEVO: Indicador verde -->
+                        <span><i style="background:var(--success)"></i> Sin hallazgos</span>
+                        <span><i style="background:var(--warning)"></i> Hallazgo (SC)</span>
+                        <span><i style="background:var(--danger)"></i> Acción X o NC</span>
+                    </div>
+
+                    <!-- NUEVO: Zona de texto y verificación trasladada -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; border-top: 1px dashed var(--line); padding-top: 15px;">
+                        <div style="display: flex; flex-direction: column;">
+                            <label class="label" for="observation">Detalle / observaciones</label>
+                            <textarea class="input" id="observation" placeholder="Describa el hallazgo o corrección. Para “Otro”, indique cuál." style="flex: 1; min-height: 50px; margin: 0;"></textarea>
+                        </div>
+                        <div style="display: flex; flex-direction: column;">
+                            <span class="label">Verificación</span>
+                            <div class="verification-box" style="margin: 0; flex: 1; align-content: center;">
+                                <label><b>C:</b><input class="input" id="verificationChannel" autocomplete="off" aria-label="Número de canal verificada"></label>
+                                <label class="verify-check"><input type="checkbox" id="verificationComplies" checked><span>√ Cumple</span></label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="diagram-wrap" id="summaryView" style="display:none">
+                    <div id="quadrantSummary"></div>
+                </div>
+            </section>
+
+            <aside class="card form-card" id="formPanel">
+                <div class="panel-header">
+                    <div><h2 class="panel-title">Registro PCC1B</h2><p class="panel-subtitle">Canal, lado, hallazgos, acciones, reinspección y verificación</p></div>
+                    <span class="status inspeccion"><span class="status-dot"></span><span id="currentStatusLabel">En inspección</span></span>
+                </div>
+                <div class="side-progress no-print" id="sideProgress"></div>
+                <div class="form-body">
+                    <div class="pcc-instructions">
+                        <b>Instrucción operativa PCC1B</b>
+                        <p>Monitorear visualmente el 100% de las canales. Registrar por vista <b>EXT</b> (externa) o <b>INT</b> (interna), seleccionar todos los hallazgos y cuadrantes aplicables, indicar la acción correctiva con <b>√</b> o <b>X</b>, la reinspección <b>SC / NC</b> y la verificación <b>C:</b> con <b>√</b> cuando cumple.</p>
+                    </div>
+
+                    <span class="label">Canal y vista monitoreada</span>
+                    <div class="selection-box">
+                        <div class="selection-number" id="selectedQuadrantNumber">1</div>
+                        <div style="min-width:0"><div class="selection-name" id="selectedQuadrantName">Cuadrante 1</div><div class="selection-code" id="selectedChannelCode">CNL-025481</div></div>
+                    </div>
+                    <div class="choice-row two" id="sideRow">
+                        <button type="button" class="choice-btn active" data-side="EXT"><b>EXT</b><span>Externa</span></button>
+                        <button type="button" class="choice-btn" data-side="INT"><b>INT</b><span>Interna</span></button>
+                    </div>
+
+                    <div class="section-line"><span class="label" style="margin:0">Hallazgos de contaminantes</span><button type="button" class="no-findings-btn" id="noFindingsBtn">✓ Sin hallazgos</button></div>
+                    <div class="damage-grid finding-grid" id="damageGrid">
+                        <button type="button" class="damage-btn" data-finding="A"><span class="finding-code">A</span>Ingesta / alimento</button>
+                        <button type="button" class="damage-btn" data-finding="MF"><span class="finding-code">MF</span>Materia fecal</button>
+                        <button type="button" class="damage-btn" data-finding="L"><span class="finding-code">L</span>Leche</button>
+                        <button type="button" class="damage-btn" data-finding="Pelo"><span class="damage-icon">〰</span>Pelo</button>
+                        <button type="button" class="damage-btn" data-finding="Hematomas"><span class="damage-icon">🩸</span>Hematomas</button>
+                        <button type="button" class="damage-btn" data-finding="Adherencias"><span class="damage-icon">⛓</span>Adherencias</button>
+                        <button type="button" class="damage-btn" data-finding="Víscera roja"><span class="damage-icon">🔴</span>Víscera roja</button>
+                        <button type="button" class="damage-btn" data-finding="Víscera verde"><span class="damage-icon">🟢</span>Víscera verde</button>
+                        <button type="button" class="damage-btn" data-finding="Piel"><span class="damage-icon">◩</span>Piel</button>
+                        <button type="button" class="damage-btn" data-finding="Espinas"><span class="damage-icon">✦</span>Espinas</button>
+                        <button type="button" class="damage-btn" data-finding="Otro"><span class="damage-icon">✍</span>Otro</button>
+                    </div>
+
+
+                    <div class="field-grid">
+                        <div>
+                            <span class="label">Acciones correctivas</span>
+                            <div class="choice-row two" id="correctiveRow">
+                                <button type="button" class="choice-btn active success-choice" data-corrective="√"><b>√</b><span>Aplicada</span></button>
+                                <button type="button" class="choice-btn danger-choice" data-corrective="X"><b>X</b><span>Ausente</span></button>
+                            </div>
+                        </div>
+                        <div>
+                            <span class="label">Reinspección</span>
+                            <div class="choice-row two" id="reinspectionRow">
+                                <button type="button" class="choice-btn active success-choice" data-reinspection="SC"><b>SC</b><span>Sí cumple</span></button>
+                                <button type="button" class="choice-btn danger-choice" data-reinspection="NC"><b>NC</b><span>No cumple</span></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="action-grid">
+                        <button class="btn btn-ghost" id="cancelBtn">Cancelar</button>
+                        <button class="btn btn-soft" id="clearBtn">Limpiar</button>
+                        <button class="btn btn-success btn-full" id="savecua" style="font-size: 13.5px;"> Guardar cuadrante(s) actual(es)</button>
+                        <button class="btn btn-primary btn-full" id="saveBtn" style="font-size: 14.5px;"> Liberar lado / Guardar monitoreo</button>
+                    </div>
+                </div>
+            </aside>
+        </section>
+
+        <section class="step-panel" id="step3" hidden>
+            <section class="bottom-grid">
+                <div class="card table-card">
+                    <div class="panel-header">
+                        <div><h2 class="panel-title">Monitoreos PCC1B de esta canal <span id="tableChannel"></span></h2><p class="panel-subtitle">Un renglón por número de canal y lado monitoreado</p></div>
+                        <div class="table-actions no-print">
+                            <button class="btn btn-ghost btn-sm" id="exportBtn">Exportar CSV</button>
+                            <button class="btn btn-primary btn-sm" id="finishBtn">Finalizar inspección</button>
+                        </div>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>Vista</th><th>Hallazgos de contaminantes</th><th>Cuadrante(s)</th><th>Acciones correctivas</th><th>Reinspección</th><th>Verificación</th><th>Observaciones</th><th>Inspector</th><th>Fecha / hora</th><th class="no-print">Acciones</th></tr></thead>
+                            <tbody id="affectationsBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <aside class="card activity-card">
+                    <div class="panel-header">
+                        <div><h2 class="panel-title">Bitácora operativa</h2><p class="panel-subtitle">Registro de actividad local</p></div>
+                        <div class="table-actions no-print">
+                            <button class="btn btn-ghost btn-sm" id="clearLogBtn">Limpiar bitácora</button>
+                        </div>
+                    </div>
+                    <div class="activity-list" id="activityList"></div>
+                </aside>
+            </section>
+
+            <div class="step-actions no-print">
+                <button type="button" class="btn btn-ghost" id="step3Prev">← Capturar otro registro</button>
+                <button type="button" class="btn btn-soft" id="step3NewChannel">Cambiar de canal</button>
+            </div>
+        </section>
+    </main>
+</div>
+
+<nav class="mobile-nav no-print" aria-label="Pasos del monitoreo">
+    <button type="button" data-step="1" class="active"><span>☷</span>Canales</button>
+    <button type="button" data-step="2"><span>◫</span>Captura</button>
+    <button type="button" data-step="3"><span>✓</span>Verificar</button>
+</nav>
+
+<div class="modal-backdrop" id="retainedModal">
+    <div class="custom-modal">
+        <div class="modal-header"><div><h3 style="margin:0; font-weight: 700;">Canales no conformes</h3><p style="margin:4px 0 0;color:var(--muted)">Acción correctiva ausente o reinspección NC</p></div><button class="close-btn" data-close-modal>×</button></div>
+        <div class="modal-body"><div class="retained-grid" id="retainedGrid"></div></div>
+        <div class="modal-footer"><button class="btn btn-soft" data-close-modal>Cerrar</button></div>
+    </div>
+</div>
+<div class="modal-backdrop" id="revisionModal">
+    <div class="custom-modal" style="width: min(500px, 92vw);">
+        <div class="modal-header">
+            <div style="width: 100%;">
+                <div style="display: flex; justify-content: space-between; width: 100%;">
+                    <h3 style="margin:0; font-weight: 700;">Auditoría: Revisión Aleatoria</h3>
+                    <button class="close-btn" data-close-modal>×</button>
+                </div>
+                <p style="margin:8px 0 4px;color:var(--muted); font-size: 11px; font-weight: 600;">Busque y seleccione la canal a auditar:</p>
+                <!-- Buscador con filtrado nativo -->
+                <input type="text" class="input" id="revCanalInput" list="revCanalList" placeholder="Escriba canal, proveedor o arete..." style="width: 100%; font-weight: bold;" autocomplete="off">
+                <datalist id="revCanalList"></datalist>
+            </div>
+        </div>
+        <div class="modal-body">
+            <span class="label">Dictamen de la inspección</span>
+            <div class="choice-row two" style="margin-bottom: 15px;">
+                <label class="choice-btn active" style="cursor: pointer; flex-direction: row;" id="lblRevCorrecta">
+                    <input type="radio" name="revDictamen" value="1" checked style="display:none;">
+                    <b>✓</b><span>Inspección Correcta</span>
+                </label>
+                <label class="choice-btn danger-choice" style="cursor: pointer; flex-direction: row;" id="lblRevFalla">
+                    <input type="radio" name="revDictamen" value="0" style="display:none;">
+                    <b>X</b><span>Hallazgos Omitidos</span>
+                </label>
+            </div>
+
+            <div id="revDetallesDiv" style="display: none; border-top: 1px dashed var(--line); padding-top: 15px;">
+                <div class="field-grid" style="margin-bottom: 10px; grid-template-columns: 1fr 1.3fr;">
+                    <div>
+                        <span class="label">Hallazgos omitidos</span>
+                        <input type="text" class="input" id="revHallazgos" placeholder="Ej: MF, Pelo">
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <div style="flex: 0 0 85px;">
+                            <span class="label">Vista</span>
+                            <select class="select" id="revVista" style="padding: 10px 5px;">
+                                <option value="EXT">EXT</option>
+                                <option value="INT">INT</option>
+                                <option value="Ambas">Ambas</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1;">
+                            <span class="label">Cuadrantes</span>
+                            <input type="text" class="input" id="revCuadrantes" placeholder="Ej: 1, 4">
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <span class="label">Observaciones del auditor</span>
+                    <textarea class="input" id="revObservaciones" placeholder="Detalles de la falla..."></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" data-close-modal>Cancelar</button>
+            <button class="btn btn-warning" id="btnGuardarRevision" style="background: var(--warning); color: #000;">Guardar Auditoría</button>
+        </div>
+    </div>
+</div>
+<div class="toast-stack" id="toastStack"></div>
+
+<div id="printArea" style="display:none;"></div>
+
+@section Scripts {
+    <script>
+        (() => {
+            const STORAGE_KEY = 'qa-industrial-pcc1b-v4';
+            const USUARIO_LOGUEADO = '@(User.Identity?.Name ?? "")';
+            const quadrantNames = {1:'Cuadrante 1',2:'Cuadrante 2',3:'Cuadrante 3',4:'Cuadrante 4',5:'Cuadrante 5',6:'Cuadrante 6'};
+            const findingLabels = {
+                A:'Ingesta / alimento (A)', MF:'Materia fecal (MF)', L:'Leche (L)', Pelo:'Pelo',
+                Hematomas:'Hematomas', Adherencias:'Adherencias', 'Víscera roja':'Víscera roja',
+                'Víscera verde':'Víscera verde', Piel:'Piel', Espinas:'Espinas', Otro:'Otro'
+            };
+
+            // Inyeccion de datos desde el controlador
+            const canalesBackend = @Html.Raw(Json.Serialize(Model));
+
+            const seedData = {
+                channels: canalesBackend || [],
+                activities: [
+                    { type: 'info', text: 'Datos cargados desde el servidor.', time: nowLabel() }
+                ]
+            };
+
+            function cloneSeed(){ return typeof structuredClone === 'function' ? structuredClone(seedData) : JSON.parse(JSON.stringify(seedData)); }
+
+            function loadData(){
+                // Se prioriza la carga desde el backend
+                // Se omite localStorage en el inicio para usar la fuente real
+                return normalizeData(cloneSeed());
+            }
+
+            let data = loadData();
+                   let state = {
+                        selectedChannelId: data.channels.length > 0 ? data.channels[0].id : null,
+                        selectedQuadrants: [],
+                        findings: [],
+                        side: 'EXT',
+                        noFindings: false,
+                        correctiveAction: '√',
+                        reinspection: 'SC',
+                        editId: null,
+                        filter: 'todos',
+                        page: sessionStorage.getItem('sigo_page') ? parseInt(sessionStorage.getItem('sigo_page')) : 1,
+                        pageSize: 50,
+                        queueQuery: ''
+                    };
+
+            const $ = (sel, root=document) => root.querySelector(sel);
+            const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
+
+            function stepLocked(i){
+                if(i===3) return !currentChannel() || !currentChannel().records.length;
+                return false;
+            }
+
+            function stepDone(i){
+                const c = currentChannel();
+                if(!c) return false;
+                return i===1 ? true : i===2 ? !!c.records.length : c.status === 'Conforme';
+            }
+
+            function setStep(n){
+                if(stepLocked(n)){
+                    toast('Complete los pasos anteriores para habilitar este paso.', 'warning');
+                    return;
+                }
+                [1,2,3].forEach(i=>{
+                    const panel = $('#step'+i); if(!panel) return;
+                    panel.classList.toggle('active', i===n);
+                    panel.hidden = i!==n;
+                    const btn = $(`.step-btn[data-step="${i}"]`); if(!btn) return;
+                    btn.classList.toggle('active', i===n);
+                    btn.classList.toggle('locked', stepLocked(i));
+                    btn.classList.toggle('done', i!==n && stepDone(i));
+                });
+                $$('.mobile-nav [data-step]').forEach(b=>b.classList.toggle('active', +b.dataset.step===n));
+                window.scrollTo({top:0,behavior:'smooth'});
+            }
+
+            function renderSideProgress(){
+                const c = currentChannel();
+                if(!c) return;
+                const sides = new Set(c.records.map(r=>r.side));
+                const chip = (s,label)=>`<div class="side-chip ${sides.has(s)?'done':''}"><span>Vista ${s} · ${label}</span><span class="side-mark">${sides.has(s)?'✓':s}</span></div>`;
+                $('#sideProgress').innerHTML = chip('EXT','Externa') + chip('INT','Interna');
+            }
+
+                     function normalizeData(raw) {
+                      raw.channels.forEach(c => {
+                         // 1. Blindaje de mayúsculas/minúsculas para C#
+                         c.id = c.id || c.Id;
+                         c.arete = c.arete || c.Arete;
+                         c.provider = c.provider || c.Provider;
+                         c.status = c.status || c.Status;
+
+                         // 2. Extraer los registros correctamente
+                         let records = c.records || c.Records || [];
+                         if(!Array.isArray(records)) records = [];
+
+                         c.records = records.map(r => {
+                             let rSide = r.side || r.Side;
+                             return {
+                                 id: r.id || r.Id || uid(),
+                                 side: rSide === 'INT' || rSide === 'D' ? 'INT' : 'EXT',
+                                 findings: Array.isArray(r.findings || r.Findings) ? (r.findings || r.Findings) : [],
+                                 quadrants: Array.isArray(r.quadrants || r.Quadrants) ? (r.quadrants || r.Quadrants).map(Number).filter(q=>q>=1&&q<=6) : [],
+                                         verdes: Array.isArray(r.cuadrantesVerdes || r.CuadrantesVerdes) ? (r.cuadrantesVerdes || r.CuadrantesVerdes).map(Number) : [],
+                                             amarillos: Array.isArray(r.cuadrantesAmarillos || r.CuadrantesAmarillos) ? (r.cuadrantesAmarillos || r.CuadrantesAmarillos).map(Number) : [],
+                                             rojos: Array.isArray(r.cuadrantesRojos || r.CuadrantesRojos) ? (r.cuadrantesRojos || r.CuadrantesRojos).map(Number) : [],
+                                 correctiveAction: r.correctiveAction || r.CorrectiveAction || ((r.findings || r.Findings)?.length ? '√' : 'N/A'),
+                                 reinspection: r.reinspection || r.Reinspection || 'SC',
+                                 verificationChannel: r.verificationChannel || r.VerificationChannel || c.id,
+                                 verificationComplies: (r.verificationComplies !== undefined ? r.verificationComplies : r.VerificationComplies) !== false,
+                                 observation: r.observation || r.Observation || '',
+                                 inspector: r.inspector || r.Inspector || USUARIO_LOGUEADO,
+                                 datetime: r.datetime || r.Datetime || nowLabel()
+                             };
+                         });
+
+                         // 3. Respetar el Estatus de la Base de Datos
+                         if (c.status === 'Revisión') {
+                             c.isReview = true;
+                             c.previousStatus = 'Conforme'; // Activa la etiqueta doble
+                         } else if (c.status === 'Conforme' || c.status === 'No conforme') {
+                             // Si la BD dice que ya está terminada, la respetamos sin sobreescribir.
+                         } else {
+                             // Si la BD dice Pendiente o no tiene, el sistema calcula si ya tiene las 2 vistas.
+                             c.status = deriveStatus(c);
+                         }
+                      });
+
+                      // Mantener la bitácora segura
+                      raw.activities = Array.isArray(raw.activities) ? raw.activities : [];
+                      return raw;
+                  }
+
+                    function uid(){ return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`; }
+
+            function persist(){
+                // Mantenemos el guardado temporal local si es necesario
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+            }
+
+            function currentChannel(){ return data.channels.find(c => c.id === state.selectedChannelId) || data.channels[0]; }
+
+            function nowLabel(){ return new Intl.DateTimeFormat('es-MX',{dateStyle:'short',timeStyle:'short'}).format(new Date()); }
+
+                           function deriveStatus(c){
+                      const records = c.records;
+                      if(!records?.length) return c.isReview ? 'Revisión' : 'Pendiente';
+                      if(records.some(r => r.correctiveAction === 'X' || r.reinspection === 'NC' || !r.verificationComplies)) return 'No conforme';
+                      const sides = new Set(records.map(r=>r.side));
+                      return sides.has('EXT') && sides.has('INT') ? 'Conforme' : (c.isReview ? 'Revisión' : 'En inspección');
+                  }
+
+            function toast(message, type='success'){
+                const el = document.createElement('div');
+                el.className = `toast ${type}`;
+                el.innerHTML = `<div style="font-weight:bold">${type==='success'?'✓':type==='danger'?'X':'i'}</div><div>${message}</div>`;
+                $('#toastStack').appendChild(el);
+                setTimeout(() => el.remove(), 3400);
+            }
+
+            function log(text, type='info'){
+                data.activities.unshift({type, text, time:nowLabel()});
+                data.activities = data.activities.slice(0,30);
+                persist(); renderActivity();
+            }
+
+            function statusClass(status){
+                return status === 'En inspección' ? 'inspeccion' : status === 'No conforme' ? 'retenida' : status === 'Conforme' ? 'liberada' : status === 'Revisión' ? 'revision' : 'pendiente';
+            }
+
+            function renderAll(){ renderMetrics(); renderQueue(); renderCurrent(); renderRecords(); renderQuadrants(); renderSummary(); renderActivity(); }
+
+            function renderMetrics(){
+                const monitored = data.channels.filter(c => new Set(c.records.map(r=>r.side)).size === 2).length;
+                const observed = data.channels.filter(c => c.records.some(r=>r.findings.length)).length;
+                const nonconforming = data.channels.filter(c => c.status === 'No conforme').length;
+                const conforming = data.channels.filter(c => c.status === 'Conforme').length;
+                $('#metricProcessed').textContent = monitored;
+                $('#metricObserved').textContent = observed;
+                $('#metricRetained').textContent = nonconforming;
+                $('#metricReleased').textContent = conforming;
+            }
+
+            function filteredChannels(){
+                const q = state.queueQuery.toLowerCase().trim();
+                return data.channels.filter(c => {
+                    const statusOk = state.filter === 'todos' || c.status === state.filter;
+                    const queryOk = !q || c.id.toLowerCase().includes(q) || c.provider.toLowerCase().includes(q) || (c.lot && c.lot.toLowerCase().includes(q));
+                    return statusOk && queryOk;
+                });
+            }
+
+           function renderQueue() {
+                        const filtered = filteredChannels();
+                        const pages = Math.max(1, Math.ceil(filtered.length / state.pageSize));
+
+                        if (state.page > pages) state.page = pages;
+
+                        const start = (state.page - 1) * state.pageSize;
+                        const pageItems = filtered.slice(start, start + state.pageSize);
+
+                              $('#queueList').innerHTML = pageItems.length ? pageItems.map(c => {
+                                // Doble etiqueta si esta en revision
+                                let badgesHtml = `<span class="status ${statusClass(c.status)}"><span class="status-dot"></span>${c.status}</span>`;
+                                if (c.isReview && c.previousStatus) {
+                                    badgesHtml = `
+                                         <span class="status ${statusClass(c.previousStatus)}"><span class="status-dot"></span>${c.previousStatus}</span>
+                                         <span class="status revision" style="margin-top:4px;"><span class="status-dot"></span>Revisión</span>`;
+                                }
+
+                                // Estructura a 3 columnas: [Datos] - [Botones] - [Status]
+                                return `
+                                 <div class="queue-item ${c.id === state.selectedChannelId ? 'active' : ''}" onclick="window.selectChannel('${c.id}')">
+                                     <div style="min-width: 0;">
+                                         <div class="queue-id" style="font-size: 15px;">${c.id}</div>
+                                         <div style="font-size: 12px; color: var(--muted); margin-top: 3px;">Arete: ${c.arete || '—'}</div>
+                                         <div class="queue-provider" style="font-size: 12px; max-width: 100%; margin-top: 2px;">${c.provider} · ${new Set(c.records.map(r=>r.side)).size}/2 lados</div>
+                                     </div>
+
+                                     <div class="queue-actions">
+                                         <button class="btn-queue btn-queue-green" onclick="event.stopPropagation(); window.sinHallazgosCanal('${c.id}')" ${(c.status === 'Conforme' || c.status === 'No conforme' || c.isReview) ? 'disabled' : ''}>Sin Hallazgos</button>
+                                         <button class="btn-queue btn-queue-blue" onclick="event.stopPropagation(); window.inspeccionCanal('${c.id}')" ${(c.status === 'Conforme' || c.isReview) ? 'disabled' : ''}>Inspección</button>
+                                     </div>
+
+                                     <div style="display: flex; gap: 0px; align-items: flex-end; flex-direction: column; justify-content: center;">
+                                         ${badgesHtml}
+                                     </div>
+                                 </div>`;
+                            }).join('') : `<div class="empty">No hay canales con el filtro actual.</div>`;
+
+                        $('#queueCount').textContent = filtered.length ? `Mostrando ${start+1} a ${Math.min(start+state.pageSize,filtered.length)} de ${filtered.length}` : '0 registros';
+
+                        // LOGICA DE PAGINACION DINAMICA
+                        let pagHtml = '';
+                        if (pages > 1) {
+                            if (state.page > 1) {
+                                pagHtml += `<button class="page-btn" data-page="${state.page - 1}">«</button>`;
+                            }
+
+                            let startPage = Math.max(1, state.page - 2);
+                            let endPage = Math.min(pages, state.page + 2);
+
+                            if (startPage > 1) {
+                                pagHtml += `<button class="page-btn" data-page="1">1</button>`;
+                                if (startPage > 2) pagHtml += `<span style="align-self:end;color:var(--muted);padding:0 2px;">...</span>`;
+                            }
+
+                            for (let p = startPage; p <= endPage; p++) {
+                                pagHtml += `<button class="page-btn ${p === state.page ? 'active' : ''}" data-page="${p}">${p}</button>`;
+                            }
+
+                            if (endPage < pages) {
+                                if (endPage < pages - 1) pagHtml += `<span style="align-self:end;color:var(--muted);padding:0 2px;">...</span>`;
+                                pagHtml += `<button class="page-btn" data-page="${pages}">${pages}</button>`;
+                            }
+
+                            if (state.page < pages) {
+                                pagHtml += `<button class="page-btn" data-page="${state.page + 1}">»</button>`;
+                            }
+                        }
+
+                        $('#pagination').innerHTML = pagHtml;
+
+                        $$('.page-btn').forEach(el => el.addEventListener('click', () => {
+                            state.page = +el.dataset.page;
+                            renderQueue();
+                        }));
+                    }
+
+            function selectChannel(id){
+                state.selectedChannelId = id;
+                resetForm(false);
+                persist(); renderAll();
+            }
+
+             async function sinHallazgosCanal(id) {
+                        const c = data.channels.find(ch => ch.id === id);
+                        if (!c) return;
+
+                        // --- BLINDAJE DE SEGURIDAD ---
+                        if (c.status === 'Conforme' && !c.isReview)
+                            return toast('Esta canal ya está conforme.', 'warning');
+
+                        if (c.status === 'No conforme')
+                            return toast('Canal No Conforme. Debe entrar a la inspección para aplicar acciones correctivas.', 'danger');
+
+                        if (c.records.some(r => r.findings.length > 0))
+                            return toast('La canal ya tiene hallazgos registrados. No puede usar el atajo.', 'danger');
+                        // -----------------------------
+
+                        const now = nowLabel();
+                        const recExt = { id: uid(), side: 'EXT', findings: [], quadrants: [1,2,3,4,5,6], verdes: [1,2,3,4,5,6], amarillos: [], rojos: [], correctiveAction: 'N/A', reinspection: 'SC', verificationChannel: c.id, verificationComplies: true, observation: 'Canal liberada sin hallazgos (Rápido).', inspector: USUARIO_LOGUEADO, datetime: now };
+                        const recInt = { id: uid(), side: 'INT', findings: [], quadrants: [1,2,3,4,5,6], verdes: [1,2,3,4,5,6], amarillos: [], rojos: [], correctiveAction: 'N/A', reinspection: 'SC', verificationChannel: c.id, verificationComplies: true, observation: 'Canal liberada sin hallazgos (Rápido).', inspector: USUARIO_LOGUEADO, datetime: now };
+
+                        try {
+                            // 1. Guardamos EXT en la BD
+                            const pVerdes = encodeURIComponent('1,2,3,4,5,6');
+                            await fetch(`/Calidad/GuardarMonitoreo?canalId=${encodeURIComponent(c.id)}&arete=${encodeURIComponent(c.arete || '')}&estatusGeneral=Conforme&verdes=${pVerdes}&amarillos=&rojos=`, {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(recExt)
+                            });
+
+                            // 2. Guardamos INT en la BD
+                            await fetch(`/Calidad/GuardarMonitoreo?canalId=${encodeURIComponent(c.id)}&arete=${encodeURIComponent(c.arete || '')}&estatusGeneral=Conforme&verdes=${pVerdes}&amarillos=&rojos=`, {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(recInt)
+                            });
+
+                            c.records = [recExt, recInt];
+                            c.status = 'Conforme';
+                            c.isReview = false;
+                            c.previousStatus = null;
+
+                            log(`Canal ${c.id} liberada sin hallazgos (Rápido).`, 'success');
+                            renderAll();
+                            toast(`Canal ${c.id} marcada como Conforme en BD.`, 'success');
+                        } catch (e) {
+                            console.error(e);
+                            toast('Error de red al guardar "Sin Hallazgos".', 'danger');
+                        }
+                    }
+
+            function inspeccionCanal(id){
+                const c = data.channels.find(ch => ch.id === id);
+                if(!c) return;
+                if(c.status === 'Conforme') return toast('Esta canal ya está conforme.','warning');
+                state.selectedChannelId = id;
+                resetForm(false);
+                persist(); renderAll(); setStep(2);
+                toast(`Canal ${c.id} cargada para monitoreo.`, 'success');
+            }
+
+                 
+
+            window.sinHallazgosCanal = sinHallazgosCanal;
+            window.inspeccionCanal = inspeccionCanal;
+            window.selectChannel = selectChannel;
+
+                            // Boton global de auditoria
+                        $('#globalAuditBtn').addEventListener('click', () => {
+                            const datalist = $('#revCanalList');
+                            const input = $('#revCanalInput');
+
+                            // Llenar datalist para el buscador
+                            datalist.innerHTML = data.channels.map(c => `<option value="${c.id}">${c.provider} (Arete: ${c.arete || 'N/A'})</option>`).join('');
+
+                            input.value = ''; // Limpiar busqueda anterior
+
+                            // Limpiar modal
+                            $$('input[name="revDictamen"]')[0].checked = true;
+                            $('#lblRevCorrecta').classList.add('active', 'success-choice');
+                            $('#lblRevFalla').classList.remove('active');
+                            $('#revDetallesDiv').style.display = 'none';
+                            $('#revHallazgos').value = '';
+                            $('#revCuadrantes').value = '';
+                            $('#revObservaciones').value = '';
+
+                            openModal('revisionModal');
+                        });
+
+
+            function renderCurrent(){
+                const c = currentChannel();
+                if(!c) return;
+                const uniqueQuads = [...new Set(state.selectedQuadrants.map(x=>parseInt(x.split('-')[0])))].sort();
+
+                $('#selectedChannelCode').textContent = `${c.id} · ${c.provider}`;
+                $('#selectedQuadrantNumber').textContent = uniqueQuads.length ? uniqueQuads.join(',') : '—';
+                $('#selectedQuadrantName').textContent = uniqueQuads.length ? `Cuadrante(s): ${uniqueQuads.join(', ')}` : 'Sin cuadrante seleccionado';
+                $('#tableChannel').textContent = `(${c.id})`;
+            let container = $('#statusContainer');
+            if (!container) {
+                // Envolvemos el span original en un contenedor para manipularlo fácil
+                const spanStatus = $('#formPanel .panel-header .status');
+                if (spanStatus) {
+                    spanStatus.outerHTML = `<div id="statusContainer" style="display:inline-flex; gap:6px;"></div>`;
+                    container = $('#statusContainer');
+                }
+            }
+
+            if (container) {
+                if (c.isReview && c.previousStatus) {
+                    container.innerHTML = `
+                        <span class="status ${statusClass(c.previousStatus)}"><span class="status-dot"></span>${c.previousStatus}</span>
+                        <span class="status revision"><span class="status-dot"></span>Revisión</span>`;
+                } else {
+                    container.innerHTML = `<span class="status ${statusClass(c.status)}"><span class="status-dot"></span>${c.status}</span>`;
+                }
+            }
+
+                if($('#diagramTitle')) {
+                    $('#diagramTitle').innerHTML = `Inspeccionando Canal: <b style="color:var(--primary-dark)">${c.id}</b> · ${c.provider}`;
+                }
+
+                if ($('#shiftName')) $('#shiftName').textContent = c.shift;
+                $('#verificationChannel').value = $('#verificationChannel').value || c.id;
+                renderSideProgress();
+            }
+
+                   function renderRecords() {
+                        const c = currentChannel();
+                        if (!c) return;
+                        const rows = c.records;
+                        $('#affectationsBody').innerHTML = rows.length ? rows.map(r => {
+                            const isBad = r.correctiveAction === 'X' || r.reinspection === 'NC' || !r.verificationComplies;
+
+                            // Dibujar las pastillas de los cuadrantes respetando sus colores de la BD
+                            let quadsHtml = '';
+                            if (r.verdes && r.verdes.length) {
+                                quadsHtml += r.verdes.map(q => `<span class="quadrant-pill" style="background:var(--success-soft);color:var(--success);border-color:var(--success);">${q}</span>`).join('');
+                            }
+                            if (r.amarillos && r.amarillos.length) {
+                                quadsHtml += r.amarillos.map(q => `<span class="quadrant-pill" style="background:var(--warning-soft);color:#856404;border-color:var(--warning);">${q}</span>`).join('');
+                            }
+                            if (r.rojos && r.rojos.length) {
+                                quadsHtml += r.rojos.map(q => `<span class="quadrant-pill" style="background:var(--danger-soft);color:var(--danger);border-color:var(--danger);">${q}</span>`).join('');
+                            }
+
+                            // Por si hay registros viejos sin color, fallback normal
+                            if (!quadsHtml && r.quadrants && r.quadrants.length) {
+                                quadsHtml = r.quadrants.map(q => `<span class="quadrant-pill">${q}</span>`).join('');
+                            }
+
+                            return `
+                          <tr class="${isBad ? 'row-needs-correction' : ''}">
+                          <td data-label="Vista"><b style="font-size:15px; color: var(--primary-dark)">${r.side}</b> · ${r.side === 'EXT' ? 'Externa' : 'Interna'}</td>
+                            <td data-label="Hallazgos"><div class="tag-list">${r.findings.length ? r.findings.map(f => `<span class="finding-tag">${escapeHtml(f)}</span>`).join('') : '<span class="finding-tag clean">Sin hallazgos</span>'}</div></td>
+                            <td data-label="Cuadrante(s)"><div class="quadrant-list">${quadsHtml || '—'}</div></td>
+                            <td data-label="Acciones correctivas"><span class="result-chip ${r.correctiveAction === 'X' ? 'bad' : 'ok'}">${r.correctiveAction}</span></td>
+                            <td data-label="Reinspección"><span class="result-chip ${r.reinspection === 'NC' ? 'bad' : 'ok'}">${r.reinspection}</span></td>
+                            <td data-label="Verificación"><b style="color:var(--muted)">C:</b> ${escapeHtml(r.verificationChannel)} ${r.verificationComplies ? '<span class="result-chip ok">√</span>' : '<span class="result-chip bad">X</span>'}</td>
+                            <td data-label="Observaciones" style="max-width:260px">${escapeHtml(r.observation || '—')}</td>
+                            <td data-label="Inspector">${escapeHtml(r.inspector)}</td>
+                            <td data-label="Fecha / hora">${r.datetime}</td>
+                            <td data-label="Acciones" class="no-print">
+                                <div class="row-actions">
+                                    ${isBad
+                                        ? `<button class="btn-correct edit-row" data-id="${r.id}">Corregir</button>`
+                                        : `<button class="icon-btn edit-row" data-id="${r.id}" title="Editar">✎</button>`}
+                                    <button class="icon-btn delete-row" data-id="${r.id}" title="Eliminar">🗑</button>
+                                </div>
+                            </td>
+                          </tr>`
+                        }).join('') : `<tr><td colspan="10"><div class="empty">Falta registrar el monitoreo de los lados I y D.</div></td></tr>`;
+
+                        $$('.edit-row').forEach(b => b.addEventListener('click', () => loadRecordForEdit(b.dataset.id)));
+                        $$('.delete-row').forEach(b => b.addEventListener('click', () => deleteRecord(b.dataset.id)));
+                    }
+
+                            function renderQuadrants() {
+                        const c = currentChannel();
+                        if(!c) return;
+
+                        $$('.quadrant-zone').forEach(zone => {
+                            const q = +zone.dataset.quadrant;
+                            const view = zone.dataset.view;
+                            const key = `${q}-${view}`;
+
+                            if (state.side !== view) {
+                                zone.classList.add('inactive-side');
+                                zone.style.pointerEvents = 'none';
+                            } else {
+                                zone.classList.remove('inactive-side');
+                                zone.style.pointerEvents = 'auto';
+                            }
+
+                            zone.classList.remove('selected','has-leve','has-moderado','has-severo');
+                            if(state.selectedQuadrants.includes(key)) zone.classList.add('selected');
+
+                            // 1. Buscamos si ya hay un registro de la BD descargado con colores asignados
+                            const recordConsolidado = c.records.find(r => r.side === view && r.verdes !== undefined);
+
+                            if (recordConsolidado && (recordConsolidado.verdes.length || recordConsolidado.amarillos.length || recordConsolidado.rojos.length)) {
+                                // MODO LECTURA DE BASE DE DATOS: Respeta estrictamente los colores guardados
+                                if (recordConsolidado.rojos.includes(q)) zone.classList.add('has-severo');
+                                else if (recordConsolidado.amarillos.includes(q)) zone.classList.add('has-moderado');
+                                else if (recordConsolidado.verdes.includes(q)) zone.classList.add('has-leve');
+                            } else {
+                                // MODO CAPTURA EN VIVO: Lee los fragmentos que estás capturando justo ahora
+                                const localFragments = c.records.filter(r => r.side === view && r.quadrants.includes(q));
+                                if (localFragments.length) {
+                                    const hasErrors = localFragments.some(r => r.correctiveAction === 'X' || r.reinspection === 'NC' || !r.verificationComplies);
+                                    const hasFindings = localFragments.some(r => r.findings.length > 0);
+
+                                    if (hasErrors) zone.classList.add('has-severo');
+                                    else if (hasFindings) zone.classList.add('has-moderado');
+                                    else zone.classList.add('has-leve');
+                                }
+                            }
+                        });
+                    }
+
+            function renderSummary(){
+                const c = currentChannel();
+                if(!c) return;
+                $('#quadrantSummary').innerHTML = `
+                  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px">
+                    ${[1,2,3,4,5,6].map(q=>{
+                      const list = c.records.filter(r=>r.quadrants.includes(q));
+                      return `<div class="retained-card"><h4>Cuadrante ${q}</h4>${list.length ? list.map(r=>`<div style="padding:8px 0;border-top:1px dashed var(--line)"><b>Lado ${r.side}</b> · ${r.findings.map(f=>escapeHtml(f)).join(', ')}<div class="retained-meta">Acción: ${r.correctiveAction} · Reinspección: ${r.reinspection}<br>${escapeHtml(r.observation||'')}</div></div>`).join('') : '<div class="retained-meta">Sin hallazgos registrados en este cuadrante.</div>'}</div>`;
+                    }).join('')}
+                  </div>`;
+            }
+
+            function renderActivity(){
+                $('#activityList').innerHTML = data.activities.length ? data.activities.map(a=>`
+                  <div class="activity-item"><div class="activity-icon">${a.type==='success'?'✓':a.type==='danger'?'X':a.type==='warning'?'!':'i'}</div><div><div class="activity-text">${escapeHtml(a.text)}</div><div class="activity-time">${a.time}</div></div></div>`).join('') : `<div class="empty">Sin movimientos registrados.</div>`;
+            }
+
+           function setNoFindings(value){
+                state.noFindings = value;
+                $('#noFindingsBtn').classList.toggle('active', value);
+                if(value){
+                    state.findings = [];
+                   
+                    state.correctiveAction = 'N/A';
+                    state.reinspection = 'SC';
+                    $$('.damage-btn').forEach(b=>b.classList.remove('active'));
+                } else if(state.correctiveAction === 'N/A') {
+                    state.correctiveAction = '√';
+                }
+                syncFormButtons(); renderCurrent(); renderQuadrants();
+            }
+
+        function syncFormButtons() {
+                        $$('#sideRow .choice-btn').forEach(b => b.classList.toggle('active', b.dataset.side === state.side));
+                        $$('.damage-btn').forEach(b => b.classList.toggle('active', state.findings.includes(b.dataset.finding)));
+                        $$('#correctiveRow .choice-btn').forEach(b => {
+                            b.disabled = state.noFindings;
+                            b.classList.toggle('active', b.dataset.corrective === state.correctiveAction);
+                        });
+                        $$('#reinspectionRow .choice-btn').forEach(b => b.classList.toggle('active', b.dataset.reinspection === state.reinspection));
+                        $('#noFindingsBtn').classList.toggle('active', state.noFindings);
+
+                        const saveBtn = $('#saveBtn');
+                        const savecuaBtn = $('#savecua');
+                        const c = currentChannel();
+
+                        if (state.editId) {
+                            if (savecuaBtn) savecuaBtn.style.display = 'none';
+                            saveBtn.textContent = 'Actualizar corrección';
+                            saveBtn.disabled = false;
+                            saveBtn.style.opacity = '1';
+                            saveBtn.style.cursor = 'pointer';
+                            saveBtn.style.gridColumn = '1 / -1';
+                        } else {
+                            if (savecuaBtn) savecuaBtn.style.display = '';
+                            saveBtn.style.gridColumn = '';
+                            saveBtn.textContent = 'Liberar lado ' + state.side;
+
+                            // Contamos los cuadrantes que ya están en la memoria local + los seleccionados en pantalla
+                            const guardadosEnLado = c ? c.records.filter(r => r.side === state.side).flatMap(r => r.quadrants) : [];
+                            const enPantalla = state.selectedQuadrants.map(x => parseInt(x.split('-')[0]));
+                            const reviewedQuadrants = new Set([...guardadosEnLado, ...enPantalla]);
+
+                            const allReviewed = reviewedQuadrants.size >= 6;
+
+                            saveBtn.disabled = !allReviewed;
+                            saveBtn.style.opacity = allReviewed ? '1' : '0.4';
+                            saveBtn.style.cursor = allReviewed ? 'pointer' : 'not-allowed';
+
+                            if (!allReviewed) {
+                                saveBtn.title = `Faltan revisar cuadrantes. Llevas ${reviewedQuadrants.size} de 6 seleccionados.`;
+                            } else {
+                                saveBtn.title = 'Liberar lado y guardar en servidor';
+                            }
+                        }
+
+                        $('#formPanel').classList.toggle('form-editing', !!state.editId);
+                    }
+        // BOTÓN VERDE: Solo guarda en memoria para pintar la pantalla (Cero filas basura)
+                    function saveQuadrant() {
+                        const c = currentChannel();
+                        if (!c) return;
+
+                        const observation = $('#observation').value.trim();
+                        const verificationChannel = $('#verificationChannel').value.trim();
+                        const verificationComplies = $('#verificationComplies').checked;
+
+                        if (!state.noFindings && !state.findings.length) return toast('Seleccione hallazgos o marque "Sin hallazgos".', 'warning');
+                        if (!state.selectedQuadrants.length) return toast('Seleccione cuadrantes.', 'warning');
+
+                        const record = {
+                            id: uid(),
+                            side: state.side,
+                            findings: state.noFindings ? [] : [...state.findings],
+                            quadrants: [...new Set(state.selectedQuadrants.map(x => parseInt(x.split('-')[0])))].sort((a,b) => a-b),
+                            correctiveAction: state.noFindings ? 'N/A' : state.correctiveAction,
+                            reinspection: state.reinspection,
+                            verificationChannel: verificationChannel || c.id,
+                            verificationComplies,
+                            observation: observation || (state.noFindings ? 'OK' : ''),
+                            inspector: USUARIO_LOGUEADO,
+                            datetime: nowLabel()
+                        };
+
+                        c.records.push(record);
+
+                        toast('Cuadrante(s) marcado(s) localmente.', 'info');
+
+                        const savedSide = state.side;
+                        resetForm(false);
+                        state.side = savedSide;
+                        syncFormButtons();
+                        renderAll();
+                    }
+
+                        async function saveRecord() {
+                        const c = currentChannel();
+                        if (!c) return toast('Seleccione una canal válida primero.', 'warning');
+
+                        const verificationChannel = $('#verificationChannel').value.trim();
+                        if (!verificationChannel) return toast('Capture C: de verificación.', 'warning');
+
+                        // Si NO estamos corrigiendo y hay selección en pantalla, llamamos a guardar el fragmento
+                        if (!state.editId && state.selectedQuadrants.length > 0) {
+                            saveQuadrant();
+                        }
+
+                        const registrosDelLado = c.records.filter(r => r.side === state.side);
+                        const reviewedQuadrants = new Set(registrosDelLado.flatMap(r => r.quadrants));
+
+                        if (reviewedQuadrants.size < 6) {
+                            return toast(`Faltan cuadrantes. Llevas ${reviewedQuadrants.size} de 6.`, 'warning');
+                        }
+
+                        let verdes = [];
+                        let amarillos = [];
+                        let rojos = [];
+                        let allFindings = [];
+                        let hasError = false;
+                        let ultimasObservaciones = '';
+
+                        if (state.editId) {
+                            // MODO CORRECCIÓN
+                            const oldR = registrosDelLado[0];
+                            allFindings = oldR.findings;
+                            hasError = state.correctiveAction === 'X' || state.reinspection === 'NC' || !$('#verificationComplies').checked;
+
+                            verdes = oldR.verdes || [];
+                            if (!hasError) {
+                                // Si se corrigió con éxito: los rojos pasan a amarillos
+                                amarillos = [...new Set([...(oldR.amarillos || []), ...(oldR.rojos || [])])];
+                                rojos = [];
+                            } else {
+                                // Si sigue mal, se quedan igual
+                                amarillos = oldR.amarillos || [];
+                                rojos = oldR.rojos || [];
+                            }
+                            ultimasObservaciones = $('#observation').value.trim();
+                        } else {
+                            // MODO NORMAL
+                            registrosDelLado.forEach(r => {
+                                if (r.findings.length === 0) {
+                                    verdes.push(...r.quadrants);
+                                } else if (r.correctiveAction === 'X' || r.reinspection === 'NC' || !r.verificationComplies) {
+                                    rojos.push(...r.quadrants);
+                                } else {
+                                    amarillos.push(...r.quadrants);
+                                }
+                            });
+                            allFindings = [...new Set(registrosDelLado.flatMap(r => r.findings))];
+                            hasError = rojos.length > 0;
+                            ultimasObservaciones = registrosDelLado.map(r => r.observation).filter(o=>o&&o!=='OK').join(' | ') || $('#observation').value.trim();
+                        }
+
+                        const recordUnicoBD = {
+                            id: uid(),
+                            side: state.side,
+                            findings: allFindings,
+                            quadrants: [1, 2, 3, 4, 5, 6],
+                            verdes: [...new Set(verdes)].sort((a,b)=>a-b),
+                            amarillos: [...new Set(amarillos)].sort((a,b)=>a-b),
+                            rojos: [...new Set(rojos)].sort((a,b)=>a-b),
+                            correctiveAction: allFindings.length ? (hasError ? 'X' : '√') : 'N/A',
+                            reinspection: hasError ? 'NC' : 'SC',
+                            verificationChannel: verificationChannel,
+                            verificationComplies: !hasError,
+                            observation: ultimasObservaciones || (allFindings.length ? 'Lado con hallazgos.' : 'Lado sin hallazgos.'),
+                            inspector: USUARIO_LOGUEADO,
+                            datetime: nowLabel()
+                        };
+
+                        let futureStatus = deriveStatus({ records: [...c.records.filter(r => r.side !== state.side), recordUnicoBD], isReview: c.isReview });
+
+                        const pVerdes = encodeURIComponent(recordUnicoBD.verdes.join(','));
+                        const pAmarillos = encodeURIComponent(recordUnicoBD.amarillos.join(','));
+                        const pRojos = encodeURIComponent(recordUnicoBD.rojos.join(','));
+
+                        const url = `/Calidad/GuardarMonitoreo?canalId=${encodeURIComponent(c.id)}&arete=${encodeURIComponent(c.arete || '')}&estatusGeneral=${encodeURIComponent(futureStatus)}&verdes=${pVerdes}&amarillos=${pAmarillos}&rojos=${pRojos}`;
+
+                        try {
+                            const response = await fetch(url, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(recordUnicoBD)
+                            });
+
+                            const result = await response.json();
+
+                            if (result.success) {
+                                c.records = c.records.filter(r => r.side !== state.side);
+                                c.records.push(recordUnicoBD);
+                                c.status = futureStatus;
+
+                                if (state.editId) {
+                                    // Estábamos corrigiendo, así que lo enviamos al Paso 3 directo
+                                    state.editId = null;
+                                    resetForm(false);
+                                    renderAll();
+                                    setStep(3);
+                                    window.scrollTo({top: 100, behavior: 'smooth'});
+                                    toast(`Corrección aplicada.`, 'success');
+                                } else {
+                                    if (state.side === 'EXT') {
+                                        resetForm(false);
+                                        state.side = 'INT';
+                                        syncFormButtons();
+                                        renderAll();
+                                        toast('Lado EXT liberado. Proceda con vista INT.', 'success');
+                                        window.scrollTo({top: 0, behavior: 'smooth'});
+                                    } else {
+                                        resetForm(false);
+                                        renderAll();
+                                        setStep(3);
+                                        window.scrollTo({top: 100, behavior: 'smooth'});
+                                        toast(`Canal inspeccionada. Estatus: ${c.status}`, 'success');
+                                    }
+                                }
+                            } else {
+                                toast('Error de Servidor: ' + result.message, 'danger');
+                            }
+                        } catch (error) {
+                            toast('Error de red al conectar con SIGO.', 'danger');
+                        }
+                    }
+
+                    function resetForm(showToast=true){
+                state.selectedQuadrants=[]; state.findings=[]; state.side='EXT'; state.noFindings=false;
+                state.correctiveAction='√'; state.reinspection='SC'; state.editId=null;
+                $('#observation').value='';
+                if(currentChannel()) $('#verificationChannel').value=currentChannel().id;
+                $('#verificationComplies').checked=true;
+                syncFormButtons(); renderCurrent(); renderQuadrants();
+                if(showToast) toast('Formulario restablecido.','success');
+            }
+
+                  function loadRecordForEdit(id) {
+                        const r = currentChannel().records.find(x => x.id === id);
+                        if (!r) return;
+
+                        state.editId = r.id;
+                        state.side = r.side;
+                        state.findings = [...r.findings];
+                        state.noFindings = !r.findings.length;
+
+                        // LÓGICA DE AUTOCORRECCIÓN
+                        const wasBad = r.correctiveAction === 'X' || r.reinspection === 'NC' || !r.verificationComplies;
+
+                        // Solo seleccionamos en pantalla los cuadrantes afectados si fue malo
+                        if (wasBad) {
+                            const problemQuads = [...(r.amarillos || []), ...(r.rojos || [])];
+                            if (problemQuads.length) {
+                                state.selectedQuadrants = problemQuads.map(q => `${q}-${r.side}`);
+                            } else {
+                                state.selectedQuadrants = r.quadrants.map(q => `${q}-${r.side}`);
+                            }
+                        } else {
+                            // Si estaba bien, seleccionamos los verdes
+                            if (r.verdes && r.verdes.length) {
+                                state.selectedQuadrants = r.verdes.map(q => `${q}-${r.side}`);
+                            } else {
+                                state.selectedQuadrants = r.quadrants.map(q => `${q}-${r.side}`);
+                            }
+                        }
+
+                        state.correctiveAction = wasBad ? '√' : r.correctiveAction;
+                        state.reinspection = wasBad ? 'SC' : r.reinspection;
+                        $('#verificationComplies').checked = true;
+
+                        let obs = r.observation;
+                        if (wasBad && !obs.includes('[CORREGIDO]')) obs += ' [CORREGIDO]';
+
+                        $('#observation').value = obs;
+                        $('#verificationChannel').value = r.verificationChannel;
+
+                        syncFormButtons(); renderCurrent(); renderQuadrants();
+                        setStep(2);
+                        $('#formPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+                        if (wasBad) {
+                            toast(`Corrigiendo hallazgos del lado ${r.side}. Verifique y actualice.`, 'warning');
+                        } else {
+                            toast(`Editando monitoreo del lado ${r.side}.`, 'info');
+                        }
+                    }
+
+            function deleteRecord(id){
+                if(!confirm('¿Eliminar este monitoreo PCC1B del historial?')) return;
+                const c=currentChannel();
+                        c.records=c.records.filter(r=>r.id!==id); c.status=deriveStatus(c);
+                persist(); log(`Monitoreo eliminado de ${c.id}.`,'warning'); resetForm(false); renderAll(); toast('Monitoreo eliminado.','warning');
+            }
+
+          
+
+            function renderNonconforming(){
+                const items=data.channels.filter(c=>c.status==='No conforme');
+                $('#retainedGrid').innerHTML=items.length ? items.map(c=>`
+                  <div class="retained-card"><div style="display:flex;justify-content:space-between;gap:8px"><h4>${c.id}</h4><span class="status retenida"><span class="status-dot"></span>No conforme</span></div><div class="retained-meta"><b>Proveedor:</b> ${escapeHtml(c.provider)}<br><b>Lote:</b> ${escapeHtml(c.lot)}<br><b>Lados registrados:</b> ${[...new Set(c.records.map(r=>r.side))].join(', ')||'—'}<br><b>Hallazgos:</b> ${c.records.flatMap(r=>r.findings).join(', ')||'Sin hallazgos'}</div><div style="display:flex;gap:7px;margin-top:10px"><button class="btn btn-soft btn-sm inspect-retained" data-id="${c.id}">Abrir</button></div></div>`).join('') : `<div class="empty" style="grid-column:1/-1">No existen canales no conformes.</div>`;
+                $$('.inspect-retained').forEach(b=>b.addEventListener('click',()=>{closeModal('retainedModal');selectChannel(b.dataset.id);}));
+            }
+
+            function exportCsv(){
+                const c=currentChannel();
+                if(!c) return;
+                const rows=[['Canal','Lado','Hallazgos de contaminantes','Cuadrantes','Acciones correctivas','Reinspección','Verificación C:','Verificación cumple','Observaciones','Inspector','Fecha/Hora'],
+                  ...c.records.map(r=>[c.id,r.side,r.findings.length?r.findings.join(' | '):'Sin hallazgos',r.quadrants.join(' | ')||'',r.correctiveAction,r.reinspection,r.verificationChannel,r.verificationComplies?'√':'X',r.observation,r.inspector,r.datetime])];
+                const csv='\ufeff'+rows.map(r=>r.map(v=>`"${String(v??'').replaceAll('"','""')}"`).join(',')).join('\n');
+                const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`${c.id}_PCC1B.csv`; a.click(); URL.revokeObjectURL(url);
+                log(`Reporte PCC1B exportado para ${c.id}.`,'info'); toast('Archivo CSV generado.','success');
+            }
+
+            function openModal(id){ $('#'+id).classList.add('open'); }
+            function closeModal(id){ $('#'+id).classList.remove('open'); }
+            function escapeHtml(str=''){ return String(str).replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch])); }
+
+          $$('.quadrant-zone').forEach(z => {
+                const isExt = z.closest('.carcass-view').querySelector('.carcass-view-title span').textContent.toLowerCase().includes('externa');
+                z.dataset.view = isExt ? 'EXT' : 'INT'; // Todo en mayúsculas
+            });
+
+            $$('.quadrant-zone').forEach(z=>z.addEventListener('click',()=>{
+                if(state.noFindings) setNoFindings(false);
+                const q = +z.dataset.quadrant;
+                const view = z.dataset.view;
+                const key = `${q}-${view}`; // Ahora guardamos exactamente qué imagen tocó
+                state.selectedQuadrants = state.selectedQuadrants.includes(key) ? state.selectedQuadrants.filter(x=>x!==key) : [...state.selectedQuadrants,key];
+                renderCurrent(); renderQuadrants();
+            }));
+            $$('.quadrant-zone').forEach(z=>z.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();z.click();}}));
+            $$('#sideRow .choice-btn').forEach(b=>b.addEventListener('click',()=>{
+                if(state.side !== b.dataset.side) {
+                    state.side = b.dataset.side;
+                    state.selectedQuadrants = []; // Limpia selecciones al cambiar de lado
+                    syncFormButtons();
+                    renderCurrent();
+                    renderQuadrants();
+                }
+            }));
+
+            function printReport(){
+    const c = currentChannel();
+    if(!c) return toast('Seleccione una canal primero.','warning');
+    if(!c.records.length) return toast('La canal no tiene registros para imprimir.','warning');
+
+    const now = nowLabel();
+    const statusBadge = c.status === 'Conforme' ? 'badge-ok' : c.status === 'No conforme' ? 'badge-danger' : 'badge-warn';
+    const totalFindings = c.records.reduce((sum, r) => sum + r.findings.length, 0);
+    const allQuadrants = [...new Set(c.records.flatMap(r => r.quadrants))].sort((a,b) => a-b);
+
+    const recordsHtml = c.records.map(r => {
+        const findingsText = r.findings.length ? r.findings.join(', ') : 'Sin hallazgos';
+        const quadsText = r.quadrants.map(q => quadrantNames[q] || `C${q}`).join(', ');
+        const complyText = r.verificationComplies ? 'Sí' : 'No';
+        return `<tr>
+            <td>${r.side}</td>
+            <td>${escapeHtml(findingsText)}</td>
+            <td>${escapeHtml(quadsText)}</td>
+            <td>${escapeHtml(r.correctiveAction)}</td>
+            <td>${escapeHtml(r.reinspection)}</td>
+            <td>${escapeHtml(r.verificationChannel)} — ${complyText}</td>
+            <td>${escapeHtml(r.observation || '—')}</td>
+            <td>${escapeHtml(r.inspector)}</td>
+            <td>${escapeHtml(r.datetime)}</td>
+        </tr>`;
+    }).join('');
+
+    const html = `
+    <style>
+        @@media print {
+            /* 1. Forzar orientación horizontal y márgenes */
+            @@page { size: landscape; margin: 1cm; }
+            
+            #printArea { font-family: sans-serif; color: #000; }
+            
+            /* 2. Controlar la tabla para que no se desborde */
+            #printArea table { 
+                width: 100%; 
+                border-collapse: collapse; 
+                table-layout: fixed; /* Clave para evitar recortes */
+                font-size: 10px; 
+            }
+            #printArea th, #printArea td { 
+                border: 1px solid #ccc; 
+                padding: 6px 4px; 
+                word-wrap: break-word; /* Forzar salto de línea en textos largos */
+                white-space: normal; 
+                vertical-align: top;
+            }
+            #printArea th { background: #eee; font-weight: bold; text-align: left; }
+            
+            /* 3. Repartir el ancho inteligentemente */
+            #printArea th:nth-child(1) { width: 6%; }  /* Vista */
+            #printArea th:nth-child(2) { width: 14%; } /* Hallazgos */
+            #printArea th:nth-child(3) { width: 10%; } /* Cuadrantes */
+            #printArea th:nth-child(4) { width: 8%; }  /* Acción */
+            #printArea th:nth-child(5) { width: 8%; }  /* Reinspección */
+            #printArea th:nth-child(6) { width: 12%; } /* Verificación */
+            #printArea th:nth-child(7) { width: 20%; } /* Observaciones (Más espacio) */
+            #printArea th:nth-child(8) { width: 10%; } /* Inspector */
+            #printArea th:nth-child(9) { width: 12%; } /* Fecha / Hora */
+
+            /* Ajustes estéticos del encabezado */
+            .pr-header { margin-bottom: 15px; border-bottom: 2px solid #000; padding-bottom: 5px; }
+            .pr-header h1 { font-size: 18px; margin: 0 0 5px 0; }
+            .pr-header p { font-size: 11px; margin: 0; color: #444; }
+            .pr-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px; font-size: 12px; }
+            .pr-section-title { font-size: 14px; font-weight: bold; margin: 15px 0 10px; }
+            .pr-footer { display: flex; justify-content: space-between; font-size: 9px; margin-top: 20px; color: #555; }
+        }
+    </style>
+
+    <div class="pr-header">
+        <h1>REPORTE PCC1B — INSPECCIÓN DE CANAL</h1>
+        <p>Plataforma SIGO · Módulo de Calidad · Inspección Cuadrantes</p>
+    </div>
+    <div class="pr-meta">
+        <div><b>Canal:</b> ${escapeHtml(c.id)}</div>
+        <div><b>Proveedor:</b> ${escapeHtml(c.provider)}</div>
+        <div><b>Lote:</b> ${escapeHtml(c.lot || '—')}</div>
+        <div><b>Estatus:</b> <span class="badge-print ${statusBadge}">${escapeHtml(c.status)}</span></div>
+        <div><b>Cuadrantes revisados:</b> ${allQuadrants.map(q => quadrantNames[q] || q).join(', ') || '—'}</div>
+        <div><b>Total hallazgos:</b> ${totalFindings}</div>
+    </div>
+    <div class="pr-section-title">Detalle de monitoreos</div>
+    <table>
+        <thead>
+            <tr>
+                <th>Vista</th>
+                <th>Hallazgos</th>
+                <th>Cuadrante(s)</th>
+                <th>Acción correctiva</th>
+                <th>Reinspección</th>
+                <th>Verificación</th>
+                <th>Observaciones</th>
+                <th>Inspector</th>
+                <th>Fecha / Hora</th>
+            </tr>
+        </thead>
+        <tbody>${recordsHtml}</tbody>
+    </table>
+    <div class="pr-footer">
+        <span>Documento generado automáticamente desde SIGO.</span>
+        <span>Fecha de impresión: ${now}</span>
+    </div>
+    <div class="pr-signatures">
+        
+    </div>`;
+
+    const area = $('#printArea');
+    area.innerHTML = html;
+    area.style.display = 'block';
+
+    setTimeout(() => {
+        window.print();
+        window.addEventListener('afterprint', () => {
+            area.style.display = 'none';
+            area.innerHTML = '';
+        }, { once: true });
+    }, 150);
+}
+
+
+            $$('.damage-btn').forEach(b=>b.addEventListener('click',()=>{
+                if(state.noFindings) setNoFindings(false);
+                const f = b.dataset.finding;
+                state.findings = state.findings.includes(f) ? state.findings.filter(x=>x!==f) : [...state.findings,f];
+                syncFormButtons();
+            }));
+
+            $('#noFindingsBtn').addEventListener('click',()=>setNoFindings(!state.noFindings));
+            $$('#correctiveRow .choice-btn').forEach(b=>b.addEventListener('click',()=>{state.correctiveAction=b.dataset.corrective;syncFormButtons();}));
+            $$('#reinspectionRow .choice-btn').forEach(b=>b.addEventListener('click',()=>{state.reinspection=b.dataset.reinspection;syncFormButtons();}));
+            $('#saveBtn').addEventListener('click',saveRecord);
+            $('#savecua')?.addEventListener('click',saveQuadrant);
+            $('#clearBtn').addEventListener('click',()=>resetForm(true));
+            $('#cancelBtn').addEventListener('click',()=>{resetForm(false);toast('Captura cancelada.','warning');});
+                   $('#finishBtn')?.addEventListener('click', () => {
+                        resetForm(false);
+                        setStep(1);
+                        window.scrollTo({top: 0, behavior: 'smooth'});
+                        toast('Inspección finalizada. Listo para la siguiente canal.', 'success');
+                    });
+            $('#exportBtn').addEventListener('click',exportCsv);
+            $('#printBtn').addEventListener('click',printReport);
+            $('#openRetained').addEventListener('click',()=>{renderNonconforming();openModal('retainedModal');});
+            $('#filterBtn').addEventListener('click',()=>$('#filterPopover').classList.toggle('open'));
+            $$('input[name="statusFilter"]').forEach(r=>r.addEventListener('change',()=>{state.filter=r.value;state.page=1;renderQueue();}));
+
+            $('#queueSearch').addEventListener('input',e=>{state.queueQuery=e.target.value;state.page=1;renderQueue();});
+           
+
+            $$('.step-btn').forEach(b=>b.addEventListener('click',()=>setStep(+b.dataset.step)));
+            $('#step1Next')?.addEventListener('click',()=>setStep(2));
+            $('#step3Prev')?.addEventListener('click',()=>setStep(2));
+            $('#step3NewChannel')?.addEventListener('click',()=>setStep(1));
+
+        // Limpieza exclusiva de la bitacora visible
+                    $('#clearLogBtn').addEventListener('click',()=>{
+                        if(confirm('¿Limpiar la bitácora visible?')){
+                            data.activities=[];
+                            persist();
+                            renderActivity();
+                        }
+                    });
+
+            $('#clearLogBtn').addEventListener('click',()=>{if(confirm('¿Limpiar la bitácora visible?')){data.activities=[];persist();renderActivity();}});
+            $$('[data-close-modal]').forEach(b=>b.addEventListener('click',()=>closeModal(b.closest('.modal-backdrop').id)));
+            $$('.modal-backdrop').forEach(m=>m.addEventListener('click',e=>{if(e.target===m) closeModal(m.id);}));
+            $$('.view-switch button').forEach(b=>b.addEventListener('click',()=>{
+                $$('.view-switch button').forEach(x=>x.classList.toggle('active',x===b));
+                $('#diagramView').style.display=b.dataset.view==='diagram'?'block':'none';
+                $('#summaryView').style.display=b.dataset.view==='summary'?'block':'none';
+                if(b.dataset.view==='summary') renderSummary();
+            }));
+
+                   // Interfaz del Modal de Revisión
+                $$('input[name="revDictamen"]').forEach(radio => {
+                    radio.addEventListener('change', (e) => {
+                        const esCorrecto = e.target.value === "1";
+                        $('#lblRevCorrecta').classList.toggle('active', esCorrecto);
+                        $('#lblRevCorrecta').classList.toggle('success-choice', esCorrecto);
+                        $('#lblRevFalla').classList.toggle('active', !esCorrecto);
+                        $('#revDetallesDiv').style.display = esCorrecto ? 'none' : 'block';
+                    });
+                });
+
+        $('#btnGuardarRevision').addEventListener('click', async () => {
+                            const id = $('#revCanalInput').value.trim(); // Leer texto del buscador
+                            if (!id) return toast('Busque y seleccione una canal para auditar.', 'warning');
+
+                            const c = data.channels.find(ch => ch.id === id);
+                            if (!c) return toast('El numero de canal ingresado no existe.', 'danger'); // Blindaje de seguridad
+
+                            const esCorrecto = $$('input[name="revDictamen"]')[0].checked;
+                            const hallazgos = $('#revHallazgos').value.trim();
+                            const vista = $('#revVista').value;
+                            const cuadrantesRaw = $('#revCuadrantes').value.trim();
+                            const observaciones = $('#revObservaciones').value.trim();
+
+                            if (!esCorrecto && (!hallazgos || !cuadrantesRaw)) {
+                                return toast('Especifique los hallazgos y cuadrantes omitidos.', 'warning');
+                            }
+
+                            // ... (El resto del codigo hacia abajo se queda exactamente igual) ...
+
+                    // Combinamos la vista con los cuadrantes para guardar un solo texto claro
+                    const cuadrantesFinales = cuadrantesRaw ? `${vista} (Cuad: ${cuadrantesRaw})` : '';
+
+                    try {
+                        // Preparamos los parámetros para el querystring
+                        const params = new URLSearchParams({
+                            canalId: id,
+                            revisionCorrecta: esCorrecto,
+                            hallazgos: esCorrecto ? '' : hallazgos,
+                            cuadrantes: esCorrecto ? '' : cuadrantesFinales, // Enviamos el texto combinado
+                            observaciones: observaciones
+                        });
+
+                        const response = await fetch(`/Calidad/GuardarRevisionAleatoria?${params.toString()}`, { method: 'POST' });
+                        const result = await response.json();
+
+                        if (result.success) {
+                            c.previousStatus = c.status;
+                            c.status = 'Revisión';
+                            c.isReview = true;
+
+                            closeModal('revisionModal');
+                            renderAll();
+                            toast(`Auditoría guardada para la canal ${id}.`, 'success');
+                        } else {
+                            toast('Error al guardar revisión: ' + result.message, 'danger');
+                        }
+                    } catch (e) {
+                        console.error(e);
+                        toast('Error de red al guardar la revisión.', 'danger');
+                    }
+                });
+
+            document.addEventListener('click',e=>{if(!e.target.closest('.filter-menu')) $('#filterPopover').classList.remove('open');});
+
+            const liveClockEl = $('#liveClock');
+            if (liveClockEl) {
+                setInterval(() => { liveClockEl.textContent = new Intl.DateTimeFormat('es-MX',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true}).format(new Date()); }, 1000);
+            }
+            const mobileNavButtons=$$('.mobile-nav [data-step]');
+            mobileNavButtons.forEach(button=>button.addEventListener('click',()=>setStep(+button.dataset.step)));
+
+            if('IntersectionObserver' in window){
+                const navObserver=new IntersectionObserver(entries=>{
+                    const visible=entries.filter(e=>e.isIntersecting).sort((a,b)=>b.intersectionRatio-a.intersectionRatio)[0];
+                    if(!visible) return;
+                    mobileNavButtons.forEach(b=>b.classList.toggle('active',b.dataset.step===visible.target.id.replace('step','')));
+                },{rootMargin:'-20% 0px -55% 0px',threshold:[.1,.35,.6]});
+                ['step1','step2','step3'].forEach(id=>{const el=$('#'+id);if(el)navObserver.observe(el);});
+            }
+
+            if(currentChannel()) $('#verificationChannel').value=currentChannel().id;
+            syncFormButtons(); renderAll(); setStep(1);
+
+                    // Sincronización Silenciosa (Reemplazo sin recargar)
+                    async function syncCanalesSilencioso() {
+                        const paso1Activo = document.getElementById('step1').classList.contains('active');
+                        const hayBusqueda = document.getElementById('queueSearch').value.trim() !== '';
+                        const modalAbierto = document.getElementById('revisionModal').classList.contains('open');
+
+                        // Solo actualizamos si el usuario está viendo la lista (Paso 1) y no está buscando
+                        if (!paso1Activo || hayBusqueda || modalAbierto) return;
+
+                        try {
+                            const urlFresca = '/Calidad/CuadrantesData?_t=' + new Date().getTime();
+                            const res = await fetch(urlFresca);
+                            if (!res.ok) return;
+
+                            const canalesNuevos = await res.json();
+
+                            if (canalesNuevos && Array.isArray(canalesNuevos)) {
+                                // 1. Normalizamos los datos entrantes (los formatea bonito para C#)
+                                const datosNormalizados = normalizeData({ channels: canalesNuevos, activities: data.activities });
+
+                                // 2. Reemplazo Maestro: actualizamos la memoria SIN tocar el estado actual (state)
+                                data.channels = datosNormalizados.channels;
+
+                                // 3. Capturamos en qué pixel exacto iba el scroll de la lista
+                                const listEl = document.getElementById('queueList');
+                                const scrollGuardado = listEl ? listEl.scrollTop : 0;
+
+                                // 4. Redibujamos la pantalla
+                                renderMetrics();
+                                renderQueue();
+
+                                // 5. Le devolvemos el scroll a la lista
+                                if (listEl) listEl.scrollTop = scrollGuardado;
+                            }
+                        } catch (e) {
+                            console.error('[SYNC] Error actualizando canales silenciosamente');
+                        }
+                    }
+
+                    // Ejecuta el escaneo silencioso cada 15 segundos
+                    setInterval(syncCanalesSilencioso, 15000);
+
+                 
+        })();
+    </script>
+}

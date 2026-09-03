@@ -67,7 +67,12 @@
 </style>
 
 <div class="container-principal">
-
+    <button type="button"
+            class="btn btn-primary"
+            onclick="abrirResumenPlaneacion()">
+        <i class="bi bi-bar-chart-line"></i>
+        Resumen de Planeación
+    </button>
     <!-- ================= MESES ================= -->
     <div id="vista-meses" class="containers active">
         <div class="p-3">
@@ -227,7 +232,51 @@
     </div>
 </div>
 
+<div class="modal fade"
+     id="modalResumenPlaneacion"
+     tabindex="-1"
+     aria-labelledby="modalResumenPlaneacionLabel"
+     aria-hidden="true">
 
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+
+                <h5 class="modal-title"
+                    id="modalResumenPlaneacionLabel">
+                    Resumen de Planeación
+                </h5>
+
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar">
+                </button>
+
+            </div>
+
+            <div class="modal-body p-2">
+
+                <div id="contenedorResumenPlaneacion">
+
+                    <div class="text-center p-4">
+                        <div class="spinner-border"></div>
+                        <div class="mt-2">
+                            Cargando resumen...
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
 
 
 
@@ -269,11 +318,6 @@
         modal.show();
         
     }
-
-
-
-
-
                     function abrirModalDistribucion(clasificacion, btn) {
 
             overridesSubclas = {};
@@ -892,23 +936,38 @@
 
         // ================= PLANEACION MENSUAL =================
 
-        async function cargarPlaneacionMensual() {
+            async function cargarPlaneacionMensual() {
 
-            if (!anioSel || !mesSel) return;
-            contenedorPlaneador.innerHTML = "";
-            try {
+        if (!anioSel || !mesSel) return;
 
-                const response = await fetch(
-                    `/Operaciones/PlaneacionMensual?anio=${anioSel}&mes=${mesSel}`
-                );
+        contenedorPlaneador.innerHTML = "";
 
-                const html = await response.text();
-                contenedorPlaneador.innerHTML = html;
+        try {
 
-            } catch (error) {
-                console.error("Error cargando planeación mensual:", error);
-            }
+            const response = await fetch(
+                `/Operaciones/PlaneacionMensual?anio=${anioSel}&mes=${mesSel}`
+            );
+
+            if (!response.ok)
+                throw new Error("No se pudo cargar la planeación mensual.");
+
+            const html = await response.text();
+
+            contenedorPlaneador.innerHTML = html;
+
+            // Cargar las vistas parciales de cada clasificación
+            await cargarDetallesClasificacionMensual();
+
+        } catch (error) {
+
+            console.error("Error cargando planeación mensual:", error);
+
+            contenedorPlaneador.innerHTML = `
+                <div class="alert alert-danger">
+                    Error al cargar la planeación mensual.
+                </div>`;
         }
+    }
 
         // ================= SEMANAS =================
 
@@ -1136,10 +1195,6 @@
 
         await Promise.all(promesas);
     }
-
-
-
-
             async function renderTablasEnSemanas() {
 
             if (!ResumenMensualGlobal.length) return;
@@ -1300,8 +1355,6 @@
                 fechaActual
             );
         }
-                    
-
         function volverASemanasDesdeDia() {
 
             contenedorPlaneador.style.display = "none";
@@ -1489,6 +1542,8 @@
      <script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script> 
     <script src="~/js/planpro.js"></script>
     <script src="~/js/planeacion-mes.js" asp-append-version="true"></script>
+    <script src="~/js/plandetalle-mes.js" asp-append-version="true"></script>
      <script src="~/js/planDiario.js" asp-append-version="true"></script> 
     <script src="~/js/planSemanal.js" asp-append-version="true"></script>
+    <script src="~/js/planresumen.js" asp-append-version="true"></script>
 }

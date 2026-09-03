@@ -991,7 +991,7 @@ namespace Plataforma_CG.Controllers
                     VentasTexto = "VENTAS - CARNES G",
                     EmailVentas = "ventas.as@carnesg.net",
                     CertificacionTexto = "CONTAMOS CON CERTIFICACIÓN / PRODUCTO EMPACADO AL ALTO VACÍO",
-                    LogoBytes = LeerArchivoWebRoot("images/logoPDF.png"),
+                    LogoBytes = LeerArchivoWebRoot("images/logoCubo.png"),
                     SelloBytes = LeerArchivoWebRoot("images/logoTIF.png")
                 },
                 VigenciaTexto = $"VIGENCIA DE PRECIOS: DEL {DateTime.Today:dd} AL {DateTime.Today.AddDays(6):dd} DE {DateTime.Today:MMMM yyyy}".ToUpper(),

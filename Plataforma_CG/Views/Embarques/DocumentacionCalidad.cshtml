@@ -1,7 +1,10 @@
 ﻿@model IEnumerable<Plataforma_CG.Models.Embarque>
 
 @{
-    ViewData["Title"] = "Documentación de Calidad";
+    var esHistorial = Convert.ToBoolean(ViewBag.EsHistorial ?? false);
+    ViewData["Title"] = esHistorial
+        ? "Histórico de Documentación de Calidad"
+        : "Documentación de Calidad";
     Layout = "~/Views/Shared/_Layout2.cshtml";
 
     var tiposCalidad = new[]
@@ -606,6 +609,20 @@
         box-shadow: 0 8px 18px rgba(139,0,0,.18);
     }
 
+    .btn-no-docs-ui {
+        background: #fff8e6;
+        color: #9a6700;
+        border: 1px solid #f5dfaa;
+        box-shadow: 0 6px 14px rgba(245, 158, 11, .10);
+    }
+
+        .btn-no-docs-ui:hover {
+            background: #ffefbf;
+            color: #7c5200;
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(245, 158, 11, .16);
+        }
+
     .btn-secondary-ui {
         background: #fff;
         color: var(--primary);
@@ -1053,6 +1070,18 @@ body[data-theme="dark"] .btn-primary-ui {
     box-shadow: 0 10px 22px rgba(0,0,0,.28) !important;
 }
 
+        body[data-theme="dark"] .btn-no-docs-ui {
+            background: rgba(245, 158, 11, .14) !important;
+            color: #fcd34d !important;
+            border: 1px solid rgba(245, 158, 11, .35) !important;
+        }
+
+            body[data-theme="dark"] .btn-no-docs-ui:hover {
+                background: rgba(245, 158, 11, .24) !important;
+                color: #fde68a !important;
+                border-color: rgba(245, 158, 11, .55) !important;
+            }
+
 body[data-theme="dark"] .btn-primary-ui:hover {
     color: #ffffff !important;
     box-shadow: 0 14px 28px rgba(0,0,0,.34) !important;
@@ -1177,6 +1206,499 @@ body[data-theme="dark"] input[type="file"]::file-selector-button:hover {
         box-shadow: 0 0 0 4px rgba(34,197,94,.08) !important;
     }
 
+    .embarque-title-with-name {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        flex-wrap: wrap;
+    }
+
+    .embarque-title-main {
+        display: inline-flex;
+        align-items: center;
+        gap: .55rem;
+    }
+
+    .embarque-name-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        max-width: 380px;
+        padding: .34rem .65rem;
+        border-radius: 999px;
+        background: var(--primary-soft);
+        border: 1px solid rgba(139,0,0,.16);
+        color: var(--primary);
+        font-size: .82rem;
+        font-weight: 900;
+        line-height: 1.1;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+        .embarque-name-chip.empty {
+            background: #f3f5f8;
+            border-color: var(--border);
+            color: var(--text-soft, var(--muted));
+            font-style: italic;
+            font-weight: 800;
+        }
+
+    @@media (max-width: 576px) {
+        .embarque-name-chip
+
+    {
+        width: 100%;
+        max-width: 100%;
+        justify-content: flex-start;
+    }
+
+    }
+
+    /* Dark mode */
+    body[data-theme="dark"] .embarque-name-chip {
+        background: rgba(127,29,29,0.24) !important;
+        border-color: rgba(248,113,113,0.35) !important;
+        color: #fecaca !important;
+    }
+
+        body[data-theme="dark"] .embarque-name-chip.empty {
+            background: #0b1220 !important;
+            border-color: rgba(203,213,225,0.28) !important;
+            color: #cbd5e1 !important;
+        }
+
+    /* ============================================================
+       MODAL - VALIDAR SIN DOCUMENTACIÓN
+    ============================================================ */
+
+    .modal-sin-docs-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.25rem;
+        background: rgba(15, 23, 42, .58);
+        backdrop-filter: blur(7px);
+        -webkit-backdrop-filter: blur(7px);
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition: opacity .22s ease, visibility .22s ease;
+    }
+
+
+        /* MODAL ABIERTO */
+        .modal-sin-docs-overlay.show {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+        }
+
+
+    /* ============================================================
+       CAJA PRINCIPAL
+    ============================================================ */
+
+    .modal-sin-docs {
+        position: relative;
+        width: min(100%, 540px);
+        background: #ffffff;
+        border: 1px solid rgba(15, 23, 42, .08);
+        border-radius: 24px;
+        box-shadow: 0 25px 60px rgba(0, 0, 0, .22), 0 6px 18px rgba(0, 0, 0, .08);
+        padding: 2rem;
+        transform: translateY(18px) scale(.96);
+        opacity: 0;
+        transition: transform .25s cubic-bezier(.2, .8, .2, 1), opacity .22s ease;
+    }
+
+
+    .modal-sin-docs-overlay.show .modal-sin-docs {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+
+
+    /* ============================================================
+       CERRAR
+    ============================================================ */
+
+    .modal-sin-docs-close {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        width: 38px;
+        height: 38px;
+        border: none;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: #f1f5f9;
+        color: #64748b;
+        cursor: pointer;
+        transition: all .2s ease;
+    }
+
+
+        .modal-sin-docs-close:hover {
+            background: #e2e8f0;
+            color: #0f172a;
+            transform: rotate(5deg);
+        }
+
+
+    /* ============================================================
+       ICONO
+    ============================================================ */
+
+    .modal-sin-docs-icon {
+        width: 72px;
+        height: 72px;
+        margin: 0 auto 1.2rem;
+        display: grid;
+        place-items: center;
+        border-radius: 22px;
+        background: linear-gradient( 135deg, #fff7ed, #ffedd5 );
+        border: 1px solid #fed7aa;
+        color: #ea580c;
+        font-size: 2rem;
+        box-shadow: 0 10px 25px rgba(234, 88, 12, .12);
+    }
+
+
+    /* ============================================================
+       CONTENIDO
+    ============================================================ */
+
+    .modal-sin-docs-content {
+        text-align: center;
+    }
+
+
+    .modal-sin-docs-label {
+        display: inline-flex;
+        align-items: center;
+        margin-bottom: .7rem;
+        padding: .35rem .7rem;
+        border-radius: 999px;
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        color: #c2410c;
+        font-size: .75rem;
+        font-weight: 800;
+        letter-spacing: .45px;
+        text-transform: uppercase;
+    }
+
+
+    .modal-sin-docs-title {
+        margin: 0;
+        color: #0f172a;
+        font-size: 1.45rem;
+        font-weight: 800;
+        line-height: 1.25;
+    }
+
+
+    .modal-sin-docs-text {
+        margin: .9rem auto 0;
+        max-width: 440px;
+        color: #64748b;
+        font-size: .96rem;
+        line-height: 1.6;
+    }
+
+
+        .modal-sin-docs-text strong {
+            color: #8B0000;
+        }
+
+
+    /* ============================================================
+       AVISO USUARIO
+    ============================================================ */
+
+    .modal-sin-docs-warning {
+        margin-top: 1.35rem;
+        display: flex;
+        align-items: flex-start;
+        gap: .85rem;
+        padding: 1rem;
+        text-align: left;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+    }
+
+
+    .modal-sin-docs-warning-icon {
+        width: 42px;
+        height: 42px;
+        flex-shrink: 0;
+        display: grid;
+        place-items: center;
+        border-radius: 12px;
+        background: #ecfdf5;
+        color: #15803d;
+        font-size: 1.1rem;
+    }
+
+
+    .modal-sin-docs-warning strong {
+        display: block;
+        margin-bottom: .2rem;
+        color: #1e293b;
+        font-size: .92rem;
+    }
+
+
+    .modal-sin-docs-warning span {
+        display: block;
+        color: #64748b;
+        font-size: .84rem;
+        line-height: 1.45;
+    }
+
+
+    /* ============================================================
+       NOTA INFERIOR
+    ============================================================ */
+
+    .modal-sin-docs-note {
+        margin: 1rem 0 0;
+        color: #94a3b8;
+        font-size: .8rem;
+        line-height: 1.5;
+    }
+
+
+        .modal-sin-docs-note i {
+            margin-right: .25rem;
+        }
+
+
+    /* ============================================================
+       BOTONES
+    ============================================================ */
+
+    .modal-sin-docs-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+        gap: .75rem;
+        margin-top: 1.6rem;
+    }
+
+
+    .modal-btn {
+        min-height: 48px;
+        border-radius: 13px;
+        border: none;
+        padding: .8rem 1rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .5rem;
+        font-weight: 750;
+        font-size: .9rem;
+        cursor: pointer;
+        transition: all .2s ease;
+    }
+
+
+    .modal-btn-cancel {
+        background: #f1f5f9;
+        color: #475569;
+        border: 1px solid #e2e8f0;
+    }
+
+
+        .modal-btn-cancel:hover {
+            background: #e2e8f0;
+            color: #0f172a;
+            transform: translateY(-1px);
+        }
+
+
+    .modal-btn-confirm {
+        background: linear-gradient( 135deg, #b45309, #d97706 );
+        color: #ffffff;
+        box-shadow: 0 8px 20px rgba(217, 119, 6, .22);
+    }
+
+
+        .modal-btn-confirm:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px rgba(217, 119, 6, .30);
+        }
+
+
+        .modal-btn-confirm:disabled {
+            opacity: .65;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+
+    /* ============================================================
+       RESPONSIVE
+    ============================================================ */
+
+    @@media (max-width: 600px) {
+        .modal-sin-docs-overlay
+
+    {
+        padding: .75rem;
+        align-items: flex-end;
+    }
+
+
+    .modal-sin-docs {
+        width: 100%;
+        padding: 1.7rem 1.1rem 1.1rem;
+        border-radius: 24px 24px 18px 18px;
+    }
+
+
+    .modal-sin-docs-icon {
+        width: 62px;
+        height: 62px;
+        border-radius: 18px;
+        font-size: 1.65rem;
+    }
+
+
+    .modal-sin-docs-title {
+        font-size: 1.25rem;
+    }
+
+
+    .modal-sin-docs-text {
+        font-size: .9rem;
+    }
+
+
+    .modal-sin-docs-actions {
+        grid-template-columns: 1fr;
+    }
+
+
+    .modal-btn {
+        width: 100%;
+    }
+
+
+    .modal-btn-confirm {
+        order: -1;
+    }
+
+    }
+
+
+    /* ============================================================
+       DARK MODE - MODAL SIN DOCUMENTACIÓN
+    ============================================================ */
+
+    body[data-theme="dark"] .modal-sin-docs-overlay {
+        background: rgba(2, 6, 23, .78);
+    }
+
+
+    body[data-theme="dark"] .modal-sin-docs {
+        background: #111827;
+        border-color: rgba(255, 255, 255, .12);
+        box-shadow: 0 30px 70px rgba(0, 0, 0, .55);
+    }
+
+
+    body[data-theme="dark"] .modal-sin-docs-close {
+        background: #1e293b;
+        color: #cbd5e1;
+    }
+
+
+        body[data-theme="dark"] .modal-sin-docs-close:hover {
+            background: #334155;
+            color: #ffffff;
+        }
+
+
+    body[data-theme="dark"] .modal-sin-docs-icon {
+        background: rgba(245, 158, 11, .15);
+        border-color: rgba(245, 158, 11, .28);
+        color: #fbbf24;
+    }
+
+
+    body[data-theme="dark"] .modal-sin-docs-label {
+        background: rgba(245, 158, 11, .12);
+        border-color: rgba(245, 158, 11, .28);
+        color: #fbbf24;
+    }
+
+
+    body[data-theme="dark"] .modal-sin-docs-title {
+        color: #f9fafb;
+    }
+
+
+    body[data-theme="dark"] .modal-sin-docs-text {
+        color: #cbd5e1;
+    }
+
+
+        body[data-theme="dark"] .modal-sin-docs-text strong {
+            color: #fca5a5;
+        }
+
+
+    body[data-theme="dark"] .modal-sin-docs-warning {
+        background: #0b1220;
+        border-color: rgba(255, 255, 255, .10);
+    }
+
+
+    body[data-theme="dark"] .modal-sin-docs-warning-icon {
+        background: rgba(34, 197, 94, .12);
+        color: #4ade80;
+    }
+
+
+    body[data-theme="dark"] .modal-sin-docs-warning strong {
+        color: #f9fafb;
+    }
+
+
+    body[data-theme="dark"] .modal-sin-docs-warning span {
+        color: #94a3b8;
+    }
+
+
+    body[data-theme="dark"] .modal-sin-docs-note {
+        color: #94a3b8;
+    }
+
+
+    body[data-theme="dark"] .modal-btn-cancel {
+        background: #1e293b;
+        color: #e2e8f0;
+        border-color: rgba(255,255,255,.10);
+    }
+
+
+        body[data-theme="dark"] .modal-btn-cancel:hover {
+            background: #334155;
+            color: #ffffff;
+        }
+
+
+    body[data-theme="dark"] .modal-btn-confirm {
+        background: linear-gradient( 135deg, #b45309, #d97706 );
+        color: #ffffff;
+    }
+
 </style>
 
 <div class="docs-page">
@@ -1187,9 +1709,13 @@ body[data-theme="dark"] input[type="file"]::file-selector-button:hover {
                 <i class="bi bi-shield-check"></i>
             </div>
             <div>
-                <h1 class="page-title">Documentación de Calidad</h1>
+                <h1 class="page-title">
+                    @(esHistorial ? "Histórico de Documentación de Calidad" : "Documentación de Calidad")
+                </h1>
                 <div class="page-subtitle">
-                    Carga y consulta cartas, avisos y hojas de trabajo requeridas por el área de calidad.
+                    @(esHistorial
+                        ? "Consulta por separado los embarques ya validados por documentación de calidad."
+                        : "Carga y consulta cartas, avisos y hojas de trabajo requeridas por el área de calidad.")
                 </div>
             </div>
         </div>
@@ -1200,12 +1726,20 @@ body[data-theme="dark"] input[type="file"]::file-selector-button:hover {
                 @DateTime.Now.ToShortDateString()
             </span>
 
+            <a class="btn-top btn-top-light"
+               asp-action="@(esHistorial ? "DocumentacionCalidad" : "HistorialDocumentacionCalidad")">
+                <i class="bi @(esHistorial ? "bi-hourglass-split" : "bi-clock-history")"></i>
+                @(esHistorial ? "Ver pendientes" : "Ver histórico")
+            </a>
+
             <a class="btn-top btn-top-light" href="@Url.Action("Documentacion", "Embarques")">
                 <i class="bi bi-folder2-open"></i> Documentación logística
             </a>
         </div>
     </div>
 
+    @if (!esHistorial)
+    {
     <div class="summary-grid">
         <div class="summary-card">
             <div class="summary-icon">
@@ -1353,9 +1887,32 @@ body[data-theme="dark"] input[type="file"]::file-selector-button:hover {
                         <div class="embarque-card" id="@cardId">
                             <div class="embarque-head" onclick="toggleCard('@cardId')">
                                 <div>
-                                    <h3 class="embarque-title">
-                                        <i class="bi bi-truck-front"></i>
-                                        Embarque #@e.Consecutivo
+                                    @{
+                                        var consecutivoEmbarque = !string.IsNullOrWhiteSpace(e.Consecutivo)
+                                        ? e.Consecutivo
+                                        : $"EMB-{e.Id}";
+
+                                        var tieneNombreEmbarque = !string.IsNullOrWhiteSpace(e.NombreEmbarque);
+
+                                        var nombreEmbarqueTexto = tieneNombreEmbarque
+                                        ? e.NombreEmbarque.Trim()
+                                        : "Sin nombre asignado";
+
+                                        var nombreEmbarqueClase = tieneNombreEmbarque
+                                        ? "embarque-name-chip"
+                                        : "embarque-name-chip empty";
+                                    }
+
+                                    <h3 class="embarque-title embarque-title-with-name">
+                                        <span class="embarque-title-main">
+                                            <i class="bi bi-truck-front"></i>
+                                            Embarque #@consecutivoEmbarque
+                                        </span>
+
+                                        <span class="@nombreEmbarqueClase">
+                                            <i class="bi bi-tag"></i>
+                                            @nombreEmbarqueTexto
+                                        </span>
                                     </h3>
                                     <div class="embarque-sub">
                                         ID: @e.Id · Fecha de creación: @e.FechaCreacion.ToString("yyyy-MM-dd HH:mm")
@@ -1470,12 +2027,38 @@ body[data-theme="dark"] input[type="file"]::file-selector-button:hover {
                                         </div>
                                     }
 
-                                    <div class="actions-bar">
-                                        <button type="submit" class="btn-ui btn-primary-ui">
-                                            <i class="bi bi-save"></i>
-                                            Guardar y validar documentación de calidad
-                                        </button>
-                                    </div>
+                                        <div class="actions-bar">
+
+                                            <button type="button"
+                                                    class="btn-ui btn-no-docs-ui"
+                                                    onclick="abrirModalSinDocumentacion(this.form, '@consecutivoEmbarque')">
+
+                                                <i class="bi bi-file-earmark-x"></i>
+                                                Este embarque no tendrá documentación
+                                            </button>
+
+                                            <!--
+                                                Botón oculto.
+                                                Este es el que realmente realizará el POST
+                                                cuando el usuario confirme desde el modal.
+                                            -->
+                                            <button type="submit"
+                                                    formaction="@Url.Action("ValidarSinDocumentacionCalidad", "Embarques")"
+                                                    formmethod="post"
+                                                    formnovalidate
+                                                    class="d-none js-submit-sin-documentacion">
+                                            </button>
+
+                                            <button type="submit"
+                                                    class="btn-ui btn-primary-ui">
+
+                                                <i class="bi bi-save"></i>
+                                                Guardar y validar documentación de calidad
+                                            </button>
+
+                                        </div>
+
+
                                 </form>
                             </div>
                         </div>
@@ -1484,6 +2067,11 @@ body[data-theme="dark"] input[type="file"]::file-selector-button:hover {
             }
         </div>
 
+    }
+    }
+
+    @if (esHistorial)
+    {
         <div class="section-block">
             <div class="section-head">
                 <div>
@@ -1508,10 +2096,7 @@ body[data-theme="dark"] input[type="file"]::file-selector-button:hover {
                     Filtros de historial
                 </div>
 
-                <form method="get" asp-action="DocumentacionCalidad" class="docs-filter-grid">
-                    <input type="hidden" name="busqueda" value="@busqueda" />
-                    <input type="hidden" name="fechaInicio" value="@fechaInicio" />
-                    <input type="hidden" name="fechaFin" value="@fechaFin" />
+                <form method="get" asp-action="HistorialDocumentacionCalidad" class="docs-filter-grid">
 
                     <div>
                         <label class="form-label-ui">Buscar embarque</label>
@@ -1543,10 +2128,7 @@ body[data-theme="dark"] input[type="file"]::file-selector-button:hover {
                         Buscar historial
                     </button>
 
-                    <a asp-action="DocumentacionCalidad"
-                       asp-route-busqueda="@busqueda"
-                       asp-route-fechaInicio="@fechaInicio"
-                       asp-route-fechaFin="@fechaFin"
+                    <a asp-action="HistorialDocumentacionCalidad"
                        class="btn-ui btn-secondary-ui">
                         <i class="bi bi-arrow-clockwise"></i>
                         Limpiar historial
@@ -1585,9 +2167,32 @@ body[data-theme="dark"] input[type="file"]::file-selector-button:hover {
                         <div class="embarque-card" id="@cardId">
                             <div class="embarque-head" onclick="toggleCard('@cardId')">
                                 <div>
-                                    <h3 class="embarque-title">
-                                        <i class="bi bi-folder-check"></i>
-                                        Embarque #@e.Consecutivo
+                                    @{
+                                        var consecutivoEmbarqueHistorial = !string.IsNullOrWhiteSpace(e.Consecutivo)
+                                        ? e.Consecutivo
+                                        : $"EMB-{e.Id}";
+
+                                        var tieneNombreEmbarqueHistorial = !string.IsNullOrWhiteSpace(e.NombreEmbarque);
+
+                                        var nombreEmbarqueTextoHistorial = tieneNombreEmbarqueHistorial
+                                        ? e.NombreEmbarque.Trim()
+                                        : "Sin nombre asignado";
+
+                                        var nombreEmbarqueClaseHistorial = tieneNombreEmbarqueHistorial
+                                        ? "embarque-name-chip"
+                                        : "embarque-name-chip empty";
+                                    }
+
+                                    <h3 class="embarque-title embarque-title-with-name">
+                                        <span class="embarque-title-main">
+                                            <i class="bi bi-folder-check"></i>
+                                            Embarque #@consecutivoEmbarqueHistorial
+                                        </span>
+
+                                        <span class="@nombreEmbarqueClaseHistorial">
+                                            <i class="bi bi-tag"></i>
+                                            @nombreEmbarqueTextoHistorial
+                                        </span>
                                     </h3>
                                     <div class="embarque-sub">
                                         ID: @e.Id · Validado:
@@ -1687,6 +2292,99 @@ body[data-theme="dark"] input[type="file"]::file-selector-button:hover {
     }
 </div>
 
+<!-- ============================================================
+     MODAL - VALIDAR SIN DOCUMENTACIÓN
+============================================================ -->
+<div id="modalSinDocumentacion"
+     class="modal-sin-docs-overlay"
+     aria-hidden="true">
+
+    <div class="modal-sin-docs"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="tituloModalSinDocumentacion">
+
+        <!-- BOTÓN CERRAR -->
+        <button type="button"
+                class="modal-sin-docs-close"
+                onclick="cerrarModalSinDocumentacion()"
+                aria-label="Cerrar">
+            <i class="bi bi-x-lg"></i>
+        </button>
+
+        <!-- ICONO -->
+        <div class="modal-sin-docs-icon">
+            <i class="bi bi-file-earmark-x"></i>
+        </div>
+
+        <!-- CONTENIDO -->
+        <div class="modal-sin-docs-content">
+
+            <span class="modal-sin-docs-label">
+                Validación sin documentos
+            </span>
+
+            <h3 id="tituloModalSinDocumentacion"
+                class="modal-sin-docs-title">
+                ¿Este embarque no tendrá documentación?
+            </h3>
+
+            <p class="modal-sin-docs-text">
+                Estás por validar el embarque
+                <strong id="modalSinDocsEmbarque">#---</strong>
+                sin adjuntar documentación de calidad.
+            </p>
+
+            <!-- AVISO -->
+            <div class="modal-sin-docs-warning">
+                <div class="modal-sin-docs-warning-icon">
+                    <i class="bi bi-person-check"></i>
+                </div>
+
+                <div>
+                    <strong>Esta acción quedará registrada</strong>
+
+                    <span>
+                        Se guardará tu usuario y la fecha en que realizaste
+                        esta validación.
+                    </span>
+                </div>
+            </div>
+
+            <p class="modal-sin-docs-note">
+                <i class="bi bi-info-circle"></i>
+                El embarque continuará con su flujo normal y podrá generar
+                el QR cuando las demás validaciones también estén completas.
+            </p>
+
+        </div>
+
+        <!-- ACCIONES -->
+        <div class="modal-sin-docs-actions">
+
+            <button type="button"
+                    class="modal-btn modal-btn-cancel"
+                    onclick="cerrarModalSinDocumentacion()">
+
+                <i class="bi bi-x-circle"></i>
+                Cancelar
+            </button>
+
+            <button type="button"
+                    id="btnConfirmarSinDocumentacion"
+                    class="modal-btn modal-btn-confirm"
+                    onclick="confirmarSinDocumentacion()">
+
+                <i class="bi bi-check-circle"></i>
+                Sí, validar sin documentos
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
 <script>
     function toggleCard(cardId) {
         const card = document.getElementById(cardId);
@@ -1713,4 +2411,214 @@ body[data-theme="dark"] input[type="file"]::file-selector-button:hover {
             nameBox.textContent = "";
         }
     }
+
+    // ============================================================
+    // MODAL - VALIDAR SIN DOCUMENTACIÓN
+    // ============================================================
+
+    let formularioSinDocumentacionActual = null;
+    let botonSubmitSinDocumentacionActual = null;
+
+
+    /**
+     * Abre el modal y guarda qué formulario pertenece
+     * al embarque seleccionado.
+     */
+    function abrirModalSinDocumentacion(form, consecutivo) {
+
+        formularioSinDocumentacionActual = form;
+
+        botonSubmitSinDocumentacionActual =
+            form.querySelector('.js-submit-sin-documentacion');
+
+
+        const modal =
+            document.getElementById('modalSinDocumentacion');
+
+        const embarqueTexto =
+            document.getElementById('modalSinDocsEmbarque');
+
+
+        embarqueTexto.textContent = `#${consecutivo}`;
+
+
+        modal.classList.add('show');
+
+        modal.setAttribute(
+            'aria-hidden',
+            'false'
+        );
+
+
+        // Evitar scroll de la página mientras el modal está abierto
+        document.body.style.overflow = 'hidden';
+
+
+        // Llevar el foco al botón de confirmación
+        setTimeout(() => {
+
+            document
+                .getElementById('btnConfirmarSinDocumentacion')
+                ?.focus();
+
+        }, 150);
+    }
+
+
+    /**
+     * Cierra el modal.
+     */
+    function cerrarModalSinDocumentacion() {
+
+        const modal =
+            document.getElementById('modalSinDocumentacion');
+
+
+        modal.classList.remove('show');
+
+        modal.setAttribute(
+            'aria-hidden',
+            'true'
+        );
+
+
+        document.body.style.overflow = '';
+
+
+        formularioSinDocumentacionActual = null;
+
+        botonSubmitSinDocumentacionActual = null;
+    }
+
+
+    /**
+     * Confirma la validación.
+     */
+    function confirmarSinDocumentacion() {
+
+        if (
+            !formularioSinDocumentacionActual ||
+            !botonSubmitSinDocumentacionActual
+        ) {
+            return;
+        }
+
+
+        const btnConfirmar =
+            document.getElementById(
+                'btnConfirmarSinDocumentacion'
+            );
+
+
+        // ==========================================================
+        // EVITAR DOBLE CLICK
+        // ==========================================================
+
+        btnConfirmar.disabled = true;
+
+        btnConfirmar.innerHTML = `
+            <span class="spinner-border spinner-border-sm"
+                  role="status"
+                  aria-hidden="true">
+            </span>
+
+            Validando...
+        `;
+
+
+        // ==========================================================
+        // LIMPIAR ARCHIVOS SELECCIONADOS
+        // ==========================================================
+
+        const archivos =
+            formularioSinDocumentacionActual
+                .querySelectorAll(
+                    'input[type="file"]'
+                );
+
+
+        archivos.forEach(input => {
+
+            input.value = '';
+
+        });
+
+
+        // ==========================================================
+        // GUARDAMOS REFERENCIAS ANTES DE CERRAR
+        // ==========================================================
+
+        const form =
+            formularioSinDocumentacionActual;
+
+        const submitButton =
+            botonSubmitSinDocumentacionActual;
+
+
+        // Evitamos que cerrarModal borre las referencias
+        // antes del requestSubmit.
+        document
+            .getElementById('modalSinDocumentacion')
+            .classList.remove('show');
+
+
+        document.body.style.overflow = '';
+
+
+        // ==========================================================
+        // REALIZAR POST
+        // ==========================================================
+
+        if (typeof form.requestSubmit === 'function') {
+
+            form.requestSubmit(submitButton);
+
+        }
+        else {
+
+            // Fallback por compatibilidad
+            submitButton.click();
+
+        }
+    }
+
+        // ============================================================
+    // CERRAR AL PRESIONAR ESC
+    // ============================================================
+
+    document.addEventListener('keydown', function (event) {
+
+        if (event.key !== 'Escape') {
+            return;
+        }
+
+
+        const modal =
+            document.getElementById('modalSinDocumentacion');
+
+
+        if (modal.classList.contains('show')) {
+
+            cerrarModalSinDocumentacion();
+
+        }
+
+    });
+
+
+    // ============================================================
+    // CERRAR AL HACER CLIC FUERA DEL MODAL
+    // ============================================================
+
+    document
+        .getElementById('modalSinDocumentacion')
+        ?.addEventListener('click', function (event) {
+
+            if (event.target === this) {
+
+                cerrarModalSinDocumentacion();
+
+            }
+
+        });
 </script>

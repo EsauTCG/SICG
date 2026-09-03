@@ -1,0 +1,283 @@
+@model IEnumerable<Plataforma_CG.Models.Embarque>
+
+@{
+    ViewData["Title"] = "Histórico de Calidad";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+
+    var registros = Model?.ToList() ?? new List<Plataforma_CG.Models.Embarque>();
+    var buscoHistorial = Convert.ToBoolean(ViewBag.BuscoHistorialCalidad ?? false);
+    var busqueda = Context.Request.Query["busquedaHistorial"].ToString();
+    var fechaInicio = Context.Request.Query["fechaInicioHistorial"].ToString();
+    var fechaFin = Context.Request.Query["fechaFinHistorial"].ToString();
+
+    var documentosPorEmbarque = ViewBag.EmbarquesDocumentos as Dictionary<int, object>
+        ?? new Dictionary<int, object>();
+    var fotosPorEmbarque = ViewBag.FotosCalidadHistorial
+        as Dictionary<int, List<Plataforma_CG.Models.Embarque.EmbarqueCalidadFoto>>
+        ?? new Dictionary<int, List<Plataforma_CG.Models.Embarque.EmbarqueCalidadFoto>>();
+    var temperaturasPorEmbarque = ViewBag.ProductosTemperaturaCalidad
+        as Dictionary<int, List<Plataforma_CG.Models.EmbarqueProductoTemperaturaItemVm>>
+        ?? new Dictionary<int, List<Plataforma_CG.Models.EmbarqueProductoTemperaturaItemVm>>();
+}
+
+<link rel="stylesheet" href="~/css/embarques-historial.css" asp-append-version="true" />
+
+<div class="history-page">
+    <header class="history-header">
+        <div class="history-title-wrap">
+            <div class="history-title-icon"><i class="bi bi-clipboard2-check"></i></div>
+            <div>
+                <h1 class="history-title">Histórico de Calidad</h1>
+                <p class="history-subtitle">Consulta formularios validados, temperaturas, documentos y evidencias sin cargar la pantalla de captura.</p>
+            </div>
+        </div>
+
+        <div class="history-actions">
+            <a asp-action="Calidad" class="history-button">
+                <i class="bi bi-hourglass-split"></i> Ver pendientes
+            </a>
+            <a asp-action="Embarque" class="history-button">
+                <i class="bi bi-arrow-left"></i> Volver a embarques
+            </a>
+        </div>
+    </header>
+
+    <form method="get" asp-action="HistorialCalidad" class="history-filter">
+        <div class="history-field">
+            <label for="busquedaHistorial">Buscar formulario</label>
+            <input id="busquedaHistorial" name="busquedaHistorial" value="@busqueda"
+                   placeholder="Consecutivo, ID o nombre" />
+        </div>
+        <div class="history-field">
+            <label for="fechaInicioHistorial">Fecha de validación inicial</label>
+            <input id="fechaInicioHistorial" type="date" name="fechaInicioHistorial" value="@fechaInicio" required />
+        </div>
+        <div class="history-field">
+            <label for="fechaFinHistorial">Fecha de validación final</label>
+            <input id="fechaFinHistorial" type="date" name="fechaFinHistorial" value="@fechaFin" required />
+        </div>
+        <button type="submit" class="history-button primary">
+            <i class="bi bi-search"></i> Consultar
+        </button>
+        <a asp-action="HistorialCalidad" class="history-button">
+            <i class="bi bi-arrow-clockwise"></i> Limpiar
+        </a>
+    </form>
+
+    @if (!buscoHistorial)
+    {
+        <div class="history-empty">
+            <i class="bi bi-calendar-range"></i>
+            <h4>Selecciona un rango de fechas</h4>
+            <p class="mb-0">Los formularios se consultan únicamente cuando indicas ambas fechas.</p>
+        </div>
+    }
+    else if (!registros.Any())
+    {
+        <div class="history-empty">
+            <i class="bi bi-search"></i>
+            <h4>No se encontraron formularios</h4>
+            <p class="mb-0">No existen validaciones de calidad para los filtros seleccionados.</p>
+        </div>
+    }
+    else
+    {
+        <div class="history-results">
+            @foreach (var embarque in registros)
+            {
+                var consecutivo = string.IsNullOrWhiteSpace(embarque.Consecutivo)
+                    ? $"EMB-{embarque.Id}"
+                    : embarque.Consecutivo;
+                var fotos = fotosPorEmbarque.TryGetValue(embarque.Id, out var fotosEncontradas)
+                    ? fotosEncontradas
+                    : new List<Plataforma_CG.Models.Embarque.EmbarqueCalidadFoto>();
+                var temperaturas = temperaturasPorEmbarque.TryGetValue(embarque.Id, out var temperaturasEncontradas)
+                    ? temperaturasEncontradas
+                    : new List<Plataforma_CG.Models.EmbarqueProductoTemperaturaItemVm>();
+
+                dynamic documentos = documentosPorEmbarque.TryGetValue(embarque.Id, out var documentosEncontrados)
+                    ? documentosEncontrados
+                    : null;
+                IEnumerable<dynamic> ordenes = documentos?.OrdenesVenta ?? Enumerable.Empty<dynamic>();
+                IEnumerable<dynamic> transferencias = documentos?.Transferencias ?? Enumerable.Empty<dynamic>();
+
+                var tarimas = temperaturas
+                    .GroupBy(x => new
+                    {
+                        x.TipoDocumento,
+                        x.DocumentoId,
+                        Tarima = string.IsNullOrWhiteSpace(x.Tarima)
+                            ? $"Sin código ({x.OrigenDetalleId})"
+                            : x.Tarima.Trim()
+                    })
+                    .Select(g =>
+                    {
+                        var ultimaCaptura = g
+                            .Where(x => x.Temperatura.HasValue)
+                            .OrderByDescending(x => x.FechaUltimaCaptura ?? DateTime.MinValue)
+                            .FirstOrDefault();
+                        return new
+                        {
+                            g.Key.TipoDocumento,
+                            g.Key.DocumentoId,
+                            g.Key.Tarima,
+                            Documento = g.First().DocumentoConsecutivo,
+                            Cliente = g.First().DocumentoCliente,
+                            Productos = string.Join(", ", g
+                                .Select(x => string.IsNullOrWhiteSpace(x.ProductoCodigo)
+                                    ? x.ProductoNombre
+                                    : $"{x.ProductoCodigo} - {x.ProductoNombre}")
+                                .Where(x => !string.IsNullOrWhiteSpace(x))
+                                .Distinct()),
+                            Cajas = g.Sum(x => x.Cajas),
+                            Kilos = g.Sum(x => x.Kilos),
+                            Temperatura = ultimaCaptura?.Temperatura,
+                            Observaciones = ultimaCaptura?.Observaciones,
+                            Fecha = ultimaCaptura?.FechaUltimaCaptura,
+                            Usuario = ultimaCaptura?.UsuarioUltimaCaptura
+                        };
+                    })
+                    .OrderBy(x => x.TipoDocumento)
+                    .ThenBy(x => x.Documento)
+                    .ThenBy(x => x.Tarima)
+                    .ToList();
+
+                <details class="history-record">
+                    <summary>
+                        <div>
+                            <h2 class="history-record-title">
+                                <i class="bi bi-clipboard2-check"></i>
+                                Formulario validado · Embarque #@consecutivo
+                            </h2>
+                            <div class="history-meta">
+                                <span class="history-chip success"><i class="bi bi-check-circle-fill"></i> Validado</span>
+                                <span class="history-chip"><i class="bi bi-hash"></i> ID @embarque.Id</span>
+                                <span class="history-chip"><i class="bi bi-calendar-check"></i> @(embarque.FechaValidacionCalidad?.ToString("dd/MM/yyyy HH:mm") ?? "Sin fecha")</span>
+                                <span class="history-chip"><i class="bi bi-person-check"></i> @(embarque.UsuarioValidaCalidad ?? "Sistema")</span>
+                            </div>
+                        </div>
+                        <span class="history-record-count">@tarimas.Count tarima(s) · @fotos.Count foto(s)</span>
+                    </summary>
+
+                    <div class="history-record-body">
+                        <div class="history-actions mb-3">
+                            <a asp-action="DescargarTemperaturasPdf" asp-route-id="@embarque.Id" class="history-button primary">
+                                <i class="bi bi-file-earmark-pdf"></i> Descargar PDF
+                            </a>
+                        </div>
+
+                        <div class="history-grid">
+                            <div class="history-data"><span>Nombre</span><strong>@(embarque.NombreEmbarque ?? "Sin nombre asignado")</strong></div>
+                            <div class="history-data"><span>Tipo de salida</span><strong>@(embarque.SalidaTipo ?? "-")</strong></div>
+                            <div class="history-data"><span>Placa</span><strong>@(embarque.PlacaTransporte ?? "-")</strong></div>
+                            <div class="history-data"><span>Temperatura programada</span><strong>@(embarque.TemperaturaProgramacion?.ToString("N2") ?? "-") °C</strong></div>
+                            <div class="history-data"><span>Temperatura inicial</span><strong>@(embarque.TemperaturaUnidadInicio?.ToString("N2") ?? "-") °C</strong></div>
+                            <div class="history-data"><span>Temperatura final</span><strong>@(embarque.TemperaturaUnidadTermino?.ToString("N2") ?? "-") °C</strong></div>
+                            <div class="history-data"><span>Hora de inicio</span><strong>@(embarque.HoraInicioEmbarque?.ToString("dd/MM/yyyy HH:mm") ?? "-")</strong></div>
+                            <div class="history-data"><span>Hora de término</span><strong>@(embarque.HoraTerminoEmbarque?.ToString("dd/MM/yyyy HH:mm") ?? "-")</strong></div>
+                            <div class="history-data"><span>Estado de la unidad</span><strong>@(embarque.EstadoUnidadCalidad ?? "-")</strong></div>
+                            <div class="history-data"><span>Estado de productos</span><strong>@(embarque.EstadoProductosCalidad ?? "-")</strong></div>
+                            <div class="history-data"><span>Termograficador</span><strong>@(embarque.CodigoTermograficador ?? "-")</strong></div>
+                            <div class="history-data"><span>Termómetro</span><strong>@(embarque.NumeroTermometro ?? "-")</strong></div>
+                            <div class="history-data"><span>Acciones correctivas</span><strong>@(embarque.AccionesCorrectivasCalidad ?? "Sin acciones")</strong></div>
+                            <div class="history-data"><span>Observaciones</span><strong>@(embarque.ObservacionesCalidad ?? "Sin observaciones")</strong></div>
+                            <div class="history-data"><span>Validó</span><strong>@(embarque.UsuarioValidaCalidad ?? "Sistema")</strong></div>
+                        </div>
+
+                        <section class="history-section">
+                            <h3 class="history-section-title"><i class="bi bi-thermometer-half"></i> Temperaturas por tarima</h3>
+                            @if (!tarimas.Any())
+                            {
+                                <div class="history-empty py-3">Este formulario no tiene temperaturas por tarima.</div>
+                            }
+                            else
+                            {
+                                <div class="history-table-wrap">
+                                    <table class="history-table">
+                                        <thead>
+                                            <tr><th>Documento</th><th>Tarima</th><th>Productos</th><th>Cajas</th><th>Kilos</th><th>Temperatura</th><th>Captura</th></tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var tarima in tarimas)
+                                            {
+                                                <tr>
+                                                    <td>@tarima.TipoDocumento · @(string.IsNullOrWhiteSpace(tarima.Documento) ? tarima.DocumentoId : tarima.Documento)<br /><small>@tarima.Cliente</small></td>
+                                                    <td><strong>@tarima.Tarima</strong></td>
+                                                    <td>@(string.IsNullOrWhiteSpace(tarima.Productos) ? "-" : tarima.Productos)</td>
+                                                    <td>@tarima.Cajas</td>
+                                                    <td>@tarima.Kilos.ToString("N2")</td>
+                                                    <td><strong>@(tarima.Temperatura?.ToString("N2") ?? "Sin captura")</strong></td>
+                                                    <td>@(tarima.Fecha?.ToString("dd/MM/yyyy HH:mm") ?? "-")<br /><small>@(tarima.Usuario ?? "-")</small></td>
+                                                </tr>
+                                                @if (!string.IsNullOrWhiteSpace(tarima.Observaciones))
+                                                {
+                                                    <tr><td colspan="7"><strong>Observaciones:</strong> @tarima.Observaciones</td></tr>
+                                                }
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </section>
+
+                        <section class="history-section">
+                            <h3 class="history-section-title"><i class="bi bi-camera"></i> Evidencia fotográfica</h3>
+                            @if (!fotos.Any())
+                            {
+                                <div class="history-empty py-3">No se registró evidencia fotográfica.</div>
+                            }
+                            else
+                            {
+                                <div class="history-photo-grid">
+                                    @foreach (var foto in fotos)
+                                    {
+                                        <a class="history-photo text-decoration-none" href="@foto.RutaArchivo" target="_blank" rel="noopener">
+                                            <img src="@foto.RutaArchivo" alt="Evidencia del embarque @consecutivo" loading="lazy" />
+                                            <div>@foto.FechaRegistro.ToString("dd/MM/yyyy HH:mm") · @(foto.UsuarioRegistro ?? "Sistema")</div>
+                                        </a>
+                                    }
+                                </div>
+                            }
+                        </section>
+
+                        @if (ordenes.Any())
+                        {
+                            <section class="history-section">
+                                <h3 class="history-section-title"><i class="bi bi-box-seam"></i> Órdenes de venta</h3>
+                                <div class="history-table-wrap">
+                                    <table class="history-table">
+                                        <thead><tr><th>Consecutivo</th><th>Cliente</th><th>Ruta</th><th>Entrega</th></tr></thead>
+                                        <tbody>
+                                            @foreach (var orden in ordenes)
+                                            {
+                                                <tr><td>@orden.Consecutivo</td><td>@orden.NombreCliente</td><td>@(orden.Ruta ?? "-")</td><td>@(orden.FechaEntrega != null ? Convert.ToDateTime(orden.FechaEntrega).ToString("dd/MM/yyyy") : "-")</td></tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </section>
+                        }
+
+                        @if (transferencias.Any())
+                        {
+                            <section class="history-section">
+                                <h3 class="history-section-title"><i class="bi bi-arrow-left-right"></i> Transferencias</h3>
+                                <div class="history-table-wrap">
+                                    <table class="history-table">
+                                        <thead><tr><th>Consecutivo</th><th>Sucursal</th><th>Solicitud</th><th>Solicitó</th></tr></thead>
+                                        <tbody>
+                                            @foreach (var transferencia in transferencias)
+                                            {
+                                                <tr><td>@transferencia.Consecutivo</td><td>@(transferencia.Sucursal ?? "-")</td><td>@(transferencia.FechaSolicitud != null ? Convert.ToDateTime(transferencia.FechaSolicitud).ToString("dd/MM/yyyy") : "-")</td><td>@(transferencia.UsuarioSolicita ?? "-")</td></tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </section>
+                        }
+                    </div>
+                </details>
+            }
+        </div>
+    }
+</div>

@@ -1,0 +1,1905 @@
+@model Plataforma_CG.ViewModels.SurtidoPedidoPepsVM
+
+@{
+    ViewData["Title"] = "Pedido activo";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<link rel="stylesheet"
+      href="~/css/surtido-wms-v7.css"
+      asp-append-version="true" />
+
+
+<style id="surtido-pedido-activo-erp-final">
+    @@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+    body:not([data-theme="dark"]) {
+        --wms-bg: #eef2f4 !important;
+        --wms-panel: #ffffff !important;
+        --wms-panel2: #f7f9fa !important;
+        --wms-line: #bec9cf !important;
+        --wms-line-soft: #d3dce1 !important;
+        --wms-text: #30373b !important;
+        --wms-muted: #66747c !important;
+        --wms-blue: #7a2029 !important;
+        --wms-green: #25824d !important;
+        --wms-orange: #b78a24 !important;
+        --wms-red: #9b2e37 !important;
+        --wms-dark: #5a171d !important;
+        --wms-dark2: #351014 !important;
+    }
+
+    /* ===============================================================
+       TIPOGRAFÍA + ICONOS
+       =============================================================== */
+    body:not([data-theme="dark"]),
+    body:not([data-theme="dark"]) button,
+    body:not([data-theme="dark"]) input,
+    body:not([data-theme="dark"]) select,
+    body:not([data-theme="dark"]) textarea,
+    body:not([data-theme="dark"]) table,
+    body:not([data-theme="dark"]) .wms-v7,
+    body:not([data-theme="dark"]) .wms-v7 * {
+        font-family: "Poppins", "Segoe UI", Arial, sans-serif !important;
+        -webkit-font-smoothing: antialiased !important;
+        -moz-osx-font-smoothing: grayscale !important;
+        text-rendering: geometricPrecision !important;
+    }
+
+    body:not([data-theme="dark"]) .bi,
+    body:not([data-theme="dark"]) .bi::before,
+    body:not([data-theme="dark"]) [class^="bi-"],
+    body:not([data-theme="dark"]) [class*=" bi-"] {
+        font-family: "bootstrap-icons" !important;
+        font-style: normal !important;
+        font-weight: normal !important;
+        line-height: 1 !important;
+    }
+
+    /* ===============================================================
+       ANCHO ESTABLE CON SIDEBAR
+       =============================================================== */
+    html,
+    body {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+    }
+
+    body:has(.wms-v7) .layout-main-content {
+        flex: 1 1 auto !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        overflow-x: hidden !important;
+        overflow-y: visible !important;
+        box-sizing: border-box !important;
+    }
+
+    body:has(.wms-v7) .layout-main-content.layout-sidebar-open {
+        width: calc(100% - var(--layout-sidebar-width)) !important;
+        max-width: calc(100% - var(--layout-sidebar-width)) !important;
+        margin-left: var(--layout-sidebar-width) !important;
+    }
+
+    body:has(.layout-sidebar.layout-hidden):has(.wms-v7) .layout-main-content,
+    body:has(.layout-sidebar.layout-hidden):has(.wms-v7) .layout-main-content.layout-sidebar-open {
+        width: calc(100% - var(--layout-sidebar-collapsed-width, 60px)) !important;
+        max-width: calc(100% - var(--layout-sidebar-collapsed-width, 60px)) !important;
+        margin-left: var(--layout-sidebar-collapsed-width, 60px) !important;
+    }
+
+    body:has(.wms-v7) .layout-main-content .layout-container-fluid {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
+        overflow-x: hidden !important;
+    }
+
+    /* ===============================================================
+       CONTENEDOR PRINCIPAL
+       =============================================================== */
+    body:not([data-theme="dark"]) .wms-v7 {
+        width: calc(100% - 12px) !important;
+        max-width: none !important;
+        min-width: 0 !important;
+
+        margin: 6px auto 12px !important;
+        padding: 0 !important;
+
+        background: #eef2f4 !important;
+        color: #30373b !important;
+
+        box-sizing: border-box !important;
+        overflow-x: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-content {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+
+        background: transparent !important;
+    }
+
+    /* ===============================================================
+       REGRESAR
+       =============================================================== */
+    body:not([data-theme="dark"]) .wms-back {
+        display: inline-flex !important;
+        align-items: center !important;
+
+        min-height: 27px !important;
+
+        margin: 0 0 5px !important;
+        padding: 0 7px !important;
+
+        background: #fff !important;
+        color: #59666d !important;
+
+        border: 1px solid #b9c5cb !important;
+        border-radius: 2px !important;
+
+        text-decoration: none !important;
+
+        font-size: 8.6px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-back:hover {
+        background: #f3e7e9 !important;
+        color: #5e1820 !important;
+    }
+
+    /* ===============================================================
+       ALERTAS
+       =============================================================== */
+    body:not([data-theme="dark"]) .wms-alert-ok {
+        margin: 0 0 6px !important;
+        padding: 6px 8px !important;
+
+        background: #e7f2ea !important;
+        color: #315c3b !important;
+
+        border: 1px solid #8eb59a !important;
+        border-left: 3px solid #25824d !important;
+        border-radius: 2px !important;
+
+        font-size: 8.3px !important;
+        font-weight: 600 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-alert-bad {
+        margin: 5px 0 !important;
+        padding: 6px 8px !important;
+
+        background: #f6e3e5 !important;
+        color: #7a2029 !important;
+
+        border: 1px solid #c9989e !important;
+        border-left: 3px solid #9b2e37 !important;
+        border-radius: 2px !important;
+
+        font-size: 8.3px !important;
+        font-weight: 600 !important;
+    }
+
+    /* ===============================================================
+       CONTEXTO DE ALMACÉN
+       =============================================================== */
+    body:not([data-theme="dark"]) .wms-site-line {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 4px !important;
+
+        margin: 0 0 5px !important;
+        padding: 4px 6px !important;
+
+        background: #f7f9fa !important;
+
+        border: 1px solid #bec9cf !important;
+        border-radius: 2px !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-site-line span {
+        padding: 2px 5px !important;
+
+        background: #fff !important;
+        color: #59666d !important;
+
+        border: 1px solid #c5d0d6 !important;
+        border-radius: 2px !important;
+
+        font-size: 7.5px !important;
+        font-weight: 700 !important;
+    }
+
+    /* ===============================================================
+       HERO PEDIDO
+       =============================================================== */
+    body:not([data-theme="dark"]) .wms-order-hero {
+        min-height: 82px !important;
+
+        margin: 0 0 6px !important;
+        padding: 9px 11px !important;
+
+        background:
+            linear-gradient(
+                180deg,
+                #5a171d 0%,
+                #481318 48%,
+                #351014 100%
+            ) !important;
+
+        color: #fff !important;
+
+        border: 1px solid #351014 !important;
+        border-radius: 2px !important;
+
+        box-shadow: none !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-order-hero .wms-overline {
+        color: #eadde0 !important;
+
+        font-size: 7.8px !important;
+        font-weight: 700 !important;
+        letter-spacing: .05em !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-order-hero h1 {
+        margin: 3px 0 2px !important;
+
+        color: #fff !important;
+
+        font-size: 17px !important;
+        font-weight: 700 !important;
+        line-height: 1.05 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-order-hero p {
+        margin: 0 !important;
+
+        color: #eadde0 !important;
+
+        font-size: 8.5px !important;
+        font-weight: 500 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-order-percent {
+        min-width: 68px !important;
+        min-height: 60px !important;
+
+        padding: 6px 8px !important;
+
+        background: rgba(255,255,255,.08) !important;
+
+        border: 1px solid rgba(255,255,255,.20) !important;
+        border-radius: 2px !important;
+
+        box-shadow: none !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-order-percent strong {
+        color: #fff !important;
+
+        font-size: 16px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-order-percent span {
+        color: #eadde0 !important;
+
+        font-size: 7.3px !important;
+        font-weight: 600 !important;
+    }
+
+    /* ===============================================================
+       RESUMEN
+       =============================================================== */
+    body:not([data-theme="dark"]) .wms-summary-row {
+        display: grid !important;
+        grid-template-columns: repeat(4, minmax(0,1fr)) !important;
+        gap: 6px !important;
+
+        margin: 0 0 6px !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-summary-row > div {
+        min-height: 54px !important;
+
+        padding: 6px 8px !important;
+
+        background: #fff !important;
+
+        border: 1px solid #bec9cf !important;
+        border-radius: 2px !important;
+
+        box-shadow: none !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-summary-row span {
+        color: #66747c !important;
+
+        font-size: 7.4px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-summary-row strong {
+        color: #7a2029 !important;
+
+        font-size: 15px !important;
+        font-weight: 700 !important;
+    }
+
+    /* ===============================================================
+       RECOMENDACIÓN PEPS
+       =============================================================== */
+    body:not([data-theme="dark"]) .wms-recommend {
+        margin: 0 0 6px !important;
+        padding: 0 !important;
+
+        background: #fff !important;
+
+        border: 1px solid #bec9cf !important;
+        border-radius: 2px !important;
+
+        box-shadow: none !important;
+        overflow: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-recommend-top {
+        min-height: 31px !important;
+
+        padding: 5px 7px !important;
+
+        background:
+            linear-gradient(
+                180deg,
+                #dce4e8 0%,
+                #d1dbe0 100%
+            ) !important;
+
+        border-bottom: 1px solid #bec9cf !important;
+        border-left: 3px solid #7a2029 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-rec-badge {
+        padding: 2px 5px !important;
+
+        background: #7a2029 !important;
+        color: #fff !important;
+
+        border: 1px solid #5e1820 !important;
+        border-radius: 2px !important;
+
+        font-size: 7.4px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-algo {
+        color: #66747c !important;
+
+        font-size: 7.5px !important;
+        font-weight: 600 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-recommend-main {
+        padding: 8px !important;
+        gap: 8px !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-recommend-main small {
+        color: #66747c !important;
+
+        font-size: 7.3px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-recommend-main > div:first-child > strong {
+        display: block !important;
+
+        margin-top: 2px !important;
+
+        color: #7a2029 !important;
+
+        font-size: 13px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-recommend-main p {
+        margin: 3px 0 0 !important;
+
+        color: #66747c !important;
+
+        font-size: 8px !important;
+        font-weight: 500 !important;
+        line-height: 1.3 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-route-metric {
+        min-width: 94px !important;
+
+        padding: 6px 8px !important;
+
+        background: #f7f9fa !important;
+
+        border: 1px solid #c5d0d6 !important;
+        border-radius: 2px !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-route-metric strong {
+        color: #7a2029 !important;
+
+        font-size: 9.2px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-route-metric span {
+        color: #59666d !important;
+
+        font-size: 7.6px !important;
+        font-weight: 600 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-primary-large {
+        min-height: 32px !important;
+        height: 32px !important;
+
+        margin: 0 8px 8px !important;
+        padding: 0 10px !important;
+
+        background: #7a2029 !important;
+        color: #fff !important;
+
+        border: 1px solid #5e1820 !important;
+        border-radius: 2px !important;
+
+        box-shadow: none !important;
+
+        font-size: 8.5px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-primary-large:disabled {
+        background: #9da6ab !important;
+        color: #fff !important;
+
+        border-color: #858f95 !important;
+
+        opacity: .75 !important;
+    }
+
+    /* ===============================================================
+       MAPA 3D
+       =============================================================== */
+    body:not([data-theme="dark"]) .wms-3d-card {
+        margin: 0 0 6px !important;
+        padding: 0 !important;
+
+        background: #fff !important;
+
+        border: 1px solid #bec9cf !important;
+        border-radius: 2px !important;
+
+        box-shadow: none !important;
+        overflow: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-3d-head {
+        min-height: 36px !important;
+
+        padding: 6px 8px !important;
+
+        background:
+            linear-gradient(
+                180deg,
+                #dce4e8 0%,
+                #d1dbe0 100%
+            ) !important;
+
+        border-bottom: 1px solid #bec9cf !important;
+        border-left: 3px solid #7a2029 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-3d-head .wms-overline {
+        color: #66747c !important;
+
+        font-size: 7.2px !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-3d-head h2 {
+        margin: 1px 0 0 !important;
+
+        color: #3f4549 !important;
+
+        font-size: 10.5px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-3d-head p {
+        margin: 1px 0 0 !important;
+
+        color: #66747c !important;
+
+        font-size: 7.6px !important;
+        font-weight: 500 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-3d-open {
+        min-height: 27px !important;
+
+        padding: 0 7px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+
+        background: #7a2029 !important;
+        color: #fff !important;
+
+        border: 1px solid #5e1820 !important;
+        border-radius: 2px !important;
+
+        text-decoration: none !important;
+
+        font-size: 7.4px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-rack3d {
+        background: #f7f9fa !important;
+
+        border: 1px solid #d3dce1 !important;
+        border-radius: 2px !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-3d-info {
+        color: #59666d !important;
+
+        font-size: 7.8px !important;
+        font-weight: 500 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-3d-legend {
+        color: #66747c !important;
+
+        font-size: 7.4px !important;
+        font-weight: 500 !important;
+    }
+
+    /* ===============================================================
+       TÍTULOS DE SECCIÓN
+       =============================================================== */
+    body:not([data-theme="dark"]) .wms-section-head {
+        min-height: 38px !important;
+
+        margin: 0 0 5px !important;
+        padding: 5px 8px !important;
+
+        background:
+            linear-gradient(
+                180deg,
+                #dce4e8 0%,
+                #d1dbe0 100%
+            ) !important;
+
+        color: #3f4549 !important;
+
+        border: 1px solid #bec9cf !important;
+        border-left: 3px solid #7a2029 !important;
+        border-radius: 2px !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-section-head .wms-overline {
+        color: #66747c !important;
+
+        font-size: 7.2px !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-section-head h2 {
+        margin: 1px 0 0 !important;
+
+        color: #3f4549 !important;
+
+        font-size: 10.5px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-pill {
+        padding: 2px 5px !important;
+
+        background: #f3e7e9 !important;
+        color: #7a2029 !important;
+
+        border: 1px solid #d8bec2 !important;
+        border-radius: 2px !important;
+
+        font-size: 7.5px !important;
+        font-weight: 700 !important;
+    }
+
+    /* ===============================================================
+       PRODUCTOS
+       =============================================================== */
+    body:not([data-theme="dark"]) .wms-product-block {
+        margin: 0 0 6px !important;
+        padding: 0 !important;
+
+        background: #fff !important;
+
+        border: 1px solid #bec9cf !important;
+        border-radius: 2px !important;
+
+        box-shadow: none !important;
+        overflow: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-product-head {
+        min-height: 36px !important;
+
+        padding: 6px 8px !important;
+
+        background: #f7f9fa !important;
+
+        border-bottom: 1px solid #bec9cf !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-product-head .wms-overline {
+        color: #7a2029 !important;
+
+        font-size: 7.3px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-product-head h3 {
+        margin: 1px 0 !important;
+
+        color: #30373b !important;
+
+        font-size: 10px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-product-head small {
+        color: #66747c !important;
+
+        font-size: 7.5px !important;
+        font-weight: 500 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-counts {
+        gap: 3px !important;
+        flex-wrap: wrap !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-counts span {
+        padding: 2px 4px !important;
+
+        background: #eef2f4 !important;
+        color: #59666d !important;
+
+        border: 1px solid #c5d0d6 !important;
+        border-radius: 2px !important;
+
+        font-size: 7px !important;
+        font-weight: 600 !important;
+    }
+
+    /* ===============================================================
+       LISTADO DE TAREAS PEPS
+       =============================================================== */
+    body:not([data-theme="dark"]) .wms-task-list {
+        display: grid !important;
+        gap: 4px !important;
+
+        padding: 6px !important;
+
+        background: #fff !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-task-item {
+        min-height: 54px !important;
+
+        padding: 6px !important;
+
+        background: #fff !important;
+        color: #30373b !important;
+
+        border: 1px solid #c5d0d6 !important;
+        border-left: 3px solid #7a2029 !important;
+        border-radius: 2px !important;
+
+        box-shadow: none !important;
+        transform: none !important;
+
+        text-decoration: none !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-task-item:hover {
+        background: #f3e7e9 !important;
+        color: #30373b !important;
+
+        border-color: #b99196 !important;
+        border-left-color: #7a2029 !important;
+
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-task-rank {
+        width: 28px !important;
+        min-width: 28px !important;
+        height: 28px !important;
+
+        display: grid !important;
+        place-items: center !important;
+
+        background: #7a2029 !important;
+        color: #fff !important;
+
+        border: 1px solid #5e1820 !important;
+        border-radius: 2px !important;
+
+        font-size: 8px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-task-item strong {
+        color: #30373b !important;
+
+        font-size: 9px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-task-item span {
+        color: #66747c !important;
+
+        font-size: 7.5px !important;
+        font-weight: 500 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-peps-tag {
+        display: inline-flex !important;
+
+        margin-top: 3px !important;
+        padding: 2px 4px !important;
+
+        background: #e7f2ea !important;
+        color: #315c3b !important;
+
+        border: 1px solid #8eb59a !important;
+        border-radius: 2px !important;
+
+        font-size: 7px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-task-meta {
+        color: #59666d !important;
+
+        font-size: 7.2px !important;
+        font-weight: 600 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-task-meta b {
+        color: #7a2029 !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-task-meta em {
+        color: #7a2029 !important;
+        font-style: normal !important;
+        font-weight: 700 !important;
+    }
+
+    /* ===============================================================
+       REGLA PEPS
+       =============================================================== */
+    body:not([data-theme="dark"]) .wms-priority-rule {
+        margin: 0 !important;
+        padding: 6px 8px !important;
+
+        background: #fff8df !important;
+        color: #66521c !important;
+
+        border: 1px solid #d7c27f !important;
+        border-left: 3px solid #b78a24 !important;
+        border-radius: 2px !important;
+
+        font-size: 7.9px !important;
+        font-weight: 500 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-priority-rule b {
+        color: #705a1a !important;
+        font-weight: 700 !important;
+    }
+
+    /* ===============================================================
+       RESPONSIVE
+       =============================================================== */
+    @@media (max-width: 980px) {
+        body:not([data-theme="dark"]) .wms-summary-row {
+            grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+        }
+
+        body:not([data-theme="dark"]) .wms-recommend-main,
+        body:not([data-theme="dark"]) .wms-product-head {
+            align-items: flex-start !important;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        body:has(.wms-v7) .layout-main-content,
+        body:has(.wms-v7) .layout-main-content.layout-sidebar-open,
+        body:has(.layout-sidebar.layout-hidden):has(.wms-v7) .layout-main-content,
+        body:has(.layout-sidebar.layout-hidden):has(.wms-v7) .layout-main-content.layout-sidebar-open {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin-left: 0 !important;
+        }
+
+        body:not([data-theme="dark"]) .wms-v7 {
+            width: 100% !important;
+            margin: 0 !important;
+        }
+
+        body:not([data-theme="dark"]) .wms-summary-row {
+            grid-template-columns: 1fr !important;
+        }
+
+        body:not([data-theme="dark"]) .wms-order-hero,
+        body:not([data-theme="dark"]) .wms-section-head,
+        body:not([data-theme="dark"]) .wms-recommend,
+        body:not([data-theme="dark"]) .wms-3d-card,
+        body:not([data-theme="dark"]) .wms-product-block {
+            border-left: 0 !important;
+            border-right: 0 !important;
+        }
+    }
+</style>
+
+
+<style id="pedido-activo-operativo-fullscreen">
+    :root {
+        --op-bg:#f2f5f7;
+        --op-card:#ffffff;
+        --op-line:#d6dfe5;
+        --op-text:#1d2b36;
+        --op-muted:#667784;
+        --op-vino:#7a2029;
+        --op-vino-dark:#55151c;
+        --op-blue:#0d6efd;
+        --op-green:#198754;
+        --op-orange:#d98200;
+        --op-red:#c0392b;
+    }
+
+    body:not([data-theme="dark"]) .wms-v7 {
+        width:100% !important;
+        max-width:none !important;
+        margin:0 !important;
+        padding:12px !important;
+        background:var(--op-bg) !important;
+        color:var(--op-text) !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-content {
+        max-width:1600px !important;
+        margin:0 auto !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-back {
+        min-height:46px !important;
+        padding:0 16px !important;
+        margin:0 0 10px !important;
+        border-radius:12px !important;
+        border:1px solid #cbd5dc !important;
+        background:#fff !important;
+        color:#46545f !important;
+        font-size:14px !important;
+        font-weight:900 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-alert-ok,
+    body:not([data-theme="dark"]) .wms-alert-bad {
+        border-radius:12px !important;
+        padding:12px 14px !important;
+        font-size:14px !important;
+        line-height:1.4 !important;
+        margin:0 0 10px !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-alert-ok {
+        background:#eaf7ef !important;
+        color:#17683f !important;
+        border:1px solid #bfe2ce !important;
+        border-left:6px solid var(--op-green) !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-alert-bad {
+        background:#fff0f0 !important;
+        color:#8d2626 !important;
+        border:1px solid #efc7c7 !important;
+        border-left:6px solid var(--op-red) !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-site-line {
+        gap:8px !important;
+        margin:0 0 10px !important;
+        padding:10px !important;
+        border-radius:14px !important;
+        background:#fff !important;
+        border:1px solid var(--op-line) !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-site-line span {
+        min-height:36px !important;
+        display:inline-flex !important;
+        align-items:center !important;
+        padding:0 12px !important;
+        border-radius:999px !important;
+        background:#f5f7f9 !important;
+        color:#394854 !important;
+        border:1px solid #d7e0e6 !important;
+        font-size:13px !important;
+        font-weight:800 !important;
+    }
+
+    .op-workflow-guide {
+        display:grid;
+        grid-template-columns:repeat(3,minmax(0,1fr));
+        gap:10px;
+        margin:0 0 12px;
+    }
+
+    .op-workflow-guide > div {
+        min-height:68px;
+        display:flex;
+        align-items:center;
+        gap:12px;
+        padding:12px 14px;
+        background:#fff;
+        border:1px solid var(--op-line);
+        border-radius:16px;
+        color:var(--op-text);
+        font-size:14px;
+        font-weight:700;
+    }
+
+    .op-workflow-guide b {
+        width:38px;
+        height:38px;
+        min-width:38px;
+        border-radius:999px;
+        display:grid;
+        place-items:center;
+        background:var(--op-vino);
+        color:#fff;
+        font-size:17px;
+    }
+
+    body:not([data-theme="dark"]) .wms-order-hero {
+        min-height:128px !important;
+        padding:18px 20px !important;
+        margin:0 0 12px !important;
+        border-radius:20px !important;
+        border:1px solid #4a1419 !important;
+        background:linear-gradient(135deg,var(--op-vino-dark),var(--op-vino)) !important;
+        box-shadow:0 12px 30px rgba(71,21,28,.16) !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-order-hero .wms-overline {
+        font-size:12px !important;
+        letter-spacing:.08em !important;
+        font-weight:900 !important;
+        color:#f3dfe2 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-order-hero h1 {
+        margin:6px 0 4px !important;
+        font-size:34px !important;
+        line-height:1 !important;
+        font-weight:950 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-order-hero p {
+        font-size:15px !important;
+        color:#f3dfe2 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-order-percent {
+        min-width:110px !important;
+        min-height:92px !important;
+        padding:12px !important;
+        border-radius:18px !important;
+        background:rgba(255,255,255,.12) !important;
+        border:1px solid rgba(255,255,255,.24) !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-order-percent strong {
+        font-size:31px !important;
+        font-weight:950 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-order-percent span {
+        font-size:12px !important;
+        font-weight:800 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-summary-row {
+        grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+        gap:10px !important;
+        margin:0 0 12px !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-summary-row > div {
+        min-height:88px !important;
+        padding:12px 14px !important;
+        border-radius:16px !important;
+        border:1px solid var(--op-line) !important;
+        background:#fff !important;
+        position:relative !important;
+        overflow:hidden !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-summary-row > div::before {
+        content:"";
+        position:absolute;
+        left:0;top:0;bottom:0;
+        width:6px;
+        background:var(--op-blue);
+    }
+    body:not([data-theme="dark"]) .wms-summary-row > div:nth-child(2)::before { background:var(--op-orange); }
+    body:not([data-theme="dark"]) .wms-summary-row > div:nth-child(3)::before { background:var(--op-green); }
+    body:not([data-theme="dark"]) .wms-summary-row > div:nth-child(4)::before { background:var(--op-red); }
+
+    body:not([data-theme="dark"]) .wms-summary-row span {
+        font-size:12px !important;
+        font-weight:900 !important;
+        text-transform:uppercase !important;
+        color:var(--op-muted) !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-summary-row strong {
+        display:block !important;
+        margin-top:5px !important;
+        font-size:30px !important;
+        line-height:1 !important;
+        font-weight:950 !important;
+        color:var(--op-text) !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-recommend {
+        margin:0 0 12px !important;
+        border-radius:22px !important;
+        border:3px solid #85cba5 !important;
+        background:#f7fff9 !important;
+        box-shadow:0 14px 34px rgba(25,135,84,.12) !important;
+        overflow:hidden !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-recommend-top {
+        min-height:50px !important;
+        padding:10px 14px !important;
+        background:#e9f8ef !important;
+        border:0 !important;
+        border-bottom:1px solid #c6e7d3 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-rec-badge {
+        padding:8px 12px !important;
+        border-radius:999px !important;
+        background:var(--op-green) !important;
+        border-color:#146c43 !important;
+        font-size:12px !important;
+        font-weight:950 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-algo {
+        font-size:13px !important;
+        color:#376c50 !important;
+        font-weight:800 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-recommend-main {
+        padding:20px !important;
+        gap:16px !important;
+        align-items:center !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-recommend-main small {
+        font-size:13px !important;
+        font-weight:900 !important;
+        color:#657773 !important;
+        text-transform:uppercase !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-recommend-main > div:first-child > strong {
+        margin-top:4px !important;
+        font-size:38px !important;
+        line-height:1 !important;
+        font-weight:950 !important;
+        color:#12653b !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-recommend-main p {
+        margin-top:10px !important;
+        font-size:15px !important;
+        line-height:1.5 !important;
+        color:#41515b !important;
+        font-weight:650 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-route-metric {
+        min-width:150px !important;
+        padding:14px !important;
+        border-radius:16px !important;
+        background:#fff !important;
+        border:1px solid #bee2cc !important;
+        text-align:center !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-route-metric strong {
+        font-size:17px !important;
+        color:#12653b !important;
+        font-weight:950 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-route-metric span {
+        margin-top:5px !important;
+        display:block !important;
+        font-size:14px !important;
+        color:#4c6256 !important;
+        font-weight:800 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-primary-large {
+        min-height:64px !important;
+        height:auto !important;
+        margin:0 20px 20px !important;
+        padding:0 18px !important;
+        border-radius:16px !important;
+        background:linear-gradient(180deg,#26a765,#198754) !important;
+        border:1px solid #146c43 !important;
+        color:#fff !important;
+        font-size:20px !important;
+        font-weight:950 !important;
+        letter-spacing:.02em !important;
+        box-shadow:0 8px 18px rgba(25,135,84,.18) !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-primary-large:disabled {
+        background:#8b949b !important;
+        border-color:#737d84 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-3d-card {
+        margin:0 0 12px !important;
+        border-radius:18px !important;
+        border:1px solid #cfdbe2 !important;
+        background:#fff !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-3d-head {
+        min-height:64px !important;
+        padding:12px 14px !important;
+        border:0 !important;
+        border-bottom:1px solid var(--op-line) !important;
+        background:#f7fafc !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-3d-head .wms-overline {
+        font-size:11px !important;
+        color:#71818c !important;
+        font-weight:900 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-3d-head h2 {
+        font-size:22px !important;
+        color:var(--op-text) !important;
+        font-weight:950 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-3d-head p {
+        font-size:13px !important;
+        color:var(--op-muted) !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-3d-open {
+        min-height:46px !important;
+        padding:0 14px !important;
+        border-radius:12px !important;
+        background:var(--op-blue) !important;
+        border-color:#0b5ed7 !important;
+        font-size:13px !important;
+        font-weight:950 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-section-head {
+        min-height:58px !important;
+        margin:0 0 10px !important;
+        padding:10px 14px !important;
+        border-radius:16px !important;
+        border:1px solid var(--op-line) !important;
+        border-left:6px solid var(--op-vino) !important;
+        background:#fff !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-section-head .wms-overline {
+        font-size:10px !important;
+        color:#788790 !important;
+        font-weight:900 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-section-head h2 {
+        margin-top:2px !important;
+        font-size:20px !important;
+        color:var(--op-text) !important;
+        font-weight:950 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-pill {
+        padding:7px 10px !important;
+        border-radius:999px !important;
+        background:#f4e8ea !important;
+        color:var(--op-vino) !important;
+        border:1px solid #dec6c9 !important;
+        font-size:11px !important;
+        font-weight:900 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-product-block {
+        margin:0 0 12px !important;
+        border-radius:18px !important;
+        border:1px solid var(--op-line) !important;
+        background:#fff !important;
+        overflow:hidden !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-product-head {
+        min-height:76px !important;
+        padding:12px 14px !important;
+        background:#f8fafb !important;
+        border-bottom:1px solid var(--op-line) !important;
+        gap:12px !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-product-head .wms-overline {
+        font-size:11px !important;
+        color:var(--op-vino) !important;
+        font-weight:950 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-product-head h3 {
+        margin:3px 0 !important;
+        font-size:18px !important;
+        color:var(--op-text) !important;
+        font-weight:950 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-product-head small {
+        font-size:12px !important;
+        color:var(--op-muted) !important;
+        font-weight:700 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-counts span {
+        min-height:32px !important;
+        display:inline-flex !important;
+        align-items:center !important;
+        padding:0 9px !important;
+        border-radius:999px !important;
+        background:#fff !important;
+        color:#52616c !important;
+        border:1px solid #d4dde3 !important;
+        font-size:11px !important;
+        font-weight:850 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-task-list {
+        gap:10px !important;
+        padding:12px !important;
+        background:#fff !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-task-item {
+        min-height:92px !important;
+        padding:12px !important;
+        border-radius:16px !important;
+        border:2px solid #cfe0ff !important;
+        border-left:8px solid var(--op-blue) !important;
+        background:#f7faff !important;
+        gap:12px !important;
+        align-items:center !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-task-item:hover {
+        background:#eef5ff !important;
+        border-color:#a9c9ff !important;
+        border-left-color:var(--op-blue) !important;
+        transform:translateY(-1px) !important;
+        box-shadow:0 10px 24px rgba(13,110,253,.10) !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-task-rank {
+        width:50px !important;
+        min-width:50px !important;
+        height:50px !important;
+        border-radius:14px !important;
+        background:var(--op-blue) !important;
+        border-color:#0b5ed7 !important;
+        font-size:16px !important;
+        font-weight:950 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-task-item strong {
+        display:block !important;
+        font-size:20px !important;
+        color:var(--op-text) !important;
+        font-weight:950 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-task-item span {
+        font-size:13px !important;
+        line-height:1.45 !important;
+        color:#576873 !important;
+        font-weight:650 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-peps-tag {
+        margin-top:6px !important;
+        padding:5px 8px !important;
+        border-radius:999px !important;
+        background:#e8f6ee !important;
+        color:#17683f !important;
+        border:1px solid #bee1cc !important;
+        font-size:11px !important;
+        font-weight:900 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-task-meta {
+        min-width:145px !important;
+        display:flex !important;
+        flex-direction:column !important;
+        align-items:flex-end !important;
+        gap:5px !important;
+        font-size:11px !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-task-meta b {
+        color:#667784 !important;
+        font-size:11px !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-task-meta em {
+        min-height:42px !important;
+        display:inline-flex !important;
+        align-items:center !important;
+        justify-content:center !important;
+        padding:0 12px !important;
+        border-radius:12px !important;
+        background:var(--op-blue) !important;
+        color:#fff !important;
+        font-size:12px !important;
+        font-weight:950 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-priority-rule {
+        margin:4px 0 0 !important;
+        padding:12px 14px !important;
+        border-radius:14px !important;
+        border:1px solid #ecd59a !important;
+        border-left:6px solid var(--op-orange) !important;
+        background:#fff8e7 !important;
+        color:#68551d !important;
+        font-size:13px !important;
+        line-height:1.45 !important;
+    }
+
+    body:not([data-theme="dark"]) .wms-priority-rule b {
+        color:#7a5d00 !important;
+    }
+
+    @@media(max-width:900px) {
+        .op-workflow-guide { grid-template-columns:1fr !important; }
+        body:not([data-theme="dark"]) .wms-summary-row { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+        body:not([data-theme="dark"]) .wms-recommend-main { align-items:flex-start !important; }
+        body:not([data-theme="dark"]) .wms-recommend-main > div:first-child > strong { font-size:30px !important; }
+        body:not([data-theme="dark"]) .wms-task-meta { min-width:0 !important; align-items:flex-start !important; }
+    }
+
+    @@media(max-width:600px) {
+        body:not([data-theme="dark"]) .wms-v7 { padding:6px !important; }
+        body:not([data-theme="dark"]) .wms-summary-row { grid-template-columns:1fr 1fr !important; }
+        body:not([data-theme="dark"]) .wms-order-hero h1 { font-size:28px !important; }
+        body:not([data-theme="dark"]) .wms-recommend-main > div:first-child > strong { font-size:27px !important; }
+        body:not([data-theme="dark"]) .wms-task-item { grid-template-columns:auto 1fr !important; }
+        body:not([data-theme="dark"]) .wms-task-meta { grid-column:1 / -1 !important; width:100% !important; }
+        body:not([data-theme="dark"]) .wms-task-meta em { width:100% !important; }
+        body:not([data-theme="dark"]) .wms-product-head { align-items:flex-start !important; }
+    }
+</style>
+<style id="responsive-operativo-final">
+.wms-v7,.wms-content,.wms-order-hero,.wms-summary-row,.wms-recommend,.wms-3d-card,.wms-product-block,.wms-task-item{min-width:0!important;max-width:100%!important}
+body:not([data-theme="dark"]) .wms-v7{width:100%!important;margin:0!important;padding:7px!important}body:not([data-theme="dark"]) .wms-back{min-height:30px!important;margin:0 0 4px!important;padding:0 8px!important;border-radius:8px!important;font-size:8px!important}
+body:not([data-theme="dark"]) .wms-alert-ok,body:not([data-theme="dark"]) .wms-alert-bad{margin:3px 0!important;padding:5px 7px!important;border-radius:8px!important;font-size:8px!important}body:not([data-theme="dark"]) .wms-site-line{margin:0 0 4px!important;padding:3px 5px!important;gap:3px!important;border-radius:8px!important}body:not([data-theme="dark"]) .wms-site-line span{padding:2px 5px!important;border-radius:999px!important;font-size:7px!important}
+.op-workflow-guide{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:4px!important;margin:0 0 5px!important}.op-workflow-guide>div{min-height:30px!important;padding:4px 6px!important;border-radius:8px!important;font-size:7px!important}.op-workflow-guide b{width:18px!important;height:18px!important;font-size:7px!important}
+body:not([data-theme="dark"]) .wms-order-hero{min-height:60px!important;margin:0 0 5px!important;padding:7px 9px!important;border-radius:11px!important}body:not([data-theme="dark"]) .wms-order-hero h1{font-size:20px!important}body:not([data-theme="dark"]) .wms-order-hero p{font-size:8px!important}body:not([data-theme="dark"]) .wms-order-percent{min-width:74px!important;padding:6px!important}body:not([data-theme="dark"]) .wms-order-percent strong{font-size:23px!important}body:not([data-theme="dark"]) .wms-order-percent span{font-size:7px!important}
+body:not([data-theme="dark"]) .wms-summary-row{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:4px!important;margin:0 0 5px!important}body:not([data-theme="dark"]) .wms-summary-row>div{min-height:45px!important;padding:5px 7px!important;border-radius:8px!important}body:not([data-theme="dark"]) .wms-summary-row span{font-size:7px!important}body:not([data-theme="dark"]) .wms-summary-row strong{font-size:17px!important}
+body:not([data-theme="dark"]) .wms-recommend{margin:5px 0!important;padding:8px 9px!important;border-radius:12px!important}body:not([data-theme="dark"]) .wms-recommend-top{margin-bottom:5px!important}body:not([data-theme="dark"]) .wms-rec-badge,body:not([data-theme="dark"]) .wms-algo{font-size:7px!important}body:not([data-theme="dark"]) .wms-recommend-main{gap:8px!important}body:not([data-theme="dark"]) .wms-recommend-main>div:first-child>strong{font-size:29px!important;line-height:1!important}body:not([data-theme="dark"]) .wms-recommend-main p{font-size:8px!important;line-height:1.25!important}body:not([data-theme="dark"]) .wms-route-metric{min-width:105px!important;padding:7px!important}body:not([data-theme="dark"]) .wms-route-metric strong{font-size:15px!important}body:not([data-theme="dark"]) .wms-route-metric span{font-size:8px!important}body:not([data-theme="dark"]) .wms-primary-large{min-height:38px!important;margin-top:7px!important;border-radius:9px!important;font-size:10px!important}
+body:not([data-theme="dark"]) .wms-3d-card{margin:5px 0!important;border-radius:11px!important}body:not([data-theme="dark"]) .wms-3d-head{padding:6px 8px!important}body:not([data-theme="dark"]) .wms-3d-head h2{font-size:14px!important}body:not([data-theme="dark"]) .wms-3d-head p{font-size:7px!important}body:not([data-theme="dark"]) .wms-3d-open{min-height:30px!important;padding:0 8px!important;border-radius:8px!important;font-size:7px!important}body:not([data-theme="dark"]) #pedidoMini3d{min-height:150px!important;max-height:150px!important}
+body:not([data-theme="dark"]) .wms-section-head{margin:5px 0!important;padding:6px 8px!important;border-radius:9px!important}body:not([data-theme="dark"]) .wms-section-head h2{font-size:13px!important}body:not([data-theme="dark"]) .wms-pill{padding:3px 6px!important;font-size:7px!important}
+body:not([data-theme="dark"]) .wms-product-block{margin:5px 0!important;padding:7px 8px!important;border-radius:11px!important}body:not([data-theme="dark"]) .wms-product-head h3{font-size:13px!important}body:not([data-theme="dark"]) .wms-product-head small{font-size:7px!important}body:not([data-theme="dark"]) .wms-counts{gap:3px!important}body:not([data-theme="dark"]) .wms-counts span{padding:3px 5px!important;font-size:6.5px!important}
+body:not([data-theme="dark"]) .wms-task-list{gap:4px!important}body:not([data-theme="dark"]) .wms-task-item{grid-template-columns:30px minmax(0,1fr) 105px!important;gap:7px!important;padding:6px 7px!important;border-radius:9px!important}body:not([data-theme="dark"]) .wms-task-rank{width:30px!important;height:30px!important;font-size:10px!important}body:not([data-theme="dark"]) .wms-task-item strong{font-size:12px!important}body:not([data-theme="dark"]) .wms-task-item span{font-size:7px!important;line-height:1.25!important}body:not([data-theme="dark"]) .wms-peps-tag{margin-top:3px!important;padding:3px 5px!important;font-size:6.5px!important}body:not([data-theme="dark"]) .wms-task-meta{min-width:0!important;gap:3px!important}body:not([data-theme="dark"]) .wms-task-meta b{font-size:6.5px!important}body:not([data-theme="dark"]) .wms-task-meta em{min-height:30px!important;padding:0 7px!important;border-radius:8px!important;font-size:7px!important}body:not([data-theme="dark"]) .wms-priority-rule{margin:5px 0 0!important;padding:6px 8px!important;border-radius:8px!important;font-size:7px!important}
+@@media(max-width:900px){.op-workflow-guide{grid-template-columns:repeat(3,minmax(0,1fr))!important}body:not([data-theme="dark"]) .wms-summary-row{grid-template-columns:repeat(4,minmax(0,1fr))!important}body:not([data-theme="dark"]) .wms-task-item{grid-template-columns:28px minmax(0,1fr) 95px!important}body:not([data-theme="dark"]) #pedidoMini3d{min-height:130px!important;max-height:130px!important}}
+@@media(max-width:650px){.op-workflow-guide{grid-template-columns:1fr!important}body:not([data-theme="dark"]) .wms-summary-row{grid-template-columns:1fr 1fr!important}body:not([data-theme="dark"]) .wms-recommend-main{display:grid!important;grid-template-columns:1fr!important}body:not([data-theme="dark"]) .wms-task-item{grid-template-columns:28px minmax(0,1fr)!important}body:not([data-theme="dark"]) .wms-task-meta{grid-column:1/-1!important;width:100%!important;align-items:stretch!important}body:not([data-theme="dark"]) .wms-task-meta em{width:100%!important}}
+</style>
+
+
+<div class="wms-v7">
+
+    <main class="wms-content">
+
+        <a class="wms-back"
+           href="@Url.Action(
+                "Picking",
+                "Surtido",
+                new
+                {
+                    almacen = Model.Almacen.Codigo
+                }
+           )">
+            ← REGRESAR A MIS PEDIDOS
+        </a>
+
+
+        @if (TempData["Exito"] != null)
+        {
+            <div class="wms-alert-ok">
+                @TempData["Exito"]
+            </div>
+        }
+
+        @if (TempData["Error"] != null)
+        {
+            <div class="wms-alert-bad">
+                @TempData["Error"]
+            </div>
+        }
+
+
+        <div class="wms-site-line">
+            <span>@Model.Almacen.Planta</span>
+            <span>@Model.Almacen.Nombre</span>
+            <span>@Model.Almacen.Clasificacion</span>
+        </div>
+
+        <div class="op-workflow-guide" aria-label="Instrucciones rápidas">
+            <div><b>1</b><span>Ve a la ubicación recomendada</span></div>
+            <div><b>2</b><span>Toca <strong>IR POR ESTA CAJA</strong></span></div>
+            <div><b>3</b><span>Confirma la bajada en la siguiente pantalla</span></div>
+        </div>
+
+
+        <section class="wms-order-hero">
+
+            <div>
+                <span class="wms-overline">
+                    PEDIDO ACTIVO
+                </span>
+
+                <h1>
+                    @Model.Pedido.Pedido
+                </h1>
+
+                <p>
+                    @Model.Pedido.Cliente
+                    · Solicitud @Model.Pedido.SolicitudSurtidoId
+                </p>
+            </div>
+
+            <div class="wms-order-percent">
+                <strong>
+                    @Model.AvancePorcentaje%
+                </strong>
+                <span>Picking</span>
+            </div>
+
+        </section>
+
+
+        <section class="wms-summary-row">
+
+            <div>
+                <span>Solicitadas</span>
+                <strong>@Model.CajasSolicitadas</strong>
+            </div>
+
+            <div>
+                <span>Bajadas</span>
+                <strong>@Model.CajasBajadas</strong>
+            </div>
+
+            <div>
+                <span>Surtidas</span>
+                <strong>@Model.CajasSurtidas</strong>
+            </div>
+
+            <div>
+                <span>Pendientes</span>
+                <strong>@Model.CajasPendientes</strong>
+            </div>
+
+        </section>
+
+
+        @if (!string.IsNullOrWhiteSpace(Model.Error))
+        {
+            <div class="wms-alert-bad">
+                @Model.Error
+            </div>
+        }
+
+
+        @if (Model.Recomendada != null)
+        {
+            <article class="wms-recommend">
+
+                <div class="wms-recommend-top">
+
+                    <div class="wms-rec-badge">
+                        RECOMENDADO
+                    </div>
+
+                    <div class="wms-algo">
+                        PRIMERA CAJA QUE DEBES BAJAR · PEPS
+                    </div>
+
+                </div>
+
+                <div class="wms-recommend-main">
+
+                    <div>
+                        <small>
+                            IR A
+                        </small>
+
+                        <strong>
+                            @(string.IsNullOrWhiteSpace(Model.Recomendada.UbicacionOrigen)
+                                ? "SIN UBICACIÓN"
+                                : Model.Recomendada.UbicacionOrigen)
+                        </strong>
+
+                        <p>
+                            @Model.Recomendada.ProductoNombre
+                            · Tarima @(string.IsNullOrWhiteSpace(Model.Recomendada.TarimaCodigo)
+                                ? "-"
+                                : Model.Recomendada.TarimaCodigo)
+                            · Etiqueta @Model.Recomendada.CodigoEtiqueta
+                            · Lote @Model.Recomendada.Lote
+                            · Prod. @(Model.Recomendada.FechaProduccion?.ToString("dd/MM/yyyy") ?? "-")
+                        </p>
+                    </div>
+
+                    <div class="wms-route-metric">
+                        <strong>
+                            #@Model.Recomendada.OrdenPeps PEPS
+                        </strong>
+                        <span>
+                            @Model.Recomendada.PesoNeto.ToString("N2") kg
+                        </span>
+                    </div>
+
+                </div>
+
+                @if (Model.Recomendada.PuedeBajar)
+                {
+                    <a class="wms-primary-large"
+                       style="display:grid;place-items:center;text-decoration:none;"
+                       href="@Url.Action(
+                            "PickingTarea",
+                            "Surtido",
+                            new
+                            {
+                                almacen = Model.Almacen.Codigo,
+                                solicitudSurtidoId = Model.Pedido.SolicitudSurtidoId,
+                                produccionId = Model.Recomendada.ProduccionId
+                            }
+                       )">
+                        IR POR ESTA CAJA →
+                    </a>
+                }
+                else
+                {
+                    <button class="wms-primary-large"
+                            type="button"
+                            disabled>
+                        PEPS BLOQUEADO
+                    </button>
+
+                    <div class="wms-alert-bad">
+                        @Model.Recomendada.MotivoBloqueo
+                    </div>
+                }
+
+            </article>
+
+            @if (!string.IsNullOrWhiteSpace(Model.Recomendada.UbicacionOrigen))
+            {
+                <section class="wms-3d-card">
+
+                    <div class="wms-3d-head">
+
+                        <div>
+                            <span class="wms-overline">
+                                MAPA 3D · DESTINO PEPS
+                            </span>
+
+                            <h2>
+                                @Model.Recomendada.UbicacionOrigen
+                            </h2>
+
+                            <p>
+                                Usa este mapa para llegar a la ubicación de la caja.
+                            </p>
+                        </div>
+
+                        <a class="wms-3d-open"
+                           href="@Url.Action(
+                                "Mapa3D",
+                                "Surtido",
+                                new
+                                {
+                                    almacen = Model.Almacen.Codigo,
+                                    ubicacion = Model.Recomendada.UbicacionOrigen
+                                }
+                           )">
+                            VER UBICACIÓN EN MAPA 3D
+                        </a>
+
+                    </div>
+
+                    <div id="pedidoMini3d"
+                         class="wms-rack3d compact"
+                         data-location="@Model.Recomendada.UbicacionOrigen"
+                         data-layout-known="@Model.Almacen.TieneLayout3D.ToString().ToLowerInvariant()"
+                         data-compact="true"
+                         data-info-target="#pedidoMini3dInfo">
+                    </div>
+
+                    <div id="pedidoMini3dInfo"
+                         class="wms-3d-info">
+                    </div>
+
+                    <div class="wms-3d-legend">
+                        <span><i class="target"></i>Destino PEPS</span>
+                        <span><i class="rack"></i>Rack</span>
+                    </div>
+
+                </section>
+            }
+        }
+        else if (Model.CajasPendientes > 0)
+        {
+            <div class="wms-alert-bad">
+                No hay cajas PEPS disponibles que puedan bajarse en este momento.
+                Revisa existencias, almacén o la regla de ubicación.
+            </div>
+        }
+
+
+        <div class="wms-section-head">
+
+            <div>
+                <span class="wms-overline">
+                    SIGUIENTES CAJAS
+                </span>
+
+                <h2>
+                    Siguientes cajas para bajar
+                </h2>
+            </div>
+
+            <span class="wms-pill">
+                @Model.NombreConexion
+            </span>
+
+        </div>
+
+
+        @foreach (var producto in Model.Productos)
+        {
+            <section class="wms-product-block">
+
+                <div class="wms-product-head">
+
+                    <div>
+                        <span class="wms-overline">
+                            @producto.Articulo
+                        </span>
+
+                        <h3>
+                            @producto.ProductoNombre
+                        </h3>
+
+                        <small>
+                            @producto.AlmacenNombre
+                        </small>
+                    </div>
+
+                    <div class="wms-counts">
+                        <span>Pedido @producto.CajasSolicitadas</span>
+                        <span>Bajadas @producto.CajasBajadas</span>
+                        <span>Surtidas @producto.CajasSurtidas</span>
+                        <span>Pendientes @producto.CajasPendientes</span>
+                    </div>
+
+                </div>
+
+
+                @if (producto.CajasPendientes <= 0)
+                {
+                    <div class="wms-alert-ok">
+                        Producto completo para este almacén.
+                    </div>
+                }
+                else if (!producto.Cajas.Any())
+                {
+                    <div class="wms-alert-bad">
+                        Sin cajas disponibles para @producto.Articulo.
+                    </div>
+                }
+                else
+                {
+                    // =========================================================
+                    // VISTA LIMPIA
+                    //
+                    // Ya estamos dentro de un bloque C# de Razor.
+                    // NO se debe abrir otro bloque con @{ ... }.
+                    //
+                    // Sólo mostramos cajas:
+                    // - PEPS recomendadas;
+                    // - disponibles para bajar.
+                    //
+                    // Las bloqueadas / ESPERA no se dibujan.
+                    // =========================================================
+                    var cajasVisibles =
+                        producto.Cajas
+                            .Where(c =>
+                                c.EsRecomendada
+                                &&
+                                c.PuedeBajar
+                            )
+                            .Take(producto.CajasPendientes)
+                            .ToList();
+
+                    if (cajasVisibles.Any())
+                    {
+                        <div class="wms-task-list">
+
+                            @foreach (var caja in cajasVisibles)
+                            {
+                                <a class="wms-task-item recommended"
+                                   href="@Url.Action(
+                                        "PickingTarea",
+                                        "Surtido",
+                                        new
+                                        {
+                                            almacen = Model.Almacen.Codigo,
+                                            solicitudSurtidoId = Model.Pedido.SolicitudSurtidoId,
+                                            produccionId = caja.ProduccionId
+                                        }
+                                   )">
+
+                                    <div class="wms-task-rank">
+                                        @caja.OrdenPeps
+                                    </div>
+
+                                    <div>
+
+                                        <strong>
+                                            @(string.IsNullOrWhiteSpace(caja.UbicacionOrigen)
+                                                ? "SIN UBICACIÓN"
+                                                : caja.UbicacionOrigen)
+                                            ·
+                                            @(string.IsNullOrWhiteSpace(caja.TarimaCodigo)
+                                                ? "SIN TARIMA"
+                                                : caja.TarimaCodigo)
+                                        </strong>
+
+                                        <span>
+                                            @producto.ProductoNombre
+                                            · Etiqueta @caja.CodigoEtiqueta
+                                            · @caja.PesoNeto.ToString("N2") kg
+                                            · Prod. @(caja.FechaProduccion?.ToString("dd/MM/yyyy") ?? "-")
+                                            · Lote @caja.Lote
+                                        </span>
+
+                                        <br />
+
+                                        <span class="wms-peps-tag">
+                                            PEPS #@caja.OrdenPeps · LISTA PARA BAJAR
+                                        </span>
+
+                                    </div>
+
+                                    <div class="wms-task-meta">
+
+                                        <b>
+                                            PEPS
+                                        </b>
+
+                                        <em>
+                                            IR POR ESTA CAJA
+                                        </em>
+
+                                    </div>
+
+                                </a>
+                            }
+
+                        </div>
+                    }
+                    else
+                    {
+                        var primeraBloqueada =
+                            producto.Cajas
+                                .Where(c =>
+                                    c.EsRecomendada
+                                )
+                                .OrderBy(c =>
+                                    c.OrdenPeps
+                                )
+                                .FirstOrDefault(c =>
+                                    !c.PuedeBajar
+                                );
+
+                        if (primeraBloqueada != null)
+                        {
+                            <div class="wms-alert-bad">
+                                PEPS pendiente:
+                                @primeraBloqueada.MotivoBloqueo
+                            </div>
+                        }
+                    }
+
+                    if (
+                        producto.CajasDisponibles
+                        <
+                        producto.CajasPendientes
+                    )
+                    {
+                        <div class="wms-alert-bad">
+                            Faltante: se requieren @producto.CajasPendientes cajas,
+                            pero sólo hay @producto.CajasDisponibles disponibles
+                            después de excluir producto ya surtido y ya bajado.
+                        </div>
+                    }
+                }
+
+            </section>
+        }
+
+
+        <div class="wms-priority-rule">
+            <b>Regla PEPS activa.</b>
+            El servidor vuelve a calcular la antigüedad antes de confirmar una bajada.
+            Aunque se manipule el navegador, una caja más nueva no se registra si existe
+            una caja PEPS anterior disponible.
+        </div>
+
+    </main>
+
+</div>
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="~/js/surtido-wms-3d.js" asp-append-version="true"></script>

@@ -1,4 +1,5 @@
-﻿using ClosedXML.Excel;
+
+using ClosedXML.Excel;
 using Dapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -24,6 +25,9 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using Tesseract;
 using UglyToad.PdfPig;
+using PdfSharp.Drawing;
+using PdfSharp.Drawing.Layout;
+using Plataforma_CG.ViewModels;
 
 
 namespace Plataforma_CG.Controllers
@@ -85,6 +89,9 @@ namespace Plataforma_CG.Controllers
         private const string KEY_INV_ACT = "cache_inv_actual";
         private const string KEY_VENTA_REAL = "cache_venta_real_resumen";
 
+        private readonly IWebHostEnvironment _environment;
+
+
         private async Task<(bool puedeLeer, bool puedeEscribir, bool puedeEliminar)> ObtenerPermisoModuloAsync(string claveModulo)
         {
             var login = (User?.Identity?.Name ?? "").Trim();
@@ -126,26 +133,24 @@ namespace Plataforma_CG.Controllers
             IPresupuestoSettingsService settings,
             PresupuestoAdminService presAdmin,
              ISapDireccionesSyncService direccionesSync,   // 👈 AQUÍ
-             IMemoryCache cache
-
-
-
+                IMemoryCache cache,
+                IWebHostEnvironment environment
             )
 
         {
-            _context = context;  // 👈 inicializa aquí
+            _context = context;
             _config = configOptions?.Value ?? new SeriesSettings();
             _sap = sap ?? throw new ArgumentNullException(nameof(sap));
-            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration)); // 👈 nuevo
+            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
             _sync = sync ?? throw new ArgumentNullException(nameof(sync));
             _logger = logger;
             _httpClient = (httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory))).CreateClient("SapServiceLayer");
-            _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory)); // 👈 GUÁRDALO
+            _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
             _settings = settings;
             _presAdmin = presAdmin;
-            _direccionesSync = direccionesSync; // 👈 AQUÍ
+            _direccionesSync = direccionesSync;
             _cache = cache;
-
+            _environment = environment;
         }
 
         // ── Helper caché  ◄─── AQUÍ, antes de los endpoints ──────────
@@ -953,7 +958,7 @@ presupuestos_normales AS (
 ),
 
 -- =====================================================
--- ORDEN DE VENTA (MATRIZ) - INCLUYE ESTATUS 5
+-- ORDEN DE VENTA (MATRIZ) - INCLUYE ESTATUS 5 Y 6
 -- =====================================================
 ov AS (
     SELECT
@@ -966,7 +971,7 @@ ov AS (
     FROM dbo.OrdenVenta o
     INNER JOIN dbo.Series ser ON o.Serie = ser.NombreSerie
     WHERE o.FechaEntrega IS NOT NULL
-      AND o.Estatus BETWEEN 1 AND 5
+      AND o.Estatus BETWEEN 1 AND 6
       AND ser.Sucursal = 'MATRIZ'
 ),
 
@@ -1015,7 +1020,7 @@ ov_surtido_agg AS (
 
 -- =====================================================
 -- OV PENDIENTE POR OV+SKU (pedido - surtido validado)
--- + excepción estatus=5 con surtido relacionado => pendiente=0
+-- + excepción estatus 5/6 con surtido relacionado => pendiente=0
 -- =====================================================
 ov_pendiente_sku AS (
     SELECT
@@ -1028,7 +1033,7 @@ ov_pendiente_sku AS (
         KgPendiente =
             CAST(
                 CASE
-                    WHEN ov.Estatus = 5 AND os.Id IS NOT NULL THEN 0
+                    WHEN ov.Estatus IN (5, 6) AND os.Id IS NOT NULL THEN 0
                     ELSE
                         CASE
                             WHEN (p.KgPedido - ISNULL(sa.KgSurtido,0)) < 0 THEN 0
@@ -1636,7 +1641,11 @@ ORDER BY
 
 
         [HttpPost]
-        public async Task<IActionResult> GuardarPedido(PedidoViewModel model, string accion, CancellationToken ct)
+        public async Task<IActionResult> GuardarPedido(
+     PedidoViewModel model,
+     string accion,
+     bool esMuestra = false,
+     CancellationToken ct = default)
         {
             if (!model.FechaEntrega.HasValue)
             {
@@ -1646,48 +1655,70 @@ ORDER BY
 
             static string Norm(string? s) => (s ?? "").Trim().ToUpperInvariant();
 
-            // Lee ClienteCodigo o Cliente si existen en el DTO (para no depender del nombre exacto)
+            // Lee ClienteCodigo o Cliente si existen en el DTO
+            // para no depender del nombre exacto
             static string GetClienteFromDto(PresupuestoConsumoDto dto)
             {
                 var t = dto.GetType();
                 var p = t.GetProperty("ClienteCodigo") ?? t.GetProperty("Cliente");
                 var v = p?.GetValue(dto)?.ToString();
+
                 return Norm(v);
             }
 
-            var modoPresupuesto = GetModoPresupuestoActual();   // "VENDEDOR" | "CLIENTE"
+
+            var modoPresupuesto = GetModoPresupuestoActual(); // "VENDEDOR" | "CLIENTE"
+
             string clienteUp = Norm(model.Cliente);
 
-            decimal totalPedido = model.Productos?.Sum(p => p.Peso * p.Precio) ?? 0m;
+            decimal totalPedido =
+                model.Productos?.Sum(p => p.Peso * p.Precio) ?? 0m;
 
-            // Info crédito (viene de SAP normalmente)
+
+            // =========================================================
+            // INFO CRÉDITO
+            // =========================================================
+
             decimal credito = model.Credito;
             decimal saldo = model.Saldo;
             decimal otrosPedidos = model.OtrosPedidos;
-            decimal totalDisponible = credito - saldo - otrosPedidos;
+
+            decimal totalDisponible =
+                credito - saldo - otrosPedidos;
 
             const decimal TOL = 0.01m;
+
 
             bool requiereAutorizacionPrecio = false;
             bool requiereAutorizacionPresupuesto = false;
             bool sapDisponible = true;
 
-            // =========================
-            // SKUs del pedido + kilos por SKU
-            // =========================
-            var kilosPedidoPorSku = (model.Productos ?? new List<PedidoProductoViewModel>())
+
+            // =========================================================
+            // SKUs DEL PEDIDO + KILOS POR SKU
+            // =========================================================
+
+            var kilosPedidoPorSku =
+                (model.Productos ?? new List<PedidoProductoViewModel>())
                 .Where(p => !string.IsNullOrWhiteSpace(p.ProductoCodigo))
                 .GroupBy(p => Norm(p.ProductoCodigo))
-                .ToDictionary(g => g.Key, g => g.Sum(x => x.Peso));
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Sum(x => x.Peso)
+                );
 
             var skusPedido = kilosPedidoPorSku.Keys.ToList();
 
-            // =========================
-            // Datos cliente / canal / vendedorId (desde ClienteSap)
-            // =========================
+
+            // =========================================================
+            // DATOS CLIENTE / CANAL / VENDEDOR
+            // =========================================================
+
             var cliSap = await _context.ClienteSap
                 .AsNoTracking()
-                .Where(c => ((c.Cliente ?? "").Trim().ToUpper()) == clienteUp)   // ✅ FIX EF (sin Norm() en SQL)
+                .Where(c =>
+                    ((c.Cliente ?? "").Trim().ToUpper()) == clienteUp
+                )
                 .Select(c => new
                 {
                     Canal = c.U_CANAL,
@@ -1695,164 +1726,317 @@ ORDER BY
                 })
                 .FirstOrDefaultAsync(ct);
 
+
             string canalClienteUp = Norm(cliSap?.Canal);
-            bool esCanalCedis = canalClienteUp.StartsWith("CEDIS");
 
-            int? vendedorId = (cliSap?.VendedorId.HasValue == true && cliSap.VendedorId.Value > 0)
-                ? cliSap.VendedorId.Value
-                : (int?)null;
+            bool esCanalCedis =
+                canalClienteUp.StartsWith("CEDIS");
 
-            // Sucursal de la serie (para regla CEDIS/MATRIZ)
+
+            int? vendedorId =
+                (cliSap?.VendedorId.HasValue == true &&
+                 cliSap.VendedorId.Value > 0)
+                    ? cliSap.VendedorId.Value
+                    : (int?)null;
+
+
+            // =========================================================
+            // SUCURSAL DE LA SERIE
+            // =========================================================
+
             var serieInfo = await _context.Series
                 .AsNoTracking()
                 .Where(s => s.NombreSerie == model.Serie)
-                .Select(s => new { s.Sucursal })
+                .Select(s => new
+                {
+                    s.Sucursal
+                })
                 .FirstOrDefaultAsync(ct);
 
-            string sucursalSerieUp = Norm(serieInfo?.Sucursal);
-            bool esSerieMatriz = (sucursalSerieUp == "MATRIZ");
 
-            // Regla: si cliente es CEDIS y serie NO es MATRIZ => NO validar presupuesto
-            bool aplicarValidacionPresupuesto = !(esCanalCedis && !esSerieMatriz);
+            string sucursalSerieUp =
+                Norm(serieInfo?.Sucursal);
+
+            bool esSerieMatriz =
+                sucursalSerieUp == "MATRIZ";
+
+
+            // Regla:
+            // Si cliente es CEDIS y serie NO es MATRIZ
+            // NO validar presupuesto
+            bool aplicarValidacionPresupuesto =
+                !(esCanalCedis && !esSerieMatriz);
+
 
             // =========================================================
-            // 1) VALIDACIÓN PRESUPUESTO (SQL)  -> SU PROPIO TRY/CATCH
+            // 1) VALIDACIÓN PRESUPUESTO
             // =========================================================
-            if (aplicarValidacionPresupuesto && skusPedido.Count > 0)
+
+            if (aplicarValidacionPresupuesto &&
+                skusPedido.Count > 0)
             {
                 try
                 {
-                    var sucursalParam = model.Serie; // o tu lógica de sucursal
+                    var sucursalParam = model.Serie;
                     var modoUp = Norm(modoPresupuesto);
+
 
                     foreach (var sku in skusPedido)
                     {
-                        var kilosPedidoSku = kilosPedidoPorSku.TryGetValue(sku, out var kp) ? kp : 0m;
-                        if (kilosPedidoSku <= 0m) continue;
+                        var kilosPedidoSku =
+                            kilosPedidoPorSku.TryGetValue(
+                                sku,
+                                out var kp
+                            )
+                                ? kp
+                                : 0m;
 
-                        // 🔥 Ahora regresa LISTA
-                        var rows = await ObtenerPresupuestoDetalleAsync(
-                            sucursal: sucursalParam,
-                            sku: sku,
-                            fechaSolicitud: model.FechaEntrega.Value,
-                            vendedorId: vendedorId,
-                            esCanalCedis: esCanalCedis,
-                            canalCliente: canalClienteUp,
-                            ct: ct
-                        );
+
+                        if (kilosPedidoSku <= 0m)
+                            continue;
+
+
+                        var rows =
+                            await ObtenerPresupuestoDetalleAsync(
+                                sucursal: sucursalParam,
+                                sku: sku,
+                                fechaSolicitud: model.FechaEntrega.Value,
+                                vendedorId: vendedorId,
+                                esCanalCedis: esCanalCedis,
+                                canalCliente: canalClienteUp,
+                                ct: ct
+                            );
+
 
                         PresupuestoConsumoDto? detSel = null;
 
-                        if (rows != null && rows.Count > 0)
+
+                        if (rows != null &&
+                            rows.Count > 0)
                         {
+                            // =========================================
+                            // CEDIS
+                            // =========================================
+
                             if (esCanalCedis)
                             {
-                                // CEDIS: por canal exacto
-                                detSel = rows.FirstOrDefault(r =>
-                                    Norm(r.Origen) == "CEDIS" &&
-                                    Norm(r.Canal) == canalClienteUp);
+                                detSel =
+                                    rows.FirstOrDefault(r =>
+                                        Norm(r.Origen) == "CEDIS" &&
+                                        Norm(r.Canal) == canalClienteUp
+                                    );
                             }
+
+                            // =========================================
+                            // NO CEDIS
+                            // =========================================
+
                             else
                             {
                                 if (modoUp == "CLIENTE")
                                 {
-                                    // CLIENTE: por cliente exacto (ClienteCodigo o Cliente)
-                                    detSel = rows.FirstOrDefault(r =>
-                                        Norm(r.Origen) == "CLIENTE" &&
-                                        GetClienteFromDto(r) == clienteUp);
+                                    detSel =
+                                        rows.FirstOrDefault(r =>
+                                            Norm(r.Origen) == "CLIENTE" &&
+                                            GetClienteFromDto(r) == clienteUp
+                                        );
                                 }
-                                else // VENDEDOR
+                                else
                                 {
+                                    // VENDEDOR
+
                                     if (vendedorId.HasValue)
-                                        detSel = rows.FirstOrDefault(r => Norm(r.Origen) == "VENDEDOR" && r.VendedorId == vendedorId.Value);
+                                    {
+                                        detSel =
+                                            rows.FirstOrDefault(r =>
+                                                Norm(r.Origen) == "VENDEDOR" &&
+                                                r.VendedorId == vendedorId.Value
+                                            );
+                                    }
                                     else
-                                        detSel = rows.FirstOrDefault(r => Norm(r.Origen) == "VENDEDOR");
+                                    {
+                                        detSel =
+                                            rows.FirstOrDefault(r =>
+                                                Norm(r.Origen) == "VENDEDOR"
+                                            );
+                                    }
                                 }
                             }
                         }
 
-                        if (detSel == null || detSel.DisponibleVenta == null)
+
+                        // Sin presupuesto:
+                        // Fail-open
+                        if (detSel == null ||
+                            detSel.DisponibleVenta == null)
                         {
-                            // sin presupuesto -> fail-open
                             continue;
                         }
 
-                        var disp = detSel.DisponibleVenta.Value;
 
-                        if (disp <= 0m || kilosPedidoSku > (disp + TOL))
+                        var disp =
+                            detSel.DisponibleVenta.Value;
+
+
+                        if (disp <= 0m ||
+                            kilosPedidoSku > (disp + TOL))
                         {
                             requiereAutorizacionPresupuesto = true;
 
+
                             _logger.LogWarning(
                                 "PRESUP AUT => SKU={Sku} PedidoKg={PedidoKg} Disp={Disp} Pres={Pres} KgPed={KgPed} KgSur={KgSur} Origen={Origen} Canal={Canal} VendId={VendId}",
-                                sku, kilosPedidoSku, disp,
-                                detSel.PresupuestoAsignado, detSel.KgPedidosMes, detSel.KgSurtidoReal,
-                                detSel.Origen, detSel.Canal, detSel.VendedorId
+                                sku,
+                                kilosPedidoSku,
+                                disp,
+                                detSel.PresupuestoAsignado,
+                                detSel.KgPedidosMes,
+                                detSel.KgSurtidoReal,
+                                detSel.Origen,
+                                detSel.Canal,
+                                detSel.VendedorId
                             );
 
-                            break; // ya con uno que exceda, listo
+
+                            // Con uno que exceda es suficiente
+                            break;
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    // Si falla el SQL de presupuesto, aquí decides tu política:
-                    // FAIL-OPEN real => NO marcar presupuesto.
-                    // Conservador => sí marcar.
-                    //requiereAutorizacionPresupuesto = true;
+                    // FAIL-OPEN
                     requiereAutorizacionPresupuesto = false;
-                    _logger.LogError(ex, "Error validando presupuesto (SQL). Cliente={Cliente} Serie={Serie}", model.Cliente, model.Serie);
+
+                    _logger.LogError(
+                        ex,
+                        "Error validando presupuesto (SQL). Cliente={Cliente} Serie={Serie}",
+                        model.Cliente,
+                        model.Serie
+                    );
                 }
             }
 
+
             // =========================================================
-            // 2) VALIDACIÓN PRECIO (SAP)  -> SU PROPIO TRY/CATCH
+            // 2) VALIDACIÓN PRECIO SAP
             // =========================================================
+
             try
             {
-                foreach (var p in model.Productos ?? new List<PedidoProductoViewModel>())
+                foreach (
+                    var p in
+                    model.Productos ??
+                    new List<PedidoProductoViewModel>())
                 {
-                    var sku = Norm(p.ProductoCodigo);
-                    if (string.IsNullOrWhiteSpace(sku)) continue;
+                    var sku =
+                        Norm(p.ProductoCodigo);
 
-                    var productoSap = await _sap.ObtenerPrecioArticuloPorClienteAsync(model.Cliente, sku);
+
+                    if (string.IsNullOrWhiteSpace(sku))
+                        continue;
+
+
+                    var productoSap =
+                        await _sap.ObtenerPrecioArticuloPorClienteAsync(
+                            model.Cliente,
+                            sku
+                        );
+
+
                     if (productoSap != null)
                     {
-                        var precioOV = decimal.Round(p.Precio, 2, MidpointRounding.AwayFromZero);
-                        var precioLista = decimal.Round(productoSap.Precio, 2, MidpointRounding.AwayFromZero);
+                        var precioOV =
+                            decimal.Round(
+                                p.Precio,
+                                2,
+                                MidpointRounding.AwayFromZero
+                            );
+
+
+                        var precioLista =
+                            decimal.Round(
+                                productoSap.Precio,
+                                2,
+                                MidpointRounding.AwayFromZero
+                            );
+
 
                         if (precioOV < precioLista - TOL)
+                        {
                             requiereAutorizacionPrecio = true;
+                        }
                     }
                 }
             }
             catch (Exception ex)
             {
                 sapDisponible = false;
-                _logger.LogError(ex, "Error consultando precios SAP. Cliente={Cliente}", model.Cliente);
-                // opcional:
+
+                _logger.LogError(
+                    ex,
+                    "Error consultando precios SAP. Cliente={Cliente}",
+                    model.Cliente
+                );
+
+                // Si quieres fail-close:
                 // requiereAutorizacionPrecio = true;
             }
 
-            bool requiereAutorizacionCredito = sapDisponible && (totalPedido > totalDisponible);
+
+            // =========================================================
+            // VALIDACIÓN CRÉDITO
+            // =========================================================
+
+            bool requiereAutorizacionCredito =
+                sapDisponible &&
+                (totalPedido > totalDisponible);
+
+
+            // =========================================================
+            // ESTATUS PEDIDO
+            // =========================================================
 
             int estatusPedido =
-                (requiereAutorizacionPrecio || requiereAutorizacionPresupuesto || requiereAutorizacionCredito)
+                (
+                    requiereAutorizacionPrecio ||
+                    requiereAutorizacionPresupuesto ||
+                    requiereAutorizacionCredito
+                )
                     ? 2
                     : 1;
 
+
             // =========================================================
-            // Propiedades/documentación del cliente (SAP) -> TRY/CATCH APARTE
+            // PROPIEDADES / DOCUMENTACIÓN CLIENTE SAP
             // =========================================================
-            string documentacionConcatenada = string.Empty;
+
+            string documentacionConcatenada =
+                string.Empty;
+
+
             if (sapDisponible)
             {
                 try
                 {
-                    var props = await _sap.ObtenerPropiedadesClienteAsync(model.Cliente);
-                    documentacionConcatenada = string.Join(" | ",
-                        props.Where(p => p.Valor != null && p.Valor.ToString().ToLower() == "true")
-                             .Select(p => p.Nombre));
+                    var props =
+                        await _sap.ObtenerPropiedadesClienteAsync(
+                            model.Cliente
+                        );
+
+
+                    documentacionConcatenada =
+                        string.Join(
+                            " | ",
+                            props
+                                .Where(p =>
+                                    p.Valor != null &&
+                                    p.Valor
+                                        .ToString()
+                                        .ToLower() == "true"
+                                )
+                                .Select(p => p.Nombre)
+                        );
                 }
                 catch
                 {
@@ -1860,91 +2044,400 @@ ORDER BY
                 }
             }
 
-            // Consecutivo temporal único
-            string consecutivoTemporal = $"TMP-{Guid.NewGuid():N}";
-            await using var tx = await _context.Database.BeginTransactionAsync(ct);
 
-            // 1) Cabecera OV
+            // =========================================================
+            // ✅ NUEVO: USUARIO QUE REGISTRA LA ORDEN
+            // =========================================================
+
+            var usuarioRegistro =
+                User.Identity?.Name;
+
+
+            // Si Identity.Name no tiene valor,
+            // intenta obtenerlo de los Claims
+            if (string.IsNullOrWhiteSpace(usuarioRegistro))
+            {
+                usuarioRegistro =
+                    User.FindFirst(
+                        System.Security.Claims.ClaimTypes.Name
+                    )?.Value;
+            }
+
+
+            // Segundo respaldo: correo
+            if (string.IsNullOrWhiteSpace(usuarioRegistro))
+            {
+                usuarioRegistro =
+                    User.FindFirst(
+                        System.Security.Claims.ClaimTypes.Email
+                    )?.Value;
+            }
+
+
+            // Último respaldo para que nunca quede vacío
+            usuarioRegistro ??= "SIN_USUARIO";
+
+
+            // =========================================================
+            // TRANSACCIÓN
+            // =========================================================
+
+            string consecutivoTemporal =
+                $"TMP-{Guid.NewGuid():N}";
+
+
+            await using var tx =
+                await _context.Database
+                    .BeginTransactionAsync(ct);
+
+
+            // =========================================================
+            // 1) CABECERA ORDEN DE VENTA
+            // =========================================================
+
             var pedido = new OrdenVenta
             {
                 Consecutivo = consecutivoTemporal,
+
                 Serie = model.Serie,
-                FechaEntrega = model.FechaEntrega.Value,
-                FechaEmbarque = model.FechaEmbarque,
-                HoraEmbarque = model.HoraEmbarque,
-                Cliente = model.Cliente,
-                Vendedor = model.Vendedor,
-                VendedorId = vendedorId,
-                Ruta = string.IsNullOrWhiteSpace(model.Ruta) ? "Sin Dirección" : model.Ruta,
-                Presentacion = model.Presentacion,
-                Observacion = model.Observacion,
-                ModoPresupuesto = modoPresupuesto,
 
-                Saldo = sapDisponible ? model.Saldo : 0m,
-                OtrosPedidos = sapDisponible ? model.OtrosPedidos : 0m,
-                Credito = sapDisponible ? model.Credito : 0m,
+                FechaEntrega =
+                    model.FechaEntrega.Value,
 
-                Estatus = estatusPedido,
-                FechaRegistro = DateTime.Now,
-                Documentacion = sapDisponible ? documentacionConcatenada : string.Empty,
+                FechaEmbarque =
+                    model.FechaEmbarque,
 
-                AutorizacionCredito = !requiereAutorizacionCredito,
-                //AutorizacionPresupuesto = !requiereAutorizacionPresupuesto,
-                AutorizacionPresupuesto = true,
-                AutorizacionPrecio = !requiereAutorizacionPrecio
+                HoraEmbarque =
+                    model.HoraEmbarque,
+
+                Cliente =
+                    model.Cliente,
+
+                Vendedor =
+                    model.Vendedor,
+
+                VendedorId =
+                    vendedorId,
+
+                Ruta =
+                    string.IsNullOrWhiteSpace(model.Ruta)
+                        ? "Sin Dirección"
+                        : model.Ruta,
+
+                Presentacion =
+                    model.Presentacion,
+
+                Observacion =
+                    model.Observacion,
+
+                ModoPresupuesto =
+                    modoPresupuesto,
+
+
+                // =============================================
+                // INFORMACIÓN FINANCIERA
+                // =============================================
+
+                Saldo =
+                    sapDisponible
+                        ? model.Saldo
+                        : 0m,
+
+                OtrosPedidos =
+                    sapDisponible
+                        ? model.OtrosPedidos
+                        : 0m,
+
+                Credito =
+                    sapDisponible
+                        ? model.Credito
+                        : 0m,
+
+
+                // =============================================
+                // ESTATUS / REGISTRO
+                // =============================================
+
+                Estatus =
+                    estatusPedido,
+
+                FechaRegistro =
+                    DateTime.Now,
+
+
+                // =============================================
+                // ✅ NUEVO
+                // USUARIO QUE REGISTRÓ LA ORDEN
+                // =============================================
+
+                UsuarioRegistro =
+                    usuarioRegistro,
+
+
+                Documentacion =
+                    sapDisponible
+                        ? documentacionConcatenada
+                        : string.Empty,
+
+
+                // =============================================
+                // AUTORIZACIONES
+                // =============================================
+
+                AutorizacionCredito =
+                    !requiereAutorizacionCredito,
+
+                // Actualmente lo tienes forzado a true
+                // AutorizacionPresupuesto =
+                //     !requiereAutorizacionPresupuesto,
+
+                AutorizacionPresupuesto =
+                    true,
+
+                AutorizacionPrecio =
+                    !requiereAutorizacionPrecio
             };
 
+
+            // Guardar cabecera
             _context.OrdenVenta.Add(pedido);
+
             await _context.SaveChangesAsync(ct);
 
-            // 2) Consecutivo definitivo (retry anti-duplicado)
-            pedido.Consecutivo = $"OV-{pedido.Id:D8}";
+
+            // =========================================================
+            // 2) CONSECUTIVO DEFINITIVO
+            // =========================================================
+
+            pedido.Consecutivo =
+                $"OV-{pedido.Id:D8}";
+
+
             const int maxIntentos = 2;
-            for (int intento = 1; intento <= maxIntentos; intento++)
+
+
+            for (
+                int intento = 1;
+                intento <= maxIntentos;
+                intento++)
             {
                 try
                 {
                     _context.OrdenVenta.Update(pedido);
+
                     await _context.SaveChangesAsync(ct);
+
                     break;
                 }
-                catch (DbUpdateException ex) when (EsDuplicadoConsecutivo(ex))
+                catch (DbUpdateException ex)
+                    when (EsDuplicadoConsecutivo(ex))
                 {
-                    pedido.Consecutivo = $"OV-{pedido.Id:D8}-{intento}";
-                    if (intento == maxIntentos) throw;
+                    pedido.Consecutivo =
+                        $"OV-{pedido.Id:D8}-{intento}";
+
+
+                    if (intento == maxIntentos)
+                    {
+                        throw;
+                    }
                 }
             }
 
-            // 3) Detalle
-            if (model.Productos != null && model.Productos.Any())
+
+            // =========================================================
+            // 3) DETALLE DE PRODUCTOS
+            // =========================================================
+
+            if (model.Productos != null &&
+                model.Productos.Any())
             {
                 foreach (var p in model.Productos)
                 {
-                    var det = new OrdenVentaProducto
-                    {
-                        PedidoId = pedido.Id,
-                        ProductoCodigo = p.ProductoCodigo,
-                        ProductoNombre = p.ProductoNombre,
-                        Peso = p.Peso,
-                        Precio = p.Precio,
-                        Cajas = p.Cajas
-                    };
-                    _context.OrdenVentaProducto.Add(det);
+                    var det =
+                        new OrdenVentaProducto
+                        {
+                            PedidoId =
+                                pedido.Id,
+
+                            ProductoCodigo =
+                                p.ProductoCodigo,
+
+                            ProductoNombre =
+                                p.ProductoNombre,
+
+                            Peso =
+                                p.Peso,
+
+                            Precio =
+                                p.Precio,
+
+                            Cajas =
+                                p.Cajas
+                        };
+
+
+                    _context
+                        .OrdenVentaProducto
+                        .Add(det);
                 }
+
+
                 await _context.SaveChangesAsync(ct);
             }
 
+
+            // =========================================================
+            // 4) SI ES MUESTRA
+            // =========================================================
+
+            if (esMuestra)
+            {
+                var ovMuestra =
+                    new OrdenVentaMuestra
+                    {
+                        OrdenVentaId =
+                            pedido.Id,
+
+                        EsMuestra =
+                            true,
+
+                        FechaCreacion =
+                            DateTime.Now
+                    };
+
+
+                _context
+                    .OrdenVentaMuestra
+                    .Add(ovMuestra);
+
+
+                await _context.SaveChangesAsync(ct);
+            }
+
+
+            // =========================================================
+            // COMMIT
+            // =========================================================
+
             await tx.CommitAsync(ct);
 
-            TempData["Success"] = sapDisponible
-                ? $"Pedido guardado. Consecutivo: {pedido.Consecutivo}"
-                : $"Pedido guardado (sin datos de SAP). Consecutivo: {pedido.Consecutivo}";
 
-            if (accion == "salir") return RedirectToAction("Inicio", "Home");
-            if (accion == "nuevo") return RedirectToAction("OrdenVenta", "Comercial");
-            return RedirectToAction("Index", "Pedidos");
+            // =========================================================
+            // MENSAJE
+            // =========================================================
+
+            TempData["Success"] =
+                sapDisponible
+                    ? $"Pedido guardado. Consecutivo: {pedido.Consecutivo}"
+                    : $"Pedido guardado (sin datos de SAP). Consecutivo: {pedido.Consecutivo}";
+
+
+            // =========================================================
+            // REDIRECCIÓN
+            // =========================================================
+
+            return RedirectToAction(
+                nameof(VistaPreviaOrden),
+                new
+                {
+                    id = pedido.Id,
+                    siguiente = accion
+                }
+            );
         }
 
+
+
+
+
+        [HttpPost("Comercial/CrearSolicitudDesdeOV")]
+        public async Task<IActionResult> CrearSolicitudDesdeOV(int ordenVentaId)
+        {
+            try
+            {
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+
+                // 1. Obtener datos de la OV
+                var ov = await conn.QueryFirstOrDefaultAsync(
+                    "SELECT * FROM OrdenVenta WHERE Id = @Id",
+                    new { Id = ordenVentaId });
+
+                if (ov == null)
+                    return Json(new { ok = false, mensaje = "OV no encontrada" });
+
+                // 2. Obtener productos de la OV
+                var productos = await conn.QueryAsync(
+                    "SELECT * FROM OrdenVentaProducto WHERE PedidoId = @PedidoId AND Eliminado = 0",
+                    new { PedidoId = ordenVentaId });
+
+                // 3. Calcular folio SM
+                var anioActual = DateTime.Now.Year.ToString();
+                var sqlFolio = @"SELECT ISNULL(MAX(CAST(SUBSTRING(Id, 9, 4) AS INT)), 0) + 1 
+                         FROM SolicitudMuestras WHERE Id LIKE 'SM-' + @Anio + '-%'";
+                var siguienteNum = await conn.ExecuteScalarAsync<int>(sqlFolio, new { Anio = anioActual });
+                var folioDefinitivo = $"SM-{anioActual}-{siguienteNum:D4}";
+
+                // 4. Crear solicitud de muestra con TODA la info de la OV
+                var sqlSolicitud = @"
+            INSERT INTO SolicitudMuestras 
+                (Id, CreatedAt, CreatedBy, Seller, Client, Species, RequestedDate, 
+                 Route, Destination, Priority, Notes, Stage, Location)
+            VALUES 
+                (@Id, @CreatedAt, @CreatedBy, @Seller, @Client, @Species, @RequestedDate,
+                 @Route, @Destination, @Priority, @Notes, @Stage, @Location)";
+
+                await conn.ExecuteAsync(sqlSolicitud, new
+                {
+                    Id = folioDefinitivo,
+                    CreatedAt = DateTime.Now,
+                    CreatedBy = ov.Vendedor ?? "Sistema",
+                    Seller = ov.Vendedor ?? "",
+                    Client = ov.Cliente ?? "",
+                    Species = ov.Presentacion ?? "",
+                    RequestedDate = ov.FechaEntrega ?? DateTime.Now.AddDays(3),
+                    Route = ov.Ruta ?? "",
+                    Destination = ov.Ruta ?? "",
+                    Priority = "Normal",
+                    Notes = ov.Observacion ?? $"Generada desde OV: {ov.Consecutivo}",
+                    Stage = "Planeación pendiente",
+                    Location = "Comercial"
+                });
+
+                // 5. Insertar items/productos
+                var sqlItem = @"
+            INSERT INTO SolicitudMuestras_Items 
+                (Uid, SolicitudId, Sku, WorkSku, Product, Spec, Boxes, Temp)
+            VALUES 
+                (@Uid, @SolicitudId, @Sku, @WorkSku, @Product, @Spec, @Boxes, @Temp)";
+
+                foreach (var p in productos)
+                {
+                    await conn.ExecuteAsync(sqlItem, new
+                    {
+                        Uid = Guid.NewGuid().ToString("N").Substring(0, 10),
+                        SolicitudId = folioDefinitivo,
+                        Sku = p.ProductoCodigo ?? "SD",
+                        WorkSku = (string)null,
+                        Product = p.ProductoNombre ?? "SD",
+                        Spec = "",
+                        Boxes = p.Cajas > 0 ? p.Cajas : 1,
+                        Temp = "Refrigerado"
+                    });
+                }
+
+                // 6. Actualizar tabla puente con el folio
+                await conn.ExecuteAsync(
+                    "UPDATE OrdenVentaMuestra SET SolicitudMuestraId = @SolicitudId WHERE OrdenVentaId = @OrdenVentaId",
+                    new { SolicitudId = folioDefinitivo, OrdenVentaId = ordenVentaId });
+
+                return Json(new { ok = true, mensaje = $"Solicitud {folioDefinitivo} creada correctamente" });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
 
 
 
@@ -2715,630 +3208,933 @@ ORDER BY
 
 
 
-
-        //======================================
-        // VALIDACION POR MES DE PRESUPUESTO Y PEDIDOS
-        //======================================
-        //https://localhost:7171/Comercial/ObtenerProductosConPresupuestoDisponible?cardCode=C000176&fechaEntrega=2025-10-29
+        // ============================================================================
+        // DISPONIBLE PARA ORDEN DE VENTA
+        // GET: /Comercial/ObtenerProductosConPresupuestoDisponible
+        //
+        // Esta versión replica la lógica de "DisponibleVenta" del reporte:
+        //
+        //   Disponible = Plan Venta - Pedidos Pendientes - Surtido Real
+        //
+        // IMPORTANTE:
+        // - Un pedido YA surtido no debe seguir descontándose completo como pedido.
+        // - Para Estatus 5/6, si ya existe surtido, el pendiente del pedido queda en 0.
+        // - CEDIS usa presupuesto/consumo/surtido del canal.
+        // - SKU sin presupuesto CEDIS hace fallback al vendedor.
+        // - El resultado nunca baja de 0.
+        // ============================================================================
+        //
+        // Requiere:
+        // using Dapper;
+        // using Microsoft.EntityFrameworkCore;
+        // using System.Data;
+        // ============================================================================
 
         [HttpGet]
         public async Task<IActionResult> ObtenerProductosConPresupuestoDisponible(
-      string cardCode,
-      DateTime fechaEntrega,
-      char Serie)
+            string? cardCode,
+            DateTime fechaEntrega,
+            string? serie = null)
         {
-            if (string.IsNullOrWhiteSpace(cardCode))
-                return BadRequest("Cliente no especificado.");
+            var card = Norm(cardCode);
 
-            int mes = fechaEntrega.Month;
-            int anio = fechaEntrega.Year;
-            string card = cardCode.Trim().ToUpper();
+            if (string.IsNullOrWhiteSpace(card))
+                return BadRequest("cardCode no especificado.");
 
-            // =====================================================
-            // CLIENTE → DEFINIR ORIGEN
-            // =====================================================
-            var cliente = await _context.ClienteSap
-                .Where(c => c.Cliente.ToUpper() == card)
-                .Select(c => new
-                {
-                    c.VendedorId,
-                    c.U_CANAL
-                })
-                .FirstOrDefaultAsync();
+            const string sql = @"
+SET NOCOUNT ON;
 
-            if (cliente == null)
-                return BadRequest("Cliente no encontrado.");
+DECLARE @Mes INT = MONTH(@FechaEntrega);
+DECLARE @Anio INT = YEAR(@FechaEntrega);
+DECLARE @FechaInicio DATE = DATEFROMPARTS(@Anio, @Mes, 1);
+DECLARE @FechaFin DATE = DATEADD(MONTH, 1, @FechaInicio);
 
-            bool esCedis = !string.IsNullOrWhiteSpace(cliente.U_CANAL)
-                           && cliente.U_CANAL.ToUpper().StartsWith("CEDIS");
+;WITH
+/* ============================================================
+   1. CLIENTE ACTUAL
+   ============================================================ */
+ClienteActual AS
+(
+    SELECT TOP (1)
+        Cliente =
+            UPPER(LTRIM(RTRIM(ISNULL(c.Cliente, '')))),
 
-            // Si NO es CEDIS y no hay vendedor, devuelve vacío como hoy
-            if (!esCedis && !cliente.VendedorId.HasValue)
-                return Json(new List<object>());
+        VendedorId =
+            ISNULL(c.VendedorId, 0),
 
-            string canal = esCedis ? cliente.U_CANAL.Trim().ToUpper() : null;
-            int? vendedorId = !esCedis ? cliente.VendedorId.Value : (int?)null;
+        Canal =
+            UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, '')))),
 
-            // =====================================================
-            // SQL (MISMA LÓGICA DEL REPORTE) + FILTRO AL FINAL
-            // =====================================================
-            var sql = @"
-WITH
-productos AS (
-    SELECT
-        SKU = UPPER(LTRIM(RTRIM(a.ProductoCodigo))),
-        ProductoNombre = COALESCE(NULLIF(LTRIM(RTRIM(a.ProductoNombre)), ''), a.ProductoCodigo)
-    FROM dbo.ArticuloSap a
+        EsCedis =
+            CAST(
+                CASE
+                    WHEN UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, ''))))
+                         LIKE 'CEDIS%'
+                        THEN 1
+                    ELSE 0
+                END
+                AS BIT
+            )
+    FROM dbo.ClienteSap c WITH (NOLOCK)
+    WHERE
+        UPPER(LTRIM(RTRIM(ISNULL(c.Cliente, '')))) = @CardCode
 ),
-clientes AS (
-    SELECT
-        Cliente        = UPPER(LTRIM(RTRIM(cs.Cliente))),
-        NombreCliente  = COALESCE(NULLIF(LTRIM(RTRIM(cs.NombreCliente)), ''), cs.Cliente),
-        VendedorId     = cs.VendedorId,
-        VendedorNombre = LTRIM(RTRIM(cs.VendedorNombre)),
-        U_CANAL        = UPPER(LTRIM(RTRIM(cs.U_CANAL)))
-    FROM dbo.ClienteSap cs
-),
-vendedores AS (
-    SELECT DISTINCT VendedorId, VendedorNombre
-    FROM clientes
-    WHERE VendedorId IS NOT NULL
-),
-canal_vendedores AS (
+
+/* ============================================================
+   2. RELACIÓN CANAL CEDIS / VENDEDORES
+   ============================================================ */
+CanalVendedores AS
+(
     SELECT DISTINCT
-        Canal      = UPPER(LTRIM(RTRIM(c.U_CANAL))),
-        VendedorId = c.VendedorId
-    FROM dbo.ClienteSap c
-    WHERE c.VendedorId IS NOT NULL
-      AND UPPER(LTRIM(RTRIM(c.U_CANAL))) LIKE 'CEDIS%'
+        Canal =
+            UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, '')))),
+
+        VendedorId =
+            c.VendedorId
+    FROM dbo.ClienteSap c WITH (NOLOCK)
+    WHERE
+        c.VendedorId IS NOT NULL
+        AND UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, ''))))
+            LIKE 'CEDIS%'
 ),
-presupuestos_normales AS (
+
+/* ============================================================
+   3. PRESUPUESTO DE TODOS LOS VENDEDORES DEL MES
+   ============================================================ */
+PresupuestoVendedorTodos AS
+(
     SELECT
-        Cliente = UPPER(LTRIM(RTRIM(p.ClienteId))),
-        SKU     = UPPER(LTRIM(RTRIM(p.ProductoCodigo))),
-        Mes     = p.Mes,
-        Anio    = p.Año,
-        Presupuesto = SUM(p.Presupuesto)
-    FROM dbo.Presupuestos p
+        VendedorId = p.VendedorId,
+
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(p.ProductoCodigo, '')))),
+
+        Presupuesto =
+            SUM(CAST(ISNULL(p.PresupuestoAsignado, 0) AS DECIMAL(18,4)))
+    FROM dbo.PresupuestoVendedor p WITH (NOLOCK)
+    WHERE
+        p.Mes = @Mes
+        AND p.Anio = @Anio
+        AND NULLIF(LTRIM(RTRIM(ISNULL(p.ProductoCodigo, ''))), '') IS NOT NULL
     GROUP BY
-        UPPER(LTRIM(RTRIM(p.ClienteId))),
-        UPPER(LTRIM(RTRIM(p.ProductoCodigo))),
-        p.Mes, p.Año
+        p.VendedorId,
+        UPPER(LTRIM(RTRIM(ISNULL(p.ProductoCodigo, ''))))
 ),
-ov AS (
+
+PresupuestoVendedorActual AS
+(
+    SELECT
+        p.VendedorId,
+        p.SKU,
+        p.Presupuesto
+    FROM PresupuestoVendedorTodos p
+    CROSS JOIN ClienteActual ca
+    WHERE
+        p.VendedorId = ca.VendedorId
+),
+
+PresupuestoVendedorCanal AS
+(
+    SELECT
+        cv.Canal,
+        p.SKU,
+
+        PresupuestoTotalCanal =
+            SUM(CAST(ISNULL(p.Presupuesto, 0) AS DECIMAL(18,4)))
+    FROM PresupuestoVendedorTodos p
+    INNER JOIN CanalVendedores cv
+        ON cv.VendedorId = p.VendedorId
+    GROUP BY
+        cv.Canal,
+        p.SKU
+),
+
+/* ============================================================
+   4. PRESUPUESTO CEDIS DEL CANAL DEL CLIENTE
+   ============================================================ */
+PresupuestoCedisActual AS
+(
+    SELECT
+        Canal =
+            UPPER(LTRIM(RTRIM(ISNULL(pc.Canal, '')))),
+
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(pc.ProductoCodigo, '')))),
+
+        Presupuesto =
+            SUM(CAST(ISNULL(pc.PresupuestoAsignado, 0) AS DECIMAL(18,4)))
+    FROM dbo.PresupuestoCedis pc WITH (NOLOCK)
+    CROSS JOIN ClienteActual ca
+    WHERE
+        ca.EsCedis = 1
+        AND UPPER(LTRIM(RTRIM(ISNULL(pc.Canal, '')))) = ca.Canal
+        AND pc.Mes = @Mes
+        AND pc.Anio = @Anio
+        AND NULLIF(LTRIM(RTRIM(ISNULL(pc.ProductoCodigo, ''))), '') IS NOT NULL
+    GROUP BY
+        UPPER(LTRIM(RTRIM(ISNULL(pc.Canal, '')))),
+        UPPER(LTRIM(RTRIM(ISNULL(pc.ProductoCodigo, ''))))
+),
+
+/* ============================================================
+   5. ÓRDENES DE VENTA DEL MES - MATRIZ
+   ============================================================ */
+OV AS
+(
+    SELECT
+        o.Id,
+
+        Cliente =
+            UPPER(LTRIM(RTRIM(ISNULL(o.Cliente, '')))),
+
+        o.VendedorId,
+        o.Estatus,
+
+        FechaDate =
+            TRY_CONVERT(DATE, o.FechaEntrega)
+    FROM dbo.OrdenVenta o WITH (NOLOCK)
+    INNER JOIN dbo.Series ser WITH (NOLOCK)
+        ON ser.NombreSerie = o.Serie
+    WHERE
+        o.FechaEntrega >= @FechaInicio
+        AND o.FechaEntrega < @FechaFin
+        AND o.Estatus BETWEEN 1 AND 6
+        AND ser.Sucursal = 'MATRIZ'
+),
+
+/* Peso solicitado originalmente por OV + SKU */
+OVPeso AS
+(
+    SELECT
+        op.PedidoId,
+
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(op.ProductoCodigo, '')))),
+
+        KgPedido =
+            SUM(CAST(ISNULL(op.Peso, 0) AS DECIMAL(18,4)))
+    FROM dbo.OrdenVentaProducto op WITH (NOLOCK)
+    INNER JOIN OV o
+        ON o.Id = op.PedidoId
+    WHERE
+        NULLIF(LTRIM(RTRIM(ISNULL(op.ProductoCodigo, ''))), '') IS NOT NULL
+    GROUP BY
+        op.PedidoId,
+        UPPER(LTRIM(RTRIM(ISNULL(op.ProductoCodigo, ''))))
+),
+
+/* Indica si la OV ya tiene algún surtido */
+OVConSurtido AS
+(
+    SELECT DISTINCT
+        o.Id
+    FROM OV o
+    INNER JOIN dbo.Subpedido sp WITH (NOLOCK)
+        ON sp.OrdenVentaId = o.Id
+    INNER JOIN dbo.SurtidoEncabezado se WITH (NOLOCK)
+        ON se.SolicitudSurtidoId = sp.U_DocMeat
+),
+
+/* Surtido VALIDADO por OV + SKU */
+OVSurtidoValidado AS
+(
+    SELECT
+        o.Id AS PedidoId,
+
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(sd.Articulo, '')))),
+
+        KgSurtido =
+            SUM(CAST(ISNULL(sd.Kg, 0) AS DECIMAL(18,4)))
+    FROM OV o
+    INNER JOIN dbo.Subpedido sp WITH (NOLOCK)
+        ON sp.OrdenVentaId = o.Id
+    INNER JOIN dbo.SurtidoEncabezado se WITH (NOLOCK)
+        ON se.SolicitudSurtidoId = sp.U_DocMeat
+    INNER JOIN dbo.SurtidoDetalle sd WITH (NOLOCK)
+        ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+    WHERE
+        se.FechaValidacion IS NOT NULL
+        AND NULLIF(LTRIM(RTRIM(ISNULL(sd.Articulo, ''))), '') IS NOT NULL
+    GROUP BY
+        o.Id,
+        UPPER(LTRIM(RTRIM(ISNULL(sd.Articulo, ''))))
+),
+
+/* ============================================================
+   6. PEDIDO PENDIENTE REAL
+      Esta es la diferencia importante respecto al método anterior.
+   ============================================================ */
+OVPendiente AS
+(
     SELECT
         o.Id,
         o.Cliente,
         o.VendedorId,
         o.Estatus,
-        o.Serie,
-        FechaDate = TRY_CONVERT(date, o.FechaEntrega)
-    FROM dbo.OrdenVenta o
-    INNER JOIN dbo.Series ser ON o.Serie = ser.NombreSerie
-    WHERE o.FechaEntrega IS NOT NULL
-      AND o.Estatus BETWEEN 1 AND 5
-      AND ser.Sucursal = 'MATRIZ'
-),
-ov_con_surtido AS (
-    SELECT DISTINCT o.Id
-    FROM dbo.OrdenVenta o
-    JOIN dbo.Subpedido sp         ON sp.OrdenVentaId = o.Id
-    JOIN dbo.SurtidoEncabezado se ON se.SolicitudSurtidoId = sp.U_DocMeat
-),
-ov_peso_agg AS (
-    SELECT
-        PedidoId = op.PedidoId,
-        SKU      = UPPER(LTRIM(RTRIM(op.ProductoCodigo))),
-        KgPedido = SUM(CAST(op.Peso AS DECIMAL(18,4)))
-    FROM dbo.OrdenVentaProducto op
-    GROUP BY
-        op.PedidoId,
-        UPPER(LTRIM(RTRIM(op.ProductoCodigo)))
-),
-ov_surtido_agg AS (
-    SELECT
-        PedidoId = o.Id,
-        SKU      = UPPER(LTRIM(RTRIM(sd.Articulo))),
-        KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
-    FROM dbo.OrdenVenta o
-    JOIN dbo.Subpedido sp         ON sp.OrdenVentaId = o.Id
-    JOIN dbo.SurtidoEncabezado se ON se.SolicitudSurtidoId = sp.U_DocMeat
-    JOIN dbo.SurtidoDetalle sd    ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
-    WHERE se.FechaValidacion IS NOT NULL
-    GROUP BY
-        o.Id,
-        UPPER(LTRIM(RTRIM(sd.Articulo)))
-),
-ov_pendiente_sku AS (
-    SELECT
-        ov.Id,
-        ov.Cliente,
-        ov.VendedorId,
-        ov.Estatus,
-        ov.FechaDate,
+        o.FechaDate,
         p.SKU,
+
         KgPendiente =
             CAST(
                 CASE
-                    WHEN ov.Estatus = 5 AND os.Id IS NOT NULL THEN 0
+                    /*
+                     * Misma regla del reporte:
+                     * si Estatus 5/6 ya tiene surtido, no queda pedido pendiente.
+                     */
+                    WHEN o.Estatus IN (5, 6)
+                         AND os.Id IS NOT NULL
+                        THEN 0
+
                     ELSE
                         CASE
-                            WHEN (p.KgPedido - ISNULL(sa.KgSurtido,0)) < 0 THEN 0
-                            ELSE (p.KgPedido - ISNULL(sa.KgSurtido,0))
+                            WHEN
+                                (
+                                    ISNULL(p.KgPedido, 0)
+                                    - ISNULL(sa.KgSurtido, 0)
+                                ) < 0
+                                THEN 0
+
+                            ELSE
+                                (
+                                    ISNULL(p.KgPedido, 0)
+                                    - ISNULL(sa.KgSurtido, 0)
+                                )
                         END
                 END
-            AS DECIMAL(18,4))
-    FROM ov
-    JOIN ov_peso_agg p
-        ON p.PedidoId = ov.Id
-    LEFT JOIN ov_surtido_agg sa
-        ON sa.PedidoId = ov.Id
-       AND sa.SKU      = p.SKU
-    LEFT JOIN ov_con_surtido os
-        ON os.Id = ov.Id
+                AS DECIMAL(18,4)
+            )
+    FROM OV o
+    INNER JOIN OVPeso p
+        ON p.PedidoId = o.Id
+    LEFT JOIN OVSurtidoValidado sa
+        ON sa.PedidoId = o.Id
+       AND sa.SKU = p.SKU
+    LEFT JOIN OVConSurtido os
+        ON os.Id = o.Id
 ),
-consumo_cliente AS (
-    SELECT
-        Cliente = UPPER(ovp.Cliente),
-        SKU     = ovp.SKU,
-        Mes     = MONTH(ovp.FechaDate),
-        Anio    = YEAR(ovp.FechaDate),
-        Kg      = SUM(ovp.KgPendiente)
-    FROM ov_pendiente_sku ovp
-    GROUP BY
-        UPPER(ovp.Cliente),
-        ovp.SKU,
-        MONTH(ovp.FechaDate),
-        YEAR(ovp.FechaDate)
-),
-todo_normal AS (
-    SELECT
-        'CLIENTE' AS Origen,
-        pn.Mes,
-        pn.Anio,
-        pn.Cliente,
-        CAST(NULL AS NVARCHAR(100)) AS Canal,
-        CAST(NULL AS INT) AS VendedorId,
-        pn.SKU,
-        pn.Presupuesto,
-        ISNULL(cc.Kg,0) AS Kg
-    FROM presupuestos_normales pn
-    LEFT JOIN consumo_cliente cc
-        ON cc.Cliente = pn.Cliente
-       AND cc.SKU     = pn.SKU
-       AND cc.Mes     = pn.Mes
-       AND cc.Anio    = pn.Anio
 
-    UNION ALL
+/* ============================================================
+   7. CATÁLOGO TÉCNICO DE CLIENTES
+   ============================================================ */
+Clientes AS
+(
+    SELECT
+        Cliente =
+            UPPER(LTRIM(RTRIM(ISNULL(c.Cliente, '')))),
 
-    SELECT
-        'CLIENTE',
-        cc.Mes,
-        cc.Anio,
-        cc.Cliente,
-        CAST(NULL AS NVARCHAR(100)),
-        CAST(NULL AS INT),
-        cc.SKU,
-        0,
-        cc.Kg
-    FROM consumo_cliente cc
-    LEFT JOIN presupuestos_normales pn
-        ON pn.Cliente = cc.Cliente
-       AND pn.SKU     = cc.SKU
-       AND pn.Mes     = cc.Mes
-       AND pn.Anio    = cc.Anio
-    WHERE pn.Cliente IS NULL
+        VendedorId =
+            c.VendedorId,
+
+        Canal =
+            UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, ''))))
+    FROM dbo.ClienteSap c WITH (NOLOCK)
 ),
-presupuestos_cedis AS (
+
+/* ============================================================
+   8. PEDIDOS PENDIENTES CEDIS - ÓRDENES DE VENTA
+   ============================================================ */
+PedidosCedisOV AS
+(
     SELECT
-        Canal = UPPER(LTRIM(RTRIM(pc.Canal))),
-        SKU   = UPPER(LTRIM(RTRIM(pc.ProductoCodigo))),
-        Mes   = pc.Mes,
-        Anio  = pc.Anio,
-        Presupuesto = SUM(pc.PresupuestoAsignado)
-    FROM dbo.PresupuestoCedis pc
+        Canal = c.Canal,
+        p.SKU,
+
+        Kg =
+            SUM(CAST(ISNULL(p.KgPendiente, 0) AS DECIMAL(18,4)))
+    FROM OVPendiente p
+    INNER JOIN Clientes c
+        ON c.Cliente = p.Cliente
+    WHERE
+        c.Canal LIKE 'CEDIS%'
     GROUP BY
-        UPPER(LTRIM(RTRIM(pc.Canal))),
-        UPPER(LTRIM(RTRIM(pc.ProductoCodigo))),
-        pc.Mes, pc.Anio
+        c.Canal,
+        p.SKU
 ),
-tr_surtido_agg AS (
+
+/* ============================================================
+   9. SURTIDO DE TRANSFERENCIAS ACUMULADO
+   ============================================================ */
+TransferenciaSurtidoAgg AS
+(
     SELECT
         ts.TransferenciaId,
-        SKU = UPPER(LTRIM(RTRIM(ts.Sku))),
-        KgSurtido = SUM(CAST(ts.KgSurtido AS DECIMAL(18,4)))
-    FROM dbo.TransferenciaSurtido ts
+
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(ts.Sku, '')))),
+
+        KgSurtido =
+            SUM(CAST(ISNULL(ts.KgSurtido, 0) AS DECIMAL(18,4)))
+    FROM dbo.TransferenciaSurtido ts WITH (NOLOCK)
     GROUP BY
         ts.TransferenciaId,
-        UPPER(LTRIM(RTRIM(ts.Sku)))
+        UPPER(LTRIM(RTRIM(ISNULL(ts.Sku, ''))))
 ),
-consumo_cedis_base AS (
-    SELECT Canal, SKU, Mes, Anio, SUM(Kg) Kg
-    FROM (
-        SELECT
-            Canal = UPPER(LTRIM(RTRIM(cli.U_CANAL))),
-            SKU   = ovp.SKU,
-            Mes   = MONTH(ovp.FechaDate),
-            Anio  = YEAR(ovp.FechaDate),
-            Kg    = SUM(ovp.KgPendiente)
-        FROM ov_pendiente_sku ovp
-        JOIN dbo.ClienteSap cli ON cli.Cliente = ovp.Cliente
-        WHERE UPPER(LTRIM(RTRIM(cli.U_CANAL))) LIKE 'CEDIS%'
-        GROUP BY
-            UPPER(LTRIM(RTRIM(cli.U_CANAL))),
-            ovp.SKU,
-            MONTH(ovp.FechaDate),
-            YEAR(ovp.FechaDate)
 
-        UNION ALL
+/* ============================================================
+   10. PEDIDOS PENDIENTES CEDIS - TRANSFERENCIAS
+   ============================================================ */
+PedidosCedisTransferencias AS
+(
+    SELECT
+        Canal =
+            UPPER(LTRIM(RTRIM(ISNULL(s.Canal, '')))),
 
-        SELECT
-            Canal = UPPER(LTRIM(RTRIM(s.Canal))),
-            SKU   = UPPER(LTRIM(RTRIM(td.ProductoCodigo))),
-            Mes   = MONTH(TRY_CONVERT(date, t.FechaSolicitud)),
-            Anio  = YEAR(TRY_CONVERT(date, t.FechaSolicitud)),
-            Kg    = SUM(
-                      CASE
-                          WHEN (CAST(td.CantidadKg AS DECIMAL(18,4)) - ISNULL(tsa.KgSurtido,0)) < 0 THEN 0
-                          ELSE (CAST(td.CantidadKg AS DECIMAL(18,4)) - ISNULL(tsa.KgSurtido,0))
-                      END
-                   )
-        FROM dbo.Transferencias t
-        JOIN dbo.TransferenciaDetalles td ON td.TransferenciaId = t.Id
-        JOIN dbo.Series s                 ON s.Sucursal = t.Sucursal
-        LEFT JOIN tr_surtido_agg tsa
-               ON tsa.TransferenciaId = t.Id
-              AND tsa.SKU = UPPER(LTRIM(RTRIM(td.ProductoCodigo)))
-        WHERE t.FechaSolicitud IS NOT NULL
-          AND t.Estatus BETWEEN 1 AND 4
-          AND UPPER(LTRIM(RTRIM(s.Canal))) LIKE 'CEDIS%'
-        GROUP BY
-            UPPER(LTRIM(RTRIM(s.Canal))),
-            UPPER(LTRIM(RTRIM(td.ProductoCodigo))),
-            MONTH(TRY_CONVERT(date, t.FechaSolicitud)),
-            YEAR(TRY_CONVERT(date, t.FechaSolicitud))
-    ) X
-    GROUP BY Canal, SKU, Mes, Anio
-),
-consumo_cedis AS (
-    SELECT * FROM consumo_cedis_base
-),
-todo_cedis AS (
-    SELECT
-        'CEDIS' AS Origen,
-        pc.Mes,
-        pc.Anio,
-        CAST(NULL AS NVARCHAR(50)) AS Cliente,
-        pc.Canal,
-        CAST(NULL AS INT) AS VendedorId,
-        pc.SKU,
-        pc.Presupuesto,
-        ISNULL(cc.Kg,0) AS Kg
-    FROM presupuestos_cedis pc
-    LEFT JOIN consumo_cedis cc
-        ON cc.Canal = pc.Canal
-       AND cc.SKU   = pc.SKU
-       AND cc.Mes   = pc.Mes
-       AND cc.Anio  = pc.Anio
-),
-presupuestos_vendedor AS (
-    SELECT
-        VendedorId,
-        SKU = UPPER(LTRIM(RTRIM(pv.ProductoCodigo))),
-        Mes = pv.Mes,
-        Anio = pv.Anio,
-        Presupuesto = SUM(pv.PresupuestoAsignado)
-    FROM dbo.PresupuestoVendedor pv
-    GROUP BY
-        pv.VendedorId,
-        UPPER(LTRIM(RTRIM(pv.ProductoCodigo))),
-        pv.Mes,
-        pv.Anio
-),
-pres_vendedor_x_canal AS (
-    SELECT
-        cv.Canal,
-        pv.SKU,
-        pv.Mes,
-        pv.Anio,
-        PresTotalCanal = SUM(CAST(pv.Presupuesto AS DECIMAL(18,4)))
-    FROM presupuestos_vendedor pv
-    JOIN canal_vendedores cv
-        ON cv.VendedorId = pv.VendedorId
-    GROUP BY
-        cv.Canal, pv.SKU, pv.Mes, pv.Anio
-),
-consumo_vendedor_normal AS (
-    SELECT
-        ovp.VendedorId,
-        SKU  = ovp.SKU,
-        Mes  = MONTH(ovp.FechaDate),
-        Anio = YEAR(ovp.FechaDate),
-        Kg   = SUM(ovp.KgPendiente)
-    FROM ov_pendiente_sku ovp
-    JOIN dbo.ClienteSap c ON c.Cliente = ovp.Cliente
-                         AND ISNULL(UPPER(LTRIM(RTRIM(c.U_CANAL))),'') NOT LIKE 'CEDIS%'
-    WHERE ovp.VendedorId IS NOT NULL
-    GROUP BY
-        ovp.VendedorId,
-        ovp.SKU,
-        MONTH(ovp.FechaDate),
-        YEAR(ovp.FechaDate)
-),
-consumo_vendedor_desde_cedis AS (
-    SELECT
-        VendedorId = pv.VendedorId,
-        SKU        = pv.SKU,
-        Mes        = pv.Mes,
-        Anio       = pv.Anio,
-        Kg = SUM(
-            CASE
-                WHEN ISNULL(pxc.PresTotalCanal,0) <= 0 THEN 0
-                ELSE (cb.Kg * (CAST(pv.Presupuesto AS DECIMAL(18,4)) / pxc.PresTotalCanal))
-            END
-        )
-    FROM presupuestos_vendedor pv
-    JOIN canal_vendedores cv
-        ON cv.VendedorId = pv.VendedorId
-    JOIN pres_vendedor_x_canal pxc
-        ON pxc.Canal = cv.Canal
-       AND pxc.SKU   = pv.SKU
-       AND pxc.Mes   = pv.Mes
-       AND pxc.Anio  = pv.Anio
-    JOIN consumo_cedis_base cb
-        ON cb.Canal = cv.Canal
-       AND cb.SKU   = pv.SKU
-       AND cb.Mes   = pv.Mes
-       AND cb.Anio  = pv.Anio
-    GROUP BY
-        pv.VendedorId, pv.SKU, pv.Mes, pv.Anio
-),
-consumo_vendedor_total AS (
-    SELECT VendedorId, SKU, Mes, Anio, SUM(Kg) Kg
-    FROM (
-        SELECT * FROM consumo_vendedor_normal
-        UNION ALL
-        SELECT * FROM consumo_vendedor_desde_cedis
-    ) x
-    GROUP BY VendedorId, SKU, Mes, Anio
-),
-todo_vendedor AS (
-    SELECT
-        'VENDEDOR' AS Origen,
-        pv.Mes,
-        pv.Anio,
-        CAST(NULL AS NVARCHAR(50)) AS Cliente,
-        CAST(NULL AS NVARCHAR(100)) AS Canal,
-        pv.VendedorId,
-        pv.SKU,
-        pv.Presupuesto,
-        ISNULL(cv.Kg,0) AS Kg
-    FROM presupuestos_vendedor pv
-    LEFT JOIN consumo_vendedor_total cv
-        ON cv.VendedorId = pv.VendedorId
-       AND cv.SKU  = pv.SKU
-       AND cv.Mes  = pv.Mes
-       AND cv.Anio = pv.Anio
-),
-surtido_cliente AS (
-    SELECT
-        Cliente = UPPER(o.Cliente),
-        SKU     = UPPER(LTRIM(RTRIM(sd.Articulo))),
-        Mes     = MONTH(se.FechaValidacion),
-        Anio    = YEAR(se.FechaValidacion),
-        KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
-    FROM dbo.OrdenVenta o
-    JOIN dbo.Subpedido sp         ON sp.OrdenVentaId = o.Id
-    JOIN dbo.SurtidoEncabezado se ON se.SolicitudSurtidoId = sp.U_DocMeat
-    JOIN dbo.SurtidoDetalle sd    ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
-    JOIN dbo.ClienteSap cli       ON cli.Cliente = o.Cliente
-    WHERE o.Estatus <> 0
-      AND se.FechaValidacion IS NOT NULL
-      AND ISNULL(UPPER(cli.U_CANAL),'') NOT LIKE 'CEDIS%'
-    GROUP BY
-        UPPER(o.Cliente),
-        UPPER(LTRIM(RTRIM(sd.Articulo))),
-        MONTH(se.FechaValidacion),
-        YEAR(se.FechaValidacion)
-),
-surtido_ov_cedis AS (
-    SELECT
-        Canal = UPPER(LTRIM(RTRIM(cli.U_CANAL))),
-        SKU   = UPPER(LTRIM(RTRIM(sd.Articulo))),
-        Mes   = MONTH(se.FechaValidacion),
-        Anio  = YEAR(se.FechaValidacion),
-        KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
-    FROM dbo.OrdenVenta o
-    JOIN dbo.Subpedido sp         ON sp.OrdenVentaId = o.Id
-    JOIN dbo.SurtidoEncabezado se ON se.SolicitudSurtidoId = sp.U_DocMeat
-    JOIN dbo.SurtidoDetalle sd    ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
-    JOIN dbo.ClienteSap cli       ON cli.Cliente = o.Cliente
-    WHERE o.Estatus <> 0
-      AND se.FechaValidacion IS NOT NULL
-      AND UPPER(LTRIM(RTRIM(cli.U_CANAL))) LIKE 'CEDIS%'
-    GROUP BY
-        UPPER(LTRIM(RTRIM(cli.U_CANAL))),
-        UPPER(LTRIM(RTRIM(sd.Articulo))),
-        MONTH(se.FechaValidacion),
-        YEAR(se.FechaValidacion)
-),
-surtido_transferencias_cedis AS (
-    SELECT
-        Canal = UPPER(LTRIM(RTRIM(s.Canal))),
-        SKU   = UPPER(LTRIM(RTRIM(ts.Sku))),
-        Mes   = MONTH(TRY_CONVERT(date, t.FechaSolicitud)),
-        Anio  = YEAR(TRY_CONVERT(date, t.FechaSolicitud)),
-        KgSurtido = SUM(CAST(ts.KgSurtido AS DECIMAL(18,4)))
-    FROM dbo.TransferenciaSurtido ts
-    JOIN dbo.Transferencias t ON t.Id = ts.TransferenciaId
-    JOIN dbo.Series s         ON s.Sucursal = t.Sucursal
-    WHERE t.FechaSolicitud IS NOT NULL
-      AND t.Estatus >= 5
-      AND ts.KgSurtido > 0
-      AND UPPER(LTRIM(RTRIM(s.Canal))) LIKE 'CEDIS%'
-    GROUP BY
-        UPPER(LTRIM(RTRIM(s.Canal))),
-        UPPER(LTRIM(RTRIM(ts.Sku))),
-        MONTH(TRY_CONVERT(date, t.FechaSolicitud)),
-        YEAR(TRY_CONVERT(date, t.FechaSolicitud))
-),
-surtido_cedis_base AS (
-    SELECT Canal, SKU, Mes, Anio, SUM(KgSurtido) AS KgSurtido
-    FROM (
-        SELECT Canal, SKU, Mes, Anio, KgSurtido FROM surtido_ov_cedis
-        UNION ALL
-        SELECT Canal, SKU, Mes, Anio, KgSurtido FROM surtido_transferencias_cedis
-    ) x
-    GROUP BY Canal, SKU, Mes, Anio
-),
-surtido_vendedor_normal AS (
-    SELECT
-        cl.VendedorId,
-        sc.SKU,
-        sc.Mes,
-        sc.Anio,
-        KgSurtido = SUM(sc.KgSurtido)
-    FROM surtido_cliente sc
-    JOIN clientes cl ON cl.Cliente = sc.Cliente
-    WHERE cl.VendedorId IS NOT NULL
-    GROUP BY
-        cl.VendedorId,
-        sc.SKU,
-        sc.Mes,
-        sc.Anio
-),
-surtido_vendedor_desde_cedis AS (
-    SELECT
-        VendedorId = pv.VendedorId,
-        SKU        = pv.SKU,
-        Mes        = pv.Mes,
-        Anio       = pv.Anio,
-        KgSurtido  = SUM(
-            CASE
-                WHEN ISNULL(pxc.PresTotalCanal,0) <= 0 THEN 0
-                ELSE (sb.KgSurtido * (CAST(pv.Presupuesto AS DECIMAL(18,4)) / pxc.PresTotalCanal))
-            END
-        )
-    FROM presupuestos_vendedor pv
-    JOIN canal_vendedores cv
-        ON cv.VendedorId = pv.VendedorId
-    JOIN pres_vendedor_x_canal pxc
-        ON pxc.Canal = cv.Canal
-       AND pxc.SKU   = pv.SKU
-       AND pxc.Mes   = pv.Mes
-       AND pxc.Anio  = pv.Anio
-    JOIN surtido_cedis_base sb
-        ON sb.Canal = cv.Canal
-       AND sb.SKU   = pv.SKU
-       AND sb.Mes   = pv.Mes
-       AND sb.Anio  = pv.Anio
-    GROUP BY
-        pv.VendedorId, pv.SKU, pv.Mes, pv.Anio
-),
-surtido_vendedor_total AS (
-    SELECT VendedorId, SKU, Mes, Anio, SUM(KgSurtido) KgSurtido
-    FROM (
-        SELECT * FROM surtido_vendedor_normal
-        UNION ALL
-        SELECT * FROM surtido_vendedor_desde_cedis
-    ) x
-    GROUP BY VendedorId, SKU, Mes, Anio
-),
-surtido_real AS (
-    SELECT
-        'CLIENTE' AS Origen,
-        Cliente,
-        CAST(NULL AS NVARCHAR(100)) AS Canal,
-        CAST(NULL AS INT) AS VendedorId,
-        SKU, Mes, Anio,
-        SUM(KgSurtido) AS KgSurtido
-    FROM surtido_cliente
-    GROUP BY Cliente, SKU, Mes, Anio
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(td.ProductoCodigo, '')))),
 
-    UNION ALL
+        Kg =
+            SUM(
+                CAST(
+                    CASE
+                        WHEN
+                            (
+                                ISNULL(td.CantidadKg, 0)
+                                - ISNULL(tsa.KgSurtido, 0)
+                            ) < 0
+                            THEN 0
+                        ELSE
+                            (
+                                ISNULL(td.CantidadKg, 0)
+                                - ISNULL(tsa.KgSurtido, 0)
+                            )
+                    END
+                    AS DECIMAL(18,4)
+                )
+            )
+    FROM dbo.Transferencias t WITH (NOLOCK)
+    INNER JOIN dbo.TransferenciaDetalles td WITH (NOLOCK)
+        ON td.TransferenciaId = t.Id
+    INNER JOIN dbo.Series s WITH (NOLOCK)
+        ON s.Sucursal = t.Sucursal
+    LEFT JOIN TransferenciaSurtidoAgg tsa
+        ON tsa.TransferenciaId = t.Id
+       AND tsa.SKU =
+           UPPER(LTRIM(RTRIM(ISNULL(td.ProductoCodigo, ''))))
+    WHERE
+        t.FechaSolicitud >= @FechaInicio
+        AND t.FechaSolicitud < @FechaFin
+        AND t.Estatus BETWEEN 1 AND 4
+        AND UPPER(LTRIM(RTRIM(ISNULL(s.Canal, '')))) LIKE 'CEDIS%'
+    GROUP BY
+        UPPER(LTRIM(RTRIM(ISNULL(s.Canal, '')))),
+        UPPER(LTRIM(RTRIM(ISNULL(td.ProductoCodigo, ''))))
+),
 
+PedidosCedis AS
+(
     SELECT
-        'CEDIS',
-        CAST(NULL AS NVARCHAR(50)),
         Canal,
-        CAST(NULL AS INT),
-        SKU, Mes, Anio,
-        SUM(KgSurtido)
-    FROM surtido_cedis_base
-    GROUP BY Canal, SKU, Mes, Anio
+        SKU,
+        Kg = SUM(Kg)
+    FROM
+    (
+        SELECT Canal, SKU, Kg
+        FROM PedidosCedisOV
 
-    UNION ALL
+        UNION ALL
 
+        SELECT Canal, SKU, Kg
+        FROM PedidosCedisTransferencias
+    ) X
+    GROUP BY
+        Canal,
+        SKU
+),
+
+/* ============================================================
+   11. PEDIDO PENDIENTE NORMAL POR VENDEDOR
+       Excluye clientes CEDIS.
+   ============================================================ */
+PedidosVendedorNormal AS
+(
     SELECT
-        'VENDEDOR',
-        CAST(NULL AS NVARCHAR(50)),
-        CAST(NULL AS NVARCHAR(100)),
+        p.VendedorId,
+        p.SKU,
+
+        Kg =
+            SUM(CAST(ISNULL(p.KgPendiente, 0) AS DECIMAL(18,4)))
+    FROM OVPendiente p
+    INNER JOIN Clientes c
+        ON c.Cliente = p.Cliente
+    WHERE
+        p.VendedorId IS NOT NULL
+        AND ISNULL(c.Canal, '') NOT LIKE 'CEDIS%'
+    GROUP BY
+        p.VendedorId,
+        p.SKU
+),
+
+/* ============================================================
+   12. PARTE CEDIS ASIGNADA A CADA VENDEDOR
+       Misma proporción del reporte:
+       presupuesto vendedor / presupuesto total del canal.
+   ============================================================ */
+PedidosVendedorDesdeCedis AS
+(
+    SELECT
+        pv.VendedorId,
+        pv.SKU,
+
+        Kg =
+            SUM(
+                CASE
+                    WHEN ISNULL(pt.PresupuestoTotalCanal, 0) <= 0
+                        THEN 0
+
+                    ELSE
+                        ISNULL(pc.Kg, 0)
+                        *
+                        (
+                            CAST(ISNULL(pv.Presupuesto, 0) AS DECIMAL(18,4))
+                            /
+                            NULLIF(
+                                CAST(pt.PresupuestoTotalCanal AS DECIMAL(18,4)),
+                                0
+                            )
+                        )
+                END
+            )
+    FROM PresupuestoVendedorTodos pv
+    INNER JOIN CanalVendedores cv
+        ON cv.VendedorId = pv.VendedorId
+    INNER JOIN PresupuestoVendedorCanal pt
+        ON pt.Canal = cv.Canal
+       AND pt.SKU = pv.SKU
+    INNER JOIN PedidosCedis pc
+        ON pc.Canal = cv.Canal
+       AND pc.SKU = pv.SKU
+    GROUP BY
+        pv.VendedorId,
+        pv.SKU
+),
+
+PedidosVendedor AS
+(
+    SELECT
         VendedorId,
-        SKU, Mes, Anio,
-        SUM(KgSurtido)
-    FROM surtido_vendedor_total
-    GROUP BY VendedorId, SKU, Mes, Anio
+        SKU,
+        Kg = SUM(Kg)
+    FROM
+    (
+        SELECT
+            VendedorId,
+            SKU,
+            Kg
+        FROM PedidosVendedorNormal
+
+        UNION ALL
+
+        SELECT
+            VendedorId,
+            SKU,
+            Kg
+        FROM PedidosVendedorDesdeCedis
+    ) X
+    GROUP BY
+        VendedorId,
+        SKU
+),
+
+/* ============================================================
+   13. SURTIDO REAL CEDIS - OV VALIDADA
+   ============================================================ */
+SurtidoCedisOV AS
+(
+    SELECT
+        Canal = c.Canal,
+
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(sd.Articulo, '')))),
+
+        KgSurtido =
+            SUM(CAST(ISNULL(sd.Kg, 0) AS DECIMAL(18,4)))
+    FROM dbo.OrdenVenta o WITH (NOLOCK)
+    INNER JOIN dbo.Series ser WITH (NOLOCK)
+        ON ser.NombreSerie = o.Serie
+    INNER JOIN dbo.Subpedido sp WITH (NOLOCK)
+        ON sp.OrdenVentaId = o.Id
+    INNER JOIN dbo.SurtidoEncabezado se WITH (NOLOCK)
+        ON se.SolicitudSurtidoId = sp.U_DocMeat
+    INNER JOIN dbo.SurtidoDetalle sd WITH (NOLOCK)
+        ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+    INNER JOIN Clientes c
+        ON c.Cliente =
+           UPPER(LTRIM(RTRIM(ISNULL(o.Cliente, ''))))
+    WHERE
+        o.Estatus <> 0
+        AND se.FechaValidacion >= @FechaInicio
+        AND se.FechaValidacion < @FechaFin
+        AND ser.Sucursal = 'MATRIZ'
+        AND c.Canal LIKE 'CEDIS%'
+    GROUP BY
+        c.Canal,
+        UPPER(LTRIM(RTRIM(ISNULL(sd.Articulo, ''))))
+),
+
+/* ============================================================
+   14. SURTIDO REAL CEDIS - TRANSFERENCIAS
+   ============================================================ */
+SurtidoCedisTransferencias AS
+(
+    SELECT
+        Canal =
+            UPPER(LTRIM(RTRIM(ISNULL(s.Canal, '')))),
+
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(ts.Sku, '')))),
+
+        KgSurtido =
+            SUM(CAST(ISNULL(ts.KgSurtido, 0) AS DECIMAL(18,4)))
+    FROM dbo.TransferenciaSurtido ts WITH (NOLOCK)
+    INNER JOIN dbo.Transferencias t WITH (NOLOCK)
+        ON t.Id = ts.TransferenciaId
+    INNER JOIN dbo.Series s WITH (NOLOCK)
+        ON s.Sucursal = t.Sucursal
+    WHERE
+        t.FechaSolicitud >= @FechaInicio
+        AND t.FechaSolicitud < @FechaFin
+        AND t.Estatus >= 5
+        AND ISNULL(ts.KgSurtido, 0) > 0
+        AND UPPER(LTRIM(RTRIM(ISNULL(s.Canal, '')))) LIKE 'CEDIS%'
+    GROUP BY
+        UPPER(LTRIM(RTRIM(ISNULL(s.Canal, '')))),
+        UPPER(LTRIM(RTRIM(ISNULL(ts.Sku, ''))))
+),
+
+SurtidoCedis AS
+(
+    SELECT
+        Canal,
+        SKU,
+        KgSurtido = SUM(KgSurtido)
+    FROM
+    (
+        SELECT Canal, SKU, KgSurtido
+        FROM SurtidoCedisOV
+
+        UNION ALL
+
+        SELECT Canal, SKU, KgSurtido
+        FROM SurtidoCedisTransferencias
+    ) X
+    GROUP BY
+        Canal,
+        SKU
+),
+
+/* ============================================================
+   15. SURTIDO REAL NORMAL POR VENDEDOR
+   ============================================================ */
+SurtidoVendedorNormal AS
+(
+    SELECT
+        c.VendedorId,
+
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(sd.Articulo, '')))),
+
+        KgSurtido =
+            SUM(CAST(ISNULL(sd.Kg, 0) AS DECIMAL(18,4)))
+    FROM dbo.OrdenVenta o WITH (NOLOCK)
+    INNER JOIN dbo.Series ser WITH (NOLOCK)
+        ON ser.NombreSerie = o.Serie
+    INNER JOIN dbo.Subpedido sp WITH (NOLOCK)
+        ON sp.OrdenVentaId = o.Id
+    INNER JOIN dbo.SurtidoEncabezado se WITH (NOLOCK)
+        ON se.SolicitudSurtidoId = sp.U_DocMeat
+    INNER JOIN dbo.SurtidoDetalle sd WITH (NOLOCK)
+        ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+    INNER JOIN Clientes c
+        ON c.Cliente =
+           UPPER(LTRIM(RTRIM(ISNULL(o.Cliente, ''))))
+    WHERE
+        o.Estatus <> 0
+        AND se.FechaValidacion >= @FechaInicio
+        AND se.FechaValidacion < @FechaFin
+        AND ser.Sucursal = 'MATRIZ'
+        AND ISNULL(c.Canal, '') NOT LIKE 'CEDIS%'
+        AND c.VendedorId IS NOT NULL
+    GROUP BY
+        c.VendedorId,
+        UPPER(LTRIM(RTRIM(ISNULL(sd.Articulo, ''))))
+),
+
+/* ============================================================
+   16. SURTIDO CEDIS DISTRIBUIDO A VENDEDORES
+   ============================================================ */
+SurtidoVendedorDesdeCedis AS
+(
+    SELECT
+        pv.VendedorId,
+        pv.SKU,
+
+        KgSurtido =
+            SUM(
+                CASE
+                    WHEN ISNULL(pt.PresupuestoTotalCanal, 0) <= 0
+                        THEN 0
+
+                    ELSE
+                        ISNULL(sc.KgSurtido, 0)
+                        *
+                        (
+                            CAST(ISNULL(pv.Presupuesto, 0) AS DECIMAL(18,4))
+                            /
+                            NULLIF(
+                                CAST(pt.PresupuestoTotalCanal AS DECIMAL(18,4)),
+                                0
+                            )
+                        )
+                END
+            )
+    FROM PresupuestoVendedorTodos pv
+    INNER JOIN CanalVendedores cv
+        ON cv.VendedorId = pv.VendedorId
+    INNER JOIN PresupuestoVendedorCanal pt
+        ON pt.Canal = cv.Canal
+       AND pt.SKU = pv.SKU
+    INNER JOIN SurtidoCedis sc
+        ON sc.Canal = cv.Canal
+       AND sc.SKU = pv.SKU
+    GROUP BY
+        pv.VendedorId,
+        pv.SKU
+),
+
+SurtidoVendedor AS
+(
+    SELECT
+        VendedorId,
+        SKU,
+        KgSurtido = SUM(KgSurtido)
+    FROM
+    (
+        SELECT
+            VendedorId,
+            SKU,
+            KgSurtido
+        FROM SurtidoVendedorNormal
+
+        UNION ALL
+
+        SELECT
+            VendedorId,
+            SKU,
+            KgSurtido
+        FROM SurtidoVendedorDesdeCedis
+    ) X
+    GROUP BY
+        VendedorId,
+        SKU
+),
+
+/* ============================================================
+   17. UNIVERSO DE SKU
+   ============================================================ */
+Skus AS
+(
+    SELECT SKU
+    FROM PresupuestoVendedorActual
+
+    UNION
+
+    SELECT pc.SKU
+    FROM PresupuestoCedisActual pc
+),
+
+/* ============================================================
+   18. BASE ELEGIDA:
+       CEDIS tiene prioridad si existe presupuesto CEDIS para el SKU.
+       Si no, usa vendedor.
+   ============================================================ */
+Base AS
+(
+    SELECT
+        s.SKU,
+
+        ca.VendedorId,
+        ca.Canal,
+        ca.EsCedis,
+
+        EsSkuCedis =
+            CAST(
+                CASE
+                    WHEN
+                        ca.EsCedis = 1
+                        AND pc.SKU IS NOT NULL
+                        THEN 1
+                    ELSE 0
+                END
+                AS BIT
+            ),
+
+        PresupuestoAsignado =
+            CAST(
+                CASE
+                    WHEN
+                        ca.EsCedis = 1
+                        AND pc.SKU IS NOT NULL
+                        THEN ISNULL(pc.Presupuesto, 0)
+
+                    ELSE
+                        ISNULL(pv.Presupuesto, 0)
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        KgPedidosMes =
+            CAST(
+                CASE
+                    WHEN
+                        ca.EsCedis = 1
+                        AND pc.SKU IS NOT NULL
+                        THEN ISNULL(pedC.Kg, 0)
+
+                    ELSE
+                        ISNULL(pedV.Kg, 0)
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        KgSurtidoReal =
+            CAST(
+                CASE
+                    WHEN
+                        ca.EsCedis = 1
+                        AND pc.SKU IS NOT NULL
+                        THEN ISNULL(surC.KgSurtido, 0)
+
+                    ELSE
+                        ISNULL(surV.KgSurtido, 0)
+                END
+                AS DECIMAL(18,4)
+            )
+    FROM Skus s
+    CROSS JOIN ClienteActual ca
+
+    LEFT JOIN PresupuestoCedisActual pc
+        ON pc.SKU = s.SKU
+       AND pc.Canal = ca.Canal
+
+    LEFT JOIN PresupuestoVendedorActual pv
+        ON pv.SKU = s.SKU
+       AND pv.VendedorId = ca.VendedorId
+
+    LEFT JOIN PedidosCedis pedC
+        ON pedC.Canal = ca.Canal
+       AND pedC.SKU = s.SKU
+
+    LEFT JOIN PedidosVendedor pedV
+        ON pedV.VendedorId = ca.VendedorId
+       AND pedV.SKU = s.SKU
+
+    LEFT JOIN SurtidoCedis surC
+        ON surC.Canal = ca.Canal
+       AND surC.SKU = s.SKU
+
+    LEFT JOIN SurtidoVendedor surV
+        ON surV.VendedorId = ca.VendedorId
+       AND surV.SKU = s.SKU
 )
+
+/* ============================================================
+   19. RESPUESTA
+   ============================================================ */
 SELECT
-    productoCodigo         = t.SKU,
-    presupuestoAsignado    = CAST(t.Presupuesto AS DECIMAL(18,4)),
-    kgPedidosMes           = CAST(ISNULL(t.Kg,0) AS DECIMAL(18,4)),
-    kgSurtidoReal          = CAST(ISNULL(sr.KgSurtido,0) AS DECIMAL(18,4)),
-   presupuestoDisponible = CAST(
-    (t.Presupuesto - ISNULL(t.Kg,0) - ISNULL(sr.KgSurtido,0))
-AS DECIMAL(18,4))
-FROM (
-    SELECT * FROM todo_cedis
-    UNION ALL
-    SELECT * FROM todo_vendedor
-) t
-LEFT JOIN surtido_real sr
-    ON sr.Origen = t.Origen
-   AND sr.SKU    = t.SKU
-   AND sr.Mes    = t.Mes
-   AND sr.Anio   = t.Anio
-   AND (
-        (t.Origen = 'CEDIS'    AND sr.Canal      = t.Canal)
-     OR (t.Origen = 'VENDEDOR' AND sr.VendedorId = t.VendedorId)
-   )
+    productoCodigo =
+        b.SKU,
+
+    presupuestoAsignado =
+        b.PresupuestoAsignado,
+
+    kgPedidosMes =
+        b.KgPedidosMes,
+
+    kgSurtidoReal =
+        b.KgSurtidoReal,
+
+    presupuestoDisponible =
+        CAST(
+            CASE
+                WHEN
+                    (
+                        b.PresupuestoAsignado
+                        - b.KgPedidosMes
+                        - b.KgSurtidoReal
+                    ) < 0
+                    THEN 0
+
+                ELSE
+                    (
+                        b.PresupuestoAsignado
+                        - b.KgPedidosMes
+                        - b.KgSurtidoReal
+                    )
+            END
+            AS DECIMAL(18,4)
+        ),
+
+    origen =
+        CASE
+            WHEN b.EsSkuCedis = 1
+                THEN 'CEDIS'
+            ELSE 'VENDEDOR'
+        END,
+
+    canal =
+        b.Canal,
+
+    vendedorId =
+        b.VendedorId
+FROM Base b
 WHERE
-    t.Mes = @mes
-    AND t.Anio = @anio
-    AND (
-        (@esCedis = 1 AND t.Origen = 'CEDIS' AND UPPER(LTRIM(RTRIM(t.Canal))) = @canal)
-        OR
-        (@esCedis = 0 AND t.Origen = 'VENDEDOR' AND t.VendedorId = @vendedorId)
-    )
-ORDER BY t.SKU;
+    b.PresupuestoAsignado > 0
+ORDER BY
+    b.SKU
+OPTION (RECOMPILE);
 ";
 
-            var conn = _context.Database.GetDbConnection();
-            if (conn.State != System.Data.ConnectionState.Open)
-                await conn.OpenAsync();
-
-            // DTO opcional (puedes usar dynamic si prefieres)
-            var data = await conn.QueryAsync(sql, new
+            try
             {
-                mes,
-                anio,
-                esCedis = esCedis ? 1 : 0,
-                canal,
-                vendedorId,
-                serie = Serie.ToString() // solo se usa si descomentas el filtro en ov
-            });
+                var cn = _context.Database.GetDbConnection();
 
-            // Si quieres redondear igual que hoy:
-            var respuesta = data.Select(x => new
+                var rows = (
+                    await cn.QueryAsync(
+                        sql,
+                        new
+                        {
+                            CardCode = card.Trim().ToUpperInvariant(),
+                            FechaEntrega = fechaEntrega.Date
+                        },
+                        commandTimeout: 180
+                    )
+                ).ToList();
+
+                return Json(rows);
+            }
+            catch (Exception ex)
             {
-                productoCodigo = (string)x.productoCodigo,
-                presupuestoAsignado = (decimal)x.presupuestoAsignado,
-                kgPedidosMes = (decimal)x.kgPedidosMes,
-                kgSurtidoReal = (decimal)x.kgSurtidoReal,
-                presupuestoDisponible = Math.Round((decimal)x.presupuestoDisponible, 4)
-            });
+                // Ajusta _logger al nombre de tu logger si en el controller se llama distinto.
+                _logger.LogError(
+                    ex,
+                    "Error calculando presupuesto disponible. Cliente {CardCode}, Fecha {FechaEntrega}",
+                    card,
+                    fechaEntrega
+                );
 
-            return Json(respuesta);
+                return StatusCode(
+                    500,
+                    new
+                    {
+                        ok = false,
+                        mensaje = "No se pudo calcular el disponible.",
+                        error = ex.GetBaseException().Message
+                    }
+                );
+            }
         }
+
 
 
 
@@ -3358,8 +4154,10 @@ ORDER BY t.SKU;
                 .FirstOrDefaultAsync();
 
             string canalUp = (canalRaw ?? "").Trim().ToUpper();
-            if (string.IsNullOrWhiteSpace(canalUp))
-                return false; // no es CEDIS
+
+            // Esta excepción únicamente aplica a clientes CEDIS.
+            if (string.IsNullOrWhiteSpace(canalUp) || !canalUp.StartsWith("CEDIS"))
+                return false;
 
             // Serie -> Sucursal
             string serieTrim = serie.Trim();
@@ -3391,8 +4189,8 @@ ORDER BY t.SKU;
                 from t in _context.Transferencias
                 join td in _context.TransferenciaDetalles on t.Id equals td.TransferenciaId
                 join se in _context.Series on t.Sucursal equals se.Sucursal
-                where t.Estatus != 0
-                && t.Estatus != 5
+                where t.Estatus >= 1
+                && t.Estatus <= 4
                 && (td.AutorizacionPresupuestoLinea == null
                || td.AutorizacionPresupuestoLinea == false)
                 let fecha = t.FechaSolicitud ?? DateTime.MinValue    // 👈 normalizamos a DateTime
@@ -7288,6 +8086,1023 @@ GROUP BY
 
 
 
+
+        // ============================================================
+        // HISTÓRICO / AUDITORÍA RESUMIDA DEL CATÁLOGO DE PRECIOS
+        // Una fila por Lote + SKU + Lista + cambio de precio.
+        // La lista de clientes se consulta únicamente bajo demanda.
+        // ============================================================
+        [Authorize]
+        [HttpGet("Comercial/ObtenerHistoricoCatalogoPrecios")]
+        public async Task<IActionResult> ObtenerHistoricoCatalogoPrecios(
+            int page = 1,
+            int pageSize = 50,
+            string search = "",
+            string sku = "",
+            string cliente = "",
+            string accion = "CAMBIOS",
+            string usuario = "",
+            int? priceListNum = null,
+            DateTime? fechaDesde = null,
+            DateTime? fechaHasta = null,
+            Guid? loteId = null,
+            CancellationToken ct = default)
+        {
+            try
+            {
+                page = Math.Max(1, page);
+                pageSize = Math.Clamp(pageSize, 20, 200);
+
+                search = (search ?? "").Trim();
+                sku = (sku ?? "").Trim();
+                cliente = (cliente ?? "").Trim();
+                accion = (accion ?? "").Trim().ToUpperInvariant();
+                usuario = (usuario ?? "").Trim();
+
+                var fechaDesdeNormalizada = fechaDesde?.Date;
+                var fechaHastaExclusiva = fechaHasta?.Date.AddDays(1);
+                var offset = (page - 1) * pageSize;
+
+                // Se arma solamente con fragmentos controlados; todos los valores
+                // del usuario siguen entrando como parámetros SQL.
+                var filtros = new List<string> { "1 = 1" };
+                var parametros = new DynamicParameters();
+
+                if (!string.IsNullOrWhiteSpace(search))
+                {
+                    var filtroSearch = @"
+(
+       h.ProductoCodigo LIKE @SearchLike
+    OR h.ProductoNombre LIKE @SearchLike
+    OR h.Master LIKE @SearchLike
+    OR h.Cliente LIKE @SearchLike
+    OR h.PriceListName LIKE @SearchLike
+    OR h.Usuario LIKE @SearchLike
+    OR EXISTS
+      (
+          SELECT 1
+          FROM dbo.ClienteSap cs
+          WHERE cs.Cliente = h.Cliente
+            AND cs.Nombrecliente LIKE @SearchLike
+      )";
+
+                    if (Guid.TryParse(search, out var loteBuscado))
+                    {
+                        filtroSearch += "\n    OR h.LoteId = @SearchLote";
+                        parametros.Add("SearchLote", loteBuscado);
+                    }
+
+                    filtroSearch += "\n)";
+                    filtros.Add(filtroSearch);
+                    parametros.Add("SearchLike", "%" + search + "%");
+                }
+
+                if (!string.IsNullOrWhiteSpace(sku))
+                {
+                    // Búsqueda por prefijo: permite Index Seek y también escribir
+                    // solo una parte inicial del código.
+                    filtros.Add("h.ProductoCodigo LIKE @SkuPrefix");
+                    parametros.Add("SkuPrefix", sku + "%");
+                }
+
+                if (!string.IsNullOrWhiteSpace(cliente))
+                {
+                    filtros.Add(@"
+(
+       h.Cliente LIKE @ClientePrefix
+    OR EXISTS
+      (
+          SELECT 1
+          FROM dbo.ClienteSap cs
+          WHERE cs.Cliente = h.Cliente
+            AND cs.Nombrecliente LIKE @ClienteLike
+      )
+)");
+                    parametros.Add("ClientePrefix", cliente + "%");
+                    parametros.Add("ClienteLike", "%" + cliente + "%");
+                }
+
+                if (accion == "CAMBIOS")
+                {
+                    // Reporte operativo: por defecto no trae miles de registros
+                    // donde el precio no cambió.
+                    filtros.Add("h.Accion IN ('INSERT', 'UPDATE')");
+                }
+                else if (!string.IsNullOrWhiteSpace(accion))
+                {
+                    filtros.Add("h.Accion = @Accion");
+                    parametros.Add("Accion", accion);
+                }
+
+                if (!string.IsNullOrWhiteSpace(usuario))
+                {
+                    filtros.Add("h.Usuario LIKE @UsuarioPrefix");
+                    parametros.Add("UsuarioPrefix", usuario + "%");
+                }
+
+                if (priceListNum.HasValue)
+                {
+                    filtros.Add("h.PriceListNum = @PriceListNum");
+                    parametros.Add("PriceListNum", priceListNum.Value);
+                }
+
+                if (fechaDesdeNormalizada.HasValue)
+                {
+                    filtros.Add("h.FechaGuardado >= @FechaDesde");
+                    parametros.Add("FechaDesde", fechaDesdeNormalizada.Value);
+                }
+
+                if (fechaHastaExclusiva.HasValue)
+                {
+                    filtros.Add("h.FechaGuardado < @FechaHastaExclusiva");
+                    parametros.Add("FechaHastaExclusiva", fechaHastaExclusiva.Value);
+                }
+
+                if (loteId.HasValue)
+                {
+                    filtros.Add("h.LoteId = @LoteId");
+                    parametros.Add("LoteId", loteId.Value);
+                }
+
+                parametros.Add("Offset", offset);
+                parametros.Add("PageSize", pageSize);
+
+                var whereSql = string.Join("\nAND ", filtros);
+
+                var sql = $@"
+SET NOCOUNT ON;
+
+SELECT
+    MaxId = MAX(h.Id),
+    h.LoteId,
+    h.ProductoCodigo,
+    ProductoNombre = MAX(ISNULL(h.ProductoNombre, '')),
+    Master = MAX(ISNULL(h.Master, '')),
+    h.PriceListNum,
+    PriceListName = MAX(ISNULL(h.PriceListName, '')),
+    h.PrecioAnterior,
+    h.PrecioNuevo,
+    Diferencia = CAST(
+        ISNULL(h.PrecioNuevo, 0) - ISNULL(h.PrecioAnterior, 0)
+        AS DECIMAL(18, 4)
+    ),
+    VariacionPct = CAST(
+        CASE
+            WHEN NULLIF(h.PrecioAnterior, 0) IS NULL THEN NULL
+            ELSE
+                ((h.PrecioNuevo - h.PrecioAnterior)
+                 / NULLIF(h.PrecioAnterior, 0)) * 100
+        END
+        AS DECIMAL(18, 2)
+    ),
+    FechaPrecioAnterior = MAX(h.FechaPrecioAnterior),
+    FechaGuardado = MAX(h.FechaGuardado),
+    FechaCorte = MAX(h.FechaCorte),
+    FechaUso = MAX(h.FechaUso),
+    Usuario = MAX(ISNULL(h.Usuario, '')),
+    h.Accion,
+    ClientesAfectados = COUNT(DISTINCT NULLIF(LTRIM(RTRIM(h.Cliente)), ''))
+INTO #ResumenHistorico
+FROM dbo.CatalogoPrecioSapHistorico h
+WHERE {whereSql}
+GROUP BY
+    h.LoteId,
+    h.ProductoCodigo,
+    h.PriceListNum,
+    h.PrecioAnterior,
+    h.PrecioNuevo,
+    h.Accion
+OPTION (RECOMPILE);
+
+SELECT
+    Total = COUNT_BIG(1),
+    ImpactosClientes = ISNULL(SUM(CONVERT(BIGINT, ClientesAfectados)), 0),
+    Insertados = ISNULL(SUM(CASE WHEN Accion = 'INSERT' THEN 1 ELSE 0 END), 0),
+    Actualizados = ISNULL(SUM(CASE WHEN Accion = 'UPDATE' THEN 1 ELSE 0 END), 0),
+    SinCambio = ISNULL(SUM(CASE WHEN Accion = 'SIN_CAMBIO' THEN 1 ELSE 0 END), 0),
+    Subidas = ISNULL(SUM(CASE WHEN PrecioAnterior IS NOT NULL AND PrecioNuevo > PrecioAnterior THEN 1 ELSE 0 END), 0),
+    Bajadas = ISNULL(SUM(CASE WHEN PrecioAnterior IS NOT NULL AND PrecioNuevo < PrecioAnterior THEN 1 ELSE 0 END), 0)
+FROM #ResumenHistorico;
+
+SELECT
+    MaxId,
+    LoteId,
+    ProductoCodigo,
+    ProductoNombre,
+    Master,
+    PriceListNum,
+    PriceListName,
+    PrecioAnterior,
+    PrecioNuevo,
+    Diferencia,
+    VariacionPct,
+    FechaPrecioAnterior,
+    FechaGuardado,
+    FechaCorte,
+    FechaUso,
+    Usuario,
+    Accion,
+    ClientesAfectados
+FROM #ResumenHistorico
+ORDER BY FechaGuardado DESC, MaxId DESC
+OFFSET @Offset ROWS
+FETCH NEXT @PageSize ROWS ONLY;";
+
+                await using var cn = new SqlConnection(
+                    _configuration.GetConnectionString("DefaultConnection")
+                );
+
+                await cn.OpenAsync(ct);
+
+                var command = new CommandDefinition(
+                    sql,
+                    parametros,
+                    commandTimeout: 120,
+                    cancellationToken: ct
+                );
+
+                using var multi = await cn.QueryMultipleAsync(command);
+
+                var resumen = await multi.ReadFirstAsync();
+                var registros = (await multi.ReadAsync()).ToList();
+                var total = Convert.ToInt64(resumen.Total);
+
+                return Json(new
+                {
+                    page,
+                    pageSize,
+                    total,
+                    resumen,
+                    registros
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                return StatusCode(499, new
+                {
+                    error = "La consulta del histórico fue cancelada."
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error al consultar el resumen de CatalogoPreciosSapHistorico."
+                );
+
+                return StatusCode(500, new
+                {
+                    error = "No se pudo consultar el histórico resumido de precios.",
+                    detalle = ex.Message
+                });
+            }
+        }
+
+
+        // ============================================================
+        // EXPORTAR HISTÓRICO / AUDITORÍA DE PRECIOS A EXCEL
+        // Exporta TODOS los registros que cumplen los filtros actuales.
+        // Incluye resumen, cambios por SKU y detalle cliente-SKU.
+        // ============================================================
+        private sealed class HistoricoPrecioExcelKpiDto
+        {
+            public long Total { get; set; }
+            public long ImpactosClientes { get; set; }
+            public long Insertados { get; set; }
+            public long Actualizados { get; set; }
+            public long SinCambio { get; set; }
+            public long Subidas { get; set; }
+            public long Bajadas { get; set; }
+        }
+
+        private sealed class HistoricoPrecioExcelResumenDto
+        {
+            public long MaxId { get; set; }
+            public Guid? LoteId { get; set; }
+            public string ProductoCodigo { get; set; } = "";
+            public string ProductoNombre { get; set; } = "";
+            public string Master { get; set; } = "";
+            public int PriceListNum { get; set; }
+            public string PriceListName { get; set; } = "";
+            public decimal? PrecioAnterior { get; set; }
+            public decimal? PrecioNuevo { get; set; }
+            public decimal Diferencia { get; set; }
+            public decimal? VariacionPct { get; set; }
+            public DateTime? FechaPrecioAnterior { get; set; }
+            public DateTime? FechaGuardado { get; set; }
+            public DateTime? FechaCorte { get; set; }
+            public DateTime? FechaUso { get; set; }
+            public string Usuario { get; set; } = "";
+            public string Accion { get; set; } = "";
+            public long ClientesAfectados { get; set; }
+        }
+
+        private sealed class HistoricoPrecioExcelDetalleDto
+        {
+            public long MaxId { get; set; }
+            public Guid? LoteId { get; set; }
+            public string ProductoCodigo { get; set; } = "";
+            public string ProductoNombre { get; set; } = "";
+            public string Master { get; set; } = "";
+            public int PriceListNum { get; set; }
+            public string PriceListName { get; set; } = "";
+            public string Cliente { get; set; } = "";
+            public string ClienteNombre { get; set; } = "";
+            public decimal? PrecioAnterior { get; set; }
+            public decimal? PrecioNuevo { get; set; }
+            public decimal Diferencia { get; set; }
+            public decimal? VariacionPct { get; set; }
+            public DateTime? FechaPrecioAnterior { get; set; }
+            public DateTime? FechaGuardado { get; set; }
+            public DateTime? FechaCorte { get; set; }
+            public DateTime? FechaUso { get; set; }
+            public string Usuario { get; set; } = "";
+            public string Accion { get; set; } = "";
+        }
+
+        [Authorize]
+        [HttpGet("Comercial/ExportarHistoricoCatalogoPreciosExcel")]
+        public async Task<IActionResult> ExportarHistoricoCatalogoPreciosExcel(
+            string search = "",
+            string sku = "",
+            string cliente = "",
+            string accion = "CAMBIOS",
+            string usuario = "",
+            int? priceListNum = null,
+            DateTime? fechaDesde = null,
+            DateTime? fechaHasta = null,
+            Guid? loteId = null,
+            CancellationToken ct = default)
+        {
+            try
+            {
+                search = (search ?? "").Trim();
+                sku = (sku ?? "").Trim();
+                cliente = (cliente ?? "").Trim();
+                accion = (accion ?? "").Trim().ToUpperInvariant();
+                usuario = (usuario ?? "").Trim();
+
+                var fechaDesdeNormalizada = fechaDesde?.Date;
+                var fechaHastaExclusiva = fechaHasta?.Date.AddDays(1);
+
+                var filtros = new List<string> { "1 = 1" };
+                var parametros = new DynamicParameters();
+
+                if (!string.IsNullOrWhiteSpace(search))
+                {
+                    var filtroSearch = @"
+(
+       h.ProductoCodigo LIKE @SearchLike
+    OR h.ProductoNombre LIKE @SearchLike
+    OR h.Master LIKE @SearchLike
+    OR h.Cliente LIKE @SearchLike
+    OR h.PriceListName LIKE @SearchLike
+    OR h.Usuario LIKE @SearchLike
+    OR EXISTS
+      (
+          SELECT 1
+          FROM dbo.ClienteSap cs
+          WHERE cs.Cliente = h.Cliente
+            AND cs.Nombrecliente LIKE @SearchLike
+      )";
+
+                    if (Guid.TryParse(search, out var loteBuscado))
+                    {
+                        filtroSearch += "\n    OR h.LoteId = @SearchLote";
+                        parametros.Add("SearchLote", loteBuscado);
+                    }
+
+                    filtroSearch += "\n)";
+                    filtros.Add(filtroSearch);
+                    parametros.Add("SearchLike", "%" + search + "%");
+                }
+
+                if (!string.IsNullOrWhiteSpace(sku))
+                {
+                    filtros.Add("h.ProductoCodigo LIKE @SkuPrefix");
+                    parametros.Add("SkuPrefix", sku + "%");
+                }
+
+                if (!string.IsNullOrWhiteSpace(cliente))
+                {
+                    filtros.Add(@"
+(
+       h.Cliente LIKE @ClientePrefix
+    OR EXISTS
+      (
+          SELECT 1
+          FROM dbo.ClienteSap cs
+          WHERE cs.Cliente = h.Cliente
+            AND cs.Nombrecliente LIKE @ClienteLike
+      )
+)");
+                    parametros.Add("ClientePrefix", cliente + "%");
+                    parametros.Add("ClienteLike", "%" + cliente + "%");
+                }
+
+                if (accion == "CAMBIOS")
+                {
+                    filtros.Add("h.Accion IN ('INSERT', 'UPDATE')");
+                }
+                else if (!string.IsNullOrWhiteSpace(accion))
+                {
+                    filtros.Add("h.Accion = @Accion");
+                    parametros.Add("Accion", accion);
+                }
+
+                if (!string.IsNullOrWhiteSpace(usuario))
+                {
+                    filtros.Add("h.Usuario LIKE @UsuarioPrefix");
+                    parametros.Add("UsuarioPrefix", usuario + "%");
+                }
+
+                if (priceListNum.HasValue)
+                {
+                    filtros.Add("h.PriceListNum = @PriceListNum");
+                    parametros.Add("PriceListNum", priceListNum.Value);
+                }
+
+                if (fechaDesdeNormalizada.HasValue)
+                {
+                    filtros.Add("h.FechaGuardado >= @FechaDesde");
+                    parametros.Add("FechaDesde", fechaDesdeNormalizada.Value);
+                }
+
+                if (fechaHastaExclusiva.HasValue)
+                {
+                    filtros.Add("h.FechaGuardado < @FechaHastaExclusiva");
+                    parametros.Add("FechaHastaExclusiva", fechaHastaExclusiva.Value);
+                }
+
+                if (loteId.HasValue)
+                {
+                    filtros.Add("h.LoteId = @LoteId");
+                    parametros.Add("LoteId", loteId.Value);
+                }
+
+                var whereSql = string.Join("\nAND ", filtros);
+
+                var sql = $@"
+SET NOCOUNT ON;
+
+-- Una fila por cliente afectado dentro de cada cambio.
+SELECT
+    MaxId = MAX(h.Id),
+    h.LoteId,
+    h.ProductoCodigo,
+    ProductoNombre = MAX(ISNULL(h.ProductoNombre, '')),
+    Master = MAX(ISNULL(h.Master, '')),
+    h.PriceListNum,
+    PriceListName = MAX(ISNULL(h.PriceListName, '')),
+    Cliente = ISNULL(NULLIF(LTRIM(RTRIM(h.Cliente)), ''), ''),
+    ClienteNombre = MAX(ISNULL(c.Nombrecliente, '')),
+    h.PrecioAnterior,
+    h.PrecioNuevo,
+    Diferencia = CAST(
+        ISNULL(h.PrecioNuevo, 0) - ISNULL(h.PrecioAnterior, 0)
+        AS DECIMAL(18, 4)
+    ),
+    VariacionPct = CAST(
+        CASE
+            WHEN NULLIF(h.PrecioAnterior, 0) IS NULL THEN NULL
+            ELSE
+                ((h.PrecioNuevo - h.PrecioAnterior)
+                 / NULLIF(h.PrecioAnterior, 0)) * 100
+        END
+        AS DECIMAL(18, 2)
+    ),
+    FechaPrecioAnterior = MAX(h.FechaPrecioAnterior),
+    FechaGuardado = MAX(h.FechaGuardado),
+    FechaCorte = MAX(h.FechaCorte),
+    FechaUso = MAX(h.FechaUso),
+    Usuario = MAX(ISNULL(h.Usuario, '')),
+    h.Accion
+INTO #DetalleHistorico
+FROM dbo.CatalogoPrecioSapHistorico h
+OUTER APPLY
+(
+    SELECT TOP (1)
+        cs.Nombrecliente
+    FROM dbo.ClienteSap cs
+    WHERE cs.Cliente = h.Cliente
+    ORDER BY cs.Nombrecliente
+) c
+WHERE {whereSql}
+GROUP BY
+    h.LoteId,
+    h.ProductoCodigo,
+    h.PriceListNum,
+    ISNULL(NULLIF(LTRIM(RTRIM(h.Cliente)), ''), ''),
+    h.PrecioAnterior,
+    h.PrecioNuevo,
+    h.Accion
+OPTION (RECOMPILE);
+
+-- Una fila por SKU + lista + lote + cambio de precio, igual que la pantalla.
+SELECT
+    MaxId = MAX(MaxId),
+    LoteId,
+    ProductoCodigo,
+    ProductoNombre = MAX(ProductoNombre),
+    Master = MAX(Master),
+    PriceListNum,
+    PriceListName = MAX(PriceListName),
+    PrecioAnterior,
+    PrecioNuevo,
+    Diferencia = MAX(Diferencia),
+    VariacionPct = MAX(VariacionPct),
+    FechaPrecioAnterior = MAX(FechaPrecioAnterior),
+    FechaGuardado = MAX(FechaGuardado),
+    FechaCorte = MAX(FechaCorte),
+    FechaUso = MAX(FechaUso),
+    Usuario = MAX(Usuario),
+    Accion,
+    ClientesAfectados = COUNT(DISTINCT NULLIF(Cliente, ''))
+INTO #ResumenHistorico
+FROM #DetalleHistorico
+GROUP BY
+    LoteId,
+    ProductoCodigo,
+    PriceListNum,
+    PrecioAnterior,
+    PrecioNuevo,
+    Accion;
+
+SELECT
+    Total = COUNT_BIG(1),
+    ImpactosClientes = ISNULL(SUM(CONVERT(BIGINT, ClientesAfectados)), 0),
+    Insertados = ISNULL(SUM(CASE WHEN Accion = 'INSERT' THEN 1 ELSE 0 END), 0),
+    Actualizados = ISNULL(SUM(CASE WHEN Accion = 'UPDATE' THEN 1 ELSE 0 END), 0),
+    SinCambio = ISNULL(SUM(CASE WHEN Accion = 'SIN_CAMBIO' THEN 1 ELSE 0 END), 0),
+    Subidas = ISNULL(SUM(CASE WHEN PrecioAnterior IS NOT NULL AND PrecioNuevo > PrecioAnterior THEN 1 ELSE 0 END), 0),
+    Bajadas = ISNULL(SUM(CASE WHEN PrecioAnterior IS NOT NULL AND PrecioNuevo < PrecioAnterior THEN 1 ELSE 0 END), 0)
+FROM #ResumenHistorico;
+
+SELECT
+    MaxId,
+    LoteId,
+    ProductoCodigo,
+    ProductoNombre,
+    Master,
+    PriceListNum,
+    PriceListName,
+    PrecioAnterior,
+    PrecioNuevo,
+    Diferencia,
+    VariacionPct,
+    FechaPrecioAnterior,
+    FechaGuardado,
+    FechaCorte,
+    FechaUso,
+    Usuario,
+    Accion,
+    ClientesAfectados
+FROM #ResumenHistorico
+ORDER BY FechaGuardado DESC, MaxId DESC;
+
+SELECT
+    MaxId,
+    LoteId,
+    ProductoCodigo,
+    ProductoNombre,
+    Master,
+    PriceListNum,
+    PriceListName,
+    Cliente,
+    ClienteNombre,
+    PrecioAnterior,
+    PrecioNuevo,
+    Diferencia,
+    VariacionPct,
+    FechaPrecioAnterior,
+    FechaGuardado,
+    FechaCorte,
+    FechaUso,
+    Usuario,
+    Accion
+FROM #DetalleHistorico
+ORDER BY FechaGuardado DESC, MaxId DESC, ProductoCodigo, Cliente;";
+
+                await using var cn = new SqlConnection(
+                    _configuration.GetConnectionString("DefaultConnection")
+                );
+
+                await cn.OpenAsync(ct);
+
+                using var multi = await cn.QueryMultipleAsync(
+                    new CommandDefinition(
+                        sql,
+                        parametros,
+                        commandTimeout: 180,
+                        cancellationToken: ct
+                    )
+                );
+
+                var kpi = await multi.ReadFirstAsync<HistoricoPrecioExcelKpiDto>();
+                var cambios = (await multi.ReadAsync<HistoricoPrecioExcelResumenDto>()).ToList();
+                var detalle = (await multi.ReadAsync<HistoricoPrecioExcelDetalleDto>()).ToList();
+
+                // Excel admite un máximo de 1,048,576 filas por hoja.
+                if (detalle.Count > 1_048_000)
+                {
+                    return BadRequest(new
+                    {
+                        error = "La exportación supera el límite de filas de Excel.",
+                        detalle = "Reduce el rango de fechas o aplica filtros por SKU, cliente o lista."
+                    });
+                }
+
+                using var workbook = new XLWorkbook();
+                var colorVino = XLColor.FromHtml("#8B0000");
+                var colorVinoClaro = XLColor.FromHtml("#F4E4E4");
+                var colorVerdeClaro = XLColor.FromHtml("#E2F0D9");
+                var colorRojoClaro = XLColor.FromHtml("#FCE4D6");
+
+                static void AplicarBordes(IXLRange rango)
+                {
+                    rango.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                    rango.Style.Border.InsideBorder = XLBorderStyleValues.Hair;
+                    rango.Style.Border.OutsideBorderColor = XLColor.LightGray;
+                    rango.Style.Border.InsideBorderColor = XLColor.LightGray;
+                }
+
+                void AplicarEncabezado(IXLWorksheet hoja, int fila, int columnas)
+                {
+                    var rango = hoja.Range(fila, 1, fila, columnas);
+                    rango.Style.Font.Bold = true;
+                    rango.Style.Font.FontColor = XLColor.White;
+                    rango.Style.Fill.BackgroundColor = colorVino;
+                    rango.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                    rango.Style.Alignment.WrapText = true;
+                    hoja.Row(fila).Height = 28;
+                }
+
+                static void LimitarAnchos(IXLWorksheet hoja, double maximo = 45)
+                {
+                    hoja.ColumnsUsed().AdjustToContents();
+                    foreach (var columna in hoja.ColumnsUsed())
+                    {
+                        if (columna.Width > maximo)
+                            columna.Width = maximo;
+                    }
+                }
+
+                // ----------------------------------------------------
+                // HOJA 1: RESUMEN DE LA EXPORTACIÓN
+                // ----------------------------------------------------
+                var wsResumen = workbook.Worksheets.Add("Resumen");
+                wsResumen.Range("A1:G1").Merge();
+                wsResumen.Cell("A1").Value = "HISTÓRICO Y AUDITORÍA DE PRECIOS";
+                wsResumen.Cell("A1").Style.Font.Bold = true;
+                wsResumen.Cell("A1").Style.Font.FontSize = 16;
+                wsResumen.Cell("A1").Style.Font.FontColor = XLColor.White;
+                wsResumen.Cell("A1").Style.Fill.BackgroundColor = colorVino;
+                wsResumen.Cell("A1").Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                wsResumen.Row(1).Height = 28;
+
+                wsResumen.Cell("A3").Value = "Generado por";
+                wsResumen.Cell("B3").Value = User?.Identity?.Name ?? "Usuario no identificado";
+                wsResumen.Cell("A4").Value = "Fecha de exportación";
+                wsResumen.Cell("B4").Value = DateTime.Now;
+                wsResumen.Cell("B4").Style.DateFormat.Format = "dd/MM/yyyy HH:mm:ss";
+
+                wsResumen.Cell("A6").Value = "FILTROS APLICADOS";
+                wsResumen.Range("A6:B6").Merge();
+                wsResumen.Range("A6:B6").Style.Font.Bold = true;
+                wsResumen.Range("A6:B6").Style.Font.FontColor = XLColor.White;
+                wsResumen.Range("A6:B6").Style.Fill.BackgroundColor = colorVino;
+
+                var filtrosExcel = new (string Campo, string Valor)[]
+                {
+                    ("SKU", string.IsNullOrWhiteSpace(sku) ? "Todos" : sku),
+                    ("Cliente", string.IsNullOrWhiteSpace(cliente) ? "Todos" : cliente),
+                    ("Búsqueda general", string.IsNullOrWhiteSpace(search) ? "Sin filtro" : search),
+                    ("Acción", string.IsNullOrWhiteSpace(accion) ? "Todas" : accion),
+                    ("Usuario", string.IsNullOrWhiteSpace(usuario) ? "Todos" : usuario),
+                    ("Id lista", priceListNum?.ToString() ?? "Todas"),
+                    ("Desde", fechaDesde?.ToString("dd/MM/yyyy") ?? "Sin límite"),
+                    ("Hasta", fechaHasta?.ToString("dd/MM/yyyy") ?? "Sin límite"),
+                    ("Lote", loteId?.ToString() ?? "Todos")
+                };
+
+                var filaFiltro = 7;
+                foreach (var filtro in filtrosExcel)
+                {
+                    wsResumen.Cell(filaFiltro, 1).Value = filtro.Campo;
+                    wsResumen.Cell(filaFiltro, 2).Value = filtro.Valor;
+                    wsResumen.Cell(filaFiltro, 1).Style.Font.Bold = true;
+                    wsResumen.Cell(filaFiltro, 1).Style.Fill.BackgroundColor = colorVinoClaro;
+                    filaFiltro++;
+                }
+                AplicarBordes(wsResumen.Range(7, 1, filaFiltro - 1, 2));
+
+                var filaKpi = filaFiltro + 2;
+                var titulosKpi = new[]
+                {
+                    "Cambios de SKU",
+                    "Impactos cliente-SKU",
+                    "Insertados",
+                    "Actualizados",
+                    "Sin cambio",
+                    "Aumentos",
+                    "Reducciones"
+                };
+                var valoresKpi = new long[]
+                {
+                    kpi.Total,
+                    kpi.ImpactosClientes,
+                    kpi.Insertados,
+                    kpi.Actualizados,
+                    kpi.SinCambio,
+                    kpi.Subidas,
+                    kpi.Bajadas
+                };
+
+                for (var col = 1; col <= titulosKpi.Length; col++)
+                {
+                    wsResumen.Cell(filaKpi, col).Value = titulosKpi[col - 1];
+                    wsResumen.Cell(filaKpi + 1, col).Value = valoresKpi[col - 1];
+                    wsResumen.Cell(filaKpi + 1, col).Style.Font.Bold = true;
+                    wsResumen.Cell(filaKpi + 1, col).Style.Font.FontSize = 14;
+                    wsResumen.Cell(filaKpi + 1, col).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                }
+                AplicarEncabezado(wsResumen, filaKpi, 7);
+                AplicarBordes(wsResumen.Range(filaKpi, 1, filaKpi + 1, 7));
+                LimitarAnchos(wsResumen, 30);
+                wsResumen.Column(2).Width = 38;
+
+                // ----------------------------------------------------
+                // HOJA 2: CAMBIOS RESUMIDOS POR SKU
+                // ----------------------------------------------------
+                var wsCambios = workbook.Worksheets.Add("Cambios SKU");
+                var encabezadosCambios = new[]
+                {
+                    "Fecha actualización", "Acción", "SKU", "Producto", "Master",
+                    "Id lista", "Lista", "Precio anterior", "Precio nuevo", "Diferencia",
+                    "Variación", "Fecha precio anterior", "Fecha corte", "Fecha uso",
+                    "Usuario", "Clientes afectados", "Lote"
+                };
+
+                for (var col = 1; col <= encabezadosCambios.Length; col++)
+                    wsCambios.Cell(1, col).Value = encabezadosCambios[col - 1];
+
+                AplicarEncabezado(wsCambios, 1, encabezadosCambios.Length);
+
+                var fila = 2;
+                foreach (var x in cambios)
+                {
+                    if (x.FechaGuardado.HasValue) wsCambios.Cell(fila, 1).Value = x.FechaGuardado.Value;
+                    wsCambios.Cell(fila, 2).Value = x.Accion;
+                    wsCambios.Cell(fila, 3).Value = x.ProductoCodigo;
+                    wsCambios.Cell(fila, 4).Value = x.ProductoNombre;
+                    wsCambios.Cell(fila, 5).Value = x.Master;
+                    wsCambios.Cell(fila, 6).Value = x.PriceListNum;
+                    wsCambios.Cell(fila, 7).Value = x.PriceListName;
+                    if (x.PrecioAnterior.HasValue) wsCambios.Cell(fila, 8).Value = x.PrecioAnterior.Value;
+                    if (x.PrecioNuevo.HasValue) wsCambios.Cell(fila, 9).Value = x.PrecioNuevo.Value;
+                    wsCambios.Cell(fila, 10).Value = x.Diferencia;
+                    if (x.VariacionPct.HasValue) wsCambios.Cell(fila, 11).Value = x.VariacionPct.Value / 100m;
+                    if (x.FechaPrecioAnterior.HasValue) wsCambios.Cell(fila, 12).Value = x.FechaPrecioAnterior.Value;
+                    if (x.FechaCorte.HasValue) wsCambios.Cell(fila, 13).Value = x.FechaCorte.Value;
+                    if (x.FechaUso.HasValue) wsCambios.Cell(fila, 14).Value = x.FechaUso.Value;
+                    wsCambios.Cell(fila, 15).Value = x.Usuario;
+                    wsCambios.Cell(fila, 16).Value = x.ClientesAfectados;
+                    wsCambios.Cell(fila, 17).Value = x.LoteId?.ToString() ?? "";
+
+                    if (x.Diferencia > 0)
+                        wsCambios.Range(fila, 10, fila, 11).Style.Fill.BackgroundColor = colorVerdeClaro;
+                    else if (x.Diferencia < 0)
+                        wsCambios.Range(fila, 10, fila, 11).Style.Fill.BackgroundColor = colorRojoClaro;
+
+                    fila++;
+                }
+
+                var ultimaFilaCambios = Math.Max(1, fila - 1);
+                wsCambios.Range(1, 1, ultimaFilaCambios, encabezadosCambios.Length).SetAutoFilter();
+                AplicarBordes(wsCambios.Range(1, 1, ultimaFilaCambios, encabezadosCambios.Length));
+                wsCambios.SheetView.FreezeRows(1);
+                wsCambios.Column(1).Style.DateFormat.Format = "dd/MM/yyyy HH:mm:ss";
+                wsCambios.Columns(8, 10).Style.NumberFormat.Format = "$#,##0.0000";
+                wsCambios.Column(11).Style.NumberFormat.Format = "0.00%";
+                wsCambios.Column(12).Style.DateFormat.Format = "dd/MM/yyyy HH:mm:ss";
+                wsCambios.Columns(13, 14).Style.DateFormat.Format = "dd/MM/yyyy";
+                wsCambios.Columns(4, 7).Style.Alignment.WrapText = true;
+                LimitarAnchos(wsCambios);
+
+                // ----------------------------------------------------
+                // HOJA 3: DETALLE DE CADA CLIENTE AFECTADO
+                // ----------------------------------------------------
+                var wsDetalle = workbook.Worksheets.Add("Detalle cliente-SKU");
+                var encabezadosDetalle = new[]
+                {
+                    "Fecha actualización", "Acción", "SKU", "Producto", "Master",
+                    "Id lista", "Lista", "Cliente", "Nombre cliente", "Precio anterior",
+                    "Precio nuevo", "Diferencia", "Variación", "Fecha precio anterior",
+                    "Fecha corte", "Fecha uso", "Usuario", "Lote"
+                };
+
+                for (var col = 1; col <= encabezadosDetalle.Length; col++)
+                    wsDetalle.Cell(1, col).Value = encabezadosDetalle[col - 1];
+
+                AplicarEncabezado(wsDetalle, 1, encabezadosDetalle.Length);
+
+                fila = 2;
+                foreach (var x in detalle)
+                {
+                    if (x.FechaGuardado.HasValue) wsDetalle.Cell(fila, 1).Value = x.FechaGuardado.Value;
+                    wsDetalle.Cell(fila, 2).Value = x.Accion;
+                    wsDetalle.Cell(fila, 3).Value = x.ProductoCodigo;
+                    wsDetalle.Cell(fila, 4).Value = x.ProductoNombre;
+                    wsDetalle.Cell(fila, 5).Value = x.Master;
+                    wsDetalle.Cell(fila, 6).Value = x.PriceListNum;
+                    wsDetalle.Cell(fila, 7).Value = x.PriceListName;
+                    wsDetalle.Cell(fila, 8).Value = x.Cliente;
+                    wsDetalle.Cell(fila, 9).Value = x.ClienteNombre;
+                    if (x.PrecioAnterior.HasValue) wsDetalle.Cell(fila, 10).Value = x.PrecioAnterior.Value;
+                    if (x.PrecioNuevo.HasValue) wsDetalle.Cell(fila, 11).Value = x.PrecioNuevo.Value;
+                    wsDetalle.Cell(fila, 12).Value = x.Diferencia;
+                    if (x.VariacionPct.HasValue) wsDetalle.Cell(fila, 13).Value = x.VariacionPct.Value / 100m;
+                    if (x.FechaPrecioAnterior.HasValue) wsDetalle.Cell(fila, 14).Value = x.FechaPrecioAnterior.Value;
+                    if (x.FechaCorte.HasValue) wsDetalle.Cell(fila, 15).Value = x.FechaCorte.Value;
+                    if (x.FechaUso.HasValue) wsDetalle.Cell(fila, 16).Value = x.FechaUso.Value;
+                    wsDetalle.Cell(fila, 17).Value = x.Usuario;
+                    wsDetalle.Cell(fila, 18).Value = x.LoteId?.ToString() ?? "";
+
+                    if (x.Diferencia > 0)
+                        wsDetalle.Range(fila, 12, fila, 13).Style.Fill.BackgroundColor = colorVerdeClaro;
+                    else if (x.Diferencia < 0)
+                        wsDetalle.Range(fila, 12, fila, 13).Style.Fill.BackgroundColor = colorRojoClaro;
+
+                    fila++;
+                }
+
+                var ultimaFilaDetalle = Math.Max(1, fila - 1);
+                wsDetalle.Range(1, 1, ultimaFilaDetalle, encabezadosDetalle.Length).SetAutoFilter();
+                AplicarBordes(wsDetalle.Range(1, 1, ultimaFilaDetalle, encabezadosDetalle.Length));
+                wsDetalle.SheetView.FreezeRows(1);
+                wsDetalle.Column(1).Style.DateFormat.Format = "dd/MM/yyyy HH:mm:ss";
+                wsDetalle.Columns(10, 12).Style.NumberFormat.Format = "$#,##0.0000";
+                wsDetalle.Column(13).Style.NumberFormat.Format = "0.00%";
+                wsDetalle.Column(14).Style.DateFormat.Format = "dd/MM/yyyy HH:mm:ss";
+                wsDetalle.Columns(15, 16).Style.DateFormat.Format = "dd/MM/yyyy";
+                wsDetalle.Columns(4, 7).Style.Alignment.WrapText = true;
+                wsDetalle.Column(9).Style.Alignment.WrapText = true;
+                LimitarAnchos(wsDetalle);
+
+                workbook.Properties.Title = "Histórico y auditoría de precios";
+                workbook.Properties.Subject = "Exportación de cambios de precio y clientes afectados";
+                workbook.Properties.Author = User?.Identity?.Name ?? "Plataforma SIGO";
+
+                using var stream = new MemoryStream();
+                workbook.SaveAs(stream);
+
+                var nombreArchivo = $"Auditoria_Precios_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+
+                _logger.LogInformation(
+                    "Usuario {Usuario} exportó auditoría de precios. Cambios={Cambios}, Detalle={Detalle}, Desde={Desde}, Hasta={Hasta}.",
+                    User?.Identity?.Name,
+                    cambios.Count,
+                    detalle.Count,
+                    fechaDesde,
+                    fechaHasta
+                );
+
+                return File(
+                    stream.ToArray(),
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    nombreArchivo
+                );
+            }
+            catch (OperationCanceledException)
+            {
+                return StatusCode(499, new
+                {
+                    error = "La exportación del histórico fue cancelada."
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al exportar el histórico de precios a Excel.");
+
+                return StatusCode(500, new
+                {
+                    error = "No se pudo generar el archivo Excel de auditoría.",
+                    detalle = ex.Message
+                });
+            }
+        }
+
+
+        // ============================================================
+        // CLIENTES AFECTADOS POR UN CAMBIO ESPECÍFICO
+        // Solo se ejecuta cuando el usuario abre el detalle de una fila.
+        // ============================================================
+        [Authorize]
+        [HttpGet("Comercial/ObtenerClientesAfectadosHistoricoPrecios")]
+        public async Task<IActionResult> ObtenerClientesAfectadosHistoricoPrecios(
+            Guid loteId,
+            string sku,
+            int priceListNum,
+            string accion,
+            decimal? precioAnterior,
+            decimal? precioNuevo,
+            CancellationToken ct = default)
+        {
+            try
+            {
+                sku = (sku ?? "").Trim();
+                accion = (accion ?? "").Trim().ToUpperInvariant();
+
+                if (loteId == Guid.Empty)
+                    return BadRequest(new { error = "El lote es obligatorio." });
+
+                if (string.IsNullOrWhiteSpace(sku))
+                    return BadRequest(new { error = "El SKU es obligatorio." });
+
+                const string sql = @"
+SELECT DISTINCT
+    Cliente = LTRIM(RTRIM(h.Cliente)),
+    ClienteNombre = ISNULL(c.Nombrecliente, '')
+FROM dbo.CatalogoPrecioSapHistorico h
+OUTER APPLY
+(
+    SELECT TOP (1)
+        cs.Nombrecliente
+    FROM dbo.ClienteSap cs
+    WHERE cs.Cliente = h.Cliente
+    ORDER BY cs.Nombrecliente
+) c
+WHERE h.LoteId = @LoteId
+  AND h.ProductoCodigo = @Sku
+  AND h.PriceListNum = @PriceListNum
+  AND h.Accion = @Accion
+  AND
+  (
+      (@PrecioAnterior IS NULL AND h.PrecioAnterior IS NULL)
+      OR h.PrecioAnterior = @PrecioAnterior
+  )
+  AND
+  (
+      (@PrecioNuevo IS NULL AND h.PrecioNuevo IS NULL)
+      OR h.PrecioNuevo = @PrecioNuevo
+  )
+  AND NULLIF(LTRIM(RTRIM(h.Cliente)), '') IS NOT NULL
+ORDER BY Cliente;
+";
+
+                await using var cn = new SqlConnection(
+                    _configuration.GetConnectionString("DefaultConnection")
+                );
+
+                await cn.OpenAsync(ct);
+
+                var clientes = (await cn.QueryAsync(
+                    new CommandDefinition(
+                        sql,
+                        new
+                        {
+                            LoteId = loteId,
+                            Sku = sku,
+                            PriceListNum = priceListNum,
+                            Accion = accion,
+                            PrecioAnterior = precioAnterior,
+                            PrecioNuevo = precioNuevo
+                        },
+                        commandTimeout: 60,
+                        cancellationToken: ct
+                    )
+                )).ToList();
+
+                return Json(new
+                {
+                    total = clientes.Count,
+                    clientes
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                return StatusCode(499, new
+                {
+                    error = "La consulta de clientes fue cancelada."
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error al consultar clientes afectados del lote {LoteId}, SKU {Sku}.",
+                    loteId,
+                    sku
+                );
+
+                return StatusCode(500, new
+                {
+                    error = "No se pudieron consultar los clientes afectados.",
+                    detalle = ex.Message
+                });
+            }
+        }
+
         //======================================
         // REPORTE DE PRESUPUESTO POR MES
         //======================================
@@ -7542,22 +9357,36 @@ GROUP BY
         [HttpGet("Comercial/OrdenVentaJson")]
         public async Task<IActionResult> OrdenVentaJson(int id)
         {
-            // 1) Encabezado (OrdenVenta + ClienteSap)
+            // =========================================================
+            // 1) ENCABEZADO
+            // OrdenVenta + ClienteSap
+            // =========================================================
             var head = await (
                 from p in _context.OrdenVenta.AsNoTracking()
                 where p.Id == id
+
                 join c in _context.ClienteSap.AsNoTracking()
                     on p.Cliente equals c.Cliente into gj
+
                 from c in gj.DefaultIfEmpty()
+
                 select new
                 {
                     p.Id,
                     p.Consecutivo,
                     p.Serie,
+
                     FechaEntrega = (DateTime?)p.FechaEntrega,
+
                     p.FechaRegistro,
+
                     Cliente = p.Cliente,
-                    ClienteNombre = c != null ? c.Nombrecliente : p.Cliente,
+
+                    ClienteNombre =
+                        c != null
+                            ? c.Nombrecliente
+                            : p.Cliente,
+
                     p.Vendedor,
                     p.Ruta,
                     p.Presentacion,
@@ -7572,7 +9401,10 @@ GROUP BY
             if (head == null)
                 return NotFound();
 
-            // 2) Última gestión de PedidoVenta de esta OV
+
+            // =========================================================
+            // 2) ÚLTIMA GESTIÓN DE PEDIDOVENTA
+            // =========================================================
             var lastPV = await _context.PedidoVenta
                 .AsNoTracking()
                 .Where(pv => pv.OrdenVentaId == id)
@@ -7585,80 +9417,451 @@ GROUP BY
                 })
                 .FirstOrDefaultAsync();
 
-            // 3) Productos: si hay PedidoVenta → tomar de PedidoVentaProducto
+
+            // =========================================================
+            // 3) VERIFICAR SI LA OV ES MUESTRA
+            //
+            // Relación:
+            //
+            // OrdenVenta.Id
+            //      ↓
+            // OrdenVentaMuestra.OrdenVentaId
+            //
+            // OrdenVentaMuestra.SolicitudMuestraId
+            //      ↓
+            // SolicitudMuestras.Id
+            //
+            // SolicitudMuestras.Id
+            //      ↓
+            // SolicitudMuestras_Items.SolicitudId
+            //
+            // WorkSku = SKU aplicado por Planeación
+            // =========================================================
+            var muestraInfo = await _context.OrdenVentaMuestra
+                .AsNoTracking()
+                .Where(x =>
+                    x.OrdenVentaId == id &&
+                    x.EsMuestra == true
+                )
+                .OrderByDescending(x => x.FechaCreacion)
+                .ThenByDescending(x => x.Id)
+                .Select(x => new
+                {
+                    x.Id,
+                    x.SolicitudMuestraId
+                })
+                .FirstOrDefaultAsync();
+
+
+            bool esMuestra = muestraInfo != null;
+
+            string solicitudMuestraId =
+                (muestraInfo?.SolicitudMuestraId ?? string.Empty)
+                .Trim();
+
+
+            // =========================================================
+            // 4) PRODUCTOS
+            // =========================================================
             List<OrdenVentaDetalleDto> productos;
 
-            if (lastPV != null)
+
+            // =========================================================
+            // CASO A:
+            // OV DE MUESTRA PENDIENTE
+            //
+            // Aquí NO usamos OrdenVentaProducto.
+            // Aquí NO usamos el SKU original de la muestra.
+            //
+            // Solo tomamos WorkSku de SolicitudMuestras_Items.
+            // =========================================================
+            if (
+                esMuestra &&
+                head.Estatus != 4
+            )
+            {
+                productos = new List<OrdenVentaDetalleDto>();
+
+
+                // -----------------------------------------------------
+                // Si todavía no está relacionada con una solicitud,
+                // no debemos enseñar los SKU originales de la OV.
+                // -----------------------------------------------------
+                if (!string.IsNullOrWhiteSpace(solicitudMuestraId))
+                {
+                    await using var cn = new SqlConnection(
+                        _configuration.GetConnectionString("DefaultConnection")
+                    );
+
+                    await cn.OpenAsync();
+
+
+                    const string sqlMuestra = @"
+;WITH ProductosAplicados AS
+(
+    SELECT
+        ProductoCodigo =
+            UPPER(
+                LTRIM(
+                    RTRIM(i.WorkSku)
+                )
+            ),
+
+        Cajas =
+            SUM(
+                ISNULL(i.Boxes, 0)
+            )
+
+    FROM dbo.SolicitudMuestras_Items i
+
+    WHERE
+        i.SolicitudId = @SolicitudId
+
+        -- SOLO SKU REALMENTE APLICADO POR PLANEACIÓN
+        AND NULLIF(
+                LTRIM(
+                    RTRIM(i.WorkSku)
+                ),
+                ''
+            ) IS NOT NULL
+
+    GROUP BY
+        UPPER(
+            LTRIM(
+                RTRIM(i.WorkSku)
+            )
+        )
+)
+
+SELECT
+
+    DetalleId =
+        CAST(0 AS INT),
+
+    ProductoCodigo =
+        p.ProductoCodigo,
+
+    ProductoNombre =
+        COALESCE(
+            NULLIF(
+                LTRIM(
+                    RTRIM(a.ProductoNombre)
+                ),
+                ''
+            ),
+            p.ProductoCodigo
+        ),
+
+    Cajas =
+        p.Cajas,
+
+    KilosCaja =
+        CAST(
+            ISNULL(
+                a.U_KilosCaja,
+                0
+            )
+            AS DECIMAL(18,4)
+        ),
+
+    Precio =
+        CAST(
+            ISNULL(
+                precio.Precio,
+                0
+            )
+            AS DECIMAL(18,4)
+        ),
+
+    Importe =
+        CAST(
+            ISNULL(
+                precio.Precio,
+                0
+            )
+            *
+            ISNULL(
+                a.U_KilosCaja,
+                0
+            )
+            *
+            p.Cajas
+            AS DECIMAL(18,4)
+        ),
+
+    Almacen =
+        CAST(
+            '' AS NVARCHAR(100)
+        ),
+
+    Presupuesto =
+        CAST(
+            0 AS DECIMAL(18,4)
+        ),
+
+    VariacionPresupuesto =
+        CAST(
+            0 AS DECIMAL(18,4)
+        )
+
+FROM ProductosAplicados p
+
+LEFT JOIN dbo.ArticuloSap a
+
+    ON UPPER(
+        LTRIM(
+            RTRIM(a.ProductoCodigo)
+        )
+    )
+    =
+    p.ProductoCodigo
+
+
+-- =========================================================
+-- ÚLTIMO PRECIO DEL CLIENTE PARA EL WorkSku
+-- =========================================================
+OUTER APPLY
+(
+    SELECT TOP (1)
+
+        cp.Precio
+
+    FROM dbo.CatalogoPrecioSap cp
+
+    WHERE
+
+        UPPER(
+            LTRIM(
+                RTRIM(cp.Cliente)
+            )
+        )
+        =
+        UPPER(
+            LTRIM(
+                RTRIM(@Cliente)
+            )
+        )
+
+        AND
+
+        UPPER(
+            LTRIM(
+                RTRIM(cp.ProductoCodigo)
+            )
+        )
+        =
+        p.ProductoCodigo
+
+    ORDER BY
+
+        cp.FechaModificacion DESC
+
+) precio
+
+
+WHERE
+    p.Cajas > 0
+
+ORDER BY
+    p.ProductoCodigo;
+";
+
+
+                    productos = (
+                        await cn.QueryAsync<OrdenVentaDetalleDto>(
+                            sqlMuestra,
+                            new
+                            {
+                                SolicitudId = solicitudMuestraId,
+                                Cliente = head.Cliente ?? string.Empty
+                            }
+                        )
+                    ).ToList();
+                }
+            }
+
+
+            // =========================================================
+            // CASO B:
+            // YA EXISTE PEDIDOVENTA
+            //
+            // Conservamos exactamente tu comportamiento.
+            //
+            // También aplica cuando una muestra ya está completada
+            // (Estatus = 4), porque ahí queremos ver lo que realmente
+            // quedó guardado en PedidoVentaProducto.
+            // =========================================================
+            else if (lastPV != null)
             {
                 productos = await _context.PedidoVentaProducto
                     .AsNoTracking()
-                    .Where(d => d.PedidoVentaId == lastPV.Id)
+                    .Where(d =>
+                        d.PedidoVentaId == lastPV.Id
+                    )
                     .OrderBy(d => d.Id)
                     .Select(d => new OrdenVentaDetalleDto
                     {
                         DetalleId = d.Id,
-                        ProductoCodigo = d.ProductoCodigo,
-                        ProductoNombre = d.ProductoNombre,
-                        KilosCaja = d.KilosCaja,
-                        Precio = d.Precio,
-                        Cajas = d.Cajas,
-                        Importe = d.Precio * d.KilosCaja,
-                        Almacen = d.Almacen ?? string.Empty,
-                        Presupuesto = 0m,
-                        VariacionPresupuesto = 0m
-                    })
-                    .ToListAsync();
-            }
-            else
-            {
-                // Fallback: detalle original de la OV
-                productos = await _context.OrdenVenta
-                    .AsNoTracking()
-                    .Where(p => p.Id == id)
-                    .SelectMany(p => p.Productos)
-                    .OrderBy(d => d.Id)
-                    .Select(d => new OrdenVentaDetalleDto
-                    {
-                        DetalleId = d.Id,
-                        ProductoCodigo = d.ProductoCodigo,
-                        ProductoNombre = d.ProductoNombre,
-                        Cajas = d.Cajas,
-                        KilosCaja = d.Cajas > 0 ? (decimal?)(d.Peso / d.Cajas) : d.Peso,
-                        Precio = d.Precio,
-                        Importe = d.Peso * d.Precio,
-                        Almacen = string.Empty,
-                        Presupuesto = 0m,
-                        VariacionPresupuesto = 0m
+
+                        ProductoCodigo =
+                            d.ProductoCodigo,
+
+                        ProductoNombre =
+                            d.ProductoNombre,
+
+                        KilosCaja =
+                            d.KilosCaja,
+
+                        Precio =
+                            d.Precio,
+
+                        Cajas =
+                            d.Cajas,
+
+                        Importe =
+                            d.Precio * d.KilosCaja,
+
+                        Almacen =
+                            d.Almacen ?? string.Empty,
+
+                        Presupuesto =
+                            0m,
+
+                        VariacionPresupuesto =
+                            0m
                     })
                     .ToListAsync();
             }
 
-            // 4) DTO final
+
+            // =========================================================
+            // CASO C:
+            // OV NORMAL SIN GESTIÓN PREVIA
+            //
+            // Conservamos exactamente el detalle original.
+            // =========================================================
+            else
+            {
+                productos = await _context.OrdenVenta
+                    .AsNoTracking()
+                    .Where(p =>
+                        p.Id == id
+                    )
+                    .SelectMany(p =>
+                        p.Productos
+                    )
+                    .Where(d =>
+                        d.Eliminado == null ||
+                        d.Eliminado == false
+                    )
+                    .OrderBy(d =>
+                        d.Id
+                    )
+                    .Select(d => new OrdenVentaDetalleDto
+                    {
+                        DetalleId =
+                            d.Id,
+
+                        ProductoCodigo =
+                            d.ProductoCodigo,
+
+                        ProductoNombre =
+                            d.ProductoNombre,
+
+                        Cajas =
+                            d.Cajas,
+
+                        KilosCaja =
+                            d.Cajas > 0
+                                ? (decimal?)(d.Peso / d.Cajas)
+                                : d.Peso,
+
+                        Precio =
+                            d.Precio,
+
+                        Importe =
+                            d.Peso * d.Precio,
+
+                        Almacen =
+                            string.Empty,
+
+                        Presupuesto =
+                            0m,
+
+                        VariacionPresupuesto =
+                            0m
+                    })
+                    .ToListAsync();
+            }
+
+
+            // =========================================================
+            // 5) DTO FINAL
+            // =========================================================
             var dto = new OrdenVentaDto
             {
-                Id = head.Id,
-                PedidoVentaId = lastPV?.Id,
-                Consecutivo = head.Consecutivo,
-                Serie = head.Serie,
-                FechaEntrega = head.FechaEntrega,
-                FechaRegistro = head.FechaRegistro,
-                Cliente = head.Cliente,
-                ClienteNombre = head.ClienteNombre,
-                Vendedor = head.Vendedor,
-                Ruta = head.Ruta,
-                Presentacion = head.Presentacion,
-                Observacion = head.Observacion,
-                Saldo = head.Saldo,
-                OtrosPedidos = head.OtrosPedidos,
-                Credito = head.Credito,
-                Estatus = head.Estatus,
-                FechaEmbarque = lastPV?.FechaEmbarque,
-                AlmacenSurtir = lastPV?.AlmacenSurtir,
-                Productos = productos
+                Id =
+                    head.Id,
+
+                PedidoVentaId =
+                    lastPV?.Id,
+
+                Consecutivo =
+                    head.Consecutivo,
+
+                Serie =
+                    head.Serie,
+
+                FechaEntrega =
+                    head.FechaEntrega,
+
+                FechaRegistro =
+                    head.FechaRegistro,
+
+                Cliente =
+                    head.Cliente,
+
+                ClienteNombre =
+                    head.ClienteNombre,
+
+                Vendedor =
+                    head.Vendedor,
+
+                Ruta =
+                    head.Ruta,
+
+                Presentacion =
+                    head.Presentacion,
+
+                Observacion =
+                    head.Observacion,
+
+                Saldo =
+                    head.Saldo,
+
+                OtrosPedidos =
+                    head.OtrosPedidos,
+
+                Credito =
+                    head.Credito,
+
+                Estatus =
+                    head.Estatus,
+
+                FechaEmbarque =
+                    lastPV?.FechaEmbarque,
+
+                AlmacenSurtir =
+                    lastPV?.AlmacenSurtir,
+
+                Productos =
+                    productos
             };
+
 
             return Json(dto);
         }
+
 
 
 
@@ -7832,6 +10035,127 @@ GROUP BY
             return cadena;
         }
 
+        //=======================================================
+        // VALIDAR CAJAS REALMENTE ESCANEADAS ANTES DE CANCELAR OV
+        //
+        // MEAT:
+        // Tabla real de cajas escaneadas: SalidaEmbarque
+        //
+        // REGLA:
+        // - Cada ProduccionId representa una caja.
+        // - Si NO existe ningún ProduccionId para la SolicitudSurtidoId,
+        //   la OV se puede cancelar.
+        // - Si existe al menos un ProduccionId,
+        //   la OV NO se puede cancelar.
+        //
+        // IMPORTANTE:
+        // SolicitudSurtidoDetalle.Cantidad NO se usa aquí,
+        // porque representa lo solicitado, no lo surtido/escaneado.
+        //=======================================================
+        private async Task<(
+            bool PudoValidar,
+            bool TieneCajas,
+            decimal Cajas,
+            int? SolicitudSurtidoId)>
+            ConsultarCajasAsignadasSolicitudMeatAsync(
+                string? serie,
+                string? documentoMeat,
+                CancellationToken ct = default)
+        {
+            var doc = (documentoMeat ?? "").Trim();
+
+            if (string.IsNullOrWhiteSpace(doc))
+                return (
+                    PudoValidar: true,
+                    TieneCajas: false,
+                    Cajas: 0m,
+                    SolicitudSurtidoId: null
+                );
+
+            if (!int.TryParse(doc, out var solicitudSurtidoId))
+            {
+                _logger.LogWarning(
+                    "No se pudo validar cajas: Documento MEAT inválido {DocumentoMeat}.",
+                    doc);
+
+                return (
+                    PudoValidar: false,
+                    TieneCajas: false,
+                    Cajas: 0m,
+                    SolicitudSurtidoId: null
+                );
+            }
+
+            var cadena = await ResolverCadenaMeatPorSerieAsync(serie, ct);
+
+            if (string.IsNullOrWhiteSpace(cadena))
+            {
+                _logger.LogWarning(
+                    "No se pudo validar SalidaEmbarque de SolicitudSurtidoId {SolicitudSurtidoId}: no hay cadena MEAT.",
+                    solicitudSurtidoId);
+
+                return (
+                    PudoValidar: false,
+                    TieneCajas: false,
+                    Cajas: 0m,
+                    SolicitudSurtidoId: solicitudSurtidoId
+                );
+            }
+
+            try
+            {
+                await using var cn = new SqlConnection(cadena);
+                await cn.OpenAsync(ct);
+
+                const string sql = @"
+SELECT
+    CajasEscaneadas =
+        COUNT(DISTINCT se.ProduccionId)
+FROM dbo.SalidaEmbarque se
+WHERE se.SolicitudSurtidoId = @SolicitudSurtidoId
+  AND se.ProduccionId IS NOT NULL;
+";
+
+                await using var cmd = new SqlCommand(sql, cn);
+
+                cmd.Parameters
+                    .Add("@SolicitudSurtidoId", SqlDbType.Int)
+                    .Value = solicitudSurtidoId;
+
+                var value = await cmd.ExecuteScalarAsync(ct);
+
+                var cajas =
+                    value == null || value == DBNull.Value
+                        ? 0m
+                        : Convert.ToDecimal(
+                            value,
+                            CultureInfo.InvariantCulture
+                        );
+
+                return (
+                    PudoValidar: true,
+                    TieneCajas: cajas > 0m,
+                    Cajas: cajas,
+                    SolicitudSurtidoId: solicitudSurtidoId
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error al validar cajas escaneadas en SalidaEmbarque para SolicitudSurtidoId {SolicitudSurtidoId}.",
+                    solicitudSurtidoId);
+
+                return (
+                    PudoValidar: false,
+                    TieneCajas: false,
+                    Cajas: 0m,
+                    SolicitudSurtidoId: solicitudSurtidoId
+                );
+            }
+        }
+
+
         private async Task<bool> IntentarCancelarSolicitudMeatAsync(
     string? serie,
     string? documentoMeat,
@@ -7929,6 +10253,49 @@ WHERE SolicitudSurtidoId = @SolicitudSurtidoId;
                     s.U_DocMeat
                 })
                 .ToListAsync(ct);
+
+            // =====================================================
+            // BLOQUEO DE CANCELACIÓN SI YA HAY CAJAS ASIGNADAS
+            // =====================================================
+            foreach (var sp in subpedidos)
+            {
+                var documentoMeat = (sp.U_DocMeat ?? "").Trim();
+
+                if (string.IsNullOrWhiteSpace(documentoMeat))
+                    continue;
+
+                var validacionCajas =
+                    await ConsultarCajasAsignadasSolicitudMeatAsync(
+                        ov.Serie,
+                        documentoMeat,
+                        ct);
+
+                if (!validacionCajas.PudoValidar)
+                {
+                    return StatusCode(
+                        StatusCodes.Status503ServiceUnavailable,
+                        new
+                        {
+                            ok = false,
+                            msg =
+                                $"No se pudo validar si la Solicitud de Surtido {documentoMeat} " +
+                                "tiene cajas asignadas. Por seguridad, el pedido NO fue cancelado."
+                        });
+                }
+
+                if (validacionCajas.TieneCajas)
+                {
+                    return Conflict(new
+                    {
+                        ok = false,
+                        msg =
+                            $"No se puede cancelar el pedido porque la Solicitud de Surtido " +
+                            $"{validacionCajas.SolicitudSurtidoId} ya tiene " +
+                            $"{validacionCajas.Cajas:N0} caja(s) asignada(s). " +
+                            "Primero deben liberarse las cajas del surtido."
+                    });
+                }
+            }
 
             var docsMeatCancelados = 0;
             var docsMeatNoCancelados = 0;
@@ -9246,6 +11613,239 @@ OPTION (RECOMPILE);";
         }
 
 
+
+        //=======================================================
+        // DIAGNÓSTICO TEMPORAL - ORDENES POR VENDEDOR
+        // NO modifica datos ni cambia la consulta del reporte.
+        // Sirve únicamente para localizar qué filtro deja el reporte en cero.
+        //=======================================================
+        [Authorize]
+        [HttpGet("Comercial/DiagnosticoOrdenesPorVendedor")]
+        public async Task<IActionResult> DiagnosticoOrdenesPorVendedor(
+            [FromQuery] DateTime? desde,
+            [FromQuery] DateTime? hasta,
+            CancellationToken ct = default)
+        {
+            var fechaDesde = (desde ?? DateTime.Today.AddDays(-1)).Date;
+            var fechaHastaExcl = (hasta ?? DateTime.Today).Date.AddDays(1);
+
+            var raw = (User?.Identity?.Name ?? "").Trim();
+            var username = raw.Contains('\\') ? raw.Split('\\').Last() : raw;
+            var usernameEmail = username.Contains('@')
+                ? username
+                : $"{username}@carnesg.net";
+
+            // 1) VendedorId resuelto por la lógica GLOBAL actual.
+            var vendedorIdsGlobal = await GetVendedorIdsActualesAsync(ct);
+
+            // 2) VendedorId tal como está guardado en UsuarioSQL.
+            int? vendedorIdUsuarioSql = null;
+            try
+            {
+                vendedorIdUsuarioSql = await _context.UsuarioSQL
+                    .AsNoTracking()
+                    .Where(u =>
+                        u.Activo &&
+                        (
+                            u.Usuario == raw ||
+                            u.Usuario == username ||
+                            u.Usuario == usernameEmail ||
+                            u.Nombre == raw ||
+                            u.Nombre == username
+                        ))
+                    .Select(u => (int?)u.VendedorId)
+                    .FirstOrDefaultAsync(ct);
+            }
+            catch
+            {
+                // Sólo diagnóstico; no afecta el reporte.
+            }
+
+            // Parser LOCAL sólo para comparar en el diagnóstico.
+            // No cambia GetVendedorIdsActualesAsync ni ningún otro módulo.
+            static List<int> SepararIdsDiagnostico(int? valor)
+            {
+                var resultado = new List<int>();
+                if (!valor.HasValue || valor.Value <= 0)
+                    return resultado;
+
+                var clean = new string(
+                    valor.Value
+                        .ToString(CultureInfo.InvariantCulture)
+                        .Where(char.IsDigit)
+                        .ToArray());
+
+                if (clean.Length <= 2)
+                {
+                    if (int.TryParse(clean, out var unico) && unico > 0)
+                        resultado.Add(unico);
+
+                    return resultado;
+                }
+
+                var indice = 0;
+
+                // Ejemplo 61917 => 6,19,17.
+                if ((clean.Length % 2) != 0)
+                {
+                    if (int.TryParse(clean.Substring(0, 1), out var primero) &&
+                        primero > 0)
+                    {
+                        resultado.Add(primero);
+                    }
+
+                    indice = 1;
+                }
+
+                // Ejemplo 190617 => 19,06,17.
+                for (int i = indice; i + 1 < clean.Length; i += 2)
+                {
+                    if (int.TryParse(clean.Substring(i, 2), out var id) &&
+                        id > 0)
+                    {
+                        resultado.Add(id);
+                    }
+                }
+
+                return resultado.Distinct().ToList();
+            }
+
+            var vendedorIdsUsuarioSqlSeparados =
+                SepararIdsDiagnostico(vendedorIdUsuarioSql);
+
+            // 3) Series del usuario.
+            var seriesIds = await ObtenerSeriesIdsUsuarioActualAsync(ct);
+
+            var seriesNombres = seriesIds.Count == 0
+                ? new List<string>()
+                : await _context.Series
+                    .AsNoTracking()
+                    .Where(s => seriesIds.Contains(s.Id))
+                    .Select(s => s.NombreSerie)
+                    .ToListAsync(ct);
+
+            // 4) Conteos por cada etapa, SIN modificar BaseQueryVista.
+            var vista = _context.VOrdenesVentaPorVendedor
+                .AsNoTracking()
+                .AsQueryable();
+
+            var totalVista = await vista.CountAsync(ct);
+
+            var porSeries = vista;
+            if (seriesNombres.Count > 0)
+            {
+                porSeries = porSeries.Where(x =>
+                    seriesNombres.Contains(x.Serie));
+            }
+
+            var despuesSeries = await porSeries.CountAsync(ct);
+
+            var porFechaEntrega = porSeries.Where(x =>
+                x.FechaEntrega.HasValue &&
+                x.FechaEntrega.Value >= fechaDesde &&
+                x.FechaEntrega.Value < fechaHastaExcl);
+
+            var despuesFechaEntrega = await porFechaEntrega.CountAsync(ct);
+
+            var porFechaRegistro = porSeries.Where(x =>
+                x.FechaRegistro >= fechaDesde &&
+                x.FechaRegistro < fechaHastaExcl);
+
+            var mismoRangoFechaRegistro = await porFechaRegistro.CountAsync(ct);
+
+            // 5) Qué pasaría al aplicar los vendedores separados de UsuarioSQL.
+            var despuesVendedorDirecto = -1;
+            var despuesVendedorPorCliente = -1;
+            var despuesVendedorCombinado = -1;
+
+            if (vendedorIdsUsuarioSqlSeparados.Count > 0)
+            {
+                despuesVendedorDirecto = await porFechaEntrega
+                    .Where(x => vendedorIdsUsuarioSqlSeparados.Contains(x.VendedorId))
+                    .CountAsync(ct);
+
+                var clientesPermitidos = _context.ClienteSap
+                    .AsNoTracking()
+                    .Where(c =>
+                        c.VendedorId.HasValue &&
+                        vendedorIdsUsuarioSqlSeparados.Contains(c.VendedorId.Value))
+                    .Select(c => c.Cliente);
+
+                despuesVendedorPorCliente = await porFechaEntrega
+                    .Where(x =>
+                        x.Cliente != null &&
+                        clientesPermitidos.Contains(x.Cliente))
+                    .CountAsync(ct);
+
+                despuesVendedorCombinado = await porFechaEntrega
+                    .Where(x =>
+                        vendedorIdsUsuarioSqlSeparados.Contains(x.VendedorId)
+                        ||
+                        (
+                            x.Cliente != null &&
+                            clientesPermitidos.Contains(x.Cliente)
+                        ))
+                    .CountAsync(ct);
+            }
+
+            // 6) Muestra de órdenes recientes para comparar FechaRegistro vs FechaEntrega.
+            var muestra = await porSeries
+                .OrderByDescending(x => x.FechaRegistro)
+                .Select(x => new
+                {
+                    x.Id,
+                    x.Consecutivo,
+                    x.Cliente,
+                    x.ClienteNombre,
+                    x.VendedorId,
+                    x.Vendedor,
+                    x.Serie,
+                    x.FechaRegistro,
+                    x.FechaEntrega,
+                    x.Estatus
+                })
+                .Take(25)
+                .ToListAsync(ct);
+
+            return Json(new
+            {
+                ok = true,
+                usuario = new
+                {
+                    identity = raw,
+                    username,
+                    claimVendedorId = User.FindFirst("VendedorId")?.Value,
+                    claimIdVendedor = User.FindFirst("IdVendedor")?.Value,
+                    vendedorIdsGlobal,
+                    vendedorIdUsuarioSql,
+                    vendedorIdsUsuarioSqlSeparados
+                },
+                fechas = new
+                {
+                    desde = fechaDesde,
+                    hasta = fechaHastaExcl.AddDays(-1),
+                    nota = "El reporte actual filtra por FechaEntrega."
+                },
+                series = new
+                {
+                    seriesIds,
+                    seriesNombres
+                },
+                conteos = new
+                {
+                    totalVista,
+                    despuesSeries,
+                    despuesFechaEntrega,
+                    mismoRangoFechaRegistro,
+                    despuesVendedorDirecto,
+                    despuesVendedorPorCliente,
+                    despuesVendedorCombinado
+                },
+                muestra
+            });
+        }
+
+
         //=======================================================
         // BASE QUERY VISTA (MULTI-VENDEDOR + AD/Local)
         //=======================================================
@@ -9313,22 +11913,31 @@ OPTION (RECOMPILE);";
                     (x.Vendedor ?? "").Contains(term));
             }
 
-            return q.Select(x => new OrdenVentaRow
-            {
-                Id = x.Id,
-                Consecutivo = x.Consecutivo ?? "",
-                Serie = x.Serie ?? "",
-                FechaRegistro = x.FechaRegistro,
-                FechaEntrega = x.FechaEntrega,
-                Cliente = x.Cliente ?? "",
-                ClienteNombre = x.ClienteNombre ?? "",
-                Vendedor = x.Vendedor ?? "",
-                VendedorId = x.VendedorId,
-                Estatus = x.Estatus,
-                KgTotales = x.KgTotales,
-                Importe = x.Importe,
-                AutorizacionPendiente = x.AutorizacionPendiente
-            });
+            return
+     from x in q
+     join ov in _context.OrdenVenta.AsNoTracking()
+         on x.Id equals ov.Id
+     select new OrdenVentaRow
+     {
+         Id = x.Id,
+         Consecutivo = x.Consecutivo ?? "",
+         Serie = x.Serie ?? "",
+
+         FechaRegistro = x.FechaRegistro,
+         FechaEntrega = x.FechaEntrega,
+
+         // ✅ Usuario que registró originalmente la OV
+         UsuarioRegistro = ov.UsuarioRegistro ?? "",
+
+         Cliente = x.Cliente ?? "",
+         ClienteNombre = x.ClienteNombre ?? "",
+         Vendedor = x.Vendedor ?? "",
+         VendedorId = x.VendedorId,
+         Estatus = x.Estatus,
+         KgTotales = x.KgTotales,
+         Importe = x.Importe,
+         AutorizacionPendiente = x.AutorizacionPendiente
+     };
         }
 
 
@@ -10148,7 +12757,7 @@ OPTION (RECOMPILE);";
           UPDATE ordenventa
              SET Estatus = 5
            WHERE Id = @p0
-             AND Estatus <> 5
+             AND Estatus NOT IN (5, 6)
              AND NOT EXISTS (
                   SELECT 1
                     FROM subpedido s
@@ -10581,6 +13190,53 @@ OPTION (RECOMPILE);";
                 })
                 .ToListAsync(ct);
 
+            // =====================================================
+            // BLOQUEO DE CANCELACIÓN SI YA HAY CAJAS ASIGNADAS
+            //
+            // IMPORTANTE:
+            // Esta validación ocurre ANTES de intentar cancelar en SAP
+            // o en MEAT, para no dejar documentos a medias.
+            // =====================================================
+            foreach (var sp in subpedidos)
+            {
+                var documentoMeat = (sp.U_DocMeat ?? "").Trim();
+
+                if (string.IsNullOrWhiteSpace(documentoMeat))
+                    continue;
+
+                var validacionCajas =
+                    await ConsultarCajasAsignadasSolicitudMeatAsync(
+                        header.Serie,
+                        documentoMeat,
+                        ct);
+
+                if (!validacionCajas.PudoValidar)
+                {
+                    return StatusCode(
+                        StatusCodes.Status503ServiceUnavailable,
+                        new
+                        {
+                            ok = false,
+                            msg =
+                                $"No se pudo validar si la Solicitud de Surtido {documentoMeat} " +
+                                "tiene cajas asignadas. Por seguridad, el pedido NO fue cancelado."
+                        });
+                }
+
+                if (validacionCajas.TieneCajas)
+                {
+                    return Conflict(new
+                    {
+                        ok = false,
+                        msg =
+                            $"No se puede cancelar el pedido porque la Solicitud de Surtido " +
+                            $"{validacionCajas.SolicitudSurtidoId} ya tiene " +
+                            $"{validacionCajas.Cajas:N0} caja(s) asignada(s). " +
+                            "Primero deben liberarse las cajas del surtido."
+                    });
+                }
+            }
+
             var docsSapCancelados = 0;
             var docsSapNoCancelados = 0;
 
@@ -10826,14 +13482,12 @@ DROP TABLE IF EXISTS #vendedores;
 DROP TABLE IF EXISTS #canal_vendedores;
 DROP TABLE IF EXISTS #plan_prod;
 DROP TABLE IF EXISTS #producido_real;
-DROP TABLE IF EXISTS #presupuestos_normales;
 DROP TABLE IF EXISTS #ov;
-DROP TABLE IF EXISTS #ov_con_surtido;
 DROP TABLE IF EXISTS #ov_peso_agg;
 DROP TABLE IF EXISTS #ov_surtido_agg;
+DROP TABLE IF EXISTS #ov_validacion;
+DROP TABLE IF EXISTS #ov_cerrado_sku;
 DROP TABLE IF EXISTS #ov_pendiente_sku;
-DROP TABLE IF EXISTS #consumo_cliente;
-DROP TABLE IF EXISTS #todo_normal;
 DROP TABLE IF EXISTS #presupuestos_cedis;
 DROP TABLE IF EXISTS #tr_surtido_agg;
 DROP TABLE IF EXISTS #consumo_cedis_base;
@@ -10845,15 +13499,15 @@ DROP TABLE IF EXISTS #consumo_vendedor_desde_cedis;
 DROP TABLE IF EXISTS #consumo_vendedor_total;
 DROP TABLE IF EXISTS #todo_vendedor;
 DROP TABLE IF EXISTS #venta_real_base;
-DROP TABLE IF EXISTS #todo_vendedor_estrategico_extra;
-DROP TABLE IF EXISTS #surtido_cliente;
+DROP TABLE IF EXISTS #venta_real_cedis;
+DROP TABLE IF EXISTS #devoluciones_cedis;
+DROP TABLE IF EXISTS #todo_vendedor_venta_real_extra;
 DROP TABLE IF EXISTS #surtido_ov_cedis;
 DROP TABLE IF EXISTS #surtido_transferencias_cedis;
 DROP TABLE IF EXISTS #surtido_cedis_base;
 DROP TABLE IF EXISTS #surtido_vendedor_normal;
 DROP TABLE IF EXISTS #surtido_vendedor_desde_cedis;
 DROP TABLE IF EXISTS #surtido_vendedor_total;
-DROP TABLE IF EXISTS #surtido_real_cliente;
 DROP TABLE IF EXISTS #surtido_real_cedis;
 DROP TABLE IF EXISTS #surtido_real_vendedor;
 DROP TABLE IF EXISTS #todo_cedis_venta_real_extra;
@@ -10880,16 +13534,25 @@ ON #filtro_vendedores (VendedorId);
 -- =========================================================
 -- 1) CATÁLOGOS
 -- =========================================================
+-- NOTA:
+-- ClienteSap se conserva únicamente como catálogo técnico para
+-- identificar el CEDIS y el vendedor asociados a cada operación.
+-- No se generan filas de origen CLIENTE ni se muestran clientes
+-- en el resultado final.
 SELECT
     SKU = UPPER(LTRIM(RTRIM(a.ProductoCodigo))),
     ProductoNombre = COALESCE(NULLIF(LTRIM(RTRIM(a.ProductoNombre)), ''), a.ProductoCodigo),
     U_MASTER = UPPER(LTRIM(RTRIM(a.U_MASTER))),
-    ClasificacionId = ISNULL(a.U_Clas_Prod, 99),
-    ClasificacionNombre = ISNULL(cp.Nombre, 'POR DEFINIR')
+    ClasificacionId = ISNULL(TRY_CONVERT(INT, a.U_Clas_Prod), 99),
+    ClasificacionNombre = ISNULL(cp.Nombre, 'POR DEFINIR'),
+    IdTipoSKU = ISNULL(TRY_CONVERT(INT, a.U_TipoporSKU), 0),
+    TipoSKUDescripcion = ISNULL(ts.Descripcion, 'POR DEFINIR')
 INTO #productos
 FROM dbo.ArticuloSap a
 LEFT JOIN dbo.ClasificacionProduccion cp
-    ON a.U_Clas_Prod = cp.ClasificacionId;
+    ON TRY_CONVERT(INT, a.U_Clas_Prod) = cp.ClasificacionId
+LEFT JOIN dbo.CatTipoSKU ts
+    ON TRY_CONVERT(INT, a.U_TipoporSKU) = ts.IdTipoSKU;
 
 CREATE UNIQUE CLUSTERED INDEX IX_tmp_productos
 ON #productos (SKU);
@@ -10970,27 +13633,7 @@ CREATE CLUSTERED INDEX IX_tmp_producido_real
 ON #producido_real (SKU, Mes, Anio);
 
 -- =========================================================
--- 3) PRESUPUESTOS CLIENTE
--- =========================================================
-SELECT
-    Cliente = UPPER(LTRIM(RTRIM(p.ClienteId))),
-    SKU     = UPPER(LTRIM(RTRIM(p.ProductoCodigo))),
-    Mes     = p.Mes,
-    Anio    = p.Año,
-    Presupuesto = SUM(p.Presupuesto)
-INTO #presupuestos_normales
-FROM dbo.Presupuestos p
-GROUP BY
-    UPPER(LTRIM(RTRIM(p.ClienteId))),
-    UPPER(LTRIM(RTRIM(p.ProductoCodigo))),
-    p.Mes,
-    p.Año;
-
-CREATE CLUSTERED INDEX IX_tmp_presupuestos_normales
-ON #presupuestos_normales (Cliente, SKU, Mes, Anio);
-
--- =========================================================
--- 4) ORDENES DE VENTA / PENDIENTE
+-- 3) ORDENES DE VENTA / PENDIENTE
 -- =========================================================
 SELECT
     o.Id,
@@ -11004,7 +13647,7 @@ FROM dbo.OrdenVenta o
 INNER JOIN dbo.Series ser
     ON o.Serie = ser.NombreSerie
 WHERE o.FechaEntrega IS NOT NULL
-  AND o.Estatus BETWEEN 1 AND 5
+  AND o.Estatus BETWEEN 1 AND 6
   AND ser.Sucursal = 'MATRIZ';
 
 CREATE CLUSTERED INDEX IX_tmp_ov
@@ -11015,18 +13658,6 @@ ON #ov (Cliente, FechaDate);
 
 CREATE INDEX IX_tmp_ov_vendedor_fecha
 ON #ov (VendedorId, FechaDate);
-
-SELECT DISTINCT
-    o.Id
-INTO #ov_con_surtido
-FROM dbo.OrdenVenta o
-JOIN dbo.Subpedido sp
-    ON sp.OrdenVentaId = o.Id
-JOIN dbo.SurtidoEncabezado se
-    ON se.SolicitudSurtidoId = sp.U_DocMeat;
-
-CREATE UNIQUE CLUSTERED INDEX IX_tmp_ov_con_surtido
-ON #ov_con_surtido (Id);
 
 SELECT
     PedidoId = op.PedidoId,
@@ -11041,19 +13672,34 @@ GROUP BY
 CREATE CLUSTERED INDEX IX_tmp_ov_peso_agg
 ON #ov_peso_agg (PedidoId, SKU);
 
+/* =========================================================
+   SURTIDO FÍSICO REAL POR OV + SKU
+
+   Una solicitud se considera cerrada cuando:
+   - tiene FechaValidacion, o
+   - ya tiene Remision / VREM.
+
+   El surtido físico se conserva separado del pendiente.
+   ========================================================= */
 SELECT
     PedidoId = o.Id,
     SKU      = UPPER(LTRIM(RTRIM(sd.Articulo))),
-    KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
+    KgSurtido = SUM(CAST(ISNULL(sd.Kg, 0) AS DECIMAL(18,4)))
 INTO #ov_surtido_agg
 FROM dbo.OrdenVenta o
-JOIN dbo.Subpedido sp
+INNER JOIN dbo.Subpedido sp
     ON sp.OrdenVentaId = o.Id
-JOIN dbo.SurtidoEncabezado se
-    ON se.SolicitudSurtidoId = sp.U_DocMeat
-JOIN dbo.SurtidoDetalle sd
+INNER JOIN dbo.SurtidoEncabezado se
+    ON se.SolicitudSurtidoId =
+       TRY_CONVERT(
+           INT,
+           NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+       )
+INNER JOIN dbo.SurtidoDetalle sd
     ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
-WHERE se.FechaValidacion IS NOT NULL
+WHERE
+    se.FechaValidacion IS NOT NULL
+    OR NULLIF(LTRIM(RTRIM(ISNULL(se.Remision, ''))), '') IS NOT NULL
 GROUP BY
     o.Id,
     UPPER(LTRIM(RTRIM(sd.Articulo)));
@@ -11061,6 +13707,149 @@ GROUP BY
 CREATE CLUSTERED INDEX IX_tmp_ov_surtido_agg
 ON #ov_surtido_agg (PedidoId, SKU);
 
+/* =========================================================
+   ESTADO DE CIERRE DE LA OV
+
+   REGLA:
+   - NO se usa Estatus 5/6 para decidir que una OV está cerrada.
+   - NO basta con que exista SurtidoEncabezado.
+   - Cada subpedido debe tener una SolicitudSurtido cerrada.
+   - Cerrada = FechaValidacion o Remision/VREM.
+
+   Si TODOS los subpedidos están cerrados:
+       pendiente de la OV = 0
+   ========================================================= */
+SELECT
+    PedidoId = sp.OrdenVentaId,
+
+    TotalSubpedidos =
+        COUNT_BIG(*),
+
+    SubpedidosValidados =
+        SUM(
+            CASE
+                WHEN ISNULL(sev.EsCerrado, 0) = 1 THEN 1
+                ELSE 0
+            END
+        ),
+
+    PedidoCerrado =
+        CAST(
+            CASE
+                WHEN COUNT_BIG(*) > 0
+                 AND SUM(
+                        CASE
+                            WHEN ISNULL(sev.EsCerrado, 0) = 1 THEN 1
+                            ELSE 0
+                        END
+                     ) = COUNT_BIG(*)
+                    THEN 1
+                ELSE 0
+            END
+            AS BIT
+        )
+INTO #ov_validacion
+FROM dbo.Subpedido sp
+INNER JOIN #ov ov
+    ON ov.Id = sp.OrdenVentaId
+LEFT JOIN
+(
+    SELECT
+        SolicitudSurtidoId,
+
+        EsCerrado =
+            MAX(
+                CASE
+                    WHEN FechaValidacion IS NOT NULL
+                      OR NULLIF(LTRIM(RTRIM(ISNULL(Remision, ''))), '') IS NOT NULL
+                        THEN 1
+                    ELSE 0
+                END
+            )
+    FROM dbo.SurtidoEncabezado
+    GROUP BY
+        SolicitudSurtidoId
+) sev
+    ON sev.SolicitudSurtidoId =
+       TRY_CONVERT(
+           INT,
+           NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+       )
+GROUP BY
+    sp.OrdenVentaId;
+
+CREATE UNIQUE CLUSTERED INDEX IX_tmp_ov_validacion
+ON #ov_validacion (PedidoId);
+
+/* =========================================================
+   KG DE SUBPEDIDOS QUE YA QUEDARON CERRADOS
+
+   Esta parte resuelve las OV con varios subpedidos.
+
+   Ejemplo:
+       OV original       = 100 kg
+       Subpedido A       =  60 kg  CERRADO
+       Subpedido B       =  40 kg  ABIERTO
+       Pendiente         =  40 kg
+
+   Si A surtió físicamente sólo 52 kg, los 8 kg faltantes de A
+   NO vuelven a quedar pendientes porque esa solicitud ya cerró.
+   ========================================================= */
+SELECT
+    PedidoId = sp.OrdenVentaId,
+    SKU      = UPPER(LTRIM(RTRIM(spp.ProductoCodigo))),
+    KgCerrado =
+        SUM(
+            CAST(ISNULL(spp.KilosCaja, 0) AS DECIMAL(18,4))
+        )
+INTO #ov_cerrado_sku
+FROM dbo.Subpedido sp
+INNER JOIN dbo.SubpedidoProductos spp
+    ON spp.SubpedidoId = sp.Id
+WHERE
+    NULLIF(LTRIM(RTRIM(ISNULL(spp.ProductoCodigo, ''))), '') IS NOT NULL
+    AND EXISTS
+    (
+        SELECT 1
+        FROM dbo.SurtidoEncabezado se
+        WHERE se.SolicitudSurtidoId =
+              TRY_CONVERT(
+                  INT,
+                  NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+              )
+          AND
+          (
+              se.FechaValidacion IS NOT NULL
+              OR NULLIF(LTRIM(RTRIM(ISNULL(se.Remision, ''))), '') IS NOT NULL
+          )
+    )
+GROUP BY
+    sp.OrdenVentaId,
+    UPPER(LTRIM(RTRIM(spp.ProductoCodigo)));
+
+CREATE CLUSTERED INDEX IX_tmp_ov_cerrado_sku
+ON #ov_cerrado_sku (PedidoId, SKU);
+
+/* =========================================================
+   PENDIENTE REAL DE OV
+
+   REGLA FINAL:
+   1) Si TODOS los subpedidos están cerrados:
+          KgPendiente = 0
+
+   2) Si todavía existen subpedidos abiertos:
+          KgPendiente = KgPedidoOriginal - KgSubpedidosCerrados
+
+   3) El surtido físico NO determina el cierre del compromiso.
+
+   Ejemplo:
+       OV            = 6,000
+       Subpedido     = 6,000 cerrado
+       Surtido real  = 5,001
+       Pendiente     = 0
+
+   Los 999 kg no surtidos quedan liberados.
+   ========================================================= */
 SELECT
     ov.Id,
     ov.Cliente,
@@ -11068,25 +13857,39 @@ SELECT
     ov.Estatus,
     ov.FechaDate,
     p.SKU,
+
     KgPendiente =
         CAST(
             CASE
-                WHEN ov.Estatus = 5 AND os.Id IS NOT NULL THEN 0
-                ELSE CASE
-                    WHEN (p.KgPedido - ISNULL(sa.KgSurtido, 0)) < 0 THEN 0
-                    ELSE (p.KgPedido - ISNULL(sa.KgSurtido, 0))
-                END
+                /* Toda la OV ya quedó cerrada */
+                WHEN ISNULL(v.PedidoCerrado, 0) = 1
+                    THEN 0
+
+                /* OV parcialmente cerrada: sólo queda la parte abierta */
+                WHEN
+                (
+                    ISNULL(p.KgPedido, 0)
+                    - ISNULL(c.KgCerrado, 0)
+                ) <= 0
+                    THEN 0
+
+                ELSE
+                (
+                    ISNULL(p.KgPedido, 0)
+                    - ISNULL(c.KgCerrado, 0)
+                )
             END
-        AS DECIMAL(18,4))
+            AS DECIMAL(18,4)
+        )
 INTO #ov_pendiente_sku
 FROM #ov ov
-JOIN #ov_peso_agg p
+INNER JOIN #ov_peso_agg p
     ON p.PedidoId = ov.Id
-LEFT JOIN #ov_surtido_agg sa
-    ON sa.PedidoId = ov.Id
-   AND sa.SKU = p.SKU
-LEFT JOIN #ov_con_surtido os
-    ON os.Id = ov.Id;
+LEFT JOIN #ov_validacion v
+    ON v.PedidoId = ov.Id
+LEFT JOIN #ov_cerrado_sku c
+    ON c.PedidoId = ov.Id
+   AND c.SKU = p.SKU;
 
 CREATE INDEX IX_tmp_ov_pendiente_cliente
 ON #ov_pendiente_sku (Cliente, SKU, FechaDate);
@@ -11095,70 +13898,7 @@ CREATE INDEX IX_tmp_ov_pendiente_vendedor
 ON #ov_pendiente_sku (VendedorId, SKU, FechaDate);
 
 -- =========================================================
--- 5) CONSUMO CLIENTE / TODO_NORMAL
--- =========================================================
-SELECT
-    Cliente = ovp.Cliente,
-    SKU     = ovp.SKU,
-    Mes     = MONTH(ovp.FechaDate),
-    Anio    = YEAR(ovp.FechaDate),
-    Kg      = SUM(ovp.KgPendiente)
-INTO #consumo_cliente
-FROM #ov_pendiente_sku ovp
-GROUP BY
-    ovp.Cliente,
-    ovp.SKU,
-    MONTH(ovp.FechaDate),
-    YEAR(ovp.FechaDate);
-
-CREATE CLUSTERED INDEX IX_tmp_consumo_cliente
-ON #consumo_cliente (Cliente, SKU, Mes, Anio);
-
-SELECT
-    'CLIENTE' AS Origen,
-    pn.Mes,
-    pn.Anio,
-    pn.Cliente,
-    CAST(NULL AS NVARCHAR(100)) AS Canal,
-    CAST(NULL AS INT) AS VendedorId,
-    pn.SKU,
-    pn.Presupuesto,
-    ISNULL(cc.Kg, 0) AS Kg
-INTO #todo_normal
-FROM #presupuestos_normales pn
-LEFT JOIN #consumo_cliente cc
-    ON cc.Cliente = pn.Cliente
-   AND cc.SKU     = pn.SKU
-   AND cc.Mes     = pn.Mes
-   AND cc.Anio    = pn.Anio;
-
-INSERT INTO #todo_normal
-(
-    Origen, Mes, Anio, Cliente, Canal, VendedorId, SKU, Presupuesto, Kg
-)
-SELECT
-    'CLIENTE',
-    cc.Mes,
-    cc.Anio,
-    cc.Cliente,
-    CAST(NULL AS NVARCHAR(100)),
-    CAST(NULL AS INT),
-    cc.SKU,
-    CAST(0 AS DECIMAL(18,4)),
-    cc.Kg
-FROM #consumo_cliente cc
-LEFT JOIN #presupuestos_normales pn
-    ON pn.Cliente = cc.Cliente
-   AND pn.SKU     = cc.SKU
-   AND pn.Mes     = cc.Mes
-   AND pn.Anio    = cc.Anio
-WHERE pn.Cliente IS NULL;
-
-CREATE INDEX IX_tmp_todo_normal
-ON #todo_normal (Mes, Anio, Cliente, SKU);
-
--- =========================================================
--- 6) PRESUPUESTO / CONSUMO CEDIS
+-- 4) PRESUPUESTO / CONSUMO CEDIS
 -- =========================================================
 SELECT
     Canal = UPPER(LTRIM(RTRIM(pc.Canal))),
@@ -11273,7 +14013,7 @@ CREATE INDEX IX_tmp_todo_cedis
 ON #todo_cedis (Mes, Anio, Canal, SKU);
 
 -- =========================================================
--- 7) PRESUPUESTO / CONSUMO VENDEDOR
+-- 5) PRESUPUESTO / CONSUMO VENDEDOR
 -- =========================================================
 SELECT
     VendedorId,
@@ -11401,7 +14141,7 @@ CREATE INDEX IX_tmp_todo_vendedor
 ON #todo_vendedor (Mes, Anio, VendedorId, SKU);
 
 -- =========================================================
--- 8) VENTA REAL BASE / EXTRAS
+-- 6) VENTA REAL BASE / EXTRAS
 -- =========================================================
 SELECT
     ArticuloCodigo = UPPER(LTRIM(RTRIM(b.Articulo))),
@@ -11432,7 +14172,118 @@ ON #venta_real_base (VendedorId, ArticuloCodigo, Mes, Anio);
 CREATE INDEX IX_tmp_venta_real_base_canal
 ON #venta_real_base (U_CANAL, ArticuloCodigo, Mes, Anio);
 
+/* =========================================================
+   VENTA REAL BRUTA POR CEDIS
+
+   Esta cifra corresponde a la venta real antes de descontar
+   devoluciones realizadas físicamente en las bodegas.
+   ========================================================= */
 SELECT
+    Canal = UPPER(LTRIM(RTRIM(vr.U_CANAL))),
+    SKU   = UPPER(LTRIM(RTRIM(vr.ArticuloCodigo))),
+    vr.Mes,
+    vr.Anio,
+    VentaRealBruta =
+        SUM(CAST(ISNULL(vr.KgVendidos, 0) AS DECIMAL(18,4)))
+INTO #venta_real_cedis
+FROM #venta_real_base vr
+WHERE ISNULL(UPPER(LTRIM(RTRIM(vr.U_CANAL))), '') LIKE 'CEDIS%'
+GROUP BY
+    UPPER(LTRIM(RTRIM(vr.U_CANAL))),
+    UPPER(LTRIM(RTRIM(vr.ArticuloCodigo))),
+    vr.Mes,
+    vr.Anio;
+
+CREATE UNIQUE CLUSTERED INDEX IX_tmp_venta_real_cedis
+ON #venta_real_cedis (Canal, SKU, Mes, Anio);
+
+/* =========================================================
+   DEVOLUCIONES REALIZADAS EN BODEGA POR CEDIS
+
+   Se excluyen los almacenes que comienzan con FRIGORIFICO.
+   Estas devoluciones:
+     - reducen la venta real;
+     - NO se suman nuevamente al disponible.
+   ========================================================= */
+SELECT
+    Canal =
+        UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, '')))),
+
+    SKU =
+        UPPER(LTRIM(RTRIM(b.Articulo))),
+
+    Mes =
+        MONTH(b.FechaDevolucion),
+
+    Anio =
+        YEAR(b.FechaDevolucion),
+
+    KgDevolucionesBodega =
+        SUM
+        (
+            CAST
+            (
+                ISNULL(b.Peso, 0)
+                AS DECIMAL(18,4)
+            )
+        )
+INTO #devoluciones_cedis
+FROM dbo.DevolucionMeat b
+INNER JOIN dbo.ClienteSap c
+    ON UPPER(LTRIM(RTRIM(b.CodigoSap))) =
+       UPPER(LTRIM(RTRIM(c.Cliente)))
+WHERE b.FechaDevolucion IS NOT NULL
+
+  /*
+      No se aplican parámetros de fecha adicionales porque
+      no forman parte de la firma actual del procedimiento.
+      La devolución se relaciona al resultado por Mes y Año.
+  */
+
+  /* Únicamente devoluciones asociadas con SUC01/SUC02 */
+  AND
+  (
+      b.Remision LIKE '%SUC01%'
+      OR b.Remision LIKE '%SUC02%'
+  )
+
+  /* Debe existir la solicitud en SIGO */
+  AND EXISTS
+  (
+      SELECT 1
+      FROM dbo.Subpedido sp
+      WHERE sp.U_DocMeat = b.SolicitudSurtidoId
+  )
+
+  /* Excluir devoluciones recibidas en frigorífico */
+  AND ISNULL
+      (
+          UPPER(LTRIM(RTRIM(b.AlmacenDevolucionNombre))),
+          ''
+      ) NOT LIKE 'FRIGORIFICO%'
+
+  /* Esta tabla se utilizará en los renglones CEDIS */
+  AND ISNULL
+      (
+          UPPER(LTRIM(RTRIM(c.U_CANAL))),
+          ''
+      ) LIKE 'CEDIS%'
+GROUP BY
+    UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, '')))),
+    UPPER(LTRIM(RTRIM(b.Articulo))),
+    MONTH(b.FechaDevolucion),
+    YEAR(b.FechaDevolucion);
+
+CREATE UNIQUE CLUSTERED INDEX IX_tmp_devoluciones_cedis
+ON #devoluciones_cedis (Canal, SKU, Mes, Anio);
+
+/* =========================================================
+   SKU CON VENTA REAL, PERO SIN PRESUPUESTO DE VENDEDOR
+
+   Se genera una fila con Presupuesto = 0 para que el SKU
+   aparezca en el resultado final aunque no esté presupuestado.
+   ========================================================= */
+SELECT DISTINCT
     'VENDEDOR' AS Origen,
     vr.Mes,
     vr.Anio,
@@ -11442,10 +14293,10 @@ SELECT
     vr.ArticuloCodigo AS SKU,
     CAST(0 AS DECIMAL(18,4)) AS Presupuesto,
     CAST(0 AS DECIMAL(18,4)) AS Kg
-INTO #todo_vendedor_estrategico_extra
+INTO #todo_vendedor_venta_real_extra
 FROM #venta_real_base vr
 WHERE vr.VendedorId IS NOT NULL
-  AND ISNULL(vr.U_CANAL, '') = 'ESTRATEGICO'
+  AND ISNULL(vr.KgVendidos, 0) > 0
   AND NOT EXISTS
   (
       SELECT 1
@@ -11456,40 +14307,18 @@ WHERE vr.VendedorId IS NOT NULL
         AND tv.Anio       = vr.Anio
   );
 
-CREATE INDEX IX_tmp_todo_vendedor_estrategico_extra
-ON #todo_vendedor_estrategico_extra (Mes, Anio, VendedorId, SKU);
+CREATE INDEX IX_tmp_todo_vendedor_venta_real_extra
+ON #todo_vendedor_venta_real_extra
+(
+    Mes,
+    Anio,
+    VendedorId,
+    SKU
+);
 
 -- =========================================================
--- 9) SURTIDO REAL SEPARADO POR ORIGEN
+-- 7) SURTIDO REAL CEDIS / VENDEDOR
 -- =========================================================
-SELECT
-    Cliente = UPPER(LTRIM(RTRIM(o.Cliente))),
-    SKU     = UPPER(LTRIM(RTRIM(sd.Articulo))),
-    Mes     = MONTH(se.FechaValidacion),
-    Anio    = YEAR(se.FechaValidacion),
-    KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
-INTO #surtido_cliente
-FROM dbo.OrdenVenta o
-JOIN dbo.Subpedido sp
-    ON sp.OrdenVentaId = o.Id
-JOIN dbo.SurtidoEncabezado se
-    ON se.SolicitudSurtidoId = sp.U_DocMeat
-JOIN dbo.SurtidoDetalle sd
-    ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
-JOIN #clientes cli
-    ON cli.Cliente = UPPER(LTRIM(RTRIM(o.Cliente)))
-WHERE o.Estatus <> 0
-  AND se.FechaValidacion IS NOT NULL
-  AND ISNULL(cli.U_CANAL, '') NOT LIKE 'CEDIS%'
-GROUP BY
-    UPPER(LTRIM(RTRIM(o.Cliente))),
-    UPPER(LTRIM(RTRIM(sd.Articulo))),
-    MONTH(se.FechaValidacion),
-    YEAR(se.FechaValidacion);
-
-CREATE CLUSTERED INDEX IX_tmp_surtido_cliente
-ON #surtido_cliente (Cliente, SKU, Mes, Anio);
-
 SELECT
     Canal = cli.U_CANAL,
     SKU   = UPPER(LTRIM(RTRIM(sd.Articulo))),
@@ -11498,6 +14327,8 @@ SELECT
     KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
 INTO #surtido_ov_cedis
 FROM dbo.OrdenVenta o
+JOIN dbo.Series ser
+    ON ser.NombreSerie = o.Serie
 JOIN dbo.Subpedido sp
     ON sp.OrdenVentaId = o.Id
 JOIN dbo.SurtidoEncabezado se
@@ -11508,6 +14339,7 @@ JOIN #clientes cli
     ON cli.Cliente = UPPER(LTRIM(RTRIM(o.Cliente)))
 WHERE o.Estatus <> 0
   AND se.FechaValidacion IS NOT NULL
+  AND ser.Sucursal = 'MATRIZ'
   AND cli.U_CANAL LIKE 'CEDIS%'
 GROUP BY
     cli.U_CANAL,
@@ -11563,18 +14395,33 @@ CREATE CLUSTERED INDEX IX_tmp_surtido_cedis_base
 ON #surtido_cedis_base (Canal, SKU, Mes, Anio);
 
 SELECT
-    cl.VendedorId,
-    sc.SKU,
-    sc.Mes,
-    sc.Anio,
-    KgSurtido = SUM(sc.KgSurtido)
+    cli.VendedorId,
+    SKU       = UPPER(LTRIM(RTRIM(sd.Articulo))),
+    Mes       = MONTH(se.FechaValidacion),
+    Anio      = YEAR(se.FechaValidacion),
+    KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
 INTO #surtido_vendedor_normal
-FROM #surtido_cliente sc
-JOIN #clientes cl
-    ON cl.Cliente = sc.Cliente
-WHERE cl.VendedorId IS NOT NULL
+FROM dbo.OrdenVenta o
+JOIN dbo.Series ser
+    ON ser.NombreSerie = o.Serie
+JOIN dbo.Subpedido sp
+    ON sp.OrdenVentaId = o.Id
+JOIN dbo.SurtidoEncabezado se
+    ON se.SolicitudSurtidoId = sp.U_DocMeat
+JOIN dbo.SurtidoDetalle sd
+    ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+JOIN #clientes cli
+    ON cli.Cliente = UPPER(LTRIM(RTRIM(o.Cliente)))
+WHERE o.Estatus <> 0
+  AND se.FechaValidacion IS NOT NULL
+  AND ser.Sucursal = 'MATRIZ'
+  AND ISNULL(cli.U_CANAL, '') NOT LIKE 'CEDIS%'
+  AND cli.VendedorId IS NOT NULL
 GROUP BY
-    cl.VendedorId, sc.SKU, sc.Mes, sc.Anio;
+    cli.VendedorId,
+    UPPER(LTRIM(RTRIM(sd.Articulo))),
+    MONTH(se.FechaValidacion),
+    YEAR(se.FechaValidacion);
 
 CREATE CLUSTERED INDEX IX_tmp_surtido_vendedor_normal
 ON #surtido_vendedor_normal (VendedorId, SKU, Mes, Anio);
@@ -11629,19 +14476,7 @@ GROUP BY
 CREATE CLUSTERED INDEX IX_tmp_surtido_vendedor_total
 ON #surtido_vendedor_total (VendedorId, SKU, Mes, Anio);
 
--- Tablas finales separadas por origen, para evitar JOIN con OR
-SELECT
-    Cliente,
-    SKU,
-    Mes,
-    Anio,
-    KgSurtido
-INTO #surtido_real_cliente
-FROM #surtido_cliente;
-
-CREATE CLUSTERED INDEX IX_tmp_surtido_real_cliente
-ON #surtido_real_cliente (Cliente, SKU, Mes, Anio);
-
+-- Tablas finales separadas por origen
 SELECT
     Canal,
     SKU,
@@ -11666,54 +14501,115 @@ FROM #surtido_vendedor_total;
 CREATE CLUSTERED INDEX IX_tmp_surtido_real_vendedor
 ON #surtido_real_vendedor (VendedorId, SKU, Mes, Anio);
 
+/* =========================================================
+   COMPLETAR VENDEDORES CON VENTA REAL Y SIN PRESUPUESTO
+
+   Si ya existe en #todo_vendedor o en la tabla extra,
+   no se vuelve a insertar.
+   ========================================================= */
+INSERT INTO #todo_vendedor_venta_real_extra
+(
+    Origen,
+    Mes,
+    Anio,
+    Cliente,
+    Canal,
+    VendedorId,
+    SKU,
+    Presupuesto,
+    Kg
+)
+SELECT
+    'VENDEDOR' AS Origen,
+    srv.Mes,
+    srv.Anio,
+    CAST(NULL AS NVARCHAR(50)) AS Cliente,
+    CAST(NULL AS NVARCHAR(100)) AS Canal,
+    srv.VendedorId,
+    srv.SKU,
+    CAST(0 AS DECIMAL(18,4)) AS Presupuesto,
+    CAST(0 AS DECIMAL(18,4)) AS Kg
+FROM #surtido_real_vendedor srv
+WHERE ISNULL(srv.KgSurtido, 0) > 0
+  AND NOT EXISTS
+  (
+      SELECT 1
+      FROM #todo_vendedor tv
+      WHERE tv.VendedorId = srv.VendedorId
+        AND tv.SKU        = srv.SKU
+        AND tv.Mes        = srv.Mes
+        AND tv.Anio       = srv.Anio
+  )
+  AND NOT EXISTS
+  (
+      SELECT 1
+      FROM #todo_vendedor_venta_real_extra tve
+      WHERE tve.VendedorId = srv.VendedorId
+        AND tve.SKU        = srv.SKU
+        AND tve.Mes        = srv.Mes
+        AND tve.Anio       = srv.Anio
+  );
+
 -- =========================================================
--- 10) EXTRA CEDIS DESDE VENTA REAL
+-- 8) EXTRA CEDIS DESDE VENTA REAL
 -- =========================================================
 SELECT
     'CEDIS' AS Origen,
-    vr.Mes,
-    vr.Anio,
+    src.Mes,
+    src.Anio,
     CAST(NULL AS NVARCHAR(50)) AS Cliente,
-    vr.U_CANAL AS Canal,
+    src.Canal,
     CAST(NULL AS INT) AS VendedorId,
-    vr.ArticuloCodigo AS SKU,
+    src.SKU,
     CAST(0 AS DECIMAL(18,4)) AS Presupuesto,
     CAST(0 AS DECIMAL(18,4)) AS Kg
 INTO #todo_cedis_venta_real_extra
-FROM #venta_real_base vr
-WHERE ISNULL(vr.U_CANAL, '') LIKE 'CEDIS%'
+FROM #surtido_real_cedis src
+WHERE ISNULL(src.KgSurtido, 0) > 0
   AND NOT EXISTS
   (
       SELECT 1
       FROM #todo_cedis tc
-      WHERE tc.Canal = vr.U_CANAL
-        AND tc.SKU   = vr.ArticuloCodigo
-        AND tc.Mes   = vr.Mes
-        AND tc.Anio  = vr.Anio
+      WHERE tc.Canal = src.Canal
+        AND tc.SKU   = src.SKU
+        AND tc.Mes   = src.Mes
+        AND tc.Anio  = src.Anio
   );
 
 CREATE INDEX IX_tmp_todo_cedis_venta_real_extra
 ON #todo_cedis_venta_real_extra (Mes, Anio, Canal, SKU);
 
 -- =========================================================
--- 11) BASE FINAL
+-- 9) BASE FINAL
 -- =========================================================
 SELECT *
 INTO #t_base
 FROM
 (
+    /* CEDIS: presupuesto normal */
     SELECT * FROM #todo_cedis
+
     UNION ALL
+
+    /* CEDIS: venta real sin presupuesto */
     SELECT * FROM #todo_cedis_venta_real_extra
+
     UNION ALL
+
+    /* Vendedor: presupuesto normal */
     SELECT * FROM #todo_vendedor
+
+    UNION ALL
+
+    /* Vendedor: venta real sin presupuesto */
+    SELECT * FROM #todo_vendedor_venta_real_extra
 ) t;
 
 CREATE INDEX IX_tmp_t_base
-ON #t_base (Origen, Anio, Mes, SKU, Cliente, Canal, VendedorId);
+ON #t_base (Origen, Anio, Mes, SKU, Canal, VendedorId);
 
 -- =========================================================
--- 12) DÍAS LABORABLES
+-- 10) DÍAS LABORABLES
 -- =========================================================
 SELECT DISTINCT
     Mes,
@@ -11778,57 +14674,97 @@ CREATE CLUSTERED INDEX IX_tmp_dias_laborables
 ON #dias_laborables (Mes, Anio);
 
 -- =========================================================
--- 13) SELECT FINAL
---     YA SIN JOIN CON OR PARA SURTIDO
+-- 11) SELECT FINAL
+--     SOLO CEDIS Y VENDEDORES
 -- =========================================================
 SELECT
     t.Origen,
     t.Mes  AS MesConsulta,
     t.Anio AS AnioConsulta,
-    ISNULL(t.Cliente, '-') AS ClienteCodigo,
-    ISNULL(cl.NombreCliente, '-') AS NombreCliente,
     ISNULL(t.Canal, '-') AS Canal,
     ISNULL(t.VendedorId, 0) AS VendedorId,
-    ISNULL(COALESCE(vend.VendedorNombre, cl.VendedorNombre), '-') AS VendedorNombre,
+    ISNULL(vend.VendedorNombre, '-') AS VendedorNombre,
     t.SKU AS ProductoCodigo,
     prd.ProductoNombre,
     prd.U_MASTER AS U_MASTER,
     ISNULL(prd.ClasificacionId, 99) AS ClasificacionId,
     ISNULL(prd.ClasificacionNombre, 'POR DEFINIR') AS ClasificacionNombre,
+    ISNULL(prd.IdTipoSKU, 0) AS IdTipoSKU,
+    ISNULL(prd.TipoSKUDescripcion, 'POR DEFINIR') AS TipoSKUDescripcion,
     CAST(t.Presupuesto AS DECIMAL(18,4)) AS PresupuestoAsignado,
+
     CAST(t.Kg AS DECIMAL(18,4)) AS KgPedidosMes,
-    CAST(
+
+    /* El surtido NO se reduce por devolución */
+    venta.KgSurtidoRealCalculado AS KgSurtidoReal,
+
+    /* Venta real antes de devoluciones */
+    venta.VentaRealBrutaCalculada AS VentaRealBruta,
+
+    /* Devoluciones realizadas en bodegas, no en frigorífico */
+    venta.KgDevolucionesBodegaCalculado AS DevolucionesBodega,
+
+    /* Venta real que debe mostrarse en el reporte */
+    ventaNeta.VentaRealNetaCalculada AS VentaRealNeta,
+
+    CAST
+    (
         CASE
-            WHEN t.Origen = 'CLIENTE'  THEN ISNULL(src.KgSurtido, 0)
-            WHEN t.Origen = 'CEDIS'    THEN ISNULL(srd.KgSurtido, 0)
-            WHEN t.Origen = 'VENDEDOR' THEN ISNULL(srv.KgSurtido, 0)
+            WHEN ISNULL(t.Presupuesto, 0) > 0
+                THEN 1
             ELSE 0
         END
-    AS DECIMAL(18,4)) AS KgSurtidoReal,
-    CAST(
+        AS BIT
+    ) AS TienePresupuesto,
+
+    CAST
+    (
         CASE
-            WHEN (
-                t.Presupuesto
+            WHEN ISNULL(ventaNeta.VentaRealNetaCalculada, 0) > 0
+                THEN 1
+            ELSE 0
+        END
+        AS BIT
+    ) AS TieneVenta,
+
+    CASE
+        WHEN ISNULL(t.Presupuesto, 0) > 0
+         AND ISNULL(ventaNeta.VentaRealNetaCalculada, 0) > 0
+            THEN 'PRESUPUESTO Y VENTA'
+
+        WHEN ISNULL(t.Presupuesto, 0) > 0
+            THEN 'SOLO PRESUPUESTO'
+
+        WHEN ISNULL(ventaNeta.VentaRealNetaCalculada, 0) > 0
+            THEN 'SOLO VENTA'
+    END AS EstatusPresupuestoVenta,
+
+    /*
+       DISPONIBLE:
+       Plan de venta - Surtido - Pedidos.
+
+       La devolución de bodega NO se suma al disponible.
+    */
+    CAST
+    (
+        CASE
+            WHEN
+            (
+                ISNULL(t.Presupuesto, 0)
                 - ISNULL(t.Kg, 0)
-                - CASE
-                    WHEN t.Origen = 'CLIENTE'  THEN ISNULL(src.KgSurtido, 0)
-                    WHEN t.Origen = 'CEDIS'    THEN ISNULL(srd.KgSurtido, 0)
-                    WHEN t.Origen = 'VENDEDOR' THEN ISNULL(srv.KgSurtido, 0)
-                    ELSE 0
-                  END
-            ) < 0 THEN 0
-            ELSE (
-                t.Presupuesto
+                - ISNULL(venta.KgSurtidoRealCalculado, 0)
+            ) < 0
+                THEN 0
+
+            ELSE
+            (
+                ISNULL(t.Presupuesto, 0)
                 - ISNULL(t.Kg, 0)
-                - CASE
-                    WHEN t.Origen = 'CLIENTE'  THEN ISNULL(src.KgSurtido, 0)
-                    WHEN t.Origen = 'CEDIS'    THEN ISNULL(srd.KgSurtido, 0)
-                    WHEN t.Origen = 'VENDEDOR' THEN ISNULL(srv.KgSurtido, 0)
-                    ELSE 0
-                  END
+                - ISNULL(venta.KgSurtidoRealCalculado, 0)
             )
         END
-    AS DECIMAL(18,4)) AS DisponibleVenta,
+        AS DECIMAL(18,4)
+    ) AS DisponibleVenta,
     CAST(ISNULL(pp.PlanProduccion, 0) AS DECIMAL(18,4)) AS PlanProduccion,
     CAST(ISNULL(pr.Producido, 0) AS DECIMAL(18,4)) AS Producido,
     CAST(
@@ -11841,28 +14777,103 @@ SELECT
 FROM #t_base t
 LEFT JOIN #productos prd
     ON prd.SKU = t.SKU
-LEFT JOIN #clientes cl
-    ON cl.Cliente = t.Cliente
 LEFT JOIN #vendedores vend
     ON vend.VendedorId = t.VendedorId
-LEFT JOIN #surtido_real_cliente src
-    ON t.Origen = 'CLIENTE'
-   AND src.Cliente = t.Cliente
-   AND src.SKU     = t.SKU
-   AND src.Mes     = t.Mes
-   AND src.Anio    = t.Anio
 LEFT JOIN #surtido_real_cedis srd
     ON t.Origen = 'CEDIS'
    AND srd.Canal = t.Canal
    AND srd.SKU   = t.SKU
    AND srd.Mes   = t.Mes
    AND srd.Anio  = t.Anio
+
+LEFT JOIN #venta_real_cedis vrc
+    ON t.Origen = 'CEDIS'
+   AND vrc.Canal = UPPER(LTRIM(RTRIM(t.Canal)))
+   AND vrc.SKU   = t.SKU
+   AND vrc.Mes   = t.Mes
+   AND vrc.Anio  = t.Anio
+
+LEFT JOIN #devoluciones_cedis dc
+    ON t.Origen = 'CEDIS'
+   AND dc.Canal = UPPER(LTRIM(RTRIM(t.Canal)))
+   AND dc.SKU   = t.SKU
+   AND dc.Mes   = t.Mes
+   AND dc.Anio  = t.Anio
 LEFT JOIN #surtido_real_vendedor srv
     ON t.Origen = 'VENDEDOR'
    AND srv.VendedorId = t.VendedorId
    AND srv.SKU        = t.SKU
    AND srv.Mes        = t.Mes
    AND srv.Anio       = t.Anio
+OUTER APPLY
+(
+    SELECT
+        /* Surtido utilizado para consumo del plan */
+        KgSurtidoRealCalculado =
+            CAST
+            (
+                CASE
+                    WHEN t.Origen = 'CEDIS'
+                        THEN ISNULL(srd.KgSurtido, 0)
+
+                    WHEN t.Origen = 'VENDEDOR'
+                        THEN ISNULL(srv.KgSurtido, 0)
+
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        /* Venta real antes de devoluciones de bodega */
+        VentaRealBrutaCalculada =
+            CAST
+            (
+                CASE
+                    WHEN t.Origen = 'CEDIS'
+                        THEN ISNULL(vrc.VentaRealBruta, 0)
+
+                    WHEN t.Origen = 'VENDEDOR'
+                        THEN ISNULL(srv.KgSurtido, 0)
+
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        KgDevolucionesBodegaCalculado =
+            CAST
+            (
+                CASE
+                    WHEN t.Origen = 'CEDIS'
+                        THEN ISNULL(dc.KgDevolucionesBodega, 0)
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            )
+) AS venta
+OUTER APPLY
+(
+    SELECT
+        VentaRealNetaCalculada =
+            CAST
+            (
+                CASE
+                    WHEN
+                    (
+                        venta.VentaRealBrutaCalculada
+                        - venta.KgDevolucionesBodegaCalculado
+                    ) < 0
+                        THEN 0
+
+                    ELSE
+                    (
+                        venta.VentaRealBrutaCalculada
+                        - venta.KgDevolucionesBodegaCalculado
+                    )
+                END
+                AS DECIMAL(18,4)
+            )
+) AS ventaNeta
 LEFT JOIN #plan_prod pp
     ON pp.SKU  = t.SKU
    AND pp.Mes  = t.Mes
@@ -11875,41 +14886,59 @@ LEFT JOIN #dias_laborables dl
     ON dl.Mes  = t.Mes
    AND dl.Anio = t.Anio
 WHERE
-    -- Si NO trae canal CEDIS, ve todo
-    NOT EXISTS
+    /* El reporte únicamente considera CEDIS y VENDEDORES */
+    t.Origen IN ('CEDIS', 'VENDEDOR')
+    AND
+    /* Mostrar cuando exista presupuesto, venta real o ambos */
     (
-        SELECT 1
-        FROM STRING_SPLIT(ISNULL(@CanalesCsv, ''), ',') c
-        WHERE ISNULL(LTRIM(RTRIM(c.value)), '') <> ''
-          AND UPPER(LTRIM(RTRIM(c.value))) LIKE 'CEDIS%'
+        ISNULL(t.Presupuesto, 0) > 0
+        OR ISNULL(ventaNeta.VentaRealNetaCalculada, 0) > 0
     )
-
-    OR
-
-    -- Si SÍ trae canal CEDIS, se limita al canal correspondiente
-    EXISTS
+    AND
     (
-        SELECT 1
-        FROM STRING_SPLIT(ISNULL(@CanalesCsv, ''), ',') c
-        WHERE ISNULL(LTRIM(RTRIM(c.value)), '') <> ''
-          AND UPPER(LTRIM(RTRIM(c.value))) LIKE 'CEDIS%'
-          AND
-          (
-              UPPER(LTRIM(RTRIM(ISNULL(t.Canal, '')))) =
-              UPPER(LTRIM(RTRIM(c.value)))
+        /* Si NO trae canal CEDIS, ve todo */
+        NOT EXISTS
+        (
+            SELECT 1
+            FROM STRING_SPLIT(ISNULL(@CanalesCsv, ''), ',') c
+            WHERE ISNULL(LTRIM(RTRIM(c.value)), '') <> ''
+              AND UPPER(LTRIM(RTRIM(c.value))) LIKE 'CEDIS%'
+        )
 
-              OR 'CEDIS-' + UPPER(LTRIM(RTRIM(ISNULL(t.Canal, '')))) =
-              UPPER(LTRIM(RTRIM(c.value)))
+        OR
 
-              OR REPLACE(UPPER(LTRIM(RTRIM(ISNULL(t.Canal, '')))), 'CEDIS-', '') =
-                 REPLACE(UPPER(LTRIM(RTRIM(c.value))), 'CEDIS-', '')
-          )
+        /* Si SÍ trae canal CEDIS, se limita al canal correspondiente */
+        EXISTS
+        (
+            SELECT 1
+            FROM STRING_SPLIT(ISNULL(@CanalesCsv, ''), ',') c
+            WHERE ISNULL(LTRIM(RTRIM(c.value)), '') <> ''
+              AND UPPER(LTRIM(RTRIM(c.value))) LIKE 'CEDIS%'
+              AND
+              (
+                  UPPER(LTRIM(RTRIM(ISNULL(t.Canal, '')))) =
+                  UPPER(LTRIM(RTRIM(c.value)))
+
+                  OR 'CEDIS-' + UPPER(LTRIM(RTRIM(ISNULL(t.Canal, '')))) =
+                  UPPER(LTRIM(RTRIM(c.value)))
+
+                  OR REPLACE(
+                         UPPER(LTRIM(RTRIM(ISNULL(t.Canal, '')))),
+                         'CEDIS-',
+                         ''
+                     ) =
+                     REPLACE(
+                         UPPER(LTRIM(RTRIM(c.value))),
+                         'CEDIS-',
+                         ''
+                     )
+              )
+        )
     )
 ORDER BY
     t.Origen,
     t.Anio,
     t.Mes,
-    ISNULL(t.Cliente, ''),
     ISNULL(t.Canal, ''),
     t.SKU;
 ";
@@ -11938,11 +14967,21 @@ ORDER BY
         private static bool EsCanalCedis(string? canal)
             => !string.IsNullOrWhiteSpace(canal) && Norm(canal).StartsWith("CEDIS-");
 
+        // Normaliza el identificador del canal CEDIS para que
+        // CEDIS-MDA y MDA se consideren el mismo canal, igual
+        // que en el SQL de Mi Presupuesto.
+        private static string CanalCedisKey(string? canal)
+            => Norm(canal).Replace("CEDIS-", "");
+
 
 
 
         //=============================================================
-        // PRESUPUESTO POR VENDEDOR (prioriza CEDIS si el cliente es canal CEDIS)
+        // PRESUPUESTO POR VENDEDOR
+        // REGLA:
+        // - El cliente únicamente define si aplica o no presupuesto.
+        // - Cuando aplica, el presupuesto SIEMPRE se toma de PresupuestoVendedor.
+        // - No hay fallback a presupuesto de cliente ni prioridad CEDIS.
         // GET: /Comercial/ObtenerPresupuestoProductoVendedor?vendedorId=1&cardCode=C000176&productoCodigo=SKU01&mes=10&anio=2025
         //=============================================================
         [HttpGet]
@@ -11951,240 +14990,1841 @@ ORDER BY
             string? cardCode,
             string productoCodigo,
             int mes,
-            int anio)
+            int anio,
+            string? serie = null)
         {
-            if (vendedorId <= 0) return BadRequest("Se requiere vendedorId.");
-            if (string.IsNullOrWhiteSpace(productoCodigo)) return BadRequest("Se requiere producto.");
+            if (string.IsNullOrWhiteSpace(productoCodigo))
+                return BadRequest("Se requiere producto.");
+
+            if (mes < 1 || mes > 12 || anio <= 0)
+                return BadRequest("Mes/año inválidos.");
 
             var item = Norm(productoCodigo);
             var card = Norm(cardCode);
 
-            // 1) LEFT JOIN ClienteSap -> PresupuestoCedis por canal (solo si existe)
-            //    OJO: Si el cliente NO es CEDIS, aunque haya canal, NO usamos CEDIS.
-            var joinCedis = await (
-                from cli in _context.ClienteSap.AsNoTracking()
-                where card != "" && cli.Cliente == card
-                join pc in _context.PresupuestoCedis.AsNoTracking()
-                        .Where(x => x.Mes == mes && x.Anio == anio && x.ProductoCodigo == item)
-                    on cli.U_CANAL equals pc.Canal into gj
-                from pc in gj.DefaultIfEmpty() // LEFT
-                select new
-                {
-                    Canal = cli.U_CANAL,
-                    PresupuestoCedis = (decimal?)pc.PresupuestoAsignado
-                }
-            ).FirstOrDefaultAsync();
+            // =========================================================
+            // 1) SI EL CLIENTE ES CEDIS:
+            //    - Serie MATRIZ    => usa PresupuestoCedis.
+            //    - Serie SUCURSAL  => NO aplica presupuesto.
+            //    - Si el SKU no existe en PresupuestoCedis, cae al
+            //      presupuesto del vendedor como fallback.
+            // =========================================================
+            string canalCliente = "";
 
-            // 2) Si el cliente es canal CEDIS y hay presupuesto en PresupuestoCedis para ese SKU, úsalo
-            if (joinCedis != null && EsCanalCedis(joinCedis.Canal) && joinCedis.PresupuestoCedis.HasValue)
+            if (!string.IsNullOrWhiteSpace(card))
             {
-                var p = joinCedis.PresupuestoCedis.Value;
+                var canalRaw = await _context.ClienteSap
+                    .AsNoTracking()
+                    .Where(c => (c.Cliente ?? "").Trim().ToUpper() == card)
+                    .Select(c => c.U_CANAL)
+                    .FirstOrDefaultAsync();
+
+                canalCliente = Norm(canalRaw);
+            }
+
+            bool esClienteCedis =
+                !string.IsNullOrWhiteSpace(canalCliente)
+                && canalCliente.StartsWith("CEDIS");
+
+            if (esClienteCedis)
+            {
+                // CEDIS + serie NO MATRIZ = presupuesto NO APLICA.
+                if (await NoAplicaPresupuestoPorSerieAsync(card, serie ?? ""))
+                {
+                    return Json(new
+                    {
+                        productoCodigo = item,
+                        presupuestoAsignado = 0m,
+                        tienePresupuesto = false,
+                        enPresupuesto = false,
+                        noAplicaPresupuesto = true,
+                        origen = "NO_APLICA",
+                        canal = canalCliente
+                    });
+                }
+
+                // CEDIS + MATRIZ = presupuesto del canal CEDIS.
+                // IMPORTANTE: el SQL correcto considera equivalentes
+                // CEDIS-MDA y MDA. Aquí hacemos exactamente lo mismo.
+                var canalCedisKey = CanalCedisKey(canalCliente);
+
+                var presupuestoCedisRows = await _context.PresupuestoCedis
+                    .AsNoTracking()
+                    .Where(p =>
+                        p.Mes == mes
+                        && p.Anio == anio
+                        && (p.ProductoCodigo ?? "").Trim().ToUpper() == item
+                    )
+                    .Select(p => new
+                    {
+                        p.Canal,
+                        p.PresupuestoAsignado
+                    })
+                    .ToListAsync();
+
+                // IMPORTANTE:
+                // NO sumar CEDIS-MDA + MDA si ambos existen.
+                // Primero se toma el canal EXACTO del cliente.
+                // Solamente si no existe un registro exacto, se usa
+                // la equivalencia sin prefijo CEDIS- como fallback.
+                var presupuestoCedisExactoRows = presupuestoCedisRows
+                    .Where(p => Norm(p.Canal) == canalCliente)
+                    .ToList();
+
+                decimal presupuestoCedis;
+
+                if (presupuestoCedisExactoRows.Count > 0)
+                {
+                    presupuestoCedis = presupuestoCedisExactoRows
+                        .Sum(p => p.PresupuestoAsignado);
+                }
+                else
+                {
+                    presupuestoCedis = presupuestoCedisRows
+                        .Where(p => CanalCedisKey(p.Canal) == canalCedisKey)
+                        .Sum(p => p.PresupuestoAsignado);
+                }
+
                 return Json(new
                 {
                     productoCodigo = item,
-                    presupuestoAsignado = p,
-                    tienePresupuesto = p > 0m,
-                    enPresupuesto = p > 0m,
+                    presupuestoAsignado = presupuestoCedis,
+                    tienePresupuesto = presupuestoCedis > 0m,
+                    enPresupuesto = presupuestoCedis > 0m,
+                    noAplicaPresupuesto = false,
                     origen = "CEDIS",
-                    canal = Norm(joinCedis.Canal)
+                    canal = canalCliente
                 });
             }
 
-            // 3) Fallback: presupuesto NORMAL por vendedor
-            var normal = await _context.PresupuestoVendedor.AsNoTracking()
-                .Where(p => p.VendedorId == vendedorId
-                         && p.Mes == mes
-                         && p.Anio == anio
-                         && p.ProductoCodigo == item)
-                .Select(p => (decimal?)p.PresupuestoAsignado)
-                .FirstOrDefaultAsync();
+            // =========================================================
+            // 2) PRESUPUESTO DEL VENDEDOR
+            //    Aplica solamente para cliente NO CEDIS.
+            // =========================================================
+            if (vendedorId <= 0)
+                return BadRequest("Se requiere vendedorId.");
 
-            var pn = normal ?? 0m;
+            var presupuesto = await _context.PresupuestoVendedor
+                .AsNoTracking()
+                .Where(p =>
+                    p.VendedorId == vendedorId
+                    && p.Mes == mes
+                    && p.Anio == anio
+                    && (p.ProductoCodigo ?? "").Trim().ToUpper() == item
+                )
+                .SumAsync(p => (decimal?)p.PresupuestoAsignado) ?? 0m;
 
             return Json(new
             {
                 productoCodigo = item,
-                presupuestoAsignado = pn,
-                tienePresupuesto = pn > 0m,
-                enPresupuesto = pn > 0m,
+                presupuestoAsignado = presupuesto,
+                tienePresupuesto = presupuesto > 0m,
+                enPresupuesto = presupuesto > 0m,
+                noAplicaPresupuesto = false,
                 origen = "VENDEDOR",
-                canal = joinCedis?.Canal != null ? Norm(joinCedis.Canal) : ""
+                canal = ""
             });
         }
 
 
         //=============================================================
-        // DISPONIBLE POR VENDEDOR (prioriza CEDIS si el cliente es canal CEDIS)
-        // GET: /Comercial/ObtenerProductosConPresupuestoDisponibleVendedor?vendedorId=1&cardCode=C000176&fechaEntrega=2025-10-29
+        // DISPONIBLE POR VENDEDOR
+        //
+        // REGLA:
+        // - El cliente únicamente define si aplica o no presupuesto.
+        // - Cuando aplica, presupuesto y disponible SIEMPRE son del vendedor.
+        // - Se consideran OV del vendedor.
+        // - Series únicamente de MATRIZ.
+        // - Líneas eliminadas NO consumen presupuesto.
+        //
+        // PEDIDOS PENDIENTES:
+        // - Estatus 5/6 + Kg surtido validado > 0:
+        //      pendiente = 0
+        //
+        // - Estatus 5/6 + Kg surtido = 0:
+        //      pendiente = pedido completo
+        //
+        // - Otros estatus:
+        //      pendiente = pedido - surtido validado
+        //
+        // SURTIDO REAL:
+        // - Todo surtido con FechaValidacion dentro del mes
+        //   sigue consumiendo presupuesto.
+        //
+        // DISPONIBLE:
+        // Presupuesto
+        // - KgSurtidoReal
+        // - KgPedidosMes
+        //
+        // El disponible nunca baja de 0.
+        //
+        // GET:
+        // /Comercial/ObtenerProductosConPresupuestoDisponibleVendedor
+        // ?vendedorId=1
+        // &cardCode=C000176
+        // &fechaEntrega=2026-08-28
         //=============================================================
         [HttpGet]
         public async Task<IActionResult> ObtenerProductosConPresupuestoDisponibleVendedor(
             int vendedorId,
             string? cardCode,
-            DateTime fechaEntrega)
+            DateTime fechaEntrega,
+            string? serie = null)
         {
-            if (vendedorId <= 0) return BadRequest("vendedorId no especificado.");
+            // =========================================================
+            // DISPONIBLE EXACTO:
+            // Usa EXACTAMENTE la misma consulta de "Mi Presupuesto"
+            // enviada/validada por operación.
+            //
+            // REGLAS:
+            // - CEDIS + MATRIZ    => renglón CEDIS del canal.
+            // - CEDIS + SUCURSAL  => no aplica presupuesto.
+            // - NO CEDIS          => renglón VENDEDOR.
+            //
+            // DisponibleVenta viene calculado por el SQL como:
+            // Presupuesto - KgPedidosMes - KgSurtidoReal
+            // =========================================================
+
+            var card = Norm(cardCode);
+            string canalCliente = "";
+
+            if (!string.IsNullOrWhiteSpace(card))
+            {
+                var canalRaw = await _context.ClienteSap
+                    .AsNoTracking()
+                    .Where(c => (c.Cliente ?? "").Trim().ToUpper() == card)
+                    .Select(c => c.U_CANAL)
+                    .FirstOrDefaultAsync();
+
+                canalCliente = Norm(canalRaw);
+            }
+
+            bool esClienteCedis =
+                !string.IsNullOrWhiteSpace(canalCliente)
+                && canalCliente.StartsWith("CEDIS");
+
+            if (esClienteCedis)
+            {
+                // CEDIS + SUCURSAL => presupuesto no aplica.
+                if (await NoAplicaPresupuestoPorSerieAsync(card, serie ?? ""))
+                    return Json(Array.Empty<object>());
+            }
+            else
+            {
+                if (vendedorId <= 0)
+                    return BadRequest("vendedorId no especificado.");
+            }
 
             int mes = fechaEntrega.Month;
             int anio = fechaEntrega.Year;
 
-            var card = Norm(cardCode);
+            // El SQL recibido usa estos dos parámetros.
+            // Para CEDIS se manda el canal; para vendedor se deja CanalesCsv vacío
+            // y se filtra el vendedor exacto en C# sobre el resultado.
+            var vendedorIdsCsv =
+                vendedorId > 0
+                    ? vendedorId.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    : "";
 
-            // 1) Canal del cliente (puede ser MAYOREO, CEDIS-MDA, etc.)
-            string? canalRaw = null;
-            if (!string.IsNullOrWhiteSpace(card))
+            var canalesCsv =
+                esClienteCedis
+                    ? canalCliente
+                    : "";
+
+            const string sqlDisponibleExacto = @"SET NOCOUNT ON;
+
+-- =========================================================
+-- LIMPIEZA
+-- =========================================================
+DROP TABLE IF EXISTS #productos;
+DROP TABLE IF EXISTS #clientes;
+DROP TABLE IF EXISTS #vendedores;
+DROP TABLE IF EXISTS #canal_vendedores;
+DROP TABLE IF EXISTS #plan_prod;
+DROP TABLE IF EXISTS #producido_real;
+DROP TABLE IF EXISTS #ov;
+DROP TABLE IF EXISTS #ov_peso_agg;
+DROP TABLE IF EXISTS #ov_surtido_agg;
+DROP TABLE IF EXISTS #ov_validacion;
+DROP TABLE IF EXISTS #ov_cerrado_sku;
+DROP TABLE IF EXISTS #ov_pendiente_sku;
+DROP TABLE IF EXISTS #presupuestos_cedis;
+DROP TABLE IF EXISTS #tr_surtido_agg;
+DROP TABLE IF EXISTS #consumo_cedis_base;
+DROP TABLE IF EXISTS #todo_cedis;
+DROP TABLE IF EXISTS #presupuestos_vendedor;
+DROP TABLE IF EXISTS #pres_vendedor_x_canal;
+DROP TABLE IF EXISTS #consumo_vendedor_normal;
+DROP TABLE IF EXISTS #consumo_vendedor_desde_cedis;
+DROP TABLE IF EXISTS #consumo_vendedor_total;
+DROP TABLE IF EXISTS #todo_vendedor;
+DROP TABLE IF EXISTS #venta_real_base;
+DROP TABLE IF EXISTS #venta_real_cedis;
+DROP TABLE IF EXISTS #devoluciones_cedis;
+DROP TABLE IF EXISTS #todo_vendedor_venta_real_extra;
+DROP TABLE IF EXISTS #surtido_ov_cedis;
+DROP TABLE IF EXISTS #surtido_transferencias_cedis;
+DROP TABLE IF EXISTS #surtido_cedis_base;
+DROP TABLE IF EXISTS #surtido_vendedor_normal;
+DROP TABLE IF EXISTS #surtido_vendedor_desde_cedis;
+DROP TABLE IF EXISTS #surtido_vendedor_total;
+DROP TABLE IF EXISTS #surtido_real_cedis;
+DROP TABLE IF EXISTS #surtido_real_vendedor;
+DROP TABLE IF EXISTS #todo_cedis_venta_real_extra;
+DROP TABLE IF EXISTS #t_base;
+DROP TABLE IF EXISTS #meses_distintos;
+DROP TABLE IF EXISTS #dias_laborables;
+DROP TABLE IF EXISTS #filtro_vendedores;
+
+-- =========================================================
+-- FILTRO DE VENDEDOR DEL USUARIO LOGUEADO
+-- Si viene vacío, no filtra.
+-- Si viene 28, solo deja vendedor 28.
+-- =========================================================
+SELECT DISTINCT
+    VendedorId = TRY_CONVERT(INT, value)
+INTO #filtro_vendedores
+FROM STRING_SPLIT(ISNULL(@VendedorIdsCsv, ''), ',')
+WHERE TRY_CONVERT(INT, value) IS NOT NULL
+  AND TRY_CONVERT(INT, value) > 0;
+
+CREATE CLUSTERED INDEX IX_tmp_filtro_vendedores
+ON #filtro_vendedores (VendedorId);
+
+-- =========================================================
+-- 1) CATÁLOGOS
+-- =========================================================
+-- NOTA:
+-- ClienteSap se conserva únicamente como catálogo técnico para
+-- identificar el CEDIS y el vendedor asociados a cada operación.
+-- No se generan filas de origen CLIENTE ni se muestran clientes
+-- en el resultado final.
+SELECT
+    SKU = UPPER(LTRIM(RTRIM(a.ProductoCodigo))),
+    ProductoNombre = COALESCE(NULLIF(LTRIM(RTRIM(a.ProductoNombre)), ''), a.ProductoCodigo),
+    U_MASTER = UPPER(LTRIM(RTRIM(a.U_MASTER))),
+    ClasificacionId = ISNULL(TRY_CONVERT(INT, a.U_Clas_Prod), 99),
+    ClasificacionNombre = ISNULL(cp.Nombre, 'POR DEFINIR'),
+    IdTipoSKU = ISNULL(TRY_CONVERT(INT, a.U_TipoporSKU), 0),
+    TipoSKUDescripcion = ISNULL(ts.Descripcion, 'POR DEFINIR')
+INTO #productos
+FROM dbo.ArticuloSap a
+LEFT JOIN dbo.ClasificacionProduccion cp
+    ON TRY_CONVERT(INT, a.U_Clas_Prod) = cp.ClasificacionId
+LEFT JOIN dbo.CatTipoSKU ts
+    ON TRY_CONVERT(INT, a.U_TipoporSKU) = ts.IdTipoSKU;
+
+CREATE UNIQUE CLUSTERED INDEX IX_tmp_productos
+ON #productos (SKU);
+
+SELECT
+    Cliente        = UPPER(LTRIM(RTRIM(cs.Cliente))),
+    NombreCliente  = COALESCE(NULLIF(LTRIM(RTRIM(cs.NombreCliente)), ''), cs.Cliente),
+    VendedorId     = cs.VendedorId,
+    VendedorNombre = LTRIM(RTRIM(cs.VendedorNombre)),
+    U_CANAL        = UPPER(LTRIM(RTRIM(cs.U_CANAL)))
+INTO #clientes
+FROM dbo.ClienteSap cs;
+
+CREATE CLUSTERED INDEX IX_tmp_clientes_cliente
+ON #clientes (Cliente);
+
+CREATE INDEX IX_tmp_clientes_vendedor
+ON #clientes (VendedorId);
+
+CREATE INDEX IX_tmp_clientes_canal
+ON #clientes (U_CANAL);
+
+SELECT DISTINCT
+    VendedorId,
+    VendedorNombre
+INTO #vendedores
+FROM #clientes
+WHERE VendedorId IS NOT NULL;
+
+CREATE CLUSTERED INDEX IX_tmp_vendedores
+ON #vendedores (VendedorId);
+
+SELECT DISTINCT
+    Canal      = UPPER(LTRIM(RTRIM(c.U_CANAL))),
+    VendedorId = c.VendedorId
+INTO #canal_vendedores
+FROM dbo.ClienteSap c
+WHERE c.VendedorId IS NOT NULL
+  AND UPPER(LTRIM(RTRIM(c.U_CANAL))) LIKE 'CEDIS%';
+
+CREATE INDEX IX_tmp_canal_vendedores
+ON #canal_vendedores (Canal, VendedorId);
+
+-- =========================================================
+-- 2) PLAN PRODUCCIÓN / PRODUCIDO
+-- =========================================================
+SELECT
+    SKU  = UPPER(LTRIM(RTRIM(pd.ProductoCodigo))),
+    Mes  = pp.Mes,
+    Anio = pp.Anio,
+    PlanProduccion = SUM(CAST(pd.Peso AS DECIMAL(18,4)))
+INTO #plan_prod
+FROM dbo.PlanDetalle pd WITH (NOLOCK)
+INNER JOIN dbo.PlanProduccion pp WITH (NOLOCK)
+    ON pp.Id = pd.fk_Plan
+GROUP BY
+    UPPER(LTRIM(RTRIM(pd.ProductoCodigo))),
+    pp.Mes,
+    pp.Anio;
+
+CREATE CLUSTERED INDEX IX_tmp_plan_prod
+ON #plan_prod (SKU, Mes, Anio);
+
+SELECT
+    SKU  = UPPER(LTRIM(RTRIM(p.ArticuloCodigo))),
+    Mes  = MONTH(p.FechaProduccion),
+    Anio = YEAR(p.FechaProduccion),
+    Producido = SUM(CAST(p.KgProducidos AS DECIMAL(18,4)))
+INTO #producido_real
+FROM dbo.ProduccionSigo p WITH (NOLOCK)
+WHERE p.FechaProduccion IS NOT NULL
+GROUP BY
+    UPPER(LTRIM(RTRIM(p.ArticuloCodigo))),
+    MONTH(p.FechaProduccion),
+    YEAR(p.FechaProduccion);
+
+CREATE CLUSTERED INDEX IX_tmp_producido_real
+ON #producido_real (SKU, Mes, Anio);
+
+-- =========================================================
+-- 3) ORDENES DE VENTA / PENDIENTE
+-- =========================================================
+SELECT
+    o.Id,
+    Cliente    = UPPER(LTRIM(RTRIM(o.Cliente))),
+    o.VendedorId,
+    o.Estatus,
+    o.Serie,
+    FechaDate = TRY_CONVERT(date, o.FechaEntrega)
+INTO #ov
+FROM dbo.OrdenVenta o
+INNER JOIN dbo.Series ser
+    ON o.Serie = ser.NombreSerie
+WHERE o.FechaEntrega IS NOT NULL
+  AND o.Estatus BETWEEN 1 AND 6
+  AND ser.Sucursal = 'MATRIZ';
+
+CREATE CLUSTERED INDEX IX_tmp_ov
+ON #ov (Id);
+
+CREATE INDEX IX_tmp_ov_cliente_fecha
+ON #ov (Cliente, FechaDate);
+
+CREATE INDEX IX_tmp_ov_vendedor_fecha
+ON #ov (VendedorId, FechaDate);
+
+SELECT
+    PedidoId = op.PedidoId,
+    SKU      = UPPER(LTRIM(RTRIM(op.ProductoCodigo))),
+    KgPedido = SUM(CAST(op.Peso AS DECIMAL(18,4)))
+INTO #ov_peso_agg
+FROM dbo.OrdenVentaProducto op
+GROUP BY
+    op.PedidoId,
+    UPPER(LTRIM(RTRIM(op.ProductoCodigo)));
+
+CREATE CLUSTERED INDEX IX_tmp_ov_peso_agg
+ON #ov_peso_agg (PedidoId, SKU);
+
+/* =========================================================
+   SURTIDO FÍSICO REAL POR OV + SKU
+
+   Una solicitud se considera cerrada cuando:
+   - tiene FechaValidacion, o
+   - ya tiene Remision / VREM.
+
+   El surtido físico se conserva separado del pendiente.
+   ========================================================= */
+SELECT
+    PedidoId = o.Id,
+    SKU      = UPPER(LTRIM(RTRIM(sd.Articulo))),
+    KgSurtido = SUM(CAST(ISNULL(sd.Kg, 0) AS DECIMAL(18,4)))
+INTO #ov_surtido_agg
+FROM dbo.OrdenVenta o
+INNER JOIN dbo.Subpedido sp
+    ON sp.OrdenVentaId = o.Id
+INNER JOIN dbo.SurtidoEncabezado se
+    ON se.SolicitudSurtidoId =
+       TRY_CONVERT(
+           INT,
+           NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+       )
+INNER JOIN dbo.SurtidoDetalle sd
+    ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+WHERE
+    se.FechaValidacion IS NOT NULL
+    OR NULLIF(LTRIM(RTRIM(ISNULL(se.Remision, ''))), '') IS NOT NULL
+GROUP BY
+    o.Id,
+    UPPER(LTRIM(RTRIM(sd.Articulo)));
+
+CREATE CLUSTERED INDEX IX_tmp_ov_surtido_agg
+ON #ov_surtido_agg (PedidoId, SKU);
+
+/* =========================================================
+   ESTADO DE CIERRE DE LA OV
+
+   REGLA:
+   - NO se usa Estatus 5/6 para decidir que una OV está cerrada.
+   - NO basta con que exista SurtidoEncabezado.
+   - Cada subpedido debe tener una SolicitudSurtido cerrada.
+   - Cerrada = FechaValidacion o Remision/VREM.
+
+   Si TODOS los subpedidos están cerrados:
+       pendiente de la OV = 0
+   ========================================================= */
+SELECT
+    PedidoId = sp.OrdenVentaId,
+
+    TotalSubpedidos =
+        COUNT_BIG(*),
+
+    SubpedidosValidados =
+        SUM(
+            CASE
+                WHEN ISNULL(sev.EsCerrado, 0) = 1 THEN 1
+                ELSE 0
+            END
+        ),
+
+    PedidoCerrado =
+        CAST(
+            CASE
+                WHEN COUNT_BIG(*) > 0
+                 AND SUM(
+                        CASE
+                            WHEN ISNULL(sev.EsCerrado, 0) = 1 THEN 1
+                            ELSE 0
+                        END
+                     ) = COUNT_BIG(*)
+                    THEN 1
+                ELSE 0
+            END
+            AS BIT
+        )
+INTO #ov_validacion
+FROM dbo.Subpedido sp
+INNER JOIN #ov ov
+    ON ov.Id = sp.OrdenVentaId
+LEFT JOIN
+(
+    SELECT
+        SolicitudSurtidoId,
+
+        EsCerrado =
+            MAX(
+                CASE
+                    WHEN FechaValidacion IS NOT NULL
+                      OR NULLIF(LTRIM(RTRIM(ISNULL(Remision, ''))), '') IS NOT NULL
+                        THEN 1
+                    ELSE 0
+                END
+            )
+    FROM dbo.SurtidoEncabezado
+    GROUP BY
+        SolicitudSurtidoId
+) sev
+    ON sev.SolicitudSurtidoId =
+       TRY_CONVERT(
+           INT,
+           NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+       )
+GROUP BY
+    sp.OrdenVentaId;
+
+CREATE UNIQUE CLUSTERED INDEX IX_tmp_ov_validacion
+ON #ov_validacion (PedidoId);
+
+/* =========================================================
+   KG DE SUBPEDIDOS QUE YA QUEDARON CERRADOS
+
+   Esta parte resuelve las OV con varios subpedidos.
+
+   Ejemplo:
+       OV original       = 100 kg
+       Subpedido A       =  60 kg  CERRADO
+       Subpedido B       =  40 kg  ABIERTO
+       Pendiente         =  40 kg
+
+   Si A surtió físicamente sólo 52 kg, los 8 kg faltantes de A
+   NO vuelven a quedar pendientes porque esa solicitud ya cerró.
+   ========================================================= */
+SELECT
+    PedidoId = sp.OrdenVentaId,
+    SKU      = UPPER(LTRIM(RTRIM(spp.ProductoCodigo))),
+    KgCerrado =
+        SUM(
+            CAST(ISNULL(spp.KilosCaja, 0) AS DECIMAL(18,4))
+        )
+INTO #ov_cerrado_sku
+FROM dbo.Subpedido sp
+INNER JOIN dbo.SubpedidoProductos spp
+    ON spp.SubpedidoId = sp.Id
+WHERE
+    NULLIF(LTRIM(RTRIM(ISNULL(spp.ProductoCodigo, ''))), '') IS NOT NULL
+    AND EXISTS
+    (
+        SELECT 1
+        FROM dbo.SurtidoEncabezado se
+        WHERE se.SolicitudSurtidoId =
+              TRY_CONVERT(
+                  INT,
+                  NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+              )
+          AND
+          (
+              se.FechaValidacion IS NOT NULL
+              OR NULLIF(LTRIM(RTRIM(ISNULL(se.Remision, ''))), '') IS NOT NULL
+          )
+    )
+GROUP BY
+    sp.OrdenVentaId,
+    UPPER(LTRIM(RTRIM(spp.ProductoCodigo)));
+
+CREATE CLUSTERED INDEX IX_tmp_ov_cerrado_sku
+ON #ov_cerrado_sku (PedidoId, SKU);
+
+/* =========================================================
+   PENDIENTE REAL DE OV
+
+   REGLA FINAL:
+   1) Si TODOS los subpedidos están cerrados:
+          KgPendiente = 0
+
+   2) Si todavía existen subpedidos abiertos:
+          KgPendiente = KgPedidoOriginal - KgSubpedidosCerrados
+
+   3) El surtido físico NO determina el cierre del compromiso.
+
+   Ejemplo:
+       OV            = 6,000
+       Subpedido     = 6,000 cerrado
+       Surtido real  = 5,001
+       Pendiente     = 0
+
+   Los 999 kg no surtidos quedan liberados.
+   ========================================================= */
+SELECT
+    ov.Id,
+    ov.Cliente,
+    ov.VendedorId,
+    ov.Estatus,
+    ov.FechaDate,
+    p.SKU,
+
+    KgPendiente =
+        CAST(
+            CASE
+                /* Toda la OV ya quedó cerrada */
+                WHEN ISNULL(v.PedidoCerrado, 0) = 1
+                    THEN 0
+
+                /* OV parcialmente cerrada: sólo queda la parte abierta */
+                WHEN
+                (
+                    ISNULL(p.KgPedido, 0)
+                    - ISNULL(c.KgCerrado, 0)
+                ) <= 0
+                    THEN 0
+
+                ELSE
+                (
+                    ISNULL(p.KgPedido, 0)
+                    - ISNULL(c.KgCerrado, 0)
+                )
+            END
+            AS DECIMAL(18,4)
+        )
+INTO #ov_pendiente_sku
+FROM #ov ov
+INNER JOIN #ov_peso_agg p
+    ON p.PedidoId = ov.Id
+LEFT JOIN #ov_validacion v
+    ON v.PedidoId = ov.Id
+LEFT JOIN #ov_cerrado_sku c
+    ON c.PedidoId = ov.Id
+   AND c.SKU = p.SKU;
+
+CREATE INDEX IX_tmp_ov_pendiente_cliente
+ON #ov_pendiente_sku (Cliente, SKU, FechaDate);
+
+CREATE INDEX IX_tmp_ov_pendiente_vendedor
+ON #ov_pendiente_sku (VendedorId, SKU, FechaDate);
+
+-- =========================================================
+-- 4) PRESUPUESTO / CONSUMO CEDIS
+-- =========================================================
+SELECT
+    Canal = UPPER(LTRIM(RTRIM(pc.Canal))),
+    SKU   = UPPER(LTRIM(RTRIM(pc.ProductoCodigo))),
+    Mes   = pc.Mes,
+    Anio  = pc.Anio,
+    Presupuesto = SUM(pc.PresupuestoAsignado)
+INTO #presupuestos_cedis
+FROM dbo.PresupuestoCedis pc
+GROUP BY
+    UPPER(LTRIM(RTRIM(pc.Canal))),
+    UPPER(LTRIM(RTRIM(pc.ProductoCodigo))),
+    pc.Mes,
+    pc.Anio;
+
+CREATE CLUSTERED INDEX IX_tmp_presupuestos_cedis
+ON #presupuestos_cedis (Canal, SKU, Mes, Anio);
+
+SELECT
+    ts.TransferenciaId,
+    SKU = UPPER(LTRIM(RTRIM(ts.Sku))),
+    KgSurtido = SUM(CAST(ts.KgSurtido AS DECIMAL(18,4)))
+INTO #tr_surtido_agg
+FROM dbo.TransferenciaSurtido ts
+GROUP BY
+    ts.TransferenciaId,
+    UPPER(LTRIM(RTRIM(ts.Sku)));
+
+CREATE CLUSTERED INDEX IX_tmp_tr_surtido_agg
+ON #tr_surtido_agg (TransferenciaId, SKU);
+
+SELECT
+    Canal,
+    SKU,
+    Mes,
+    Anio,
+    Kg = SUM(Kg)
+INTO #consumo_cedis_base
+FROM
+(
+    SELECT
+        Canal = cli.U_CANAL,
+        SKU   = ovp.SKU,
+        Mes   = MONTH(ovp.FechaDate),
+        Anio  = YEAR(ovp.FechaDate),
+        Kg    = SUM(ovp.KgPendiente)
+    FROM #ov_pendiente_sku ovp
+    JOIN #clientes cli
+        ON cli.Cliente = ovp.Cliente
+    WHERE cli.U_CANAL LIKE 'CEDIS%'
+    GROUP BY
+        cli.U_CANAL,
+        ovp.SKU,
+        MONTH(ovp.FechaDate),
+        YEAR(ovp.FechaDate)
+
+    UNION ALL
+
+    SELECT
+        Canal = UPPER(LTRIM(RTRIM(s.Canal))),
+        SKU   = UPPER(LTRIM(RTRIM(td.ProductoCodigo))),
+        Mes   = MONTH(TRY_CONVERT(date, t.FechaSolicitud)),
+        Anio  = YEAR(TRY_CONVERT(date, t.FechaSolicitud)),
+        Kg    = SUM(
+                    CASE
+                        WHEN (CAST(td.CantidadKg AS DECIMAL(18,4)) - ISNULL(tsa.KgSurtido, 0)) < 0 THEN 0
+                        ELSE (CAST(td.CantidadKg AS DECIMAL(18,4)) - ISNULL(tsa.KgSurtido, 0))
+                    END
+               )
+    FROM dbo.Transferencias t
+    JOIN dbo.TransferenciaDetalles td
+        ON td.TransferenciaId = t.Id
+    JOIN dbo.Series s
+        ON s.Sucursal = t.Sucursal
+    LEFT JOIN #tr_surtido_agg tsa
+        ON tsa.TransferenciaId = t.Id
+       AND tsa.SKU = UPPER(LTRIM(RTRIM(td.ProductoCodigo)))
+    WHERE t.FechaSolicitud IS NOT NULL
+      AND t.Estatus BETWEEN 1 AND 4
+      AND UPPER(LTRIM(RTRIM(s.Canal))) LIKE 'CEDIS%'
+    GROUP BY
+        UPPER(LTRIM(RTRIM(s.Canal))),
+        UPPER(LTRIM(RTRIM(td.ProductoCodigo))),
+        MONTH(TRY_CONVERT(date, t.FechaSolicitud)),
+        YEAR(TRY_CONVERT(date, t.FechaSolicitud))
+) X
+GROUP BY
+    Canal, SKU, Mes, Anio;
+
+CREATE CLUSTERED INDEX IX_tmp_consumo_cedis_base
+ON #consumo_cedis_base (Canal, SKU, Mes, Anio);
+
+SELECT
+    'CEDIS' AS Origen,
+    pc.Mes,
+    pc.Anio,
+    CAST(NULL AS NVARCHAR(50)) AS Cliente,
+    pc.Canal,
+    CAST(NULL AS INT) AS VendedorId,
+    pc.SKU,
+    pc.Presupuesto,
+    ISNULL(cc.Kg, 0) AS Kg
+INTO #todo_cedis
+FROM #presupuestos_cedis pc
+LEFT JOIN #consumo_cedis_base cc
+    ON cc.Canal = pc.Canal
+   AND cc.SKU   = pc.SKU
+   AND cc.Mes   = pc.Mes
+   AND cc.Anio  = pc.Anio;
+
+CREATE INDEX IX_tmp_todo_cedis
+ON #todo_cedis (Mes, Anio, Canal, SKU);
+
+-- =========================================================
+-- 5) PRESUPUESTO / CONSUMO VENDEDOR
+-- =========================================================
+SELECT
+    VendedorId,
+    SKU = UPPER(LTRIM(RTRIM(pv.ProductoCodigo))),
+    Mes = pv.Mes,
+    Anio = pv.Anio,
+    Presupuesto = SUM(pv.PresupuestoAsignado)
+INTO #presupuestos_vendedor
+FROM dbo.PresupuestoVendedor pv
+GROUP BY
+    pv.VendedorId,
+    UPPER(LTRIM(RTRIM(pv.ProductoCodigo))),
+    pv.Mes,
+    pv.Anio;
+
+CREATE CLUSTERED INDEX IX_tmp_presupuestos_vendedor
+ON #presupuestos_vendedor (VendedorId, SKU, Mes, Anio);
+
+SELECT
+    cv.Canal,
+    pv.SKU,
+    pv.Mes,
+    pv.Anio,
+    PresTotalCanal = SUM(CAST(pv.Presupuesto AS DECIMAL(18,4)))
+INTO #pres_vendedor_x_canal
+FROM #presupuestos_vendedor pv
+JOIN #canal_vendedores cv
+    ON cv.VendedorId = pv.VendedorId
+GROUP BY
+    cv.Canal, pv.SKU, pv.Mes, pv.Anio;
+
+CREATE CLUSTERED INDEX IX_tmp_pres_vendedor_x_canal
+ON #pres_vendedor_x_canal (Canal, SKU, Mes, Anio);
+
+SELECT
+    ovp.VendedorId,
+    SKU  = ovp.SKU,
+    Mes  = MONTH(ovp.FechaDate),
+    Anio = YEAR(ovp.FechaDate),
+    Kg   = SUM(ovp.KgPendiente)
+INTO #consumo_vendedor_normal
+FROM #ov_pendiente_sku ovp
+JOIN #clientes c
+    ON c.Cliente = ovp.Cliente
+   AND ISNULL(c.U_CANAL, '') NOT LIKE 'CEDIS%'
+WHERE ovp.VendedorId IS NOT NULL
+GROUP BY
+    ovp.VendedorId,
+    ovp.SKU,
+    MONTH(ovp.FechaDate),
+    YEAR(ovp.FechaDate);
+
+CREATE CLUSTERED INDEX IX_tmp_consumo_vendedor_normal
+ON #consumo_vendedor_normal (VendedorId, SKU, Mes, Anio);
+
+SELECT
+    VendedorId = pv.VendedorId,
+    SKU        = pv.SKU,
+    Mes        = pv.Mes,
+    Anio       = pv.Anio,
+    Kg = SUM(
+            CASE
+                WHEN ISNULL(pxc.PresTotalCanal, 0) <= 0 THEN 0
+                ELSE (cb.Kg * (CAST(pv.Presupuesto AS DECIMAL(18,4)) / pxc.PresTotalCanal))
+            END
+        )
+INTO #consumo_vendedor_desde_cedis
+FROM #presupuestos_vendedor pv
+JOIN #canal_vendedores cv
+    ON cv.VendedorId = pv.VendedorId
+JOIN #pres_vendedor_x_canal pxc
+    ON pxc.Canal = cv.Canal
+   AND pxc.SKU   = pv.SKU
+   AND pxc.Mes   = pv.Mes
+   AND pxc.Anio  = pv.Anio
+JOIN #consumo_cedis_base cb
+    ON cb.Canal = cv.Canal
+   AND cb.SKU   = pv.SKU
+   AND cb.Mes   = pv.Mes
+   AND cb.Anio  = pv.Anio
+GROUP BY
+    pv.VendedorId, pv.SKU, pv.Mes, pv.Anio;
+
+CREATE CLUSTERED INDEX IX_tmp_consumo_vendedor_desde_cedis
+ON #consumo_vendedor_desde_cedis (VendedorId, SKU, Mes, Anio);
+
+SELECT
+    VendedorId,
+    SKU,
+    Mes,
+    Anio,
+    Kg = SUM(Kg)
+INTO #consumo_vendedor_total
+FROM
+(
+    SELECT * FROM #consumo_vendedor_normal
+    UNION ALL
+    SELECT * FROM #consumo_vendedor_desde_cedis
+) x
+GROUP BY
+    VendedorId, SKU, Mes, Anio;
+
+CREATE CLUSTERED INDEX IX_tmp_consumo_vendedor_total
+ON #consumo_vendedor_total (VendedorId, SKU, Mes, Anio);
+
+SELECT
+    'VENDEDOR' AS Origen,
+    pv.Mes,
+    pv.Anio,
+    CAST(NULL AS NVARCHAR(50)) AS Cliente,
+    CAST(NULL AS NVARCHAR(100)) AS Canal,
+    pv.VendedorId,
+    pv.SKU,
+    pv.Presupuesto,
+    ISNULL(cv.Kg, 0) AS Kg
+INTO #todo_vendedor
+FROM #presupuestos_vendedor pv
+LEFT JOIN #consumo_vendedor_total cv
+    ON cv.VendedorId = pv.VendedorId
+   AND cv.SKU        = pv.SKU
+   AND cv.Mes        = pv.Mes
+   AND cv.Anio       = pv.Anio;
+
+CREATE INDEX IX_tmp_todo_vendedor
+ON #todo_vendedor (Mes, Anio, VendedorId, SKU);
+
+-- =========================================================
+-- 6) VENTA REAL BASE / EXTRAS
+-- =========================================================
+SELECT
+    ArticuloCodigo = UPPER(LTRIM(RTRIM(b.Articulo))),
+    Mes            = MONTH(a.FechaValidacion),
+    Anio           = YEAR(a.FechaValidacion),
+    VendedorId     = cs.VendedorId,
+    Vendedor       = UPPER(LTRIM(RTRIM(cs.VendedorNombre))),
+    U_CANAL        = UPPER(LTRIM(RTRIM(cs.U_CANAL))),
+    KgVendidos     = SUM(CAST(b.Kg AS DECIMAL(18,4)))
+INTO #venta_real_base
+FROM dbo.SurtidoEncabezado a
+INNER JOIN dbo.SurtidoDetalle b
+    ON a.SolicitudSurtidoId = b.SolicitudSurtidoId
+LEFT JOIN dbo.ClienteSap cs
+    ON cs.Cliente = a.CodigoSap
+WHERE a.FechaValidacion IS NOT NULL
+GROUP BY
+    UPPER(LTRIM(RTRIM(b.Articulo))),
+    MONTH(a.FechaValidacion),
+    YEAR(a.FechaValidacion),
+    cs.VendedorId,
+    UPPER(LTRIM(RTRIM(cs.VendedorNombre))),
+    UPPER(LTRIM(RTRIM(cs.U_CANAL)));
+
+CREATE INDEX IX_tmp_venta_real_base_vendedor
+ON #venta_real_base (VendedorId, ArticuloCodigo, Mes, Anio);
+
+CREATE INDEX IX_tmp_venta_real_base_canal
+ON #venta_real_base (U_CANAL, ArticuloCodigo, Mes, Anio);
+
+/* =========================================================
+   VENTA REAL BRUTA POR CEDIS
+
+   Esta cifra corresponde a la venta real antes de descontar
+   devoluciones realizadas físicamente en las bodegas.
+   ========================================================= */
+SELECT
+    Canal = UPPER(LTRIM(RTRIM(vr.U_CANAL))),
+    SKU   = UPPER(LTRIM(RTRIM(vr.ArticuloCodigo))),
+    vr.Mes,
+    vr.Anio,
+    VentaRealBruta =
+        SUM(CAST(ISNULL(vr.KgVendidos, 0) AS DECIMAL(18,4)))
+INTO #venta_real_cedis
+FROM #venta_real_base vr
+WHERE ISNULL(UPPER(LTRIM(RTRIM(vr.U_CANAL))), '') LIKE 'CEDIS%'
+GROUP BY
+    UPPER(LTRIM(RTRIM(vr.U_CANAL))),
+    UPPER(LTRIM(RTRIM(vr.ArticuloCodigo))),
+    vr.Mes,
+    vr.Anio;
+
+CREATE UNIQUE CLUSTERED INDEX IX_tmp_venta_real_cedis
+ON #venta_real_cedis (Canal, SKU, Mes, Anio);
+
+/* =========================================================
+   DEVOLUCIONES REALIZADAS EN BODEGA POR CEDIS
+
+   Se excluyen los almacenes que comienzan con FRIGORIFICO.
+   Estas devoluciones:
+     - reducen la venta real;
+     - NO se suman nuevamente al disponible.
+   ========================================================= */
+SELECT
+    Canal =
+        UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, '')))),
+
+    SKU =
+        UPPER(LTRIM(RTRIM(b.Articulo))),
+
+    Mes =
+        MONTH(b.FechaDevolucion),
+
+    Anio =
+        YEAR(b.FechaDevolucion),
+
+    KgDevolucionesBodega =
+        SUM
+        (
+            CAST
+            (
+                ISNULL(b.Peso, 0)
+                AS DECIMAL(18,4)
+            )
+        )
+INTO #devoluciones_cedis
+FROM dbo.DevolucionMeat b
+INNER JOIN dbo.ClienteSap c
+    ON UPPER(LTRIM(RTRIM(b.CodigoSap))) =
+       UPPER(LTRIM(RTRIM(c.Cliente)))
+WHERE b.FechaDevolucion IS NOT NULL
+
+  /*
+      No se aplican parámetros de fecha adicionales porque
+      no forman parte de la firma actual del procedimiento.
+      La devolución se relaciona al resultado por Mes y Año.
+  */
+
+  /* Únicamente devoluciones asociadas con SUC01/SUC02 */
+  AND
+  (
+      b.Remision LIKE '%SUC01%'
+      OR b.Remision LIKE '%SUC02%'
+  )
+
+  /* Debe existir la solicitud en SIGO */
+  AND EXISTS
+  (
+      SELECT 1
+      FROM dbo.Subpedido sp
+      WHERE sp.U_DocMeat = b.SolicitudSurtidoId
+  )
+
+  /* Excluir devoluciones recibidas en frigorífico */
+  AND ISNULL
+      (
+          UPPER(LTRIM(RTRIM(b.AlmacenDevolucionNombre))),
+          ''
+      ) NOT LIKE 'FRIGORIFICO%'
+
+  /* Esta tabla se utilizará en los renglones CEDIS */
+  AND ISNULL
+      (
+          UPPER(LTRIM(RTRIM(c.U_CANAL))),
+          ''
+      ) LIKE 'CEDIS%'
+GROUP BY
+    UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, '')))),
+    UPPER(LTRIM(RTRIM(b.Articulo))),
+    MONTH(b.FechaDevolucion),
+    YEAR(b.FechaDevolucion);
+
+CREATE UNIQUE CLUSTERED INDEX IX_tmp_devoluciones_cedis
+ON #devoluciones_cedis (Canal, SKU, Mes, Anio);
+
+/* =========================================================
+   SKU CON VENTA REAL, PERO SIN PRESUPUESTO DE VENDEDOR
+
+   Se genera una fila con Presupuesto = 0 para que el SKU
+   aparezca en el resultado final aunque no esté presupuestado.
+   ========================================================= */
+SELECT DISTINCT
+    'VENDEDOR' AS Origen,
+    vr.Mes,
+    vr.Anio,
+    CAST(NULL AS NVARCHAR(50)) AS Cliente,
+    CAST(NULL AS NVARCHAR(100)) AS Canal,
+    vr.VendedorId,
+    vr.ArticuloCodigo AS SKU,
+    CAST(0 AS DECIMAL(18,4)) AS Presupuesto,
+    CAST(0 AS DECIMAL(18,4)) AS Kg
+INTO #todo_vendedor_venta_real_extra
+FROM #venta_real_base vr
+WHERE vr.VendedorId IS NOT NULL
+  AND ISNULL(vr.KgVendidos, 0) > 0
+  AND NOT EXISTS
+  (
+      SELECT 1
+      FROM #todo_vendedor tv
+      WHERE tv.VendedorId = vr.VendedorId
+        AND tv.SKU        = vr.ArticuloCodigo
+        AND tv.Mes        = vr.Mes
+        AND tv.Anio       = vr.Anio
+  );
+
+CREATE INDEX IX_tmp_todo_vendedor_venta_real_extra
+ON #todo_vendedor_venta_real_extra
+(
+    Mes,
+    Anio,
+    VendedorId,
+    SKU
+);
+
+-- =========================================================
+-- 7) SURTIDO REAL CEDIS / VENDEDOR
+-- =========================================================
+SELECT
+    Canal = cli.U_CANAL,
+    SKU   = UPPER(LTRIM(RTRIM(sd.Articulo))),
+    Mes   = MONTH(se.FechaValidacion),
+    Anio  = YEAR(se.FechaValidacion),
+    KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
+INTO #surtido_ov_cedis
+FROM dbo.OrdenVenta o
+JOIN dbo.Series ser
+    ON ser.NombreSerie = o.Serie
+JOIN dbo.Subpedido sp
+    ON sp.OrdenVentaId = o.Id
+JOIN dbo.SurtidoEncabezado se
+    ON se.SolicitudSurtidoId = sp.U_DocMeat
+JOIN dbo.SurtidoDetalle sd
+    ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+JOIN #clientes cli
+    ON cli.Cliente = UPPER(LTRIM(RTRIM(o.Cliente)))
+WHERE o.Estatus <> 0
+  AND se.FechaValidacion IS NOT NULL
+  AND ser.Sucursal = 'MATRIZ'
+  AND cli.U_CANAL LIKE 'CEDIS%'
+GROUP BY
+    cli.U_CANAL,
+    UPPER(LTRIM(RTRIM(sd.Articulo))),
+    MONTH(se.FechaValidacion),
+    YEAR(se.FechaValidacion);
+
+CREATE CLUSTERED INDEX IX_tmp_surtido_ov_cedis
+ON #surtido_ov_cedis (Canal, SKU, Mes, Anio);
+
+SELECT
+    Canal = UPPER(LTRIM(RTRIM(s.Canal))),
+    SKU   = UPPER(LTRIM(RTRIM(ts.Sku))),
+    Mes   = MONTH(TRY_CONVERT(date, t.FechaSolicitud)),
+    Anio  = YEAR(TRY_CONVERT(date, t.FechaSolicitud)),
+    KgSurtido = SUM(CAST(ts.KgSurtido AS DECIMAL(18,4)))
+INTO #surtido_transferencias_cedis
+FROM dbo.TransferenciaSurtido ts
+JOIN dbo.Transferencias t
+    ON t.Id = ts.TransferenciaId
+JOIN dbo.Series s
+    ON s.Sucursal = t.Sucursal
+WHERE t.FechaSolicitud IS NOT NULL
+  AND t.Estatus >= 5
+  AND ts.KgSurtido > 0
+  AND UPPER(LTRIM(RTRIM(s.Canal))) LIKE 'CEDIS%'
+GROUP BY
+    UPPER(LTRIM(RTRIM(s.Canal))),
+    UPPER(LTRIM(RTRIM(ts.Sku))),
+    MONTH(TRY_CONVERT(date, t.FechaSolicitud)),
+    YEAR(TRY_CONVERT(date, t.FechaSolicitud));
+
+CREATE CLUSTERED INDEX IX_tmp_surtido_transferencias_cedis
+ON #surtido_transferencias_cedis (Canal, SKU, Mes, Anio);
+
+SELECT
+    Canal,
+    SKU,
+    Mes,
+    Anio,
+    KgSurtido = SUM(KgSurtido)
+INTO #surtido_cedis_base
+FROM
+(
+    SELECT * FROM #surtido_ov_cedis
+    UNION ALL
+    SELECT * FROM #surtido_transferencias_cedis
+) x
+GROUP BY
+    Canal, SKU, Mes, Anio;
+
+CREATE CLUSTERED INDEX IX_tmp_surtido_cedis_base
+ON #surtido_cedis_base (Canal, SKU, Mes, Anio);
+
+SELECT
+    cli.VendedorId,
+    SKU       = UPPER(LTRIM(RTRIM(sd.Articulo))),
+    Mes       = MONTH(se.FechaValidacion),
+    Anio      = YEAR(se.FechaValidacion),
+    KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
+INTO #surtido_vendedor_normal
+FROM dbo.OrdenVenta o
+JOIN dbo.Series ser
+    ON ser.NombreSerie = o.Serie
+JOIN dbo.Subpedido sp
+    ON sp.OrdenVentaId = o.Id
+JOIN dbo.SurtidoEncabezado se
+    ON se.SolicitudSurtidoId = sp.U_DocMeat
+JOIN dbo.SurtidoDetalle sd
+    ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+JOIN #clientes cli
+    ON cli.Cliente = UPPER(LTRIM(RTRIM(o.Cliente)))
+WHERE o.Estatus <> 0
+  AND se.FechaValidacion IS NOT NULL
+  AND ser.Sucursal = 'MATRIZ'
+  AND ISNULL(cli.U_CANAL, '') NOT LIKE 'CEDIS%'
+  AND cli.VendedorId IS NOT NULL
+GROUP BY
+    cli.VendedorId,
+    UPPER(LTRIM(RTRIM(sd.Articulo))),
+    MONTH(se.FechaValidacion),
+    YEAR(se.FechaValidacion);
+
+CREATE CLUSTERED INDEX IX_tmp_surtido_vendedor_normal
+ON #surtido_vendedor_normal (VendedorId, SKU, Mes, Anio);
+
+SELECT
+    VendedorId = pv.VendedorId,
+    SKU        = pv.SKU,
+    Mes        = pv.Mes,
+    Anio       = pv.Anio,
+    KgSurtido  = SUM(
+                    CASE
+                        WHEN ISNULL(pxc.PresTotalCanal, 0) <= 0 THEN 0
+                        ELSE (sb.KgSurtido * (CAST(pv.Presupuesto AS DECIMAL(18,4)) / pxc.PresTotalCanal))
+                    END
+                 )
+INTO #surtido_vendedor_desde_cedis
+FROM #presupuestos_vendedor pv
+JOIN #canal_vendedores cv
+    ON cv.VendedorId = pv.VendedorId
+JOIN #pres_vendedor_x_canal pxc
+    ON pxc.Canal = cv.Canal
+   AND pxc.SKU   = pv.SKU
+   AND pxc.Mes   = pv.Mes
+   AND pxc.Anio  = pv.Anio
+JOIN #surtido_cedis_base sb
+    ON sb.Canal = cv.Canal
+   AND sb.SKU   = pv.SKU
+   AND sb.Mes   = pv.Mes
+   AND sb.Anio  = pv.Anio
+GROUP BY
+    pv.VendedorId, pv.SKU, pv.Mes, pv.Anio;
+
+CREATE CLUSTERED INDEX IX_tmp_surtido_vendedor_desde_cedis
+ON #surtido_vendedor_desde_cedis (VendedorId, SKU, Mes, Anio);
+
+SELECT
+    VendedorId,
+    SKU,
+    Mes,
+    Anio,
+    KgSurtido = SUM(KgSurtido)
+INTO #surtido_vendedor_total
+FROM
+(
+    SELECT * FROM #surtido_vendedor_normal
+    UNION ALL
+    SELECT * FROM #surtido_vendedor_desde_cedis
+) x
+GROUP BY
+    VendedorId, SKU, Mes, Anio;
+
+CREATE CLUSTERED INDEX IX_tmp_surtido_vendedor_total
+ON #surtido_vendedor_total (VendedorId, SKU, Mes, Anio);
+
+-- Tablas finales separadas por origen
+SELECT
+    Canal,
+    SKU,
+    Mes,
+    Anio,
+    KgSurtido
+INTO #surtido_real_cedis
+FROM #surtido_cedis_base;
+
+CREATE CLUSTERED INDEX IX_tmp_surtido_real_cedis
+ON #surtido_real_cedis (Canal, SKU, Mes, Anio);
+
+SELECT
+    VendedorId,
+    SKU,
+    Mes,
+    Anio,
+    KgSurtido
+INTO #surtido_real_vendedor
+FROM #surtido_vendedor_total;
+
+CREATE CLUSTERED INDEX IX_tmp_surtido_real_vendedor
+ON #surtido_real_vendedor (VendedorId, SKU, Mes, Anio);
+
+/* =========================================================
+   COMPLETAR VENDEDORES CON VENTA REAL Y SIN PRESUPUESTO
+
+   Si ya existe en #todo_vendedor o en la tabla extra,
+   no se vuelve a insertar.
+   ========================================================= */
+INSERT INTO #todo_vendedor_venta_real_extra
+(
+    Origen,
+    Mes,
+    Anio,
+    Cliente,
+    Canal,
+    VendedorId,
+    SKU,
+    Presupuesto,
+    Kg
+)
+SELECT
+    'VENDEDOR' AS Origen,
+    srv.Mes,
+    srv.Anio,
+    CAST(NULL AS NVARCHAR(50)) AS Cliente,
+    CAST(NULL AS NVARCHAR(100)) AS Canal,
+    srv.VendedorId,
+    srv.SKU,
+    CAST(0 AS DECIMAL(18,4)) AS Presupuesto,
+    CAST(0 AS DECIMAL(18,4)) AS Kg
+FROM #surtido_real_vendedor srv
+WHERE ISNULL(srv.KgSurtido, 0) > 0
+  AND NOT EXISTS
+  (
+      SELECT 1
+      FROM #todo_vendedor tv
+      WHERE tv.VendedorId = srv.VendedorId
+        AND tv.SKU        = srv.SKU
+        AND tv.Mes        = srv.Mes
+        AND tv.Anio       = srv.Anio
+  )
+  AND NOT EXISTS
+  (
+      SELECT 1
+      FROM #todo_vendedor_venta_real_extra tve
+      WHERE tve.VendedorId = srv.VendedorId
+        AND tve.SKU        = srv.SKU
+        AND tve.Mes        = srv.Mes
+        AND tve.Anio       = srv.Anio
+  );
+
+-- =========================================================
+-- 8) EXTRA CEDIS DESDE VENTA REAL
+-- =========================================================
+SELECT
+    'CEDIS' AS Origen,
+    src.Mes,
+    src.Anio,
+    CAST(NULL AS NVARCHAR(50)) AS Cliente,
+    src.Canal,
+    CAST(NULL AS INT) AS VendedorId,
+    src.SKU,
+    CAST(0 AS DECIMAL(18,4)) AS Presupuesto,
+    CAST(0 AS DECIMAL(18,4)) AS Kg
+INTO #todo_cedis_venta_real_extra
+FROM #surtido_real_cedis src
+WHERE ISNULL(src.KgSurtido, 0) > 0
+  AND NOT EXISTS
+  (
+      SELECT 1
+      FROM #todo_cedis tc
+      WHERE tc.Canal = src.Canal
+        AND tc.SKU   = src.SKU
+        AND tc.Mes   = src.Mes
+        AND tc.Anio  = src.Anio
+  );
+
+CREATE INDEX IX_tmp_todo_cedis_venta_real_extra
+ON #todo_cedis_venta_real_extra (Mes, Anio, Canal, SKU);
+
+-- =========================================================
+-- 9) BASE FINAL
+-- =========================================================
+SELECT *
+INTO #t_base
+FROM
+(
+    /* CEDIS: presupuesto normal */
+    SELECT * FROM #todo_cedis
+
+    UNION ALL
+
+    /* CEDIS: venta real sin presupuesto */
+    SELECT * FROM #todo_cedis_venta_real_extra
+
+    UNION ALL
+
+    /* Vendedor: presupuesto normal */
+    SELECT * FROM #todo_vendedor
+
+    UNION ALL
+
+    /* Vendedor: venta real sin presupuesto */
+    SELECT * FROM #todo_vendedor_venta_real_extra
+) t;
+
+CREATE INDEX IX_tmp_t_base
+ON #t_base (Origen, Anio, Mes, SKU, Canal, VendedorId);
+
+-- =========================================================
+-- 10) DÍAS LABORABLES
+-- =========================================================
+SELECT DISTINCT
+    Mes,
+    Anio
+INTO #meses_distintos
+FROM #t_base;
+
+CREATE CLUSTERED INDEX IX_tmp_meses_distintos
+ON #meses_distintos (Mes, Anio);
+
+SELECT
+    m.Mes,
+    m.Anio,
+    DiasMesLaborables = SUM(
+        CASE
+            WHEN (DATEDIFF(day, '19000101', cal.D) % 7) = 6 THEN 0
+            ELSE 1
+        END
+    ),
+    DiasLaborados = SUM(
+        CASE
+            WHEN cutoff.CutoffDate IS NULL THEN 0
+            WHEN cal.D <= cutoff.CutoffDate
+             AND (DATEDIFF(day, '19000101', cal.D) % 7) <> 6
+            THEN 1
+            ELSE 0
+        END
+    )
+INTO #dias_laborables
+FROM #meses_distintos m
+CROSS APPLY
+(
+    SELECT
+        StartDate = DATEFROMPARTS(m.Anio, m.Mes, 1),
+        EndDate   = EOMONTH(DATEFROMPARTS(m.Anio, m.Mes, 1))
+) rng
+CROSS APPLY
+(
+    SELECT
+        CutoffDate =
+            CASE
+                WHEN CONVERT(date, GETDATE()) < rng.StartDate THEN NULL
+                WHEN CONVERT(date, GETDATE()) > rng.EndDate   THEN rng.EndDate
+                ELSE CONVERT(date, GETDATE())
+            END
+) cutoff
+CROSS APPLY
+(
+    SELECT TOP (DATEDIFF(day, rng.StartDate, rng.EndDate) + 1)
+           n = ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) - 1
+    FROM sys.all_objects
+) nums
+CROSS APPLY
+(
+    SELECT D = DATEADD(day, nums.n, rng.StartDate)
+) cal
+GROUP BY
+    m.Mes,
+    m.Anio;
+
+CREATE CLUSTERED INDEX IX_tmp_dias_laborables
+ON #dias_laborables (Mes, Anio);
+
+-- =========================================================
+-- 11) SELECT FINAL
+--     SOLO CEDIS Y VENDEDORES
+-- =========================================================
+SELECT
+    t.Origen,
+    t.Mes  AS MesConsulta,
+    t.Anio AS AnioConsulta,
+    ISNULL(t.Canal, '-') AS Canal,
+    ISNULL(t.VendedorId, 0) AS VendedorId,
+    ISNULL(vend.VendedorNombre, '-') AS VendedorNombre,
+    t.SKU AS ProductoCodigo,
+    prd.ProductoNombre,
+    prd.U_MASTER AS U_MASTER,
+    ISNULL(prd.ClasificacionId, 99) AS ClasificacionId,
+    ISNULL(prd.ClasificacionNombre, 'POR DEFINIR') AS ClasificacionNombre,
+    ISNULL(prd.IdTipoSKU, 0) AS IdTipoSKU,
+    ISNULL(prd.TipoSKUDescripcion, 'POR DEFINIR') AS TipoSKUDescripcion,
+    CAST(t.Presupuesto AS DECIMAL(18,4)) AS PresupuestoAsignado,
+
+    CAST(t.Kg AS DECIMAL(18,4)) AS KgPedidosMes,
+
+    /* El surtido NO se reduce por devolución */
+    venta.KgSurtidoRealCalculado AS KgSurtidoReal,
+
+    /* Venta real antes de devoluciones */
+    venta.VentaRealBrutaCalculada AS VentaRealBruta,
+
+    /* Devoluciones realizadas en bodegas, no en frigorífico */
+    venta.KgDevolucionesBodegaCalculado AS DevolucionesBodega,
+
+    /* Venta real que debe mostrarse en el reporte */
+    ventaNeta.VentaRealNetaCalculada AS VentaRealNeta,
+
+    CAST
+    (
+        CASE
+            WHEN ISNULL(t.Presupuesto, 0) > 0
+                THEN 1
+            ELSE 0
+        END
+        AS BIT
+    ) AS TienePresupuesto,
+
+    CAST
+    (
+        CASE
+            WHEN ISNULL(ventaNeta.VentaRealNetaCalculada, 0) > 0
+                THEN 1
+            ELSE 0
+        END
+        AS BIT
+    ) AS TieneVenta,
+
+    CASE
+        WHEN ISNULL(t.Presupuesto, 0) > 0
+         AND ISNULL(ventaNeta.VentaRealNetaCalculada, 0) > 0
+            THEN 'PRESUPUESTO Y VENTA'
+
+        WHEN ISNULL(t.Presupuesto, 0) > 0
+            THEN 'SOLO PRESUPUESTO'
+
+        WHEN ISNULL(ventaNeta.VentaRealNetaCalculada, 0) > 0
+            THEN 'SOLO VENTA'
+    END AS EstatusPresupuestoVenta,
+
+    /*
+       DISPONIBLE:
+       Plan de venta - Surtido - Pedidos.
+
+       La devolución de bodega NO se suma al disponible.
+    */
+    CAST
+    (
+        CASE
+            WHEN
+            (
+                ISNULL(t.Presupuesto, 0)
+                - ISNULL(t.Kg, 0)
+                - ISNULL(venta.KgSurtidoRealCalculado, 0)
+            ) < 0
+                THEN 0
+
+            ELSE
+            (
+                ISNULL(t.Presupuesto, 0)
+                - ISNULL(t.Kg, 0)
+                - ISNULL(venta.KgSurtidoRealCalculado, 0)
+            )
+        END
+        AS DECIMAL(18,4)
+    ) AS DisponibleVenta,
+    CAST(ISNULL(pp.PlanProduccion, 0) AS DECIMAL(18,4)) AS PlanProduccion,
+    CAST(ISNULL(pr.Producido, 0) AS DECIMAL(18,4)) AS Producido,
+    CAST(
+        CASE
+            WHEN ISNULL(dl.DiasLaborados, 0) <= 0 THEN 0
+            ELSE (ISNULL(pr.Producido, 0) / NULLIF(CAST(dl.DiasLaborados AS DECIMAL(18,4)), 0))
+                 * CAST(ISNULL(dl.DiasMesLaborables, 0) AS DECIMAL(18,4))
+        END
+    AS DECIMAL(18,4)) AS TendenciaProduccion
+FROM #t_base t
+LEFT JOIN #productos prd
+    ON prd.SKU = t.SKU
+LEFT JOIN #vendedores vend
+    ON vend.VendedorId = t.VendedorId
+LEFT JOIN #surtido_real_cedis srd
+    ON t.Origen = 'CEDIS'
+   AND srd.Canal = t.Canal
+   AND srd.SKU   = t.SKU
+   AND srd.Mes   = t.Mes
+   AND srd.Anio  = t.Anio
+
+LEFT JOIN #venta_real_cedis vrc
+    ON t.Origen = 'CEDIS'
+   AND vrc.Canal = UPPER(LTRIM(RTRIM(t.Canal)))
+   AND vrc.SKU   = t.SKU
+   AND vrc.Mes   = t.Mes
+   AND vrc.Anio  = t.Anio
+
+LEFT JOIN #devoluciones_cedis dc
+    ON t.Origen = 'CEDIS'
+   AND dc.Canal = UPPER(LTRIM(RTRIM(t.Canal)))
+   AND dc.SKU   = t.SKU
+   AND dc.Mes   = t.Mes
+   AND dc.Anio  = t.Anio
+LEFT JOIN #surtido_real_vendedor srv
+    ON t.Origen = 'VENDEDOR'
+   AND srv.VendedorId = t.VendedorId
+   AND srv.SKU        = t.SKU
+   AND srv.Mes        = t.Mes
+   AND srv.Anio       = t.Anio
+OUTER APPLY
+(
+    SELECT
+        /* Surtido utilizado para consumo del plan */
+        KgSurtidoRealCalculado =
+            CAST
+            (
+                CASE
+                    WHEN t.Origen = 'CEDIS'
+                        THEN ISNULL(srd.KgSurtido, 0)
+
+                    WHEN t.Origen = 'VENDEDOR'
+                        THEN ISNULL(srv.KgSurtido, 0)
+
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        /* Venta real antes de devoluciones de bodega */
+        VentaRealBrutaCalculada =
+            CAST
+            (
+                CASE
+                    WHEN t.Origen = 'CEDIS'
+                        THEN ISNULL(vrc.VentaRealBruta, 0)
+
+                    WHEN t.Origen = 'VENDEDOR'
+                        THEN ISNULL(srv.KgSurtido, 0)
+
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        KgDevolucionesBodegaCalculado =
+            CAST
+            (
+                CASE
+                    WHEN t.Origen = 'CEDIS'
+                        THEN ISNULL(dc.KgDevolucionesBodega, 0)
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            )
+) AS venta
+OUTER APPLY
+(
+    SELECT
+        VentaRealNetaCalculada =
+            CAST
+            (
+                CASE
+                    WHEN
+                    (
+                        venta.VentaRealBrutaCalculada
+                        - venta.KgDevolucionesBodegaCalculado
+                    ) < 0
+                        THEN 0
+
+                    ELSE
+                    (
+                        venta.VentaRealBrutaCalculada
+                        - venta.KgDevolucionesBodegaCalculado
+                    )
+                END
+                AS DECIMAL(18,4)
+            )
+) AS ventaNeta
+LEFT JOIN #plan_prod pp
+    ON pp.SKU  = t.SKU
+   AND pp.Mes  = t.Mes
+   AND pp.Anio = t.Anio
+LEFT JOIN #producido_real pr
+    ON pr.SKU  = t.SKU
+   AND pr.Mes  = t.Mes
+   AND pr.Anio = t.Anio
+LEFT JOIN #dias_laborables dl
+    ON dl.Mes  = t.Mes
+   AND dl.Anio = t.Anio
+WHERE
+    /* El reporte únicamente considera CEDIS y VENDEDORES */
+    t.Origen IN ('CEDIS', 'VENDEDOR')
+    AND
+    /* Mostrar cuando exista presupuesto, venta real o ambos */
+    (
+        ISNULL(t.Presupuesto, 0) > 0
+        OR ISNULL(ventaNeta.VentaRealNetaCalculada, 0) > 0
+    )
+    AND
+    (
+        /* Si NO trae canal CEDIS, ve todo */
+        NOT EXISTS
+        (
+            SELECT 1
+            FROM STRING_SPLIT(ISNULL(@CanalesCsv, ''), ',') c
+            WHERE ISNULL(LTRIM(RTRIM(c.value)), '') <> ''
+              AND UPPER(LTRIM(RTRIM(c.value))) LIKE 'CEDIS%'
+        )
+
+        OR
+
+        /* Si SÍ trae canal CEDIS, se limita al canal correspondiente */
+        EXISTS
+        (
+            SELECT 1
+            FROM STRING_SPLIT(ISNULL(@CanalesCsv, ''), ',') c
+            WHERE ISNULL(LTRIM(RTRIM(c.value)), '') <> ''
+              AND UPPER(LTRIM(RTRIM(c.value))) LIKE 'CEDIS%'
+              AND
+              (
+                  UPPER(LTRIM(RTRIM(ISNULL(t.Canal, '')))) =
+                  UPPER(LTRIM(RTRIM(c.value)))
+
+                  OR 'CEDIS-' + UPPER(LTRIM(RTRIM(ISNULL(t.Canal, '')))) =
+                  UPPER(LTRIM(RTRIM(c.value)))
+
+                  OR REPLACE(
+                         UPPER(LTRIM(RTRIM(ISNULL(t.Canal, '')))),
+                         'CEDIS-',
+                         ''
+                     ) =
+                     REPLACE(
+                         UPPER(LTRIM(RTRIM(c.value))),
+                         'CEDIS-',
+                         ''
+                     )
+              )
+        )
+    )
+ORDER BY
+    t.Origen,
+    t.Anio,
+    t.Mes,
+    ISNULL(t.Canal, ''),
+    t.SKU;
+";
+
+            var conn = _context.Database.GetDbConnection();
+
+            bool cerrarConexionAlFinal =
+                conn.State != System.Data.ConnectionState.Open;
+
+            try
             {
-                canalRaw = await _context.ClienteSap.AsNoTracking()
-                    .Where(c => c.Cliente == card)
-                    .Select(c => c.U_CANAL)
-                    .FirstOrDefaultAsync();
-            }
-            var canalUp = Norm(canalRaw);
-            var usarCedis = EsCanalCedis(canalUp);
+                if (cerrarConexionAlFinal)
+                    await conn.OpenAsync(HttpContext.RequestAborted);
 
-            // 2) Presupuesto vendedor (siempre lo cargamos, sirve de fallback)
-            var vendList = await _context.PresupuestoVendedor.AsNoTracking()
-                .Where(p => p.VendedorId == vendedorId && p.Mes == mes && p.Anio == anio)
-                .GroupBy(p => p.ProductoCodigo)
-                .Select(g => new
+                var rows = (await conn.QueryAsync<PresupuestoConsumoDto>(
+                    new CommandDefinition(
+                        sqlDisponibleExacto,
+                        new
+                        {
+                            VendedorIdsCsv = vendedorIdsCsv,
+                            CanalesCsv = canalesCsv
+                        },
+                        cancellationToken: HttpContext.RequestAborted
+                    )
+                )).ToList();
+
+                // Helpers por reflexión para no depender de que el DTO
+                // tenga decimal vs decimal? en cada propiedad.
+                static object? GetProp(object row, string name)
+                    => row.GetType().GetProperty(name)?.GetValue(row);
+
+                static string GetString(object row, string name)
+                    => Convert.ToString(GetProp(row, name))?.Trim() ?? "";
+
+                static int GetInt(object row, string name)
                 {
-                    SKU = Norm(g.Key),
-                    Presupuesto = g.Sum(x => (decimal?)x.PresupuestoAsignado) ?? 0m
-                })
-                .ToListAsync();
-
-            var vendDict = vendList
-                .Where(x => x.SKU != "")
-                .ToDictionary(x => x.SKU, x => x.Presupuesto);
-
-            // 3) Presupuesto CEDIS por canal (solo si aplica)
-            Dictionary<string, decimal> cedisDict = new();
-            if (usarCedis)
-            {
-                var cedisList = await _context.PresupuestoCedis.AsNoTracking()
-                    .Where(pc => pc.Canal == canalUp && pc.Mes == mes && pc.Anio == anio)
-                    .GroupBy(pc => pc.ProductoCodigo)
-                    .Select(g => new
-                    {
-                        SKU = Norm(g.Key),
-                        Presupuesto = g.Sum(x => (decimal?)x.PresupuestoAsignado) ?? 0m
-                    })
-                    .ToListAsync();
-
-                cedisDict = cedisList
-                    .Where(x => x.SKU != "")
-                    .ToDictionary(x => x.SKU, x => x.Presupuesto);
-            }
-
-            // 4) Consumo por VENDEDOR (siempre, por si se usa fallback)
-
-            var consumoVend = await (
-                from o in _context.OrdenVenta.AsNoTracking()
-                join cli in _context.ClienteSap.AsNoTracking() on o.Cliente equals cli.Cliente
-                join op in _context.OrdenVentaProducto.AsNoTracking() on o.Id equals op.PedidoId
-                join ser in _context.Series.AsNoTracking() on o.Serie equals ser.NombreSerie
-                where cli.VendedorId == vendedorId
-                      && o.FechaEntrega.Month == mes
-                      && o.FechaEntrega.Year == anio
-                      && o.Estatus != 0
-                      && (op.Eliminado == null || op.Eliminado == false)
-                      && ser.Sucursal == "MATRIZ"
-                group op by op.ProductoCodigo into g
-                select new
-                {
-                    SKU = Norm(g.Key),
-                    Kg = g.Sum(x => (decimal?)x.Peso) ?? 0m
+                    var v = GetProp(row, name);
+                    if (v == null || v == DBNull.Value) return 0;
+                    return Convert.ToInt32(v);
                 }
-            ).ToListAsync();
 
-            var consumoVendDict = consumoVend
-                .Where(x => x.SKU != "")
-                .ToDictionary(x => x.SKU, x => x.Kg);
-
-            // 5) Consumo por CANAL (solo si CEDIS)
-            Dictionary<string, decimal> consumoCanalDict = new();
-            if (usarCedis)
-            {
-                // OV por canal (regla MATRIZ usa ClienteSap.U_CANAL; sucursales usan Series.Canal)
-                var consumoOVCanal = await (
-                    from o in _context.OrdenVenta.AsNoTracking()
-                    join cli in _context.ClienteSap.AsNoTracking() on o.Cliente equals cli.Cliente
-                    join s in _context.Series.AsNoTracking() on o.Serie equals s.NombreSerie
-                    join op in _context.OrdenVentaProducto.AsNoTracking() on o.Id equals op.PedidoId
-                    join ser in _context.Series.AsNoTracking() on o.Serie equals ser.NombreSerie
-                    where o.FechaEntrega.Month == mes
-                          && o.FechaEntrega.Year == anio
-                          && o.Estatus != 0
-                          && (op.Eliminado == null || op.Eliminado == false)
-                          && (
-                                ((s.Sucursal ?? "") == "MATRIZ" && (cli.U_CANAL ?? "") == canalUp)
-                                || ((s.Sucursal ?? "") != "MATRIZ" && (s.Canal ?? "") == canalUp)
-                             )
-                             && ser.Sucursal == "MATRIZ"
-                    group op by op.ProductoCodigo into g
-                    select new
-                    {
-                        SKU = Norm(g.Key),
-                        Kg = g.Sum(x => (decimal?)x.Peso) ?? 0m
-                    }
-                ).ToListAsync();
-
-                // Transferencias por canal
-                var consumoTrCanal = await (
-                    from t in _context.Transferencias.AsNoTracking()
-                    where t.FechaSolicitud.HasValue
-                          && t.FechaSolicitud.Value.Month == mes
-                          && t.FechaSolicitud.Value.Year == anio
-                    join td in _context.TransferenciaDetalles.AsNoTracking() on t.Id equals td.TransferenciaId
-                    join s in _context.Series.AsNoTracking() on t.Sucursal equals s.Sucursal
-                    where (s.Canal ?? "") == canalUp
-                    && t.Estatus != 0
-                    group td by td.ProductoCodigo into g
-                    select new
-                    {
-                        SKU = Norm(g.Key),
-                        Kg = g.Sum(x => (decimal?)x.CantidadKg) ?? 0m
-                    }
-                ).ToListAsync();
-
-                consumoCanalDict = consumoOVCanal
-                    .Concat(consumoTrCanal)
-                    .Where(x => x.SKU != "")
-                    .GroupBy(x => x.SKU)
-                    .ToDictionary(g => g.Key, g => g.Sum(v => v.Kg));
-            }
-
-            // 6) SKUs a regresar (LEFT “lógico”: CEDIS + los NO CEDIS/fallback vendedor)
-            var skus = new HashSet<string>(vendDict.Keys);
-            if (usarCedis) skus.UnionWith(cedisDict.Keys);
-
-            var respuesta = skus
-                .OrderBy(x => x)
-                .Select(sku =>
+                static decimal GetDecimal(object row, string name)
                 {
-                    bool esSkuCedis = usarCedis && cedisDict.ContainsKey(sku);
+                    var v = GetProp(row, name);
+                    if (v == null || v == DBNull.Value) return 0m;
+                    return Convert.ToDecimal(v);
+                }
 
-                    decimal presupuestoAsignado = esSkuCedis
-                        ? cedisDict[sku]
-                        : (vendDict.TryGetValue(sku, out var pv) ? pv : 0m);
+                IEnumerable<PresupuestoConsumoDto> seleccion = rows
+                    .Where(r =>
+                        GetInt(r, "MesConsulta") == mes
+                        && GetInt(r, "AnioConsulta") == anio
+                    );
 
-                    decimal kgPedidosMes = esSkuCedis
-                        ? (consumoCanalDict.TryGetValue(sku, out var kgC) ? kgC : 0m)
-                        : (consumoVendDict.TryGetValue(sku, out var kgV) ? kgV : 0m);
+                if (esClienteCedis)
+                {
+                    // IMPORTANTE:
+                    // El SQL puede devolver CEDIS-MDA y MDA como canales
+                    // equivalentes. Para la Orden de Venta NO debemos mezclar
+                    // ambos renglones ni dejar que uno sobrescriba al otro.
+                    //
+                    // 1) Primero tomamos el canal EXACTO del cliente.
+                    // 2) Sólo si no existe, usamos la equivalencia sin CEDIS-.
+                    var filasCedis = seleccion
+                        .Where(r => Norm(GetString(r, "Origen")) == "CEDIS")
+                        .ToList();
 
-                    return new
+                    var filasCedisExactas = filasCedis
+                        .Where(r => Norm(GetString(r, "Canal")) == canalCliente)
+                        .ToList();
+
+                    if (filasCedisExactas.Count > 0)
                     {
-                        productoCodigo = sku,
-                        presupuestoAsignado,
-                        kgPedidosMes,
-                        presupuestoDisponible = presupuestoAsignado - kgPedidosMes,
-                        origen = esSkuCedis ? "CEDIS" : "VENDEDOR",
-                        canal = canalUp
-                    };
-                })
-                .ToList();
+                        seleccion = filasCedisExactas;
+                    }
+                    else
+                    {
+                        var canalCedisKey = CanalCedisKey(canalCliente);
 
-            return Json(respuesta);
+                        seleccion = filasCedis.Where(r =>
+                            CanalCedisKey(GetString(r, "Canal")) == canalCedisKey
+                        );
+                    }
+                }
+                else
+                {
+                    seleccion = seleccion.Where(r =>
+                        Norm(GetString(r, "Origen")) == "VENDEDOR"
+                        && GetInt(r, "VendedorId") == vendedorId
+                    );
+                }
+
+                var respuesta = seleccion
+                    .OrderBy(r => Norm(GetString(r, "ProductoCodigo")))
+                    .Select(r => new
+                    {
+                        productoCodigo =
+                            Norm(GetString(r, "ProductoCodigo")),
+
+                        presupuestoAsignado =
+                            GetDecimal(r, "PresupuestoAsignado"),
+
+                        kgPedidosMes =
+                            GetDecimal(r, "KgPedidosMes"),
+
+                        kgSurtidoReal =
+                            GetDecimal(r, "KgSurtidoReal"),
+
+                        presupuestoDisponible =
+                            GetDecimal(r, "DisponibleVenta"),
+
+                        origen =
+                            Norm(GetString(r, "Origen")),
+
+                        canal =
+                            GetString(r, "Canal")
+                    })
+                    .ToList();
+
+                return Json(respuesta);
+            }
+            finally
+            {
+                if (cerrarConexionAlFinal)
+                    await conn.CloseAsync();
+            }
         }
 
 
@@ -13615,7 +18255,7 @@ SELECT
     SUM(PesoNeto) AS InvInicial
 FROM dbo.InventarioAlmacenado_Meat
 WHERE FechaInventario = EOMONTH(DATEFROMPARTS(@Anio, @Mes, 1), -1)
-  AND CodigoEtiqueta NOT LIKE '%SACT%'
+  AND CodigoEtiqueta NOT LIKE '%SACT%' AND colonia IN ('VENTAS', 'VENTAS 1', 'VENTAS ESP')
 GROUP BY UPPER(LTRIM(RTRIM(Sku)))
 ORDER BY UPPER(LTRIM(RTRIM(Sku)));
 ";
@@ -13652,7 +18292,7 @@ ORDER BY UPPER(LTRIM(RTRIM(Sku)));
             UPPER(LTRIM(RTRIM(ProductoCodigo))) AS sku,
             SUM(kg) AS invActual
         FROM InventarioSigo
-      where colonia like '%ventas%' 
+     where colonia = 'VENTAS' or colonia = 'VENTAS 1' or colonia = 'VENTAS ESP'
         GROUP BY UPPER(LTRIM(RTRIM(ProductoCodigo)));
     ", cn);
 
@@ -13717,18 +18357,19 @@ ORDER BY UPPER(LTRIM(RTRIM(Sku)));
             cn.Open();
 
             var sql = @"
-DECLARE @SKU  varchar(50) = @pSku;
+DECLARE @SKU varchar(50) = @pSku;
 DECLARE @Origen varchar(20) = UPPER(LTRIM(RTRIM(@pOrigen)));
 
-DECLARE @Cliente        varchar(50)  = @pCliente;
-DECLARE @Canal          varchar(100) = @pCanal;
+DECLARE @Cliente varchar(50) = @pCliente;
+DECLARE @Canal varchar(100) = @pCanal;
 DECLARE @VendedorId int = @pVendedorId;
 
 DECLARE @Desde date = @pDesde;
 DECLARE @Hasta date = @pHasta;
 
 ;WITH
-ov AS (
+ov AS
+(
     SELECT
         o.Id,
         o.Cliente,
@@ -13737,40 +18378,252 @@ ov AS (
         o.Serie,
         FechaDate = TRY_CONVERT(date, o.FechaEntrega)
     FROM dbo.OrdenVenta o
-    INNER JOIN dbo.Series ser ON o.Serie = ser.NombreSerie
+    INNER JOIN dbo.Series ser
+        ON o.Serie = ser.NombreSerie
     WHERE o.FechaEntrega IS NOT NULL
-      AND o.Estatus BETWEEN 1 AND 5
+      AND o.Estatus BETWEEN 1 AND 6
       AND ser.Sucursal = 'MATRIZ'
       AND TRY_CONVERT(date, o.FechaEntrega) >= @Desde
-      AND TRY_CONVERT(date, o.FechaEntrega) <  @Hasta
+      AND TRY_CONVERT(date, o.FechaEntrega) < @Hasta
 ),
-ov_con_surtido AS (
-    SELECT DISTINCT o.Id
-    FROM dbo.OrdenVenta o
-    JOIN dbo.Subpedido sp         ON sp.OrdenVentaId = o.Id
-    JOIN dbo.SurtidoEncabezado se ON se.SolicitudSurtidoId = sp.U_DocMeat
-),
-ov_peso_agg AS (
+
+/* =========================================================
+   KILOS ORIGINALES DEL PEDIDO POR OV / SKU
+   ========================================================= */
+ov_peso_agg AS
+(
     SELECT
         PedidoId = op.PedidoId,
-        SKU      = UPPER(LTRIM(RTRIM(op.ProductoCodigo))),
-        KgPedido = SUM(CAST(op.Peso AS DECIMAL(18,4)))
+        SKU = UPPER(LTRIM(RTRIM(op.ProductoCodigo))),
+        KgPedido = SUM(
+            CAST(ISNULL(op.Peso, 0) AS DECIMAL(18,4))
+        )
     FROM dbo.OrdenVentaProducto op
-    GROUP BY op.PedidoId, UPPER(LTRIM(RTRIM(op.ProductoCodigo)))
+    INNER JOIN ov
+        ON ov.Id = op.PedidoId
+    WHERE ISNULL(op.Eliminado, 0) = 0
+    GROUP BY
+        op.PedidoId,
+        UPPER(LTRIM(RTRIM(op.ProductoCodigo)))
 ),
-ov_surtido_agg AS (
+
+/* =========================================================
+   ESTADO REAL DE CADA SOLICITUD DE SURTIDO
+
+   Una solicitud queda CERRADA si:
+   - FechaValidacion IS NOT NULL
+   O
+   - ya tiene Remision / VREM.
+
+   IMPORTANTE:
+   - NO se usa el Estatus 5/6 de la OV para cerrar pendiente.
+   - NO basta con que exista SurtidoEncabezado.
+   ========================================================= */
+solicitud_estado AS
+(
     SELECT
-        PedidoId = o.Id,
-        SKU      = UPPER(LTRIM(RTRIM(sd.Articulo))),
-        KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
-    FROM dbo.OrdenVenta o
-    JOIN dbo.Subpedido sp         ON sp.OrdenVentaId = o.Id
-    JOIN dbo.SurtidoEncabezado se ON se.SolicitudSurtidoId = sp.U_DocMeat
-    JOIN dbo.SurtidoDetalle sd    ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
-    WHERE se.FechaValidacion IS NOT NULL
-    GROUP BY o.Id, UPPER(LTRIM(RTRIM(sd.Articulo)))
+        se.SolicitudSurtidoId,
+
+        EsCerrada =
+            MAX(
+                CASE
+                    WHEN se.FechaValidacion IS NOT NULL
+                      OR NULLIF(
+                             LTRIM(RTRIM(ISNULL(se.Remision, ''))),
+                             ''
+                         ) IS NOT NULL
+                        THEN 1
+                    ELSE 0
+                END
+            )
+    FROM dbo.SurtidoEncabezado se
+    GROUP BY
+        se.SolicitudSurtidoId
 ),
-ov_pendiente_sku AS (
+
+/* =========================================================
+   ESTADO DE CIERRE DE LA OV
+
+   Si TODOS los subpedidos de la OV están cerrados:
+       pendiente OV = 0
+
+   Si sólo algunos están cerrados:
+       queda pendiente únicamente la parte abierta.
+   ========================================================= */
+ov_estado_cierre AS
+(
+    SELECT
+        PedidoId = sp.OrdenVentaId,
+
+        TotalSubpedidos =
+            COUNT_BIG(*),
+
+        SubpedidosCerrados =
+            SUM(
+                CASE
+                    WHEN ISNULL(se.EsCerrada, 0) = 1
+                        THEN 1
+                    ELSE 0
+                END
+            ),
+
+        PedidoCerrado =
+            CAST(
+                CASE
+                    WHEN COUNT_BIG(*) > 0
+                     AND SUM(
+                            CASE
+                                WHEN ISNULL(se.EsCerrada, 0) = 1
+                                    THEN 1
+                                ELSE 0
+                            END
+                         ) = COUNT_BIG(*)
+                        THEN 1
+                    ELSE 0
+                END
+                AS BIT
+            )
+
+    FROM dbo.Subpedido sp
+
+    INNER JOIN ov
+        ON ov.Id = sp.OrdenVentaId
+
+    LEFT JOIN solicitud_estado se
+        ON se.SolicitudSurtidoId =
+           TRY_CONVERT(
+               INT,
+               NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+           )
+
+    GROUP BY
+        sp.OrdenVentaId
+),
+
+/* =========================================================
+   KG DE LOS SUBPEDIDOS QUE YA ESTÁN CERRADOS
+
+   Esto permite resolver correctamente una OV con varios
+   subpedidos.
+
+   Ejemplo:
+       OV original = 100
+       Subpedido A = 60 cerrado
+       Subpedido B = 40 abierto
+       Pendiente   = 40
+   ========================================================= */
+ov_cerrado_sku AS
+(
+    SELECT
+        PedidoId = sp.OrdenVentaId,
+        SKU = UPPER(LTRIM(RTRIM(spp.ProductoCodigo))),
+
+        KgCerrado =
+            SUM(
+                CAST(
+                    ISNULL(spp.KilosCaja, 0)
+                    AS DECIMAL(18,4)
+                )
+            )
+
+    FROM dbo.Subpedido sp
+
+    INNER JOIN ov
+        ON ov.Id = sp.OrdenVentaId
+
+    INNER JOIN dbo.SubpedidoProductos spp
+        ON spp.SubpedidoId = sp.Id
+
+    INNER JOIN solicitud_estado se
+        ON se.SolicitudSurtidoId =
+           TRY_CONVERT(
+               INT,
+               NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+           )
+       AND se.EsCerrada = 1
+
+    WHERE
+        NULLIF(
+            LTRIM(RTRIM(ISNULL(spp.ProductoCodigo, ''))),
+            ''
+        ) IS NOT NULL
+
+    GROUP BY
+        sp.OrdenVentaId,
+        UPPER(LTRIM(RTRIM(spp.ProductoCodigo)))
+),
+
+/* =========================================================
+   SURTIDO FÍSICO REAL POR OV / SKU
+
+   Se conserva separado del pendiente contractual.
+
+   Una solicitud cerrada puede haber surtido menos que lo
+   solicitado. Esa diferencia NO vuelve a quedar pendiente.
+   ========================================================= */
+ov_surtido_agg AS
+(
+    SELECT
+        PedidoId = sp.OrdenVentaId,
+        SKU = UPPER(LTRIM(RTRIM(sd.Articulo))),
+
+        KgSurtido =
+            SUM(
+                CAST(
+                    ISNULL(sd.Kg, 0)
+                    AS DECIMAL(18,4)
+                )
+            )
+
+    FROM dbo.Subpedido sp
+
+    INNER JOIN ov
+        ON ov.Id = sp.OrdenVentaId
+
+    INNER JOIN solicitud_estado seEstado
+        ON seEstado.SolicitudSurtidoId =
+           TRY_CONVERT(
+               INT,
+               NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+           )
+       AND seEstado.EsCerrada = 1
+
+    INNER JOIN dbo.SurtidoDetalle sd
+        ON sd.SolicitudSurtidoId = seEstado.SolicitudSurtidoId
+
+    GROUP BY
+        sp.OrdenVentaId,
+        UPPER(LTRIM(RTRIM(sd.Articulo)))
+),
+
+/* =========================================================
+   PENDIENTE REAL DE OV
+
+   REGLA FINAL:
+
+   1) Todos los subpedidos cerrados:
+          KgPendiente = 0
+
+   2) Hay subpedidos abiertos:
+          KgPendiente =
+              KgPedidoOriginal - KgSubpedidosCerrados
+
+   3) El surtido físico NO define el compromiso pendiente.
+
+   Ejemplo:
+       OV            = 6,000
+       Subpedido     = 6,000 cerrado
+       Surtido real  = 5,001
+       Pendiente     = 0
+
+   Ejemplo parcial:
+       OV            = 100
+       Subpedido A   = 60 cerrado
+       Subpedido B   = 40 abierto
+       Pendiente     = 40
+   ========================================================= */
+ov_pendiente_sku AS
+(
     SELECT
         ov.Id,
         ov.Cliente,
@@ -13779,62 +18632,137 @@ ov_pendiente_sku AS (
         ov.Serie,
         ov.FechaDate,
         p.SKU,
-        KgPedido   = p.KgPedido,
-        KgSurtido  = ISNULL(sa.KgSurtido,0),
+
+        KgPedido =
+            p.KgPedido,
+
+        KgSurtido =
+            ISNULL(sa.KgSurtido, 0),
+
         KgPendiente =
             CAST(
                 CASE
-                    WHEN ov.Estatus = 5 AND os.Id IS NOT NULL THEN 0
+
+                    /* Toda la OV ya quedó cerrada */
+                    WHEN ISNULL(ec.PedidoCerrado, 0) = 1
+                        THEN 0
+
+                    /* OV parcialmente cerrada:
+                       sólo queda la parte aún abierta */
+                    WHEN
+                    (
+                        ISNULL(p.KgPedido, 0)
+                        - ISNULL(cs.KgCerrado, 0)
+                    ) <= 0
+                        THEN 0
+
                     ELSE
-                        CASE
-                            WHEN (p.KgPedido - ISNULL(sa.KgSurtido,0)) < 0 THEN 0
-                            ELSE (p.KgPedido - ISNULL(sa.KgSurtido,0))
-                        END
+                    (
+                        ISNULL(p.KgPedido, 0)
+                        - ISNULL(cs.KgCerrado, 0)
+                    )
+
                 END
-            AS DECIMAL(18,4))
+                AS DECIMAL(18,4)
+            )
+
     FROM ov
-    JOIN ov_peso_agg p
+
+    INNER JOIN ov_peso_agg p
         ON p.PedidoId = ov.Id
+
+    LEFT JOIN ov_estado_cierre ec
+        ON ec.PedidoId = ov.Id
+
+    LEFT JOIN ov_cerrado_sku cs
+        ON cs.PedidoId = ov.Id
+       AND cs.SKU = p.SKU
+
     LEFT JOIN ov_surtido_agg sa
         ON sa.PedidoId = ov.Id
-       AND sa.SKU      = p.SKU
-    LEFT JOIN ov_con_surtido os
-        ON os.Id = ov.Id
+       AND sa.SKU = p.SKU
 ),
-tr_surtido_agg AS (
+
+/* =========================================================
+   SURTIDO DE TRANSFERENCIAS
+   SIN CAMBIOS
+   ========================================================= */
+tr_surtido_agg AS
+(
     SELECT
         ts.TransferenciaId,
         SKU = UPPER(LTRIM(RTRIM(ts.Sku))),
-        KgSurtido = SUM(CAST(ts.KgSurtido AS DECIMAL(18,4)))
+        KgSurtido = SUM(
+            CAST(ts.KgSurtido AS DECIMAL(18,4))
+        )
     FROM dbo.TransferenciaSurtido ts
-    GROUP BY ts.TransferenciaId, UPPER(LTRIM(RTRIM(ts.Sku)))
+    GROUP BY
+        ts.TransferenciaId,
+        UPPER(LTRIM(RTRIM(ts.Sku)))
 ),
-tr_pendiente AS (
+
+/* =========================================================
+   TRANSFERENCIAS PENDIENTES
+   SIN CAMBIOS
+
+   Sólo Estatus 1..4 permanece pendiente.
+   ========================================================= */
+tr_pendiente AS
+(
     SELECT
         Tipo = 'TRANSFERENCIA',
         DocumentoId = t.Id,
         Fecha = TRY_CONVERT(date, t.FechaSolicitud),
         Canal = UPPER(LTRIM(RTRIM(s.Canal))),
-        SKU   = UPPER(LTRIM(RTRIM(td.ProductoCodigo))),
-        KgPedido   = SUM(CAST(td.CantidadKg AS DECIMAL(18,4))),
-        KgSurtido  = SUM(ISNULL(tsa.KgSurtido,0)),
-        KgPendiente = SUM(
-            CASE
-                WHEN (CAST(td.CantidadKg AS DECIMAL(18,4)) - ISNULL(tsa.KgSurtido,0)) < 0 THEN 0
-                ELSE (CAST(td.CantidadKg AS DECIMAL(18,4)) - ISNULL(tsa.KgSurtido,0))
-            END
-        )
+        SKU = UPPER(LTRIM(RTRIM(td.ProductoCodigo))),
+
+        KgPedido =
+            SUM(
+                CAST(td.CantidadKg AS DECIMAL(18,4))
+            ),
+
+        KgSurtido =
+            SUM(
+                ISNULL(tsa.KgSurtido, 0)
+            ),
+
+        KgPendiente =
+            SUM(
+                CASE
+                    WHEN
+                    (
+                        CAST(td.CantidadKg AS DECIMAL(18,4))
+                        - ISNULL(tsa.KgSurtido, 0)
+                    ) < 0
+                        THEN 0
+
+                    ELSE
+                    (
+                        CAST(td.CantidadKg AS DECIMAL(18,4))
+                        - ISNULL(tsa.KgSurtido, 0)
+                    )
+                END
+            )
+
     FROM dbo.Transferencias t
-    JOIN dbo.TransferenciaDetalles td ON td.TransferenciaId = t.Id
-    JOIN dbo.Series s                 ON s.Sucursal = t.Sucursal
+
+    INNER JOIN dbo.TransferenciaDetalles td
+        ON td.TransferenciaId = t.Id
+
+    INNER JOIN dbo.Series s
+        ON s.Sucursal = t.Sucursal
+
     LEFT JOIN tr_surtido_agg tsa
-           ON tsa.TransferenciaId = t.Id
-          AND tsa.SKU = UPPER(LTRIM(RTRIM(td.ProductoCodigo)))
+        ON tsa.TransferenciaId = t.Id
+       AND tsa.SKU =
+           UPPER(LTRIM(RTRIM(td.ProductoCodigo)))
+
     WHERE t.FechaSolicitud IS NOT NULL
       AND t.Estatus BETWEEN 1 AND 4
       AND UPPER(LTRIM(RTRIM(s.Canal))) LIKE 'CEDIS%'
       AND TRY_CONVERT(date, t.FechaSolicitud) >= @Desde
-      AND TRY_CONVERT(date, t.FechaSolicitud) <  @Hasta
+      AND TRY_CONVERT(date, t.FechaSolicitud) < @Hasta
+
     GROUP BY
         t.Id,
         TRY_CONVERT(date, t.FechaSolicitud),
@@ -13842,61 +18770,111 @@ tr_pendiente AS (
         UPPER(LTRIM(RTRIM(td.ProductoCodigo)))
 )
 
+/* =========================================================
+   DETALLE DE ÓRDENES DE VENTA
+   ========================================================= */
 SELECT
-    Tipo        = 'OV',
+    Tipo = 'OV',
     DocumentoId = ovp.Id,
-    Serie       = ovp.Serie,
-    Fecha       = ovp.FechaDate,
-    Estatus     = ovp.Estatus,
-    Cliente     = ovp.Cliente,
+    Serie = ovp.Serie,
+    Fecha = ovp.FechaDate,
+    Estatus = ovp.Estatus,
+    Cliente = ovp.Cliente,
     RazonSocial = cs.NombreCliente,
-    Canal       = UPPER(LTRIM(RTRIM(cs.U_CANAL))),
-    VendedorId  = ovp.VendedorId,
-    Vendedor    = cs.VendedorNombre,
-    SKU         = ovp.SKU,
-    KgPedido    = ovp.KgPedido,
-    KgSurtido   = ovp.KgSurtido,
+    Canal = UPPER(LTRIM(RTRIM(cs.U_CANAL))),
+    VendedorId = ovp.VendedorId,
+    Vendedor = cs.VendedorNombre,
+    SKU = ovp.SKU,
+    KgPedido = ovp.KgPedido,
+    KgSurtido = ovp.KgSurtido,
     KgPendiente = ovp.KgPendiente
+
 FROM ov_pendiente_sku ovp
-LEFT JOIN dbo.ClienteSap cs ON cs.Cliente = ovp.Cliente
+
+LEFT JOIN dbo.ClienteSap cs
+    ON cs.Cliente = ovp.Cliente
+
 WHERE
-    ovp.SKU COLLATE DATABASE_DEFAULT = UPPER(LTRIM(RTRIM(@SKU))) COLLATE DATABASE_DEFAULT
+    ovp.SKU COLLATE DATABASE_DEFAULT =
+    UPPER(LTRIM(RTRIM(@SKU))) COLLATE DATABASE_DEFAULT
+
+    /* Sólo mostrar pedidos que REALMENTE sigan pendientes */
     AND ovp.KgPendiente > 0
-    AND (
-         @Origen = 'TODOS'
-      OR (@Origen = 'CLIENTE'  AND @Cliente IS NOT NULL AND UPPER(ovp.Cliente) = UPPER(@Cliente))
-      OR (@Origen = 'VENDEDOR' AND @VendedorId IS NOT NULL AND ovp.VendedorId = @VendedorId)
-      OR (@Origen = 'CEDIS'    AND @Canal IS NOT NULL AND UPPER(LTRIM(RTRIM(cs.U_CANAL))) = UPPER(LTRIM(RTRIM(@Canal))))
+
+    AND
+    (
+           @Origen = 'TODOS'
+
+        OR
+        (
+            @Origen = 'CLIENTE'
+            AND @Cliente IS NOT NULL
+            AND UPPER(ovp.Cliente) = UPPER(@Cliente)
+        )
+
+        OR
+        (
+            @Origen = 'VENDEDOR'
+            AND @VendedorId IS NOT NULL
+            AND ovp.VendedorId = @VendedorId
+        )
+
+        OR
+        (
+            @Origen = 'CEDIS'
+            AND @Canal IS NOT NULL
+            AND UPPER(LTRIM(RTRIM(cs.U_CANAL))) =
+                UPPER(LTRIM(RTRIM(@Canal)))
+        )
     )
 
 UNION ALL
 
+/* =========================================================
+   DETALLE DE TRANSFERENCIAS
+   ========================================================= */
 SELECT
-    Tipo        = tp.Tipo,
+    Tipo = tp.Tipo,
     DocumentoId = tp.DocumentoId,
-    Serie       = NULL,
-    Fecha       = tp.Fecha,
-    Estatus     = NULL,
-    Cliente     = NULL,
+    Serie = NULL,
+    Fecha = tp.Fecha,
+    Estatus = NULL,
+    Cliente = NULL,
     RazonSocial = NULL,
-    Canal       = tp.Canal,
-    VendedorId  = NULL,
-    Vendedor    = NULL,
-    SKU         = tp.SKU,
-    KgPedido    = tp.KgPedido,
-    KgSurtido   = tp.KgSurtido,
+    Canal = tp.Canal,
+    VendedorId = NULL,
+    Vendedor = NULL,
+    SKU = tp.SKU,
+    KgPedido = tp.KgPedido,
+    KgSurtido = tp.KgSurtido,
     KgPendiente = tp.KgPendiente
+
 FROM tr_pendiente tp
+
 WHERE
-    (@Origen IN ('TODOS','CEDIS'))
-    AND tp.SKU COLLATE DATABASE_DEFAULT = UPPER(LTRIM(RTRIM(@SKU))) COLLATE DATABASE_DEFAULT
+    @Origen IN ('TODOS', 'CEDIS')
+
+    AND tp.SKU COLLATE DATABASE_DEFAULT =
+        UPPER(LTRIM(RTRIM(@SKU))) COLLATE DATABASE_DEFAULT
+
     AND tp.KgPendiente > 0
-    AND (
-          @Origen = 'TODOS'
-       OR (@Canal IS NOT NULL AND UPPER(LTRIM(RTRIM(tp.Canal))) = UPPER(LTRIM(RTRIM(@Canal))))
+
+    AND
+    (
+           @Origen = 'TODOS'
+
+        OR
+        (
+            @Canal IS NOT NULL
+            AND UPPER(LTRIM(RTRIM(tp.Canal))) =
+                UPPER(LTRIM(RTRIM(@Canal)))
+        )
     )
 
-ORDER BY Fecha DESC, Tipo, DocumentoId DESC;
+ORDER BY
+    Fecha DESC,
+    Tipo,
+    DocumentoId DESC;
 ";
 
             using var cmd = new SqlCommand(sql, cn);
@@ -14650,23 +19628,42 @@ SELECT
     YEAR(b.FechaDevolucion) AS Anio,
     MONTH(b.FechaDevolucion) AS Mes,
     UPPER(LTRIM(RTRIM(b.Articulo))) AS Sku,
-    SUM(CAST(ISNULL(b.Peso, 0) AS DECIMAL(18,4))) AS Kg,
+    SUM(
+        CAST(
+            ISNULL(b.Peso, 0)
+            AS DECIMAL(18,4)
+        )
+    ) AS Kg,
     b.CodigoSap AS ClienteId,
     b.Cliente,
     c.VendedorId,
     c.VendedorNombre,
     ISNULL(c.U_CANAL, '') AS Canal
-FROM dbo.DevolucionMeat b
-INNER JOIN dbo.ClienteSap c 
-    ON UPPER(LTRIM(RTRIM(b.CodigoSap))) = UPPER(LTRIM(RTRIM(c.Cliente)))
+FROM dbo.DevolucionMeat AS b
+INNER JOIN dbo.ClienteSap AS c
+    ON UPPER(LTRIM(RTRIM(b.CodigoSap))) =
+       UPPER(LTRIM(RTRIM(c.Cliente)))
 WHERE b.FechaDevolucion IS NOT NULL
   AND b.FechaDevolucion >= @FechaInicio
   AND b.FechaDevolucion < @FechaFin
 
+  /* Excluir almacenes cuyo nombre comience con FRIGORIFICO */
+  AND ISNULL(
+        UPPER(LTRIM(RTRIM(b.AlmacenDevolucionNombre))),
+        ''
+      ) NOT LIKE 'FRIGORIFICO%'
+
+  /* Solo remisiones SUC01 y SUC02 */
+  AND
+  (
+      b.Remision LIKE '%SUC01%'
+      OR b.Remision LIKE '%SUC02%'
+  )
+
   AND EXISTS
   (
       SELECT 1
-      FROM dbo.Subpedido a
+      FROM dbo.Subpedido AS a
       WHERE a.U_DocMeat = b.SolicitudSurtidoId
   )
 
@@ -14675,9 +19672,17 @@ WHERE b.FechaDevolucion IS NOT NULL
       NOT EXISTS
       (
           SELECT 1
-          FROM STRING_SPLIT(ISNULL(@CanalesCsv, ''), ',') cc
-          WHERE ISNULL(LTRIM(RTRIM(cc.value)), '') <> ''
-            AND UPPER(LTRIM(RTRIM(cc.value))) LIKE 'CEDIS%'
+          FROM STRING_SPLIT(
+              ISNULL(@CanalesCsv, ''),
+              ','
+          ) AS cc
+          WHERE ISNULL(
+                    LTRIM(RTRIM(cc.value)),
+                    ''
+                ) <> ''
+            AND UPPER(
+                    LTRIM(RTRIM(cc.value))
+                ) LIKE 'CEDIS%'
       )
 
       OR
@@ -14685,19 +19690,66 @@ WHERE b.FechaDevolucion IS NOT NULL
       EXISTS
       (
           SELECT 1
-          FROM STRING_SPLIT(ISNULL(@CanalesCsv, ''), ',') cc
-          WHERE ISNULL(LTRIM(RTRIM(cc.value)), '') <> ''
-            AND UPPER(LTRIM(RTRIM(cc.value))) LIKE 'CEDIS%'
+          FROM STRING_SPLIT(
+              ISNULL(@CanalesCsv, ''),
+              ','
+          ) AS cc
+          WHERE ISNULL(
+                    LTRIM(RTRIM(cc.value)),
+                    ''
+                ) <> ''
+
+            AND UPPER(
+                    LTRIM(RTRIM(cc.value))
+                ) LIKE 'CEDIS%'
+
             AND
             (
-                UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, '')))) =
-                UPPER(LTRIM(RTRIM(cc.value)))
+                UPPER(
+                    LTRIM(
+                        RTRIM(
+                            ISNULL(c.U_CANAL, '')
+                        )
+                    )
+                ) =
+                UPPER(
+                    LTRIM(RTRIM(cc.value))
+                )
 
-                OR 'CEDIS-' + UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, '')))) =
-                UPPER(LTRIM(RTRIM(cc.value)))
+                OR
 
-                OR REPLACE(UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, '')))), 'CEDIS-', '') =
-                   REPLACE(UPPER(LTRIM(RTRIM(cc.value))), 'CEDIS-', '')
+                'CEDIS-' +
+                UPPER(
+                    LTRIM(
+                        RTRIM(
+                            ISNULL(c.U_CANAL, '')
+                        )
+                    )
+                ) =
+                UPPER(
+                    LTRIM(RTRIM(cc.value))
+                )
+
+                OR
+
+                REPLACE(
+                    UPPER(
+                        LTRIM(
+                            RTRIM(
+                                ISNULL(c.U_CANAL, '')
+                            )
+                        )
+                    ),
+                    'CEDIS-',
+                    ''
+                ) =
+                REPLACE(
+                    UPPER(
+                        LTRIM(RTRIM(cc.value))
+                    ),
+                    'CEDIS-',
+                    ''
+                )
             )
       )
   )
@@ -14848,13 +19900,14 @@ ResumenFinal AS (
         p.CajasSurtidas,
         ROUND((ISNULL(p.KgSurtidos, 0) * 100.0) / NULLIF(p.KgPedidos, 0), 2) AS GAPKg,
         ROUND((ISNULL(p.CajasSurtidas, 0) * 100.0) / NULLIF(p.CajasPedidas, 0), 2) AS GAPCajas,
-        c.FechaEmbarque AS Fecha,
+        c.FechaEntrega AS Fecha,
         'OV' AS Tipo
     FROM PedidosOV p
     INNER JOIN OrdenVenta c 
         ON p.OrdenVentaId = c.Id
     INNER JOIN ClienteSap d 
         ON p.Cliente = d.Cliente
+AND ISNULL(d.AplicaPresupuesto, 0) = 1
     WHERE c.Estatus <> 0
 
     UNION ALL
@@ -15011,7 +20064,7 @@ WITH PedidoDetOV AS (
     INNER JOIN SubpedidoProductos b
         ON a.Id = b.SubpedidoId
     INNER JOIN OrdenVenta ov
-        ON a.OrdenVentaId = ov.Id
+        ON a.OrdenVentaId = ov.Id 
     WHERE a.ConsecutivoOV = @Folio
       AND ov.Estatus <> 0
       AND (
@@ -15208,6 +20261,7 @@ WITH BaseOV AS (
         ON a.OrdenVentaId = c.Id
     INNER JOIN ClienteSap d
         ON a.Cliente = d.Cliente
+ AND ISNULL(d.AplicaPresupuesto, 0) = 1
     WHERE c.Estatus <> 0
     GROUP BY
         a.ConsecutivoOV,
@@ -15657,7 +20711,7 @@ PedidosOV AS (
         KgPendiente = SUM(
             CAST(
                 CASE
-                    WHEN o.Estatus = 5 AND os.Id IS NOT NULL THEN 0
+                    WHEN o.Estatus IN (5, 6) AND os.Id IS NOT NULL THEN 0
                     ELSE CASE
                         WHEN (CAST(op.Peso AS DECIMAL(18,4)) - ISNULL(sa.KgSurtido, 0)) < 0 THEN 0
                         ELSE (CAST(op.Peso AS DECIMAL(18,4)) - ISNULL(sa.KgSurtido, 0))
@@ -15700,7 +20754,7 @@ PedidosOV AS (
        AND sa.SKU = UPPER(LTRIM(RTRIM(op.ProductoCodigo)))
     WHERE o.FechaEntrega IS NOT NULL
       AND TRY_CONVERT(DATE, o.FechaEntrega) >= @FechaCorte
-      AND o.Estatus BETWEEN 1 AND 5
+      AND o.Estatus BETWEEN 1 AND 6
       AND ser.Sucursal = ''MATRIZ''
     GROUP BY
         UPPER(LTRIM(RTRIM(op.ProductoCodigo)))
@@ -18396,7 +23450,9 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
            "SOLICITUD_MUESTRAS_VENDEDOR",
            "SOLICITUD_MUESTRAS_PLANEACION",
            "SOLICITUD_MUESTRAS_PRODUCCION",
-           "SOLICITUD_MUESTRAS_TRACKING"
+           "SOLICITUD_MUESTRAS_TRACKING",
+                "SOLICITUD_MUESTRAS_PROD_LINEA",
+                "SOLICITUD_MUESTRAS_PROD_NUEVO"
        };
 
         [HttpGet("Comercial/AsegurarModulosMuestras")]
@@ -18437,7 +23493,10 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
                     ["vendedor"] = true,
                     ["planeacion"] = true,
                     ["produccion"] = true,
-                    ["tracking"] = true
+                    ["tracking"] = true,
+                    ["prod_linea"] = true,
+                    ["prod_nuevo"] = true
+
                 };
                 return Json(allTrue);
             }
@@ -18449,7 +23508,9 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
                 ["vendedor"] = null,
                 ["planeacion"] = null,
                 ["produccion"] = null,
-                ["tracking"] = null
+                ["tracking"] = null,
+                ["prod_linea"] = null,
+                ["prod_nuevo"] = null
             };
 
             var clavesPermisos = new (string tab, string clave)[]
@@ -18457,7 +23518,9 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
                ("vendedor",   "SOLICITUD_MUESTRAS_VENDEDOR"),
                ("planeacion", "SOLICITUD_MUESTRAS_PLANEACION"),
                ("produccion", "SOLICITUD_MUESTRAS_PRODUCCION"),
-               ("tracking",   "SOLICITUD_MUESTRAS_TRACKING")
+               ("tracking",   "SOLICITUD_MUESTRAS_TRACKING"),
+               ("prod_linea", "SOLICITUD_MUESTRAS_PROD_LINEA"),
+               ("prod_nuevo", "SOLICITUD_MUESTRAS_PROD_NUEVO")
             };
 
             foreach (var (tab, clave) in clavesPermisos)
@@ -18522,7 +23585,9 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
                     vendedor = permisos.Any(x => x.PerfilId == p.Id && x.ModuloId == modulos.FirstOrDefault(m => m.Clave == "SOLICITUD_MUESTRAS_VENDEDOR")?.Id && x.PuedeLeer),
                     planeacion = permisos.Any(x => x.PerfilId == p.Id && x.ModuloId == modulos.FirstOrDefault(m => m.Clave == "SOLICITUD_MUESTRAS_PLANEACION")?.Id && x.PuedeLeer),
                     produccion = permisos.Any(x => x.PerfilId == p.Id && x.ModuloId == modulos.FirstOrDefault(m => m.Clave == "SOLICITUD_MUESTRAS_PRODUCCION")?.Id && x.PuedeLeer),
-                    tracking = permisos.Any(x => x.PerfilId == p.Id && x.ModuloId == modulos.FirstOrDefault(m => m.Clave == "SOLICITUD_MUESTRAS_TRACKING")?.Id && x.PuedeLeer)
+                    tracking = permisos.Any(x => x.PerfilId == p.Id && x.ModuloId == modulos.FirstOrDefault(m => m.Clave == "SOLICITUD_MUESTRAS_TRACKING")?.Id && x.PuedeLeer),
+                    prodLinea = permisos.Any(x => x.PerfilId == p.Id && x.ModuloId == modulos.FirstOrDefault(m => m.Clave == "SOLICITUD_MUESTRAS_PROD_LINEA")?.Id && x.PuedeLeer), // Agregado
+                    prodNuevo = permisos.Any(x => x.PerfilId == p.Id && x.ModuloId == modulos.FirstOrDefault(m => m.Clave == "SOLICITUD_MUESTRAS_PROD_NUEVO")?.Id && x.PuedeLeer)  // Agregado
                 }).ToList();
 
                 return Json(new { ok = true, data });
@@ -18597,14 +23662,12 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
                     var sql = @"
                SELECT TOP 1 
                    CASE 
-                       WHEN Rol = 'Admin' OR PerfilId = 1 THEN 'Admin'
-                       WHEN EsVendedor = 1 OR PerfilId = 5 THEN 'Vendedor'
-                       WHEN PerfilId = 1005 THEN 'Planeador'
-                       WHEN PerfilId = 3 THEN 'Produccion'
-                       ELSE 'Vendedor'
+                       WHEN u.Rol = 'Admin' OR u.PerfilId = 1 THEN 'Admin'
+                       ELSE ISNULL(p.Nombre, 'Vendedor')
                    END
-               FROM UsuarioSQL 
-               WHERE Usuario = @User OR Nombre = @User";
+               FROM UsuarioSQL u
+               LEFT JOIN Perfiles p ON u.PerfilId = p.Id
+               WHERE u.Usuario = @User OR u.Nombre = @User";
 
                     var resultado = await conn.ExecuteScalarAsync<string>(sql, new { User = nombreUsuario });
 
@@ -18626,9 +23689,8 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
             ViewData["Perfil"] = perfilCalculado;
             return View();
         }
-
-        [HttpGet("Comercial/ObtenerSolicitudes")]
-        public async Task<IActionResult> ObtenerSolicitudes()
+        [HttpGet("Comercial/ObtenerOVMuestras")]
+        public async Task<IActionResult> ObtenerOVMuestras()
         {
             try
             {
@@ -18636,17 +23698,133 @@ WHERE NULLIF(LTRIM(RTRIM([value])), '') IS NOT NULL;
                 await conn.OpenAsync();
 
                 var sql = @"
+    SELECT 
+        ov.Id AS id, ov.Consecutivo AS consecutivo, ov.Cliente AS cliente, 
+        cs.Nombrecliente AS clienteNombre,
+        ov.Vendedor AS vendedor, ov.Ruta AS ruta, 
+        ov.Presentacion AS presentacion, ov.FechaEntrega AS fechaEntrega, 
+        ov.Observacion AS observacion,
+        ovm.SolicitudMuestraId AS solicitudMuestraId
+    FROM OrdenVenta ov
+    INNER JOIN OrdenVentaMuestra ovm ON ov.Id = ovm.OrdenVentaId
+    LEFT JOIN ClienteSap cs ON ov.Cliente = cs.Cliente
+    WHERE ovm.EsMuestra = 1 
+      AND ovm.SolicitudMuestraId IS NULL
+      AND ov.Estatus <> 0
+    ORDER BY ov.FechaRegistro DESC";
+
+                var ovMuestras = await conn.QueryAsync(sql);
+
+                return Json(ovMuestras);
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+        [HttpGet("Comercial/ObtenerProductosOV")]
+        public async Task<IActionResult> ObtenerProductosOV(int ovId)
+        {
+            try
+            {
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+
+                var sql = "SELECT ProductoCodigo AS productoCodigo, ProductoNombre AS productoNombre, Cajas AS cajas, Peso AS peso, Precio AS precio FROM OrdenVentaProducto WHERE PedidoId = @PedidoId AND Eliminado = 0";
+                var productos = await conn.QueryAsync(sql, new { PedidoId = ovId });
+
+                return Json(productos);
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+
+        [HttpPost("Comercial/ActualizarStageSolicitud")]
+        public async Task<IActionResult> ActualizarStageSolicitud(string solicitudId, string stage)
+        {
+            try
+            {
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+                await conn.ExecuteAsync(
+                    "UPDATE SolicitudMuestras SET Stage = @Stage WHERE Id = @Id",
+                    new { Stage = stage, Id = solicitudId });
+                return Json(new { ok = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+
+        [HttpGet("Comercial/ObtenerSolicitudes")]
+        public async Task<IActionResult> ObtenerSolicitudes(string vendedor = null, bool soloMias = false)
+
+        {
+            try
+            {
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+
+                var esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
+
+                int? vendedorId = null;
+                if (!esAdmin && soloMias)
+                {
+                    var login = !string.IsNullOrWhiteSpace(vendedor) ? vendedor : (User.Identity?.Name ?? "");
+                    vendedorId = await conn.ExecuteScalarAsync<int?>(@"
+                        SELECT u.VendedorId 
+                        FROM UsuarioSQL u 
+                        WHERE u.Usuario = @Login", new { Login = login });
+
+                    if (!vendedorId.HasValue)
+                        return Json(Array.Empty<object>());
+                }
+
+                var idsBusqueda = new List<int>();
+                if (vendedorId.HasValue)
+                {
+                    var idStr = vendedorId.Value.ToString();
+                    for (int i = 0; i + 1 < idStr.Length; i += 2)
+                    {
+                        if (int.TryParse(idStr.Substring(i, 2), out var partial))
+                            idsBusqueda.Add(partial);
+                    }
+                    if (idsBusqueda.Count == 0)
+                        idsBusqueda.Add(vendedorId.Value);
+                }
+
+                var sql = @"
 SELECT 
-    s.Id, s.CreatedAt, s.CreatedBy, s.Seller, s.Client, s.Species,
+    s.Id, s.CreatedAt, s.CreatedBy, s.Seller,
+    s.Client,
+    s.Species,
     s.RequestedDate, s.[Route], s.Destination, s.Priority, s.Notes,
     s.Stage, s.Location,
+    s.IdentificacionCliente, s.FechaEmbarque, s.DiaMuestras, s.TipoProduccion, s.PlantaOrigen,
+    s.Proceso, s.PorcentajeInyeccion, s.Empaque, s.Manejo, s.ProcesoDeshuese, s.MasterNombre,
+    s.CodigoMuestra, s.NombreMuestra, s.EspecificacionRequerida, s.Participacion,
+    s.VolumenSemanal, s.VolumenMensual,
+    s.Catalogo, s.CoberturaGrasa, s.PctGrasa, s.GrosorCorte, s.RebanadoPorcionado,
+    s.PiezaPorBolsa, s.KgPorBolsa, s.BolsasPorCaja, s.TipoCaja, s.ComentariosGenerales,
     s.Plan_ProcessDate AS ProcessDate, s.Plan_Shift AS Shift,
-    s.Plan_Line AS Line, s.Plan_Planner AS Planner, s.Plan_ReleasedAt AS ReleasedAt
+    s.Plan_Line AS Line, s.Plan_Planner AS Planner, s.Plan_Especificacion AS Especificacion,
+    s.Plan_ReleasedAt AS ReleasedAt,
+    ov.Consecutivo AS OvConsecutivo
 FROM SolicitudMuestras s
+LEFT JOIN OrdenVentaMuestra ovm ON s.Id = ovm.SolicitudMuestraId
+LEFT JOIN OrdenVenta ov ON ovm.OrdenVentaId = ov.Id
 WHERE s.Activo = 1 AND s.CreatedAt >= DATEADD(day, -60, GETDATE())
+AND (@VendedorId IS NULL OR ov.VendedorId IN @IdsBusqueda)
 ORDER BY s.CreatedAt DESC";
 
-                var solicitudes = await conn.QueryAsync(sql);
+                var solicitudes = idsBusqueda.Count > 0
+                    ? await conn.QueryAsync(sql, new { VendedorId = vendedorId, IdsBusqueda = idsBusqueda })
+                    : await conn.QueryAsync(sql, new { VendedorId = vendedorId, IdsBusqueda = new List<int> { 0 } });
 
                 var lista = new List<Plataforma_CG.Models.SolicitudMuestraVM>();
                 foreach (var s in solicitudes)
@@ -18666,12 +23844,41 @@ ORDER BY s.CreatedAt DESC";
                         Notes = s.Notes ?? "",
                         Stage = s.Stage ?? "Pendiente",
                         Location = s.Location ?? "",
+                        OvConsecutivo = s.OvConsecutivo ?? "",
+                        IdentificacionCliente = (s.IdentificacionCliente as string) ?? "",
+                        FechaEmbarque = s.FechaEmbarque is DateTime fechaEmb ? fechaEmb.ToString("yyyy-MM-dd") : "",
+                        DiaMuestras = (s.DiaMuestras as string) ?? "",
+                        TipoProduccion = (s.TipoProduccion as string) ?? "",
+                        PlantaOrigen = (s.PlantaOrigen as string) ?? "",
+                        Proceso = (s.Proceso as string) ?? "",
+                        PorcentajeInyeccion = s.PorcentajeInyeccion is decimal pctIny ? pctIny.ToString("0.##") : "",
+                        Empaque = (s.Empaque as string) ?? "",
+                        Manejo = (s.Manejo as string) ?? "",
+                        ProcesoDeshuese = (s.ProcesoDeshuese as string) ?? "",
+                        MasterNombre = (s.MasterNombre as string) ?? "",
+                        CodigoMuestra = (s.CodigoMuestra as string) ?? "",
+                        NombreMuestra = (s.NombreMuestra as string) ?? "",
+                        EspecificacionRequerida = (s.EspecificacionRequerida as string) ?? "",
+                        Participacion = (s.Participacion as string) ?? "",
+                        VolumenSemanal = (s.VolumenSemanal as string) ?? "",
+                        VolumenMensual = (s.VolumenMensual as string) ?? "",
+                        Catalogo = (s.Catalogo as string) ?? "",
+                        CoberturaGrasa = (s.CoberturaGrasa as string) ?? "",
+                        PctGrasa = (s.PctGrasa as string) ?? "",
+                        GrosorCorte = (s.GrosorCorte as string) ?? "",
+                        RebanadoPorcionado = (s.RebanadoPorcionado as string) ?? "",
+                        PiezaPorBolsa = (s.PiezaPorBolsa as string) ?? "",
+                        KgPorBolsa = (s.KgPorBolsa as string) ?? "",
+                        BolsasPorCaja = (s.BolsasPorCaja as string) ?? "",
+                        TipoCaja = (s.TipoCaja as string) ?? "",
+                        ComentariosGenerales = (s.ComentariosGenerales as string) ?? "",
                         Planning = s.ProcessDate != null ? new Plataforma_CG.Models.PlaneacionVM
                         {
                             ProcessDate = s.ProcessDate,
                             Shift = s.Shift,
                             Line = s.Line,
                             Planner = s.Planner,
+                            Especificacion = s.Especificacion ?? "",
                             ReleasedAt = s.ReleasedAt
                         } : null
                     };
@@ -18686,6 +23893,7 @@ ORDER BY s.CreatedAt DESC";
                             Uid = i.Uid,
                             Sku = i.Sku ?? "",
                             WorkSku = i.WorkSku,
+                            WorkSkuName = i.WorkSkuName,
                             Product = i.Product ?? "",
                             Spec = i.Spec ?? "",
                             Boxes = i.Boxes,
@@ -18700,7 +23908,8 @@ ORDER BY s.CreatedAt DESC";
                             ExternalChain = l.ExternalChain,
                             Operator = l.Operator ?? "",
                             ProcessedAt = l.ProcessedAt,
-                            Location = l.Location ?? ""
+                            Location = l.Location ?? "",
+                            PesoReal = l.PesoReal
                         }).ToList();
 
                         vm.Items.Add(itemVM);
@@ -18790,10 +23999,22 @@ ORDER BY s.CreatedAt DESC";
                 var sqlSolicitud = @"
        INSERT INTO SolicitudMuestras 
            (Id, CreatedAt, CreatedBy, Seller, Client, Species, RequestedDate, 
-            Route, Destination, Priority, Notes, Stage, Location)
+            Route, Destination, Priority, Notes, Stage, Location,
+            IdentificacionCliente, FechaEmbarque, DiaMuestras, TipoProduccion, PlantaOrigen,
+            Proceso, PorcentajeInyeccion, Empaque, Manejo, ProcesoDeshuese, MasterNombre,
+            CodigoMuestra, NombreMuestra, EspecificacionRequerida, Participacion,
+            VolumenSemanal, VolumenMensual,
+            Catalogo, CoberturaGrasa, PctGrasa, GrosorCorte, RebanadoPorcionado,
+            PiezaPorBolsa, KgPorBolsa, BolsasPorCaja, TipoCaja, ComentariosGenerales)
        VALUES 
            (@Id, @CreatedAt, @CreatedBy, @Seller, @Client, @Species, @RequestedDate,
-            @Route, @Destination, @Priority, @Notes, @Stage, @Location)";
+            @Route, @Destination, @Priority, @Notes, @Stage, @Location,
+            @IdentificacionCliente, @FechaEmbarque, @DiaMuestras, @TipoProduccion, @PlantaOrigen,
+            @Proceso, @PorcentajeInyeccion, @Empaque, @Manejo, @ProcesoDeshuese, @MasterNombre,
+            @CodigoMuestra, @NombreMuestra, @EspecificacionRequerida, @Participacion,
+            @VolumenSemanal, @VolumenMensual,
+            @Catalogo, @CoberturaGrasa, @PctGrasa, @GrosorCorte, @RebanadoPorcionado,
+            @PiezaPorBolsa, @KgPorBolsa, @BolsasPorCaja, @TipoCaja, @ComentariosGenerales)";
 
                 await conn.ExecuteAsync(sqlSolicitud, new
                 {
@@ -18809,7 +24030,34 @@ ORDER BY s.CreatedAt DESC";
                     nuevaSolicitud.Priority,
                     nuevaSolicitud.Notes,
                     Stage = "Planeación pendiente",
-                    Location = "Comercial"
+                    Location = "Comercial",
+                    IdentificacionCliente = nuevaSolicitud.IdentificacionCliente ?? "",
+                    FechaEmbarque = DateTime.TryParse(nuevaSolicitud.FechaEmbarque, out var fechaEmbarque) ? (object)fechaEmbarque : DBNull.Value,
+                    DiaMuestras = nuevaSolicitud.DiaMuestras ?? "",
+                    TipoProduccion = nuevaSolicitud.TipoProduccion ?? "",
+                    PlantaOrigen = nuevaSolicitud.PlantaOrigen ?? "",
+                    Proceso = nuevaSolicitud.Proceso ?? "",
+                    PorcentajeInyeccion = decimal.TryParse(nuevaSolicitud.PorcentajeInyeccion, out var pctIny) ? (object)pctIny : DBNull.Value,
+                    Empaque = nuevaSolicitud.Empaque ?? "",
+                    Manejo = nuevaSolicitud.Manejo ?? "",
+                    ProcesoDeshuese = nuevaSolicitud.ProcesoDeshuese ?? "",
+                    MasterNombre = nuevaSolicitud.MasterNombre ?? "",
+                    CodigoMuestra = nuevaSolicitud.CodigoMuestra ?? "",
+                    NombreMuestra = nuevaSolicitud.NombreMuestra ?? "",
+                    EspecificacionRequerida = nuevaSolicitud.EspecificacionRequerida ?? "",
+                    Participacion = nuevaSolicitud.Participacion ?? "",
+                    VolumenSemanal = nuevaSolicitud.VolumenSemanal ?? "",
+                    VolumenMensual = nuevaSolicitud.VolumenMensual ?? "",
+                    Catalogo = nuevaSolicitud.Catalogo ?? "",
+                    CoberturaGrasa = nuevaSolicitud.CoberturaGrasa ?? "",
+                    PctGrasa = nuevaSolicitud.PctGrasa ?? "",
+                    GrosorCorte = nuevaSolicitud.GrosorCorte ?? "",
+                    RebanadoPorcionado = nuevaSolicitud.RebanadoPorcionado ?? "",
+                    PiezaPorBolsa = nuevaSolicitud.PiezaPorBolsa ?? "",
+                    KgPorBolsa = nuevaSolicitud.KgPorBolsa ?? "",
+                    BolsasPorCaja = nuevaSolicitud.BolsasPorCaja ?? "",
+                    TipoCaja = nuevaSolicitud.TipoCaja ?? "",
+                    ComentariosGenerales = nuevaSolicitud.ComentariosGenerales ?? ""
                 });
 
                 if (nuevaSolicitud.Items != null && nuevaSolicitud.Items.Any())
@@ -18836,6 +24084,13 @@ ORDER BY s.CreatedAt DESC";
                     }
                 }
 
+                if (nuevaSolicitud.OrdenVentaId.HasValue)
+                {
+                    await conn.ExecuteAsync(
+                        "UPDATE OrdenVentaMuestra SET SolicitudMuestraId = @SolicitudId WHERE OrdenVentaId = @OrdenVentaId",
+                        new { SolicitudId = nuevaSolicitud.Id, OrdenVentaId = nuevaSolicitud.OrdenVentaId.Value });
+                }
+
                 return Json(new { ok = true, mensaje = "Solicitud creada correctamente." });
             }
             catch (Exception ex)
@@ -18844,97 +24099,97 @@ ORDER BY s.CreatedAt DESC";
             }
         }
 
-        [HttpPost("Comercial/GuardarPlaneacion")]
-        [RevisarPermiso("SOLICITUD_MUESTRAS_PLANEACION", "ESCRIBIR")]
-        public async Task<IActionResult> GuardarPlaneacion([FromBody] Plataforma_CG.Models.SolicitudMuestraVM solicitudActualizada)
-        {
-            try
-            {
-                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
-                await conn.OpenAsync();
+        //[HttpPost("Comercial/GuardarPlaneacion")]
+        //[RevisarPermiso("SOLICITUD_MUESTRAS_PLANEACION", "ESCRIBIR")]
+        //public async Task<IActionResult> GuardarPlaneacion([FromBody] Plataforma_CG.Models.SolicitudMuestraVM solicitudActualizada)
+        //{
+        //    try
+        //    {
+        //        using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+        //        await conn.OpenAsync();
 
-                var sql = @"
-        UPDATE SolicitudMuestras 
-        SET Stage = @Stage,
-            Location = @Location,
-            Plan_ProcessDate = @ProcessDate,
-            Plan_Shift = @Shift,
-            Plan_Line = @Line,
-            Plan_Planner = @Planner,
-            Plan_ReleasedAt = @ReleasedAt
-        WHERE Id = @Id";
+        //        var sql = @"
+        //UPDATE SolicitudMuestras 
+        //SET Stage = @Stage,
+        //    Location = @Location,
+        //    Plan_ProcessDate = @ProcessDate,
+        //    Plan_Shift = @Shift,
+        //    Plan_Line = @Line,
+        //    Plan_Planner = @Planner,
+        //    Plan_ReleasedAt = @ReleasedAt
+        //WHERE Id = @Id";
 
-                await conn.ExecuteAsync(sql, new
-                {
-                    solicitudActualizada.Id,
-                    Stage = "Liberado a producción",
-                    Location = "Producción",
-                    ProcessDate = solicitudActualizada.Planning?.ProcessDate,
-                    Shift = solicitudActualizada.Planning?.Shift,
-                    Line = solicitudActualizada.Planning?.Line,
-                    Planner = solicitudActualizada.Planning?.Planner,
-                    ReleasedAt = DateTime.Now
-                });
+        //        await conn.ExecuteAsync(sql, new
+        //        {
+        //            solicitudActualizada.Id,
+        //            Stage = "Liberado a producción",
+        //            Location = "Producción",
+        //            ProcessDate = solicitudActualizada.Planning?.ProcessDate,
+        //            Shift = solicitudActualizada.Planning?.Shift,
+        //            Line = solicitudActualizada.Planning?.Line,
+        //            Planner = solicitudActualizada.Planning?.Planner,
+        //            ReleasedAt = DateTime.Now
+        //        });
 
-                if (solicitudActualizada.Items != null)
-                {
-                    foreach (var item in solicitudActualizada.Items)
-                    {
-                        await conn.ExecuteAsync(
-                            "UPDATE SolicitudMuestras_Items SET WorkSku = @WorkSku WHERE Uid = @Uid",
-                            new { item.Uid, WorkSku = item.WorkSku ?? (object)DBNull.Value });
-                    }
-                }
+        //        if (solicitudActualizada.Items != null)
+        //        {
+        //            foreach (var item in solicitudActualizada.Items)
+        //            {
+        //                await conn.ExecuteAsync(
+        //                    "UPDATE SolicitudMuestras_Items SET WorkSku = @WorkSku WHERE Uid = @Uid",
+        //                    new { item.Uid, WorkSku = item.WorkSku ?? (object)DBNull.Value });
+        //            }
+        //        }
 
-                return Json(new { ok = true, mensaje = "Liberado a producción." });
-            }
-            catch (Exception ex)
-            {
-                return Json(new { ok = false, mensaje = ex.Message });
-            }
-        }
+        //        return Json(new { ok = true, mensaje = "Liberado a producción." });
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return Json(new { ok = false, mensaje = ex.Message });
+        //    }
+        //}
 
-        [HttpPost("Comercial/LigarEtiqueta")]
-        [RevisarPermiso("SOLICITUD_MUESTRAS_PRODUCCION", "ESCRIBIR")]
-        public async Task<IActionResult> LigarEtiqueta([FromBody] Plataforma_CG.Models.EtiquetaVM nuevaEtiqueta, string solicitudId, string itemUid)
-        {
-            try
-            {
-                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
-                await conn.OpenAsync();
+        //[HttpPost("Comercial/LigarEtiqueta")]
+        //[RevisarPermiso("SOLICITUD_MUESTRAS_PRODUCCION", "ESCRIBIR")]
+        //public async Task<IActionResult> LigarEtiqueta([FromBody] Plataforma_CG.Models.EtiquetaVM nuevaEtiqueta, string solicitudId, string itemUid)
+        //{
+        //    try
+        //    {
+        //        using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+        //        await conn.OpenAsync();
 
-                var existe = await conn.ExecuteScalarAsync<int>(
-                    "SELECT COUNT(1) FROM SolicitudMuestras_Etiquetas WHERE ExternalChain = @Chain",
-                    new { Chain = nuevaEtiqueta.ExternalChain });
+        //        var existe = await conn.ExecuteScalarAsync<int>(
+        //            "SELECT COUNT(1) FROM SolicitudMuestras_Etiquetas WHERE ExternalChain = @Chain",
+        //            new { Chain = nuevaEtiqueta.ExternalChain });
 
-                if (existe > 0)
-                    return Json(new { ok = false, mensaje = "La cadena de conexión externa ya está registrada." });
+        //        if (existe > 0)
+        //            return Json(new { ok = false, mensaje = "La cadena de conexión externa ya está registrada." });
 
-                var sql = @"
-        INSERT INTO SolicitudMuestras_Etiquetas (Code, ItemUid, ExternalChain, Operator, ProcessedAt, Location, PesoReal)
-        VALUES (@Code, @ItemUid, @ExternalChain, @Operator, @ProcessedAt, @Location, @PesoReal)";
+        //        var sql = @"
+        //INSERT INTO SolicitudMuestras_Etiquetas (Code, ItemUid, ExternalChain, Operator, ProcessedAt, Location, PesoReal)
+        //VALUES (@Code, @ItemUid, @ExternalChain, @Operator, @ProcessedAt, @Location, @PesoReal)";
 
-                await conn.ExecuteAsync(sql, new
-                {
-                    nuevaEtiqueta.Code,
-                    ItemUid = itemUid,
-                    nuevaEtiqueta.ExternalChain,
-                    Operator = nuevaEtiqueta.Operator ?? "Sistema",
-                    ProcessedAt = DateTime.Now,
-                    Location = "Producción",
-                    PesoReal = (decimal?)null
-                });
+        //        await conn.ExecuteAsync(sql, new
+        //        {
+        //            nuevaEtiqueta.Code,
+        //            ItemUid = itemUid,
+        //            nuevaEtiqueta.ExternalChain,
+        //            Operator = nuevaEtiqueta.Operator ?? "Sistema",
+        //            ProcessedAt = DateTime.Now,
+        //            Location = "Producción",
+        //            PesoReal = (decimal?)null
+        //        });
 
-                return Json(new { ok = true, mensaje = "Etiqueta ligada." });
-            }
-            catch (Exception ex)
-            {
-                return Json(new { ok = false, mensaje = ex.Message });
-            }
-        }
+        //        return Json(new { ok = true, mensaje = "Etiqueta ligada." });
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return Json(new { ok = false, mensaje = ex.Message });
+        //    }
+        //}
 
         [HttpPost("Comercial/ActualizarUbicacion")]
-        [RevisarPermiso("SOLICITUD_MUESTRAS_TRACKING", "ESCRIBIR")]
+        [RevisarPermiso("SOLICITUD_MUESTRAS_PRODUCCION", "ESCRIBIR")]
         public async Task<IActionResult> ActualizarUbicacion(string solicitudId, string ubicacion)
         {
             try
@@ -18978,6 +24233,118 @@ ORDER BY s.CreatedAt DESC";
         }
 
 
+        [HttpPost("Comercial/EditarSolicitud")]
+        public async Task<IActionResult> EditarSolicitud([FromBody] EditarSolicitudModel model)
+        {
+            try
+            {
+                if (model == null || string.IsNullOrWhiteSpace(model.Id))
+                    return Json(new { ok = false, mensaje = "Solicitud inválida." });
+
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+
+                var sql = @"UPDATE SolicitudMuestras
+                    SET Species = @Species,
+                        RequestedDate = @RequestedDate,
+                        [Route] = @Route,
+                        Destination = @Destination,
+                        Priority = @Priority,
+                        Notes = @Notes,
+                        IdentificacionCliente = @IdentificacionCliente,
+                        FechaEmbarque = @FechaEmbarque,
+                        DiaMuestras = @DiaMuestras,
+                        TipoProduccion = @TipoProduccion,
+                        PlantaOrigen = @PlantaOrigen,
+                        Proceso = @Proceso,
+                        PorcentajeInyeccion = @PorcentajeInyeccion,
+                        Empaque = @Empaque,
+                        Manejo = @Manejo,
+                        ProcesoDeshuese = @ProcesoDeshuese,
+                        MasterNombre = @MasterNombre,
+                        CodigoMuestra = @CodigoMuestra,
+                        NombreMuestra = @NombreMuestra,
+                        EspecificacionRequerida = @EspecificacionRequerida,
+                        Participacion = @Participacion,
+                        VolumenSemanal = @VolumenSemanal,
+                        VolumenMensual = @VolumenMensual,
+                        Catalogo = @Catalogo,
+                        CoberturaGrasa = @CoberturaGrasa,
+                        PctGrasa = @PctGrasa,
+                        GrosorCorte = @GrosorCorte,
+                        RebanadoPorcionado = @RebanadoPorcionado,
+                        PiezaPorBolsa = @PiezaPorBolsa,
+                        KgPorBolsa = @KgPorBolsa,
+                        BolsasPorCaja = @BolsasPorCaja,
+                        TipoCaja = @TipoCaja,
+                        ComentariosGenerales = @ComentariosGenerales
+                    WHERE Id = @Id AND Activo = 1";
+
+                var rows = await conn.ExecuteAsync(sql, new
+                {
+                    model.Id,
+                    model.Species,
+                    model.RequestedDate,
+                    model.Route,
+                    model.Destination,
+                    model.Priority,
+                    model.Notes,
+                    model.IdentificacionCliente,
+                    model.FechaEmbarque,
+                    model.DiaMuestras,
+                    model.TipoProduccion,
+                    model.PlantaOrigen,
+                    model.Proceso,
+                    model.PorcentajeInyeccion,
+                    model.Empaque,
+                    model.Manejo,
+                    model.ProcesoDeshuese,
+                    model.MasterNombre,
+                    model.CodigoMuestra,
+                    model.NombreMuestra,
+                    model.EspecificacionRequerida,
+                    model.Participacion,
+                    model.VolumenSemanal,
+                    model.VolumenMensual,
+                    model.Catalogo,
+                    model.CoberturaGrasa,
+                    model.PctGrasa,
+                    model.GrosorCorte,
+                    model.RebanadoPorcionado,
+                    model.PiezaPorBolsa,
+                    model.KgPorBolsa,
+                    model.BolsasPorCaja,
+                    model.TipoCaja,
+                    model.ComentariosGenerales
+                });
+
+                if (rows == 0)
+                    return Json(new { ok = false, mensaje = "Solicitud no encontrada o inactiva." });
+
+                if (model.Items != null && model.Items.Count > 0)
+                {
+                    foreach (var item in model.Items)
+                    {
+                        if (!string.IsNullOrWhiteSpace(item.Uid))
+                        {
+                            await conn.ExecuteAsync(
+                                @"UPDATE SolicitudMuestras_Items 
+                                  SET Spec = @Spec 
+                                  WHERE Uid = @Uid AND SolicitudId = @SolicitudId",
+                                new { Uid = item.Uid, Spec = item.Spec ?? "", SolicitudId = model.Id });
+                        }
+                    }
+                }
+
+                return Json(new { ok = true, mensaje = "Solicitud actualizada correctamente." });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+
         ///////////precios por sku ///////////////////////
         [HttpGet]
         public IActionResult AjustePrecios()
@@ -19002,7 +24369,8 @@ ORDER BY s.CreatedAt DESC";
         SELECT 
             p.ArticuloId AS Sku,
             ISNULL(a.Nombre, 'PRODUCTO SIN DESCRIPCION') AS Nombre,
-            p.Publico AS Precio
+            p.Publico AS Precio,
+            ISNULL(NULLIF(LTRIM(RTRIM(a.Estatus)), ''), '1') AS Estatus
         FROM [{dbCatalogo}].[dbo].[Precio] p
         LEFT JOIN [{dbCatalogo}].[dbo].[Articulo] a ON p.ArticuloId = a.ArticuloId
         WHERE p.EmpresaId = 'CARNG' AND p.ZonaId = 'GUA' AND p.Criterio = 'NV1'";
@@ -19023,7 +24391,8 @@ ORDER BY s.CreatedAt DESC";
                         Sku = p.Sku,
                         Nombre = p.Nombre,
                         CategoriaMaster = sapData != null ? sapData.CategoriaMaster : "(SIN MASTER)",
-                        Precio = p.Precio
+                        Precio = p.Precio,
+                        Estatus = (string)p.Estatus
                     };
                 });
 
@@ -19083,7 +24452,7 @@ ORDER BY s.CreatedAt DESC";
         }
 
         [HttpPost("Comercial/GuardarPreciosMasivo")]
-        public async Task<IActionResult> GuardarPreciosMasivo([FromBody] List<DtoAjustePrecio> paquete, [FromQuery] string planta = "TIF")
+        public async Task<IActionResult> GuardarPreciosMasivo([FromBody] List<DtoAjustePrecio> paquete, [FromQuery] string planta = "TIF", [FromQuery] bool ambas = false)
         {
             if (paquete == null || !paquete.Any())
                 return Json(new { ok = false, mensaje = "Sin datos para actualizar." });
@@ -19092,56 +24461,195 @@ ORDER BY s.CreatedAt DESC";
 
             // Validar planta para guardado
             planta = string.IsNullOrWhiteSpace(planta) ? "TIF" : planta.ToUpper();
-            string nombreCadena = (planta == "P1") ? "CadenaMeatP1" : "CadenaMeatTIF";
-            string dbCatalogo = (planta == "P1") ? "CommerciaNet" : "TIF_CommerciaNet";
 
-            using var connMeat = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString(nombreCadena));
+            var plantasDestino = new List<(string Planta, string Cadena, string Db)>();
+            if (ambas)
+            {
+                plantasDestino.Add(("TIF", "CadenaMeatTIF", "TIF_CommerciaNet"));
+                plantasDestino.Add(("P1", "CadenaMeatP1", "CommerciaNet"));
+            }
+            else
+            {
+                string nombreCadena = (planta == "P1") ? "CadenaMeatP1" : "CadenaMeatTIF";
+                string dbCatalogo = (planta == "P1") ? "CommerciaNet" : "TIF_CommerciaNet";
+                plantasDestino.Add((planta, nombreCadena, dbCatalogo));
+            }
+
             using var connSigo = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
-
-            await connMeat.OpenAsync();
             await connSigo.OpenAsync();
-
-            using var txMeat = connMeat.BeginTransaction();
             using var txSigo = connSigo.BeginTransaction();
+
+            var sqlLogSigo = @"
+INSERT INTO LogAjustePrecios (ArticuloId, PrecioAnterior, PrecioNuevo, Usuario, FechaHora, Planta)
+VALUES (@Sku, @PrecioAnterior, @PrecioNuevo, @Usuario, GETDATE(), @Planta)";
 
             try
             {
-                var sqlSelectBase = $@"
-        SELECT Publico FROM [{dbCatalogo}].[dbo].[Precio] 
+                foreach (var destino in plantasDestino)
+                {
+                    using var connMeat = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString(destino.Cadena));
+                    await connMeat.OpenAsync();
+                    using var txMeat = connMeat.BeginTransaction();
+
+                    var sqlSelectBase = $@"
+        SELECT Publico FROM [{destino.Db}].[dbo].[Precio] 
         WHERE ArticuloId = @Sku AND EmpresaId = 'CARNG' AND ZonaId = 'GUA' AND Criterio = 'NV1'";
 
-                var sqlUpdateMeat = $@"
-        UPDATE [{dbCatalogo}].[dbo].[Precio] 
+                    var sqlUpdateMeat = $@"
+        UPDATE [{destino.Db}].[dbo].[Precio] 
         SET Publico = @Precio, FechaHora = GETDATE()
         WHERE ArticuloId = @Sku AND EmpresaId = 'CARNG' AND ZonaId = 'GUA' AND Criterio = 'NV1'";
 
-                var sqlLogSigo = @"
-INSERT INTO LogAjustePrecios (ArticuloId, PrecioAnterior, PrecioNuevo, Usuario, FechaHora, Planta)
-VALUES (@Sku, @PrecioAnterior, @PrecioNuevo, @Usuario, GETDATE(), @Planta)";
-                foreach (var item in paquete)
-                {
-                    var precioAnterior = await connMeat.QueryFirstOrDefaultAsync<decimal>(sqlSelectBase, new { Sku = item.Sku }, txMeat);
-
-                    await connMeat.ExecuteAsync(sqlUpdateMeat, item, txMeat);
-
-                    await connSigo.ExecuteAsync(sqlLogSigo, new
+                    foreach (var item in paquete)
                     {
-                        Sku = item.Sku,
-                        PrecioAnterior = precioAnterior,
-                        PrecioNuevo = item.Precio,
-                        Usuario = nombreUsuario,
-                        Planta = planta
-                    }, txSigo);
+                        var precioAnterior = await connMeat.QueryFirstOrDefaultAsync<decimal>(sqlSelectBase, new { Sku = item.Sku }, txMeat);
+
+                        await connMeat.ExecuteAsync(sqlUpdateMeat, item, txMeat);
+
+                        await connSigo.ExecuteAsync(sqlLogSigo, new
+                        {
+                            Sku = item.Sku,
+                            PrecioAnterior = precioAnterior,
+                            PrecioNuevo = item.Precio,
+                            Usuario = nombreUsuario,
+                            Planta = destino.Planta
+                        }, txSigo);
+                    }
+
+                    txMeat.Commit();
                 }
 
-                txMeat.Commit();
+                // NUEVO: ACTUALIZAMOS LA FECHA DE LA ÚLTIMA CONFIGURACIÓN
+                var sqlUpdateConfig = @"
+UPDATE ConfiguracionAlertasPrecios 
+SET UltimaActualizacion = GETDATE(), ActualizadoPor = @Usuario 
+WHERE Id = 1";
+                await connSigo.ExecuteAsync(sqlUpdateConfig, new { Usuario = nombreUsuario }, txSigo);
+
                 txSigo.Commit();
                 return Json(new { ok = true });
             }
             catch (Exception ex)
             {
-                txMeat.Rollback();
                 txSigo.Rollback();
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+        public class DtoCambioEstatus
+        {
+            public List<string> Skus { get; set; } = new();
+            public string Estatus { get; set; } = "";
+            public string Planta { get; set; } = "TIF";
+        }
+
+        [HttpPost("Comercial/CambiarEstatusArticulos")]
+        public async Task<IActionResult> CambiarEstatusArticulos([FromBody] DtoCambioEstatus data)
+        {
+            try
+            {
+                var skus = data.Skus?.Select(s => s?.Trim() ?? "").Where(s => s != "").ToList() ?? new List<string>();
+                if (skus.Count == 0)
+                    return Json(new { ok = false, mensaje = "Sin SKUs para actualizar." });
+
+                var estatus = (data.Estatus ?? "").Trim();
+                if (estatus != "1" && estatus != "2" && estatus != "0")
+                    return Json(new { ok = false, mensaje = "Estatus inválido. Use 1 (Activo), 2 (Pausado) o 0 (Inactivo)." });
+
+                var planta = string.IsNullOrWhiteSpace(data.Planta) ? "TIF" : data.Planta.ToUpper();
+                string nombreCadena = (planta == "P1") ? "CadenaMeatP1" : "CadenaMeatTIF";
+                string dbCatalogo = (planta == "P1") ? "CommerciaNet" : "TIF_CommerciaNet";
+
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString(nombreCadena));
+                await conn.OpenAsync();
+
+                var sql = $@"
+        UPDATE [{dbCatalogo}].[dbo].[Articulo]
+        SET Estatus = @Estatus
+        WHERE ArticuloId IN @Skus";
+
+                var filas = await conn.ExecuteAsync(sql, new { Estatus = estatus, Skus = skus });
+
+                return Json(new { ok = true, actualizados = filas });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+        // ==========================================
+        // NUEVOS ENDPOINTS: ALERTAS DE PRECIOS
+        // ==========================================
+
+        [HttpGet("Comercial/ObtenerConfigAlertaPrecios")]
+        public async Task<IActionResult> ObtenerConfigAlertaPrecios()
+        {
+            try
+            {
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+
+                var sql = "SELECT FrecuenciaMeses, AnticipacionDias, UltimaActualizacion FROM ConfiguracionAlertasPrecios WHERE Id = 1";
+                var result = await conn.QueryFirstOrDefaultAsync(sql);
+
+                if (result == null)
+                {
+                    // Si no existe, simulamos los valores por defecto para que no truene el JavaScript
+                    return Json(new { ok = true, meses = 3, dias = 7, ultimaAct = (string)null });
+                }
+
+                return Json(new
+                {
+                    ok = true,
+                    meses = result.FrecuenciaMeses,
+                    dias = result.AnticipacionDias,
+                    ultimaAct = result.UltimaActualizacion != null ? ((DateTime)result.UltimaActualizacion).ToString("yyyy-MM-ddTHH:mm:ss") : null
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = ex.Message });
+            }
+        }
+
+        public class ConfigAlertaDTO
+        {
+            public int meses { get; set; }
+            public int dias { get; set; }
+        }
+
+        [HttpPost("Comercial/GuardarConfigAlertaPrecios")]
+        public async Task<IActionResult> GuardarConfigAlertaPrecios([FromBody] ConfigAlertaDTO data)
+        {
+            try
+            {
+                var nombreUsuario = User.Identity?.Name ?? "Sistema";
+
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+
+                // Intentamos actualizar
+                var sqlUpdate = @"
+UPDATE ConfiguracionAlertasPrecios 
+SET FrecuenciaMeses = @meses, AnticipacionDias = @dias, ActualizadoPor = @usuario 
+WHERE Id = 1";
+
+                int filasAfectadas = await conn.ExecuteAsync(sqlUpdate, new { meses = data.meses, dias = data.dias, usuario = nombreUsuario });
+
+                // Si no había registro (filasAfectadas == 0), lo insertamos
+                if (filasAfectadas == 0)
+                {
+                    var sqlInsert = @"
+INSERT INTO ConfiguracionAlertasPrecios (FrecuenciaMeses, AnticipacionDias, ActualizadoPor) 
+VALUES (@meses, @dias, @usuario)";
+                    await conn.ExecuteAsync(sqlInsert, new { meses = data.meses, dias = data.dias, usuario = nombreUsuario });
+                }
+
+                return Json(new { ok = true, mensaje = "Configuración actualizada" });
+            }
+            catch (Exception ex)
+            {
                 return Json(new { ok = false, mensaje = ex.Message });
             }
         }
@@ -19153,16 +24661,5148 @@ VALUES (@Sku, @PrecioAnterior, @PrecioNuevo, @Usuario, GETDATE(), @Planta)";
         }
 
 
+        // ============================================================================
+        // PEGAR DENTRO DE ComercialController
+        // Reemplaza tus métodos actuales GuardarPlaneacion y LigarEtiqueta por este bloque completo.
+        // Requiere los using que tu controlador ya tiene:
+        // using Dapper;
+        // using Microsoft.Data.SqlClient;
+        // using System.Data;
+        // using System.Text.RegularExpressions;
+        // ============================================================================
+
+        private sealed class SolicitudItemEtiquetaValidacionRow
+        {
+            public string Uid { get; set; } = "";
+            public string SolicitudId { get; set; } = "";
+            public string Sku { get; set; } = "";
+            public string? WorkSku { get; set; }
+            public int Boxes { get; set; }
+            public bool Activo { get; set; }
+            public string Stage { get; set; } = "";
+            public DateTime? PlanReleasedAt { get; set; }
+            public int EtiquetasLigadas { get; set; }
+        }
+
+        private sealed class ProduccionEtiquetaMeatRow
+        {
+            public int ProduccionId { get; set; }
+            public long? LoteId { get; set; }
+            public string CodigoEtiqueta { get; set; } = "";
+            public string Articulo { get; set; } = "";
+            public int Estatus { get; set; }
+            public decimal? PesoNeto { get; set; }
+            public string? Almacen { get; set; }
+            public DateTime? FechaProduccion { get; set; }
+            public DateTime? FechaHora { get; set; }
+        }
+
+
+        // ============================================================================
+        // PLANEACIÓN: obliga a asignar un artículo válido a CADA renglón.
+        // La liberación es fail-closed: si falta un SKU o SQL falla, no se libera.
+        // ============================================================================
+        [HttpPost("Comercial/GuardarPlaneacion")]
+        [RevisarPermiso("SOLICITUD_MUESTRAS_PLANEACION", "ESCRIBIR")]
+        public async Task<IActionResult> GuardarPlaneacion(
+            [FromBody] Plataforma_CG.Models.SolicitudMuestraVM solicitudActualizada)
+        {
+            static string N(string? valor) =>
+                (valor ?? string.Empty).Trim().ToUpperInvariant();
+
+            if (solicitudActualizada == null)
+                return Json(new { ok = false, mensaje = "La planeación recibida es inválida." });
+
+            var solicitudId = (solicitudActualizada.Id ?? string.Empty).Trim();
+
+            if (string.IsNullOrWhiteSpace(solicitudId))
+                return Json(new { ok = false, mensaje = "La solicitud es obligatoria." });
+
+            if (solicitudActualizada.Planning == null)
+                return Json(new { ok = false, mensaje = "Capture los datos de Planeación." });
+
+            var processDateText = Convert.ToString(
+                solicitudActualizada.Planning.ProcessDate,
+                System.Globalization.CultureInfo.InvariantCulture);
+
+            if (string.IsNullOrWhiteSpace(processDateText))
+                return Json(new { ok = false, mensaje = "La fecha de proceso es obligatoria." });
+
+            var shift = (solicitudActualizada.Planning.Shift ?? string.Empty).Trim();
+            var line = (solicitudActualizada.Planning.Line ?? string.Empty).Trim();
+            var planner = (solicitudActualizada.Planning.Planner ?? string.Empty).Trim();
+            var especificacion = (solicitudActualizada.Planning.Especificacion ?? string.Empty).Trim();
+
+            if (string.IsNullOrWhiteSpace(shift))
+                return Json(new { ok = false, mensaje = "El turno es obligatorio." });
+
+            if (string.IsNullOrWhiteSpace(line))
+                return Json(new { ok = false, mensaje = "La línea es obligatoria." });
+
+            if (string.IsNullOrWhiteSpace(planner))
+                planner = (User?.Identity?.Name ?? string.Empty).Trim();
+
+            if (string.IsNullOrWhiteSpace(planner))
+                return Json(new { ok = false, mensaje = "No se pudo identificar al planeador." });
+
+            var itemsRecibidos = (solicitudActualizada.Items ?? new List<Plataforma_CG.Models.ItemMuestraVM>())
+                .Where(i => i != null)
+                .Select(i => new
+                {
+                    Uid = (i.Uid ?? string.Empty).Trim(),
+                    SkuSolicitado = N(i.Sku),
+                    WorkSku = N(i.WorkSku),
+                    WorkSkuName = (i.WorkSkuName ?? string.Empty).Trim()
+                })
+                .Where(i => !string.IsNullOrWhiteSpace(i.Uid))
+                .GroupBy(i => i.Uid, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.Last())
+                .ToList();
+
+            if (itemsRecibidos.Count == 0)
+            {
+                return Json(new
+                {
+                    ok = false,
+                    mensaje = "La solicitud no contiene artículos para planear."
+                });
+            }
+
+            var sinArticulo = itemsRecibidos
+                .Where(i => string.IsNullOrWhiteSpace(i.WorkSku))
+                .Select(i => string.IsNullOrWhiteSpace(i.SkuSolicitado) ? i.Uid : i.SkuSolicitado)
+                .ToList();
+
+            if (sinArticulo.Count > 0)
+            {
+                return Json(new
+                {
+                    ok = false,
+                    mensaje =
+                        "No se puede liberar a producción. Asigne un artículo a todos los renglones. " +
+                        $"Pendientes: {string.Join(", ", sinArticulo.Take(10))}."
+                });
+            }
+
+            var cadena = _configuration.GetConnectionString("DefaultConnection");
+
+            if (string.IsNullOrWhiteSpace(cadena))
+            {
+                _logger.LogError("No se encontró la cadena DefaultConnection.");
+                return Json(new
+                {
+                    ok = false,
+                    mensaje = "No está configurada la conexión de SIGO."
+                });
+            }
+
+            try
+            {
+                using var conn = new SqlConnection(cadena);
+                await conn.OpenAsync();
+
+                using var tx = conn.BeginTransaction(IsolationLevel.Serializable);
+
+                try
+                {
+                    var solicitudActiva = await conn.ExecuteScalarAsync<int>(
+                        @"SELECT COUNT(1)
+                  FROM dbo.SolicitudMuestras WITH (UPDLOCK, HOLDLOCK)
+                  WHERE Id = @Id
+                    AND ISNULL(Activo, 0) = 1;",
+                        new { Id = solicitudId },
+                        tx);
+
+                    if (solicitudActiva != 1)
+                    {
+                        tx.Rollback();
+                        return Json(new
+                        {
+                            ok = false,
+                            mensaje = "La solicitud no existe, está cancelada o ya no está activa."
+                        });
+                    }
+
+                    var uidsBase = (await conn.QueryAsync<string>(
+                        @"SELECT Uid
+                  FROM dbo.SolicitudMuestras_Items WITH (UPDLOCK, HOLDLOCK)
+                  WHERE SolicitudId = @SolicitudId;",
+                        new { SolicitudId = solicitudId },
+                        tx))
+                        .Select(x => (x ?? string.Empty).Trim())
+                        .Where(x => !string.IsNullOrWhiteSpace(x))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+
+                    if (uidsBase.Count == 0)
+                    {
+                        tx.Rollback();
+                        return Json(new
+                        {
+                            ok = false,
+                            mensaje = "La solicitud no tiene artículos registrados en la base de datos."
+                        });
+                    }
+
+                    var recibidosPorUid = itemsRecibidos.ToDictionary(
+                        x => x.Uid,
+                        x => x,
+                        StringComparer.OrdinalIgnoreCase);
+
+                    var faltantesBase = uidsBase
+                        .Where(uid =>
+                            !recibidosPorUid.TryGetValue(uid, out var item) ||
+                            string.IsNullOrWhiteSpace(item.WorkSku))
+                        .ToList();
+
+                    if (faltantesBase.Count > 0)
+                    {
+                        tx.Rollback();
+                        return Json(new
+                        {
+                            ok = false,
+                            mensaje =
+                                "No se puede liberar. Existen renglones sin artículo asignado " +
+                                $"({faltantesBase.Count}). Recargue la pantalla y complete todos los SKU."
+                        });
+                    }
+
+                    var extras = itemsRecibidos
+                        .Where(i => !uidsBase.Contains(i.Uid, StringComparer.OrdinalIgnoreCase))
+                        .Select(i => i.Uid)
+                        .ToList();
+
+                    if (extras.Count > 0)
+                    {
+                        tx.Rollback();
+                        return Json(new
+                        {
+                            ok = false,
+                            mensaje = "La petición contiene artículos que no pertenecen a la solicitud."
+                        });
+                    }
+
+                    // Blindaje adicional: el WorkSku debe existir realmente en ArticuloSap.
+                    var skusAsignados = itemsRecibidos
+                        .Select(i => i.WorkSku)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToArray();
+
+                    var skusCatalogo = (await conn.QueryAsync<string>(
+                        @"SELECT DISTINCT UPPER(LTRIM(RTRIM(ProductoCodigo)))
+                  FROM dbo.ArticuloSap
+                  WHERE UPPER(LTRIM(RTRIM(ProductoCodigo))) IN @Skus;",
+                        new { Skus = skusAsignados },
+                        tx))
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                    var skusInvalidos = skusAsignados
+                        .Where(sku => !skusCatalogo.Contains(sku))
+                        .ToList();
+
+                    if (skusInvalidos.Count > 0)
+                    {
+                        tx.Rollback();
+                        return Json(new
+                        {
+                            ok = false,
+                            mensaje =
+                                "No se puede liberar. Los siguientes artículos no existen en ArticuloSap: " +
+                                string.Join(", ", skusInvalidos.Take(10))
+                        });
+                    }
+
+                    foreach (var uid in uidsBase)
+                    {
+                        var item = recibidosPorUid[uid];
+
+                        var actualizados = await conn.ExecuteAsync(
+                            @"UPDATE dbo.SolicitudMuestras_Items
+                      SET WorkSku = @WorkSku, WorkSkuName = @WorkSkuName
+                      WHERE Uid = @Uid
+                        AND SolicitudId = @SolicitudId;",
+                            new
+                            {
+                                WorkSku = item.WorkSku,
+                                WorkSkuName = item.WorkSkuName,
+                                Uid = uid,
+                                SolicitudId = solicitudId
+                            },
+                            tx);
+
+                        if (actualizados != 1)
+                            throw new InvalidOperationException($"No se pudo actualizar el renglón {uid}.");
+                    }
+
+                    var solicitudActualizadaCount = await conn.ExecuteAsync(
+                        @"UPDATE dbo.SolicitudMuestras
+                  SET Stage = N'Liberado a producción',
+                      Location = N'Producción',
+                      Plan_ProcessDate = @ProcessDate,
+                      Plan_Shift = @Shift,
+                      Plan_Line = @Line,
+                      Plan_Planner = @Planner,
+                      Plan_Especificacion = @Especificacion,
+                      Plan_ReleasedAt = @ReleasedAt
+                  WHERE Id = @Id
+                    AND ISNULL(Activo, 0) = 1;",
+                        new
+                        {
+                            Id = solicitudId,
+                            ProcessDate = solicitudActualizada.Planning.ProcessDate,
+                            Shift = shift,
+                            Line = line,
+                            Planner = planner,
+                            Especificacion = especificacion,
+                            ReleasedAt = DateTime.Now
+                        },
+                        tx);
+
+                    if (solicitudActualizadaCount != 1)
+                        throw new InvalidOperationException("No se pudo liberar la solicitud a producción.");
+
+                    tx.Commit();
+
+                    return Json(new
+                    {
+                        ok = true,
+                        mensaje =
+                            $"Solicitud {solicitudId} liberada a producción con " +
+                            $"{uidsBase.Count} artículo(s) asignado(s)."
+                    });
+                }
+                catch
+                {
+                    tx.Rollback();
+                    throw;
+                }
+            }
+            catch (SqlException ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error SQL guardando la planeación de {SolicitudId}.",
+                    solicitudId);
+
+                return Json(new
+                {
+                    ok = false,
+                    mensaje = "No fue posible guardar la planeación. No se liberó a producción."
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error guardando la planeación de {SolicitudId}.",
+                    solicitudId);
+
+                return Json(new
+                {
+                    ok = false,
+                    mensaje = ex.GetBaseException().Message
+                });
+            }
+        }
+        [HttpPost("Comercial/LigarEtiqueta")]
+        [RevisarPermiso("SOLICITUD_MUESTRAS_PRODUCCION", "ESCRIBIR")]
+        public async Task<IActionResult> LigarEtiqueta(
+            [FromBody] Plataforma_CG.Models.EtiquetaVM nuevaEtiqueta,
+            string solicitudId,
+            string itemUid,
+            string planta)
+        {
+            static string Normalizar(string? valor) =>
+                (valor ?? string.Empty).Trim().ToUpperInvariant();
+
+            var etiqueta = Normalizar(
+                !string.IsNullOrWhiteSpace(nuevaEtiqueta?.ExternalChain)
+                    ? nuevaEtiqueta.ExternalChain
+                    : nuevaEtiqueta?.Code);
+
+            solicitudId = (solicitudId ?? string.Empty).Trim();
+            itemUid = (itemUid ?? string.Empty).Trim();
+            planta = Normalizar(planta);
+
+            if (string.IsNullOrWhiteSpace(solicitudId))
+            {
+                return Json(new
+                {
+                    ok = false,
+                    mensaje = "La solicitud es obligatoria."
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(itemUid))
+            {
+                return Json(new
+                {
+                    ok = false,
+                    mensaje = "El artículo de la solicitud es obligatorio."
+                });
+            }
+
+            if (planta != "P1" && planta != "TIF")
+            {
+                return Json(new
+                {
+                    ok = false,
+                    mensaje = "Seleccione la planta de origen de la etiqueta: P1 o TIF."
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(etiqueta))
+            {
+                return Json(new
+                {
+                    ok = false,
+                    mensaje = "La etiqueta es obligatoria."
+                });
+            }
+
+            if (etiqueta.Length > 100)
+            {
+                return Json(new
+                {
+                    ok = false,
+                    mensaje = "La etiqueta excede la longitud permitida."
+                });
+            }
+
+            // --------------------------------------------------------------------
+            // Nomenclaturas permitidas por planta
+            // --------------------------------------------------------------------
+            var prefijosPermitidos = planta switch
+            {
+                "P1" => new[]
+                {
+            "DEST",
+            "RETT",
+            "RETR",
+            "DESH",
+            "COMP"
+        },
+
+                "TIF" => new[]
+                {
+            "DEST",
+            "RETT",
+            "COMT"
+        },
+
+                _ => Array.Empty<string>()
+            };
+
+            var nomenclaturasPermitidas = string.Join(", ", prefijosPermitidos);
+
+            var tipoEtiqueta = prefijosPermitidos.FirstOrDefault(
+                prefijo => etiqueta.StartsWith(
+                    prefijo,
+                    StringComparison.OrdinalIgnoreCase));
+
+            if (string.IsNullOrWhiteSpace(tipoEtiqueta))
+            {
+                return Json(new
+                {
+                    ok = false,
+                    mensaje =
+                        $"La etiqueta {etiqueta} no tiene una nomenclatura válida " +
+                        $"para la planta {planta}. " +
+                        $"Nomenclaturas permitidas: {nomenclaturasPermitidas}."
+                });
+            }
+
+            // Se valida la parte posterior a la nomenclatura.
+            // Debe contener únicamente letras, números, guion o guion bajo.
+            var contenidoEtiqueta = etiqueta[tipoEtiqueta.Length..];
+
+            if (string.IsNullOrWhiteSpace(contenidoEtiqueta) ||
+                !Regex.IsMatch(
+                    contenidoEtiqueta,
+                    @"^[0-9A-Z_-]+$",
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+            {
+                return Json(new
+                {
+                    ok = false,
+                    mensaje =
+                        $"La etiqueta {etiqueta} no tiene un formato válido. " +
+                        $"Para la planta {planta} se permiten las nomenclaturas " +
+                        $"{nomenclaturasPermitidas}, seguidas de letras, números, " +
+                        "guion o guion bajo."
+                });
+            }
+
+            var nombreCadena = planta == "P1"
+                ? "CadenaMeatP1"
+                : "CadenaMeatTIF";
+
+            var cadenaSigo =
+                _configuration.GetConnectionString("DefaultConnection");
+
+            var cadenaMeat =
+                _configuration.GetConnectionString(nombreCadena);
+
+            if (string.IsNullOrWhiteSpace(cadenaSigo))
+            {
+                _logger.LogError(
+                    "No se encontró la cadena DefaultConnection.");
+
+                return Json(new
+                {
+                    ok = false,
+                    mensaje =
+                        "No está configurada la conexión de SIGO. " +
+                        "La etiqueta no fue ligada."
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(cadenaMeat))
+            {
+                _logger.LogError(
+                    "No se encontró la cadena {CadenaMeat}.",
+                    nombreCadena);
+
+                return Json(new
+                {
+                    ok = false,
+                    mensaje =
+                        $"No está configurada la conexión {nombreCadena}. " +
+                        "La etiqueta no fue ligada."
+                });
+            }
+
+            try
+            {
+                // ----------------------------------------------------------------
+                // 1. Obtener solicitud, SKU planeado y avance desde SIGO
+                // ----------------------------------------------------------------
+                using var connSigo = new SqlConnection(cadenaSigo);
+                await connSigo.OpenAsync();
+
+                const string sqlItem = @"
+SELECT TOP (1)
+    i.Uid,
+    i.SolicitudId,
+    Sku = ISNULL(i.Sku, ''),
+    i.WorkSku,
+    Boxes = ISNULL(i.Boxes, 0),
+    Activo = CAST(ISNULL(s.Activo, 0) AS bit),
+    Stage = ISNULL(s.Stage, ''),
+    PlanReleasedAt = s.Plan_ReleasedAt,
+    EtiquetasLigadas =
+    (
+        SELECT COUNT(1)
+        FROM dbo.SolicitudMuestras_Etiquetas e
+        WHERE e.ItemUid = i.Uid
+    )
+FROM dbo.SolicitudMuestras_Items i
+INNER JOIN dbo.SolicitudMuestras s
+    ON s.Id = i.SolicitudId
+WHERE i.Uid = @ItemUid
+  AND i.SolicitudId = @SolicitudId;";
+
+                var item =
+                    await connSigo
+                        .QuerySingleOrDefaultAsync<SolicitudItemEtiquetaValidacionRow>(
+                            sqlItem,
+                            new
+                            {
+                                ItemUid = itemUid,
+                                SolicitudId = solicitudId
+                            });
+
+                if (item == null)
+                {
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje =
+                            "No se encontró el SKU dentro de la solicitud seleccionada."
+                    });
+                }
+
+                if (!item.Activo)
+                {
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje =
+                            "La solicitud está cancelada o inactiva. " +
+                            "No se pueden ligar etiquetas."
+                    });
+                }
+
+                if (!item.PlanReleasedAt.HasValue)
+                {
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje =
+                            "La solicitud todavía no ha sido liberada por Planeación."
+                    });
+                }
+
+                var skuPlaneado = Normalizar(item.WorkSku);
+
+                if (string.IsNullOrWhiteSpace(skuPlaneado))
+                {
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje =
+                            "El artículo no tiene un SKU de trabajo definido en Planeación."
+                    });
+                }
+
+                if (item.Boxes <= 0)
+                {
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje =
+                            "El artículo no tiene una cantidad válida de cajas."
+                    });
+                }
+
+                if (item.EtiquetasLigadas >= item.Boxes)
+                {
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje =
+                            $"El SKU {skuPlaneado} ya tiene todas sus cajas ligadas."
+                    });
+                }
+
+                // ----------------------------------------------------------------
+                // 2. Consultar etiqueta exacta en Producción
+                // ----------------------------------------------------------------
+                using var connMeat = new SqlConnection(cadenaMeat);
+                await connMeat.OpenAsync();
+
+                const string sqlMeat = @"
+SELECT TOP (2)
+    ProduccionId,
+    LoteId,
+    CodigoEtiqueta = ISNULL(CodigoEtiqueta, ''),
+    Articulo = ISNULL(Articulo, ''),
+    Estatus = ISNULL(Estatus, 0),
+    PesoNeto,
+    Almacen,
+    FechaProduccion,
+    FechaHora
+FROM dbo.Produccion
+WHERE UPPER(LTRIM(RTRIM(ISNULL(CodigoEtiqueta, '')))) = @Etiqueta
+ORDER BY FechaHora DESC, ProduccionId DESC;";
+
+                var coincidencias =
+                    (await connMeat.QueryAsync<ProduccionEtiquetaMeatRow>(
+                        sqlMeat,
+                        new
+                        {
+                            Etiqueta = etiqueta
+                        }))
+                    .ToList();
+
+                if (coincidencias.Count == 0)
+                {
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje =
+                            $"La etiqueta {etiqueta} no existe en {nombreCadena}. " +
+                            "Verifique la planta seleccionada y vuelva a escanear."
+                    });
+                }
+
+                if (coincidencias.Count > 1)
+                {
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje =
+                            $"La etiqueta {etiqueta} tiene más de un registro " +
+                            $"en {nombreCadena}. Debe revisarse antes de ligarla."
+                    });
+                }
+
+                var produccion = coincidencias[0];
+                var skuMeat = Normalizar(produccion.Articulo);
+
+                if (produccion.Estatus != 1)
+                {
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje =
+                            $"La etiqueta {etiqueta} existe en {nombreCadena}, " +
+                            $"pero no está activa. " +
+                            $"Estatus encontrado: {produccion.Estatus}."
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(skuMeat))
+                {
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje =
+                            $"La etiqueta {etiqueta} no tiene un artículo válido " +
+                            "registrado en MEAT."
+                    });
+                }
+
+                if (!string.Equals(
+                        skuMeat,
+                        skuPlaneado,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje =
+                            $"Etiqueta rechazada. La etiqueta {etiqueta} pertenece " +
+                            $"al SKU {skuMeat}, pero Planeación indicó {skuPlaneado}.",
+                        etiqueta,
+                        tipoEtiqueta,
+                        skuPlaneado,
+                        skuMeat,
+                        estatus = produccion.Estatus,
+                        planta,
+                        cadena = nombreCadena
+                    });
+                }
+
+                // ----------------------------------------------------------------
+                // 3. Insertar en SIGO dentro de transacción serializable
+                // ----------------------------------------------------------------
+                using var tx =
+                    connSigo.BeginTransaction(IsolationLevel.Serializable);
+
+                try
+                {
+                    var duplicadoBloqueado =
+                        await connSigo.ExecuteScalarAsync<int>(
+                            @"
+SELECT COUNT(1)
+FROM dbo.SolicitudMuestras_Etiquetas WITH (UPDLOCK, HOLDLOCK)
+WHERE UPPER(LTRIM(RTRIM(ISNULL(ExternalChain, '')))) = @Etiqueta
+   OR UPPER(LTRIM(RTRIM(ISNULL(Code, '')))) = @Etiqueta;",
+                            new
+                            {
+                                Etiqueta = etiqueta
+                            },
+                            tx);
+
+                    if (duplicadoBloqueado > 0)
+                    {
+                        tx.Rollback();
+
+                        return Json(new
+                        {
+                            ok = false,
+                            mensaje =
+                                $"La etiqueta {etiqueta} ya fue ligada por otro usuario."
+                        });
+                    }
+
+                    var ligadasActuales =
+                        await connSigo.ExecuteScalarAsync<int>(
+                            @"
+SELECT COUNT(1)
+FROM dbo.SolicitudMuestras_Etiquetas WITH (UPDLOCK, HOLDLOCK)
+WHERE ItemUid = @ItemUid;",
+                            new
+                            {
+                                ItemUid = itemUid
+                            },
+                            tx);
+
+                    if (ligadasActuales >= item.Boxes)
+                    {
+                        tx.Rollback();
+
+                        return Json(new
+                        {
+                            ok = false,
+                            mensaje =
+                                $"El SKU {skuPlaneado} ya tiene todas sus cajas ligadas."
+                        });
+                    }
+
+                    const string sqlInsert = @"
+INSERT INTO dbo.SolicitudMuestras_Etiquetas
+(
+    Code,
+    ItemUid,
+    ExternalChain,
+    Operator,
+    ProcessedAt,
+    Location,
+    PesoReal
+)
+VALUES
+(
+    @Code,
+    @ItemUid,
+    @ExternalChain,
+    @Operator,
+    @ProcessedAt,
+    @Location,
+    @PesoReal
+);";
+
+                    var operador =
+                        (User?.Identity?.Name ?? string.Empty).Trim();
+
+                    if (string.IsNullOrWhiteSpace(operador))
+                    {
+                        operador =
+                            (nuevaEtiqueta?.Operator ?? "Sistema").Trim();
+                    }
+
+                    await connSigo.ExecuteAsync(
+                        sqlInsert,
+                        new
+                        {
+                            Code = etiqueta,
+                            ItemUid = itemUid,
+                            ExternalChain = etiqueta,
+                            Operator = operador,
+                            ProcessedAt = DateTime.Now,
+                            Location = $"Producción {planta}",
+                            PesoReal = produccion.PesoNeto
+                        },
+                        tx);
+
+                    const string sqlActualizarSolicitud = @"
+UPDATE s
+SET
+    s.Location = N'Producción',
+    s.Stage =
+        CASE
+            WHEN
+                (
+                    SELECT COUNT(1)
+                    FROM dbo.SolicitudMuestras_Etiquetas e
+                    INNER JOIN dbo.SolicitudMuestras_Items i2
+                        ON i2.Uid = e.ItemUid
+                    WHERE i2.SolicitudId = s.Id
+                )
+                >=
+                (
+                    SELECT ISNULL(SUM(ISNULL(i3.Boxes, 0)), 0)
+                    FROM dbo.SolicitudMuestras_Items i3
+                    WHERE i3.SolicitudId = s.Id
+                )
+                AND
+                (
+                    SELECT ISNULL(SUM(ISNULL(i4.Boxes, 0)), 0)
+                    FROM dbo.SolicitudMuestras_Items i4
+                    WHERE i4.SolicitudId = s.Id
+                ) > 0
+            THEN N'Cumplido producción'
+            ELSE N'Producción parcial'
+        END
+FROM dbo.SolicitudMuestras s
+WHERE s.Id = @SolicitudId;";
+
+                    await connSigo.ExecuteAsync(
+                        sqlActualizarSolicitud,
+                        new
+                        {
+                            SolicitudId = solicitudId
+                        },
+                        tx);
+
+                    tx.Commit();
+                }
+                catch
+                {
+                    tx.Rollback();
+                    throw;
+                }
+
+                return Json(new
+                {
+                    ok = true,
+                    mensaje =
+                        $"Etiqueta {etiqueta} validada y ligada correctamente. " +
+                        $"Tipo {tipoEtiqueta}, SKU {skuMeat}, estatus activo, " +
+                        $"origen {nombreCadena}.",
+                    etiqueta,
+                    tipoEtiqueta,
+                    skuPlaneado,
+                    skuMeat,
+                    estatus = produccion.Estatus,
+                    pesoNeto = produccion.PesoNeto,
+                    produccionId = produccion.ProduccionId,
+                    loteId = produccion.LoteId,
+                    almacen = produccion.Almacen,
+                    planta,
+                    cadena = nombreCadena
+                });
+            }
+            catch (SqlException ex)
+                when (ex.Number == 2601 || ex.Number == 2627)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Intento de ligar una etiqueta MEAT duplicada. " +
+                    "Etiqueta: {Etiqueta}, tipo: {TipoEtiqueta}, planta: {Planta}.",
+                    etiqueta,
+                    tipoEtiqueta,
+                    planta);
+
+                return Json(new
+                {
+                    ok = false,
+                    mensaje =
+                        $"La etiqueta {etiqueta} ya fue ligada anteriormente."
+                });
+            }
+            catch (SqlException ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error SQL al validar la etiqueta {Etiqueta} " +
+                    "de tipo {TipoEtiqueta} en la planta {Planta}.",
+                    etiqueta,
+                    tipoEtiqueta,
+                    planta);
+
+                return Json(new
+                {
+                    ok = false,
+                    mensaje =
+                        $"No fue posible validar la etiqueta en {nombreCadena}. " +
+                        "La etiqueta NO fue ligada."
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error inesperado al ligar la etiqueta {Etiqueta}. " +
+                    "Tipo: {TipoEtiqueta}, planta: {Planta}.",
+                    etiqueta,
+                    tipoEtiqueta,
+                    planta);
+
+                return Json(new
+                {
+                    ok = false,
+                    mensaje =
+                        "Ocurrió un error inesperado. " +
+                        "La etiqueta NO fue ligada."
+                });
+            }
+        }
+
+        // ============================================================================
+        // REEMPLAZO ROBUSTO DEL TRACKING MEAT
+        // Pegar dentro de ComercialController.
+        // Reemplaza:
+        //   TrackingEtiquetasMeatRequest
+        //   TrackingEtiquetaMeatRow
+        //   ConsultarTrackingEtiquetasEnPlantaAsync
+        //
+        // El endpoint ObtenerTrackingEtiquetasMeat puede conservarse.
+        // ============================================================================
+
+        public sealed class TrackingEtiquetasMeatRequest
+        {
+            public List<string> Etiquetas { get; set; } = new();
+        }
+
+        private sealed class TrackingEtiquetaMeatRow
+        {
+            public string CodigoEtiqueta { get; set; } = string.Empty;
+            public int ProduccionId { get; set; }
+            public string? Articulo { get; set; }
+            public decimal? PesoNeto { get; set; }
+            public int Estatus { get; set; }
+
+            // Código que guarda Produccion.Almacen.
+            public string? AlmacenCodigo { get; set; }
+
+            // Nombre enriquecido desde CommerciaNET/TIF_CommerciaNET.
+            public string? Almacen { get; set; }
+
+            public int TieneVenta { get; set; }
+            public long? SolicitudSurtidoId { get; set; }
+            public string? Cliente { get; set; }
+            public string? Folio { get; set; }
+            public string Planta { get; set; } = string.Empty;
+        }
+
+        private sealed class TrackingAlmacenMeatRow
+        {
+            public string AlmacenId { get; set; } = string.Empty;
+            public string? Nombre { get; set; }
+        }
+
+        private sealed class TrackingVentaMeatRow
+        {
+            public int ProduccionId { get; set; }
+            public long SolicitudSurtidoId { get; set; }
+            public string? Cliente { get; set; }
+            public string? Folio { get; set; }
+        }
+
+        private async Task<List<TrackingEtiquetaMeatRow>> ConsultarTrackingEtiquetasEnPlantaAsync(
+            string connectionStringName,
+            string planta,
+            string catalogoAlmacenes,
+            IReadOnlyCollection<string> etiquetas,
+            CancellationToken ct)
+        {
+            static string Normalizar(string? valor) =>
+                (valor ?? string.Empty)
+                    .Replace("\0", string.Empty)
+                    .Trim()
+                    .ToUpperInvariant();
+
+            var cadena = _configuration.GetConnectionString(connectionStringName);
+
+            if (string.IsNullOrWhiteSpace(cadena))
+            {
+                throw new InvalidOperationException(
+                    $"No existe la cadena de conexión {connectionStringName}.");
+            }
+
+            var catalogoSeguro = catalogoAlmacenes switch
+            {
+                "CommerciaNET" => "CommerciaNET",
+                "TIF_CommerciaNET" => "TIF_CommerciaNET",
+                _ => throw new InvalidOperationException(
+                    "Catálogo de almacenes no permitido.")
+            };
+
+            var etiquetasNormalizadas = etiquetas
+                .Select(Normalizar)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            if (etiquetasNormalizadas.Length == 0)
+                return new List<TrackingEtiquetaMeatRow>();
+
+            await using var conn = new SqlConnection(cadena);
+            await conn.OpenAsync(ct);
+
+            // ------------------------------------------------------------------------
+            // 1. BUSCAR PRODUCCIÓN PRIMERO.
+            //
+            // Esta consulta no depende de Almacen, SalidaEmbarque ni SurtidoReferencia.
+            // Aunque falle algún catálogo adicional, la etiqueta seguirá apareciendo.
+            // ------------------------------------------------------------------------
+            const string sqlProduccion = @"
+SELECT
+    CodigoEtiqueta =
+        UPPER(LTRIM(RTRIM(ISNULL(p.CodigoEtiqueta, '')))),
+    p.ProduccionId,
+    Articulo = ISNULL(p.Articulo, ''),
+    p.PesoNeto,
+    Estatus = ISNULL(p.Estatus, 0),
+    AlmacenCodigo =
+        LTRIM(RTRIM(CONVERT(NVARCHAR(100), ISNULL(p.Almacen, '')))),
+    Almacen =
+        LTRIM(RTRIM(CONVERT(NVARCHAR(100), ISNULL(p.Almacen, '')))),
+    TieneVenta = CAST(0 AS INT),
+    SolicitudSurtidoId = CAST(NULL AS BIGINT),
+    Cliente = CAST(NULL AS NVARCHAR(500)),
+    Folio = CAST(NULL AS NVARCHAR(500))
+FROM dbo.Produccion p
+WHERE
+    UPPER(LTRIM(RTRIM(ISNULL(p.CodigoEtiqueta, ''))))
+        IN @Etiquetas;";
+
+            var rows = (await conn.QueryAsync<TrackingEtiquetaMeatRow>(
+                new CommandDefinition(
+                    sqlProduccion,
+                    new { Etiquetas = etiquetasNormalizadas },
+                    commandTimeout: 45,
+                    cancellationToken: ct)))
+                .ToList();
+
+            foreach (var row in rows)
+            {
+                row.CodigoEtiqueta = Normalizar(row.CodigoEtiqueta);
+                row.AlmacenCodigo = (row.AlmacenCodigo ?? string.Empty).Trim();
+                row.Almacen = string.IsNullOrWhiteSpace(row.Almacen)
+                    ? row.AlmacenCodigo
+                    : row.Almacen.Trim();
+                row.Planta = planta;
+            }
+
+            if (rows.Count == 0)
+                return rows;
+
+            // ------------------------------------------------------------------------
+            // 2. ENRIQUECER EL NOMBRE DEL ALMACÉN.
+            //
+            // Si el usuario SQL no tiene permiso al catálogo CommerciaNET, no se
+            // descarta la etiqueta: se conserva el código de Produccion.Almacen.
+            // ------------------------------------------------------------------------
+            var almacenesIds = rows
+                .Select(x => (x.AlmacenCodigo ?? string.Empty).Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            if (almacenesIds.Length > 0)
+            {
+                try
+                {
+                    var sqlAlmacenes = $@"
+SELECT
+    AlmacenId =
+        LTRIM(RTRIM(CONVERT(NVARCHAR(100), AlmacenId))),
+    Nombre
+FROM [{catalogoSeguro}].dbo.Almacen
+WHERE
+    LTRIM(RTRIM(CONVERT(NVARCHAR(100), AlmacenId)))
+        IN @Almacenes;";
+
+                    var almacenes = (await conn.QueryAsync<TrackingAlmacenMeatRow>(
+                        new CommandDefinition(
+                            sqlAlmacenes,
+                            new { Almacenes = almacenesIds },
+                            commandTimeout: 30,
+                            cancellationToken: ct)))
+                        .ToDictionary(
+                            x => (x.AlmacenId ?? string.Empty).Trim(),
+                            x => (x.Nombre ?? string.Empty).Trim(),
+                            StringComparer.OrdinalIgnoreCase);
+
+                    foreach (var row in rows)
+                    {
+                        var codigo = (row.AlmacenCodigo ?? string.Empty).Trim();
+
+                        if (almacenes.TryGetValue(codigo, out var nombre)
+                            && !string.IsNullOrWhiteSpace(nombre))
+                        {
+                            row.Almacen = nombre;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "No se pudo enriquecer el almacén de tracking en {Catalogo}. " +
+                        "Se mostrará Produccion.Almacen.",
+                        catalogoSeguro);
+                }
+            }
+
+            // ------------------------------------------------------------------------
+            // 3. CONSULTAR VENTA.
+            //
+            // La ausencia o falla de venta tampoco elimina el registro de Produccion.
+            // ------------------------------------------------------------------------
+            var produccionIds = rows
+                .Select(x => x.ProduccionId)
+                .Distinct()
+                .ToArray();
+
+            try
+            {
+                const string sqlVentas = @"
+;WITH VentaAgrupada AS
+(
+    SELECT
+        se.ProduccionId,
+        SolicitudSurtidoId =
+            CONVERT(BIGINT, se.SolicitudSurtidoId),
+        Cliente =
+            MAX(CASE
+                    WHEN sr.TipoReferenciaId = 6
+                    THEN LTRIM(RTRIM(sr.Referencia))
+                END),
+        Folio =
+            MAX(CASE
+                    WHEN sr.TipoReferenciaId = 9
+                    THEN LTRIM(RTRIM(sr.Referencia))
+                END)
+    FROM dbo.SalidaEmbarque se
+    LEFT JOIN dbo.SurtidoReferencia sr
+        ON sr.SolicitudSurtidoId = se.SolicitudSurtidoId
+       AND sr.TipoReferenciaId IN (6, 9)
+    WHERE se.ProduccionId IN @ProduccionIds
+    GROUP BY
+        se.ProduccionId,
+        se.SolicitudSurtidoId
+),
+VentaElegida AS
+(
+    SELECT
+        *,
+        rn = ROW_NUMBER() OVER
+        (
+            PARTITION BY ProduccionId
+            ORDER BY SolicitudSurtidoId DESC
+        )
+    FROM VentaAgrupada
+)
+SELECT
+    ProduccionId,
+    SolicitudSurtidoId,
+    Cliente,
+    Folio
+FROM VentaElegida
+WHERE rn = 1;";
+
+                var ventas = (await conn.QueryAsync<TrackingVentaMeatRow>(
+                    new CommandDefinition(
+                        sqlVentas,
+                        new { ProduccionIds = produccionIds },
+                        commandTimeout: 45,
+                        cancellationToken: ct)))
+                    .ToDictionary(x => x.ProduccionId);
+
+                foreach (var row in rows)
+                {
+                    if (!ventas.TryGetValue(row.ProduccionId, out var venta))
+                        continue;
+
+                    row.TieneVenta = 1;
+                    row.SolicitudSurtidoId = venta.SolicitudSurtidoId;
+                    row.Cliente = (venta.Cliente ?? string.Empty).Trim();
+                    row.Folio = (venta.Folio ?? string.Empty).Trim();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "No se pudo consultar SalidaEmbarque/SurtidoReferencia para " +
+                    "tracking en {Planta}. Se conservará la ubicación de almacén.",
+                    planta);
+            }
+
+            return rows;
+        }
+
+        [HttpGet("~/Comercial/ObtenerTrackingEtiquetasMeat")]
+        //[RevisarPermiso("SOLICITUD_MUESTRAS_TRACKING", "LEER")]
+        public async Task<IActionResult> ObtenerTrackingEtiquetasMeat(
+      [FromQuery] List<string> etiquetas,
+      CancellationToken ct = default)
+        {
+            static string Normalizar(string? valor)
+            {
+                var normalizado = (valor ?? string.Empty)
+                    .Replace("\0", string.Empty)
+                    .Trim()
+                    .ToUpperInvariant();
+
+                // El lector puede enviar espacios o saltos de línea.
+                return Regex.Replace(normalizado, @"\s+", string.Empty);
+            }
+
+            static bool EsNomenclaturaPermitida(string etiqueta)
+            {
+                if (string.IsNullOrWhiteSpace(etiqueta))
+                    return false;
+
+                return
+                    etiqueta.StartsWith("DEST", StringComparison.OrdinalIgnoreCase) ||
+                    etiqueta.StartsWith("RETT", StringComparison.OrdinalIgnoreCase) ||
+                    etiqueta.StartsWith("RETR", StringComparison.OrdinalIgnoreCase) ||
+                    etiqueta.StartsWith("DESH", StringComparison.OrdinalIgnoreCase) ||
+                    etiqueta.StartsWith("COMP", StringComparison.OrdinalIgnoreCase) ||
+                    etiqueta.StartsWith("COMT", StringComparison.OrdinalIgnoreCase);
+            }
+
+            // --------------------------------------------------------------------
+            // 1. Normalizar y conservar todas las nomenclaturas válidas.
+            //
+            // P1:
+            // DEST, RETT, RETR, DESH, COMP
+            //
+            // TIF:
+            // DEST, RETT, COMT
+            //
+            // Para tracking se consultan ambas bases porque una etiqueta puede
+            // tener antecedentes o movimientos entre plantas.
+            // --------------------------------------------------------------------
+            etiquetas = (etiquetas ?? new List<string>())
+                .Select(Normalizar)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Where(EsNomenclaturaPermitida)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(500)
+                .ToList();
+
+            if (etiquetas.Count == 0)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje =
+                        "Debe proporcionar al menos una etiqueta válida. " +
+                        "Nomenclaturas permitidas: DEST, RETT, RETR, DESH, COMP o COMT."
+                });
+            }
+
+            var filas = new List<TrackingEtiquetaMeatRow>();
+            var advertencias = new List<string>();
+            var consultasFallidas = 0;
+
+            // --------------------------------------------------------------------
+            // 2. Consultar TIF
+            // --------------------------------------------------------------------
+            try
+            {
+                var tif = await ConsultarTrackingEtiquetasEnPlantaAsync(
+                    connectionStringName: "CadenaMeatTIF",
+                    planta: "TIF",
+                    catalogoAlmacenes: "TIF_CommerciaNET",
+                    etiquetas: etiquetas,
+                    ct: ct);
+
+                filas.AddRange(tif);
+            }
+            catch (Exception ex)
+            {
+                consultasFallidas++;
+
+                advertencias.Add(
+                    $"Error consultando TIF: {ex.GetBaseException().Message}");
+
+                _logger.LogError(
+                    ex,
+                    "Error consultando tracking MEAT TIF.");
+            }
+
+            // --------------------------------------------------------------------
+            // 3. Consultar Planta 1
+            // --------------------------------------------------------------------
+            try
+            {
+                var p1 = await ConsultarTrackingEtiquetasEnPlantaAsync(
+                    connectionStringName: "CadenaMeatP1",
+                    planta: "P1",
+                    catalogoAlmacenes: "CommerciaNET",
+                    etiquetas: etiquetas,
+                    ct: ct);
+
+                filas.AddRange(p1);
+            }
+            catch (Exception ex)
+            {
+                consultasFallidas++;
+
+                advertencias.Add(
+                    $"Error consultando P1: {ex.GetBaseException().Message}");
+
+                _logger.LogError(
+                    ex,
+                    "Error consultando tracking MEAT P1.");
+            }
+
+            if (consultasFallidas >= 2)
+            {
+                return StatusCode(503, new
+                {
+                    ok = false,
+                    mensaje = "No fue posible consultar TIF ni P1.",
+                    advertencias
+                });
+            }
+
+            // --------------------------------------------------------------------
+            // 4. Agrupar coincidencias encontradas en ambas plantas
+            // --------------------------------------------------------------------
+            var filasPorEtiqueta = filas
+                .Where(x => !string.IsNullOrWhiteSpace(x.CodigoEtiqueta))
+                .GroupBy(x => Normalizar(x.CodigoEtiqueta))
+                .ToDictionary(
+                    grupo => grupo.Key,
+                    grupo => grupo.ToList(),
+                    StringComparer.OrdinalIgnoreCase);
+
+            var resultado = new List<object>();
+
+            foreach (var etiqueta in etiquetas)
+            {
+                if (!filasPorEtiqueta.TryGetValue(
+                        etiqueta,
+                        out var coincidencias) ||
+                    coincidencias.Count == 0)
+                {
+                    resultado.Add(new
+                    {
+                        etiqueta,
+                        encontrado = false,
+                        estado = "NO_ENCONTRADA",
+                        resumen = "No existe coincidencia en TIF ni en P1.",
+                        planta = "",
+                        almacen = "",
+                        cliente = "",
+                        folio = "",
+                        articulo = "",
+                        pesoNeto = (decimal?)null,
+                        estatus = (int?)null,
+                        produccionId = (int?)null,
+                        solicitudSurtidoId = (long?)null,
+                        transferida = false,
+                        encontradaEnTif = false,
+                        encontradaEnP1 = false
+                    });
+
+                    continue;
+                }
+
+                bool encontradaEnTif = coincidencias.Any(
+                    x => string.Equals(
+                        x.Planta,
+                        "TIF",
+                        StringComparison.OrdinalIgnoreCase));
+
+                bool encontradaEnP1 = coincidencias.Any(
+                    x => string.Equals(
+                        x.Planta,
+                        "P1",
+                        StringComparison.OrdinalIgnoreCase));
+
+                bool transferida = encontradaEnTif && encontradaEnP1;
+
+                /*
+                 * Prioridad para elegir el registro mostrado:
+                 *
+                 * 1. Venta comprobada.
+                 * 2. Registro activo.
+                 * 3. Planta 1 cuando existe en las dos plantas.
+                 * 4. ProduccionId más reciente.
+                 */
+                var elegida = coincidencias
+                    .OrderByDescending(x => x.TieneVenta == 1)
+                    .ThenByDescending(x => x.Estatus == 1)
+                    .ThenByDescending(x =>
+                        string.Equals(
+                            x.Planta,
+                            "P1",
+                            StringComparison.OrdinalIgnoreCase))
+                    .ThenByDescending(x => x.ProduccionId)
+                    .First();
+
+                string estado;
+                string resumen;
+
+                if (elegida.TieneVenta == 1)
+                {
+                    estado = "VENDIDA";
+
+                    var cliente = string.IsNullOrWhiteSpace(elegida.Cliente)
+                        ? "Cliente no identificado"
+                        : elegida.Cliente.Trim();
+
+                    var folio = string.IsNullOrWhiteSpace(elegida.Folio)
+                        ? "Folio no identificado"
+                        : elegida.Folio.Trim();
+
+                    resumen =
+                        $"Vendida en {elegida.Planta} · " +
+                        $"{cliente} · {folio}";
+
+                    if (transferida)
+                    {
+                        resumen += " · aparece en TIF y P1";
+                    }
+                }
+                else if (elegida.Estatus == 1)
+                {
+                    estado = "EN_ALMACEN";
+
+                    var almacen = string.IsNullOrWhiteSpace(elegida.Almacen)
+                        ? elegida.AlmacenCodigo ?? "Almacén no identificado"
+                        : elegida.Almacen.Trim();
+
+                    resumen =
+                        $"En almacén {almacen} · Planta {elegida.Planta}";
+
+                    if (transferida)
+                    {
+                        resumen += " · transferida entre plantas";
+                    }
+                }
+                else
+                {
+                    estado = "INACTIVA_SIN_VENTA";
+
+                    var almacen = string.IsNullOrWhiteSpace(elegida.Almacen)
+                        ? elegida.AlmacenCodigo ?? "Sin almacén identificado"
+                        : elegida.Almacen.Trim();
+
+                    resumen =
+                        $"Registro inactivo en {elegida.Planta} · " +
+                        $"{almacen} · sin venta comprobada";
+                }
+
+                resultado.Add(new
+                {
+                    etiqueta,
+                    encontrado = true,
+                    estado,
+                    resumen,
+                    planta = elegida.Planta,
+                    almacen =
+                        elegida.Almacen ??
+                        elegida.AlmacenCodigo ??
+                        "",
+                    cliente = elegida.Cliente ?? "",
+                    folio = elegida.Folio ?? "",
+                    articulo = elegida.Articulo ?? "",
+                    pesoNeto = elegida.PesoNeto,
+                    estatus = elegida.Estatus,
+                    produccionId = elegida.ProduccionId,
+                    solicitudSurtidoId = elegida.SolicitudSurtidoId,
+                    transferida,
+                    encontradaEnTif,
+                    encontradaEnP1
+                });
+            }
+
+            return Json(new
+            {
+                ok = true,
+                etiquetas = resultado,
+                advertencias
+            });
+        }
+
+        [HttpGet("Comercial/InstalledPrintersMuestras")]
+        public async Task<IActionResult> InstalledPrintersMuestras(string source = "P1")
+        {
+            source = string.IsNullOrWhiteSpace(source) ? "P1" : source.Trim().ToUpperInvariant();
+            if (source != "TIF") source = "P1";
+            try
+            {
+                var list = await _context.ImpresoraMuestras
+                    .Where(p => p.Planta == source && p.Activo)
+                    .OrderBy(p => p.Nombre)
+                    .ToListAsync();
+
+                var result = list.Select(p => new { nombre = p.Nombre, ip = p.IP }).ToList();
+                return Ok(new { ok = true, source, impresoras = result });
+            }
+            catch (Exception ex)
+            {
+                return Ok(new { ok = false, source, impresoras = new List<object>(), mensaje = ex.Message });
+            }
+        }
+
+        [HttpGet("Comercial/ListarImpresorasMuestras")]
+        public async Task<IActionResult> ListarImpresorasMuestras()
+        {
+            var list = await _context.ImpresoraMuestras
+                .OrderBy(p => p.Planta).ThenBy(p => p.Nombre)
+                .ToListAsync();
+            return Json(new { ok = true, data = list });
+        }
+
+        [HttpPost("Comercial/GuardarImpresoraMuestra")]
+        public async Task<IActionResult> GuardarImpresoraMuestra([FromBody] ImpresoraMuestra model)
+        {
+            if (string.IsNullOrWhiteSpace(model.Nombre) || string.IsNullOrWhiteSpace(model.IP))
+                return Json(new { ok = false, mensaje = "Nombre e IP son obligatorios." });
+
+            if (model.Id == 0)
+            {
+                _context.ImpresoraMuestras.Add(model);
+            }
+            else
+            {
+                var existing = await _context.ImpresoraMuestras.FindAsync(model.Id);
+                if (existing == null)
+                    return Json(new { ok = false, mensaje = "No encontrada." });
+                existing.Planta = model.Planta;
+                existing.Nombre = model.Nombre;
+                existing.IP = model.IP;
+                existing.Activo = model.Activo;
+            }
+            await _context.SaveChangesAsync();
+            return Json(new { ok = true });
+        }
+
+        [HttpPost("Comercial/EliminarImpresoraMuestra")]
+        public async Task<IActionResult> EliminarImpresoraMuestra([FromBody] ImpresoraMuestra model)
+        {
+            int id = model?.Id ?? 0;
+            if (id == 0) return Json(new { ok = false, mensaje = "ID inválido." });
+
+            var entity = await _context.ImpresoraMuestras.FindAsync(id);
+            if (entity == null) return Json(new { ok = false, mensaje = "No encontrada." });
+
+            _context.ImpresoraMuestras.Remove(entity);
+            await _context.SaveChangesAsync();
+            return Json(new { ok = true });
+        }
+
+        [HttpPost("Comercial/ImprimirEtiquetaMuestra")]
+        [RevisarPermiso("SOLICITUD_MUESTRAS_PRODUCCION", "ESCRIBIR")]
+        public async Task<IActionResult> ImprimirEtiquetaMuestra(
+            [FromBody] List<Plataforma_CG.Models.EtiquetaMuestraPrintModel> etiquetas,
+            string ip)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(ip))
+                    return Json(new { ok = false, mensaje = "La IP de la impresora es obligatoria." });
+
+                if (etiquetas == null || !etiquetas.Any())
+                    return Json(new { ok = false, mensaje = "No hay etiquetas para imprimir." });
+
+                var con = new Plataforma_CG.Controllers.Comercial.Muestras.Conexiones();
+                var errores = new List<string>();
+                var exitosas = 0;
+
+                foreach (var etiq in etiquetas)
+                {
+                    var resultado = con.Impresion(etiq, ip);
+                    if (resultado.ok)
+                        exitosas++;
+                    else
+                        errores.Add($"{etiq.Lote}: {resultado.mensaje}");
+                }
+
+                if (errores.Any())
+                {
+                    return Json(new
+                    {
+                        ok = exitosas > 0,
+                        mensaje = $"Impresas: {exitosas}. Errores: {string.Join("; ", errores)}"
+                    });
+                }
+
+                return Json(new { ok = true, mensaje = $"{exitosas} etiqueta(s) enviada(s) correctamente." });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = $"Error: {ex.Message}" });
+            }
+        }
+
+        // ============================================================================
+        // CATÁLOGO DE PROVEEDORES
+        // Pegar DENTRO de ComercialController.
+        // ============================================================================
+
+
+        [HttpGet("Comercial/Proveedores")]
+        public IActionResult Proveedores()
+        {
+            return View("~/Views/Comercial/Proveedores.cshtml");
+        }
+
+        [HttpGet]
+        [Route("Comercial/GetProveedoresJsonPaged")]
+        public async Task<IActionResult> GetProveedoresJsonPaged(
+            int page = 1,
+            int pageSize = 50,
+            string search = "",
+            string estatus = "todos",
+            int? grupoId = null,
+            string moneda = "")
+        {
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 50;
+            if (pageSize > 200) pageSize = 200;
+
+            IQueryable<ProveedorSap> query =
+                _context.ProveedorSap.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLower();
+
+                query = query.Where(x =>
+                    (x.Proveedor ?? "").ToLower().Contains(term) ||
+                    (x.NombreProveedor ?? "").ToLower().Contains(term) ||
+                    (x.NombreExtranjero ?? "").ToLower().Contains(term) ||
+                    (x.RFC ?? "").ToLower().Contains(term) ||
+                    (x.Telefono ?? "").ToLower().Contains(term) ||
+                    (x.Celular ?? "").ToLower().Contains(term) ||
+                    (x.Correo ?? "").ToLower().Contains(term) ||
+                    (x.GrupoNombre ?? "").ToLower().Contains(term) ||
+                    (x.CondicionPagoNombre ?? "").ToLower().Contains(term) ||
+                    (x.Ciudad ?? "").ToLower().Contains(term) ||
+                    (x.Estado ?? "").ToLower().Contains(term));
+            }
+
+            estatus = (estatus ?? "todos").Trim().ToLowerInvariant();
+
+            if (estatus == "activos")
+                query = query.Where(x => x.Activo && x.ExisteEnSap);
+            else if (estatus == "inactivos")
+                query = query.Where(x => !x.Activo || !x.ExisteEnSap);
+            else if (estatus == "congelados")
+                query = query.Where(x => x.Congelado);
+
+            if (grupoId.HasValue)
+                query = query.Where(x => x.GrupoId == grupoId.Value);
+
+            if (!string.IsNullOrWhiteSpace(moneda))
+            {
+                var monedaNormalizada = moneda.Trim().ToUpper();
+                query = query.Where(x =>
+                    (x.Moneda ?? "").ToUpper() == monedaNormalizada);
+            }
+
+            var total = await query.CountAsync();
+
+            var proveedores = await query
+                .OrderBy(x => x.NombreProveedor)
+                .ThenBy(x => x.Proveedor)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(x => new
+                {
+                    proveedor = x.Proveedor,
+                    nombreProveedor = x.NombreProveedor,
+                    nombreExtranjero = x.NombreExtranjero,
+                    rfc = x.RFC,
+                    telefono = x.Telefono,
+                    celular = x.Celular,
+                    correo = x.Correo,
+                    moneda = x.Moneda,
+                    grupoId = x.GrupoId,
+                    grupoNombre = x.GrupoNombre,
+                    condicionPagoId = x.CondicionPagoId,
+                    condicionPagoNombre = x.CondicionPagoNombre,
+                    saldoCuenta = x.SaldoCuenta,
+                    direccion = x.Direccion,
+                    ciudad = x.Ciudad,
+                    estado = x.Estado,
+                    pais = x.Pais,
+                    codigoPostal = x.CodigoPostal,
+                    activo = x.Activo,
+                    congelado = x.Congelado,
+                    existeEnSap = x.ExisteEnSap,
+                    fechaModificacion = x.FechaModificacion
+                })
+                .ToListAsync();
+
+            return Json(new
+            {
+                total,
+                page,
+                pageSize,
+                proveedores
+            });
+        }
+
+        [HttpGet]
+        [Route("Comercial/GetFiltrosProveedores")]
+        public async Task<IActionResult> GetFiltrosProveedores()
+        {
+            var grupos = await _context.ProveedorSap
+                .AsNoTracking()
+                .Where(x =>
+                    x.GrupoId.HasValue &&
+                    x.GrupoNombre != null &&
+                    x.GrupoNombre != "")
+                .GroupBy(x => new { x.GrupoId, x.GrupoNombre })
+                .Select(group => new
+                {
+                    id = group.Key.GrupoId,
+                    nombre = group.Key.GrupoNombre,
+                    total = group.Count()
+                })
+                .OrderBy(x => x.nombre)
+                .ToListAsync();
+
+            var monedas = await _context.ProveedorSap
+                .AsNoTracking()
+                .Where(x => x.Moneda != null && x.Moneda != "")
+                .Select(x => x.Moneda)
+                .Distinct()
+                .OrderBy(x => x)
+                .ToListAsync();
+
+            var resumen = new
+            {
+                total = await _context.ProveedorSap.CountAsync(),
+                activos = await _context.ProveedorSap.CountAsync(
+                    x => x.Activo && x.ExisteEnSap),
+                inactivos = await _context.ProveedorSap.CountAsync(
+                    x => !x.Activo || !x.ExisteEnSap),
+                congelados = await _context.ProveedorSap.CountAsync(
+                    x => x.Congelado),
+                saldoTotal = await _context.ProveedorSap.SumAsync(
+                    x => (decimal?)x.SaldoCuenta) ?? 0m
+            };
+
+            return Json(new
+            {
+                grupos,
+                monedas,
+                resumen
+            });
+        }
+
+        [HttpGet]
+        [Route("Comercial/GetProveedorDetalle")]
+        public async Task<IActionResult> GetProveedorDetalle(string proveedor)
+        {
+            proveedor = (proveedor ?? string.Empty).Trim();
+
+            if (string.IsNullOrWhiteSpace(proveedor))
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "Proveedor no válido."
+                });
+
+            var item = await _context.ProveedorSap
+                .AsNoTracking()
+                .Where(x => x.Proveedor == proveedor)
+                .Select(x => new
+                {
+                    x.Proveedor,
+                    x.NombreProveedor,
+                    x.NombreExtranjero,
+                    x.RFC,
+                    x.Telefono,
+                    x.Celular,
+                    x.Correo,
+                    x.Moneda,
+                    x.GrupoId,
+                    x.GrupoNombre,
+                    x.CondicionPagoId,
+                    x.CondicionPagoNombre,
+                    x.SaldoCuenta,
+                    x.Direccion,
+                    x.Ciudad,
+                    x.Estado,
+                    x.Pais,
+                    x.CodigoPostal,
+                    x.Activo,
+                    x.Congelado,
+                    x.ExisteEnSap,
+                    x.FechaModificacion
+                })
+                .FirstOrDefaultAsync();
+
+            if (item == null)
+                return NotFound(new
+                {
+                    ok = false,
+                    mensaje = "Proveedor no encontrado."
+                });
+
+            return Json(new
+            {
+                ok = true,
+                proveedor = item
+            });
+        }
+
+        [HttpPost]
+        [Route("Comercial/SincronizarProveedoresSap")]
+        public async Task<IActionResult> SincronizarProveedoresSap(
+            CancellationToken ct = default)
+        {
+            try
+            {
+                var resultado = await _sap.SincronizarProveedoresAsync(ct);
+
+                return Json(new
+                {
+                    ok = true,
+                    mensaje = "Catálogo de proveedores sincronizado correctamente.",
+                    totalSap = resultado.totalSap,
+                    insertados = resultado.insertados,
+                    actualizados = resultado.actualizados,
+                    fueraDeSap = resultado.fueraDeSap,
+                    fecha = DateTime.Now
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error sincronizando proveedores desde SAP.");
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    mensaje = ex.GetBaseException().Message
+                });
+            }
+        }
+
+        [HttpGet]
+        [Route("Comercial/ObtenerProveedoresAutocomplete")]
+        public async Task<IActionResult> ObtenerProveedoresAutocomplete(
+            string term = "")
+        {
+            term = (term ?? string.Empty).Trim().ToLower();
+
+            var query = _context.ProveedorSap
+                .AsNoTracking()
+                .Where(x => x.Activo && x.ExisteEnSap);
+
+            if (!string.IsNullOrWhiteSpace(term))
+            {
+                query = query.Where(x =>
+                    (x.Proveedor ?? "").ToLower().Contains(term) ||
+                    (x.NombreProveedor ?? "").ToLower().Contains(term) ||
+                    (x.RFC ?? "").ToLower().Contains(term));
+            }
+
+            var result = await query
+                .OrderBy(x => x.NombreProveedor)
+                .Take(50)
+                .Select(x => new
+                {
+                    id = x.Proveedor,
+                    text = x.NombreProveedor + " (" + x.Proveedor + ")",
+                    rfc = x.RFC,
+                    moneda = x.Moneda,
+                    condicionPago = x.CondicionPagoNombre
+                })
+                .ToListAsync();
+
+            return Json(result);
+        }
+
+        [HttpGet]
+        [Route("Comercial/DescargarProveedoresExcel")]
+        public IActionResult DescargarProveedoresExcel(
+            string search = "",
+            string estatus = "todos",
+            int? grupoId = null,
+            string moneda = "")
+        {
+            IQueryable<ProveedorSap> query =
+                _context.ProveedorSap.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLower();
+
+                query = query.Where(x =>
+                    (x.Proveedor ?? "").ToLower().Contains(term) ||
+                    (x.NombreProveedor ?? "").ToLower().Contains(term) ||
+                    (x.RFC ?? "").ToLower().Contains(term) ||
+                    (x.GrupoNombre ?? "").ToLower().Contains(term));
+            }
+
+            estatus = (estatus ?? "todos").Trim().ToLowerInvariant();
+
+            if (estatus == "activos")
+                query = query.Where(x => x.Activo && x.ExisteEnSap);
+            else if (estatus == "inactivos")
+                query = query.Where(x => !x.Activo || !x.ExisteEnSap);
+            else if (estatus == "congelados")
+                query = query.Where(x => x.Congelado);
+
+            if (grupoId.HasValue)
+                query = query.Where(x => x.GrupoId == grupoId.Value);
+
+            if (!string.IsNullOrWhiteSpace(moneda))
+            {
+                var monedaNormalizada = moneda.Trim().ToUpper();
+                query = query.Where(x =>
+                    (x.Moneda ?? "").ToUpper() == monedaNormalizada);
+            }
+
+            var rows = query
+                .OrderBy(x => x.NombreProveedor)
+                .ThenBy(x => x.Proveedor)
+                .ToList();
+
+            using var workbook = new XLWorkbook();
+            var sheet = workbook.Worksheets.Add("ProveedoresSAP");
+
+            string[] headers =
+            {
+        "ProveedorId",
+        "Proveedor",
+        "Nombre extranjero",
+        "RFC",
+        "Grupo",
+        "Moneda",
+        "Condición de pago",
+        "Saldo cuenta",
+        "Teléfono",
+        "Celular",
+        "Correo",
+        "Dirección",
+        "Ciudad",
+        "Estado",
+        "País",
+        "CP",
+        "Activo",
+        "Congelado",
+        "Existe en SAP",
+        "Última modificación"
+    };
+
+            for (int column = 0; column < headers.Length; column++)
+                sheet.Cell(1, column + 1).Value = headers[column];
+
+            int row = 2;
+
+            foreach (var item in rows)
+            {
+                sheet.Cell(row, 1).Value = item.Proveedor;
+                sheet.Cell(row, 2).Value = item.NombreProveedor;
+                sheet.Cell(row, 3).Value = item.NombreExtranjero;
+                sheet.Cell(row, 4).Value = item.RFC;
+                sheet.Cell(row, 5).Value = item.GrupoNombre;
+                sheet.Cell(row, 6).Value = item.Moneda;
+                sheet.Cell(row, 7).Value = item.CondicionPagoNombre;
+                sheet.Cell(row, 8).Value = item.SaldoCuenta;
+                sheet.Cell(row, 9).Value = item.Telefono;
+                sheet.Cell(row, 10).Value = item.Celular;
+                sheet.Cell(row, 11).Value = item.Correo;
+                sheet.Cell(row, 12).Value = item.Direccion;
+                sheet.Cell(row, 13).Value = item.Ciudad;
+                sheet.Cell(row, 14).Value = item.Estado;
+                sheet.Cell(row, 15).Value = item.Pais;
+                sheet.Cell(row, 16).Value = item.CodigoPostal;
+                sheet.Cell(row, 17).Value = item.Activo ? "Sí" : "No";
+                sheet.Cell(row, 18).Value = item.Congelado ? "Sí" : "No";
+                sheet.Cell(row, 19).Value = item.ExisteEnSap ? "Sí" : "No";
+                sheet.Cell(row, 20).Value = item.FechaModificacion;
+                row++;
+            }
+
+            var header = sheet.Range(1, 1, 1, headers.Length);
+            header.Style.Font.Bold = true;
+            header.Style.Fill.BackgroundColor = XLColor.DarkRed;
+            header.Style.Font.FontColor = XLColor.White;
+
+            sheet.Column(8).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Column(20).Style.NumberFormat.Format = "dd/MM/yyyy HH:mm";
+            sheet.SheetView.FreezeRows(1);
+            sheet.RangeUsed()?.SetAutoFilter();
+            sheet.Columns().AdjustToContents();
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+
+            return File(
+                stream.ToArray(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                $"Catalogo_Proveedores_SAP_{DateTime.Now:yyyy-MM-dd}.xlsx");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ActualizarObservacionOV(
+    int ordenVentaId,
+    string? observacion)
+        {
+            if (ordenVentaId <= 0)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    msg = "La orden de venta no es válida."
+                });
+            }
+
+            observacion = (observacion ?? string.Empty).Trim();
+
+            if (observacion.Length > 500)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    msg = "La observación no puede superar 500 caracteres."
+                });
+            }
+
+            try
+            {
+                string connectionString =
+                    _configuration.GetConnectionString("DefaultConnection")
+                    ?? throw new InvalidOperationException(
+                        "No se encontró la cadena de conexión."
+                    );
+
+                await using SqlConnection connection =
+                    new(connectionString);
+
+                await connection.OpenAsync();
+
+                const string sql = """
+            UPDATE OrdenVenta
+            SET
+                Observacion = @Observacion
+            WHERE Id = @OrdenVentaId;
+            """;
+
+                await using SqlCommand command =
+                    new(sql, connection);
+
+                command.Parameters.Add(
+                    "@OrdenVentaId",
+                    SqlDbType.Int
+                ).Value = ordenVentaId;
+
+                command.Parameters.Add(
+                    "@Observacion",
+                    SqlDbType.NVarChar,
+                    500
+                ).Value = string.IsNullOrWhiteSpace(observacion)
+                    ? DBNull.Value
+                    : observacion;
+
+                int registrosActualizados =
+                    await command.ExecuteNonQueryAsync();
+
+                if (registrosActualizados == 0)
+                {
+                    return NotFound(new
+                    {
+                        ok = false,
+                        msg = "No se encontró la orden de venta."
+                    });
+                }
+
+                return Json(new
+                {
+                    ok = true,
+                    observacion
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = "Ocurrió un error al actualizar la observación.",
+                    detalle = ex.Message
+                });
+            }
+        }
+
+        private async Task<OrdenVentaDocumentoViewModel?>
+    ObtenerDocumentoOrdenAsync(
+        int id,
+        CancellationToken ct = default)
+        {
+            var orden = await _context.OrdenVenta
+                .AsNoTracking()
+                .Include(x => x.Productos)
+                .FirstOrDefaultAsync(x => x.Id == id, ct);
+
+            if (orden == null)
+            {
+                return null;
+            }
+
+            string clienteNombre = await _context.ClienteSap
+                .AsNoTracking()
+                .Where(x => x.Cliente == orden.Cliente)
+                .Select(x => x.Nombrecliente)
+                .FirstOrDefaultAsync(ct)
+                ?? string.Empty;
+
+            var lineas = orden.Productos
+                .Where(x => x.Eliminado != true)
+                .OrderBy(x => x.Id)
+                .Select((x, index) =>
+                    new OrdenVentaDocumentoLineaViewModel
+                    {
+                        Numero = index + 1,
+                        ProductoCodigo =
+                            x.ProductoCodigo ?? string.Empty,
+
+                        ProductoNombre =
+                            x.ProductoNombre ?? string.Empty,
+
+                        Cajas = Convert.ToDecimal(x.Cajas),
+
+                        Peso = Convert.ToDecimal(x.Peso),
+
+                        Precio = Convert.ToDecimal(x.Precio)
+                    })
+                .ToList();
+
+            return new OrdenVentaDocumentoViewModel
+            {
+                Id = orden.Id,
+                Consecutivo = orden.Consecutivo ?? string.Empty,
+                FechaRegistro = orden.FechaRegistro ?? DateTime.Now,
+                FechaEntrega = orden.FechaEntrega,
+                FechaEmbarque = orden.FechaEmbarque,
+
+                HoraEmbarque =
+                    Convert.ToString(
+                        orden.HoraEmbarque,
+                        CultureInfo.InvariantCulture)
+                    ?? string.Empty,
+
+                Cliente = orden.Cliente ?? string.Empty,
+                ClienteNombre = clienteNombre,
+                Vendedor = orden.Vendedor ?? string.Empty,
+                Serie = orden.Serie ?? string.Empty,
+                Ruta = orden.Ruta ?? string.Empty,
+                Presentacion = orden.Presentacion ?? string.Empty,
+                Observacion = orden.Observacion ?? string.Empty,
+                Estatus = orden.Estatus,
+                Productos = lineas
+            };
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> VistaPreviaOrden(
+    int id,
+    string siguiente = "salir",
+    CancellationToken ct = default)
+        {
+            var model =
+                await ObtenerDocumentoOrdenAsync(id, ct);
+
+            if (model == null)
+            {
+                return NotFound(
+                    "No se encontró la orden de venta.");
+            }
+
+            model.Siguiente =
+                siguiente is "nuevo" or "salir"
+                    ? siguiente
+                    : "salir";
+
+            return View(
+                "~/Views/Comercial/VistaPreviaOrden.cshtml",
+                model);
+        }
+
+        private byte[] CrearPdfOrdenVenta(
+    OrdenVentaDocumentoViewModel model)
+        {
+            using var documento = new PdfSharp.Pdf.PdfDocument();
+
+            documento.Info.Title =
+                $"Orden de venta {model.Consecutivo}";
+
+            documento.Info.Author =
+                "Carnes G S.A. de C.V.";
+
+            var colorVino =
+                XColor.FromArgb(139, 0, 0);
+
+            var colorVinoOscuro =
+                XColor.FromArgb(80, 0, 0);
+
+            var colorGris =
+                XColor.FromArgb(242, 242, 242);
+
+            var colorLinea =
+                XColor.FromArgb(205, 205, 205);
+
+            var brushVino =
+                new XSolidBrush(colorVino);
+
+            var brushVinoOscuro =
+                new XSolidBrush(colorVinoOscuro);
+
+            var brushGris =
+                new XSolidBrush(colorGris);
+
+            var penLinea =
+                new XPen(colorLinea, 0.7);
+
+            var penVino =
+                new XPen(colorVino, 0.8);
+
+            var fontTitulo =
+                new XFont(
+                    "Arial",
+                    19,
+                    XFontStyleEx.Bold);
+
+            var fontSubtitulo =
+                new XFont(
+                    "Arial",
+                    10,
+                    XFontStyleEx.Regular);
+
+            var fontSeccion =
+                new XFont(
+                    "Arial",
+                    9,
+                    XFontStyleEx.Bold);
+
+            var fontNormal =
+                new XFont(
+                    "Arial",
+                    8.5,
+                    XFontStyleEx.Regular);
+
+            var fontNormalBold =
+                new XFont(
+                    "Arial",
+                    8.5,
+                    XFontStyleEx.Bold);
+
+            var fontTabla =
+                new XFont(
+                    "Arial",
+                    8,
+                    XFontStyleEx.Regular);
+
+            var fontTablaBold =
+                new XFont(
+                    "Arial",
+                    8,
+                    XFontStyleEx.Bold);
+
+            string logoPath = Path.Combine(
+                _environment.WebRootPath,
+                "images",
+                "logoCubo.png");
+
+            XImage? logo = null;
+
+            if (System.IO.File.Exists(logoPath))
+            {
+                logo = XImage.FromFile(logoPath);
+            }
+
+            PdfPage? pagina = null;
+            XGraphics? gfx = null;
+
+            double y = 0;
+            int numeroPagina = 0;
+
+            const double margen = 36;
+            const double altoPie = 28;
+
+            double[] anchos =
+            {
+        28,   // #
+        78,   // SKU
+        322,  // Descripción
+        60,   // Cajas
+        80,   // Peso
+        90,   // Precio
+        112   // Importe
+    };
+
+            void DibujarPie()
+            {
+                if (gfx == null || pagina == null)
+                {
+                    return;
+                }
+
+                double altoPagina =
+                    pagina.Height.Point;
+
+                gfx.DrawLine(
+                    penLinea,
+                    margen,
+                    altoPagina - altoPie,
+                    pagina.Width.Point - margen,
+                    altoPagina - altoPie);
+
+                gfx.DrawString(
+                    "Carnes G S.A. de C.V. · Documento generado por Plataforma SIGO",
+                    fontNormal,
+                    XBrushes.Gray,
+                    new XRect(
+                        margen,
+                        altoPagina - 23,
+                        600,
+                        15),
+                    XStringFormats.CenterLeft);
+
+                gfx.DrawString(
+                    $"Página {numeroPagina}",
+                    fontNormal,
+                    XBrushes.Gray,
+                    new XRect(
+                        pagina.Width.Point - 130,
+                        altoPagina - 23,
+                        94,
+                        15),
+                    XStringFormats.CenterRight);
+            }
+
+            void DibujarEncabezado()
+            {
+                if (gfx == null || pagina == null)
+                {
+                    return;
+                }
+
+                double anchoPagina =
+                    pagina.Width.Point;
+
+                gfx.DrawRectangle(
+                    brushVinoOscuro,
+                    0,
+                    0,
+                    anchoPagina,
+                    72);
+
+                if (logo != null)
+                {
+                    double proporcion =
+                        logo.PixelWidth > 0
+                            ? (double)logo.PixelHeight /
+                              logo.PixelWidth
+                            : 0.5;
+
+                    double anchoLogo = 92;
+                    double altoLogo = anchoLogo * proporcion;
+
+                    if (altoLogo > 52)
+                    {
+                        altoLogo = 52;
+                    }
+
+                    gfx.DrawImage(
+                        logo,
+                        margen,
+                        10,
+                        anchoLogo,
+                        altoLogo);
+                }
+
+                double inicioTitulo =
+                    logo != null
+                        ? 145
+                        : margen;
+
+                gfx.DrawString(
+                    "ORDEN DE VENTA",
+                    fontTitulo,
+                    XBrushes.White,
+                    new XRect(
+                        inicioTitulo,
+                        12,
+                        370,
+                        26),
+                    XStringFormats.CenterLeft);
+
+                gfx.DrawString(
+                    "Carnes G S.A. de C.V.",
+                    fontSubtitulo,
+                    XBrushes.White,
+                    new XRect(
+                        inicioTitulo,
+                        40,
+                        370,
+                        18),
+                    XStringFormats.CenterLeft);
+
+                gfx.DrawString(
+                    model.Consecutivo,
+                    fontTitulo,
+                    XBrushes.White,
+                    new XRect(
+                        anchoPagina - 310,
+                        16,
+                        270,
+                        28),
+                    XStringFormats.CenterRight);
+
+                gfx.DrawString(
+                    $"Registro: {model.FechaRegistro:dd/MM/yyyy HH:mm}",
+                    fontSubtitulo,
+                    XBrushes.White,
+                    new XRect(
+                        anchoPagina - 310,
+                        44,
+                        270,
+                        16),
+                    XStringFormats.CenterRight);
+
+                y = 84;
+            }
+
+            void DibujarCampo(
+                double x,
+                double posicionY,
+                double ancho,
+                string etiqueta,
+                string valor)
+            {
+                if (gfx == null)
+                {
+                    return;
+                }
+
+                const double alto = 42;
+
+                gfx.DrawRectangle(
+                    penLinea,
+                    XBrushes.White,
+                    x,
+                    posicionY,
+                    ancho,
+                    alto);
+
+                gfx.DrawString(
+                    etiqueta.ToUpperInvariant(),
+                    fontSeccion,
+                    brushVino,
+                    new XRect(
+                        x + 6,
+                        posicionY + 4,
+                        ancho - 12,
+                        12),
+                    XStringFormats.TopLeft);
+
+                var formatter =
+                    new XTextFormatter(gfx)
+                    {
+                        Alignment =
+                            XParagraphAlignment.Left
+                    };
+
+                formatter.DrawString(
+                    string.IsNullOrWhiteSpace(valor)
+                        ? "—"
+                        : valor,
+                    fontNormal,
+                    XBrushes.Black,
+                    new XRect(
+                        x + 6,
+                        posicionY + 18,
+                        ancho - 12,
+                        20));
+            }
+
+            void DibujarDatosOrden()
+            {
+                if (pagina == null)
+                {
+                    return;
+                }
+
+                double anchoDisponible =
+                    pagina.Width.Point -
+                    (margen * 2);
+
+                double separacion = 6;
+
+                double anchoColumna =
+                    (anchoDisponible -
+                     (separacion * 3)) / 4;
+
+                double x1 = margen;
+                double x2 = x1 + anchoColumna + separacion;
+                double x3 = x2 + anchoColumna + separacion;
+                double x4 = x3 + anchoColumna + separacion;
+
+                DibujarCampo(
+                    x1,
+                    y,
+                    anchoColumna,
+                    "Cliente",
+                    $"{model.Cliente} - {model.ClienteNombre}");
+
+                DibujarCampo(
+                    x2,
+                    y,
+                    anchoColumna,
+                    "Vendedor",
+                    model.Vendedor);
+
+                DibujarCampo(
+                    x3,
+                    y,
+                    anchoColumna,
+                    "Serie",
+                    model.Serie);
+
+                DibujarCampo(
+                    x4,
+                    y,
+                    anchoColumna,
+                    "Fecha de entrega",
+                    model.FechaEntrega?
+                        .ToString("dd/MM/yyyy")
+                    ?? "—");
+
+                y += 48;
+
+                DibujarCampo(
+                    x1,
+                    y,
+                    anchoColumna,
+                    "Fecha de embarque",
+                    model.FechaEmbarque?
+                        .ToString("dd/MM/yyyy")
+                    ?? "—");
+
+                DibujarCampo(
+                    x2,
+                    y,
+                    anchoColumna,
+                    "Hora de embarque",
+                    model.HoraEmbarque);
+
+                DibujarCampo(
+                    x3,
+                    y,
+                    anchoColumna,
+                    "Presentación",
+                    model.Presentacion);
+
+                DibujarCampo(
+                    x4,
+                    y,
+                    anchoColumna,
+                    "Estatus",
+                    model.EstatusTexto);
+
+                y += 53;
+            }
+
+            void DibujarEncabezadoTabla()
+            {
+                if (gfx == null)
+                {
+                    return;
+                }
+
+                string[] titulos =
+                {
+            "#",
+            "SKU",
+            "DESCRIPCIÓN",
+            "CAJAS",
+            "PESO KG",
+            "PRECIO",
+            "IMPORTE"
+        };
+
+                double x = margen;
+                const double alto = 25;
+
+                for (int i = 0;
+                     i < titulos.Length;
+                     i++)
+                {
+                    gfx.DrawRectangle(
+                        penVino,
+                        brushVino,
+                        x,
+                        y,
+                        anchos[i],
+                        alto);
+
+                    gfx.DrawString(
+                        titulos[i],
+                        fontTablaBold,
+                        XBrushes.White,
+                        new XRect(
+                            x + 3,
+                            y,
+                            anchos[i] - 6,
+                            alto),
+                        i >= 3
+                            ? XStringFormats.CenterRight
+                            : XStringFormats.CenterLeft);
+
+                    x += anchos[i];
+                }
+
+                y += alto;
+            }
+
+            void NuevaPagina(
+                bool incluirDatos,
+                bool incluirTabla)
+            {
+                gfx?.Dispose();
+
+                pagina = documento.AddPage();
+                pagina.Size = PdfSharp.PageSize.A4;
+                pagina.Orientation = PdfSharp.PageOrientation.Landscape;
+
+                gfx =
+                    XGraphics.FromPdfPage(pagina);
+
+                numeroPagina++;
+
+                DibujarEncabezado();
+
+                if (incluirDatos)
+                {
+                    DibujarDatosOrden();
+                }
+
+                if (incluirTabla)
+                {
+                    DibujarEncabezadoTabla();
+                }
+
+                DibujarPie();
+            }
+
+            NuevaPagina(
+                incluirDatos: true,
+                incluirTabla: true);
+
+            foreach (var producto in model.Productos)
+            {
+                if (pagina == null || gfx == null)
+                {
+                    break;
+                }
+
+                const double altoFila = 31;
+
+                if (y + altoFila >
+                    pagina.Height.Point -
+                    altoPie -
+                    12)
+                {
+                    NuevaPagina(
+                        incluirDatos: false,
+                        incluirTabla: true);
+                }
+
+                double x = margen;
+
+                for (int i = 0;
+                     i < anchos.Length;
+                     i++)
+                {
+                    gfx.DrawRectangle(
+                        penLinea,
+                        XBrushes.White,
+                        x,
+                        y,
+                        anchos[i],
+                        altoFila);
+
+                    x += anchos[i];
+                }
+
+                x = margen;
+
+                gfx.DrawString(
+                    producto.Numero.ToString(),
+                    fontTabla,
+                    XBrushes.Black,
+                    new XRect(
+                        x + 4,
+                        y,
+                        anchos[0] - 8,
+                        altoFila),
+                    XStringFormats.CenterLeft);
+
+                x += anchos[0];
+
+                gfx.DrawString(
+                    producto.ProductoCodigo,
+                    fontTablaBold,
+                    XBrushes.Black,
+                    new XRect(
+                        x + 4,
+                        y,
+                        anchos[1] - 8,
+                        altoFila),
+                    XStringFormats.CenterLeft);
+
+                x += anchos[1];
+
+                var formatter =
+                    new XTextFormatter(gfx)
+                    {
+                        Alignment =
+                            XParagraphAlignment.Left
+                    };
+
+                formatter.DrawString(
+                    producto.ProductoNombre,
+                    fontTabla,
+                    XBrushes.Black,
+                    new XRect(
+                        x + 4,
+                        y + 4,
+                        anchos[2] - 8,
+                        altoFila - 7));
+
+                x += anchos[2];
+
+                gfx.DrawString(
+                    producto.Cajas.ToString("N0"),
+                    fontTabla,
+                    XBrushes.Black,
+                    new XRect(
+                        x + 4,
+                        y,
+                        anchos[3] - 8,
+                        altoFila),
+                    XStringFormats.CenterRight);
+
+                x += anchos[3];
+
+                gfx.DrawString(
+                    producto.Peso.ToString("N2"),
+                    fontTabla,
+                    XBrushes.Black,
+                    new XRect(
+                        x + 4,
+                        y,
+                        anchos[4] - 8,
+                        altoFila),
+                    XStringFormats.CenterRight);
+
+                x += anchos[4];
+
+                gfx.DrawString(
+                    producto.Precio.ToString("C2"),
+                    fontTabla,
+                    XBrushes.Black,
+                    new XRect(
+                        x + 4,
+                        y,
+                        anchos[5] - 8,
+                        altoFila),
+                    XStringFormats.CenterRight);
+
+                x += anchos[5];
+
+                gfx.DrawString(
+                    producto.Importe.ToString("C2"),
+                    fontTablaBold,
+                    XBrushes.Black,
+                    new XRect(
+                        x + 4,
+                        y,
+                        anchos[6] - 8,
+                        altoFila),
+                    XStringFormats.CenterRight);
+
+                y += altoFila;
+            }
+
+            if (pagina != null &&
+                y + 100 >
+                pagina.Height.Point -
+                altoPie)
+            {
+                NuevaPagina(
+                    incluirDatos: false,
+                    incluirTabla: false);
+            }
+
+            if (gfx != null && pagina != null)
+            {
+                double anchoTabla =
+                    anchos.Sum();
+
+                const double altoTotal = 29;
+
+                gfx.DrawRectangle(
+                    penVino,
+                    brushGris,
+                    margen,
+                    y,
+                    anchoTabla,
+                    altoTotal);
+
+                gfx.DrawString(
+                    "TOTALES",
+                    fontNormalBold,
+                    brushVinoOscuro,
+                    new XRect(
+                        margen + 6,
+                        y,
+                        350,
+                        altoTotal),
+                    XStringFormats.CenterLeft);
+
+                gfx.DrawString(
+                    $"Cajas: {model.TotalCajas:N0}",
+                    fontNormalBold,
+                    XBrushes.Black,
+                    new XRect(
+                        margen + 350,
+                        y,
+                        100,
+                        altoTotal),
+                    XStringFormats.CenterRight);
+
+                gfx.DrawString(
+                    $"Peso: {model.TotalPeso:N2} kg",
+                    fontNormalBold,
+                    XBrushes.Black,
+                    new XRect(
+                        margen + 455,
+                        y,
+                        135,
+                        altoTotal),
+                    XStringFormats.CenterRight);
+
+                gfx.DrawString(
+                    model.TotalImporte.ToString("C2"),
+                    fontSeccion,
+                    brushVinoOscuro,
+                    new XRect(
+                        margen + 595,
+                        y,
+                        anchoTabla - 595,
+                        altoTotal),
+                    XStringFormats.CenterRight);
+
+                y += altoTotal + 12;
+
+                gfx.DrawString(
+                    "RUTA / DESTINO",
+                    fontSeccion,
+                    brushVino,
+                    new XRect(
+                        margen,
+                        y,
+                        180,
+                        14),
+                    XStringFormats.TopLeft);
+
+                y += 15;
+
+                gfx.DrawString(
+                    string.IsNullOrWhiteSpace(model.Ruta)
+                        ? "Sin dirección registrada."
+                        : model.Ruta,
+                    fontNormal,
+                    XBrushes.Black,
+                    new XRect(
+                        margen,
+                        y,
+                        anchoTabla,
+                        18),
+                    XStringFormats.TopLeft);
+
+                y += 25;
+
+                gfx.DrawString(
+                    "OBSERVACIONES",
+                    fontSeccion,
+                    brushVino,
+                    new XRect(
+                        margen,
+                        y,
+                        180,
+                        14),
+                    XStringFormats.TopLeft);
+
+                y += 15;
+
+                gfx.DrawRectangle(
+                    penLinea,
+                    XBrushes.White,
+                    margen,
+                    y,
+                    anchoTabla,
+                    44);
+
+                var formatterObservacion =
+                    new XTextFormatter(gfx)
+                    {
+                        Alignment =
+                            XParagraphAlignment.Left
+                    };
+
+                formatterObservacion.DrawString(
+                    string.IsNullOrWhiteSpace(
+                        model.Observacion)
+                        ? "Sin observaciones."
+                        : model.Observacion,
+                    fontNormal,
+                    XBrushes.Black,
+                    new XRect(
+                        margen + 6,
+                        y + 6,
+                        anchoTabla - 12,
+                        32));
+            }
+
+            gfx?.Dispose();
+            logo?.Dispose();
+
+            using var stream =
+                new MemoryStream();
+
+            documento.Save(stream);
+
+            return stream.ToArray();
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> OrdenVentaPdf(
+    int id,
+    bool descargar = false,
+    CancellationToken ct = default)
+        {
+            var model =
+                await ObtenerDocumentoOrdenAsync(id, ct);
+
+            if (model == null)
+            {
+                return NotFound(
+                    "No se encontró la orden de venta.");
+            }
+
+            byte[] archivo =
+                CrearPdfOrdenVenta(model);
+
+            string nombre =
+                $"{model.Consecutivo}_OrdenVenta.pdf";
+
+            if (descargar)
+            {
+                return File(
+                    archivo,
+                    "application/pdf",
+                    nombre);
+            }
+
+            Response.Headers.ContentDisposition =
+                $"inline; filename=\"{nombre}\"";
+
+            return File(
+                archivo,
+                "application/pdf");
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> OrdenVentaExcel(
+    int id,
+    CancellationToken ct = default)
+        {
+            var model =
+                await ObtenerDocumentoOrdenAsync(id, ct);
+
+            if (model == null)
+            {
+                return NotFound(
+                    "No se encontró la orden de venta.");
+            }
+
+            using var workbook =
+                new XLWorkbook();
+
+            var hoja =
+                workbook.Worksheets.Add(
+                    "Orden de Venta");
+
+            var vino =
+                XLColor.FromHtml("#8B0000");
+
+            var vinoOscuro =
+                XLColor.FromHtml("#5C0000");
+
+            var rosa =
+                XLColor.FromHtml("#F6E7E7");
+
+            hoja.Range("A1:G1").Merge();
+
+            hoja.Cell("A1").Value =
+                "CARNES G S.A. DE C.V.";
+
+            hoja.Cell("A1").Style.Font.Bold = true;
+            hoja.Cell("A1").Style.Font.FontSize = 18;
+            hoja.Cell("A1").Style.Font.FontColor =
+                XLColor.White;
+
+            hoja.Cell("A1").Style.Fill.BackgroundColor =
+                vinoOscuro;
+
+            hoja.Cell("A1").Style.Alignment.Horizontal =
+                XLAlignmentHorizontalValues.Center;
+
+            hoja.Row(1).Height = 30;
+
+            hoja.Range("A2:G2").Merge();
+
+            hoja.Cell("A2").Value =
+                $"ORDEN DE VENTA {model.Consecutivo}";
+
+            hoja.Cell("A2").Style.Font.Bold = true;
+            hoja.Cell("A2").Style.Font.FontSize = 14;
+            hoja.Cell("A2").Style.Font.FontColor =
+                vino;
+
+            hoja.Cell("A2").Style.Alignment.Horizontal =
+                XLAlignmentHorizontalValues.Center;
+
+            hoja.Cell("A4").Value = "Cliente:";
+            hoja.Cell("B4").Value =
+                $"{model.Cliente} - {model.ClienteNombre}";
+
+            hoja.Cell("E4").Value = "Vendedor:";
+            hoja.Cell("F4").Value = model.Vendedor;
+
+            hoja.Cell("A5").Value = "Serie:";
+            hoja.Cell("B5").Value = model.Serie;
+
+            hoja.Cell("C5").Value = "Fecha entrega:";
+            hoja.Cell("D5").Value =
+                model.FechaEntrega;
+
+            hoja.Cell("E5").Value = "Estatus:";
+            hoja.Cell("F5").Value =
+                model.EstatusTexto;
+
+            hoja.Cell("A6").Value = "Ruta:";
+            hoja.Range("B6:G6").Merge();
+            hoja.Cell("B6").Value = model.Ruta;
+
+            hoja.Cell("A7").Value = "Observación:";
+            hoja.Range("B7:G7").Merge();
+
+            hoja.Cell("B7").Value =
+                string.IsNullOrWhiteSpace(
+                    model.Observacion)
+                    ? "Sin observaciones."
+                    : model.Observacion;
+
+            hoja.Range("A4:G7")
+                .Style.Border.OutsideBorder =
+                XLBorderStyleValues.Thin;
+
+            hoja.Range("A4:G7")
+                .Style.Border.InsideBorder =
+                XLBorderStyleValues.Thin;
+
+            hoja.Range("A4:A7").Style.Font.Bold = true;
+
+            hoja.Range("A4:A7")
+                .Style.Fill.BackgroundColor = rosa;
+
+            int filaEncabezado = 9;
+
+            string[] encabezados =
+            {
+        "#",
+        "SKU",
+        "Descripción",
+        "Cajas",
+        "Peso kg",
+        "Precio",
+        "Importe"
+    };
+
+            for (int columna = 0;
+                 columna < encabezados.Length;
+                 columna++)
+            {
+                var celda =
+                    hoja.Cell(
+                        filaEncabezado,
+                        columna + 1);
+
+                celda.Value =
+                    encabezados[columna];
+
+                celda.Style.Font.Bold = true;
+                celda.Style.Font.FontColor =
+                    XLColor.White;
+
+                celda.Style.Fill.BackgroundColor =
+                    vino;
+
+                celda.Style.Alignment.Horizontal =
+                    XLAlignmentHorizontalValues.Center;
+            }
+
+            int fila = filaEncabezado + 1;
+
+            foreach (var producto in model.Productos)
+            {
+                hoja.Cell(fila, 1).Value =
+                    producto.Numero;
+
+                hoja.Cell(fila, 2).Value =
+                    producto.ProductoCodigo;
+
+                hoja.Cell(fila, 3).Value =
+                    producto.ProductoNombre;
+
+                hoja.Cell(fila, 4).Value =
+                    producto.Cajas;
+
+                hoja.Cell(fila, 5).Value =
+                    producto.Peso;
+
+                hoja.Cell(fila, 6).Value =
+                    producto.Precio;
+
+                hoja.Cell(fila, 7).Value =
+                    producto.Importe;
+
+                fila++;
+            }
+
+            hoja.Cell(fila, 3).Value =
+                "TOTALES";
+
+            hoja.Cell(fila, 3).Style.Font.Bold = true;
+
+            hoja.Cell(fila, 4).Value =
+                model.TotalCajas;
+
+            hoja.Cell(fila, 5).Value =
+                model.TotalPeso;
+
+            hoja.Cell(fila, 7).Value =
+                model.TotalImporte;
+
+            hoja.Range(
+                filaEncabezado,
+                1,
+                fila,
+                7)
+                .Style.Border.OutsideBorder =
+                XLBorderStyleValues.Thin;
+
+            hoja.Range(
+                filaEncabezado,
+                1,
+                fila,
+                7)
+                .Style.Border.InsideBorder =
+                XLBorderStyleValues.Thin;
+
+            hoja.Range(
+                fila,
+                1,
+                fila,
+                7)
+                .Style.Fill.BackgroundColor =
+                rosa;
+
+            hoja.Range(
+                fila,
+                1,
+                fila,
+                7)
+                .Style.Font.Bold = true;
+
+            hoja.Column(4).Style.NumberFormat.Format =
+                "#,##0";
+
+            hoja.Column(5).Style.NumberFormat.Format =
+                "#,##0.00";
+
+            hoja.Column(6).Style.NumberFormat.Format =
+                "$#,##0.00";
+
+            hoja.Column(7).Style.NumberFormat.Format =
+                "$#,##0.00";
+
+            hoja.Column(1).Width = 7;
+            hoja.Column(2).Width = 16;
+            hoja.Column(3).Width = 48;
+            hoja.Column(4).Width = 13;
+            hoja.Column(5).Width = 15;
+            hoja.Column(6).Width = 16;
+            hoja.Column(7).Width = 18;
+
+            hoja.Column(3).Style.Alignment.WrapText =
+                true;
+
+            hoja.SheetView.FreezeRows(
+                filaEncabezado);
+
+            hoja.PageSetup.PageOrientation =
+                XLPageOrientation.Landscape;
+
+            hoja.PageSetup.FitToPages(1, 0);
+
+            using var stream =
+                new MemoryStream();
+
+            workbook.SaveAs(stream);
+
+            return File(
+                stream.ToArray(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                $"{model.Consecutivo}_OrdenVenta.xlsx");
+        }
+
+
+
+        // =====================================================================
+        // SEGUIMIENTO DE SURTIDO - AUDITORÍA / PLANEACIÓN - V4
+        // INCLUYE:
+        //   1) ÓRDENES DE VENTA
+        //   2) TRANSFERENCIAS
+        //
+        // OV:
+        //   OrdenVentaProducto -> SubpedidoProductos -> SurtidoDetalle
+        //
+        // TR:
+        //   TransferenciaDetalles -> PedidosTransferenciaDetalle -> TransferenciaSurtido
+        //
+        // IMPORTANTE SOBRE TRANSFERENCIAS:
+        // El ComercialController actual usa Estatus >= 5 para considerar el
+        // surtido de transferencia ya validado/real. No existe en las fuentes
+        // actuales una FechaValidacion de transferencia equivalente a
+        // SurtidoEncabezado.FechaValidacion, por lo que NO se inventa.
+        // =====================================================================
+
+        [HttpGet("Comercial/SeguimientoSurtidoAuditoria")]
+        public IActionResult SeguimientoSurtidoAuditoria()
+        {
+            return View("~/Views/Comercial/SeguimientoSurtidoAuditoria.cshtml");
+        }
+
+
+        private sealed class SeguimientoSurtidoAuditoriaRowDto
+        {
+            public int DocumentoId { get; set; }
+            public string TipoDocumento { get; set; } = "";
+            public string Consecutivo { get; set; } = "";
+            public string Serie { get; set; } = "";
+            public string Cliente { get; set; } = "";
+            public string ClienteNombre { get; set; } = "";
+            public string Vendedor { get; set; } = "";
+            public int? VendedorId { get; set; }
+            public string Canal { get; set; } = "";
+            public DateTime? FechaRegistro { get; set; }
+            public DateTime? FechaEntrega { get; set; }
+            public int Estatus { get; set; }
+            public string EstatusTexto { get; set; } = "";
+
+            public int SolicitudesCedis { get; set; }
+            public int SolicitudesValidadas { get; set; }
+            public int SolicitudesPendientesValidar { get; set; }
+            public DateTime? PrimeraFechaValidacion { get; set; }
+            public DateTime? UltimaFechaValidacion { get; set; }
+            public string EstadoValidacion { get; set; } = "";
+
+            public decimal? HorasHastaUltimaValidacion { get; set; }
+            public decimal? HorasPendienteValidacion { get; set; }
+            public decimal? HorasValidacionVsEntrega { get; set; }
+            public int DiasParaEntrega { get; set; }
+
+            public decimal KgOrdenOV { get; set; }
+            public decimal CajasOrdenOV { get; set; }
+            public decimal KgPedidoCedis { get; set; }
+            public decimal CajasPedidoCedis { get; set; }
+            public decimal KgSurtidoCedisBruto { get; set; }
+            public decimal CajasSurtidasCedisBruto { get; set; }
+            public decimal KgSurtidoAplicadoOV { get; set; }
+            public decimal CajasSurtidasAplicadasOV { get; set; }
+            public decimal KgPendienteOV { get; set; }
+            public decimal CajasPendientesOV { get; set; }
+
+            public decimal PctLiberadoACedisKg { get; set; }
+            public decimal PctAvanceOVKg { get; set; }
+            public decimal PctAvanceOVCajas { get; set; }
+
+            public decimal KgExtraVsOV { get; set; }
+            public decimal CajasExtraVsOV { get; set; }
+            public int SkuExtraNoEnOV { get; set; }
+            public int SkuExtraNoEnSolicitud { get; set; }
+            public int TieneAlerta { get; set; }
+
+            public string EstadoSurtido { get; set; } = "";
+            public string RiesgoEntrega { get; set; } = "";
+        }
+
+
+        private sealed class SeguimientoSurtidoAuditoriaKpiDto
+        {
+            public int Documentos { get; set; }
+            public int OrdenesVenta { get; set; }
+            public int Transferencias { get; set; }
+            public decimal KgOrdenados { get; set; }
+            public decimal KgSurtidosAplicados { get; set; }
+            public decimal KgPendientes { get; set; }
+            public decimal PctAvanceGlobalKg { get; set; }
+            public int PorSurtir { get; set; }
+            public int Surtiendo { get; set; }
+            public int Completos { get; set; }
+            public int Alertas { get; set; }
+            public int PendientesValidacion { get; set; }
+            public int RiesgoEntrega { get; set; }
+            public decimal? PromedioHorasValidacion { get; set; }
+        }
+
+
+        private sealed class SeguimientoSurtidoDetalleSkuDto
+        {
+            public string SKU { get; set; } = "";
+            public string Producto { get; set; } = "";
+            public decimal KgOrdenOV { get; set; }
+            public decimal CajasOrdenOV { get; set; }
+            public decimal KgPedidoCedis { get; set; }
+            public decimal CajasPedidoCedis { get; set; }
+            public decimal KgSurtidoCedis { get; set; }
+            public decimal CajasSurtidasCedis { get; set; }
+            public decimal KgPendienteOV { get; set; }
+            public decimal CajasPendientesOV { get; set; }
+            public decimal KgExtraVsOV { get; set; }
+            public decimal CajasExtraVsOV { get; set; }
+            public decimal PctAvanceKg { get; set; }
+            public int EsSkuExtraNoEnOV { get; set; }
+            public int EsSkuExtraNoEnSolicitud { get; set; }
+            public string EstadoSKU { get; set; } = "";
+        }
+
+
+        private sealed class SeguimientoSurtidoProcesoDto
+        {
+            public int ProcesoId { get; set; }
+            public string Referencia { get; set; } = "";
+            public string Documento { get; set; } = "";
+            public string EstadoValidacion { get; set; } = "";
+            public DateTime? FechaValidacion { get; set; }
+            public decimal? HorasDesdeRegistro { get; set; }
+            public decimal KgSurtido { get; set; }
+            public decimal CajasSurtidas { get; set; }
+            public string Nota { get; set; } = "";
+        }
+
+
+        // =====================================================================
+        // DATA GENERAL: OV + TRANSFERENCIAS
+        // =====================================================================
+        [HttpGet("Comercial/SeguimientoSurtidoAuditoriaData")]
+        public async Task<IActionResult> SeguimientoSurtidoAuditoriaData(
+            [FromQuery] DateTime? desde,
+            [FromQuery] DateTime? hasta,
+            [FromQuery] string? tipo,
+            [FromQuery] string? folio,
+            [FromQuery] string? cliente,
+            [FromQuery] string? vendedor,
+            [FromQuery] string? serie,
+            [FromQuery] string? canal,
+            [FromQuery] string? estado,
+            [FromQuery] string? validacion,
+            [FromQuery] string? riesgo,
+            [FromQuery] bool soloAlertas = false,
+            [FromQuery] bool soloConSolicitud = false,
+            CancellationToken ct = default)
+        {
+            try
+            {
+                var fechaDesde = (desde ?? DateTime.Today.AddDays(-7)).Date;
+                var fechaHasta = (hasta ?? DateTime.Today.AddDays(7)).Date;
+
+                if (fechaHasta < fechaDesde)
+                    return BadRequest(new { ok = false, msg = "El rango de fechas es inválido." });
+
+                if ((fechaHasta - fechaDesde).TotalDays > 366)
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = "Para proteger el rendimiento, utiliza un rango máximo de 366 días."
+                    });
+
+                const string sql = @"
+WITH
+/* ============================================================
+   ÓRDENES DE VENTA
+   ============================================================ */
+OV AS
+(
+    SELECT
+        ov.Id AS DocumentoId,
+        'OV' AS TipoDocumento,
+        ISNULL(ov.Consecutivo, '') AS Consecutivo,
+        ISNULL(ov.Serie, '') AS Serie,
+        ISNULL(ov.Cliente, '') AS Cliente,
+        ISNULL(cs.Nombrecliente, '') AS ClienteNombre,
+        ISNULL(ov.Vendedor, '') AS Vendedor,
+        cs.VendedorId,
+        ISNULL(cs.U_CANAL, '') AS Canal,
+        ov.FechaRegistro,
+        ov.FechaEntrega,
+        ov.Estatus,
+        EstatusTexto =
+            CASE
+                WHEN ov.Estatus = 0 THEN 'Cancelado'
+                WHEN ov.Estatus IN (1,3) THEN 'Pendiente'
+                WHEN ov.Estatus = 2 THEN 'Autorizacion'
+                WHEN ov.Estatus = 4 THEN 'Validado'
+                WHEN ov.Estatus = 5 THEN 'Enviado a SAP'
+                WHEN ov.Estatus = 6 THEN 'Logistica'
+                ELSE CONCAT('Estatus ', ov.Estatus)
+            END
+    FROM dbo.OrdenVenta ov WITH (NOLOCK)
+    LEFT JOIN dbo.ClienteSap cs WITH (NOLOCK)
+        ON cs.Cliente = ov.Cliente
+    WHERE
+        ov.Estatus <> 0
+        AND ov.FechaEntrega >= @FechaDesde
+        AND ov.FechaEntrega < DATEADD(DAY, 1, @FechaHasta)
+),
+
+OVSku AS
+(
+    SELECT
+        op.PedidoId AS DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(op.ProductoCodigo, ''))))
+            COLLATE DATABASE_DEFAULT,
+        KgOriginal =
+            SUM(CAST(ISNULL(op.Peso, 0) AS DECIMAL(18,4))),
+        CajasOriginal =
+            SUM(CAST(ISNULL(op.Cajas, 0) AS DECIMAL(18,4)))
+    FROM dbo.OrdenVentaProducto op WITH (NOLOCK)
+    INNER JOIN OV o
+        ON o.DocumentoId = op.PedidoId
+    WHERE
+        (op.Eliminado IS NULL OR op.Eliminado = 0)
+        AND NULLIF(LTRIM(RTRIM(ISNULL(op.ProductoCodigo,''))), '') IS NOT NULL
+    GROUP BY
+        op.PedidoId,
+        UPPER(LTRIM(RTRIM(ISNULL(op.ProductoCodigo, ''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+OVSolicitudes AS
+(
+    SELECT
+        sp.Id AS SubpedidoId,
+        sp.OrdenVentaId AS DocumentoId,
+        TRY_CONVERT(INT, NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')) AS SolicitudSurtidoId
+    FROM dbo.Subpedido sp WITH (NOLOCK)
+    INNER JOIN OV o
+        ON o.DocumentoId = sp.OrdenVentaId
+),
+
+OVSolicitudDistinct AS
+(
+    SELECT DISTINCT
+        DocumentoId,
+        SolicitudSurtidoId
+    FROM OVSolicitudes
+    WHERE SolicitudSurtidoId IS NOT NULL
+),
+
+OVSolicitudInfo AS
+(
+    SELECT
+        sd.DocumentoId,
+        SolicitudesCedis = COUNT(*),
+        SolicitudesValidadas =
+            SUM(CASE WHEN se.FechaValidacion IS NOT NULL THEN 1 ELSE 0 END),
+        SolicitudesPendientesValidar =
+            SUM(CASE WHEN se.FechaValidacion IS NULL THEN 1 ELSE 0 END),
+        PrimeraFechaValidacion = MIN(se.FechaValidacion),
+        UltimaFechaValidacion = MAX(se.FechaValidacion)
+    FROM OVSolicitudDistinct sd
+    LEFT JOIN dbo.SurtidoEncabezado se WITH (NOLOCK)
+        ON se.SolicitudSurtidoId = sd.SolicitudSurtidoId
+    GROUP BY
+        sd.DocumentoId
+),
+
+OVPedidoCedis AS
+(
+    SELECT
+        s.DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(p.ProductoCodigo, ''))))
+            COLLATE DATABASE_DEFAULT,
+        KgPedidoCedis =
+            SUM(CAST(ISNULL(p.KilosCaja, 0) AS DECIMAL(18,4))),
+        CajasPedidoCedis =
+            SUM(CAST(ISNULL(p.Cajas, 0) AS DECIMAL(18,4)))
+    FROM OVSolicitudes s
+    INNER JOIN dbo.SubpedidoProductos p WITH (NOLOCK)
+        ON p.SubpedidoId = s.SubpedidoId
+    WHERE
+        NULLIF(LTRIM(RTRIM(ISNULL(p.ProductoCodigo,''))), '') IS NOT NULL
+    GROUP BY
+        s.DocumentoId,
+        UPPER(LTRIM(RTRIM(ISNULL(p.ProductoCodigo, ''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+OVSurtido AS
+(
+    SELECT
+        sm.DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(sd.Articulo, ''))))
+            COLLATE DATABASE_DEFAULT,
+        KgSurtido =
+            SUM(CAST(ISNULL(sd.Kg, 0) AS DECIMAL(18,4))),
+        CajasSurtidas =
+            SUM(CAST(ISNULL(sd.Cajas, 0) AS DECIMAL(18,4)))
+    FROM OVSolicitudDistinct sm
+    INNER JOIN dbo.SurtidoDetalle sd WITH (NOLOCK)
+        ON sd.SolicitudSurtidoId = sm.SolicitudSurtidoId
+    WHERE
+        NULLIF(LTRIM(RTRIM(ISNULL(sd.Articulo,''))), '') IS NOT NULL
+    GROUP BY
+        sm.DocumentoId,
+        UPPER(LTRIM(RTRIM(ISNULL(sd.Articulo, ''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+OVKeys AS
+(
+    SELECT DocumentoId, SKU FROM OVSku
+    UNION
+    SELECT DocumentoId, SKU FROM OVPedidoCedis
+    UNION
+    SELECT DocumentoId, SKU FROM OVSurtido
+),
+
+OVDetalle AS
+(
+    SELECT
+        k.DocumentoId,
+        k.SKU,
+        KgOriginal = ISNULL(o.KgOriginal,0),
+        CajasOriginal = ISNULL(o.CajasOriginal,0),
+        KgPedidoCedis = ISNULL(p.KgPedidoCedis,0),
+        CajasPedidoCedis = ISNULL(p.CajasPedidoCedis,0),
+        KgSurtido = ISNULL(s.KgSurtido,0),
+        CajasSurtidas = ISNULL(s.CajasSurtidas,0),
+
+        KgAplicado =
+            CAST(
+                CASE
+                    WHEN ISNULL(o.KgOriginal,0) <= 0 THEN 0
+                    WHEN ISNULL(s.KgSurtido,0) >= ISNULL(o.KgOriginal,0)
+                        THEN ISNULL(o.KgOriginal,0)
+                    ELSE ISNULL(s.KgSurtido,0)
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        CajasAplicadas =
+            CAST(
+                CASE
+                    WHEN ISNULL(o.CajasOriginal,0) <= 0 THEN 0
+                    WHEN ISNULL(s.CajasSurtidas,0) >= ISNULL(o.CajasOriginal,0)
+                        THEN ISNULL(o.CajasOriginal,0)
+                    ELSE ISNULL(s.CajasSurtidas,0)
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        KgExtra =
+            CAST(
+                CASE
+                    WHEN ISNULL(s.KgSurtido,0) > ISNULL(o.KgOriginal,0)
+                        THEN ISNULL(s.KgSurtido,0) - ISNULL(o.KgOriginal,0)
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        CajasExtra =
+            CAST(
+                CASE
+                    WHEN ISNULL(s.CajasSurtidas,0) > ISNULL(o.CajasOriginal,0)
+                        THEN ISNULL(s.CajasSurtidas,0) - ISNULL(o.CajasOriginal,0)
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        EsSkuExtraOriginal =
+            CASE
+                WHEN ISNULL(s.KgSurtido,0) > 0
+                 AND o.DocumentoId IS NULL
+                    THEN 1
+                ELSE 0
+            END,
+
+        EsSkuExtraSolicitud =
+            CASE
+                WHEN ISNULL(s.KgSurtido,0) > 0
+                 AND p.DocumentoId IS NULL
+                    THEN 1
+                ELSE 0
+            END
+    FROM OVKeys k
+    LEFT JOIN OVSku o
+        ON o.DocumentoId = k.DocumentoId
+       AND o.SKU = k.SKU
+    LEFT JOIN OVPedidoCedis p
+        ON p.DocumentoId = k.DocumentoId
+       AND p.SKU = k.SKU
+    LEFT JOIN OVSurtido s
+        ON s.DocumentoId = k.DocumentoId
+       AND s.SKU = k.SKU
+),
+
+OVAgg AS
+(
+    SELECT
+        DocumentoId,
+        KgOrdenOV = SUM(KgOriginal),
+        CajasOrdenOV = SUM(CajasOriginal),
+        KgPedidoCedis = SUM(KgPedidoCedis),
+        CajasPedidoCedis = SUM(CajasPedidoCedis),
+        KgSurtidoCedisBruto = SUM(KgSurtido),
+        CajasSurtidasCedisBruto = SUM(CajasSurtidas),
+        KgSurtidoAplicadoOV = SUM(KgAplicado),
+        CajasSurtidasAplicadasOV = SUM(CajasAplicadas),
+        KgExtraVsOV = SUM(KgExtra),
+        CajasExtraVsOV = SUM(CajasExtra),
+        SkuExtraNoEnOV =
+            SUM(CASE WHEN EsSkuExtraOriginal = 1 THEN 1 ELSE 0 END),
+        SkuExtraNoEnSolicitud =
+            SUM(CASE WHEN EsSkuExtraSolicitud = 1 THEN 1 ELSE 0 END)
+    FROM OVDetalle
+    GROUP BY DocumentoId
+),
+
+OVFinalBase AS
+(
+    SELECT
+        o.DocumentoId,
+        o.TipoDocumento,
+        o.Consecutivo,
+        o.Serie,
+        o.Cliente,
+        o.ClienteNombre,
+        o.Vendedor,
+        o.VendedorId,
+        o.Canal,
+        o.FechaRegistro,
+        o.FechaEntrega,
+        o.Estatus,
+        o.EstatusTexto,
+
+        SolicitudesCedis = ISNULL(si.SolicitudesCedis,0),
+        SolicitudesValidadas = ISNULL(si.SolicitudesValidadas,0),
+        SolicitudesPendientesValidar = ISNULL(si.SolicitudesPendientesValidar,0),
+        si.PrimeraFechaValidacion,
+        si.UltimaFechaValidacion,
+
+        EstadoValidacion =
+            CASE
+                WHEN ISNULL(si.SolicitudesCedis,0) = 0 THEN 'SIN SOLICITUD'
+                WHEN ISNULL(si.SolicitudesValidadas,0) = 0 THEN 'PENDIENTE'
+                WHEN ISNULL(si.SolicitudesPendientesValidar,0) > 0 THEN 'PARCIAL'
+                ELSE 'VALIDADO'
+            END,
+
+        HorasHastaUltimaValidacion =
+            CAST(
+                CASE
+                    WHEN si.UltimaFechaValidacion IS NULL OR o.FechaRegistro IS NULL
+                        THEN NULL
+                    ELSE DATEDIFF(MINUTE, o.FechaRegistro, si.UltimaFechaValidacion) / 60.0
+                END
+                AS DECIMAL(18,2)
+            ),
+
+        HorasPendienteValidacion =
+            CAST(
+                CASE
+                    WHEN ISNULL(si.SolicitudesPendientesValidar,0) <= 0
+                      OR o.FechaRegistro IS NULL
+                        THEN NULL
+                    ELSE DATEDIFF(MINUTE, o.FechaRegistro, GETDATE()) / 60.0
+                END
+                AS DECIMAL(18,2)
+            ),
+
+        HorasValidacionVsEntrega =
+            CAST(
+                CASE
+                    WHEN si.UltimaFechaValidacion IS NULL OR o.FechaEntrega IS NULL
+                        THEN NULL
+                    ELSE DATEDIFF(MINUTE, o.FechaEntrega, si.UltimaFechaValidacion) / 60.0
+                END
+                AS DECIMAL(18,2)
+            ),
+
+        DiasParaEntrega =
+            DATEDIFF(DAY, CONVERT(DATE,GETDATE()), CONVERT(DATE,o.FechaEntrega)),
+
+        KgOrdenOV = ISNULL(a.KgOrdenOV,0),
+        CajasOrdenOV = ISNULL(a.CajasOrdenOV,0),
+        KgPedidoCedis = ISNULL(a.KgPedidoCedis,0),
+        CajasPedidoCedis = ISNULL(a.CajasPedidoCedis,0),
+        KgSurtidoCedisBruto = ISNULL(a.KgSurtidoCedisBruto,0),
+        CajasSurtidasCedisBruto = ISNULL(a.CajasSurtidasCedisBruto,0),
+        KgSurtidoAplicadoOV = ISNULL(a.KgSurtidoAplicadoOV,0),
+        CajasSurtidasAplicadasOV = ISNULL(a.CajasSurtidasAplicadasOV,0),
+
+        KgPendienteOV =
+            CAST(
+                CASE
+                    WHEN ISNULL(a.KgOrdenOV,0) - ISNULL(a.KgSurtidoAplicadoOV,0) > 0
+                        THEN ISNULL(a.KgOrdenOV,0) - ISNULL(a.KgSurtidoAplicadoOV,0)
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        CajasPendientesOV =
+            CAST(
+                CASE
+                    WHEN ISNULL(a.CajasOrdenOV,0) - ISNULL(a.CajasSurtidasAplicadasOV,0) > 0
+                        THEN ISNULL(a.CajasOrdenOV,0) - ISNULL(a.CajasSurtidasAplicadasOV,0)
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        PctLiberadoACedisKg =
+            CAST(
+                CASE
+                    WHEN ISNULL(a.KgOrdenOV,0) <= 0 THEN 0
+                    ELSE ISNULL(a.KgPedidoCedis,0) * 100.0 / NULLIF(a.KgOrdenOV,0)
+                END
+                AS DECIMAL(10,2)
+            ),
+
+        PctAvanceOVKg =
+            CAST(
+                CASE
+                    WHEN ISNULL(a.KgOrdenOV,0) <= 0 THEN 0
+                    ELSE ISNULL(a.KgSurtidoAplicadoOV,0) * 100.0 / NULLIF(a.KgOrdenOV,0)
+                END
+                AS DECIMAL(10,2)
+            ),
+
+        PctAvanceOVCajas =
+            CAST(
+                CASE
+                    WHEN ISNULL(a.CajasOrdenOV,0) <= 0 THEN 0
+                    ELSE ISNULL(a.CajasSurtidasAplicadasOV,0) * 100.0 / NULLIF(a.CajasOrdenOV,0)
+                END
+                AS DECIMAL(10,2)
+            ),
+
+        KgExtraVsOV = ISNULL(a.KgExtraVsOV,0),
+        CajasExtraVsOV = ISNULL(a.CajasExtraVsOV,0),
+        SkuExtraNoEnOV = ISNULL(a.SkuExtraNoEnOV,0),
+        SkuExtraNoEnSolicitud = ISNULL(a.SkuExtraNoEnSolicitud,0),
+
+        TieneAlerta =
+            CASE
+                WHEN ISNULL(a.SkuExtraNoEnOV,0) > 0
+                  OR ISNULL(a.SkuExtraNoEnSolicitud,0) > 0
+                  OR ISNULL(a.KgExtraVsOV,0) > 0.01
+                  OR ISNULL(a.CajasExtraVsOV,0) > 0
+                    THEN 1
+                ELSE 0
+            END
+    FROM OV o
+    LEFT JOIN OVAgg a
+        ON a.DocumentoId = o.DocumentoId
+    LEFT JOIN OVSolicitudInfo si
+        ON si.DocumentoId = o.DocumentoId
+),
+
+OVFinal AS
+(
+    SELECT
+        b.*,
+
+        EstadoSurtido =
+            CASE
+                WHEN b.SolicitudesCedis = 0 THEN 'SIN SOLICITUD CEDIS'
+                WHEN b.KgPedidoCedis <= 0 AND b.KgSurtidoCedisBruto > 0
+                    THEN 'SURTIDO SIN DETALLE SOLICITADO'
+                WHEN b.KgPedidoCedis <= 0
+                    THEN 'SOLICITUD SIN DETALLE'
+                WHEN b.KgSurtidoCedisBruto <= 0
+                    THEN 'POR SURTIR'
+                WHEN b.PctAvanceOVKg < 100 AND b.TieneAlerta = 1
+                    THEN 'SURTIENDO + ALERTA'
+                WHEN b.PctAvanceOVKg < 100
+                    THEN 'SURTIENDO'
+                WHEN b.TieneAlerta = 1
+                    THEN 'COMPLETO CON ALERTA'
+                ELSE 'COMPLETO'
+            END,
+
+        RiesgoEntrega =
+            CASE
+                WHEN b.DiasParaEntrega < 0 AND b.PctAvanceOVKg < 100 THEN 'ATRASADO'
+                WHEN b.DiasParaEntrega <= 1 AND b.PctAvanceOVKg < 100 THEN 'RIESGO'
+                WHEN b.TieneAlerta = 1 THEN 'REVISAR'
+                ELSE 'EN TIEMPO'
+            END
+    FROM OVFinalBase b
+),
+
+
+/* ============================================================
+   TRANSFERENCIAS
+   Original     = TransferenciaDetalles
+   Pedido CEDIS = PedidosTransferenciaDetalle
+   Surtido real = TransferenciaSurtido
+   ============================================================ */
+TR AS
+(
+    SELECT
+        t.Id AS DocumentoId,
+        'TR' AS TipoDocumento,
+        ISNULL(t.Consecutivo,'') AS Consecutivo,
+        ISNULL(t.Sucursal,'') AS Serie,
+        ISNULL(t.Sucursal,'') AS Cliente,
+
+        ClienteNombre =
+            ISNULL(
+                (
+                    SELECT TOP (1) ISNULL(pt.Destino,'')
+                    FROM dbo.PedidosTransferencia pt WITH (NOLOCK)
+                    WHERE pt.TransferenciaId = t.Id
+                    ORDER BY pt.Id
+                ),
+                ISNULL(t.Sucursal,'')
+            ),
+
+        Vendedor = '',
+        VendedorId = CAST(NULL AS INT),
+
+        Canal =
+            ISNULL(
+                (
+                    SELECT TOP (1) ISNULL(s.Canal,'')
+                    FROM dbo.Series s WITH (NOLOCK)
+                    WHERE s.Sucursal = t.Sucursal
+                    ORDER BY s.Id
+                ),
+                ''
+            ),
+
+        FechaRegistro = t.FechaSolicitud,
+        FechaEntrega = t.FechaSolicitud,
+        t.Estatus,
+
+        EstatusTexto =
+            CASE
+                WHEN t.Estatus = 0 THEN 'Cancelada'
+                WHEN t.Estatus BETWEEN 1 AND 4 THEN 'En proceso'
+                WHEN t.Estatus >= 5 THEN 'Validada / surtida'
+                ELSE CONCAT('Estatus ', t.Estatus)
+            END
+    FROM dbo.Transferencias t WITH (NOLOCK)
+    WHERE
+        t.Estatus <> 0
+        AND t.FechaSolicitud >= @FechaDesde
+        AND t.FechaSolicitud < DATEADD(DAY,1,@FechaHasta)
+),
+
+TRSku AS
+(
+    SELECT
+        td.TransferenciaId AS DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(td.ProductoCodigo,''))))
+            COLLATE DATABASE_DEFAULT,
+        KgOriginal =
+            SUM(CAST(ISNULL(td.CantidadKg,0) AS DECIMAL(18,4))),
+        CajasOriginal =
+            SUM(CAST(ISNULL(td.Cajas,0) AS DECIMAL(18,4)))
+    FROM dbo.TransferenciaDetalles td WITH (NOLOCK)
+    INNER JOIN TR t
+        ON t.DocumentoId = td.TransferenciaId
+    WHERE
+        NULLIF(LTRIM(RTRIM(ISNULL(td.ProductoCodigo,''))), '') IS NOT NULL
+    GROUP BY
+        td.TransferenciaId,
+        UPPER(LTRIM(RTRIM(ISNULL(td.ProductoCodigo,''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+TRPedidoCedis AS
+(
+    SELECT
+        pt.TransferenciaId AS DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(pd.ProductoCodigo,''))))
+            COLLATE DATABASE_DEFAULT,
+        KgPedidoCedis =
+            SUM(CAST(ISNULL(pd.CantidadKg,0) AS DECIMAL(18,4))),
+        CajasPedidoCedis =
+            SUM(CAST(ISNULL(pd.Cajas,0) AS DECIMAL(18,4)))
+    FROM dbo.PedidosTransferencia pt WITH (NOLOCK)
+    INNER JOIN dbo.PedidosTransferenciaDetalle pd WITH (NOLOCK)
+        ON pd.PedidoTransferenciaId = pt.Id
+    INNER JOIN TR t
+        ON t.DocumentoId = pt.TransferenciaId
+    WHERE
+        NULLIF(LTRIM(RTRIM(ISNULL(pd.ProductoCodigo,''))), '') IS NOT NULL
+    GROUP BY
+        pt.TransferenciaId,
+        UPPER(LTRIM(RTRIM(ISNULL(pd.ProductoCodigo,''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+TRPedidoInfo AS
+(
+    SELECT
+        pt.TransferenciaId AS DocumentoId,
+        SolicitudesCedis = COUNT(*)
+    FROM dbo.PedidosTransferencia pt WITH (NOLOCK)
+    INNER JOIN TR t
+        ON t.DocumentoId = pt.TransferenciaId
+    GROUP BY
+        pt.TransferenciaId
+),
+
+TRSurtido AS
+(
+    SELECT
+        ts.TransferenciaId AS DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(ts.Sku,''))))
+            COLLATE DATABASE_DEFAULT,
+        KgSurtido =
+            SUM(CAST(ISNULL(ts.KgSurtido,0) AS DECIMAL(18,4))),
+        CajasSurtidas =
+            SUM(CAST(ISNULL(ts.CajasSurtidas,0) AS DECIMAL(18,4)))
+    FROM dbo.TransferenciaSurtido ts WITH (NOLOCK)
+    INNER JOIN TR t
+        ON t.DocumentoId = ts.TransferenciaId
+    WHERE
+        NULLIF(LTRIM(RTRIM(ISNULL(ts.Sku,''))), '') IS NOT NULL
+    GROUP BY
+        ts.TransferenciaId,
+        UPPER(LTRIM(RTRIM(ISNULL(ts.Sku,''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+TRKeys AS
+(
+    SELECT DocumentoId, SKU FROM TRSku
+    UNION
+    SELECT DocumentoId, SKU FROM TRPedidoCedis
+    UNION
+    SELECT DocumentoId, SKU FROM TRSurtido
+),
+
+TRDetalle AS
+(
+    SELECT
+        k.DocumentoId,
+        k.SKU,
+        KgOriginal = ISNULL(o.KgOriginal,0),
+        CajasOriginal = ISNULL(o.CajasOriginal,0),
+        KgPedidoCedis = ISNULL(p.KgPedidoCedis,0),
+        CajasPedidoCedis = ISNULL(p.CajasPedidoCedis,0),
+        KgSurtido = ISNULL(s.KgSurtido,0),
+        CajasSurtidas = ISNULL(s.CajasSurtidas,0),
+
+        KgAplicado =
+            CAST(
+                CASE
+                    WHEN ISNULL(o.KgOriginal,0) <= 0 THEN 0
+                    WHEN ISNULL(s.KgSurtido,0) >= ISNULL(o.KgOriginal,0)
+                        THEN ISNULL(o.KgOriginal,0)
+                    ELSE ISNULL(s.KgSurtido,0)
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        CajasAplicadas =
+            CAST(
+                CASE
+                    WHEN ISNULL(o.CajasOriginal,0) <= 0 THEN 0
+                    WHEN ISNULL(s.CajasSurtidas,0) >= ISNULL(o.CajasOriginal,0)
+                        THEN ISNULL(o.CajasOriginal,0)
+                    ELSE ISNULL(s.CajasSurtidas,0)
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        KgExtra =
+            CAST(
+                CASE
+                    WHEN ISNULL(s.KgSurtido,0) > ISNULL(o.KgOriginal,0)
+                        THEN ISNULL(s.KgSurtido,0) - ISNULL(o.KgOriginal,0)
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        CajasExtra =
+            CAST(
+                CASE
+                    WHEN ISNULL(s.CajasSurtidas,0) > ISNULL(o.CajasOriginal,0)
+                        THEN ISNULL(s.CajasSurtidas,0) - ISNULL(o.CajasOriginal,0)
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        EsSkuExtraOriginal =
+            CASE
+                WHEN ISNULL(s.KgSurtido,0) > 0
+                 AND o.DocumentoId IS NULL
+                    THEN 1
+                ELSE 0
+            END,
+
+        EsSkuExtraSolicitud =
+            CASE
+                WHEN ISNULL(s.KgSurtido,0) > 0
+                 AND p.DocumentoId IS NULL
+                    THEN 1
+                ELSE 0
+            END
+    FROM TRKeys k
+    LEFT JOIN TRSku o
+        ON o.DocumentoId = k.DocumentoId
+       AND o.SKU = k.SKU
+    LEFT JOIN TRPedidoCedis p
+        ON p.DocumentoId = k.DocumentoId
+       AND p.SKU = k.SKU
+    LEFT JOIN TRSurtido s
+        ON s.DocumentoId = k.DocumentoId
+       AND s.SKU = k.SKU
+),
+
+TRAgg AS
+(
+    SELECT
+        DocumentoId,
+        KgOrdenOV = SUM(KgOriginal),
+        CajasOrdenOV = SUM(CajasOriginal),
+        KgPedidoCedis = SUM(KgPedidoCedis),
+        CajasPedidoCedis = SUM(CajasPedidoCedis),
+        KgSurtidoCedisBruto = SUM(KgSurtido),
+        CajasSurtidasCedisBruto = SUM(CajasSurtidas),
+        KgSurtidoAplicadoOV = SUM(KgAplicado),
+        CajasSurtidasAplicadasOV = SUM(CajasAplicadas),
+        KgExtraVsOV = SUM(KgExtra),
+        CajasExtraVsOV = SUM(CajasExtra),
+        SkuExtraNoEnOV =
+            SUM(CASE WHEN EsSkuExtraOriginal = 1 THEN 1 ELSE 0 END),
+        SkuExtraNoEnSolicitud =
+            SUM(CASE WHEN EsSkuExtraSolicitud = 1 THEN 1 ELSE 0 END)
+    FROM TRDetalle
+    GROUP BY DocumentoId
+),
+
+TRFinalBase AS
+(
+    SELECT
+        t.DocumentoId,
+        t.TipoDocumento,
+        t.Consecutivo,
+        t.Serie,
+        t.Cliente,
+        t.ClienteNombre,
+        t.Vendedor,
+        t.VendedorId,
+        t.Canal,
+        t.FechaRegistro,
+        t.FechaEntrega,
+        t.Estatus,
+        t.EstatusTexto,
+
+        SolicitudesCedis = ISNULL(pi.SolicitudesCedis,0),
+
+        SolicitudesValidadas =
+            CASE
+                WHEN ISNULL(pi.SolicitudesCedis,0) > 0 AND t.Estatus >= 5
+                    THEN ISNULL(pi.SolicitudesCedis,0)
+                ELSE 0
+            END,
+
+        SolicitudesPendientesValidar =
+            CASE
+                WHEN ISNULL(pi.SolicitudesCedis,0) > 0 AND t.Estatus < 5
+                    THEN ISNULL(pi.SolicitudesCedis,0)
+                ELSE 0
+            END,
+
+        PrimeraFechaValidacion = CAST(NULL AS DATETIME),
+        UltimaFechaValidacion = CAST(NULL AS DATETIME),
+
+        EstadoValidacion =
+            CASE
+                WHEN ISNULL(pi.SolicitudesCedis,0) = 0 THEN 'SIN SOLICITUD'
+                WHEN t.Estatus >= 5 THEN 'VALIDADO'
+                ELSE 'PENDIENTE'
+            END,
+
+        HorasHastaUltimaValidacion = CAST(NULL AS DECIMAL(18,2)),
+
+        HorasPendienteValidacion =
+            CAST(
+                CASE
+                    WHEN ISNULL(pi.SolicitudesCedis,0) > 0
+                     AND t.Estatus < 5
+                     AND t.FechaRegistro IS NOT NULL
+                        THEN DATEDIFF(MINUTE,t.FechaRegistro,GETDATE()) / 60.0
+                    ELSE NULL
+                END
+                AS DECIMAL(18,2)
+            ),
+
+        HorasValidacionVsEntrega = CAST(NULL AS DECIMAL(18,2)),
+        DiasParaEntrega = 0,
+
+        KgOrdenOV = ISNULL(a.KgOrdenOV,0),
+        CajasOrdenOV = ISNULL(a.CajasOrdenOV,0),
+        KgPedidoCedis = ISNULL(a.KgPedidoCedis,0),
+        CajasPedidoCedis = ISNULL(a.CajasPedidoCedis,0),
+        KgSurtidoCedisBruto = ISNULL(a.KgSurtidoCedisBruto,0),
+        CajasSurtidasCedisBruto = ISNULL(a.CajasSurtidasCedisBruto,0),
+        KgSurtidoAplicadoOV = ISNULL(a.KgSurtidoAplicadoOV,0),
+        CajasSurtidasAplicadasOV = ISNULL(a.CajasSurtidasAplicadasOV,0),
+
+        KgPendienteOV =
+            CAST(
+                CASE
+                    WHEN ISNULL(a.KgOrdenOV,0) - ISNULL(a.KgSurtidoAplicadoOV,0) > 0
+                        THEN ISNULL(a.KgOrdenOV,0) - ISNULL(a.KgSurtidoAplicadoOV,0)
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        CajasPendientesOV =
+            CAST(
+                CASE
+                    WHEN ISNULL(a.CajasOrdenOV,0) - ISNULL(a.CajasSurtidasAplicadasOV,0) > 0
+                        THEN ISNULL(a.CajasOrdenOV,0) - ISNULL(a.CajasSurtidasAplicadasOV,0)
+                    ELSE 0
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        PctLiberadoACedisKg =
+            CAST(
+                CASE
+                    WHEN ISNULL(a.KgOrdenOV,0) <= 0 THEN 0
+                    ELSE ISNULL(a.KgPedidoCedis,0) * 100.0 / NULLIF(a.KgOrdenOV,0)
+                END
+                AS DECIMAL(10,2)
+            ),
+
+        PctAvanceOVKg =
+            CAST(
+                CASE
+                    WHEN ISNULL(a.KgOrdenOV,0) <= 0 THEN 0
+                    ELSE ISNULL(a.KgSurtidoAplicadoOV,0) * 100.0 / NULLIF(a.KgOrdenOV,0)
+                END
+                AS DECIMAL(10,2)
+            ),
+
+        PctAvanceOVCajas =
+            CAST(
+                CASE
+                    WHEN ISNULL(a.CajasOrdenOV,0) <= 0 THEN 0
+                    ELSE ISNULL(a.CajasSurtidasAplicadasOV,0) * 100.0 / NULLIF(a.CajasOrdenOV,0)
+                END
+                AS DECIMAL(10,2)
+            ),
+
+        KgExtraVsOV = ISNULL(a.KgExtraVsOV,0),
+        CajasExtraVsOV = ISNULL(a.CajasExtraVsOV,0),
+        SkuExtraNoEnOV = ISNULL(a.SkuExtraNoEnOV,0),
+        SkuExtraNoEnSolicitud = ISNULL(a.SkuExtraNoEnSolicitud,0),
+
+        TieneAlerta =
+            CASE
+                WHEN ISNULL(a.SkuExtraNoEnOV,0) > 0
+                  OR ISNULL(a.SkuExtraNoEnSolicitud,0) > 0
+                  OR ISNULL(a.KgExtraVsOV,0) > 0.01
+                  OR ISNULL(a.CajasExtraVsOV,0) > 0
+                    THEN 1
+                ELSE 0
+            END
+    FROM TR t
+    LEFT JOIN TRAgg a
+        ON a.DocumentoId = t.DocumentoId
+    LEFT JOIN TRPedidoInfo pi
+        ON pi.DocumentoId = t.DocumentoId
+),
+
+TRFinal AS
+(
+    SELECT
+        b.*,
+
+        EstadoSurtido =
+            CASE
+                WHEN b.SolicitudesCedis = 0 AND b.KgSurtidoCedisBruto <= 0
+                    THEN 'SIN PEDIDO CEDIS'
+                WHEN b.KgSurtidoCedisBruto <= 0
+                    THEN 'POR SURTIR'
+                WHEN b.PctAvanceOVKg < 100 AND b.TieneAlerta = 1
+                    THEN 'SURTIENDO + ALERTA'
+                WHEN b.PctAvanceOVKg < 100
+                    THEN 'SURTIENDO'
+                WHEN b.TieneAlerta = 1
+                    THEN 'COMPLETO CON ALERTA'
+                ELSE 'COMPLETO'
+            END,
+
+        RiesgoEntrega =
+            CASE
+                WHEN b.TieneAlerta = 1 THEN 'REVISAR'
+                ELSE 'SIN SLA'
+            END
+    FROM TRFinalBase b
+),
+
+Final AS
+(
+    SELECT * FROM OVFinal
+    UNION ALL
+    SELECT * FROM TRFinal
+)
+
+SELECT TOP (3000)
+    f.*
+FROM Final f
+WHERE
+    (@Tipo = '' OR f.TipoDocumento = @Tipo)
+    AND (@Folio = '' OR f.Consecutivo LIKE '%' + @Folio + '%')
+    AND
+    (
+        @Cliente = ''
+        OR f.Cliente LIKE '%' + @Cliente + '%'
+        OR f.ClienteNombre LIKE '%' + @Cliente + '%'
+    )
+    AND
+    (
+        @Vendedor = ''
+        OR UPPER(LTRIM(RTRIM(f.Vendedor))) = UPPER(LTRIM(RTRIM(@Vendedor)))
+    )
+    AND
+    (
+        @Serie = ''
+        OR UPPER(LTRIM(RTRIM(f.Serie))) = UPPER(LTRIM(RTRIM(@Serie)))
+    )
+    AND
+    (
+        @Canal = ''
+        OR UPPER(LTRIM(RTRIM(f.Canal))) = UPPER(LTRIM(RTRIM(@Canal)))
+    )
+    AND
+    (
+        @Estado = ''
+        OR (@Estado = 'POR_SURTIR' AND f.EstadoSurtido IN ('POR SURTIR','SOLICITUD SIN DETALLE'))
+        OR (@Estado = 'SURTIENDO' AND f.EstadoSurtido LIKE 'SURTIENDO%')
+        OR (@Estado = 'COMPLETO' AND f.EstadoSurtido LIKE 'COMPLETO%')
+        OR (@Estado = 'SIN_SOLICITUD' AND f.EstadoSurtido IN ('SIN SOLICITUD CEDIS','SIN PEDIDO CEDIS'))
+        OR (@Estado = 'ALERTAS' AND f.TieneAlerta = 1)
+    )
+    AND (@Validacion = '' OR f.EstadoValidacion = @Validacion)
+    AND (@Riesgo = '' OR f.RiesgoEntrega = @Riesgo)
+    AND (@SoloAlertas = 0 OR f.TieneAlerta = 1)
+    AND (@SoloConSolicitud = 0 OR f.SolicitudesCedis > 0)
+ORDER BY
+    CASE f.TipoDocumento
+        WHEN 'OV' THEN 1
+        WHEN 'TR' THEN 2
+        ELSE 3
+    END,
+    CASE f.RiesgoEntrega
+        WHEN 'ATRASADO' THEN 1
+        WHEN 'RIESGO' THEN 2
+        WHEN 'REVISAR' THEN 3
+        ELSE 4
+    END,
+    CASE WHEN f.TieneAlerta = 1 THEN 0 ELSE 1 END,
+    f.FechaEntrega,
+    f.Consecutivo
+";
+
+                await using var cn =
+                    new Microsoft.Data.SqlClient.SqlConnection(
+                        _configuration.GetConnectionString("DefaultConnection"));
+
+                await cn.OpenAsync(ct);
+
+                var args = new
+                {
+                    FechaDesde = fechaDesde,
+                    FechaHasta = fechaHasta,
+                    Tipo = (tipo ?? "").Trim().ToUpperInvariant(),
+                    Folio = (folio ?? "").Trim(),
+                    Cliente = (cliente ?? "").Trim(),
+                    Vendedor = (vendedor ?? "").Trim(),
+                    Serie = (serie ?? "").Trim(),
+                    Canal = (canal ?? "").Trim(),
+                    Estado = (estado ?? "").Trim().ToUpperInvariant(),
+                    Validacion = (validacion ?? "").Trim().ToUpperInvariant(),
+                    Riesgo = (riesgo ?? "").Trim().ToUpperInvariant(),
+                    SoloAlertas = soloAlertas ? 1 : 0,
+                    SoloConSolicitud = soloConSolicitud ? 1 : 0
+                };
+
+                var rows =
+                    (await cn.QueryAsync<SeguimientoSurtidoAuditoriaRowDto>(
+                        new CommandDefinition(
+                            sql,
+                            args,
+                            commandTimeout: 180,
+                            cancellationToken: ct)))
+                    .ToList();
+
+                var kgOrdenados = rows.Sum(x => x.KgOrdenOV);
+                var kgSurtidos = rows.Sum(x => x.KgSurtidoAplicadoOV);
+
+                // Para promedio de validación sólo usamos OV,
+                // porque Transferencias no expone FechaValidacion en las fuentes actuales.
+                var horasValidadasOv =
+                    rows
+                        .Where(x =>
+                            x.TipoDocumento == "OV"
+                            && x.EstadoValidacion == "VALIDADO"
+                            && x.HorasHastaUltimaValidacion.HasValue)
+                        .Select(x => x.HorasHastaUltimaValidacion!.Value)
+                        .ToList();
+
+                var kpis = new SeguimientoSurtidoAuditoriaKpiDto
+                {
+                    Documentos = rows.Count,
+                    OrdenesVenta = rows.Count(x => x.TipoDocumento == "OV"),
+                    Transferencias = rows.Count(x => x.TipoDocumento == "TR"),
+                    KgOrdenados = kgOrdenados,
+                    KgSurtidosAplicados = kgSurtidos,
+                    KgPendientes = rows.Sum(x => x.KgPendienteOV),
+                    PctAvanceGlobalKg =
+                        kgOrdenados > 0
+                            ? Math.Round((kgSurtidos * 100m) / kgOrdenados, 2)
+                            : 0m,
+
+                    PorSurtir =
+                        rows.Count(x =>
+                            x.EstadoSurtido == "POR SURTIR"
+                            || x.EstadoSurtido == "SOLICITUD SIN DETALLE"),
+
+                    Surtiendo =
+                        rows.Count(x =>
+                            (x.EstadoSurtido ?? "").StartsWith(
+                                "SURTIENDO",
+                                StringComparison.OrdinalIgnoreCase)),
+
+                    Completos =
+                        rows.Count(x =>
+                            (x.EstadoSurtido ?? "").StartsWith(
+                                "COMPLETO",
+                                StringComparison.OrdinalIgnoreCase)),
+
+                    Alertas = rows.Count(x => x.TieneAlerta == 1),
+
+                    PendientesValidacion =
+                        rows.Count(x =>
+                            x.EstadoValidacion == "PENDIENTE"
+                            || x.EstadoValidacion == "PARCIAL"),
+
+                    RiesgoEntrega =
+                        rows.Count(x =>
+                            x.RiesgoEntrega == "ATRASADO"
+                            || x.RiesgoEntrega == "RIESGO"),
+
+                    PromedioHorasValidacion =
+                        horasValidadasOv.Count > 0
+                            ? Math.Round(horasValidadasOv.Average(), 2)
+                            : null
+                };
+
+                var series =
+                    rows.Select(x => (x.Serie ?? "").Trim())
+                        .Where(x => x.Length > 0)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(x => x)
+                        .ToList();
+
+                var vendedores =
+                    rows.Select(x => (x.Vendedor ?? "").Trim())
+                        .Where(x => x.Length > 0)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(x => x)
+                        .ToList();
+
+                var canales =
+                    rows.Select(x => (x.Canal ?? "").Trim())
+                        .Where(x => x.Length > 0)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(x => x)
+                        .ToList();
+
+                return Json(new
+                {
+                    ok = true,
+                    fechaDesde = fechaDesde.ToString("yyyy-MM-dd"),
+                    fechaHasta = fechaHasta.ToString("yyyy-MM-dd"),
+                    actualizado = DateTime.Now,
+                    rows,
+                    kpis,
+                    catalogos = new
+                    {
+                        series,
+                        vendedores,
+                        canales
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                var detalle = ex.GetBaseException().Message;
+
+                _logger.LogError(
+                    ex,
+                    "Error en SeguimientoSurtidoAuditoriaData OV/TR: {Detalle}",
+                    detalle);
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = "No fue posible cargar el seguimiento de surtido.",
+                    detalle
+                });
+            }
+        }
+
+
+        // =====================================================================
+        // DETALLE POR DOCUMENTO: OV O TRANSFERENCIA
+        // =====================================================================
+        [HttpGet("Comercial/SeguimientoSurtidoAuditoriaDetalle")]
+        public async Task<IActionResult> SeguimientoSurtidoAuditoriaDetalle(
+            [FromQuery] string tipo,
+            [FromQuery] int documentoId,
+            CancellationToken ct = default)
+        {
+            tipo = (tipo ?? "").Trim().ToUpperInvariant();
+
+            if (documentoId <= 0 || (tipo != "OV" && tipo != "TR"))
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    msg = "Documento o tipo inválido."
+                });
+            }
+
+            try
+            {
+                await using var cn =
+                    new Microsoft.Data.SqlClient.SqlConnection(
+                        _configuration.GetConnectionString("DefaultConnection"));
+
+                await cn.OpenAsync(ct);
+
+                if (tipo == "OV")
+                {
+                    const string sqlSkus = @"
+WITH
+Solicitudes AS
+(
+    SELECT
+        sp.Id AS SubpedidoId,
+        sp.OrdenVentaId AS DocumentoId,
+        TRY_CONVERT(INT, NULLIF(LTRIM(RTRIM(sp.U_DocMeat)),'')) AS SolicitudSurtidoId
+    FROM dbo.Subpedido sp WITH (NOLOCK)
+    WHERE sp.OrdenVentaId = @DocumentoId
+),
+
+OVSku AS
+(
+    SELECT
+        op.PedidoId AS DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(op.ProductoCodigo,''))))
+            COLLATE DATABASE_DEFAULT,
+        Producto = MAX(ISNULL(op.ProductoNombre,'')),
+        KgOriginal = SUM(CAST(ISNULL(op.Peso,0) AS DECIMAL(18,4))),
+        CajasOriginal = SUM(CAST(ISNULL(op.Cajas,0) AS DECIMAL(18,4)))
+    FROM dbo.OrdenVentaProducto op WITH (NOLOCK)
+    WHERE
+        op.PedidoId = @DocumentoId
+        AND (op.Eliminado IS NULL OR op.Eliminado = 0)
+        AND NULLIF(LTRIM(RTRIM(ISNULL(op.ProductoCodigo,''))), '') IS NOT NULL
+    GROUP BY
+        op.PedidoId,
+        UPPER(LTRIM(RTRIM(ISNULL(op.ProductoCodigo,''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+PedidoCedis AS
+(
+    SELECT
+        s.DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(p.ProductoCodigo,''))))
+            COLLATE DATABASE_DEFAULT,
+        Producto = MAX(ISNULL(p.ProductoNombre,'')),
+        KgPedidoCedis =
+            SUM(CAST(ISNULL(p.KilosCaja,0) AS DECIMAL(18,4))),
+        CajasPedidoCedis =
+            SUM(CAST(ISNULL(p.Cajas,0) AS DECIMAL(18,4)))
+    FROM Solicitudes s
+    INNER JOIN dbo.SubpedidoProductos p WITH (NOLOCK)
+        ON p.SubpedidoId = s.SubpedidoId
+    WHERE
+        NULLIF(LTRIM(RTRIM(ISNULL(p.ProductoCodigo,''))), '') IS NOT NULL
+    GROUP BY
+        s.DocumentoId,
+        UPPER(LTRIM(RTRIM(ISNULL(p.ProductoCodigo,''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+SolicitudMap AS
+(
+    SELECT DISTINCT SolicitudSurtidoId
+    FROM Solicitudes
+    WHERE SolicitudSurtidoId IS NOT NULL
+),
+
+Surtido AS
+(
+    SELECT
+        DocumentoId = @DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(sd.Articulo,''))))
+            COLLATE DATABASE_DEFAULT,
+        KgSurtido =
+            SUM(CAST(ISNULL(sd.Kg,0) AS DECIMAL(18,4))),
+        CajasSurtidas =
+            SUM(CAST(ISNULL(sd.Cajas,0) AS DECIMAL(18,4)))
+    FROM SolicitudMap sm
+    INNER JOIN dbo.SurtidoDetalle sd WITH (NOLOCK)
+        ON sd.SolicitudSurtidoId = sm.SolicitudSurtidoId
+    WHERE
+        NULLIF(LTRIM(RTRIM(ISNULL(sd.Articulo,''))), '') IS NOT NULL
+    GROUP BY
+        UPPER(LTRIM(RTRIM(ISNULL(sd.Articulo,''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+KeysSku AS
+(
+    SELECT DocumentoId, SKU FROM OVSku
+    UNION
+    SELECT DocumentoId, SKU FROM PedidoCedis
+    UNION
+    SELECT DocumentoId, SKU FROM Surtido
+)
+
+SELECT
+    k.SKU,
+
+    Producto =
+        COALESCE(
+            NULLIF(o.Producto,''),
+            NULLIF(p.Producto,''),
+            NULLIF(a.ProductoNombre,''),
+            ''
+        ),
+
+    KgOrdenOV = ISNULL(o.KgOriginal,0),
+    CajasOrdenOV = ISNULL(o.CajasOriginal,0),
+    KgPedidoCedis = ISNULL(p.KgPedidoCedis,0),
+    CajasPedidoCedis = ISNULL(p.CajasPedidoCedis,0),
+    KgSurtidoCedis = ISNULL(s.KgSurtido,0),
+    CajasSurtidasCedis = ISNULL(s.CajasSurtidas,0),
+
+    KgPendienteOV =
+        CAST(
+            CASE
+                WHEN ISNULL(o.KgOriginal,0) - ISNULL(s.KgSurtido,0) > 0
+                    THEN ISNULL(o.KgOriginal,0) - ISNULL(s.KgSurtido,0)
+                ELSE 0
+            END
+            AS DECIMAL(18,4)
+        ),
+
+    CajasPendientesOV =
+        CAST(
+            CASE
+                WHEN ISNULL(o.CajasOriginal,0) - ISNULL(s.CajasSurtidas,0) > 0
+                    THEN ISNULL(o.CajasOriginal,0) - ISNULL(s.CajasSurtidas,0)
+                ELSE 0
+            END
+            AS DECIMAL(18,4)
+        ),
+
+    KgExtraVsOV =
+        CAST(
+            CASE
+                WHEN ISNULL(s.KgSurtido,0) - ISNULL(o.KgOriginal,0) > 0
+                    THEN ISNULL(s.KgSurtido,0) - ISNULL(o.KgOriginal,0)
+                ELSE 0
+            END
+            AS DECIMAL(18,4)
+        ),
+
+    CajasExtraVsOV =
+        CAST(
+            CASE
+                WHEN ISNULL(s.CajasSurtidas,0) - ISNULL(o.CajasOriginal,0) > 0
+                    THEN ISNULL(s.CajasSurtidas,0) - ISNULL(o.CajasOriginal,0)
+                ELSE 0
+            END
+            AS DECIMAL(18,4)
+        ),
+
+    PctAvanceKg =
+        CAST(
+            CASE
+                WHEN ISNULL(o.KgOriginal,0) <= 0 THEN 0
+                WHEN ISNULL(s.KgSurtido,0) >= ISNULL(o.KgOriginal,0) THEN 100
+                ELSE ISNULL(s.KgSurtido,0) * 100.0 / NULLIF(o.KgOriginal,0)
+            END
+            AS DECIMAL(10,2)
+        ),
+
+    EsSkuExtraNoEnOV =
+        CASE
+            WHEN ISNULL(s.KgSurtido,0) > 0 AND o.DocumentoId IS NULL THEN 1
+            ELSE 0
+        END,
+
+    EsSkuExtraNoEnSolicitud =
+        CASE
+            WHEN ISNULL(s.KgSurtido,0) > 0 AND p.DocumentoId IS NULL THEN 1
+            ELSE 0
+        END,
+
+    EstadoSKU =
+        CASE
+            WHEN ISNULL(s.KgSurtido,0) > 0 AND o.DocumentoId IS NULL
+                THEN 'SKU SURTIDO NO EXISTE EN OV'
+            WHEN ISNULL(s.KgSurtido,0) > 0 AND p.DocumentoId IS NULL
+                THEN 'SKU NO SOLICITADO A CEDIS'
+            WHEN ISNULL(s.KgSurtido,0) > ISNULL(o.KgOriginal,0)
+                THEN 'SOBRESURTIDO'
+            WHEN ISNULL(o.KgOriginal,0) > 0 AND ISNULL(s.KgSurtido,0) = 0
+                THEN 'PENDIENTE'
+            WHEN ISNULL(s.KgSurtido,0) < ISNULL(o.KgOriginal,0)
+                THEN 'SURTIENDO'
+            WHEN ISNULL(o.KgOriginal,0) > 0
+                THEN 'COMPLETO'
+            ELSE 'SIN MOVIMIENTO'
+        END
+FROM KeysSku k
+LEFT JOIN OVSku o
+    ON o.DocumentoId = k.DocumentoId
+   AND o.SKU = k.SKU
+LEFT JOIN PedidoCedis p
+    ON p.DocumentoId = k.DocumentoId
+   AND p.SKU = k.SKU
+LEFT JOIN Surtido s
+    ON s.DocumentoId = k.DocumentoId
+   AND s.SKU = k.SKU
+LEFT JOIN dbo.ArticuloSap a WITH (NOLOCK)
+    ON UPPER(LTRIM(RTRIM(ISNULL(a.ProductoCodigo,'')))) COLLATE DATABASE_DEFAULT = k.SKU
+ORDER BY
+    CASE
+        WHEN ISNULL(s.KgSurtido,0) > 0 AND o.DocumentoId IS NULL THEN 1
+        WHEN ISNULL(s.KgSurtido,0) > 0 AND p.DocumentoId IS NULL THEN 2
+        WHEN ISNULL(s.KgSurtido,0) > ISNULL(o.KgOriginal,0) THEN 3
+        ELSE 4
+    END,
+    k.SKU
+";
+
+                    const string sqlProceso = @"
+SELECT
+    sp.Id AS ProcesoId,
+    Referencia = ISNULL(sp.SubFolio,''),
+    Documento = ISNULL(sp.U_DocMeat,''),
+    EstadoValidacion =
+        CASE
+            WHEN NULLIF(LTRIM(RTRIM(ISNULL(sp.U_DocMeat,''))), '') IS NULL
+                THEN 'SIN SOLICITUD'
+            WHEN se.SolicitudSurtidoId IS NULL
+                THEN 'NO ENCONTRADA'
+            WHEN se.FechaValidacion IS NULL
+                THEN 'PENDIENTE'
+            ELSE 'VALIDADO'
+        END,
+    se.FechaValidacion,
+
+    HorasDesdeRegistro =
+        CAST(
+            CASE
+                WHEN se.FechaValidacion IS NULL OR ov.FechaRegistro IS NULL
+                    THEN NULL
+                ELSE DATEDIFF(MINUTE,ov.FechaRegistro,se.FechaValidacion) / 60.0
+            END
+            AS DECIMAL(18,2)
+        ),
+
+    KgSurtido = ISNULL(x.KgSurtido,0),
+    CajasSurtidas = ISNULL(x.CajasSurtidas,0),
+
+    Nota =
+        CASE
+            WHEN se.FechaValidacion IS NULL
+                THEN 'Solicitud todavía no validada'
+            ELSE 'FechaValidacion de SurtidoEncabezado'
+        END
+FROM dbo.Subpedido sp WITH (NOLOCK)
+INNER JOIN dbo.OrdenVenta ov WITH (NOLOCK)
+    ON ov.Id = sp.OrdenVentaId
+LEFT JOIN dbo.SurtidoEncabezado se WITH (NOLOCK)
+    ON se.SolicitudSurtidoId =
+       TRY_CONVERT(INT,NULLIF(LTRIM(RTRIM(sp.U_DocMeat)),''))
+OUTER APPLY
+(
+    SELECT
+        KgSurtido =
+            SUM(CAST(ISNULL(sd.Kg,0) AS DECIMAL(18,4))),
+        CajasSurtidas =
+            SUM(CAST(ISNULL(sd.Cajas,0) AS DECIMAL(18,4)))
+    FROM dbo.SurtidoDetalle sd WITH (NOLOCK)
+    WHERE sd.SolicitudSurtidoId =
+          TRY_CONVERT(INT,NULLIF(LTRIM(RTRIM(sp.U_DocMeat)),''))
+) x
+WHERE
+    sp.OrdenVentaId = @DocumentoId
+ORDER BY
+    sp.Id
+";
+
+                    var skus =
+                        (await cn.QueryAsync<SeguimientoSurtidoDetalleSkuDto>(
+                            new CommandDefinition(
+                                sqlSkus,
+                                new { DocumentoId = documentoId },
+                                commandTimeout: 120,
+                                cancellationToken: ct)))
+                        .ToList();
+
+                    var procesos =
+                        (await cn.QueryAsync<SeguimientoSurtidoProcesoDto>(
+                            new CommandDefinition(
+                                sqlProceso,
+                                new { DocumentoId = documentoId },
+                                commandTimeout: 90,
+                                cancellationToken: ct)))
+                        .ToList();
+
+                    return Json(new
+                    {
+                        ok = true,
+                        tipo = "OV",
+                        documentoId,
+                        skus,
+                        procesos
+                    });
+                }
+
+
+                // =============================================================
+                // TRANSFERENCIA
+                // =============================================================
+                const string sqlTrSkus = @"
+WITH
+Original AS
+(
+    SELECT
+        td.TransferenciaId AS DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(td.ProductoCodigo,''))))
+            COLLATE DATABASE_DEFAULT,
+        KgOriginal =
+            SUM(CAST(ISNULL(td.CantidadKg,0) AS DECIMAL(18,4))),
+        CajasOriginal =
+            SUM(CAST(ISNULL(td.Cajas,0) AS DECIMAL(18,4)))
+    FROM dbo.TransferenciaDetalles td WITH (NOLOCK)
+    WHERE
+        td.TransferenciaId = @DocumentoId
+        AND NULLIF(LTRIM(RTRIM(ISNULL(td.ProductoCodigo,''))), '') IS NOT NULL
+    GROUP BY
+        td.TransferenciaId,
+        UPPER(LTRIM(RTRIM(ISNULL(td.ProductoCodigo,''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+PedidoCedis AS
+(
+    SELECT
+        pt.TransferenciaId AS DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(pd.ProductoCodigo,''))))
+            COLLATE DATABASE_DEFAULT,
+        KgPedidoCedis =
+            SUM(CAST(ISNULL(pd.CantidadKg,0) AS DECIMAL(18,4))),
+        CajasPedidoCedis =
+            SUM(CAST(ISNULL(pd.Cajas,0) AS DECIMAL(18,4)))
+    FROM dbo.PedidosTransferencia pt WITH (NOLOCK)
+    INNER JOIN dbo.PedidosTransferenciaDetalle pd WITH (NOLOCK)
+        ON pd.PedidoTransferenciaId = pt.Id
+    WHERE
+        pt.TransferenciaId = @DocumentoId
+        AND NULLIF(LTRIM(RTRIM(ISNULL(pd.ProductoCodigo,''))), '') IS NOT NULL
+    GROUP BY
+        pt.TransferenciaId,
+        UPPER(LTRIM(RTRIM(ISNULL(pd.ProductoCodigo,''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+Surtido AS
+(
+    SELECT
+        ts.TransferenciaId AS DocumentoId,
+        SKU =
+            UPPER(LTRIM(RTRIM(ISNULL(ts.Sku,''))))
+            COLLATE DATABASE_DEFAULT,
+        KgSurtido =
+            SUM(CAST(ISNULL(ts.KgSurtido,0) AS DECIMAL(18,4))),
+        CajasSurtidas =
+            SUM(CAST(ISNULL(ts.CajasSurtidas,0) AS DECIMAL(18,4)))
+    FROM dbo.TransferenciaSurtido ts WITH (NOLOCK)
+    WHERE
+        ts.TransferenciaId = @DocumentoId
+        AND NULLIF(LTRIM(RTRIM(ISNULL(ts.Sku,''))), '') IS NOT NULL
+    GROUP BY
+        ts.TransferenciaId,
+        UPPER(LTRIM(RTRIM(ISNULL(ts.Sku,''))))
+        COLLATE DATABASE_DEFAULT
+),
+
+KeysSku AS
+(
+    SELECT DocumentoId, SKU FROM Original
+    UNION
+    SELECT DocumentoId, SKU FROM PedidoCedis
+    UNION
+    SELECT DocumentoId, SKU FROM Surtido
+)
+
+SELECT
+    k.SKU,
+    Producto = ISNULL(a.ProductoNombre,''),
+
+    KgOrdenOV = ISNULL(o.KgOriginal,0),
+    CajasOrdenOV = ISNULL(o.CajasOriginal,0),
+    KgPedidoCedis = ISNULL(p.KgPedidoCedis,0),
+    CajasPedidoCedis = ISNULL(p.CajasPedidoCedis,0),
+    KgSurtidoCedis = ISNULL(s.KgSurtido,0),
+    CajasSurtidasCedis = ISNULL(s.CajasSurtidas,0),
+
+    KgPendienteOV =
+        CAST(
+            CASE
+                WHEN ISNULL(o.KgOriginal,0) - ISNULL(s.KgSurtido,0) > 0
+                    THEN ISNULL(o.KgOriginal,0) - ISNULL(s.KgSurtido,0)
+                ELSE 0
+            END
+            AS DECIMAL(18,4)
+        ),
+
+    CajasPendientesOV =
+        CAST(
+            CASE
+                WHEN ISNULL(o.CajasOriginal,0) - ISNULL(s.CajasSurtidas,0) > 0
+                    THEN ISNULL(o.CajasOriginal,0) - ISNULL(s.CajasSurtidas,0)
+                ELSE 0
+            END
+            AS DECIMAL(18,4)
+        ),
+
+    KgExtraVsOV =
+        CAST(
+            CASE
+                WHEN ISNULL(s.KgSurtido,0) - ISNULL(o.KgOriginal,0) > 0
+                    THEN ISNULL(s.KgSurtido,0) - ISNULL(o.KgOriginal,0)
+                ELSE 0
+            END
+            AS DECIMAL(18,4)
+        ),
+
+    CajasExtraVsOV =
+        CAST(
+            CASE
+                WHEN ISNULL(s.CajasSurtidas,0) - ISNULL(o.CajasOriginal,0) > 0
+                    THEN ISNULL(s.CajasSurtidas,0) - ISNULL(o.CajasOriginal,0)
+                ELSE 0
+            END
+            AS DECIMAL(18,4)
+        ),
+
+    PctAvanceKg =
+        CAST(
+            CASE
+                WHEN ISNULL(o.KgOriginal,0) <= 0 THEN 0
+                WHEN ISNULL(s.KgSurtido,0) >= ISNULL(o.KgOriginal,0) THEN 100
+                ELSE ISNULL(s.KgSurtido,0) * 100.0 / NULLIF(o.KgOriginal,0)
+            END
+            AS DECIMAL(10,2)
+        ),
+
+    EsSkuExtraNoEnOV =
+        CASE
+            WHEN ISNULL(s.KgSurtido,0) > 0 AND o.DocumentoId IS NULL THEN 1
+            ELSE 0
+        END,
+
+    EsSkuExtraNoEnSolicitud =
+        CASE
+            WHEN ISNULL(s.KgSurtido,0) > 0 AND p.DocumentoId IS NULL THEN 1
+            ELSE 0
+        END,
+
+    EstadoSKU =
+        CASE
+            WHEN ISNULL(s.KgSurtido,0) > 0 AND o.DocumentoId IS NULL
+                THEN 'SKU SURTIDO NO EXISTE EN TRANSFERENCIA'
+            WHEN ISNULL(s.KgSurtido,0) > 0 AND p.DocumentoId IS NULL
+                THEN 'SKU NO SOLICITADO EN PEDIDO CEDIS'
+            WHEN ISNULL(s.KgSurtido,0) > ISNULL(o.KgOriginal,0)
+                THEN 'SOBRESURTIDO'
+            WHEN ISNULL(o.KgOriginal,0) > 0 AND ISNULL(s.KgSurtido,0) = 0
+                THEN 'PENDIENTE'
+            WHEN ISNULL(s.KgSurtido,0) < ISNULL(o.KgOriginal,0)
+                THEN 'SURTIENDO'
+            WHEN ISNULL(o.KgOriginal,0) > 0
+                THEN 'COMPLETO'
+            ELSE 'SIN MOVIMIENTO'
+        END
+FROM KeysSku k
+LEFT JOIN Original o
+    ON o.DocumentoId = k.DocumentoId
+   AND o.SKU = k.SKU
+LEFT JOIN PedidoCedis p
+    ON p.DocumentoId = k.DocumentoId
+   AND p.SKU = k.SKU
+LEFT JOIN Surtido s
+    ON s.DocumentoId = k.DocumentoId
+   AND s.SKU = k.SKU
+LEFT JOIN dbo.ArticuloSap a WITH (NOLOCK)
+    ON UPPER(LTRIM(RTRIM(ISNULL(a.ProductoCodigo,'')))) COLLATE DATABASE_DEFAULT = k.SKU
+ORDER BY
+    CASE
+        WHEN ISNULL(s.KgSurtido,0) > 0 AND o.DocumentoId IS NULL THEN 1
+        WHEN ISNULL(s.KgSurtido,0) > 0 AND p.DocumentoId IS NULL THEN 2
+        WHEN ISNULL(s.KgSurtido,0) > ISNULL(o.KgOriginal,0) THEN 3
+        ELSE 4
+    END,
+    k.SKU
+";
+
+                const string sqlTrProceso = @"
+SELECT
+    ProcesoId = ISNULL(pt.Id, t.Id),
+
+    Referencia =
+        CASE
+            WHEN pt.Id IS NULL THEN 'Transferencia'
+            ELSE CONCAT('Pedido TR #', pt.Id)
+        END,
+
+    Documento = ISNULL(t.Consecutivo,''),
+
+    EstadoValidacion =
+        CASE
+            WHEN t.Estatus >= 5 THEN 'VALIDADO'
+            WHEN pt.Id IS NULL THEN 'SIN SOLICITUD'
+            ELSE 'PENDIENTE'
+        END,
+
+    FechaValidacion = CAST(NULL AS DATETIME),
+
+    HorasDesdeRegistro =
+        CAST(
+            CASE
+                WHEN t.Estatus >= 5 THEN NULL
+                WHEN t.FechaSolicitud IS NULL THEN NULL
+                ELSE DATEDIFF(MINUTE,t.FechaSolicitud,GETDATE()) / 60.0
+            END
+            AS DECIMAL(18,2)
+        ),
+
+    KgSurtido = ISNULL(x.KgSurtido,0),
+    CajasSurtidas = ISNULL(x.CajasSurtidas,0),
+
+    Nota =
+        CASE
+            WHEN t.Estatus >= 5
+                THEN 'Estatus >= 5. El esquema actual no expone una FechaValidacion exacta para TR'
+            WHEN pt.Id IS NULL
+                THEN 'Todavía no existe PedidosTransferencia'
+            ELSE 'Transferencia aún en proceso'
+        END
+FROM dbo.Transferencias t WITH (NOLOCK)
+LEFT JOIN dbo.PedidosTransferencia pt WITH (NOLOCK)
+    ON pt.TransferenciaId = t.Id
+OUTER APPLY
+(
+    SELECT
+        KgSurtido =
+            SUM(CAST(ISNULL(ts.KgSurtido,0) AS DECIMAL(18,4))),
+        CajasSurtidas =
+            SUM(CAST(ISNULL(ts.CajasSurtidas,0) AS DECIMAL(18,4)))
+    FROM dbo.TransferenciaSurtido ts WITH (NOLOCK)
+    WHERE ts.TransferenciaId = t.Id
+) x
+WHERE
+    t.Id = @DocumentoId
+ORDER BY
+    ISNULL(pt.Id,0)
+";
+
+                var trSkus =
+                    (await cn.QueryAsync<SeguimientoSurtidoDetalleSkuDto>(
+                        new CommandDefinition(
+                            sqlTrSkus,
+                            new { DocumentoId = documentoId },
+                            commandTimeout: 120,
+                            cancellationToken: ct)))
+                    .ToList();
+
+                var trProcesos =
+                    (await cn.QueryAsync<SeguimientoSurtidoProcesoDto>(
+                        new CommandDefinition(
+                            sqlTrProceso,
+                            new { DocumentoId = documentoId },
+                            commandTimeout: 90,
+                            cancellationToken: ct)))
+                    .ToList();
+
+                return Json(new
+                {
+                    ok = true,
+                    tipo = "TR",
+                    documentoId,
+                    skus = trSkus,
+                    procesos = trProcesos
+                });
+            }
+            catch (Exception ex)
+            {
+                var detalle = ex.GetBaseException().Message;
+
+                _logger.LogError(
+                    ex,
+                    "Error en detalle de seguimiento {Tipo} {DocumentoId}: {Detalle}",
+                    tipo,
+                    documentoId,
+                    detalle);
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = "No fue posible cargar el detalle del documento.",
+                    detalle
+                });
+            }
+        }
+
+
+
+
+
+
+
+
+
+
+
     }
 
 }
-
-
-
-
-
-
-
 
 
 

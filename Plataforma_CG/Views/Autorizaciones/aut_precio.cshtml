@@ -4,435 +4,560 @@
 }
 
 <style>
-    :root {
-        --bg: #f0dede;
-        --panel: #f8eeee;
-        --panel-2: #f1dede;
-        --line: #c79d9d;
-        --text: #3b1717;
-        --muted: #6a3a3a;
-        --white: #ffffff;
-        --shadow: 0 1px 0 rgba(255,255,255,.55) inset;
-        --brand: #8B0000;
-        --vino-border: #9a5a5a;
-        --vino-text-dark: #4a1111;
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-        margin: 0 !important;
-        padding: 0 !important;
-        font-family: Tahoma, Verdana, Arial, sans-serif;
-        background: transparent !important;
-        color: var(--text);
-    }
-
-    .container, .container-fluid {
-        max-width: 100% !important;
-        width: 100% !important;
-        padding: 0 !important;
-        margin: 0 !important;
-    }
-
-    .window {
-        width: 100%;
-        max-width: 100%;
-        margin: 0 !important;
-        border: 1px solid #7e4a4a;
-        background: var(--panel);
-        box-shadow: 0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70,12,12,.14);
-        overflow: hidden;
-        padding: 0 !important;
-    }
-
-    .window > *:first-child, .titlebar { margin-top: 0 !important; }
-
-    .titlebar {
-        height: 34px;
-        /* display: flex; */
-        display: none !important;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0 10px;
-        background: linear-gradient(180deg, #c00000 0%, #8b0000 60%, #5c0000 100%);
-        border-bottom: 1px solid #5c0000;
-        color: #fff;
-        font-size: 13px;
-        font-weight: bold;
-    }
-
-    .titlebar .actions { display: flex; gap: 6px; }
-
-    .win-btn {
-        width: 16px; height: 16px;
-        border: 1px solid #7c4848;
-        background: linear-gradient(#fff6f6, #ead0d0);
-    }
-
- .toolbar{
-    display:flex;
-    justify-content:flex-end;
-    align-items:center;
-    gap:4px;
-    padding:4px 6px;
-    background:linear-gradient(#fff6f6, #ecd8d8);
-    border-bottom:1px solid var(--line);
-    font-size:12px;
-    flex-wrap:wrap;
-    width:100%;
-}
-
-    .tool-btn {
-        min-width: 72px;
-        text-align: center;
-        background: linear-gradient(#fffefe, #ecd7d7);
-        border: 1px solid var(--vino-border);
-        box-shadow: var(--shadow);
-        cursor: pointer;
-        color: var(--vino-text-dark);
-        height: 28px;
-        font-size: 12px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 4px;
-        padding: 0 8px;
-        text-decoration: none;
-    }
-
-    .tool-btn:hover { filter: brightness(.98); }
-
-    .content { padding: 8px; background: var(--bg); }
-
-    .tabs { display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap; }
-
-    .tab {
-        font-size: 12px;
-        background: linear-gradient(#f7e7e7, #ead1d1);
-        border: 1px solid #caa0a0;
-        border-bottom: none;
-        padding: 7px 12px;
-        color: #5c1a1a;
-        user-select: none;
-    }
-
-    .tab.active {
-        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
-        font-weight: bold;
-        color: #fff;
-        border-color: #7a2d2d;
-    }
-
-    .workspace { border: 1px solid var(--line); background: var(--panel); padding: 8px; }
-
-    .section { border: 1px solid var(--line); background: var(--white); margin-bottom: 10px; }
-
-    .section-title {
-        padding: 6px 8px;
-        font-size: 12px;
-        font-weight: bold;
-        color: #fff;
-        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
-        border-bottom: 1px solid #6b1f1f;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-    }
-
-    /* ── Estado badge ── */
-    .estado-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        padding: 2px 8px;
-        font-size: 11px;
-        font-weight: 700;
-        border: 1px solid transparent;
-        border-radius: 2px;
-    }
-
-    .est-dot { width: 7px; height: 7px; border-radius: 50%; background: #aaa; display: inline-block; }
-    .est-ok   { background: #dff3e2; border-color: #6aa84f; color: #2f6b1f; }
-    .est-ok   .est-dot { background: #16a34a; }
-    .est-warn { background: #fff4cc; border-color: #d6b656; color: #7a5a00; }
-    .est-warn .est-dot { background: #d97706; }
-    .est-err  { background: #fde2e2; border-color: #d9534f; color: #b00000; }
-    .est-err  .est-dot { background: #dc2626; }
-    .est-info { background: #e8f4fd; border-color: #7ab8d4; color: #064b6b; }
-    .est-info .est-dot { background: #2563eb; }
-    .est-light { background: #f4f4f4; border-color: #ccc; color: #555; }
-
-    /* ── Tabla principal ── */
-    .table-wrap {
-        overflow: auto;
-        max-height: 65vh;
-        background: #fffafa;
-        width: 100%;
-        border-top: 1px solid #d9b8b8;
-    }
-
-    .table-wrap table {
-        width: 100%;
-        border-collapse: separate !important;
-        border-spacing: 0 !important;
-        font-size: 12px;
-        background: #fffafa;
-    }
-
-    .table-wrap thead th {
-        position: sticky;
-        top: -1px;
-        z-index: 20;
-        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
-        color: #fff !important;
-        border-top: 1px solid #c46a6a !important;
-        border-right: 1px solid #8e3b3b !important;
-        border-bottom: 1px solid #5c0000 !important;
-        padding: 6px 5px !important;
-        font-weight: 700 !important;
-        font-size: 12px !important;
-        white-space: nowrap;
-        line-height: 1.2 !important;
-        box-shadow: 0 2px 0 #6f1d1d;
-        text-transform: none !important;
-    }
-
-    .table-wrap thead th:first-child { border-left: 1px solid #8e3b3b !important; }
-
-    .table-wrap tbody td {
-        background: #fffafa !important;
-        border-right: 1px solid #d8bcbc !important;
-        border-bottom: 1px solid #d8bcbc !important;
-        padding: 5px 5px !important;
-        white-space: nowrap;
-        vertical-align: middle;
-        font-size: 12px !important;
-        color: #401515 !important;
-    }
-
-    .table-wrap tbody td:first-child { border-left: 1px solid #d8bcbc !important; }
-    .table-wrap tbody tr:hover td { background: #f4dddd !important; }
-    .table-wrap tbody tr.row-ok td { background: #dff3e2 !important; color: #2f6b1f !important; }
-    .table-wrap tbody tr.row-danger td { background: #fde2e2 !important; }
-
-    /* ── Badges ── */
-    .badge-ok {
-        display: inline-block; padding: 3px 8px;
-        background: #dff3e2; border: 1px solid #6aa84f;
-        color: #2f6b1f; font-size: 11px; font-weight: 700; border-radius: 2px;
-    }
-
-    .badge-danger {
-        display: inline-block; padding: 3px 8px;
-        background: #fde2e2; border: 1px solid #d9534f;
-        color: #b00000; font-size: 11px; font-weight: 700; border-radius: 2px;
-    }
-
-    /* ── Botones ── */
-    .pm-btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 5px;
-        height: 26px;
-        padding: 0 10px;
-        border: 1px solid transparent;
-        border-radius: 0;
-        font-family: Tahoma, Verdana, Arial, sans-serif;
-        font-size: 11px;
-        font-weight: 700;
-        cursor: pointer;
-        text-decoration: none;
-        box-shadow: var(--shadow);
-        white-space: nowrap;
-    }
-
-    .pm-btn:hover { filter: brightness(.97); }
-    .pm-btn:disabled { opacity: .6; cursor: not-allowed; }
-
-    .pm-btn-primary {
-        color: #fff;
-        border-color: #7a2d2d;
-        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
-    }
-
-    .pm-btn-success {
-        color: #fff;
-        border-color: #157347;
-        background: linear-gradient(180deg, #27ae60 0%, #1f9a54 55%, #198754 100%);
-    }
-
-    .pm-btn-warning {
-        color: #3d2000;
-        border-color: #c87800;
-        background: linear-gradient(180deg, #ffc107 0%, #e6a800 100%);
-    }
-
-    .pm-btn-secondary {
-        background: linear-gradient(#fffefe, #ecd7d7);
-        border-color: var(--vino-border);
-        color: var(--vino-text-dark);
-    }
-
-    .pm-btn-outline {
-        background: transparent;
-        border-color: var(--vino-border);
-        color: #5a0000;
-    }
-
-    /* ── Filtros en modal ── */
-    .filters-inline {
-        display: flex;
-        gap: 8px;
-        align-items: flex-end;
-        flex-wrap: wrap;
-        margin-bottom: 10px;
-        padding: 8px 10px;
-        background: var(--panel-2);
-        border: 1px solid var(--line);
-    }
-
-    .filters-inline label {
-        display: block;
-        font-size: 11px;
-        font-weight: 700;
-        color: #5c1a1a;
-        margin-bottom: 3px;
-    }
-
-    input[type="date"], input[type="text"], input[type="number"], select {
-        height: 28px !important;
-        padding: 3px 6px !important;
-        border: 1px solid #b48787 !important;
-        background: #fffdfd !important;
-        font-family: inherit !important;
-        font-size: 12px !important;
-        border-radius: 0 !important;
-        box-shadow: none !important;
-        color: #421414 !important;
-    }
-
-    /* ── Modal ── */
-    .modal-content { border: 1px solid #7d4949; border-radius: 0; }
-
-    .modal-header {
-        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
-        color: #fff !important;
-        border-bottom: 1px solid #5c0000 !important;
-        padding: .65rem 1rem !important;
-        border-radius: 0;
-    }
-
-    .modal-title { color: #fff !important; font-weight: 700; font-size: 13px; }
-    .btn-close { filter: invert(1) grayscale(100%) !important; opacity: .95 !important; }
-    .modal-body { background: #f4e4e4; padding: .75rem !important; }
-    .modal-footer { background: #f7eaea; border-top: 1px solid #d3b0b0; }
-
-    .modal-table-wrap {
-        border: 1px solid #d8bcbc;
-        background: #fffafa;
-        overflow: auto;
-        max-height: 55vh;
-    }
-
-    .modal-table-wrap table {
-        width: 100%;
-        border-collapse: separate;
-        border-spacing: 0;
-        font-size: 12px;
-    }
-
-    .modal-table-wrap table thead th {
-        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
-        color: #fff !important;
-        border-right: 1px solid #8e3b3b;
-        border-bottom: 1px solid #5c0000;
-        padding: 6px 5px;
-        font-size: 12px;
-        white-space: nowrap;
-        position: sticky;
-        top: 0;
-        z-index: 5;
-        text-transform: none !important;
-    }
-
-    .modal-table-wrap table tbody td {
-        background: #fffafa;
-        border-bottom: 1px solid #d8bcbc;
-        border-right: 1px solid #d8bcbc;
-        padding: 5px;
-        font-size: 12px;
-        color: #401515;
-    }
-
-    .modal-table-wrap table tbody tr:nth-child(even) td { background: #f9eded; }
-    .modal-table-wrap table tbody tr:hover td { background: #f4dddd !important; }
-
-    /* ── Statusbar ── */
-    .statusbar {
-        display: flex;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 6px 10px;
-        font-size: 11px;
-        color: #4a1a1a;
-        border-top: 1px solid #b88c8c;
-        background: linear-gradient(#f6e9e9, #ead5d5);
-        flex-wrap: wrap;
-    }
-
-    .text-end { text-align: right !important; }
-    .text-center { text-align: center !important; }
-    .text-danger { color: #b00000 !important; }
-    .text-success { color: #2f6b1f !important; }
-
-    /* =========================================
-   COLUMNAS DESTACADAS - HISTÓRICO PRECIO
-   ========================================= */
-
-/* BODY (celdas) */
-#modalReporteHistoricoPrecio table tbody td:nth-child(7),
-#modalReporteHistoricoPrecio table tbody td:nth-child(9),
-#modalReporteHistoricoPrecio table tbody td:nth-child(5) {
-    background: #fff7cc !important;
-    color: #5a4300 !important;
-    font-weight: 700;
-}
-
-/* HEADER */
-#modalReporteHistoricoPrecio table thead th:nth-child(7),
-#modalReporteHistoricoPrecio table thead th:nth-child(9),
-#modalReporteHistoricoPrecio table thead th:nth-child(5) {
-    background: linear-gradient(180deg, #f4cc4d 0%, #d4a017 55%, #b88900 100%) !important;
-    color: #ffffff !important;
-    border-right: 1px solid #9c7800 !important;
-    border-bottom: 1px solid #7e6100 !important;
-    border-top: 1px solid #ffe08a !important;
-}
-
-/* HOVER (para que no se pierda el amarillo) */
-#modalReporteHistoricoPrecio table tbody tr:hover td:nth-child(7),
-#modalReporteHistoricoPrecio table tbody tr:hover td:nth-child(9),
-#modalReporteHistoricoPrecio table tbody tr:hover td:nth-child(5) {
-    background: #ffe999 !important;
-    color: #4a3700 !important;
-}
-
-.tool-btn-historico{
-    background: linear-gradient(180deg, #4da3ff 0%, #1f78d1 55%, #0f5ea8 100%);
-    border: 1px solid #0d4f8c;
-    color: #ffffff;
-}
-
-.tool-btn-historico:hover{
-    filter: brightness(.95);
-}
-
+@@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');:root{--ap-font:"Poppins","Segoe UI",Arial,sans-serif;--ap-bg:#efe3e3;--ap-panel:#fffafa;--ap-panel2:#f7eeee;--ap-line:#d6baba;--ap-line2:#9b6262;--ap-text:#341515;--ap-muted:#775252;--ap-brand:#8b0000;--ap-brand2:#5b0000;--ap-head:linear-gradient(180deg,#b30000 0%,#870000 57%,#5c0000 100%);--ap-toolbar:linear-gradient(#fff8f8,#ecd9d9)}*{box-sizing:border-box}html,body{width:100%!important;max-width:100%!important;margin:0!important;padding:0!important;overflow-x:hidden!important}body{background:transparent!important;color:var(--ap-text)!important;font-family:var(--ap-font)!important}body:has(.autorizacion-precio-app) .layout-main-content, body:has(.autorizacion-precio-app) .layout-main-content .layout-container-fluid, body:has(.autorizacion-precio-app) main[role="main"]{min-height:0!important;height:auto!important;max-height:none!important}body:has(.autorizacion-precio-app) .layout-main-content{flex:0 0 auto!important;width:auto!important;max-width:100%!important;min-width:0!important;overflow-x:hidden!important;overflow-y:visible!important}body:has(.autorizacion-precio-app) .layout-main-content .layout-container-fluid{width:100%!important;max-width:100%!important;min-width:0!important;margin:0!important;padding:0!important}body:has(.autorizacion-precio-app) footer, body:has(.autorizacion-precio-app) .footer, body:has(.autorizacion-precio-app) .layout-footer{position:static!important;min-height:29px!important;height:auto!important;margin-top:4px!important;padding:4px 0!important;font-family:var(--ap-font)!important;font-size:10.5px!important;line-height:1.15!important}.autorizacion-precio-app{width:100%!important;max-width:100%!important;min-width:0!important;margin:0!important;padding:0!important;border:1px solid #865050!important;border-radius:0!important;background:var(--ap-panel)!important;color:var(--ap-text)!important;box-shadow:none!important;overflow:hidden!important;font-family:var(--ap-font)!important;font-size:10.6px!important;line-height:1.2!important;container-type:inline-size;container-name:aut-precio}.autorizacion-precio-app *, #modalOVPrecio,#modalOVPrecio *, #modalReporteHistoricoPrecio,#modalReporteHistoricoPrecio *{font-family:var(--ap-font)!important}.autorizacion-precio-app .titlebar{display:none!important}.autorizacion-precio-app .toolbar{width:100%!important;min-height:35px!important;margin:0!important;padding:3px 4px!important;display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:3px!important;flex-wrap:wrap!important;border:0!important;border-bottom:1px solid var(--ap-line)!important;background:var(--ap-toolbar)!important;font-size:9px!important}.autorizacion-precio-app .tool-btn{min-width:0!important;min-height:28px!important;height:28px!important;padding:0 8px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:4px!important;border:1px solid var(--ap-line2)!important;border-radius:0!important;background:linear-gradient(#fffefe,#ecd7d7)!important;color:#4a1111!important;font-size:8.9px!important;font-weight:600!important;line-height:1!important;text-decoration:none!important;box-shadow:none!important;cursor:pointer!important}.autorizacion-precio-app .tool-btn-historico{border-color:#0d4f8c!important;background:linear-gradient(180deg,#4da3ff 0%,#1f78d1 55%,#0f5ea8 100%)!important;color:#fff!important}.autorizacion-precio-app .content{width:100%!important;max-width:100%!important;min-width:0!important;margin:0!important;padding:4px!important;background:var(--ap-bg)!important}.autorizacion-precio-app .workspace{width:100%!important;max-width:100%!important;min-width:0!important;margin:0!important;padding:0!important;border:0!important;background:transparent!important}.autorizacion-precio-app .section{width:100%!important;max-width:100%!important;min-width:0!important;margin:0!important;border:1px solid var(--ap-line)!important;border-radius:0!important;background:var(--ap-panel)!important;overflow:hidden!important}.autorizacion-precio-app .section-title{min-height:31px!important;margin:0!important;padding:4px 6px!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:5px!important;flex-wrap:wrap!important;border:0!important;border-bottom:1px solid #540000!important;background:var(--ap-head)!important;color:#fff!important;font-size:10.2px!important;font-weight:600!important;line-height:1.05!important}.autorizacion-precio-app .section-title>div{display:flex!important;align-items:center!important;gap:5px!important;flex-wrap:wrap!important}.autorizacion-precio-app .section-title>div>span:last-child{font-size:8.2px!important;font-weight:400!important;color:#f0cece!important}.autorizacion-precio-app .estado-badge{min-height:20px!important;padding:2px 5px!important;display:inline-flex!important;align-items:center!important;gap:4px!important;border:1px solid transparent!important;border-radius:2px!important;font-size:8.3px!important;font-weight:600!important;line-height:1!important}.autorizacion-precio-app .est-dot{width:7px!important;height:7px!important;display:inline-block!important;border-radius:50%!important;background:#aaa!important}.autorizacion-precio-app .est-ok{background:#dff3e2!important;border-color:#6aa84f!important;color:#2f6b1f!important}.autorizacion-precio-app .est-ok .est-dot{background:#16a34a!important}.autorizacion-precio-app .est-warn{background:#fff4cc!important;border-color:#d6b656!important;color:#7a5a00!important}.autorizacion-precio-app .est-warn .est-dot{background:#d97706!important}.autorizacion-precio-app .est-err{background:#fde2e2!important;border-color:#d9534f!important;color:#b00000!important}.autorizacion-precio-app .est-err .est-dot{background:#dc2626!important}.autorizacion-precio-app .est-info{background:#e8f4fd!important;border-color:#7ab8d4!important;color:#064b6b!important}.autorizacion-precio-app .est-info .est-dot{background:#2563eb!important}.autorizacion-precio-app .est-light{background:#f4f4f4!important;border-color:#ccc!important;color:#555!important}.autorizacion-precio-app .table-wrap{width:100%!important;max-width:100%!important;min-width:0!important;max-height:none!important;height:auto!important;overflow-x:auto!important;overflow-y:visible!important;background:#fff!important;border-top:0!important;scrollbar-gutter:auto!important}.autorizacion-precio-app .table-wrap table{width:100%!important;min-width:1080px!important;margin:0!important;border-collapse:separate!important;border-spacing:0!important;table-layout:auto!important;background:#fff!important;color:var(--ap-text)!important;font-size:10.5px!important}.autorizacion-precio-app .table-wrap thead th{position:sticky!important;top:0!important;z-index:10!important;padding:5px 4px!important;border-top:0!important;border-right:1px solid #742727!important;border-bottom:1px solid #540000!important;background:var(--ap-head)!important;color:#fff!important;font-size:9.4px!important;font-weight:600!important;line-height:1.08!important;white-space:nowrap!important;text-transform:none!important;box-shadow:none!important;vertical-align:middle!important}.autorizacion-precio-app .table-wrap tbody td{padding:4px!important;border-right:1px solid #dfc9c9!important;border-bottom:1px solid #dfc9c9!important;background:#fffafa!important;color:#291414!important;font-size:10.5px!important;line-height:1.12!important;white-space:nowrap!important;vertical-align:middle!important}.autorizacion-precio-app .table-wrap tbody tr:nth-child(even) td{background:#f9eeee!important}.autorizacion-precio-app .table-wrap tbody tr:hover td{background:#f1dddd!important}.autorizacion-precio-app .table-wrap tbody tr.row-ok td{background:#e4f2e7!important;color:#285d38!important}.autorizacion-precio-app .table-wrap tbody tr.row-danger td{background:#f9e4e4!important}.autorizacion-precio-app .badge-ok,#modalOVPrecio .badge-ok{min-height:18px!important;padding:2px 5px!important;display:inline-flex!important;align-items:center!important;border:1px solid #79ae87!important;border-radius:2px!important;background:#e1f1e6!important;color:#246039!important;font-size:8.2px!important;font-weight:600!important;line-height:1!important;white-space:nowrap!important}.autorizacion-precio-app .badge-danger,#modalOVPrecio .badge-danger{min-height:18px!important;padding:2px 5px!important;display:inline-flex!important;align-items:center!important;border:1px solid #d99494!important;border-radius:2px!important;background:#f7dddd!important;color:#971d28!important;font-size:8.2px!important;font-weight:600!important;line-height:1!important;white-space:nowrap!important}.autorizacion-precio-app .pm-btn, #modalOVPrecio .pm-btn,#modalReporteHistoricoPrecio .pm-btn{min-width:0!important;min-height:27px!important;height:27px!important;padding:0 7px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:4px!important;border:1px solid var(--ap-line2)!important;border-radius:0!important;background:linear-gradient(#fffefe,#ecd7d7)!important;color:#4a1111!important;font-size:8.8px!important;font-weight:600!important;line-height:1!important;text-decoration:none!important;white-space:nowrap!important;box-shadow:none!important;cursor:pointer!important}.autorizacion-precio-app .pm-btn:hover,#modalOVPrecio .pm-btn:hover,#modalReporteHistoricoPrecio .pm-btn:hover{filter:brightness(.98)}.autorizacion-precio-app .pm-btn:disabled,#modalOVPrecio .pm-btn:disabled,#modalReporteHistoricoPrecio .pm-btn:disabled{opacity:.58!important;cursor:not-allowed!important}.autorizacion-precio-app .pm-btn-primary,#modalOVPrecio .pm-btn-primary,#modalReporteHistoricoPrecio .pm-btn-primary{border-color:#750000!important;background:var(--ap-head)!important;color:#fff!important}.autorizacion-precio-app .pm-btn-success,#modalOVPrecio .pm-btn-success,#modalReporteHistoricoPrecio .pm-btn-success{border-color:#157347!important;background:linear-gradient(180deg,#28a745 0%,#218838 58%,#196f31 100%)!important;color:#fff!important}.autorizacion-precio-app .pm-btn-warning,#modalOVPrecio .pm-btn-warning{border-color:#c87800!important;background:linear-gradient(180deg,#ffc107 0%,#e6a800 100%)!important;color:#3d2000!important}.autorizacion-precio-app .pm-btn-secondary,#modalOVPrecio .pm-btn-secondary,#modalReporteHistoricoPrecio .pm-btn-secondary{border-color:var(--ap-line2)!important;background:linear-gradient(#fffefe,#ecd7d7)!important;color:#4a1111!important}.autorizacion-precio-app .pm-btn-outline,#modalOVPrecio .pm-btn-outline{border-color:var(--ap-line2)!important;background:#fff!important;color:#5a0000!important}.autorizacion-precio-app .statusbar{min-height:21px!important;padding:3px 6px!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:5px!important;border-top:1px solid var(--ap-line)!important;background:var(--ap-toolbar)!important;color:#674343!important;font-size:8.4px!important;line-height:1!important;flex-wrap:wrap!important}#modalOVPrecio .modal-dialog,#modalReporteHistoricoPrecio .modal-dialog{max-width:min(1180px,96vw)!important;margin:.5rem auto!important}#modalOVPrecio .modal-content,#modalReporteHistoricoPrecio .modal-content{border:1px solid #6e3737!important;border-radius:0!important;background:var(--ap-panel)!important;box-shadow:0 10px 28px rgba(50,0,0,.20)!important;overflow:hidden!important}#modalOVPrecio .modal-header,#modalReporteHistoricoPrecio .modal-header{min-height:36px!important;padding:5px 7px!important;border:0!important;border-bottom:1px solid #540000!important;background:var(--ap-head)!important;color:#fff!important}#modalOVPrecio .modal-title,#modalReporteHistoricoPrecio .modal-title{margin:0!important;color:#fff!important;font-size:11.2px!important;font-weight:600!important;line-height:1.08!important}#modalOVPrecio .btn-close,#modalReporteHistoricoPrecio .btn-close{filter:invert(1) grayscale(1)!important;opacity:.95!important}#modalOVPrecio .modal-body,#modalReporteHistoricoPrecio .modal-body{padding:6px!important;background:var(--ap-bg)!important;color:var(--ap-text)!important;font-size:10.2px!important;line-height:1.2!important}#modalOVPrecio .modal-footer,#modalReporteHistoricoPrecio .modal-footer{min-height:34px!important;padding:4px 6px!important;border-top:1px solid var(--ap-line)!important;background:#f5e8e8!important}#modalOVPrecio #btnAutorizarTodoPrecio{margin-bottom:5px!important}#modalOVPrecio .modal-table-wrap,#modalReporteHistoricoPrecio .modal-table-wrap{width:100%!important;max-height:60dvh!important;overflow:auto!important;border:1px solid var(--ap-line)!important;background:#fff!important}#modalOVPrecio .modal-table-wrap table,#modalReporteHistoricoPrecio .modal-table-wrap table{width:100%!important;margin:0!important;border-collapse:separate!important;border-spacing:0!important;background:#fff!important;color:var(--ap-text)!important;font-size:10.2px!important}#modalOVPrecio .modal-table-wrap table{min-width:930px!important}#modalReporteHistoricoPrecio .modal-table-wrap table{min-width:1250px!important}#modalOVPrecio .modal-table-wrap thead th,#modalReporteHistoricoPrecio .modal-table-wrap thead th{position:sticky!important;top:0!important;z-index:5!important;padding:5px 4px!important;border-right:1px solid #742727!important;border-bottom:1px solid #540000!important;background:var(--ap-head)!important;color:#fff!important;font-size:9.2px!important;font-weight:600!important;line-height:1.08!important;white-space:nowrap!important;text-transform:none!important}#modalOVPrecio .modal-table-wrap tbody td,#modalReporteHistoricoPrecio .modal-table-wrap tbody td{padding:4px!important;border-right:1px solid #dfc9c9!important;border-bottom:1px solid #dfc9c9!important;background:#fffafa!important;color:#291414!important;font-size:10.2px!important;line-height:1.12!important;vertical-align:middle!important}#modalOVPrecio .modal-table-wrap tbody tr:nth-child(even) td,#modalReporteHistoricoPrecio .modal-table-wrap tbody tr:nth-child(even) td{background:#f9eeee!important}#modalOVPrecio .modal-table-wrap tbody tr:hover td,#modalReporteHistoricoPrecio .modal-table-wrap tbody tr:hover td{background:#f1dddd!important}#modalReporteHistoricoPrecio .filters-inline{margin:0 0 5px!important;padding:5px!important;display:grid!important;grid-template-columns:150px 150px auto auto!important;gap:4px!important;align-items:end!important;border:1px solid var(--ap-line)!important;background:var(--ap-panel2)!important}#modalReporteHistoricoPrecio .filters-inline label{display:block!important;margin:0 0 2px!important;color:#5c2b2b!important;font-size:8.7px!important;font-weight:600!important;line-height:1!important}#modalReporteHistoricoPrecio input[type="date"], #modalReporteHistoricoPrecio input[type="text"], #modalReporteHistoricoPrecio input[type="number"], #modalReporteHistoricoPrecio select{width:100%!important;min-height:29px!important;height:29px!important;padding:3px 6px!important;border:1px solid var(--ap-line2)!important;border-radius:0!important;background:#fff!important;color:var(--ap-text)!important;font-size:9.8px!important;box-shadow:none!important}#modalReporteHistoricoPrecio table tbody td:nth-child(5), #modalReporteHistoricoPrecio table tbody td:nth-child(7), #modalReporteHistoricoPrecio table tbody td:nth-child(9){background:#fff4c9!important;color:#5a4300!important;font-weight:600!important}#modalReporteHistoricoPrecio table thead th:nth-child(5), #modalReporteHistoricoPrecio table thead th:nth-child(7), #modalReporteHistoricoPrecio table thead th:nth-child(9){background:linear-gradient(180deg,#e8bf3e 0%,#c99812 56%,#a97800 100%)!important;color:#fff!important;border-right:1px solid #8d6800!important}#modalReporteHistoricoPrecio table tbody tr:hover td:nth-child(5), #modalReporteHistoricoPrecio table tbody tr:hover td:nth-child(7), #modalReporteHistoricoPrecio table tbody tr:hover td:nth-child(9){background:#ffe69a!important;color:#4a3700!important}body[data-theme="dark"]{--ap-bg:#101216;--ap-panel:#17191f;--ap-panel2:#20232a;--ap-line:#414650;--ap-line2:#5b616a;--ap-text:#f1eaea;--ap-muted:#c3b0b0;--ap-head:linear-gradient(180deg,#7f1d1d 0%,#5f1212 55%,#2b0505 100%);--ap-toolbar:linear-gradient(180deg,#22252c 0%,#17191f 100%)}body[data-theme="dark"] .autorizacion-precio-app, body[data-theme="dark"] .autorizacion-precio-app .content, body[data-theme="dark"] .autorizacion-precio-app .section{background:var(--ap-panel)!important;color:var(--ap-text)!important}body[data-theme="dark"] .autorizacion-precio-app .table-wrap tbody td, body[data-theme="dark"] #modalOVPrecio .modal-table-wrap tbody td, body[data-theme="dark"] #modalReporteHistoricoPrecio .modal-table-wrap tbody td{background:#17191f!important;color:#f2eaea!important;border-color:#3d424b!important}@@container aut-precio (max-width:900px){.autorizacion-precio-app .section-title{align-items:flex-start!important}.autorizacion-precio-app .section-title>div{width:100%!important;justify-content:flex-start!important}.autorizacion-precio-app .statusbar{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}#modalReporteHistoricoPrecio .filters-inline{grid-template-columns:repeat(2,minmax(0,1fr))!important}}@@container aut-precio (max-width:520px){.autorizacion-precio-app .content{padding:3px!important}.autorizacion-precio-app .toolbar{display:grid!important;grid-template-columns:1fr!important}.autorizacion-precio-app .tool-btn{width:100%!important}.autorizacion-precio-app .statusbar{grid-template-columns:1fr!important;gap:2px!important}#modalReporteHistoricoPrecio .filters-inline{grid-template-columns:1fr!important}#modalOVPrecio .modal-dialog,#modalReporteHistoricoPrecio .modal-dialog{max-width:100vw!important;width:100vw!important;margin:0!important}#modalOVPrecio .modal-content,#modalReporteHistoricoPrecio .modal-content{min-height:100dvh!important;border-left:0!important;border-right:0!important}}
 </style>
 
-<div class="window">
+
+<style id="autorizacion-precio-erp-final">
+    body:not([data-theme="dark"]) {
+        --ap-bg: #eef2f4 !important;
+        --ap-panel: #ffffff !important;
+        --ap-panel2: #f7f9fa !important;
+        --ap-line: #bec9cf !important;
+        --ap-line2: #aebbc3 !important;
+        --ap-text: #30373b !important;
+        --ap-muted: #66747c !important;
+        --ap-brand: #7a2029 !important;
+        --ap-brand2: #5e1820 !important;
+        --ap-head:
+            linear-gradient(
+                180deg,
+                #5a171d 0%,
+                #481318 48%,
+                #351014 100%
+            ) !important;
+        --ap-toolbar:
+            linear-gradient(
+                180deg,
+                #f4f7f8 0%,
+                #e8edef 100%
+            ) !important;
+        --ap-font: "Poppins", sans-serif !important;
+    }
+
+    body:not([data-theme="dark"]),
+    body:not([data-theme="dark"]) button,
+    body:not([data-theme="dark"]) input,
+    body:not([data-theme="dark"]) select,
+    body:not([data-theme="dark"]) textarea,
+    body:not([data-theme="dark"]) table,
+    body:not([data-theme="dark"]) .autorizacion-precio-app,
+    body:not([data-theme="dark"]) .autorizacion-precio-app * {
+        font-family: "Poppins", sans-serif !important;
+        -webkit-font-smoothing: antialiased !important;
+        -moz-osx-font-smoothing: grayscale !important;
+        text-rendering: geometricPrecision !important;
+    }
+
+    body:not([data-theme="dark"]) .bi,
+    body:not([data-theme="dark"]) .bi::before,
+    body:not([data-theme="dark"]) [class^="bi-"],
+    body:not([data-theme="dark"]) [class*=" bi-"] {
+        font-family: "bootstrap-icons" !important;
+        font-style: normal !important;
+        font-weight: normal !important;
+        line-height: 1 !important;
+    }
+
+    html,
+    body {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+    }
+
+    body:has(.autorizacion-precio-app) .layout-main-content {
+        flex: 1 1 auto !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        overflow-x: hidden !important;
+        overflow-y: visible !important;
+        box-sizing: border-box !important;
+    }
+
+    body:has(.autorizacion-precio-app)
+    .layout-main-content.layout-sidebar-open {
+        width: calc(100% - var(--layout-sidebar-width)) !important;
+        max-width: calc(100% - var(--layout-sidebar-width)) !important;
+        margin-left: var(--layout-sidebar-width) !important;
+    }
+
+    body:has(.layout-sidebar.layout-hidden):has(.autorizacion-precio-app)
+    .layout-main-content,
+    body:has(.layout-sidebar.layout-hidden):has(.autorizacion-precio-app)
+    .layout-main-content.layout-sidebar-open {
+        width: calc(100% - var(--layout-sidebar-collapsed-width, 60px)) !important;
+        max-width: calc(100% - var(--layout-sidebar-collapsed-width, 60px)) !important;
+        margin-left: var(--layout-sidebar-collapsed-width, 60px) !important;
+    }
+
+    body:has(.autorizacion-precio-app)
+    .layout-main-content .layout-container-fluid {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
+        overflow-x: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app {
+        width: calc(100% - 12px) !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        margin: 6px auto 12px !important;
+        padding: 0 !important;
+
+        background: #fff !important;
+        color: #30373b !important;
+
+        border: 1px solid #bec9cf !important;
+        border-radius: 2px !important;
+
+        box-shadow: none !important;
+        overflow: hidden !important;
+
+        font-size: 10.4px !important;
+        line-height: 1.2 !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .toolbar {
+        min-height: 35px !important;
+
+        padding: 4px 5px !important;
+
+        background:
+            linear-gradient(
+                180deg,
+                #f4f7f8 0%,
+                #e8edef 100%
+            ) !important;
+
+        border-bottom: 1px solid #bec9cf !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .tool-btn {
+        min-height: 29px !important;
+        height: 29px !important;
+
+        padding: 0 8px !important;
+
+        background: #fff !important;
+        color: #424b50 !important;
+
+        border: 1px solid #b9c5cb !important;
+        border-radius: 2px !important;
+
+        box-shadow: none !important;
+
+        font-size: 9.2px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .tool-btn-historico {
+        background: #6d6265 !important;
+        border-color: #5a5153 !important;
+        color: #fff !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .content {
+        padding: 5px !important;
+        background: #eef2f4 !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .section {
+        background: #fff !important;
+        border: 1px solid #bec9cf !important;
+        border-radius: 2px !important;
+        box-shadow: none !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .section-title {
+        min-height: 32px !important;
+
+        padding: 5px 8px !important;
+
+        background:
+            linear-gradient(
+                180deg,
+                #dce4e8 0%,
+                #d1dbe0 100%
+            ) !important;
+
+        color: #3f4549 !important;
+
+        border: 0 !important;
+        border-bottom: 1px solid #bec9cf !important;
+        border-left: 3px solid #7a2029 !important;
+
+        font-size: 10px !important;
+        font-weight: 700 !important;
+        line-height: 1.05 !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .section-title > div > span:last-child {
+        color: #66747c !important;
+        font-size: 8.5px !important;
+        font-weight: 500 !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .estado-badge {
+        min-height: 20px !important;
+        padding: 2px 6px !important;
+        border-radius: 2px !important;
+        font-size: 8.4px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .est-info {
+        background: #edf3f6 !important;
+        border-color: #aebbc3 !important;
+        color: #4f5d64 !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .est-ok {
+        background: #e7f2ea !important;
+        border-color: #8eb59a !important;
+        color: #315c3b !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .est-warn {
+        background: #fff5dc !important;
+        border-color: #d6bd79 !important;
+        color: #705a1a !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .est-err {
+        background: #f6e3e5 !important;
+        border-color: #c9989e !important;
+        color: #7a2029 !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .table-wrap {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        max-height: 70vh !important;
+
+        background: #fff !important;
+        overflow: auto !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .table-wrap table {
+        width: 100% !important;
+        min-width: 1080px !important;
+
+        background: #fff !important;
+        color: #30373b !important;
+
+        font-size: 10.2px !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .table-wrap thead th {
+        height: 31px !important;
+        min-height: 31px !important;
+
+        padding: 4px 5px !important;
+
+        background:
+            linear-gradient(
+                180deg,
+                #dce4e8 0%,
+                #d1dbe0 100%
+            ) !important;
+
+        color: #3f4549 !important;
+
+        border-color: #aebbc3 !important;
+
+        font-size: 9.2px !important;
+        font-weight: 700 !important;
+        line-height: 1.08 !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .table-wrap tbody td {
+        height: 28px !important;
+
+        padding: 3px 5px !important;
+
+        background: #fff !important;
+        color: #30373b !important;
+
+        border-color: #c5d0d6 !important;
+
+        font-size: 10.2px !important;
+        font-weight: 500 !important;
+        line-height: 1.12 !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .table-wrap tbody tr:nth-child(even) td {
+        background: #f2f5f6 !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .table-wrap tbody tr:hover td {
+        background: #f3e7e9 !important;
+        color: #272d31 !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .table-wrap tbody tr.row-ok td {
+        background: #eaf3ed !important;
+        color: #315c3b !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .table-wrap tbody tr.row-danger td {
+        background: #f7e9eb !important;
+        color: #4c3337 !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .badge-ok,
+    body:not([data-theme="dark"]) #modalOVPrecio .badge-ok {
+        background: #e7f2ea !important;
+        color: #315c3b !important;
+        border-color: #8eb59a !important;
+        font-size: 8.4px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .badge-danger,
+    body:not([data-theme="dark"]) #modalOVPrecio .badge-danger {
+        background: #f6e3e5 !important;
+        color: #7a2029 !important;
+        border-color: #c9989e !important;
+        font-size: 8.4px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .pm-btn,
+    body:not([data-theme="dark"]) #modalOVPrecio .pm-btn,
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio .pm-btn {
+        min-height: 28px !important;
+        height: 28px !important;
+
+        padding: 0 8px !important;
+
+        background: #fff !important;
+        color: #424b50 !important;
+
+        border: 1px solid #b9c5cb !important;
+        border-radius: 2px !important;
+
+        box-shadow: none !important;
+
+        font-size: 9px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .pm-btn-primary,
+    body:not([data-theme="dark"]) #modalOVPrecio .pm-btn-primary,
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio .pm-btn-primary {
+        background: #7a2029 !important;
+        border-color: #5e1820 !important;
+        color: #fff !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .pm-btn-success,
+    body:not([data-theme="dark"]) #modalOVPrecio .pm-btn-success,
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio .pm-btn-success {
+        background: #25824d !important;
+        border-color: #1d6d40 !important;
+        color: #fff !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .pm-btn-warning,
+    body:not([data-theme="dark"]) #modalOVPrecio .pm-btn-warning {
+        background: #fff5dc !important;
+        border-color: #d6bd79 !important;
+        color: #705a1a !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .pm-btn-secondary,
+    body:not([data-theme="dark"]) #modalOVPrecio .pm-btn-secondary,
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio .pm-btn-secondary,
+    body:not([data-theme="dark"]) .autorizacion-precio-app .pm-btn-outline,
+    body:not([data-theme="dark"]) #modalOVPrecio .pm-btn-outline {
+        background: #fff !important;
+        color: #424b50 !important;
+        border-color: #b9c5cb !important;
+    }
+
+    body:not([data-theme="dark"]) .autorizacion-precio-app .statusbar {
+        min-height: 25px !important;
+        padding: 4px 7px !important;
+
+        background: #e1e8eb !important;
+        color: #59666d !important;
+
+        border-top: 1px solid #bec9cf !important;
+
+        font-size: 8.8px !important;
+        font-weight: 500 !important;
+    }
+
+    body:not([data-theme="dark"]) #modalOVPrecio .modal-dialog {
+        width: min(1080px, calc(100vw - 40px)) !important;
+        max-width: 1080px !important;
+        margin: 25px auto !important;
+    }
+
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio .modal-dialog {
+        width: min(1180px, calc(100vw - 40px)) !important;
+        max-width: 1180px !important;
+        margin: 25px auto !important;
+    }
+
+    body:not([data-theme="dark"]) #modalOVPrecio .modal-content,
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio .modal-content {
+        background: #fff !important;
+        border: 1px solid #b9c5cb !important;
+        border-radius: 3px !important;
+        box-shadow: 0 14px 34px rgba(0,0,0,.18) !important;
+    }
+
+    body:not([data-theme="dark"]) #modalOVPrecio .modal-header,
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio .modal-header {
+        min-height: 38px !important;
+        padding: 7px 9px !important;
+
+        background:
+            linear-gradient(
+                180deg,
+                #5a171d 0%,
+                #481318 48%,
+                #351014 100%
+            ) !important;
+
+        border-bottom: 1px solid #351014 !important;
+    }
+
+    body:not([data-theme="dark"]) #modalOVPrecio .modal-title,
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio .modal-title {
+        color: #fff !important;
+        font-size: 11px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) #modalOVPrecio .modal-body,
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio .modal-body {
+        padding: 7px !important;
+        background: #eef2f4 !important;
+        color: #30373b !important;
+
+        font-size: 10px !important;
+        font-weight: 500 !important;
+    }
+
+    body:not([data-theme="dark"]) #modalOVPrecio .modal-footer,
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio .modal-footer {
+        background: #e8edef !important;
+        border-top: 1px solid #c5d0d6 !important;
+    }
+
+    body:not([data-theme="dark"]) #modalOVPrecio .modal-table-wrap,
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio .modal-table-wrap {
+        background: #fff !important;
+        border-color: #c5d0d6 !important;
+    }
+
+    body:not([data-theme="dark"]) #modalOVPrecio .modal-table-wrap thead th,
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio .modal-table-wrap thead th {
+        background:
+            linear-gradient(
+                180deg,
+                #dce4e8 0%,
+                #d1dbe0 100%
+            ) !important;
+
+        color: #3f4549 !important;
+        border-color: #aebbc3 !important;
+
+        font-size: 9.2px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) #modalOVPrecio .modal-table-wrap tbody td,
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio .modal-table-wrap tbody td {
+        background: #fff !important;
+        color: #30373b !important;
+        border-color: #c5d0d6 !important;
+
+        font-size: 10px !important;
+        font-weight: 500 !important;
+    }
+
+    body:not([data-theme="dark"]) #modalOVPrecio .modal-table-wrap tbody tr:nth-child(even) td,
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio .modal-table-wrap tbody tr:nth-child(even) td {
+        background: #f2f5f6 !important;
+    }
+
+    body:not([data-theme="dark"]) #modalOVPrecio .modal-table-wrap tbody tr:hover td,
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio .modal-table-wrap tbody tr:hover td {
+        background: #f3e7e9 !important;
+    }
+
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio .filters-inline {
+        background: #eef2f4 !important;
+        border-color: #c5d0d6 !important;
+    }
+
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio .filters-inline label {
+        color: #3f474b !important;
+        font-size: 8.8px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio input[type="date"],
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio input[type="text"],
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio input[type="number"],
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio select {
+        min-height: 30px !important;
+        height: 30px !important;
+
+        background: #fff !important;
+        color: #30373b !important;
+
+        border: 1px solid #b9c5cb !important;
+        border-radius: 2px !important;
+
+        font-size: 9.8px !important;
+        font-weight: 500 !important;
+    }
+
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio table tbody td:nth-child(5),
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio table tbody td:nth-child(7),
+    body:not([data-theme="dark"]) #modalReporteHistoricoPrecio table tbody td:nth-child(9) {
+        background: #fff8df !important;
+        color: #705a1a !important;
+        font-weight: 600 !important;
+    }
+
+    @@media (max-width: 768px) {
+        body:has(.autorizacion-precio-app) .layout-main-content,
+        body:has(.autorizacion-precio-app) .layout-main-content.layout-sidebar-open,
+        body:has(.layout-sidebar.layout-hidden):has(.autorizacion-precio-app) .layout-main-content,
+        body:has(.layout-sidebar.layout-hidden):has(.autorizacion-precio-app) .layout-main-content.layout-sidebar-open {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin-left: 0 !important;
+        }
+
+        body:not([data-theme="dark"]) .autorizacion-precio-app {
+            width: 100% !important;
+            margin: 0 !important;
+        }
+
+        body:not([data-theme="dark"]) #modalOVPrecio .modal-dialog,
+        body:not([data-theme="dark"]) #modalReporteHistoricoPrecio .modal-dialog {
+            width: calc(100vw - 10px) !important;
+            max-width: none !important;
+            margin: 5px auto !important;
+        }
+    }
+</style>
+
+<div class="window autorizacion-precio-app">
 
     <div class="titlebar">
         <div>Autorización de Precio</div>

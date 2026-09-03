@@ -13,6 +13,7 @@ namespace Plataforma_CG.AccesoDatos.Operaciones.Planeacion
         private string _cadena = new Conexion().GetCadenaSQLSIGO();
         private string _cadenap1 = new Conexion().GetCadenaSQLP1();
         SqlConnection _conn;
+
         public PlaneacionProduccionModel ConsultarPlan(string fecha, string tipo)
         {
             _conn = new SqlConnection(_cadena);
@@ -119,7 +120,11 @@ namespace Plataforma_CG.AccesoDatos.Operaciones.Planeacion
         {
             _conn = new SqlConnection(_cadena);
             var lista = new List<CanalPlaneacionModel>();
-            string query = $"select * from CanalPlaneacion where PlaneacionId={planid}";
+            string query = $"select a.PlaneacionId,a.fk_SubClas,a.NoCanalCompleta,d.PesoPromedio as KgCanalCompleta from CanalPlaneacion a " +
+                $"inner join SubClasif b on b.Id=a.fk_SubClas " +
+                $"inner join PlaneacionProduccion c on c.PlaneacionId=a.PlaneacionId " +
+                $"inner join PlanProduccion d on FORMAT(CONVERT(date,CONCAT(d.Anio,'-',d.Mes,'-1')),'yyyy-MM') = FORMAT(c.FechaPlan,'yyyy-MM') and d.fk_Clasificacion=b.Nombre " +
+                $"where a.PlaneacionId={planid}";
             var cmd = new SqlCommand(query,_conn);
             _conn.Open();
             try
@@ -226,27 +231,6 @@ cmd.Parameters.AddWithValue("@KgCanalCompleta", model.KgCanalCompleta);
         {
             var lista = new List<ParticipacionModel>();
             _conn= new SqlConnection(_cadena);
-            //            string query = @"
-            //SELECT 
-            //    p.Id,
-            //    p.ProductoCodigo,
-            //    p.fk_Clasificacion,
-            //    p.Porcentaje,
-            //    p.fk_SubClas,
-            //    p.LineaCodigo,
-            //    COALESCE(ps.PartSub, p.PartSub) AS PartSub
-            //    ,m.Nombre as 'Master' 
-            //FROM Participacion p
-            //LEFT JOIN PlanSubClas ps
-            //    ON ps.ProductoCodigo = p.ProductoCodigo
-            //    AND ps.fk_SubClas = p.fk_SubClas
-            //    AND ps.PlanId = @plid
-            //left join MasterProd mp
-            //	on mp.SKU=p.ProductoCodigo
-            //	left join Masters m 
-            //	on m.Id=mp.MasterID
-            //WHERE p.fk_Clasificacion = @clasid
-            //order by m.Id";
             string query = @"SELECT 
     p.Id,
     p.ProductoCodigo,
