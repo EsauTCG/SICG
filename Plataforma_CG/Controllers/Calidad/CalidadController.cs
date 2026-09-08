@@ -1,4 +1,5 @@
 ﻿using Dapper;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Plataforma_CG.Filters;
@@ -6,18 +7,22 @@ using Plataforma_CG.Models;
 using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
+using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace Plataforma_CG.Controllers
 {
     public class CalidadController : Controller
     {
         private readonly IConfiguration _configuration;
+        private readonly IWebHostEnvironment _environment;
 
         // Inyectamos la configuración para leer la cadena de conexión del appsettings.json
-        public CalidadController(IConfiguration configuration)
+        public CalidadController(IConfiguration configuration, IWebHostEnvironment environment)
         {
             _configuration = configuration;
+            _environment = environment;
         }
 
         public IActionResult Cuadrantes()
@@ -36,7 +41,7 @@ namespace Plataforma_CG.Controllers
     INNER JOIN Produccion b ON a.ProduccionId = b.ProduccionId
     INNER JOIN Lote c ON b.LoteId = c.LoteId
     INNER JOIN SolicitudReferencia d ON c.LoteId = d.SolicitudProduccionId AND d.TipoReferenciaId = '3'
-WHERE CONVERT(Date, c.FechaProduccion) = CONVERT(Date, GETDATE())
+    WHERE CONVERT(Date, c.FechaProduccion) = CONVERT(Date, GETDATE())
     ORDER BY a.ConsecutivoDia ASC";
 
             using (SqlConnection connection = new SqlConnection(connectionStringTif))
@@ -51,7 +56,7 @@ WHERE CONVERT(Date, c.FechaProduccion) = CONVERT(Date, GETDATE())
                         {
                             string consecutivo = reader["ConsecutivoDia"]?.ToString() ?? "0";
 
-                            // Toma la fecha actual en formato yyyyMMdd
+                            // Toma la fecha actual
                             string fechaFormato = DateTime.Today.ToString("yyyyMMdd");
 
                             var canal = new CanalViewModel
@@ -61,7 +66,7 @@ WHERE CONVERT(Date, c.FechaProduccion) = CONVERT(Date, GETDATE())
                                 Provider = reader["Proveedor"]?.ToString() ?? "Sin Proveedor",
                                 Status = "Pendiente",
 
-                                // Toma la fecha actual en formato dd/MM/yyyy
+                                // Toma la fecha actual
                                 Date = DateTime.Today.ToString("dd/MM/yyyy"),
 
                                 Shift = "Mañana",
@@ -148,11 +153,36 @@ WHERE CONVERT(Date, c.FechaProduccion) = CONVERT(Date, GETDATE())
                         }
                     }
 
+                    var fotosMap = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+                    try
+                    {
+                        using (var cmd = new SqlCommand("SELECT CanalId, Vista, RutaArchivo FROM PCC1B_Fotos", conn))
+                        using (var rdr = cmd.ExecuteReader())
+                        {
+                            while (rdr.Read())
+                            {
+                                string key = rdr["CanalId"]?.ToString()?.Trim() ?? "";
+                                string vista = rdr["Vista"]?.ToString()?.Trim().ToUpperInvariant() ?? "";
+                                string ruta = rdr["RutaArchivo"]?.ToString() ?? "";
+                                if (string.IsNullOrEmpty(key)) continue;
+                                if (!fotosMap.TryGetValue(key, out var dic)) { dic = new Dictionary<string, string>(); fotosMap[key] = dic; }
+                                dic[vista] = ruta;
+                            }
+                        }
+                    }
+                    catch { /* PCC1B_Fotos aún no existe */ }
+
                     foreach (var canal in listaCanales)
                     {
                         string key = canal.Id?.Trim() ?? "";
                         if (estatusMap.TryGetValue(key, out string estatus))
                             canal.Status = estatus;
+
+                        if (fotosMap.TryGetValue(key, out var fotos))
+                        {
+                            canal.FotoRealEXT = fotos.TryGetValue("EXT", out var fe) ? fe : "";
+                            canal.FotoRealINT = fotos.TryGetValue("INT", out var fi) ? fi : "";
+                        }
                     }
                 }
             }
@@ -164,8 +194,57 @@ WHERE CONVERT(Date, c.FechaProduccion) = CONVERT(Date, GETDATE())
             return View(listaCanales);
         }
 
+        [HttpPost]
+        public async Task<IActionResult> SubirFotoCanal(IFormFile archivo, string canalId, string vista)
+        {
+            try
+            {
+                if (archivo == null || archivo.Length == 0)
+                    return Json(new { success = false, message = "Archivo vacío." });
 
+                string carpetaDestino = Path.Combine(_environment.WebRootPath, "uploads", "calidad");
+                if (!Directory.Exists(carpetaDestino))
+                    Directory.CreateDirectory(carpetaDestino);
 
+                string extension = Path.GetExtension(archivo.FileName);
+                if (string.IsNullOrEmpty(extension))
+                    extension = ".jpg";
+
+                string nombreSeguro = string.Join("_", canalId.Split(Path.GetInvalidFileNameChars()));
+                string nombreArchivo = $"canal_{nombreSeguro}_{(vista ?? "EXT").Trim().ToUpperInvariant()}_{DateTime.Now:yyyyMMddHHmmssfff}_{Guid.NewGuid():N}{extension}";
+                string rutaFisica = Path.Combine(carpetaDestino, nombreArchivo);
+
+                using (var stream = new FileStream(rutaFisica, FileMode.Create))
+                {
+                    await archivo.CopyToAsync(stream);
+                }
+
+                string ruta = $"/uploads/calidad/{nombreArchivo}";
+
+                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                using (SqlConnection conn = new SqlConnection(connectionString))
+                {
+                    string sqlMerge = @"
+                IF EXISTS (SELECT 1 FROM PCC1B_Fotos WHERE CanalId = @CanalId AND Vista = @Vista)
+                    UPDATE PCC1B_Fotos SET RutaArchivo = @Ruta, Inspector = @Inspector, Fecha = GETDATE() WHERE CanalId = @CanalId AND Vista = @Vista
+                ELSE
+                    INSERT INTO PCC1B_Fotos (CanalId, Vista, RutaArchivo, Inspector, Fecha) VALUES (@CanalId, @Vista, @Ruta, @Inspector, GETDATE())";
+
+                    var parametros = new DynamicParameters();
+                    parametros.Add("CanalId", canalId ?? "");
+                    parametros.Add("Vista", (vista ?? "EXT").Trim().ToUpperInvariant());
+                    parametros.Add("Ruta", ruta);
+                    parametros.Add("Inspector", User.Identity?.Name ?? "Sistema");
+                    conn.Execute(sqlMerge, parametros);
+                }
+
+                return Json(new { success = true, ruta = ruta, canalId = canalId ?? "", vista = (vista ?? "EXT").Trim().ToUpperInvariant() });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
 
         [HttpPost]
         public IActionResult GuardarMonitoreo([FromBody] RegistroViewModel modelo, string canalId, string arete, string estatusGeneral, string verdes = "", string amarillos = "", string rojos = "")
@@ -176,7 +255,6 @@ WHERE CONVERT(Date, c.FechaProduccion) = CONVERT(Date, GETDATE())
 
                 using (SqlConnection conn = new SqlConnection(connectionString))
                 {
-                    // MERGE: 1 sola fila por CanalId y Vista. ¡Y guardando los colores!
                     string sqlMerge = @"
                 IF EXISTS (SELECT 1 FROM PCC1B_Registros WHERE CanalId = @CanalId AND Vista = @Side)
                 BEGIN
@@ -221,7 +299,6 @@ WHERE CONVERT(Date, c.FechaProduccion) = CONVERT(Date, GETDATE())
 
                     conn.Execute(sqlMerge, parametros);
 
-                    // Actualiza estatus general
                     string mergeEstatus = @"
                 IF EXISTS (SELECT 1 FROM PCC1B_Estatus WHERE CanalId = @CanalId)
                     UPDATE PCC1B_Estatus SET Estatus = @Estatus, FechaActualizacion = GETDATE() WHERE CanalId = @CanalId
@@ -276,7 +353,8 @@ WHERE CONVERT(Date, c.FechaProduccion) = CONVERT(Date, GETDATE())
                 {
                     string sql = @"
                 UPDATE PCC1B_Estatus 
-                SET RevisionRealizada = 1,
+                SET Estatus = 'Revisión',
+                    RevisionRealizada = 1,
                     RevisionCorrecta = @RevisionCorrecta,
                     RevisionHallazgos = @Hallazgos,
                     RevisionCuadrantes = @Cuadrantes,
@@ -314,6 +392,7 @@ WHERE CONVERT(Date, c.FechaProduccion) = CONVERT(Date, GETDATE())
 
             // Si no se recibe fecha, asigna la fecha actual
             DateTime fechaFiltro = fecha ?? DateTime.Today;
+
             ViewBag.FechaSeleccionada = fechaFiltro.ToString("yyyy-MM-dd");
             ViewBag.PaginaActual = pagina;
 
@@ -325,7 +404,6 @@ WHERE CONVERT(Date, c.FechaProduccion) = CONVERT(Date, GETDATE())
                 string connectionStringTif = _configuration.GetConnectionString("CadenaMeatTIF");
                 string connectionStringSigo = _configuration.GetConnectionString("DefaultConnection");
 
-                // 1. Conexion a TIF_Meat para obtener el listado base
                 using (var connTif = new SqlConnection(connectionStringTif))
                 {
                     connTif.Open();
@@ -343,7 +421,6 @@ WHERE CONVERT(Date, c.FechaProduccion) = CONVERT(Date, GETDATE())
                     ORDER BY a.ConsecutivoDia ASC
                     OFFSET @Offset ROWS FETCH NEXT @RegistrosPorPagina ROWS ONLY";
 
-                    // Pasamos el objeto DateTime nativo para evitar errores de conversion de formato
                     var canalesRaw = connTif.Query(queryCanales, new { FechaFiltro = fechaFiltro.Date, Offset = offset, RegistrosPorPagina = registrosPorPagina }).ToList();
 
                     ViewBag.TieneMasPaginas = canalesRaw.Count == registrosPorPagina;
@@ -366,19 +443,16 @@ WHERE CONVERT(Date, c.FechaProduccion) = CONVERT(Date, GETDATE())
 
                 var idsPagina = listaCanales.Select(c => c.Id).ToList();
 
-                // 2. Conexion a SIGO para obtener Estatus y Registros
                 if (idsPagina.Any())
                 {
                     using (var connSigo = new SqlConnection(connectionStringSigo))
                     {
                         connSigo.Open();
 
-                        // Traer estatus y datos de auditoria
                         string queryEstatus = "SELECT CanalId, Estatus, RevisionRealizada, RevisionCorrecta, RevisionHallazgos, RevisionCuadrantes, RevisionObservaciones, RevisionInspector FROM PCC1B_Estatus WHERE CanalId IN @IdsPagina";
                         var estatusRows = connSigo.Query(queryEstatus, new { IdsPagina = idsPagina }).ToList();
                         var estatusDict = estatusRows.ToDictionary(e => (string)e.CanalId, e => e);
 
-                        // Traer registros y colores
                         string queryRegistros = @"
                         SELECT CanalId, Arete, Vista, Hallazgos, Cuadrantes, 
                             CuadrantesVerdes, CuadrantesAmarillos, CuadrantesRojos,
@@ -391,7 +465,6 @@ WHERE CONVERT(Date, c.FechaProduccion) = CONVERT(Date, GETDATE())
                             .GroupBy(r => (string)r.CanalId)
                             .ToDictionary(g => g.Key, g => g.ToList());
 
-                        // Integrar datos en la lista principal
                         foreach (var canal in listaCanales)
                         {
                             if (estatusDict.TryGetValue(canal.Id, out var est))
@@ -455,7 +528,6 @@ WHERE CONVERT(Date, c.FechaProduccion) = CONVERT(Date, GETDATE())
                 string connectionStringTif = _configuration.GetConnectionString("CadenaMeatTIF");
                 string connectionStringSigo = _configuration.GetConnectionString("DefaultConnection");
 
-                // Tu consulta optimizada y rapida
                 string query = @"
                 SELECT 
                     a.Arete,
@@ -561,20 +633,43 @@ WHERE CONVERT(Date, c.FechaProduccion) = CONVERT(Date, GETDATE())
                         }
                     }
 
+                    var fotosMap = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+                    try
+                    {
+                        using (var cmd = new SqlCommand("SELECT CanalId, Vista, RutaArchivo FROM PCC1B_Fotos", conn))
+                        using (var rdr = cmd.ExecuteReader())
+                        {
+                            while (rdr.Read())
+                            {
+                                string key = rdr["CanalId"]?.ToString()?.Trim() ?? "";
+                                string vista = rdr["Vista"]?.ToString()?.Trim().ToUpperInvariant() ?? "";
+                                string ruta = rdr["RutaArchivo"]?.ToString() ?? "";
+                                if (string.IsNullOrEmpty(key)) continue;
+                                if (!fotosMap.TryGetValue(key, out var dic)) { dic = new Dictionary<string, string>(); fotosMap[key] = dic; }
+                                dic[vista] = ruta;
+                            }
+                        }
+                    }
+                    catch { /* PCC1B_Fotos aún no existe */ }
+
                     foreach (var canal in listaCanales)
                     {
                         if (estatusMap.TryGetValue(canal.Id, out string estatus))
                             canal.Status = estatus;
+                        if (fotosMap.TryGetValue(canal.Id, out var fotos))
+                        {
+                            canal.FotoRealEXT = fotos.TryGetValue("EXT", out var fe) ? fe : "";
+                            canal.FotoRealINT = fotos.TryGetValue("INT", out var fi) ? fi : "";
+                        }
                     }
                 }
 
-                return Json(listaCanales); // Mandamos la lista limpia
+                return Json(listaCanales);
             }
             catch (Exception ex)
             {
                 return Json(new { error = ex.Message });
             }
         }
-
     }
 }
